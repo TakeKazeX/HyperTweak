@@ -8,7 +8,6 @@ import android.widget.ImageView
 import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.util.DebugLog
 import java.util.IdentityHashMap
-import kotlin.math.abs
 
 internal class CarrierHandoverController(private val host: Host) {
     interface Host {
@@ -35,8 +34,22 @@ internal class CarrierHandoverController(private val host: Host) {
         restoreEndpoints()
     }
     private val motions = IdentityHashMap<View, CarrierTypeMotion>()
-    private val duoTargets = SignalTargetOwnership<View>()
-    private val endpointStates = IdentityHashMap<View, EndpointState>()
+    private val duoTargets = CarrierTargetLeases(object : CarrierTargetLeases.Host<View, CarrierRowParts> {
+        override fun parts(target: View) = host.rowFor(target)
+        override fun ready(target: View, parts: CarrierRowParts) = when (target) {
+            parts.wifi -> parts.wifiReady
+            parts.type -> parts.cellularReady && !parts.typeSuppressed
+            parts.signal -> parts.cellularReady
+            else -> false
+        }
+        override fun usable(target: View) = isUsable(target)
+        override fun network(target: View, parts: CarrierRowParts) = target === parts.type || target === parts.wifi
+        override fun cellularReady(parts: CarrierRowParts) = parts.cellularReady
+        override fun stopMotion(target: View) { motions.remove(target)?.clear() }
+        override fun fadeLease(target: View, parts: CarrierRowParts, leased: Boolean) = parts.networkFade.lease(target as ImageView, leased)
+        override fun alpha(target: View, value: Float) { target.alpha = value }
+    })
+    private val endpointAlphas = CarrierEndpointAlphas<View>({ it.alpha }, { view, alpha -> view.alpha = alpha })
     fun applyHandoverGuarded(value: Float) {
         runCatching { applyHandover(value) }
             .onFailure { DebugLog.w(TAG, "carrier hand-over failed", it) }
@@ -81,9 +94,9 @@ internal class CarrierHandoverController(private val host: Host) {
             val fakeIcons = fakeRow?.let { host.findStatusContainer(it) as? ViewGroup }
             // fakeRow is non-null here: fakeIcons derives from it through ?.let.
             if (realIcons != null && fakeIcons != null) {
-                IconPositionHooker.updateLowerRowHandover(realIcons, fakeIcons, fakeRow.alpha, clamped)
+                IconHostPorts.positions.lowerRow(realIcons, fakeIcons, fakeRow.alpha, clamped)
                 lowerRowUpdated = true
-            } else IconPositionHooker.clearLowerRowHandover()
+            } else IconHostPorts.positions.clearLowerRow()
             for (parts in block.rows) {
                 val model = parts.model ?: continue
                 val entries = ArrayList<Pair<ImageView, View?>>(2)
@@ -115,7 +128,7 @@ internal class CarrierHandoverController(private val host: Host) {
                 }
             }
         }
-        if (!lowerRowUpdated) IconPositionHooker.clearLowerRowHandover()
+        if (!lowerRowUpdated) IconHostPorts.positions.clearLowerRow()
         motions.entries.removeIf { (view, motion) ->
             if (view in used) false else {
                 motion.clear()
@@ -131,7 +144,7 @@ internal class CarrierHandoverController(private val host: Host) {
     }
 
     fun releaseHandover() {
-        IconPositionHooker.clearLowerRowHandover()
+        IconHostPorts.positions.clearLowerRow()
         motions.forEach { (view, motion) ->
             motion.clear()
             host.rowFor(view)?.networkFade?.lease(view as ImageView, false)
@@ -206,53 +219,10 @@ internal class CarrierHandoverController(private val host: Host) {
     fun isUsable(view: View): Boolean =
         view.isAttachedToWindow && view.width > 0 && view.height > 0
 
-    private fun suppressEndpoint(view: View, ready: Boolean) {
-        val entry = endpointStates[view] ?: EndpointState(view).also { endpointStates[view] = it }
-        if (abs(view.alpha - entry.appliedAlpha) > .001f) entry.savedAlpha = view.alpha
-        val alpha = if (ready) 0f else entry.savedAlpha
-        if (view.alpha != alpha) view.alpha = alpha
-        entry.appliedAlpha = alpha
-    }
+    private fun suppressEndpoint(view: View, ready: Boolean) = endpointAlphas.suppress(view, ready)
 
-    fun restoreEndpoints(retained: Set<View> = emptySet()) {
-        if (endpointStates.isEmpty()) return
-        val iterator = endpointStates.entries.iterator()
-        while (iterator.hasNext()) {
-            val (view, entry) = iterator.next()
-            if (view in retained) continue
-            if (abs(view.alpha - entry.appliedAlpha) < .001f) view.alpha = entry.savedAlpha
-            iterator.remove()
-        }
-    }
+    fun restoreEndpoints(retained: Set<View> = emptySet()) = endpointAlphas.restore(retained)
 
-    fun acquireDuoTarget(target: View, owner: Any): Boolean {
-        val parts = host.rowFor(target) ?: return false
-        val ready = when (target) {
-            parts.wifi -> parts.wifiReady
-            parts.type -> parts.cellularReady && !parts.typeSuppressed
-            parts.signal -> parts.cellularReady
-            else -> false
-        }
-        if (!ready || !isUsable(target) || (target in duoTargets && !duoTargets.owns(target, owner))) return false
-        if (duoTargets.owns(target, owner)) return true
-        motions.remove(target)?.clear()
-        if (target === parts.type || target === parts.wifi) {
-            parts.networkFade.lease(target, true)
-        }
-        target.alpha = 1f
-        check(duoTargets.acquire(target, owner))
-        return true
-    }
-
-    fun releaseDuoTarget(target: View, owner: Any) {
-        if (!duoTargets.owns(target, owner)) return
-        duoTargets.release(target, owner)
-        val parts = host.rowFor(target)
-        if (parts != null && (target === parts.wifi || target === parts.type)) {
-            parts.networkFade.lease(target, false)
-        } else {
-            target.alpha = if (parts?.cellularReady == true) 1f else 0f
-        }
-    }
-
+    fun acquireDuoTarget(target: View, owner: Any) = duoTargets.acquire(target, owner)
+    fun releaseDuoTarget(target: View, owner: Any) = duoTargets.release(target, owner)
 }

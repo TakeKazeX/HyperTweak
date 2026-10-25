@@ -1,7 +1,6 @@
 package com.takekazex.hypertweak
 
 import android.content.ComponentName
-import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -11,14 +10,6 @@ import androidx.annotation.Keep
 import com.takekazex.hypertweak.hook.XposedServiceManager
 import com.takekazex.hypertweak.ui.app.AppContent
 import com.takekazex.hypertweak.util.update.UpdateManager
-
-internal fun getSystemAccentColor(context: Context): Int {
-    return try {
-        context.getColor(android.R.color.system_accent1_500)
-    } catch (e: Throwable) {
-        0xFF007AFF.toInt()
-    }
-}
 
 class MainActivity : ComponentActivity() {
 
@@ -40,14 +31,8 @@ class MainActivity : ComponentActivity() {
 
         val shortcutTarget = intent?.getStringExtra("shortcut_target")
         if (shortcutTarget == "lsposed") {
-            Thread {
-                try {
-                    Runtime.getRuntime().exec("su").outputStream.bufferedWriter().use { w ->
-                        w.write("am broadcast -a android.telephony.action.SECRET_CODE -d android_secret_code://5776733\nexit\n")
-                        w.flush()
-                    }
-                } catch (_: Exception) {}
-            }.start()
+            // Compatibility for already pinned shortcuts from previous APKs.
+            com.takekazex.hypertweak.util.LsposedManagerLauncher.open()
             finish()
             return
         }
@@ -73,7 +58,7 @@ class MainActivity : ComponentActivity() {
         // queries the package manager and touches the filesystem.
         updateManager = UpdateManager(this)
 
-        setContent { AppContent() }
+        setContent { AppContent(this, updateManager, ::isModuleActive) }
     }
 
     override fun onResume() {
@@ -91,18 +76,4 @@ class MainActivity : ComponentActivity() {
         super.onDestroy()
     }
 
-internal fun setLauncherIconVisible(context: Context, visible: Boolean) {
-    runCatching {
-        val state = if (visible) {
-            PackageManager.COMPONENT_ENABLED_STATE_ENABLED
-        } else {
-            PackageManager.COMPONENT_ENABLED_STATE_DISABLED
-        }
-        context.packageManager.setComponentEnabledSetting(
-            ComponentName(context, "com.takekazex.hypertweak.MainActivityAlias"),
-            state,
-            PackageManager.DONT_KILL_APP
-        )
-    }
-}
 }

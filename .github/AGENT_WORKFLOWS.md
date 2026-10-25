@@ -138,10 +138,15 @@ ASan/UBSan: ordinary settings publications, authenticated queries, foreign/malfo
 requests, unavailable APIs, owner retirement and original-callback failure. Capture
 borrowed Intent data before forwarding and reply only after the original succeeds.
 
-For native broadcast owned-string allocation/cleanup changes, run
-`python3 app/src/test/cpp/run_owned_rstring_test.py`. It compiles the production
-allocation and pre-setter branch with malloc failure injection and consuming
-setter stubs under ASan/UBSan; host stub success does not prove device broadcast delivery.
+For native broadcast allocation/cleanup or Dart publication receipt/retry changes, run
+`python3 app/src/test/cpp/run_broadcast_transport_test.py`. It compiles the actual
+`broadcast_transport.cpp` and `dart_state_publisher.cpp` under ASan/UBSan with consuming
+host setters, allocator failures, missing APIs, runtime/options failures, balanced cleanup,
+Rust result-tag semantics, owner/generation fencing, failed-send retries and a blocked
+publisher racing a newer observation. `run_owned_rstring_test.py` remains a compatibility
+entry for the same production tests. Run the existing status-query, GOT-chain, owner and
+IPC harnesses when changing their integration. State-observer changes also need the
+production assembly ABI test above. Host stubs do not prove device broadcast delivery.
 
 For changes to the actual eventfd worker or loader callbacks, also compile `app/src/test/cpp/native_rule_runtime_test.cpp` together with `native_rule_runtime.cpp` using the installed Android NDK `clang++`, `--target=aarch64-linux-android35`, `-std=c++17`, `-static-libstdc++`, the NativeRules include directory and `-Wl,--wrap=dlopen -Wl,--wrap=dlclose`. With device verification requested, run the resulting executable in `/data/local/tmp` and remove it afterward. This Bionic regression simulates LSPosed synchronous callback re-entry, rejects stale/conflicting revisions, and checks completed-worker idleness and updates arriving during preparation. A host-only scheduling test does not exercise Bionic TLS/loader behavior.
 

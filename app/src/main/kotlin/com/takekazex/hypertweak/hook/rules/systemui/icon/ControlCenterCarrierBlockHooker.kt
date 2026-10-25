@@ -293,7 +293,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
             rows = blocks.values.sumOf { it.rows.size },
             artworkReady = artwork != null,
             wifiBound = wifiSubscriptions.isBound,
-            mobileBound = StackedSignalHooker.mobilePipelineConnected
+            mobileBound = IconHostPorts.mobileReady()
         )
         if (evidence != lastRecoveryEvidence) {
             lastRecoveryEvidence = evidence
@@ -350,7 +350,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
             renderGate.cancel()
             handover.retire()
             maskedContainers.keys.toList().forEach { container ->
-                runCatching { IconPositionHooker.setCarrierMask(container, CarrierMask()) }
+                runCatching { IconHostPorts.positions.carrierMask(container, CarrierMask()) }
             }
             maskedContainers.clear()
             blocks.values.toList().forEach(::removeBlock)
@@ -626,13 +626,13 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
             runCatching { handover.releaseHandover() }
                 .onFailure { DebugLog.w(TAG, "shade-switch carrier release failed", it) }
             val controlCenterVisible = ShadeSwitchMotionPolicy.controlCenterAtRest(shadeSwitchProgress)
-            runCatching { LeftContainerHooker.onShadeSwitchStarted(controlCenterVisible) }
+            runCatching { IconHostPorts.left.shadeStarted(controlCenterVisible) }
                 .onFailure { DebugLog.w(TAG, "shade-switch left handover failed", it) }
             runCatching { SignalHandoverEvents.shade.started() }
                 .onFailure { DebugLog.w(TAG, "shade-switch Duo handover failed", it) }
         } else {
             val controlCenterVisible = ShadeSwitchMotionPolicy.controlCenterAtRest(shadeSwitchProgress)
-            runCatching { LeftContainerHooker.onShadeSwitchFinished(controlCenterVisible) }
+            runCatching { IconHostPorts.left.shadeFinished(controlCenterVisible) }
                 .onFailure { DebugLog.w(TAG, "shade-switch left settle failed", it) }
             runCatching { SignalHandoverEvents.shade.finished(controlCenterVisible) }
                 .onFailure { DebugLog.w(TAG, "shade-switch Duo settle failed", it) }
@@ -1258,7 +1258,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         // Once the cellular fallback is drawn, a connecting but non-default native Wi-Fi icon
         // must not appear at the right edge. The fixed network slot still shows cellular there.
         val mask = CarrierMask(cellular, cellular || wifiReplacement)
-        val acquired = IconPositionHooker.setCarrierMask(container, mask)
+        val acquired = IconHostPorts.positions.carrierMask(container, mask)
         if (acquired) {
             block.maskContainer = container
             if (mask.active) maskedContainers[container] = mask else maskedContainers.remove(container)
@@ -1279,7 +1279,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
             parts.signal.alpha = 0f; parts.networkSlot.alpha = 0f
         }
         val container = block.maskContainer ?: return
-        IconPositionHooker.setCarrierMask(container, CarrierMask())
+        IconHostPorts.positions.carrierMask(container, CarrierMask())
         maskedContainers.remove(container)
         block.maskContainer = null
     }

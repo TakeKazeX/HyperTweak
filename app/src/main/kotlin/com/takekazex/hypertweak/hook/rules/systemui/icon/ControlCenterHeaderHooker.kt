@@ -131,7 +131,7 @@ object ControlCenterHeaderHooker : StaticHooker() {
                     }
                     if (name == "onConfigChanged" || name == "onScreenLayoutSizeChanged" ||
                         name == "updateDimens") {
-                        IconManagerHooker.republishMergedLists()
+                        IconHostPorts.republish()
                     }
                 } } }
             }
@@ -212,7 +212,7 @@ object ControlCenterHeaderHooker : StaticHooker() {
 
     /** Re-shows the two-line carrier block after SystemUI hides it for a privacy prompt. */
     fun ensureCompactCarrierVisible(carrier: ViewGroup) {
-        if (!ControlCenterCarrierBlockHooker.ownsLayout(carrier) || !supportsCompactLayout(carrier)) return
+        if (!IconHostPorts.carrier.owns(carrier) || !supportsCompactLayout(carrier)) return
         compactCarrierVisibility.putIfAbsent(carrier, carrier.visibility)
         if (carrier.visibility != View.VISIBLE) {
             carrier.visibility = View.VISIBLE
@@ -222,7 +222,7 @@ object ControlCenterHeaderHooker : StaticHooker() {
 
     /** Keep the last host-requested visibility for reversible cleanup across privacy changes. */
     private fun reapplyCompactCarrierVisibility(carrier: ViewGroup) {
-        if (!ControlCenterCarrierBlockHooker.ownsLayout(carrier) || !supportsCompactLayout(carrier)) {
+        if (!IconHostPorts.carrier.owns(carrier) || !supportsCompactLayout(carrier)) {
             compactCarrierVisibility.remove(carrier)
             return
         }
@@ -236,10 +236,10 @@ object ControlCenterHeaderHooker : StaticHooker() {
     /** Called after carrier measurement too, so the right cluster tracks the actual first row. */
     fun updateCarrierLayout(carrier: ViewGroup, geometryOnly: Boolean = false) = guarded {
         val parent = carrier.parent as? ViewGroup ?: return@guarded
-        if (ControlCenterCarrierBlockHooker.ownsLayout(carrier) && supportsCompactLayout(carrier)) {
+        if (IconHostPorts.carrier.owns(carrier) && supportsCompactLayout(carrier)) {
             if (geometryOnly) {
                 compactHeaders[carrier]?.first?.get()?.takeIf { it.parent === parent }?.let { status ->
-                    changeTopMargin(status, ControlCenterCarrierBlockHooker.firstRowCenter(carrier) - status.measuredHeight / 2)
+                    changeTopMargin(status, IconHostPorts.carrier.firstCenter(carrier) - status.measuredHeight / 2)
                     return@guarded
                 }
             }
@@ -288,7 +288,7 @@ object ControlCenterHeaderHooker : StaticHooker() {
                 "endToEnd" to if (besidePrivacy) UNSET else PARENT_ID,
                 "topToTop" to carrier.id, "topToBottom" to UNSET,
                 "bottomToTop" to UNSET, "bottomToBottom" to UNSET,
-                "topMargin" to (ControlCenterCarrierBlockHooker.firstRowCenter(carrier) -
+                "topMargin" to (IconHostPorts.carrier.firstCenter(carrier) -
                     status.measuredHeight / 2),
                 "bottomMargin" to 0
             ))

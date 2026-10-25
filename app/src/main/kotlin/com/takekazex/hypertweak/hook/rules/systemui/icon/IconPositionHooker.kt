@@ -702,7 +702,7 @@ object IconPositionHooker : StaticHooker() {
             if (isHostLayoutVisible(view, slot, fake)) sources[slot] = view
         }
         val used = HashSet<View>()
-        val leftOwned = LeftContainerHooker.homeOwnedSlots()
+        val leftOwned = IconHostPorts.left.homeSlots()
         for (index in 0 until real.childCount) {
             val target = real.getChildAt(index)
             val slot = slotOf(target) ?: continue

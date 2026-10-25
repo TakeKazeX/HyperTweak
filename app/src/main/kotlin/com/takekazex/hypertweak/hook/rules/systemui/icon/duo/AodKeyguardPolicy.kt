@@ -106,6 +106,17 @@ internal object AodKeyguardPolicy {
         )
     }
 
+    /** A recorded transition holds its lease until the native dozing source can settle it. */
+    inline fun phaseForFrame(
+        enabled: Boolean, attached: Boolean, previous: AodHostPhase, dozing: () -> Boolean?
+    ): AodHostPhase = when {
+        !enabled -> AodHostPhase.UNKNOWN
+        previous == AodHostPhase.TRANSITIONING && dozing() == null ->
+            phaseAfterTransitionFrame(null, attached)
+        !attached -> AodHostPhase.UNKNOWN
+        else -> phaseFromDozing(dozing(), true)
+    }
+
     /**
      * Classifies the host from the authoritative dozing flag.
      *

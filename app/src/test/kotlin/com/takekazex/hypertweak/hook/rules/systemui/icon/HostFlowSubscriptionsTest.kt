@@ -74,4 +74,58 @@ class HostFlowSubscriptionsTest {
         assertEquals(1, job.cancellations)
     }
 
+
+    @Test fun everyRequiredAdapterOrSubscriptionFailureDropsQueuedInitialReplay() {
+        // Adapter = four required collectors; subscription = visibility + five signal collectors.
+        for (requiredCount in listOf(4, 6)) for (missingIndex in 0 until requiredCount) {
+            val queued = mutableListOf<() -> Unit>()
+            val consumers = mutableListOf<(Any?) -> Unit>()
+            val jobs = mutableListOf<Job>()
+            val acquired = mutableListOf<HostFlowCollector.Handle>()
+            val released = mutableListOf<HostFlowCollector.Handle>()
+            val output = mutableListOf<Any?>()
+            val subscriptions = HostFlowSubscriptions(
+                acquired = acquired::add, released = { released.addAll(it) },
+                post = { queued += it }, initialValue = { it },
+                collectHost = { _, flow, consumer, _ ->
+                    if (flow == missingIndex) null else {
+                        consumers += consumer
+                        Job().also(jobs::add).let(HostFlowCollector::Handle)
+                    }
+                }
+            )
+            val ready = (0 until requiredCount).all { index ->
+                subscriptions.collect(Unit, index, { true }, replay = true) { output += it }
+            }
+            assertFalse(ready)
+            subscriptions.clear()
+            queued.forEach { it() }
+            consumers.forEach { it("late emission from failed bind") }
+            assertTrue(output.isEmpty())
+            assertTrue(jobs.all { it.cancellations == 1 })
+            assertEquals(missingIndex, jobs.size)
+            assertEquals(acquired, released)
+            assertFalse(subscriptions.isBound)
+        }
+    }
+
+    @Test fun optionalFlowFailureDoesNotDiscardRequiredStateOrItsReplay() {
+        val queued = mutableListOf<() -> Unit>()
+        val job = Job()
+        val output = mutableListOf<Any?>()
+        val subscriptions = HostFlowSubscriptions(
+            post = { queued += it }, initialValue = { it },
+            collectHost = { _, flow, _, _ ->
+                if (flow == "optional") null else HostFlowCollector.Handle(job)
+            }
+        )
+        assertTrue(subscriptions.collect(Unit, "required", { true }, replay = true) { output += it })
+        assertFalse(subscriptions.collect(Unit, "optional", { true }, replay = true) { output += it })
+        queued.forEach { it() }
+        assertEquals(listOf("required"), output)
+        assertTrue(subscriptions.isBound)
+        assertEquals(0, job.cancellations)
+        subscriptions.clear()
+        assertEquals(1, job.cancellations)
+    }
 }

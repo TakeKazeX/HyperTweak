@@ -15,7 +15,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import com.takekazex.hypertweak.getSystemAccentColor
 
 @Composable
 fun rememberDeviceAccentColor(): Int {
@@ -38,4 +37,12 @@ fun rememberDeviceAccentColor(): Int {
         }
     }
     return accent
+}
+
+internal fun getSystemAccentColor(context: android.content.Context): Int {
+    return try {
+        context.getColor(android.R.color.system_accent1_500)
+    } catch (e: Throwable) {
+        0xFF007AFF.toInt()
+    }
 }

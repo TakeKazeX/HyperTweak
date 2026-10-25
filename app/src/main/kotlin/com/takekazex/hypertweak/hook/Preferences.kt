@@ -466,7 +466,7 @@ object Preferences {
 
     /** Serializes debug-log writes so log I/O never shares the object monitor with preference reads. */
     private fun appLocalStore(): SharedPreferences? = localSourcePrefs
-    private val appLogs = AppLogStore(::appLocalStore) { getBoolean(PlatformSettingsKeys.KEY_RECORD_LOGS, true) }
+    internal val appLogs = AppLogStore(::appLocalStore) { getBoolean(PlatformSettingsKeys.KEY_RECORD_LOGS, true) }
     private val logLock get() = appLogs.lock
 
     /**

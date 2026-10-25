@@ -121,9 +121,4 @@ internal class CarrierBlock(
     var maskContainer: Any? = null
 }
 
-internal class EndpointState(view: View) {
-    var savedAlpha: Float = view.alpha
-    var appliedAlpha: Float = view.alpha
-}
-
 /** Idempotent host environment binding, shared by package readiness and recovered views. */

@@ -113,6 +113,12 @@
             android:exported="true"
             android:permission="android.permission.INTERACT_ACROSS_USERS" />
         <activity
+            android:name="com.takekazex.hypertweak.ShortcutEntryActivity"
+            android:exported="true"
+            android:theme="@android:style/Theme.NoDisplay"
+            android:excludeFromRecents="true" />
+
+        <activity
             android:name="com.takekazex.hypertweak.MainActivity"
             android:configChanges="mcc|mnc|locale|touchscreen|keyboard|keyboardHidden|navigation|orientation|screenLayout|uiMode|screenSize|smallestScreenSize|density|layoutDirection|colorMode|fontWeightAdjustment|fontScale"
             android:exported="true"

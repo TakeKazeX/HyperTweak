@@ -4,7 +4,6 @@ import android.os.Process
 import android.os.SystemClock
 import android.util.Log
 import com.takekazex.hypertweak.BuildConfig
-import com.takekazex.hypertweak.hook.Preferences
 import io.github.libxposed.api.XposedInterface
 import java.io.File
 import java.text.SimpleDateFormat
@@ -16,6 +15,9 @@ import java.util.concurrent.ScheduledFuture
 import java.util.concurrent.TimeUnit
 
 object DebugLog {
+    private val backend = LogBackend()
+    internal fun bindStorage(level: () -> Int, sink: AppLogSink? = null) = backend.bind(level, sink)
+
     private const val TAG = "HyperTweak"
     private const val FLUSH_DELAY_MS = 750L
 
@@ -48,10 +50,10 @@ object DebugLog {
 
     /**
      * Drops stale logs when the session changes (app update / reinstall / device reboot) so
-     * records from separate runtimes don't pile up together. Requires [Preferences] to be ready.
+     * records from separate runtimes don't pile up together. Requires the app storage capability to be bound.
      */
     fun ensureSession() {
-        if (xposed == null) runCatching { Preferences.rotateLogSessionIfNeeded(sessionToken()) }
+        if (xposed == null) runCatching { backend.rotateSession(sessionToken()) }
             .onFailure { runCatching { Log.e(TAG, "log session rotation failed", it) } }
         emitSessionHeader()
     }
@@ -109,6 +111,7 @@ object DebugLog {
         // Never hold the scheduling monitor across log IO: producers must stay non-blocking.
         flushPendingLines()
         xposed = null
+        backend.retire()
     }
 
     fun d(scope: String, message: String) = write(Log.DEBUG, scope, message, null)
@@ -125,7 +128,7 @@ object DebugLog {
     private val flushLock = Any()
     private val records = PendingLogQueue<Pending>()
 
-    private fun currentThreshold(): Int = Preferences.logLevel(DEFAULT_LEVEL)
+    private fun currentThreshold(): Int = backend.level()
 
     private fun write(priority: Int, scope: String, message: String, throwable: Throwable?) {
         // Successful target registration is diagnostic detail. Severity never depends on words
@@ -209,7 +212,7 @@ object DebugLog {
         }
         // Hook-side remote preferences are a configuration channel, not a writable log store.
         // LSPosed owns those records; the app reads them through LsposedLogReader.
-        if (localLines.isNotEmpty()) runCatching { Preferences.appendDebugLogs(processTag, localLines) }
+        if (localLines.isNotEmpty()) runCatching { backend.append(processTag, localLines) }
             .onFailure { runCatching { Log.e(TAG, "app log persistence failed", it) } }
     }
 

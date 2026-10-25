@@ -1,13 +1,15 @@
 package com.takekazex.hypertweak.util
 
-import com.takekazex.hypertweak.hook.Preferences
 
 /** One snapshot for the log page and diagnostic provider, with explicit source availability. */
 object LogRepository {
+    @Volatile private var appRecords: () -> String = { "" }
+    internal fun bindAppRecords(read: () -> String) { appRecords = read }
+
     data class Snapshot(val records: List<LogRecord>, val lsposedStatus: LsposedLogReader.Status)
 
     fun read(includeLsposed: Boolean = true): Snapshot {
-        val app = LogCodec.parse(Preferences.getDebugLog())
+        val app = LogCodec.parse(appRecords())
         val framework = if (includeLsposed) LsposedLogReader.read()
             else LsposedLogReader.Result(emptyList(), LsposedLogReader.Status.ROOT_UNAVAILABLE)
         val merged = (app + framework.records).distinctBy {

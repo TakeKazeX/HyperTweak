@@ -129,4 +129,28 @@ class AodKeyguardPolicyTest {
         val duringAod = decide(AodHostPhase.DOZING, aodCustomized = true)
         assertFalse(duringAod.keepsNativeRow)
     }
+
+    @Test fun controllerFrameSequenceKeepsTransitionLeaseUntilDozingSettles() {
+        var phase = AodHostPhase.LIT
+        phase = AodKeyguardPolicy.phaseAfterHandshake(false, true, null)
+        assertEquals(AodHostPhase.TRANSITIONING, phase)
+        repeat(3) {
+            phase = AodKeyguardPolicy.phaseForFrame(true, true, phase) { null }
+            assertEquals(AodHostPhase.TRANSITIONING, phase)
+            assertEquals(KeyguardRowOwner.AOD_HOLD, decide(phase, fullAodRendering = false).owner)
+        }
+        phase = AodKeyguardPolicy.phaseForFrame(true, true, phase) { true }
+        assertEquals(AodHostPhase.DOZING, phase)
+        phase = AodKeyguardPolicy.phaseAfterHandshake(true, true, false)
+        assertEquals(AodHostPhase.LIT, phase)
+        assertTrue(decide(phase).keepsNativeRow)
+    }
+
+    @Test fun disabledOrDetachedControllerDoesNotQueryAnUnreadyManager() {
+        val unavailable = { error("native manager must not be read") }
+        assertEquals(AodHostPhase.UNKNOWN,
+            AodKeyguardPolicy.phaseForFrame(false, true, AodHostPhase.TRANSITIONING, unavailable))
+        assertEquals(AodHostPhase.UNKNOWN,
+            AodKeyguardPolicy.phaseForFrame(true, false, AodHostPhase.LIT, unavailable))
+    }
 }

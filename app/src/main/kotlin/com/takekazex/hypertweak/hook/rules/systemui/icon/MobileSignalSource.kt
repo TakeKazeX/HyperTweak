@@ -35,7 +35,6 @@ internal class MobileSignalSource(
     private val flowHandles = CopyOnWriteArrayList<HostFlowCollector.Handle>()
     private val bindings = LinkedHashMap<Int, SubBinding>()
     private val pendingBindings = IdentityHashMap<Any, Boolean>()
-    private val pendingEvents = LinkedHashMap<Int, PendingSubEvents>()
     @Volatile
     private var adapterFlowsReady = false
     private var factoryViewModelIds: Set<Int> = emptySet()
@@ -45,8 +44,8 @@ internal class MobileSignalSource(
     private var mobileIconsViewModelReference: WeakReference<Any>? = null
     private var adapterDiscoveryGeneration = 0L
     private var adapterDiscoveryAttempt = 0
-    var signalState = MobileSignalState()
-        private set
+    private val session = MobileSignalSession()
+    val signalState get() = session.state
     private data class SubBinding(
         val subId: Int,
         val miuiViewModel: Any,
@@ -55,43 +54,6 @@ internal class MobileSignalSource(
         val bindingGeneration: Long
     )
 
-    /** Flow values can arrive before the subscription-id StateFlow's first emission. */
-    private data class PendingSubEvents(
-        var signal: MobileSignalEvent.SignalModel? = null,
-        var dataConnected: MobileSignalEvent.DataConnected? = null,
-        var inService: MobileSignalEvent.InService? = null,
-        var roaming: MobileSignalEvent.Roaming? = null,
-        var nonTerrestrial: MobileSignalEvent.NonTerrestrial? = null,
-        var networkType: MobileSignalEvent.NetworkType? = null,
-        var wifiAvailable: MobileSignalEvent.WifiAvailable? = null,
-        var visibility: MobileSignalEvent.OriginalVisibility? = null
-    ) {
-        fun put(event: MobileSignalEvent) {
-            when (event) {
-                is MobileSignalEvent.SignalModel -> signal = event
-                is MobileSignalEvent.DataConnected -> dataConnected = event
-                is MobileSignalEvent.InService -> inService = event
-                is MobileSignalEvent.Roaming -> roaming = event
-                is MobileSignalEvent.NonTerrestrial -> nonTerrestrial = event
-                is MobileSignalEvent.NetworkType -> networkType = event
-                is MobileSignalEvent.WifiAvailable -> wifiAvailable = event
-                is MobileSignalEvent.OriginalVisibility -> visibility = event
-                else -> Unit
-            }
-        }
-
-        fun ordered(): List<MobileSignalEvent> = listOfNotNull(
-            signal,
-            dataConnected,
-            inService,
-            roaming,
-            nonTerrestrial,
-            networkType,
-            wifiAvailable,
-            visibility
-        )
-    }
-
     private fun newSubscriptions() = HostFlowSubscriptions(
         acquired = { flowHandles += it },
         released = { flowHandles.removeAll(it.toSet()) }
@@ -99,12 +61,8 @@ internal class MobileSignalSource(
     private val mainHandler = Handler(Looper.getMainLooper())
     private val enabled get() = active()
     private val renderStacked get() = replacesNative()
-    val complete: Boolean get() {
-        val state = signalState
-        return adapterFlowsReady && state.subscriptionOrder.isNotEmpty() &&
-            state.subscriptionOrder.size <= MobileSignalState.MAX_RENDER_ROWS &&
-            state.subscriptionOrder.all { it in factoryViewModelIds } &&
-            state.subscriptionOrder.all { bindings[it]?.bindingGeneration == generation.get() }
+    val complete: Boolean get() = session.complete(adapterFlowsReady, factoryViewModelIds) {
+        bindings[it]?.bindingGeneration == generation.get()
     }
     fun snapshot(): Any? = adapterReference?.get()
     fun restore(state: Any?) {
@@ -121,9 +79,8 @@ internal class MobileSignalSource(
         }
         bindings.clear()
         pendingBindings.clear()
-        pendingEvents.clear()
         factoryViewModelIds = emptySet()
-        signalState = MobileSignalState()
+        session.clear()
         adapterReference = null
         mobileIconsViewModelReference = null
         adapterDiscoveryGeneration = generation.get()
@@ -459,12 +416,7 @@ internal class MobileSignalSource(
             flowHandles.removeAll(binding.handles.toSet())
             if (binding.visibility != null) MobileSignalVisibility.unregister(binding.miuiViewModel)
         }
-        signalState = signalState.reduce(MobileSignalEvent.Subscriptions(ids))
-        pendingEvents.keys.toList().filter { it !in current }.forEach(pendingEvents::remove)
-        ids.forEach { id ->
-            val pending = pendingEvents.remove(id) ?: return@forEach
-            pending.ordered().forEach { signalState = signalState.reduce(it) }
-        }
+        session.subscriptions(ids)
         scheduleRender(bindingGeneration)
     }
 
@@ -516,23 +468,7 @@ internal class MobileSignalSource(
             return
         }
         if (!enabled || generation.get() != bindingGeneration) return
-        val subId = when (event) {
-            is MobileSignalEvent.SignalModel -> event.subId
-            is MobileSignalEvent.DataConnected -> event.subId
-            is MobileSignalEvent.InService -> event.subId
-            is MobileSignalEvent.Roaming -> event.subId
-            is MobileSignalEvent.NonTerrestrial -> event.subId
-            is MobileSignalEvent.NetworkType -> event.subId
-            is MobileSignalEvent.WifiAvailable -> event.subId
-            is MobileSignalEvent.OriginalVisibility -> event.subId
-            else -> null
-        }
-        if (subId != null && subId !in signalState.subscriptions) {
-            pendingEvents.getOrPut(subId) { PendingSubEvents() }.put(event)
-            return
-        }
-        signalState = signalState.reduce(event)
-        scheduleRender(bindingGeneration)
+        if (session.reduce(event)) scheduleRender(bindingGeneration)
     }
 
     private fun parseSignalModel(value: Any?): MobileSignalModel {

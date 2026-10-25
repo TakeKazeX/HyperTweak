@@ -9,7 +9,8 @@
 #include "widget_stack_rule.h"
 #include "native_rule_settings_dispatch.h"
 #include "dart_runtime_resolver.h"
-#include "dart_state_publication.h"
+#include "dart_state_publisher.h"
+#include "broadcast_transport.h"
 #include "dock_frame_rule.h"
 #include "launcher_profiles.h"
 #include "native_config.h"
@@ -137,10 +138,6 @@ volatile uint64_t g_dart_state_publish_callback_epoch = 0;
 __attribute__((used, visibility("hidden")))
 volatile uint64_t g_dart_state_publish_failure_epoch = 0;
 __attribute__((used, visibility("hidden")))
-volatile uint64_t g_dart_state_owner_published_epoch = 0;
-__attribute__((used, visibility("hidden")))
-volatile int64_t g_dart_state_owner_published_generation = 0;
-__attribute__((used, visibility("hidden")))
 volatile uint32_t g_dart_state_atfork_state = 0;
 __attribute__((used, visibility("hidden")))
 volatile uint32_t g_dart_state_publish_dispatcher_state = 0;
@@ -196,18 +193,9 @@ using ContextualLongPressHandlerFn = void (*)(void*, uint32_t);
 using ContextualSearchInvokeFn = uint8_t (*)(uint32_t);
 using DrawerStateHandlerFn = void (*)(int64_t, uint8_t*, uint32_t, uint32_t);
 
-struct RString {
-    char* data;
-    uintptr_t length;
-    uintptr_t capacity;
-    const void* vtable;
-};
-
-struct ROptionRString {
-    uint8_t tag;
-    uint8_t padding[7];
-    RString value;
-};
+using hypertweak::native::broadcast::RString;
+using hypertweak::native::broadcast::ROptionRString;
+using hypertweak::native::broadcast::NativeResult;
 
 struct BorrowedROptionRString {
     uint8_t tag;
@@ -218,15 +206,6 @@ struct BorrowedROptionRString {
 
 static_assert(sizeof(ROptionRString) == 40u);
 static_assert(sizeof(BorrowedROptionRString) == 24u);
-
-struct NativeResult {
-    // Public HyperOS Broadcast and PackageManager wrappers return a 48-byte
-    // RResult through x8 on launcher 4371.  This deliberately does not model
-    // ActivityManagerServiceProxyImpl::broadcastIntentWithFeature: that
-    // private Rust method writes only 16 bytes through x8, while an ordinary
-    // 16-byte C++ aggregate would instead return in x0/x1.
-    uint8_t bytes[48];
-};
 
 using PackageManagerHasSystemFeatureFn = NativeResult (*)(
         void*, const char*, size_t, uint32_t);
@@ -327,14 +306,7 @@ __attribute__((used)) volatile uint32_t g_launcher_entry_observed_count = 0;
 __attribute__((used)) volatile uint32_t
         g_launcher_entry_after_specialize_count = 0;
 __attribute__((used)) volatile uint64_t g_launcher_entry_observed_sequence = 0;
-// Readable through /proc/<pid>/mem even when launcher startup evicts logcat.
-// send_state values are documented next to SendNativeBroadcast().
-__attribute__((used)) uint32_t g_native_broadcast_send_count = 0;
-__attribute__((used)) uint32_t g_native_broadcast_send_kind = 0;
-__attribute__((used)) uint32_t g_native_broadcast_send_state = 0;
-__attribute__((used)) uint32_t g_native_broadcast_result_tag = 0;
-__attribute__((used)) uint32_t
-        g_native_broadcast_options_consumed = 0;
+hypertweak::native::broadcast::Transport g_broadcast_transport;
 __attribute__((used)) uint32_t g_arbiter_query_attempts = 0;
 __attribute__((used)) volatile uint32_t g_arbiter_state_marked_count = 0;
 __attribute__((used)) volatile uint32_t g_arbiter_state_passthrough_count = 0;
@@ -394,22 +366,10 @@ __attribute__((used)) volatile uint32_t
         g_contextual_motion_snapshot_current_y_bits = 0;
 // Drawer visibility encoding: 0 unknown, 1 Home/not-all-apps, 2 ALL_APPS.
 __attribute__((used)) volatile uint32_t g_drawer_state_hook_state = 0;
-__attribute__((used)) volatile uint32_t g_drawer_published_state = 0;
-__attribute__((used)) volatile int64_t g_drawer_published_generation = 0;
-__attribute__((used)) volatile uint64_t g_drawer_published_owner_epoch = 0;
-__attribute__((used)) volatile uint32_t g_drawer_state_publish_count = 0;
 __attribute__((used)) volatile uint32_t g_overview_state_hook_state = 0;
-__attribute__((used)) volatile uint32_t g_overview_published_state = 0;
-__attribute__((used)) volatile int64_t g_overview_published_generation = 0;
-__attribute__((used)) volatile uint64_t g_overview_published_owner_epoch = 0;
-__attribute__((used)) volatile uint32_t g_overview_state_publish_count = 0;
 // Home-surface encoding: 0 unknown, 1 inactive, 2 native Home child callback.
 // Keep the legacy editing readiness group and retirement counters as lifecycle keys.
 __attribute__((used)) volatile uint32_t g_editing_state_hook_state = 0;
-__attribute__((used)) volatile uint32_t g_editing_published_state = 0;
-__attribute__((used)) volatile int64_t g_editing_published_generation = 0;
-__attribute__((used)) volatile uint64_t g_editing_published_owner_epoch = 0;
-__attribute__((used)) volatile uint32_t g_editing_state_publish_count = 0;
 __attribute__((used)) volatile uint32_t g_editing_dart_repair_attempt_count = 0;
 __attribute__((used)) volatile uint32_t g_editing_dart_repair_success_count = 0;
 __attribute__((used)) volatile uint32_t g_editing_dart_repair_failure_count = 0;
@@ -429,9 +389,6 @@ __attribute__((used)) volatile uint32_t g_dart_drawer_repair_attempt_count = 0;
 __attribute__((used)) volatile uint32_t g_dart_drawer_repair_success_count = 0;
 __attribute__((used)) volatile uint32_t g_dart_drawer_repair_failure_count = 0;
 __attribute__((used)) volatile uint32_t g_dart_drawer_repair_stage = 0;
-uint32_t g_drawer_state_publish_in_flight = 0;
-uint32_t g_overview_state_publish_in_flight = 0;
-uint32_t g_editing_state_publish_in_flight = 0;
 uint32_t g_xiaoai_state_publish_in_flight = 0;
 __attribute__((used)) volatile uint32_t g_business_repair_attempt_count = 0;
 __attribute__((used)) volatile uint32_t g_business_repair_success_count = 0;
@@ -519,6 +476,13 @@ thread_local OwnedBackStreamIdentity g_owned_back_stream{};
 thread_local uintptr_t g_last_motion_event = 0u;
 thread_local uintptr_t g_last_dart_maintenance_down = 0u;
 
+bool SendDartState(miui_home_dart_state::Publisher::Channel, uint32_t, int64_t, uint64_t);
+void ReportDartState(miui_home_dart_state::Publisher::Channel, bool, uint32_t, int64_t);
+miui_home_dart_state::Publisher g_state_publications(
+    {&g_dart_state_owner_epoch, &g_systemui_arbiter_generation, &g_dart_state_publish_pending,
+     {&g_drawer_state_observation, &g_overview_state_observation, &g_editing_state_observation}},
+    {SendDartState, ReportDartState});
+
 template <typename T>
 T AtomicLoad(const T* value) {
     return __atomic_load_n(value, __ATOMIC_ACQUIRE);
@@ -589,10 +553,7 @@ void ResetDartStateOwnerForProcess(int32_t process_pid) {
                      __ATOMIC_RELEASE);
     __atomic_store_n(&g_dart_state_publish_failure_epoch, uint64_t{0},
                      __ATOMIC_RELEASE);
-    __atomic_store_n(&g_dart_state_owner_published_epoch, uint64_t{0},
-                     __ATOMIC_RELEASE);
-    __atomic_store_n(&g_dart_state_owner_published_generation, int64_t{0},
-                     __ATOMIC_RELEASE);
+    g_state_publications.ResetOwner();
     __atomic_store_n(&g_dart_state_publish_dispatcher_state, uint32_t{0},
                      __ATOMIC_RELEASE);
     g_last_dart_maintenance_down = 0u;
@@ -857,9 +818,6 @@ const miui_home_profiles::LauncherProfile* CurrentDartFeatureProfile() {
 
 int64_t CaptureRuntimeStatusQuery(void* intent);
 bool HandleRuntimeStatusQuery(int64_t nonce);
-void PublishDrawerStateForCurrentGeneration();
-void PublishOverviewStateForCurrentGeneration();
-void PublishHomeSurfaceStateForCurrentGeneration();
 void PublishPendingDartStates(uint64_t owner_epoch);
 bool EnsureDartStatePublisherThread();
 bool WakeDartStatePublisher();
@@ -906,25 +864,9 @@ bool IsExactCallbackName(const char* value, size_t length,
 
 bool MakeOwnedRString(const char* source, RString* output) {
     const auto* profile = CurrentBroadcastProfile();
-    if (source == nullptr || output == nullptr || g_launcher_base == nullptr ||
-            profile == nullptr || profile->rstring_vtable_offset == 0u) {
-        return false;
-    }
-    const size_t length = ConstStringLength(source);
-    char* data = static_cast<char*>(malloc(length == 0u ? 1u : length));
-    if (data == nullptr) return false;
-    if (length != 0u) memcpy(data, source, length);
-    output->data = data;
-    output->length = length;
-    output->capacity = length;
-    output->vtable = g_launcher_base + profile->rstring_vtable_offset;
-    return true;
-}
-
-bool MakeOwnedROptionString(const char* source, ROptionRString* output) {
-    if (output == nullptr) return false;
-    memset(output, 0, sizeof(*output));
-    return MakeOwnedRString(source, &output->value);
+    const void* vtable = g_launcher_base != nullptr && profile != nullptr && profile->rstring_vtable_offset != 0u
+            ? g_launcher_base + profile->rstring_vtable_offset : nullptr;
+    return hypertweak::native::broadcast::MakeString(source, output, vtable);
 }
 
 template <typename T>
@@ -1466,218 +1408,71 @@ bool EnsureRuleBroadcastOptions() {
 }
 
 bool SendNativeBroadcast(const char* action, void* extras) {
-    // 1 entered, 2 invalid runtime/library, 3 missing symbol, 4 Intent alloc,
-    // 5 owned string, 6 extras setter, 7 runtime pointer, 8 options bundle,
-    // 9 options field, 10 arm, 11 public send returned, 12 not consumed,
-    // 13 native error, 14 success. The state is terminal except for 1 and 11.
-    __atomic_fetch_add(&g_native_broadcast_send_count, uint32_t{1},
-                       __ATOMIC_RELAXED);
-    AtomicStore(&g_native_broadcast_send_kind,
-                StringsEqual(action, kArbiterQueryAction)
-                        ? uint32_t{1}
-                        : (StringsEqual(action, kAcceptedStateAction)
-                                ? uint32_t{2} : uint32_t{3}));
-    AtomicStore(&g_native_broadcast_result_tag, uint32_t{0xffffffffu});
-    AtomicStore(&g_native_broadcast_options_consumed, uint32_t{0});
-    AtomicStore(&g_native_broadcast_send_state, uint32_t{1});
-    IntentDefaultFn intent_default = ResolveLauncherSymbol<IntentDefaultFn>(
-            "Intent_default");
-    IntentDropFn intent_drop = ResolveLauncherSymbol<IntentDropFn>("Intent_drop");
-    IntentSetStringFn set_action = ResolveLauncherSymbol<IntentSetStringFn>(
-            "Intent_set_action");
-    IntentSetStringFn set_package = ResolveLauncherSymbol<IntentSetStringFn>(
-            "Intent_set_package");
-    IntentSetExtrasFn set_extras = ResolveLauncherSymbol<IntentSetExtrasFn>(
-            "Intent_set_extras");
-    BroadcastSendFn send = ResolveLauncherSymbol<BroadcastSendFn>(
-            "Broadcast_send_broadcast");
-    RuntimeStrongFn inc = ResolveLauncherSymbol<RuntimeStrongFn>(
-            "Runtime_inc_strong");
-    RuntimeStrongFn dec = ResolveLauncherSymbol<RuntimeStrongFn>(
-            "Runtime_dec_strong");
-    BundleDefaultFn bundle_default = ResolveLauncherSymbol<BundleDefaultFn>(
-            "Bundle_default");
-    BundleDropFn bundle_drop = ResolveLauncherSymbol<BundleDropFn>(
-            "Bundle_drop");
+    using namespace hypertweak::native::broadcast;
     const auto* profile = CurrentBroadcastProfile();
-    void* captured_runtime = __atomic_load_n(&g_last_broadcast_runtime,
-                                             __ATOMIC_ACQUIRE);
-    const uint32_t runtime_state = g_launcher_base != nullptr && profile != nullptr
-            ? AtomicLoad(reinterpret_cast<uint32_t*>(
-                    g_launcher_base + profile->runtime_state_offset))
-            : 0u;
-    if (g_launcher_base == nullptr || profile == nullptr ||
-            (captured_runtime == nullptr &&
-             runtime_state != profile->runtime_ready_value)) {
-        __android_log_print(ANDROID_LOG_WARN, kLogTag,
-                "native broadcast rejected: base=%p profile=%p state=0x%x expected=0x%x",
-                g_launcher_base, profile, runtime_state,
-                profile != nullptr ? profile->runtime_ready_value : 0u);
-        AtomicStore(&g_native_broadcast_send_state, uint32_t{2});
-        return false;
+    void* captured = __atomic_load_n(&g_last_broadcast_runtime, __ATOMIC_ACQUIRE);
+    const bool valid = g_launcher_base != nullptr && profile != nullptr;
+    const uint32_t runtime_state = valid ? AtomicLoad(reinterpret_cast<uint32_t*>(
+        g_launcher_base + profile->runtime_state_offset)) : 0u;
+    const Api api{
+        ResolveLauncherSymbol<IntentDefaultFn>("Intent_default"),
+        ResolveLauncherSymbol<IntentDropFn>("Intent_drop"),
+        ResolveLauncherSymbol<IntentSetStringFn>("Intent_set_action"),
+        ResolveLauncherSymbol<IntentSetStringFn>("Intent_set_package"),
+        ResolveLauncherSymbol<IntentSetExtrasFn>("Intent_set_extras"),
+        ResolveLauncherSymbol<BroadcastSendFn>("Broadcast_send_broadcast"),
+        ResolveLauncherSymbol<RuntimeStrongFn>("Runtime_inc_strong"),
+        ResolveLauncherSymbol<RuntimeStrongFn>("Runtime_dec_strong"),
+        ResolveLauncherSymbol<BundleDefaultFn>("Bundle_default"),
+        ResolveLauncherSymbol<BundleDropFn>("Bundle_drop"),
+        EnsureRuleBroadcastOptions, AddBundleI32, ArmBroadcastOptions, DisarmBroadcastOptions
+    };
+    const Context context{api, valid, runtime_state, valid ? profile->runtime_ready_value : 0u, captured,
+        valid ? reinterpret_cast<void**>(g_launcher_base + profile->runtime_pointer_offset) : nullptr,
+        valid && profile->rstring_vtable_offset ? g_launcher_base + profile->rstring_vtable_offset : nullptr};
+    const uint32_t kind = StringsEqual(action, kArbiterQueryAction) ? 1u :
+        (StringsEqual(action, kAcceptedStateAction) ? 2u : 3u);
+    const bool sent = g_broadcast_transport.Send(context, action, extras, kind);
+    if (!sent) {
+        const uint32_t state = AtomicLoad(&g_broadcast_transport.diagnostics.state);
+        const int priority = state == 8u || state == 9u || state == 12u ? ANDROID_LOG_ERROR : ANDROID_LOG_WARN;
+        __android_log_print(priority, kLogTag, "native broadcast failed: state=%u runtime=0x%x", state, runtime_state);
     }
-    if (!EnsureRuleBroadcastOptions()) return false;
-    if (intent_default == nullptr || intent_drop == nullptr ||
-            set_action == nullptr || set_package == nullptr ||
-            send == nullptr || inc == nullptr || dec == nullptr ||
-            bundle_default == nullptr || bundle_drop == nullptr) {
-        AtomicStore(&g_native_broadcast_send_state, uint32_t{3});
-        return false;
-    }
-    void* intent = intent_default();
-    if (intent == nullptr) {
-        AtomicStore(&g_native_broadcast_send_state, uint32_t{4});
-        return false;
-    }
-    ROptionRString owned_action{};
-    ROptionRString owned_package{};
-    if (!MakeOwnedROptionString(action, &owned_action) ||
-            !MakeOwnedROptionString(kSystemUiPackage, &owned_package)) {
-        // Neither setter has consumed these RStrings yet. Their buffers use malloc;
-        // the successful setters consume/drop through the host RString vtable.
-        free(owned_action.value.data);
-        free(owned_package.value.data);
-        AtomicStore(&g_native_broadcast_send_state, uint32_t{5});
-        intent_drop(intent);
-        return false;
-    }
-    set_action(intent, &owned_action);
-    set_package(intent, &owned_package);
-    if (extras != nullptr) {
-        if (set_extras == nullptr) {
-            AtomicStore(&g_native_broadcast_send_state, uint32_t{6});
-            intent_drop(intent);
-            return false;
-        }
-        set_extras(intent, extras);
-    }
-    void* runtime = captured_runtime;
-    if (reinterpret_cast<uintptr_t>(runtime) < 0x100000000ull) {
-        runtime = nullptr;
-    }
-    if (runtime == nullptr) {
-        runtime = AtomicLoad(reinterpret_cast<void**>(
-                g_launcher_base + profile->runtime_pointer_offset));
-    }
-    if (runtime == nullptr) {
-        __android_log_print(ANDROID_LOG_WARN, kLogTag,
-                "native broadcast rejected: runtime pointer null offset=0x%zx state=0x%x",
-                profile->runtime_pointer_offset, runtime_state);
-        AtomicStore(&g_native_broadcast_send_state, uint32_t{7});
-        intent_drop(intent);
-        return false;
-    }
-
-    // BroadcastOptions.setShareIdentityEnabled(true) is encoded as bit 4 in
-    // android:broadcast.flags.  The public HyperOS send wrapper has no options
-    // parameter, so arm a thread-scoped one-shot for its exact private call.
-    void* options = bundle_default();
-    if (options == nullptr) {
-        AtomicStore(&g_native_broadcast_send_state, uint32_t{8});
-        Log(ANDROID_LOG_ERROR,
-            "failed to create share-identity broadcast options");
-        intent_drop(intent);
-        return false;
-    }
-    if (!AddBundleI32(options, "android:broadcast.flags", 16)) {
-        AtomicStore(&g_native_broadcast_send_state, uint32_t{9});
-        Log(ANDROID_LOG_ERROR,
-            "failed to create share-identity broadcast options");
-        bundle_drop(options);
-        intent_drop(intent);
-        return false;
-    }
-
-    inc(runtime);
-    uintptr_t option_owner_thread = 0u;
-    if (!ArmBroadcastOptions(options, &option_owner_thread)) {
-        AtomicStore(&g_native_broadcast_send_state, uint32_t{10});
-        dec(runtime);
-        bundle_drop(options);
-        intent_drop(intent);
-        return false;
-    }
-    void* shared_runtime = runtime;
-    const NativeResult result = send(&shared_runtime, intent);
-    AtomicStore(&g_native_broadcast_send_state, uint32_t{11});
-    AtomicStore(&g_native_broadcast_result_tag,
-                static_cast<uint32_t>(result.bytes[0]));
-    const bool options_consumed =
-            DisarmBroadcastOptions(option_owner_thread);
-    AtomicStore(&g_native_broadcast_options_consumed,
-                options_consumed ? uint32_t{1} : uint32_t{0});
-    dec(runtime);
-    bundle_drop(options);
-    intent_drop(intent);
-    if (!options_consumed) {
-        AtomicStore(&g_native_broadcast_send_state, uint32_t{12});
-        Log(ANDROID_LOG_ERROR,
-            "share-identity broadcast options were not consumed");
-        return false;
-    }
-    if (!IsNativeSuccess(result)) {
-        AtomicStore(&g_native_broadcast_send_state, uint32_t{13});
-        return false;
-    }
-    AtomicStore(&g_native_broadcast_send_state, uint32_t{14});
-    return true;
+    return sent;
 }
 
-constexpr uint64_t kDartObservationStateMask = uint64_t{3};
+bool SendDartState(miui_home_dart_state::Publisher::Channel channel, uint32_t state,
+                   int64_t generation, uint64_t owner_epoch) {
+    BundleDefaultFn bundle_default = ResolveLauncherSymbol<BundleDefaultFn>("Bundle_default");
+    void* extras = bundle_default == nullptr ? nullptr : bundle_default();
+    const char* keys[] = {"drawer_visible", "overview_visible", "launcher_home_surface_visible"};
+    return extras != nullptr &&
+        (channel == miui_home_dart_state::Publisher::Owner || AddBundleBool(extras, keys[channel], state == 2u)) &&
+        AddBundleI64(extras, kLauncherStateOwnerEpochExtra, static_cast<int64_t>(owner_epoch)) &&
+        AddBundleI64(extras, kInputArbiterGenerationExtra, generation) &&
+        SendNativeBroadcast(kAcceptedStateAction, extras);
+}
+void ReportDartState(miui_home_dart_state::Publisher::Channel channel, bool sent,
+                     uint32_t state, int64_t generation) {
+    const char* names[] = {"drawer", "Overview", "Home surface", "Dart owner reset"};
+    if (sent) __android_log_print(ANDROID_LOG_INFO, kLogTag,
+        "published native %s visible=%u generation=%lld", names[channel], state == 2u ? 1u : 0u,
+        static_cast<long long>(generation));
+    else __android_log_print(ANDROID_LOG_WARN, kLogTag, "native %s state broadcast failed", names[channel]);
+}
+
 
 uint64_t PackDartStateObservation(uint64_t owner_epoch, uint32_t state) {
     return (owner_epoch << 2u) | state;
 }
 
-uint32_t DartStateObservationValue(uint64_t observation) {
-    return static_cast<uint32_t>(observation & kDartObservationStateMask);
-}
+
 
 uint64_t DartStateObservationEpoch(uint64_t observation) {
     return observation >> 2u;
 }
 
-void PublishDrawerStateForCurrentGeneration() {
-    const uint64_t owner_epoch = AtomicLoad(&g_dart_state_owner_epoch);
-    const uint64_t observation = AtomicLoad(&g_drawer_state_observation);
-    const uint32_t observed = DartStateObservationValue(observation);
-    const int64_t generation = AtomicLoad(&g_systemui_arbiter_generation);
-    if (DartStateObservationEpoch(observation) != owner_epoch ||
-            (observed != 1u && observed != 2u) || generation <= 0 ||
-            (AtomicLoad(&g_drawer_published_state) == observed &&
-             AtomicLoad(&g_drawer_published_generation) == generation &&
-             AtomicLoad(&g_drawer_published_owner_epoch) == owner_epoch)) {
-        return;
-    }
-    uint32_t expected = 0u;
-    if (!__atomic_compare_exchange_n(
-                &g_drawer_state_publish_in_flight, &expected, uint32_t{1},
-                false, __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE)) {
-        return;
-    }
-    BundleDefaultFn bundle_default = ResolveLauncherSymbol<BundleDefaultFn>(
-            "Bundle_default");
-    void* extras = bundle_default == nullptr ? nullptr : bundle_default();
-    const bool sent = extras != nullptr &&
-            AddBundleBool(extras, "drawer_visible", observed == 2u) &&
-            AddBundleI64(extras, kLauncherStateOwnerEpochExtra,
-                         static_cast<int64_t>(owner_epoch)) &&
-            AddBundleI64(extras, kInputArbiterGenerationExtra, generation) &&
-            SendNativeBroadcast(kAcceptedStateAction, extras);
-    if (miui_home_dart_state::RecordPublication(sent, observed, generation, owner_epoch,
-            &g_drawer_published_state, &g_drawer_published_generation,
-            &g_drawer_published_owner_epoch)) {
-        __atomic_fetch_add(&g_drawer_state_publish_count, uint32_t{1},
-                           __ATOMIC_RELAXED);
-        __android_log_print(ANDROID_LOG_INFO, kLogTag,
-                            "published native drawer visible=%u generation=%lld",
-                            observed == 2u ? 1u : 0u,
-                            static_cast<long long>(generation));
-    } else if (!sent) {
-        Log(ANDROID_LOG_WARN, "native drawer state broadcast failed");
-    }
-    AtomicStore(&g_drawer_state_publish_in_flight, uint32_t{0});
-}
+
 
 void HookDrawerStateHandler(int64_t port, uint8_t* data, uint32_t length,
                             uint32_t capacity) {
@@ -1708,190 +1503,14 @@ void HookDrawerStateHandler(int64_t port, uint8_t* data, uint32_t length,
     WakeDartStatePublisher();
 }
 
-void PublishOverviewStateForCurrentGeneration() {
-    const uint64_t owner_epoch = AtomicLoad(&g_dart_state_owner_epoch);
-    const uint64_t observation = AtomicLoad(&g_overview_state_observation);
-    const uint32_t observed = DartStateObservationValue(observation);
-    const int64_t generation = AtomicLoad(&g_systemui_arbiter_generation);
-    if (DartStateObservationEpoch(observation) != owner_epoch ||
-            (observed != 1u && observed != 2u) || generation <= 0 ||
-            (AtomicLoad(&g_overview_published_state) == observed &&
-             AtomicLoad(&g_overview_published_generation) == generation &&
-             AtomicLoad(&g_overview_published_owner_epoch) == owner_epoch)) {
-        return;
-    }
-    uint32_t expected = 0u;
-    if (!__atomic_compare_exchange_n(
-                &g_overview_state_publish_in_flight, &expected, uint32_t{1},
-                false, __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE)) {
-        return;
-    }
-    BundleDefaultFn bundle_default = ResolveLauncherSymbol<BundleDefaultFn>(
-            "Bundle_default");
-    void* extras = bundle_default == nullptr ? nullptr : bundle_default();
-    const bool sent = extras != nullptr &&
-            AddBundleBool(extras, "overview_visible", observed == 2u) &&
-            AddBundleI64(extras, kLauncherStateOwnerEpochExtra,
-                         static_cast<int64_t>(owner_epoch)) &&
-            AddBundleI64(extras, kInputArbiterGenerationExtra, generation) &&
-            SendNativeBroadcast(kAcceptedStateAction, extras);
-    if (miui_home_dart_state::RecordPublication(sent, observed, generation, owner_epoch,
-            &g_overview_published_state, &g_overview_published_generation,
-            &g_overview_published_owner_epoch)) {
-        __atomic_fetch_add(&g_overview_state_publish_count, uint32_t{1},
-                           __ATOMIC_RELAXED);
-        __android_log_print(ANDROID_LOG_INFO, kLogTag,
-                            "published native Overview visible=%u generation=%lld",
-                            observed == 2u ? 1u : 0u,
-                            static_cast<long long>(generation));
-    } else if (!sent) {
-        Log(ANDROID_LOG_WARN, "native Overview state broadcast failed");
-    }
-    AtomicStore(&g_overview_state_publish_in_flight, uint32_t{0});
-}
 
-void PublishHomeSurfaceStateForCurrentGeneration() {
-    const uint64_t owner_epoch = AtomicLoad(&g_dart_state_owner_epoch);
-    const uint64_t observation = AtomicLoad(&g_editing_state_observation);
-    const uint32_t observed = DartStateObservationValue(observation);
-    const int64_t generation = AtomicLoad(&g_systemui_arbiter_generation);
-    if (DartStateObservationEpoch(observation) != owner_epoch ||
-            (observed != 1u && observed != 2u) || generation <= 0 ||
-            (AtomicLoad(&g_editing_published_state) == observed &&
-             AtomicLoad(&g_editing_published_generation) == generation &&
-             AtomicLoad(&g_editing_published_owner_epoch) == owner_epoch)) {
-        return;
-    }
-    uint32_t expected = 0u;
-    if (!__atomic_compare_exchange_n(
-                &g_editing_state_publish_in_flight, &expected, uint32_t{1},
-                false, __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE)) {
-        return;
-    }
-    BundleDefaultFn bundle_default = ResolveLauncherSymbol<BundleDefaultFn>(
-            "Bundle_default");
-    void* extras = bundle_default == nullptr ? nullptr : bundle_default();
-    const bool sent = extras != nullptr &&
-            AddBundleBool(extras, "launcher_home_surface_visible", observed == 2u) &&
-            AddBundleI64(extras, kLauncherStateOwnerEpochExtra,
-                         static_cast<int64_t>(owner_epoch)) &&
-            AddBundleI64(extras, kInputArbiterGenerationExtra, generation) &&
-            SendNativeBroadcast(kAcceptedStateAction, extras);
-    if (miui_home_dart_state::RecordPublication(sent, observed, generation, owner_epoch,
-            &g_editing_published_state, &g_editing_published_generation,
-            &g_editing_published_owner_epoch)) {
-        __atomic_fetch_add(&g_editing_state_publish_count, uint32_t{1},
-                           __ATOMIC_RELAXED);
-        __android_log_print(ANDROID_LOG_INFO, kLogTag,
-                            "published native Home surface visible=%u generation=%lld",
-                            observed == 2u ? 1u : 0u,
-                            static_cast<long long>(generation));
-    } else if (!sent) {
-        Log(ANDROID_LOG_WARN, "native Home-surface state broadcast failed");
-    }
-    AtomicStore(&g_editing_state_publish_in_flight, uint32_t{0});
-}
 
-bool PublishDartStateOwnerForCurrentGeneration(uint64_t owner_epoch) {
-    const int64_t generation = AtomicLoad(&g_systemui_arbiter_generation);
-    if (owner_epoch == 0u ||
-            AtomicLoad(&g_dart_state_owner_epoch) != owner_epoch ||
-            generation <= 0) {
-        return false;
-    }
-    if (AtomicLoad(&g_dart_state_owner_published_epoch) == owner_epoch &&
-            AtomicLoad(&g_dart_state_owner_published_generation) ==
-                    generation) {
-        return true;
-    }
-    BundleDefaultFn bundle_default = ResolveLauncherSymbol<BundleDefaultFn>(
-            "Bundle_default");
-    void* extras = bundle_default == nullptr ? nullptr : bundle_default();
-    const bool sent = extras != nullptr &&
-            AddBundleI64(extras, kLauncherStateOwnerEpochExtra,
-                         static_cast<int64_t>(owner_epoch)) &&
-            AddBundleI64(extras, kInputArbiterGenerationExtra, generation) &&
-            SendNativeBroadcast(kAcceptedStateAction, extras);
-    if (sent && AtomicLoad(&g_dart_state_owner_epoch) == owner_epoch &&
-            AtomicLoad(&g_systemui_arbiter_generation) == generation) {
-        __atomic_store_n(&g_dart_state_owner_published_epoch, owner_epoch,
-                         __ATOMIC_RELEASE);
-        __atomic_store_n(&g_dart_state_owner_published_generation, generation,
-                         __ATOMIC_RELEASE);
-        return true;
-    }
-    if (!sent) {
-        Log(ANDROID_LOG_WARN, "native Dart owner reset broadcast failed");
-    }
-    return false;
-}
+
+
+
 
 void PublishPendingDartStates(uint64_t owner_epoch) {
-    if (owner_epoch == 0u ||
-            AtomicLoad(&g_dart_state_owner_epoch) != owner_epoch) {
-        return;
-    }
-    const uint32_t pending = __atomic_exchange_n(
-            &g_dart_state_publish_pending, uint32_t{0}, __ATOMIC_ACQ_REL);
-    if (pending == 0u) return;
-
-    if ((pending & kDartOwnerPending) != 0u) {
-        PublishDartStateOwnerForCurrentGeneration(owner_epoch);
-    }
-    if ((pending & kDartDrawerPending) != 0u) {
-        PublishDrawerStateForCurrentGeneration();
-    }
-    if ((pending & kDartOverviewPending) != 0u) {
-        PublishOverviewStateForCurrentGeneration();
-    }
-    if ((pending & kDartEditingPending) != 0u) {
-        PublishHomeSurfaceStateForCurrentGeneration();
-    }
-
-    // A concurrent Dart transition, an in-flight publisher, or a failed send
-    // must remain eligible for the next authenticated arbiter receive. Re-arm
-    // only the state whose observed value is still not published for the
-    // current generation.
-    if (AtomicLoad(&g_dart_state_owner_epoch) != owner_epoch) return;
-    const int64_t generation = AtomicLoad(&g_systemui_arbiter_generation);
-    uint32_t retry = 0u;
-    if ((pending & kDartOwnerPending) != 0u &&
-            (AtomicLoad(&g_dart_state_owner_published_epoch) != owner_epoch ||
-             AtomicLoad(&g_dart_state_owner_published_generation) !=
-                     generation)) {
-        retry |= kDartOwnerPending;
-    }
-    const uint64_t drawer = AtomicLoad(&g_drawer_state_observation);
-    if ((pending & kDartDrawerPending) != 0u &&
-            DartStateObservationEpoch(drawer) == owner_epoch &&
-            (DartStateObservationValue(drawer) !=
-                     AtomicLoad(&g_drawer_published_state) ||
-             AtomicLoad(&g_drawer_published_generation) != generation ||
-             AtomicLoad(&g_drawer_published_owner_epoch) != owner_epoch)) {
-        retry |= kDartDrawerPending;
-    }
-    const uint64_t overview = AtomicLoad(&g_overview_state_observation);
-    if ((pending & kDartOverviewPending) != 0u &&
-            DartStateObservationEpoch(overview) == owner_epoch &&
-            (DartStateObservationValue(overview) !=
-                     AtomicLoad(&g_overview_published_state) ||
-             AtomicLoad(&g_overview_published_generation) != generation ||
-             AtomicLoad(&g_overview_published_owner_epoch) != owner_epoch)) {
-        retry |= kDartOverviewPending;
-    }
-    const uint64_t editing = AtomicLoad(&g_editing_state_observation);
-    if ((pending & kDartEditingPending) != 0u &&
-            DartStateObservationEpoch(editing) == owner_epoch &&
-            (DartStateObservationValue(editing) !=
-                     AtomicLoad(&g_editing_published_state) ||
-             AtomicLoad(&g_editing_published_generation) != generation ||
-             AtomicLoad(&g_editing_published_owner_epoch) != owner_epoch)) {
-        retry |= kDartEditingPending;
-    }
-    if (retry != 0u) {
-        __atomic_fetch_or(&g_dart_state_publish_pending, retry,
-                          __ATOMIC_RELEASE);
-    }
+    g_state_publications.Drain(owner_epoch);
 }
 
 void* DartStatePublisherThreadMain(void* data) {
@@ -2365,9 +1984,9 @@ bool HandleRuntimeStatusQuery(int64_t nonce) {
             "runtime status response sent=%u nonce=%lld state=%u send_state=%u result=%u options=%u",
             sent ? 1u : 0u, static_cast<long long>(nonce),
             AtomicLoad(&g_runtime_status_last_state),
-            AtomicLoad(&g_native_broadcast_send_state),
-            AtomicLoad(&g_native_broadcast_result_tag),
-            AtomicLoad(&g_native_broadcast_options_consumed));
+            AtomicLoad(&g_broadcast_transport.diagnostics.state),
+            AtomicLoad(&g_broadcast_transport.diagnostics.result_tag),
+            AtomicLoad(&g_broadcast_transport.diagnostics.options_consumed));
     return sent;
 }
 
@@ -2385,9 +2004,9 @@ bool TryQuerySystemUiArbiter(uint32_t maximum_attempts) {
                                 "SystemUI arbiter query attempt=%u sent=%u "
                                 "state=%u tag=%u consumed=%u",
                                 next, sent ? 1u : 0u,
-                                AtomicLoad(&g_native_broadcast_send_state),
-                                AtomicLoad(&g_native_broadcast_result_tag),
-                                AtomicLoad(&g_native_broadcast_options_consumed));
+                                AtomicLoad(&g_broadcast_transport.diagnostics.state),
+                                AtomicLoad(&g_broadcast_transport.diagnostics.result_tag),
+                                AtomicLoad(&g_broadcast_transport.diagnostics.options_consumed));
             return sent;
         }
     }

@@ -74,14 +74,9 @@ internal class DuoAodController(owner: BaseHooker, private val host: Host) : Hoo
     fun keyguardDecision(binding: DuoBinding): KeyguardRowDecision {
         val root = binding.keyguardRoot
             ?: return KeyguardRowDecision.of(AodHostPhase.UNKNOWN, KeyguardRowOwner.DUO)
-        val phase = when {
-            !host.enabled -> AodHostPhase.UNKNOWN
-            // A recorded transition is confirmed by the dozing flag; without one the host can
-            // prove neither state, so the transition keeps the row for this pass.
-            binding.rowPhase == AodHostPhase.TRANSITIONING && dozingRead?.invoke() == null ->
-                AodKeyguardPolicy.phaseAfterTransitionFrame(null, root.isAttachedToWindow)
-            else -> phaseFor(root)
-        }
+        val phase = AodKeyguardPolicy.phaseForFrame(
+            host.enabled, root.isAttachedToWindow, binding.rowPhase
+        ) { dozingRead?.invoke() }
         val settings = if (phase == AodHostPhase.LIT || phase == AodHostPhase.UNKNOWN)
             AodIconSettings.defaults() else AodIconSettings.current()
         return AodKeyguardPolicy.decide(

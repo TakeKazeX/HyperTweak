@@ -184,16 +184,13 @@ internal class ImeRaiseController(
             DebugLog.d(TAG, "raise: foreign paddingBottom=$currentPb, left alone")
             return
         }
-
-        // Count our own current padding back in: the measured content bottom already reflects it.
-        val baseContentBottom = deepestVisibleBottom(view) + currentPb
+        val contentBottom = deepestVisibleBottom(view)
+        val desiredPb = ImeRaisePolicy.desiredPadding(
+            height = view.height, contentBottom = contentBottom, currentPadding = currentPb,
+            captionHeight = target, tolerance = dpToPx(RAISE_CLEAR_TOLERANCE_DP, service.resources)
+        )
+        val baseContentBottom = contentBottom + currentPb
         val barTop = view.height - target
-        val tolerancePx = dpToPx(RAISE_CLEAR_TOLERANCE_DP, service.resources)
-        val shortfall = baseContentBottom - barTop
-        val desiredPb = when {
-            shortfall <= tolerancePx -> 0
-            else -> minOf(shortfall, target)
-        }
         // Log only evaluations whose numbers actually changed; the layout watcher re-runs this on
         // every relayout, so unconditional logging would flood the log while typing.
         val snapshot = "h=${view.height} content=$baseContentBottom barTop=$barTop pb=$currentPb"

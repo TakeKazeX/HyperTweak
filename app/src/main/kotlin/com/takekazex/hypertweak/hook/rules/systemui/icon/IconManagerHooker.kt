@@ -117,8 +117,8 @@ object IconManagerHooker : StaticHooker() {
         val surface = IconSlotPolicy.surfaceForHostLocation(location)
         val owned = IconSlotPolicy.ownedSlotsFor(
             location,
-            LeftContainerHooker.homeOwnedSlots(),
-            LeftContainerHooker.keyguardOwnedSlots()
+            IconHostPorts.left.homeSlots(),
+            IconHostPorts.left.keyguardSlots()
         )
         if (usesTwoLineControlCenterPolicy(location)) {
             return IconSlotPolicy.classicBlockedForTwoLineControlCenter(
@@ -291,8 +291,8 @@ object IconManagerHooker : StaticHooker() {
             blocked,
             IconSlotPolicy.ownedSlotsFor(
                 location,
-                LeftContainerHooker.homeOwnedSlots(),
-                LeftContainerHooker.keyguardOwnedSlots()
+                IconHostPorts.left.homeSlots(),
+                IconHostPorts.left.keyguardSlots()
             )
         )
         state.lastApplied = merged

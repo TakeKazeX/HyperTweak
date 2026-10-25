@@ -58,6 +58,8 @@ add_library(${HYPERTWEAK_NATIVE_TARGET} SHARED
     "${HYPERTWEAK_NATIVE_DIR}/runtime_profile_resolver.cpp"
     "${HYPERTWEAK_NATIVE_DIR}/dart_runtime_resolver.cpp"
     "${HYPERTWEAK_NATIVE_DIR}/miui_home_native_hook.cpp"
+    "${HYPERTWEAK_NATIVE_DIR}/dart_state_publisher.cpp"
+    "${HYPERTWEAK_NATIVE_DIR}/broadcast_transport.cpp"
     "${HYPERTWEAK_NATIVE_DIR}/launcher_process_identity.cpp"
     "${HYPERTWEAK_NATIVE_DIR}/dart_mapped_image.cpp"
     "${HYPERTWEAK_NATIVE_DIR}/native_config.cpp"

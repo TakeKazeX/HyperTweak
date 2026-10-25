@@ -31,6 +31,7 @@ import com.takekazex.hypertweak.hook.rules.systemui.icon.LeftContainerHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.StackedSignalHooker
 import com.takekazex.hypertweak.settings.contract.AppSettingsKeys
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+import com.takekazex.hypertweak.hook.bootstrap.ProcessLogging
 import com.takekazex.hypertweak.util.DebugLog
 import io.github.libxposed.api.XposedModule
 import io.github.libxposed.api.XposedModuleInterface
@@ -180,6 +181,7 @@ class HookEntry : XposedModule() {
             // Initialize EzXposed with the module interface
             EzXposed.initOnModuleLoaded(this, param)
             NativeRules.bindProcess(processName)
+            ProcessLogging.bind()
             DebugLog.setProcessTag(processName)
             DebugLog.bindXposed(this)
             initPreferences()
@@ -318,6 +320,8 @@ class HookEntry : XposedModule() {
             rootHookers.forEach { it.prepareForHotReload() }
             rootHookers.forEach { it.resetAfterHotReloadPrepared() }
             rootHookers.clear()
+            if (processName.substringBefore(':') == "com.android.systemui")
+                com.takekazex.hypertweak.hook.bootstrap.SystemUiIconPorts.retire(this)
             param.setSavedInstanceState(hyperTweakState)
             DebugLog.d("HookEntry", "hot reload preparation completed; old generation can retire")
             detachRuntimePreferencesListener()
@@ -353,6 +357,7 @@ class HookEntry : XposedModule() {
             // An upgrade may carry handles from a version that hooked all Google processes.
             // Retire them without restoring package state, preference listeners or DEX workers.
             if (param.oldHookHandles.isNotEmpty()) {
+                ProcessLogging.bind()
                 DebugLog.setProcessTag(processName)
                 DebugLog.bindXposed(this)
                 unhookRemainingOldHandles(HotReloadHandleStore(param.oldHookHandles))
@@ -366,6 +371,7 @@ class HookEntry : XposedModule() {
         preferenceRetryGeneration.incrementAndGet()
         EzXposed.initOnModuleLoaded(this, param)
         NativeRules.bindProcess(processName)
+        ProcessLogging.bind()
         DebugLog.setProcessTag(processName)
         DebugLog.bindXposed(this)
         val restoredState = HotReloadState.restore(param.savedInstanceState) ?: recoverSecurityHostState()
@@ -850,6 +856,7 @@ class HookEntry : XposedModule() {
             ?.let(com.takekazex.hypertweak.hook.base.dex.DexRuntime::beginSession)
         try {
 
+        if (packageName == "com.android.systemui") com.takekazex.hypertweak.hook.bootstrap.SystemUiIconPorts.bind(this)
         PackageHookPlan.attach(ctx, installIcons = {
             systemUiSettings.iconHookers().forEach { attachHooker(it, classLoader, ctx, replacementHandles) }
             // Compare the first full boot snapshot with the values used at installation.

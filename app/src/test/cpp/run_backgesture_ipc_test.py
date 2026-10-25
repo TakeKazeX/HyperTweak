@@ -12,7 +12,13 @@ core = (java / "hooks/core/HookRuntimeCore.java").read_text()
 protocol = (java / "NativeHookStatusProtocol.java").read_text()
 native_actions = set(re.findall(r'"(com\.takekazex\.hypertweak\.backgesture\.action\.[A-Z_]+)"', source))
 java_actions = set(re.findall(r'"(com\.takekazex\.hypertweak\.backgesture\.action\.[A-Z_]+)"', core + protocol))
-assert len(java_actions) == 7 and native_actions < java_actions
+expected_actions = {
+    "CONTEXTUAL_SEARCH_TRIGGERED", "MIUI_HOME_OPEN_BREAK", "MIUI_HOME_INPUT_ARBITER_QUERY",
+    "SYSTEMUI_INPUT_ARBITER_STATE", "CONTEXTUAL_SEARCH_REQUEST", "RUNTIME_STATUS_QUERY",
+    "MIUI_OVERVIEW_STATE_CHANGE", "RUNTIME_STATUS_REPLY",
+}
+assert java_actions == {"com.takekazex.hypertweak.backgesture.action." + name for name in expected_actions}
+assert native_actions < java_actions
 assert "dev.codex.miuibackgesturehook.action." not in source + core + protocol
 key = re.search(r'kInputArbiterGenerationExtra\[\]\s*=\s*"([^"]+)"', source)[1]
 assert re.search(r'EXTRA_INPUT_ARBITER_GENERATION\s*=\s*"([^"]+)"', core)[1] == key

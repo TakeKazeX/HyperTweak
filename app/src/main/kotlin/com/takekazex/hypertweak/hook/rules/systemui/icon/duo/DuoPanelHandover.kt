@@ -323,45 +323,26 @@ internal class DuoPanelHandover(private val host: Host) {
             binding.panelArrival.arrive()
             return
         }
-        val steps = (1..6).map { step -> from + (1f - from) * step / 6f }
-        var index = 0
-        val runnable = object : Runnable {
-            override fun run() {
-                if (binding.networkMotionSettle !== this) return
-                if (!host.enabled || !host.panelVisible || !host.owns(binding)) {
-                    clearPanelMotion(binding)
-                    return
-                }
-                val next = steps[index++]
-                binding.networkMotionProgress = next
-                val updated = runCatching {
-                    val expanded = host.bindings().firstOrNull { it.surface == DuoSurface.EXPANDED &&
-                        it.parent.rootView === binding.parent.rootView }
-                    if (expanded != null) updateAirplaneMotion(binding, source, expanded, root, content, next)
-                    val hidden = binding.panelMotion.update(root, source, target, content, color,
-                        next, host.small5GaEnabled, host.componentSizes, nativeWifi)
-                    if (binding.view.icon.hideNetwork != hidden) {
-                        binding.view.icon.hideNetwork = hidden
-                        binding.view.invalidate()
-                    }
-                }
-                if (updated.isFailure) {
-                    val error = updated.exceptionOrNull()
-                    DebugLog.w(TAG, "Duo panel hand-over settle failed", error)
-                    clearPanelMotion(binding)
-                    binding.networkMotionProgress = 1f
-                    binding.panelArrival.arrive()
-                    return
-                }
-                if (index >= steps.size) {
-                    clearPanelMotion(binding)
-                    binding.networkMotionProgress = 1f
-                    binding.panelArrival.arrive()
-                } else {
-                    main.postDelayed(this, 24L)
+        val runnable = DuoPanelSettle(from, object : DuoPanelSettle.Host {
+            override fun current(task: Runnable) = binding.networkMotionSettle === task
+            override fun live() = host.enabled && host.panelVisible && host.owns(binding)
+            override fun progress(value: Float) { binding.networkMotionProgress = value }
+            override fun draw(value: Float) {
+                val expanded = host.bindings().firstOrNull { it.surface == DuoSurface.EXPANDED &&
+                    it.parent.rootView === binding.parent.rootView }
+                if (expanded != null) updateAirplaneMotion(binding, source, expanded, root, content, value)
+                val hidden = binding.panelMotion.update(root, source, target, content, color,
+                    value, host.small5GaEnabled, host.componentSizes, nativeWifi)
+                if (binding.view.icon.hideNetwork != hidden) {
+                    binding.view.icon.hideNetwork = hidden
+                    binding.view.invalidate()
                 }
             }
-        }
+            override fun clear() = clearPanelMotion(binding)
+            override fun arrive() = binding.panelArrival.arrive()
+            override fun post(task: Runnable) { main.postDelayed(task, 24L) }
+            override fun failed(error: Throwable) { DebugLog.w(TAG, "Duo panel hand-over settle failed", error) }
+        })
         binding.networkMotionSettle = runnable
         main.postDelayed(runnable, 24L)
     }

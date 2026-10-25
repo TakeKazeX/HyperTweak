@@ -7,12 +7,14 @@ import android.content.Context
 import com.takekazex.hypertweak.hook.NativeRuleConfig
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.XposedServiceManager
+import com.takekazex.hypertweak.hook.bootstrap.ProcessLogging
 import com.takekazex.hypertweak.util.DebugLog
 
 class HyperTweakApp : Application() {
     override fun onCreate() {
         super.onCreate()
 
+        ProcessLogging.bind(app = true)
         DebugLog.setProcessTag("app")
         com.takekazex.hypertweak.hook.RuntimeSettingsSignal.attach(this)
         com.takekazex.hypertweak.hook.NativeUpgradeManager.restore(this)

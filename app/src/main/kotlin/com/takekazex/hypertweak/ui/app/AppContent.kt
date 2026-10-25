@@ -1,11 +1,9 @@
 package com.takekazex.hypertweak.ui.app
 
-import android.content.pm.PackageManager
 import android.widget.Toast
 import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.LocalActivityResultRegistryOwner
 import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
-import androidx.annotation.Keep
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalConfiguration
@@ -13,9 +11,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.unit.Density
-import androidx.core.content.edit
 import androidx.core.net.toUri
-import com.takekazex.hypertweak.MainActivity
+import androidx.activity.ComponentActivity
+import com.takekazex.hypertweak.util.update.UpdateManager
 import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.XposedServiceManager
@@ -34,7 +32,6 @@ import com.takekazex.hypertweak.ui.theme.isEffectivelyDark
 import com.takekazex.hypertweak.ui.theme.rememberDeviceAccentColor
 import com.takekazex.hypertweak.util.LocaleHelper
 import com.takekazex.hypertweak.util.RestartUtils
-import com.takekazex.hypertweak.util.update.UpdateRecoveryManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -43,9 +40,13 @@ import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
-internal fun MainActivity.AppContent() {
+internal fun AppContent(
+    activity: ComponentActivity,
+    updateManager: UpdateManager,
+    isModuleActive: () -> Boolean
+) {
     val settings = remember { AppSettingsState() }
-    val restarts = remember { AppRestartTracker(this, settings) }
+    val restarts = remember { AppRestartTracker(activity, settings) }
     with(settings) {
         with(restarts) {
 
@@ -54,36 +55,9 @@ internal fun MainActivity.AppContent() {
             val localizedContext = remember(context, appLanguage, configuration) {
                 LocaleHelper.getLocalizedContext(context, appLanguage)
             }
-            val noticeContext by rememberUpdatedState(localizedContext)
             val snackbarHostState = remember { SnackbarHostState() }
 
-            // Package replacement kills the installing process, so the outcome of an update is
-            // reconciled on the next launch: confirm the installed package really is the armed
-            // target, delete the leftover download, and surface the one-shot completion notice.
-            LaunchedEffect(Unit) {
-                val notice = withContext(Dispatchers.IO) {
-                    val reconciled = runCatching {
-                        UpdateRecoveryManager(applicationContext).reconcile()
-                    }.getOrNull()
-                    // Restore the last known result before any network work, so opening the app
-                    // shows a real answer without having to wait for (or be due for) a fresh query.
-                    updateManager.primeFromCache()
-                    reconciled
-                }
-                // Frequency-throttled and a no-op when the interval is "never", when offline, or
-                // when this build is not the official package. Started before the snackbar below,
-                // because `showSnackbar` suspends until the notice is dismissed and the background
-                // check must not queue behind a completion message.
-                updateManager.startAutoCheck()
-                if (notice != null) {
-                    val message = if (notice.versionCode != null) {
-                        noticeContext.getString(R.string.update_completion_snackbar, notice.versionName, notice.versionCode)
-                    } else {
-                        noticeContext.getString(R.string.update_completion_snackbar_legacy, notice.versionName)
-                    }
-                    snackbarHostState.showSnackbar(message)
-                }
-            }
+            ReconcileUpdates(activity, updateManager, snackbarHostState, localizedContext)
 
             val serviceConnected by XposedServiceManager.serviceFlow.collectAsState()
             val staleTargets by XposedServiceManager.staleTargetsFlow.collectAsState()
@@ -93,15 +67,14 @@ internal fun MainActivity.AppContent() {
             val coroutineScope = rememberCoroutineScope()
 
             LaunchedEffect(allowLandscape) {
-                requestedOrientation = if (allowLandscape) {
+                activity.requestedOrientation = if (allowLandscape) {
                     android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
                 } else {
                     android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
                 }
             }
 
-            val lastActive = remember { localPrefs.getBoolean("last_known_module_activated", false) }
-            var moduleActive by remember { mutableStateOf(isModuleActive() || lastActive) }
+            val moduleActive = rememberModuleActivation(settings, restarts, serviceConnected, isModuleActive)
             /**
              * Quick Share on CN GMS works through a phenotype override that only GMS's own
              * process can write. GMS is a declared required scope, so the toggle only flips the
@@ -167,48 +140,6 @@ internal fun MainActivity.AppContent() {
                 Preferences.putBoolean(PlatformSettingsKeys.KEY_PA_MODEL_SPOOF, checked)
             }
 
-            LaunchedEffect(serviceConnected) {
-                // The remote copy of the settings lives in the LSPosed daemon and survives a
-                // module uninstall, so a reinstall would silently restore the old config.
-                // The module's own data dir is wiped on uninstall: when it is fresh but the
-                // remote copy still holds settings, discard the leftovers once. `last_known_
-                // module_activated` is written on every launch by every recent version, so
-                // its presence means this is an ordinary update, not a reinstall.
-                fun ensureFreshInstallReset() {
-                    if (localPrefs.contains(KEY_FIRST_RUN_TOKEN)) return
-                    if (!Preferences.isInitialized) return
-                    val freshDataDir = !localPrefs.contains("last_known_module_activated")
-                    if (freshDataDir && Preferences.hasRemoteConfig()) {
-                        if (!Preferences.clearAllSettings()) return
-                    }
-                    localPrefs.edit { putBoolean(KEY_FIRST_RUN_TOKEN, true) }
-                }
-
-                if (isModuleActive()) {
-                    moduleActive = true
-                    localPrefs.edit { putBoolean("last_known_module_activated", true) }
-                    ensureFreshInstallReset()
-                    settings.reload()
-                    XposedServiceManager.refreshHotReloadTargets()
-                    return@LaunchedEffect
-                }
-
-                if (serviceConnected != null) {
-                    moduleActive = true
-                    localPrefs.edit { putBoolean("last_known_module_activated", true) }
-                    ensureFreshInstallReset()
-                    settings.reload()
-                    XposedServiceManager.refreshHotReloadTargets()
-                } else {
-                    // Wait 500ms to allow the Xposed service binding to finish
-                    kotlinx.coroutines.delay(500)
-                    if (XposedServiceManager.currentService == null) {
-                        moduleActive = false
-                        localPrefs.edit { putBoolean("last_known_module_activated", false) }
-                    }
-                }
-            }
-
             val isDark = isSystemInDarkTheme()
             val deviceAccent = rememberDeviceAccentColor()
             val resolvedSeedColorHex = if (seedColorHex == 0) deviceAccent else seedColorHex
@@ -226,9 +157,9 @@ internal fun MainActivity.AppContent() {
             CompositionLocalProvider(
                 // A localized ConfigurationContext is not an Activity. Keep Activity-owned
                 // launchers and back dispatch available to navigation entries and windows.
-                LocalActivity provides this@AppContent,
-                LocalActivityResultRegistryOwner provides this@AppContent,
-                LocalOnBackPressedDispatcherOwner provides this@AppContent,
+                LocalActivity provides activity,
+                LocalActivityResultRegistryOwner provides activity,
+                LocalOnBackPressedDispatcherOwner provides activity,
                 LocalAppBlurMode provides AppBlurMode.entries[appBlurMode],
                 LocalContext provides localizedContext,
                 LocalConfiguration provides localizedContext.resources.configuration,
@@ -557,7 +488,7 @@ internal fun MainActivity.AppContent() {
                         hideLauncherIcon = checked
                         // Component state changes touch PackageManager and must stay on the
                         // activity thread; only preference persistence is dispatched.
-                        setLauncherIconVisible(this@AppContent, !checked)
+                        setLauncherIconVisible(activity, !checked)
                         coroutineScope.launch(Dispatchers.IO) {
                             Preferences.putBoolean(AppSettingsKeys.KEY_HIDE_LAUNCHER_ICON, checked)
                         }
@@ -685,7 +616,7 @@ internal fun MainActivity.AppContent() {
                     onViewSourceCode = {
                         try {
                             val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, "https://github.com/takekazex/HyperTweak".toUri())
-                            this@AppContent.startActivity(intent)
+                            activity.startActivity(intent)
                         } catch (e: Exception) {
                             // Ignore
                         }
@@ -696,7 +627,7 @@ internal fun MainActivity.AppContent() {
                             // an app link) and falls back to a browser otherwise, so no tg:// scheme
                             // and no explicit package check is needed.
                             val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, "https://t.me/PerlinkcaTweak".toUri())
-                            this@AppContent.startActivity(intent)
+                            activity.startActivity(intent)
                         } catch (e: Exception) {
                             // Ignore
                         }
@@ -719,9 +650,9 @@ internal fun MainActivity.AppContent() {
                             val restartScopesJob = if (restartAllScopes) {
                                 launch {
                                     Preferences.flush()
-                                    val allScopes = currentRestartableScopes(this@AppContent)
+                                    val allScopes = currentRestartableScopes(activity)
                                     RestartUtils
-                                        .restartScope(this@AppContent, coroutineScope, allScopes)
+                                        .restartScope(activity, coroutineScope, allScopes)
                                         .join()
                                 }
                             } else {
@@ -731,7 +662,7 @@ internal fun MainActivity.AppContent() {
                                 launch {
                                     restartScopesJob?.join()
                                     // Recreate so every Compose state reloads from the now-default prefs.
-                                    this@AppContent.recreate()
+                                    activity.recreate()
                                 }
                             }
                         }
@@ -739,17 +670,17 @@ internal fun MainActivity.AppContent() {
                     onSettingsRestored = {
                         clearPendingRestartTracking()
                         setLauncherIconVisible(
-                            this@AppContent,
+                            activity,
                             !Preferences.getBoolean(AppSettingsKeys.KEY_HIDE_LAUNCHER_ICON, false)
                         )
                         // Recreate so every Compose state reflects the restored configuration.
-                        this@AppContent.recreate()
+                        activity.recreate()
                     },
                     onRestartScope = { selection ->
                         // Push every queued setting to the daemon before the scoped processes die;
                         // their hookers read the daemon copy at (re)load time.
                         Preferences.flush()
-                        RestartUtils.restartScope(this@AppContent, coroutineScope, selection, ::clearRestartedScopes)
+                        RestartUtils.restartScope(activity, coroutineScope, selection, ::clearRestartedScopes)
                     },
                     onHotReload = {
                         // Hot reload re-attaches the module to the already running stale targets;
@@ -760,9 +691,9 @@ internal fun MainActivity.AppContent() {
                     onRestartAllScopes = {
                         coroutineScope.launch {
                             Preferences.flush()
-                            val allScopes = currentRestartableScopes(this@AppContent)
+                            val allScopes = currentRestartableScopes(activity)
                             RestartUtils
-                                .restartScope(this@AppContent, coroutineScope, allScopes, ::clearRestartedScopes)
+                                .restartScope(activity, coroutineScope, allScopes, ::clearRestartedScopes)
                                 .join()
                             // Refresh after the restart completes so a previously stale warning
                             // disappears without requiring a second app launch.
@@ -776,7 +707,7 @@ internal fun MainActivity.AppContent() {
                     },
                     onShortcutsChanged = {
                         coroutineScope.launch(Dispatchers.IO) {
-                            runCatching { com.takekazex.hypertweak.util.ShortcutUtils.updateShortcuts(this@AppContent) }
+                            runCatching { com.takekazex.hypertweak.util.ShortcutUtils.updateShortcuts(activity) }
                         }
                     },
                     updateManager = updateManager,

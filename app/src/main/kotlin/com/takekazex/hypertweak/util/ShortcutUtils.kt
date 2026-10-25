@@ -86,7 +86,7 @@ object ShortcutUtils {
         val shortcuts = orderedIds.take(5).mapNotNull { id ->
             val def = allDefs[id] ?: return@mapNotNull null
             val intent = if (def.id == "lsposed") {
-                Intent(Intent.ACTION_MAIN, null, context, com.takekazex.hypertweak.MainActivity::class.java).apply {
+                Intent(Intent.ACTION_MAIN, null, context, com.takekazex.hypertweak.ShortcutEntryActivity::class.java).apply {
                     putExtra("shortcut_target", def.id)
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
                 }

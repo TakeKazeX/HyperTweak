@@ -123,7 +123,6 @@ private const val KEY_PENDING_RESTART_BOOT_TOKEN = "pending_restart_boot_token"
 private const val KEY_DIRTY_TWEAK_KEYS = "dirty_tweak_keys"
 private const val KEY_TWEAK_BASELINE_PREFIX = "tweak_baseline_"
 private const val KEY_MANUAL_PENDING_RESTART_SCOPES = "manual_pending_restart_scopes"
-internal const val KEY_FIRST_RUN_TOKEN = "first_run_token"
 private const val KEY_FINGERPRINT_SPLIT_BASELINE_MIGRATED = "fingerprint_split_baseline_migrated"
 
 private fun currentBootToken(): String {
