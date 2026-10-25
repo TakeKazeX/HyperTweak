@@ -13,7 +13,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import com.takekazex.hypertweak.ui.page.Route
 import com.takekazex.hypertweak.ui.page.saveKey
-import com.takekazex.hypertweak.ui.page.routeFromSaveKey
 import com.takekazex.hypertweak.ui.page.MainPagerScreen
 import com.takekazex.hypertweak.ui.page.AboutPage
 import com.takekazex.hypertweak.ui.page.CreditsPage
@@ -250,9 +249,7 @@ fun HyperTweakNavContainer(
         saver = listSaver(
             save = { stack -> stack.map { (it as Route).saveKey } },
             restore = { keys ->
-                keys.mapNotNull { routeFromSaveKey(it) as NavKey? }
-                    .ifEmpty { listOf(Route.Main) }
-                    .toMutableStateList()
+                restoreNavigationRoutes(keys).toMutableStateList<NavKey>()
             }
         )
     ) { mutableStateListOf<NavKey>(Route.Main) }
@@ -284,18 +281,18 @@ fun HyperTweakNavContainer(
                 pendingRestartScopes = pendingRestartScopes,
                 paModelSpoofEnabled = paModelSpoofEnabled,
                 onPaModelSpoofEnabledChange = onPaModelSpoofEnabledChange,
-                onNavigateToSystemLauncher = { navController.push(Route.SystemLauncher) },
-                onNavigateToScreenshot = { navController.push(Route.Screenshot) },
+                onNavigateToSystemLauncher = { navController.navigateTo(Route.SystemLauncher) },
+                onNavigateToScreenshot = { navController.navigateTo(Route.Screenshot) },
                 onNavigateToSystemUi = {
-                    navController.push(Route.SystemUi)
+                    navController.navigateTo(Route.SystemUi)
                 },
                 onNavigateToDownloadManager = {
-                    navController.push(Route.DownloadManager)
+                    navController.navigateTo(Route.DownloadManager)
                 },
-                onNavigateToSuperIsland = { navController.push(Route.SuperIsland) },
-                onNavigateToPurification = { navController.push(Route.Purification) },
+                onNavigateToSuperIsland = { navController.navigateTo(Route.SuperIsland) },
+                onNavigateToPurification = { navController.navigateTo(Route.Purification) },
                 onNavigateToSecurityCenter = {
-                    navController.push(Route.SecurityCenter)
+                    navController.navigateTo(Route.SecurityCenter)
                 },
                 showInSettings = showInSettings,
                 onShowInSettingsChange = onShowInSettingsChange,
@@ -326,52 +323,52 @@ fun HyperTweakNavContainer(
                 pageScale = pageScale,
                 onPageScaleChange = onPageScaleChange,
                 onNavigateToAbout = {
-                    navController.push(Route.About)
+                    navController.navigateTo(Route.About)
                 },
                 onNavigateToAppearance = {
-                    navController.push(Route.Appearance)
+                    navController.navigateTo(Route.Appearance)
                 },
                 onNavigateToScopePrompts = {
-                    navController.push(Route.ScopePrompts)
+                    navController.navigateTo(Route.ScopePrompts)
                 },
                 onNavigateToBackupRestore = {
-                    navController.push(Route.BackupRestore)
+                    navController.navigateTo(Route.BackupRestore)
                 },
                 onNavigateToHiddenFeatures = {
-                    navController.push(Route.HiddenFeatures)
+                    navController.navigateTo(Route.HiddenFeatures)
                 },
                 onNavigateToAppShortcuts = {
-                    navController.push(Route.AppShortcuts)
+                    navController.navigateTo(Route.AppShortcuts)
                 },
                 onNavigateToAospRestore = {
-                    navController.push(Route.AospRestore)
+                    navController.navigateTo(Route.AospRestore)
                 },
                 onNavigateToGoogleServices = {
-                    navController.push(Route.GoogleServices)
+                    navController.navigateTo(Route.GoogleServices)
                 },
                 onNavigateToIconTuner = {
-                    navController.push(Route.IconTuner)
+                    navController.navigateTo(Route.IconTuner)
                 },
                 onNavigateToGlassTuner = {
-                    navController.push(Route.GlassTuner)
+                    navController.navigateTo(Route.GlassTuner)
                 },
                 onNavigateToCameraWatermark = {
-                    navController.push(Route.CameraWatermark)
+                    navController.navigateTo(Route.CameraWatermark)
                 },
                 onNavigateToExperimentalFeatures = {
-                    navController.push(Route.ExperimentalFeatures)
+                    navController.navigateTo(Route.ExperimentalFeatures)
                 },
                 onNavigateToControlCenterCorner = {
-                    navController.push(Route.ControlCenterCorner)
+                    navController.navigateTo(Route.ControlCenterCorner)
                 },
                 onNavigateToControlCenterResize = {
-                    navController.push(Route.ControlCenterResize)
+                    navController.navigateTo(Route.ControlCenterResize)
                 },
                 onNavigateToDeviceInfo = {
-                    navController.push(Route.DeviceInfo)
+                    navController.navigateTo(Route.DeviceInfo)
                 },
                 onNavigateToBatteryInfo = {
-                    navController.push(Route.BatteryInfo)
+                    navController.navigateTo(Route.BatteryInfo)
                 },
                 onHotReload = onHotReload,
                 onRestartAllScopes = onRestartAllScopes,
@@ -428,13 +425,13 @@ fun HyperTweakNavContainer(
                 onViewSourceCode = onViewSourceCode,
                 onJoinTelegramGroup = onJoinTelegramGroup,
                 onNavigateToCredits = {
-                    navController.push(Route.Credits)
+                    navController.navigateTo(Route.Credits)
                 },
                 onNavigateToDebug = {
-                    navController.push(Route.Debug)
+                    navController.navigateTo(Route.Debug)
                 },
                 onNavigateToUpdate = {
-                    navController.push(Route.Update)
+                    navController.navigateTo(Route.Update)
                 },
                 updateManager = updateManager
             )
@@ -458,7 +455,7 @@ fun HyperTweakNavContainer(
                     navController.pop()
                 },
                 onNavigateToDeveloperSettings = {
-                    navController.push(Route.DeveloperSettings)
+                    navController.navigateTo(Route.DeveloperSettings)
                 }
             )
         }
@@ -473,7 +470,7 @@ fun HyperTweakNavContainer(
         entry<Route.AospRestore> {
             AospRestorePage(
                 onBack = { navController.pop() },
-                onNavigateToAospIme = { navController.push(Route.AospIme) },
+                onNavigateToAospIme = { navController.navigateTo(Route.AospIme) },
                 settingsGlobalInterface = settingsGlobalInterface,
                 onSettingsGlobalInterfaceChange = onSettingsGlobalInterfaceChange
             )
@@ -481,7 +478,7 @@ fun HyperTweakNavContainer(
         entry<Route.SecurityCenter> {
             SecurityCenterPage(
                 onBack = { navController.pop() },
-                onNavigateToPowerSave = { navController.push(Route.PowerSave) }
+                onNavigateToPowerSave = { navController.navigateTo(Route.PowerSave) }
             )
         }
         entry<Route.AospIme> {
@@ -495,8 +492,8 @@ fun HyperTweakNavContainer(
         entry<Route.IconTuner> {
             IconTunerPage(
                 onBack = { navController.pop() },
-                onNavigateToIconOrder = { navController.push(Route.IconOrder) },
-                onNavigateToIconRows = { navController.push(Route.ControlCenterIconRows) }
+                onNavigateToIconOrder = { navController.navigateTo(Route.IconOrder) },
+                onNavigateToIconRows = { navController.navigateTo(Route.ControlCenterIconRows) }
             )
         }
         entry<Route.ControlCenterIconRows> {
@@ -528,10 +525,10 @@ fun HyperTweakNavContainer(
                 lockscreenFingerprintAvoid = lockscreenFingerprintAvoid,
                 onLockscreenFingerprintAvoidChange = onLockscreenFingerprintAvoidChange,
                 onNavigateToChargingDetail = {
-                    navController.push(Route.ChargingDetail)
+                    navController.navigateTo(Route.ChargingDetail)
                 },
                 onNavigateToLockscreenBottomText = {
-                    navController.push(Route.LockscreenBottomText)
+                    navController.navigateTo(Route.LockscreenBottomText)
                 },
                 lockscreenAllNotifications = lockscreenAllNotifications,
                 onLockscreenAllNotificationsChange = onLockscreenAllNotificationsChange,
@@ -557,13 +554,13 @@ fun HyperTweakNavContainer(
                 onContextualSearchHapticsChange = onContextualSearchHapticsChange,
                 contextualSearchLongPress = contextualSearchLongPress,
                 onContextualSearchLongPressChange = onContextualSearchLongPressChange,
-                onNavigateToNotifications = { navController.push(Route.Notifications) },
-                onNavigateToMediaCard = { navController.push(Route.MediaCard) },
+                onNavigateToNotifications = { navController.navigateTo(Route.Notifications) },
+                onNavigateToMediaCard = { navController.navigateTo(Route.MediaCard) },
                 onNavigateToIconTuner = {
-                    navController.push(Route.IconTuner)
+                    navController.navigateTo(Route.IconTuner)
                 },
-                onNavigateToPrivacyIndicator = { navController.push(Route.PrivacyIndicator) },
-                onNavigateToAodIcons = { navController.push(Route.AodIcons) }
+                onNavigateToPrivacyIndicator = { navController.navigateTo(Route.PrivacyIndicator) },
+                onNavigateToAodIcons = { navController.navigateTo(Route.AodIcons) }
             )
         }
         entry<Route.AodIcons> {
@@ -580,7 +577,7 @@ fun HyperTweakNavContainer(
                 onNotificationFontWeightChange = onNotificationFontWeightChange,
                 notificationAbsoluteTime = notificationAbsoluteTime,
                 onNotificationAbsoluteTimeChange = onNotificationAbsoluteTimeChange,
-                onNavigateToNotificationHeader = { navController.push(Route.NotificationHeader) },
+                onNavigateToNotificationHeader = { navController.navigateTo(Route.NotificationHeader) },
             )
         }
         entry<Route.MediaCard> {
@@ -682,9 +679,9 @@ fun HyperTweakNavContainer(
         entry<Route.ExperimentalFeatures> {
             ExperimentalFeaturesPage(
                 onBack = { navController.pop() },
-                onNavigateToGlassTuner = { navController.push(Route.GlassTuner) },
-                onNavigateToControlCenterCorner = { navController.push(Route.ControlCenterCorner) },
-                onNavigateToControlCenterResize = { navController.push(Route.ControlCenterResize) },
+                onNavigateToGlassTuner = { navController.navigateTo(Route.GlassTuner) },
+                onNavigateToControlCenterCorner = { navController.navigateTo(Route.ControlCenterCorner) },
+                onNavigateToControlCenterResize = { navController.navigateTo(Route.ControlCenterResize) },
                 ccEditEnabled = ccEditEnabled,
                 onCcEditEnabledChange = onCcEditEnabledChange
             )
@@ -692,7 +689,7 @@ fun HyperTweakNavContainer(
         entry<Route.SystemLauncher> {
             com.takekazex.hypertweak.ui.page.SystemLauncherPage(
                 onBack = { navController.pop() },
-                onNavigateToDockBackground = { navController.push(Route.DockBackground) }
+                onNavigateToDockBackground = { navController.navigateTo(Route.DockBackground) }
             )
         }
         entry<Route.DockBackground> {
@@ -728,7 +725,7 @@ fun HyperTweakNavContainer(
         entry<Route.Debug> {
             DebugPage(
                 onBack = { navController.pop() },
-                onNavigateToLogs = { navController.push(Route.DebugLogs) },
+                onNavigateToLogs = { navController.navigateTo(Route.DebugLogs) },
                 hotReloading = hotReloading,
                 hotReloadTargets = hotReloadTargets,
                 hotReloadReport = hotReloadReport,
@@ -751,7 +748,7 @@ fun HyperTweakNavContainer(
         entry<Route.DeviceInfo> {
             DeviceInfoPage(
                 onBack = { navController.pop() },
-                onBatteryInfo = { navController.push(Route.BatteryInfo) }
+                onBatteryInfo = { navController.navigateTo(Route.BatteryInfo) }
             )
         }
         entry<Route.BatteryInfo> {

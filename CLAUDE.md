@@ -68,8 +68,9 @@ needs `com.android.photopicker` scope. Changes affect subsequent requests, so ac
 must be reopened. See `docs/PICKER_REROUTE_RESEARCH_20261024.md`.
 
 Settings navigation uses Miuix `miuix-nav` in `ui/navigation/HyperTweakNavContainer.kt`.
-`NavController` centralizes push/pop while `Route.saveKey` keeps the restored stack stable across
-updates; Miuix owns gesture cancellation,
+`NavController` centralizes push/pop; `navigateTo` admits each singleton route only once,
+returning to an existing entry on repeat navigation. `Route.saveKey` keeps the restored stack
+stable across updates, and restoration discards duplicate/unknown routes; Miuix owns gesture cancellation,
 settling and entry state. `ui/effect/ScalePredictiveBack.kt` supplies the optional scale transition.
 The app's global blur preference is `Preferences.KEY_APP_BLUR_MODE` (0 off, 1 uniform, 2 progressive).
 `ui/effect/AppScaffold.kt` captures each page's content for its top bar; About supplies its raw
