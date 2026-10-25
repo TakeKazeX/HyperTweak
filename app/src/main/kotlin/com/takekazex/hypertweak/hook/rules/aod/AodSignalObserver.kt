@@ -22,11 +22,11 @@ import android.telephony.SubscriptionManager
 import android.telephony.TelephonyCallback
 import android.telephony.TelephonyDisplayInfo
 import android.telephony.TelephonyManager
-import com.takekazex.hypertweak.hook.rules.systemui.icon.MobileSignalEvent
-import com.takekazex.hypertweak.hook.rules.systemui.icon.MobileSignalModel
-import com.takekazex.hypertweak.hook.rules.systemui.icon.MobileSignalState
-import com.takekazex.hypertweak.hook.rules.systemui.icon.duo.DuoNetwork
-import com.takekazex.hypertweak.hook.rules.systemui.icon.duo.DuoTransport
+import com.takekazex.hypertweak.presentation.icon.MobileSignalEvent
+import com.takekazex.hypertweak.presentation.icon.MobileSignalModel
+import com.takekazex.hypertweak.presentation.icon.MobileSignalState
+import com.takekazex.hypertweak.presentation.icon.duo.DuoNetwork
+import com.takekazex.hypertweak.presentation.icon.duo.DuoTransport
 import java.util.concurrent.Executor
 
 /** AOD plugin adapter for the same mobile reducer used by the SystemUI Duo renderer. */

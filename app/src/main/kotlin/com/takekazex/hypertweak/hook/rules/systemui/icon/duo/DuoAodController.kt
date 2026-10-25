@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon.duo
 
+import com.takekazex.hypertweak.presentation.icon.duo.DuoSurface
+
 import android.os.Handler
 import android.os.Looper
 import android.view.View

@@ -7,7 +7,7 @@ import android.view.ViewGroup
 import android.view.ViewTreeObserver
 import android.widget.ImageView
 import androidx.core.view.isVisible
-import com.takekazex.hypertweak.hook.rules.systemui.icon.duo.DuoSignalRow
+import com.takekazex.hypertweak.presentation.icon.duo.DuoSignalRow
 import com.takekazex.hypertweak.hook.rules.systemui.icon.duo.SignalRowMotion
 import java.lang.reflect.Field
 import java.lang.reflect.Method

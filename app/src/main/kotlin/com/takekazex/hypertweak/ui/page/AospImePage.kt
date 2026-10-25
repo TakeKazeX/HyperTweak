@@ -1,5 +1,8 @@
 package com.takekazex.hypertweak.ui.page
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import android.annotation.SuppressLint
@@ -14,13 +17,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
@@ -28,7 +29,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.hook.Preferences
-import com.takekazex.hypertweak.hook.rules.ime.AospImeConfig
+import com.takekazex.hypertweak.settings.contract.ImeLayout
 import com.takekazex.hypertweak.util.RestartUtils
 import com.takekazex.hypertweak.util.ScopeManager
 import kotlinx.coroutines.Dispatchers
@@ -60,15 +61,15 @@ private val NAV_BAR_KEY_LABELS = listOf(
 )
 
 private val NAV_BAR_KEY_VALUES = listOf(
-    AospImeConfig.BUTTON_HIDE_IME,
-    AospImeConfig.BUTTON_IME_SWITCHER,
-    AospImeConfig.BUTTON_NONE
+    ImeLayout.BUTTON_HIDE_IME,
+    ImeLayout.BUTTON_IME_SWITCHER,
+    ImeLayout.BUTTON_NONE
 )
 
 /** Order matches [RAISE_STYLE_LABELS]. */
 private val RAISE_STYLE_VALUES = listOf(
-    AospImeConfig.RAISE_STYLE_AOSP,
-    AospImeConfig.RAISE_STYLE_MIUI
+    ImeLayout.RAISE_STYLE_AOSP,
+    ImeLayout.RAISE_STYLE_MIUI
 )
 
 private val RAISE_STYLE_LABELS = listOf(
@@ -101,9 +102,9 @@ fun AospImePage(onBack: () -> Unit) {
     var forceAospAll by remember {
         mutableStateOf(Preferences.getBoolean(PlatformSettingsKeys.KEY_AOSP_IME_FORCE_ALL, false))
     }
-    var startKey by remember { mutableStateOf(AospImeConfig.navBarLayoutStart()) }
-    var endKey by remember { mutableStateOf(AospImeConfig.navBarLayoutEnd()) }
-    var raiseStyle by remember { mutableIntStateOf(AospImeConfig.raiseStyle()) }
+    var startKey by remember { mutableStateOf(ImeLayout.button(Preferences.getString(PlatformSettingsKeys.KEY_AOSP_IME_NAV_BAR_START, ImeLayout.BUTTON_HIDE_IME), ImeLayout.BUTTON_HIDE_IME)) }
+    var endKey by remember { mutableStateOf(ImeLayout.button(Preferences.getString(PlatformSettingsKeys.KEY_AOSP_IME_NAV_BAR_END, ImeLayout.BUTTON_IME_SWITCHER), ImeLayout.BUTTON_IME_SWITCHER)) }
+    var raiseStyle by remember { mutableIntStateOf(Preferences.getInt(PlatformSettingsKeys.KEY_AOSP_IME_RAISE_STYLE, ImeLayout.RAISE_STYLE_AOSP)) }
 
     var applied by remember { mutableStateOf(Preferences.getStringSet(PlatformSettingsKeys.KEY_AOSP_IME_PACKAGES)) }
     var selected by remember { mutableStateOf(applied) }

@@ -1,7 +1,7 @@
-package com.takekazex.hypertweak.hook.rules.systemui.icon.duo
+package com.takekazex.hypertweak.presentation.icon.duo
 
-import com.takekazex.hypertweak.hook.rules.systemui.icon.MobileSignalKind
-import com.takekazex.hypertweak.hook.rules.systemui.icon.MobileSignalState
+import com.takekazex.hypertweak.presentation.icon.MobileSignalKind
+import com.takekazex.hypertweak.presentation.icon.MobileSignalState
 
 /** Unknown inputs stay unknown: a disconnected collector must never produce a plausible icon. */
 data class DuoBattery(val percent: Int, val charging: Boolean, val powerSave: Boolean,

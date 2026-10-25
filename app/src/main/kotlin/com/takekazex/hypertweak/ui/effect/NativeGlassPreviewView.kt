@@ -13,8 +13,8 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import com.takekazex.hypertweak.R
-import com.takekazex.hypertweak.hook.rules.systemui.glass.scaleBlendArrayColors
-import com.takekazex.hypertweak.hook.rules.systemui.glass.scaleGlassParams
+import com.takekazex.hypertweak.presentation.glass.scaleBlendArrayColors
+import com.takekazex.hypertweak.presentation.glass.scaleGlassParams
 
 /** A real MIUI View glass surface, using GlassToken/ColorBlendToken from the installed plugin. */
 internal class NativeGlassPreviewView(context: Context) : FrameLayout(context) {

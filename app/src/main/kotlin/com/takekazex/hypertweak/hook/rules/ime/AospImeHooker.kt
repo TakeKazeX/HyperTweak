@@ -283,7 +283,7 @@ object AospImeHooker : StaticHooker() {
      * Gboard) consume and carve themselves by — so every style-aware hook gates on this.
      */
     internal fun aospRaiseActive(context: Context?): Boolean =
-        aospBarActive(context) && AospImeConfig.raiseStyle() == AospImeConfig.RAISE_STYLE_AOSP
+        aospBarActive(context) && AospImeConfig.raiseStyle() == com.takekazex.hypertweak.settings.contract.ImeLayout.RAISE_STYLE_AOSP
 
     private fun isMiuiCustomisedIme(context: Context): Boolean {
         // Primary on every OS4 build: InputMethodServiceInjector.isImeSupport(Context). The
@@ -417,7 +417,7 @@ object AospImeHooker : StaticHooker() {
                         val context = currentServiceContext() ?: return@open
                         when {
                             !aospBarActive(context) -> Unit // ROM default untouched
-                            AospImeConfig.raiseStyle() == AospImeConfig.RAISE_STYLE_AOSP ->
+                            AospImeConfig.raiseStyle() == com.takekazex.hypertweak.settings.contract.ImeLayout.RAISE_STYLE_AOSP ->
                                 param.args[0] = captionBarHeightPx(context.resources)
                             else -> param.args[0] = 0
                         }

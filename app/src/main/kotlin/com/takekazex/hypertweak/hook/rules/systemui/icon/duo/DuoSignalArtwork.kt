@@ -1,11 +1,13 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon.duo
 
+import com.takekazex.hypertweak.presentation.icon.duo.DuoContent
+
 import android.content.Context
 import android.graphics.Picture
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.rules.systemui.icon.HostIconBridge
-import com.takekazex.hypertweak.hook.rules.systemui.icon.IconSvgRenderer
-import com.takekazex.hypertweak.hook.rules.systemui.icon.IconSvgRepository
+import com.takekazex.hypertweak.presentation.icon.IconSvgRenderer
+import com.takekazex.hypertweak.presentation.icon.IconSvgRepository
 import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
 import com.takekazex.hypertweak.settings.contract.SignalSvgStyle
 import com.takekazex.hypertweak.util.DebugLog

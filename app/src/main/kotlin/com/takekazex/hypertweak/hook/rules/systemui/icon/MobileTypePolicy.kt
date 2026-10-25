@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import com.takekazex.hypertweak.presentation.icon.MobileSignalState
+
 /** Settings that affect only the network-type text rendered inside the icon slots. */
 data class MobileTypeConfig(
     val hideWhenDisconnected: Boolean = false,

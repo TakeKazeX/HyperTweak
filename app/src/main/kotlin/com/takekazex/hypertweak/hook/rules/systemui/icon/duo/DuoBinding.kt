@@ -1,5 +1,9 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon.duo
 
+import com.takekazex.hypertweak.presentation.icon.duo.NativeWifiDrawable
+
+import com.takekazex.hypertweak.presentation.icon.duo.DuoSurface
+
 import android.graphics.RectF
 import android.view.View
 import android.view.ViewGroup

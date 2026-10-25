@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import com.takekazex.hypertweak.presentation.icon.MobileSignalState
+
 /**
  * One row of the two-line control-center carrier block.
  *

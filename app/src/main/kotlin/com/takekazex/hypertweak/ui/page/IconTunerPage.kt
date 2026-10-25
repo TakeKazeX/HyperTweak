@@ -1,5 +1,8 @@
 package com.takekazex.hypertweak.ui.page
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+
 import com.takekazex.hypertweak.settings.contract.IconTunerContract
 
 import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
@@ -23,7 +26,6 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateMapOf
@@ -32,7 +34,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.snapshots.SnapshotStateMap
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.stringResource
@@ -44,8 +45,8 @@ import com.takekazex.hypertweak.settings.contract.IconSlotPolicyConfig
 import com.takekazex.hypertweak.settings.contract.NotificationIconLimit
 import com.takekazex.hypertweak.settings.contract.SignalSvgStyle
 import com.takekazex.hypertweak.settings.contract.SignalWeight
-import com.takekazex.hypertweak.hook.rules.systemui.icon.duo.DuoLayout
-import com.takekazex.hypertweak.hook.rules.systemui.icon.duo.DuoSizes
+import com.takekazex.hypertweak.presentation.icon.duo.DuoLayout
+import com.takekazex.hypertweak.presentation.icon.duo.DuoSizes
 import kotlin.math.roundToInt
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon

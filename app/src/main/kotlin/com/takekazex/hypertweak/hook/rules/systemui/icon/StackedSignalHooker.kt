@@ -2,6 +2,12 @@
 
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import com.takekazex.hypertweak.presentation.icon.IconSvgRenderConfig
+import com.takekazex.hypertweak.presentation.icon.IconSvgRenderer
+import com.takekazex.hypertweak.presentation.icon.IconSvgRepository
+import com.takekazex.hypertweak.presentation.icon.IconSvgSnapshot
+import com.takekazex.hypertweak.presentation.icon.MobileSignalState
+
 import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Picture
@@ -14,8 +20,8 @@ import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
-import com.takekazex.hypertweak.hook.rules.systemui.icon.duo.DuoSignalRow
-import com.takekazex.hypertweak.hook.rules.systemui.icon.duo.DuoSignalRows
+import com.takekazex.hypertweak.presentation.icon.duo.DuoSignalRow
+import com.takekazex.hypertweak.presentation.icon.duo.DuoSignalRows
 import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
 import com.takekazex.hypertweak.settings.contract.IconSlotMode
 import com.takekazex.hypertweak.settings.contract.IconSlotPolicy

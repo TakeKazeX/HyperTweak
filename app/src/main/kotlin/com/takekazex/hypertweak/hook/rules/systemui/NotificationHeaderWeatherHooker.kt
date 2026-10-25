@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui
 
+import com.takekazex.hypertweak.settings.contract.NotificationHeaderModel
+
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 
 import android.os.Handler

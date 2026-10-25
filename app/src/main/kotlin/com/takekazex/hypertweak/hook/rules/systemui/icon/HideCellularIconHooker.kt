@@ -1,5 +1,8 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import com.takekazex.hypertweak.presentation.icon.MobileSignalEvent
+import com.takekazex.hypertweak.presentation.icon.MobileSignalState
+
 import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
 
 import com.takekazex.hypertweak.hook.base.HostAccess

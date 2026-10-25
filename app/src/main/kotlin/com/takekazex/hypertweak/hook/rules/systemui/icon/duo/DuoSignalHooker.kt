@@ -1,6 +1,16 @@
 @file:Suppress("StaticFieldLeak")
 package com.takekazex.hypertweak.hook.rules.systemui.icon.duo
 
+import com.takekazex.hypertweak.presentation.icon.duo.NativeWifiDrawable
+
+import com.takekazex.hypertweak.presentation.icon.duo.DuoBattery
+import com.takekazex.hypertweak.presentation.icon.duo.DuoContent
+import com.takekazex.hypertweak.presentation.icon.duo.DuoExpandedStyle
+import com.takekazex.hypertweak.presentation.icon.duo.DuoLayout
+import com.takekazex.hypertweak.presentation.icon.duo.DuoPolicy
+import com.takekazex.hypertweak.presentation.icon.duo.DuoSizes
+import com.takekazex.hypertweak.presentation.icon.duo.DuoSurface
+
 import android.content.Context
 import android.graphics.Color
 import android.graphics.Paint
@@ -21,9 +31,9 @@ import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.hook.rules.aod.AodIconSettings
 import com.takekazex.hypertweak.hook.rules.systemui.icon.ControlCenterCarrierBlockHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IconPositionHooker
-import com.takekazex.hypertweak.hook.rules.systemui.icon.IconSvgRenderer
+import com.takekazex.hypertweak.presentation.icon.IconSvgRenderer
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IconTunerFlows
-import com.takekazex.hypertweak.hook.rules.systemui.icon.MobileSignalState
+import com.takekazex.hypertweak.presentation.icon.MobileSignalState
 import com.takekazex.hypertweak.hook.rules.systemui.icon.SignalHandoverEvents
 import com.takekazex.hypertweak.settings.contract.AodSettingsKeys
 import com.takekazex.hypertweak.settings.contract.IconSettingsKeys

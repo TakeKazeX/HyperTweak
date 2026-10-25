@@ -22,9 +22,9 @@ import android.widget.TextView
 import com.takekazex.hypertweak.hook.rules.systemui.AODHooker
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.DynamicHooker
-import com.takekazex.hypertweak.hook.rules.systemui.icon.duo.DuoBattery
-import com.takekazex.hypertweak.hook.rules.systemui.icon.duo.DuoContent
-import com.takekazex.hypertweak.hook.rules.systemui.icon.duo.DuoPolicy
+import com.takekazex.hypertweak.presentation.icon.duo.DuoBattery
+import com.takekazex.hypertweak.presentation.icon.duo.DuoContent
+import com.takekazex.hypertweak.presentation.icon.duo.DuoPolicy
 import com.takekazex.hypertweak.hook.rules.systemui.icon.duo.DuoSignalHooker
 import com.takekazex.hypertweak.util.DebugLog
 import com.takekazex.hypertweak.util.PlatformLevel

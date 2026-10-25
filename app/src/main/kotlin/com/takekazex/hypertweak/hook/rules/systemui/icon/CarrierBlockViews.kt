@@ -1,6 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
-import android.annotation.SuppressLint
+import com.takekazex.hypertweak.presentation.icon.IconSvgSnapshot
+
 import android.graphics.Bitmap
 import android.graphics.drawable.GradientDrawable
 import android.text.TextUtils

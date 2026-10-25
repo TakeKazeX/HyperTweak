@@ -1,5 +1,11 @@
 package com.takekazex.hypertweak.hook.rules.systemui.glass
 
+import com.takekazex.hypertweak.presentation.glass.scaleBlendArrayColors
+import com.takekazex.hypertweak.presentation.glass.scaleColorAlpha
+import com.takekazex.hypertweak.presentation.glass.scaleColorLightness
+import com.takekazex.hypertweak.presentation.glass.scaleGlassParams
+import com.takekazex.hypertweak.presentation.glass.scaleRadius
+
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 
 import android.content.res.Resources

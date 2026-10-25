@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import com.takekazex.hypertweak.presentation.icon.MobileSignalState
+
 /** A host event port; the producer does not construct or depend on the Duo renderer. */
 internal class ShadeSwitchEvents {
     private class Binding(val owner: Any, val started: () -> Unit, val finished: (Boolean) -> Unit,

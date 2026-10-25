@@ -1,4 +1,4 @@
-package com.takekazex.hypertweak.hook.rules.systemui.icon.duo
+package com.takekazex.hypertweak.presentation.icon.duo
 
 import android.content.Context
 import android.graphics.Picture
@@ -16,7 +16,7 @@ import android.graphics.Typeface
 import android.graphics.drawable.Drawable
 import androidx.core.graphics.withSave
 import com.takekazex.hypertweak.settings.contract.MobileTypeLabelStyle
-import com.takekazex.hypertweak.hook.rules.systemui.icon.AirplaneIconHooker
+import com.takekazex.hypertweak.presentation.icon.AirplaneGlyph
 import kotlin.math.min
 import kotlin.math.roundToInt
 
@@ -35,7 +35,7 @@ import kotlin.math.roundToInt
 enum class DuoRenderLayer { COMPOSITE, POWER_TRACK }
 
 class DuoDrawable(context: Context, private val layer: DuoRenderLayer = DuoRenderLayer.COMPOSITE) : Drawable() {
-    private val airplaneDrawable = if (layer == DuoRenderLayer.POWER_TRACK) null else AirplaneIconHooker.loadGlyph(context)
+    private val airplaneDrawable = if (layer == DuoRenderLayer.POWER_TRACK) null else AirplaneGlyph.loadGlyph(context)
     var mirrorAirplane = false
         set(value) { if (field != value) { field = value; invalidateSelf() } }
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -532,7 +532,6 @@ class DuoDrawable(context: Context, private val layer: DuoRenderLayer = DuoRende
         const val BATTERY_TERMINAL_WIDTH = 1.4f
         const val BATTERY_TERMINAL_HEIGHT = 3.2f
         const val FALLBACK_BATTERY_RATIO = 1.8f
-
 
         const val SIGNAL_DOT_COUNT = 4
         const val SIGNAL_DOT_RADIUS = 1.35f

@@ -1,5 +1,8 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import com.takekazex.hypertweak.presentation.icon.MobileSignalEvent
+import com.takekazex.hypertweak.presentation.icon.MobileSignalState
+
 /** Ordered subscription bootstrap and early flow replay; callers gate the current generation. */
 internal class MobileSignalSession {
     var state = MobileSignalState()
@@ -41,7 +44,6 @@ internal class MobileSignalSession {
             visibility
         )
     }
-
 
     fun reduce(event: MobileSignalEvent): Boolean {
         val subId = when (event) {

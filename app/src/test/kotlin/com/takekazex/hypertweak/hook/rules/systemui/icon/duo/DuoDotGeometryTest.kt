@@ -1,5 +1,8 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon.duo
 
+import com.takekazex.hypertweak.presentation.icon.duo.DuoDotGeometry
+import com.takekazex.hypertweak.presentation.icon.duo.DuoDrawable
+
 import org.junit.Assert.*
 import org.junit.Test
 import kotlin.math.hypot

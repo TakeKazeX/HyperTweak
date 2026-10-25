@@ -1,5 +1,9 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import com.takekazex.hypertweak.presentation.icon.MobileSignalEvent
+import com.takekazex.hypertweak.presentation.icon.MobileSignalKind
+import com.takekazex.hypertweak.presentation.icon.MobileSignalModel
+
 import org.junit.Assert.*
 import org.junit.Test
 

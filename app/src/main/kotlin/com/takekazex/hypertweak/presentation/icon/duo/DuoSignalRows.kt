@@ -1,4 +1,4 @@
-package com.takekazex.hypertweak.hook.rules.systemui.icon.duo
+package com.takekazex.hypertweak.presentation.icon.duo
 
 /** Slot identity survives sorting, data-SIM changes and a hidden first SIM. */
 data class DuoSignalRow(val subId: Int, val slotIndex: Int, val level: Int)

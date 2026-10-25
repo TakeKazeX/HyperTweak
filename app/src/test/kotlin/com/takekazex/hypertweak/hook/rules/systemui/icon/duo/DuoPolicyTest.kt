@@ -1,8 +1,18 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon.duo
 
-import com.takekazex.hypertweak.hook.rules.systemui.icon.MobileSignalEvent
-import com.takekazex.hypertweak.hook.rules.systemui.icon.MobileSignalModel
-import com.takekazex.hypertweak.hook.rules.systemui.icon.MobileSignalState
+import com.takekazex.hypertweak.presentation.icon.duo.BatteryTone
+import com.takekazex.hypertweak.presentation.icon.duo.DuoBattery
+import com.takekazex.hypertweak.presentation.icon.duo.DuoExpandedStyle
+import com.takekazex.hypertweak.presentation.icon.duo.DuoNetwork
+import com.takekazex.hypertweak.presentation.icon.duo.DuoNetworkDestination
+import com.takekazex.hypertweak.presentation.icon.duo.DuoPolicy
+import com.takekazex.hypertweak.presentation.icon.duo.DuoSignalRow
+import com.takekazex.hypertweak.presentation.icon.duo.DuoSurface
+import com.takekazex.hypertweak.presentation.icon.duo.DuoTransport
+
+import com.takekazex.hypertweak.presentation.icon.MobileSignalEvent
+import com.takekazex.hypertweak.presentation.icon.MobileSignalModel
+import com.takekazex.hypertweak.presentation.icon.MobileSignalState
 import org.junit.Assert.*
 import org.junit.Test
 

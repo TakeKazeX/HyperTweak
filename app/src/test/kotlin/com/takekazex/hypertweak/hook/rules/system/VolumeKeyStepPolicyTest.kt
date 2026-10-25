@@ -1,5 +1,8 @@
 package com.takekazex.hypertweak.hook.rules.system
 
+import com.takekazex.hypertweak.settings.contract.VolumeKeyStepPolicy
+import com.takekazex.hypertweak.settings.contract.VolumeKeyStepSequence
+
 import org.junit.Assert.assertEquals
 import org.junit.Test
 

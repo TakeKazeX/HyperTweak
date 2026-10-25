@@ -11,8 +11,6 @@ import com.takekazex.hypertweak.hook.base.CompatibleMethodResolver
 import com.takekazex.hypertweak.hook.base.DynamicHooker
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import java.lang.reflect.Field
-import java.lang.reflect.Modifier
-import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Control-center editor cards (控制中心编辑增强).
@@ -80,6 +78,7 @@ import java.util.concurrent.ConcurrentHashMap
  */
 class ControlCenterCardsEditHooker : DynamicHooker() {
     override val hotReloadMode = HotReloadMode.RECREATE
+    private val editor = ControlCenterEditorAccess { it.toClassOrNull() }
 
     private companion object {
         const val TAG = "HyperTweak"
@@ -109,18 +108,8 @@ class ControlCenterCardsEditHooker : DynamicHooker() {
     private var committedCardOrder: String? = null
 
     /**
-     * The itemView touch listeners the host installed before the edit-mode blocker replaced
-     * them (e.g. [ScaleItemViewHolder] holders — 设备中心, sliders — install themselves as the
-     * itemView's OnTouchListener in their constructor). Restored when the panel leaves EDIT;
-     * the value is [NULL_TOUCH_LISTENER] when the host had none.
-     */
-    private val originalTouchListeners = java.util.WeakHashMap<View, Any>()
-
-    private val NULL_TOUCH_LISTENER = Any()
-
-    /**
      * Suppresses the adapter's ControlCenterItemAnimator around drag-driven refreshes (see
-     * [resolveAnimatorSuppressor]); resolved lazily in installMoveHooks.
+     * [editor.resolveAnimatorSuppressor]); resolved lazily in installMoveHooks.
      */
     private var suppressAnimator: ((Any, Boolean) -> Unit)? = null
 
@@ -134,20 +123,11 @@ class ControlCenterCardsEditHooker : DynamicHooker() {
     @Volatile
     private var dragGeneration = 0L
 
-    /** The adapter's `attachedHolders` field (ArrayList[] of per-spread-row holder buckets). */
-    private var attachedHoldersField: Field? = null
-
     /** The adapter's GridLayoutManager, whose span lookup must be invalidated after reordering. */
     private var layoutManagerField: Field? = null
 
-    /** `ControlCenterViewHolder.endAnimation()` — resets translation/alpha/scale to rest state. */
-    private var endAnimationMethod: java.lang.reflect.Method? = null
-
     /** Main-thread handler used to defer adapter refreshes out of ItemTouchHelper's event loop. */
     private val mainHandler = Handler(Looper.getMainLooper())
-
-    /** Cached per-controller-class reader that reports whether the panel is in EDIT mode. */
-    private val editModeReaders = ConcurrentHashMap<Class<*>, ((Any) -> Boolean)>()
 
     override fun onHook() {
         installEditVisibilityHooks()
@@ -187,7 +167,7 @@ class ControlCenterCardsEditHooker : DynamicHooker() {
                     runCatching {
                         val order = storedContentOrder()
                         if (order.isEmpty()) return@runCatching
-                        val key = contentKey(param.thisObject)
+                        val key = editor.contentKey(param.thisObject)
                         val index = order.indexOf(key)
                         if (index >= 0) param.result = 10 + index * 10
                     }.onFailure { t -> Log.e(TAG, "ControlCenterCardsEdit: priority", t) }
@@ -241,8 +221,8 @@ class ControlCenterCardsEditHooker : DynamicHooker() {
             runCatching {
                 if (adapter == null) return@runCatching
                 if (!live) {
-                    restoreManagedTouchListeners(adapter, itemViewFieldOf(adapter))
-                    clearResidualTransforms(adapter)
+                    editor.restoreManagedTouchListeners(adapter, itemViewFieldOf(adapter))
+                    editor.clearResidualTransforms(adapter)
                 }
                 invalidateSpanCaches(adapter)
                 refreshAdapter(adapter, animate = false)
@@ -283,7 +263,7 @@ class ControlCenterCardsEditHooker : DynamicHooker() {
             available.hook {
                 after { param ->
                     runCatching {
-                        if (param.result == false && enabled() && isEditMode(param.thisObject)) {
+                        if (param.result == false && enabled() && editor.isEditMode(param.thisObject)) {
                             param.result = true
                         }
                     }.onFailure { t -> Log.e(TAG, "ControlCenterCardsEdit: availability", t) }
@@ -294,67 +274,6 @@ class ControlCenterCardsEditHooker : DynamicHooker() {
         Log.i(TAG, "ControlCenterCardsEdit: edit visibility hooks installed=$installed")
     }
 
-    private fun isEditMode(controller: Any): Boolean {
-        val reader = editModeReaders.computeIfAbsent(controller.javaClass) { cls ->
-            buildEditModeReader(cls)
-        }
-        return reader(controller)
-    }
-
-    /**
-     * Walks the controller's field hierarchy once and builds a reader that reports whether any
-     * mode-holder reachable through the fields reads EDIT. Fields hold either the mode controller
-     * itself (`getMode()`) or a lazy/provider wrapper around it (`get()` — dagger Provider, or
-     * `invoke()` — kotlin Function0). Enum comparison is by name so no host enum class is loaded.
-     */
-    private fun buildEditModeReader(cls: Class<*>): (Any) -> Boolean {
-        val paths = mutableListOf<Pair<Field, String?>>() // field to optional provider-unwrap method
-        var type: Class<*>? = cls
-        while (type != null && type != Any::class.java) {
-            for (field in type.declaredFields) {
-                if (Modifier.isStatic(field.modifiers)) continue
-                val fieldType = field.type
-                runCatching { field.isAccessible = true }
-                when {
-                    declaresZeroArg(fieldType, "getMode") -> paths += field to null
-                    declaresZeroArg(fieldType, "get") -> paths += field to "get"
-                    declaresZeroArg(fieldType, "invoke") -> paths += field to "invoke"
-                }
-            }
-            type = type.superclass
-        }
-        if (paths.isEmpty()) {
-            Log.w(TAG, "ControlCenterCardsEdit: no mode reader on ${cls.name}")
-        }
-        return { controller ->
-            paths.any { (field, unwrap) ->
-                runCatching {
-                    var value = field.get(controller) ?: return@runCatching false
-                    if (unwrap != null) {
-                        value = invokeChain(value, unwrap) ?: return@runCatching false
-                    }
-                    invokeChain(value, "getMode")?.toString()?.endsWith("EDIT") == true
-                }.getOrDefault(false)
-            }
-        }
-    }
-
-    private fun declaresZeroArg(cls: Class<*>, name: String): Boolean =
-        cls.declaredMethods.any {
-            it.name == name && it.parameterCount == 0 && it.returnType != Void.TYPE
-        }
-
-    private fun invokeChain(receiver: Any?, method: String): Any? {
-        if (receiver == null) return null
-        return runCatching {
-            receiver.javaClass.methods.firstOrNull {
-                it.name == method && it.parameterCount == 0
-            }?.apply { isAccessible = true }?.invoke(receiver)
-        }.getOrNull()
-    }
-
-    // ─── Draggability ──────────────────────────────────────────────────────────
-
     private fun installDraggableHook() {
         val holderCls =
             "miui.systemui.controlcenter.panel.main.recyclerview.MainPanelItemViewHolder".toClassOrNull()
@@ -362,7 +281,7 @@ class ControlCenterCardsEditHooker : DynamicHooker() {
         val getter = CompatibleMethodResolver.find(
             holderCls, "getDraggable", returnType = Boolean::class.javaPrimitiveType
         ) ?: run { Log.w(TAG, "ControlCenterCardsEdit: getDraggable not found"); return }
-        val modeField = findField(holderCls, "mode")
+        val modeField = editor.findField(holderCls, "mode")
         val ownerMethod = holderCls.methods.firstOrNull {
             it.name == "getOwner" && it.parameterCount == 0
         }
@@ -384,7 +303,7 @@ class ControlCenterCardsEditHooker : DynamicHooker() {
                     // Only the five fixed sections need the force. qslist records manage their
                     // own flag (unadded pool tiles stay non-draggable by design); overriding
                     // those would let long-press lift tiles that must be tapped to add.
-                    if (contentKey(owner) in SECTION_KEYS) param.result = true
+                    if (editor.contentKey(owner) in SECTION_KEYS) param.result = true
                 }.onFailure { t -> Log.e(TAG, "ControlCenterCardsEdit: draggable", t) }
             }
         }
@@ -425,11 +344,11 @@ class ControlCenterCardsEditHooker : DynamicHooker() {
             it.name == "onBindViewHolder" && it.parameterTypes.size == 2 &&
                 it.parameterTypes[0] == holderCls
         } ?: return
-        val modeField = findField(holderCls, "mode")
+        val modeField = editor.findField(holderCls, "mode")
         val ownerMethod = holderCls.methods.firstOrNull {
             it.name == "getOwner" && it.parameterCount == 0
         }
-        val itemViewField = findField(holderCls, "itemView")
+        val itemViewField = editor.findField(holderCls, "itemView")
         val blocker = View.OnTouchListener { _, _ -> true }
         onBind.hook {
             after { param ->
@@ -440,18 +359,18 @@ class ControlCenterCardsEditHooker : DynamicHooker() {
                     val mode = modeField.get(holder)?.toString()
                     val owner = ownerMethod.invoke(holder)
                     val editing = mode != null && !mode.endsWith("NORMAL") &&
-                        owner != null && contentKey(owner) in SECTION_KEYS
+                        owner != null && editor.contentKey(owner) in SECTION_KEYS
                     if (editing) {
                         // Save the host's own listener the first time we block this view, so
                         // leaving EDIT restores it instead of leaving null behind (ScaleItemViewHolder
                         // holders — 设备中心, sliders — install themselves in their constructor).
-                        if (!originalTouchListeners.containsKey(itemView)) {
-                            originalTouchListeners[itemView] =
-                                currentTouchListener(itemView) ?: NULL_TOUCH_LISTENER
+                        if (!editor.originalTouchListeners.containsKey(itemView)) {
+                            editor.originalTouchListeners[itemView] =
+                                editor.currentTouchListener(itemView) ?: editor.NULL_TOUCH_LISTENER
                         }
                         itemView.setOnTouchListener(blocker)
                     } else {
-                        val saved = originalTouchListeners.remove(itemView)
+                        val saved = editor.originalTouchListeners.remove(itemView)
                         itemView.setOnTouchListener(saved as? View.OnTouchListener)
                     }
                 }.onFailure { t -> Log.e(TAG, "ControlCenterCardsEdit: edit touch block", t) }
@@ -478,10 +397,10 @@ class ControlCenterCardsEditHooker : DynamicHooker() {
             it.name == "notifyChanged" && it.parameterTypes.size == 2 &&
                 it.parameterTypes.all { p -> p == Boolean::class.javaPrimitiveType }
         } ?: return
-        val modeField = findField(adapter, "mode")
-        if (attachedHoldersField == null) attachedHoldersField = findField(adapter, "attachedHolders")
-        if (endAnimationMethod == null) {
-            endAnimationMethod =
+        val modeField = editor.findField(adapter, "mode")
+        if (editor.attachedHoldersField == null) editor.attachedHoldersField = editor.findField(adapter, "attachedHolders")
+        if (editor.endAnimationMethod == null) {
+            editor.endAnimationMethod =
                 "miui.systemui.controlcenter.panel.main.recyclerview.ControlCenterViewHolder"
                     .toClassOrNull()?.methods?.firstOrNull {
                         it.name == "endAnimation" && it.parameterCount == 0
@@ -489,20 +408,20 @@ class ControlCenterCardsEditHooker : DynamicHooker() {
         }
         val holderCls =
             "miui.systemui.controlcenter.panel.main.recyclerview.MainPanelItemViewHolder".toClassOrNull()
-        val itemViewField = holderCls?.let { findField(it, "itemView") }
+        val itemViewField = holderCls?.let { editor.findField(it, "itemView") }
         notifyChanged.hook {
             after { param ->
                 // Cleanup is unconditional (only touches holders we actually blocked/transformed),
                 // so even toggling the master switch off mid-session cannot strand a stale state.
                 runCatching {
                     val adapterInstance = param.thisObject
-                    val modeChanged = invokeChain(adapterInstance, "getModeChanged") as? Boolean
+                    val modeChanged = editor.invokeChain(adapterInstance, "getModeChanged") as? Boolean
                         ?: return@runCatching
                     if (!modeChanged) return@runCatching
                     val mode = modeField?.get(adapterInstance)?.toString() ?: return@runCatching
                     if (!mode.endsWith("NORMAL")) return@runCatching
-                    restoreManagedTouchListeners(adapterInstance, itemViewField)
-                    clearResidualTransforms(adapterInstance)
+                    editor.restoreManagedTouchListeners(adapterInstance, itemViewField)
+                    editor.clearResidualTransforms(adapterInstance)
                 }.onFailure { t -> Log.e(TAG, "ControlCenterCardsEdit: mode sweep", t) }
             }
         }
@@ -511,31 +430,8 @@ class ControlCenterCardsEditHooker : DynamicHooker() {
 
     /**
      * Puts back the host's own OnTouchListener on every attached managed holder that was blocked
-     * during EDIT (views never blocked are not in [originalTouchListeners] and are skipped).
+     * during EDIT (views never blocked are not in [editor.originalTouchListeners] and are skipped).
      */
-    private fun restoreManagedTouchListeners(adapter: Any, itemViewField: Field?) {
-        if (itemViewField == null) return
-        forEachAttachedHolder(adapter) { holder ->
-            runCatching {
-                val itemView = itemViewField.get(holder) as? View ?: return@runCatching
-                val saved = originalTouchListeners.remove(itemView) ?: return@runCatching
-                itemView.setOnTouchListener(saved as? View.OnTouchListener)
-            }.onFailure { t -> Log.e(TAG, "ControlCenterCardsEdit: restore touch listeners", t) }
-        }
-    }
-
-    /**
-     * Reads the itemView's current OnTouchListener. The SDK stub does not expose
-     * `View.getOnTouchListener()` (it is @UnsupportedAppUsage), so it goes through reflection;
-     * the hook runs in the SystemUI process, which is exempt from hidden-API enforcement.
-     */
-    private fun currentTouchListener(view: View): View.OnTouchListener? =
-        runCatching {
-            val getter = View::class.java.getDeclaredMethod("getOnTouchListener")
-            getter.isAccessible = true
-            getter.invoke(view) as? View.OnTouchListener
-        }.getOrNull()
-
     // ─── Section order application ─────────────────────────────────────────────
 
     /**
@@ -546,8 +442,8 @@ class ControlCenterCardsEditHooker : DynamicHooker() {
     private fun installContentOrderHook() {
         val adapter = ADAPTER_NAME.toClassOrNull()
             ?: run { Log.w(TAG, "ControlCenterCardsEdit: MainPanelAdapter not found"); return }
-        val distribute = resolveDistributeContent(adapter) ?: return
-        val mapField = findContentMapField(adapter) ?: return
+        val distribute = editor.resolveDistributeContent(adapter) ?: return
+        val mapField = editor.findContentMapField(adapter) ?: return
         distribute.hook {
             after { param ->
                 lastAdapter = param.thisObject
@@ -562,19 +458,6 @@ class ControlCenterCardsEditHooker : DynamicHooker() {
         }
     }
 
-    private fun resolveDistributeContent(adapter: Class<*>): java.lang.reflect.Method? =
-        CompatibleMethodResolver.find(adapter, "distributeContent", parameterTypes = listOf(Boolean::class.javaPrimitiveType!!))
-            ?: adapter.declaredMethods.singleOrNull {
-                it.name == "distributeContent" && it.parameterTypes.size == 1
-            }
-
-    private fun findContentMapField(adapter: Class<*>): Field? =
-        findField(adapter, "contentMap")
-            ?: adapter.declaredFields.firstOrNull {
-                !Modifier.isStatic(it.modifiers) &&
-                    it.type.name.contains("LinkedHashMap")
-            }?.apply { isAccessible = true }
-
     private fun applySectionOrder(mapField: Field, adapter: Any, current: MutableMap<Any, MutableList<Any>>) {
         val order = pendingContentOrder ?: storedContentOrder().takeIf { it.isNotEmpty() } ?: return
         val rank = order.withIndex().associate { it.value to it.index }
@@ -584,10 +467,10 @@ class ControlCenterCardsEditHooker : DynamicHooker() {
         // entries (edit button, dividers, footers, ...) are not reorderable, so pin each of them
         // to its current slot and fill the remaining slots with the ranked sections.
         val managed = entries.mapIndexedNotNull { index, entry ->
-            if (contentKey(entry.key) in MANAGED_SECTIONS) entry to index else null
-        }.sortedWith(compareBy({ rank[contentKey(it.first.key)] ?: Int.MAX_VALUE }, { it.second }))
+            if (editor.contentKey(entry.key) in MANAGED_SECTIONS) entry to index else null
+        }.sortedWith(compareBy({ rank[editor.contentKey(it.first.key)] ?: Int.MAX_VALUE }, { it.second }))
         val unmanagedIndexes = entries.mapIndexedNotNull { index, entry ->
-            if (contentKey(entry.key) !in MANAGED_SECTIONS) index else null
+            if (editor.contentKey(entry.key) !in MANAGED_SECTIONS) index else null
         }.toSet()
         val keys = arrayOfNulls<Any>(entries.size)
         unmanagedIndexes.forEach { keys[it] = entries[it].key }
@@ -641,15 +524,15 @@ class ControlCenterCardsEditHooker : DynamicHooker() {
      */
     private fun installMoveHooks() {
         val adapter = ADAPTER_NAME.toClassOrNull() ?: return
-        suppressAnimator = resolveAnimatorSuppressor(adapter)
-        adapterModeField = findField(adapter, "mode")
-        attachedHoldersField = findField(adapter, "attachedHolders")
-        layoutManagerField = findField(adapter, "layoutManager")
-        endAnimationMethod = "miui.systemui.controlcenter.panel.main.recyclerview.ControlCenterViewHolder"
+        suppressAnimator = editor.resolveAnimatorSuppressor(adapter)
+        adapterModeField = editor.findField(adapter, "mode")
+        editor.attachedHoldersField = editor.findField(adapter, "attachedHolders")
+        layoutManagerField = editor.findField(adapter, "layoutManager")
+        editor.endAnimationMethod = "miui.systemui.controlcenter.panel.main.recyclerview.ControlCenterViewHolder"
             .toClassOrNull()?.methods?.firstOrNull {
                 it.name == "endAnimation" && it.parameterCount == 0
             }
-        val callbackCls = findItemTouchCallback(adapter) ?: run {
+        val callbackCls = editor.findItemTouchCallback(adapter) ?: run {
             Log.w(TAG, "ControlCenterCardsEdit: ItemTouchHelper callback not found")
             return
         }
@@ -704,33 +587,6 @@ class ControlCenterCardsEditHooker : DynamicHooker() {
         Log.i(TAG, "ControlCenterCardsEdit: move hooks installed on ${callbackCls.name}")
     }
 
-    private fun findItemTouchCallback(adapter: Class<*>): Class<*>? {
-        val callbackSuper = "androidx.recyclerview.widget.ItemTouchHelper\$Callback"
-        runCatching { adapter.declaredClasses }.getOrNull()
-            ?.firstOrNull { cls -> cls.superclass?.name == callbackSuper }
-            ?.let { return it }
-        for (name in listOf("$ADAPTER_NAME\$itemTouchHelper\$2")) {
-            name.toClassOrNull()?.let { candidate ->
-                if (candidate.superclass?.name == callbackSuper ||
-                    candidate.name.endsWith("\$itemTouchHelper\$2")
-                ) {
-                    return candidate
-                }
-            }
-        }
-        // Ordinal probing: the object-expression ordinal can shift between plugin builds.
-        for (ordinal in 0..16) {
-            "$ADAPTER_NAME\$itemTouchHelper\$$ordinal".toClassOrNull()?.let { candidate ->
-                if (callbackSuper.let { runCatching { Class.forName(it, false, candidate.classLoader) }.getOrNull() }
-                        ?.isAssignableFrom(candidate) == true
-                ) {
-                    return candidate
-                }
-            }
-        }
-        return null
-    }
-
     /** Returns true when this hook consumed the move (caller sets result); null lets stock run. */
     private fun handleOnMove(
         adapterField: Field?,
@@ -740,15 +596,15 @@ class ControlCenterCardsEditHooker : DynamicHooker() {
     ): Boolean? {
         if (sourceHolder == null || targetHolder == null || adapterField == null) return null
         val adapter = adapterField.apply { isAccessible = true }.get(callback) ?: return null
-        val sourceOwner = invokeChain(sourceHolder, "getOwner") ?: return null
-        val targetOwner = invokeChain(targetHolder, "getOwner") ?: return null
-        val sourceKey = contentKey(sourceOwner)
-        val targetKey = contentKey(targetOwner)
+        val sourceOwner = editor.invokeChain(sourceHolder, "getOwner") ?: return null
+        val targetOwner = editor.invokeChain(targetHolder, "getOwner") ?: return null
+        val sourceKey = editor.contentKey(sourceOwner)
+        val targetKey = editor.contentKey(targetOwner)
 
         // Swapping the two big cards inside 大卡片.
         if (sourceKey == "qscards" && targetKey == "qscards") {
-            val sourceSpec = holderItemSpec(sourceHolder)
-            val targetSpec = holderItemSpec(targetHolder)
+            val sourceSpec = editor.holderItemSpec(sourceHolder)
+            val targetSpec = editor.holderItemSpec(targetHolder)
             if (sourceSpec.isNullOrBlank() || targetSpec.isNullOrBlank() || sourceSpec == targetSpec) {
                 return null
             }
@@ -811,34 +667,16 @@ class ControlCenterCardsEditHooker : DynamicHooker() {
 
     /** Synthesizes the full movable-section sequence from the currently rendered map. */
     private fun currentSectionSequence(adapter: Any): List<String> {
-        val mapField = findContentMapField(adapter.javaClass) ?: return emptyList()
+        val mapField = editor.findContentMapField(adapter.javaClass) ?: return emptyList()
         val map = mapField.get(adapter) as? Map<*, *> ?: return emptyList()
-        val seen = map.keys.filterNotNull().map { contentKey(it) }.filter { it in MANAGED_SECTIONS }
+        val seen = map.keys.filterNotNull().map { editor.contentKey(it) }.filter { it in MANAGED_SECTIONS }
         return seen + MANAGED_SECTIONS.filterNot { it in seen }
     }
 
     /** Reads the qscards controller's current card specs as the initial top-card order. */
     private fun currentCardSequence(cardsController: Any): List<String> {
-        val items = invokeChain(cardsController, "getListItems") as? List<*> ?: return emptyList()
-        return items.mapNotNull { itemSpec(it) }
-    }
-
-    private fun holderItemSpec(holder: Any): String? {
-        val method = holder.javaClass.methods.firstOrNull {
-            it.name == "getItem\$miui_controlcenter_release" && it.parameterCount == 0
-        } ?: holder.javaClass.methods.firstOrNull {
-            it.name.startsWith("getItem") && it.parameterCount == 0 &&
-                it.returnType != Int::class.javaPrimitiveType &&
-                it.returnType.name.endsWith("MainPanelListItem")
-        } ?: return null
-        val item = runCatching { method.apply { isAccessible = true }.invoke(holder) }.getOrNull()
-            ?: return null
-        return itemSpec(item)
-    }
-
-    private fun itemSpec(item: Any?): String? {
-        if (item == null) return null
-        return invokeChain(item, "getSpec") as? String
+        val items = editor.invokeChain(cardsController, "getListItems") as? List<*> ?: return emptyList()
+        return items.mapNotNull { editor.itemSpec(it) }
     }
 
     /**
@@ -859,69 +697,12 @@ class ControlCenterCardsEditHooker : DynamicHooker() {
                 it.parameterTypes.all { p -> p == Boolean::class.javaPrimitiveType }
         }?.apply { isAccessible = true } ?: return
         // Drag-driven refreshes must not animate the whole-grid re-flow: see
-        // resolveAnimatorSuppressor for why the editor's unsuppressed move animations leave views
+        // editor.resolveAnimatorSuppressor for why the editor's unsuppressed move animations leave views
         // stuck at wrong translations. A single big-card swap is the exception — it slides like a
         // native tile move, so `animate` un-suppresses (a no-op when the animator is already on).
         lastAdapter = adapter
         suppressAnimator?.invoke(adapter, !animate)
         notifyChanged.invoke(adapter, false, false)
-    }
-
-    /**
-     * Iterates the adapter's `attachedHolders` buckets (one ArrayList per spread row).
-     */
-    private fun forEachAttachedHolder(adapter: Any, block: (Any) -> Unit) {
-        if (attachedHoldersField == null) return
-        runCatching {
-            val buckets = attachedHoldersField?.get(adapter) as? Array<*> ?: return@runCatching
-            for (bucket in buckets) {
-                val list = bucket as? List<*> ?: continue
-                for (holder in list) {
-                    if (holder != null) block(holder)
-                }
-            }
-        }.onFailure { t -> Log.e(TAG, "ControlCenterCardsEdit: attached holders", t) }
-    }
-
-    /**
-     * Clears any residual holder transforms (translation/alpha/scale) left by interrupted move
-     * animations, so a reordered card's rendered position always matches its touch bounds —
-     * a drifted card looks fine but is "inoperable" because the tap lands elsewhere.
-     */
-    private fun clearResidualTransforms(adapter: Any) {
-        if (endAnimationMethod == null) return
-        forEachAttachedHolder(adapter) { holder ->
-            runCatching { endAnimationMethod?.invoke(holder) }
-                .onFailure { t -> Log.e(TAG, "ControlCenterCardsEdit: clear transforms", t) }
-        }
-    }
-
-    /**
-     * Resolves a way to suppress MainPanelAdapter's ControlCenterItemAnimator. While EDIT mode
-     * is active the distributor's handleNotifyChanged keeps the animator unsuppressed (so the
-     * pool-tile add/remove animates), and ControlCenterItemAnimator.prepareMove applies each
-     * move's delta to the holder's *current* translation (`getHolderTransX() + delta`) — when
-     * the next refresh interrupts those Folme moves (constant during a drag), views end up at
-     * wrong translations, which is the grid visibly scrambling once big cards sit among the
-     * tiles. Suppressing around drag refreshes makes the layout follow the finger instantly.
-     */
-    private fun resolveAnimatorSuppressor(adapterCls: Class<*>): ((Any, Boolean) -> Unit)? {
-        val rvField = findField(adapterCls, "recyclerView") ?: return null
-        val animatorCls = "miui.systemui.controlcenter.panel.main.recyclerview.ControlCenterItemAnimator"
-            .toClassOrNull() ?: return null
-        val setter = animatorCls.methods.firstOrNull {
-            it.name == "setSuppressAnimation" && it.parameterCount == 1 &&
-                it.parameterTypes[0] == Boolean::class.javaPrimitiveType
-        } ?: return null
-        val getItemAnimator = "androidx.recyclerview.widget.RecyclerView".toClassOrNull()
-            ?.methods?.firstOrNull { it.name == "getItemAnimator" && it.parameterCount == 0 }
-        return { adapter, suppress ->
-            runCatching {
-                val rv = rvField.get(adapter) ?: return@runCatching
-                val animator = getItemAnimator?.invoke(rv) ?: return@runCatching
-                setter.invoke(animator, suppress)
-            }.onFailure { t -> Log.e(TAG, "ControlCenterCardsEdit: animator suppress", t) }
-        }
     }
 
     private fun commitPendingOrders(adapterField: Field?, callback: Any) {
@@ -974,7 +755,7 @@ class ControlCenterCardsEditHooker : DynamicHooker() {
         mainHandler.postDelayed({
             runCatching {
                 if (dragGeneration == generation) {
-                    clearResidualTransforms(adapter)
+                    editor.clearResidualTransforms(adapter)
                     val mode = adapterModeField?.get(adapter)?.toString()
                     if (mode != null && !mode.endsWith("NORMAL")) {
                         suppressAnimator?.invoke(adapter, false)
@@ -1000,7 +781,7 @@ class ControlCenterCardsEditHooker : DynamicHooker() {
                         ?: return@runCatching
                     val rank = order.withIndex().associate { (index, key) -> key.lowercase() to index }
                     val sorted = result.withIndex()
-                        .sortedWith(compareBy({ rank[itemSpec(it.value)?.lowercase()] ?: Int.MAX_VALUE }, { it.index }))
+                        .sortedWith(compareBy({ rank[editor.itemSpec(it.value)?.lowercase()] ?: Int.MAX_VALUE }, { it.index }))
                         .map { it.value }
                     for (index in result.indices) {
                         if (result[index] !== sorted[index]) result[index] = sorted[index]
@@ -1014,29 +795,4 @@ class ControlCenterCardsEditHooker : DynamicHooker() {
 
     // ─── Shared helpers ────────────────────────────────────────────────────────
 
-    private fun findField(cls: Class<*>, name: String): Field? =
-        runCatching {
-            var type: Class<*>? = cls
-            while (type != null && type != Any::class.java) {
-                try {
-                    return type.getDeclaredField(name).apply { isAccessible = true }
-                } catch (_: NoSuchFieldException) {
-                    type = type.superclass
-                }
-            }
-            null
-        }.getOrNull()
-
-    private fun contentKey(content: Any): String {
-        val name = content.javaClass.simpleName.lowercase()
-        return when {
-            name.contains("qscards") -> "qscards"
-            name.contains("mediaplayer") -> "media"
-            name.contains("brightness") -> "brightness"
-            name.contains("volume") -> "volume"
-            name.contains("devicecenter") -> "devicecenter"
-            name.contains("qslist") -> "qslist"
-            else -> name.replace("controller", "").replace("content", "")
-        }
-    }
 }

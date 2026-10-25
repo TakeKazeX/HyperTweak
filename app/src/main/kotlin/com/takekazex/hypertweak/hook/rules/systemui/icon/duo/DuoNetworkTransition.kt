@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon.duo
 
+import com.takekazex.hypertweak.presentation.icon.duo.DuoContent
+
 internal data class DuoRepresentation(val wifi: Boolean, val label: String?, val airplane: Boolean) {
     companion object {
         fun of(content: DuoContent) = DuoRepresentation(content.wifiLevel != null, content.networkLabel, content.airplaneMode)

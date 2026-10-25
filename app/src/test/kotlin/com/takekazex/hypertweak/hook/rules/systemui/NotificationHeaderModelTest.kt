@@ -1,5 +1,9 @@
 package com.takekazex.hypertweak.hook.rules.systemui
 
+import com.takekazex.hypertweak.settings.contract.NotificationHeaderGeometryModel
+import com.takekazex.hypertweak.settings.contract.NotificationHeaderModel
+import com.takekazex.hypertweak.settings.contract.NotificationHeaderMotionModel
+
 import org.junit.Assert.assertEquals
 import org.junit.Test
 

@@ -8,8 +8,8 @@ import android.widget.SeekBar
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.DynamicHooker
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
-import com.takekazex.hypertweak.hook.rules.system.VolumeKeyStepPolicy
-import com.takekazex.hypertweak.hook.rules.system.VolumeKeyStepSequence
+import com.takekazex.hypertweak.settings.contract.VolumeKeyStepPolicy
+import com.takekazex.hypertweak.settings.contract.VolumeKeyStepSequence
 import com.takekazex.hypertweak.util.DebugLog
 import java.util.ArrayDeque
 import java.util.WeakHashMap

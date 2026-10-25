@@ -1,7 +1,6 @@
-package com.takekazex.hypertweak.hook.rules.system
+package com.takekazex.hypertweak.settings.contract
 
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
-
 
 internal data class VolumeKeyStepConfiguration(
     val steps: Int,

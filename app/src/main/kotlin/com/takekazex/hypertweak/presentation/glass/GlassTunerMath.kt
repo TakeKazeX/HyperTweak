@@ -1,4 +1,4 @@
-package com.takekazex.hypertweak.hook.rules.systemui.glass
+package com.takekazex.hypertweak.presentation.glass
 
 /**
  * Pure math behind the glass tuner, kept free of Android types so the JVM tests can cover it.

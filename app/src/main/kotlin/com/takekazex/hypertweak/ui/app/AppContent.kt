@@ -24,6 +24,7 @@ import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 import com.takekazex.hypertweak.ui.effect.AppBlurMode
 import com.takekazex.hypertweak.ui.effect.LocalAppBlurMode
 import com.takekazex.hypertweak.ui.navigation.HyperTweakNavContainer
+import com.takekazex.hypertweak.ui.navigation.NavigationSettings
 import com.takekazex.hypertweak.ui.page.LocalRestartScopeHandled
 import com.takekazex.hypertweak.ui.page.LocalRestartScopeRequest
 import com.takekazex.hypertweak.ui.page.UpdateAvailablePrompt
@@ -176,7 +177,7 @@ internal fun AppContent(
                         drawContent()
                     }
 
-                    HyperTweakNavContainer(
+                    HyperTweakNavContainer(settings = NavigationSettings(
                         appBlurMode = appBlurMode,
                         onAppBlurModeChange = { mode ->
                             appBlurMode = mode.coerceIn(0, 2)
@@ -713,7 +714,7 @@ internal fun AppContent(
                     },
                     updateManager = updateManager,
                     snackbarHostState = snackbarHostState
-                    )
+                    ))
 
                     // Hosted here, not inside the update page: the silent check runs at launch, so a
                     // prompt owned by that page would only ever be seen after navigating to it.

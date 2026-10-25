@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon.duo
 
+import com.takekazex.hypertweak.presentation.icon.duo.DuoLayout
+
 import org.junit.Assert.assertEquals
 import org.junit.Test
 

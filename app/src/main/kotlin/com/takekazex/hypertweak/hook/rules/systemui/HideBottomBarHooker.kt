@@ -7,10 +7,7 @@ import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import android.app.ActivityManager
-import android.app.KeyguardManager
 import android.content.Context
-import android.content.Intent
-import android.content.pm.PackageManager
 import android.content.res.Resources
 import android.graphics.Canvas
 import android.os.Handler
@@ -18,7 +15,6 @@ import android.os.Looper
 import android.os.SystemClock
 import android.util.SparseArray
 import android.view.View
-import android.view.animation.PathInterpolator
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
@@ -64,9 +60,6 @@ object HideBottomBarHooker : StaticHooker() {
     private const val DECORATION_VIEW =
         "com.android.wm.shell.multitasking.miuimultiwinswitch.miuiwindowdecor.decoration.MiuiDecorationBottomView"
 
-    /** Exact NavBarFadeAnimationController fade-out duration and interpolator. */
-    private const val FADE_OUT_MS = 133L
-
     private val hooksApplied = AtomicBoolean(false)
     @Volatile private var hideGestureBarEnabled = false
     @Volatile private var raiseLayoutEnabled = false
@@ -75,57 +68,28 @@ object HideBottomBarHooker : StaticHooker() {
     @Volatile private var attachTransitionEnabled = false
     @Volatile private var followGenerationActive = false
 
-    /**
-     * Whether the launcher's Home surface owns the primary display right now.
-     *
-     * Read by the draw gate on every frame, so it is a plain volatile flag; the platform query that
-     * produces it runs on the events that can change the answer (see [refreshLauncherHome]).
-     */
-    @Volatile private var launcherHomeVisible = false
-
-    /** Uptime millis of the last completed launcher-Home probe; 0 means "never asked". */
-    @Volatile private var launcherHomeProbedAt = 0L
-
-    /** Guards against stacking probes while one is already queued on the main thread. */
-    private val launcherHomeProbePending = AtomicBoolean(false)
-
-    /** The queued probe, so a retired generation can drop it instead of running it later. */
-    @Volatile private var launcherHomeProbeTask: Runnable? = null
-
-    /** Resolved HOME components of the default launcher, cached until resolution succeeds. */
-    @Volatile private var launcherHomeComponents: Set<String> = emptySet()
-
     private val state = GestureBarState()
     private val handleViews = instanceTracker()
     private val navigationBars = instanceTracker()
-
-    /**
-     * Host alpha captured before the first suppression, so a reveal restores what the platform
-     * wanted (an immersive app is not forced to alpha = 1) instead of assuming full opacity.
-     */
-    private val hostAlphas = java.util.Collections.synchronizedMap(java.util.WeakHashMap<View, Float>())
-
-    /** Guards our own alpha writes from the setAlpha hook that records the host's value. */
-    private val ownAlphaWrite = ThreadLocal<Boolean>()
+    private val presentation: GestureBarPresentation = GestureBarPresentation(state,
+        views = { handleViews.snapshot().filterIsInstance<View>() },
+        isHandle = ::isHandle, active = { followGenerationActive }, scheduleDeadline = { deadlines.scheduleDeadline(it) })
 
     private val followHandler by lazy { Handler(Looper.getMainLooper()) }
-    private val deadlines = HashMap<Int, PendingDeadline>()
+    private val deadlines: GestureBarDeadlines = GestureBarDeadlines(state, { followHandler }) { events.onDeadline(it) }
 
-    /**
-     * Displays whose handle is mid-fade. The draw gate must keep painting them for the duration:
-     * suppressing [android.view.View.onDraw] at the same instant the alpha animation starts leaves
-     * nothing to fade, so the bar vanishes instead of fading out.
-     */
-    private val fadingDisplays = java.util.Collections.synchronizedSet(mutableSetOf<Int>())
-
-    /**
-     * Views whose alpha is being written by our own animation. Without this the setAlpha hook would
-     * record the animation's intermediate values as the host's alpha and destroy the value a later
-     * reveal has to restore.
-     */
-    private val selfDrivenAlpha =
-        java.util.Collections.newSetFromMap(java.util.WeakHashMap<View, Boolean>())
     private var hostContext = WeakReference<Context>(null)
+
+    private val home: GestureBarHomeProbe = GestureBarHomeProbe(
+        context = { hostContext.get() }, handler = { followHandler },
+        enabled = { hideInLauncherEnabled }, active = { followGenerationActive },
+        overviewOnScreen = { state.isOverviewOnScreen(PRIMARY_DISPLAY) || queryOverviewVisible(PRIMARY_DISPLAY) == true },
+        repaint = ::repaintGestureBarViews)
+
+    private val events: GestureBarEvents = GestureBarEvents(state, deadlines,
+        active = { followGenerationActive }, queryOverviewVisible = ::queryOverviewVisible,
+        applyCurrent = presentation::applyCurrentState, refreshHome = home::refreshLauncherHome,
+        animate = presentation::animateHandles, hide = presentation::fadeImmediately)
 
     @Volatile private var navBarHeightAndroidResId = 0
     @Volatile private var navBarHeightSystemUiResId = 0
@@ -141,12 +105,12 @@ object HideBottomBarHooker : StaticHooker() {
         ArrayList(handleViews.snapshot()),
         state.save(),
         ArrayList(navigationBars.snapshot()),
-        synchronized(hostAlphas) {
-            hostAlphas.map { (view, alpha) -> arrayOf<Any>(view, alpha) }.toTypedArray()
+        synchronized(presentation.hostAlphas) {
+            presentation.hostAlphas.map { (view, alpha) -> arrayOf<Any>(view, alpha) }.toTypedArray()
         },
         // The desktop answer survives the handoff so the replacement does not draw the bar for
         // a frame on a Home screen that already had it hidden. Older payloads simply lack it.
-        launcherHomeVisible
+        home.launcherHomeVisible
     )
 
     override fun restoreHotReloadState(saved: Any?) {
@@ -158,11 +122,11 @@ object HideBottomBarHooker : StaticHooker() {
             val pair = row as? Array<*> ?: return@forEach
             val view = pair.getOrNull(0) as? View ?: return@forEach
             val alpha = pair.getOrNull(1) as? Float ?: return@forEach
-            hostAlphas[view] = alpha
+            presentation.hostAlphas[view] = alpha
         }
         // Only meaningful while the switch is on; refreshSettings() below re-reads it and drops
         // a restored answer that belongs to a switch the user has since turned off.
-        launcherHomeVisible = values.getOrNull(4) as? Boolean ?: false
+        home.launcherHomeVisible = values.getOrNull(4) as? Boolean ?: false
         refreshSettings()
     }
 
@@ -186,8 +150,8 @@ object HideBottomBarHooker : StaticHooker() {
         }.onFailure { DebugLog.w(TAG, "failed to recover native overview state", it) }
         // A replacement generation starts with no desktop answer, and the switch may already be
         // on: re-read it before the first frame instead of waiting for the next task move.
-        refreshLauncherHome("recovery")
-        applyCurrentState()
+        home.refreshLauncherHome("recovery")
+        presentation.applyCurrentState()
         // The replacement's draw gate is a different callback instance; the frame recorded by the
         // retired generation was drawn under the old decision. Repaint so a switch that changed
         // while the module was being replaced is visible without waiting for a host invalidation.
@@ -198,9 +162,9 @@ object HideBottomBarHooker : StaticHooker() {
 
     override fun onPrepareHotReload() {
         followGenerationActive = false
-        cancelAllDeadlines()
+        deadlines.cancelAllDeadlines()
         // Only our handle alpha animation is owned here; the WM surface remains native.
-        synchronized(hostAlphas) { hostAlphas.keys.toList() }.forEach { view ->
+        synchronized(presentation.hostAlphas) { presentation.hostAlphas.keys.toList() }.forEach { view ->
             HostAccess.onMain { view.animate().cancel() }
         }
         AospBackSystemUiHooker.setOverviewVisibilityListener(null)
@@ -209,18 +173,13 @@ object HideBottomBarHooker : StaticHooker() {
         raiseLayoutEnabled = false
         hideInRecentsEnabled = false
         hideInLauncherEnabled = false
-        launcherHomeVisible = false
-        launcherHomeProbedAt = 0L
-        launcherHomeProbeTask?.let { followHandler.removeCallbacks(it) }
-        launcherHomeProbeTask = null
-        launcherHomeProbePending.set(false)
-        launcherHomeComponents = emptySet()
+        home.retire()
         attachTransitionEnabled = false
         state.clear()
-        hostAlphas.clear()
-        fadingDisplays.clear()
-        selfDrivenAlpha.clear()
-        ownAlphaWrite.remove()
+        presentation.hostAlphas.clear()
+        presentation.fadingDisplays.clear()
+        presentation.selfDrivenAlpha.clear()
+        presentation.ownAlphaWrite.remove()
         navBarHeightAndroidResId = 0
         navBarHeightSystemUiResId = 0
         handleViews.clear()
@@ -278,13 +237,13 @@ object HideBottomBarHooker : StaticHooker() {
         AospBackSystemUiHooker.setOverviewVisibilityListener { visible ->
             // The bridge carries no display id; the primary display is the one it describes.
             if (visible == null) return@setOverviewVisibilityListener
-            if (onOverview(PRIMARY_DISPLAY, visible)) {
+            if (events.onOverview(PRIMARY_DISPLAY, visible)) {
                 DebugLog.d(TAG, "launcher overview=$visible")
             }
         }
         // Upgrades from versions that saved no feature state, and any start where the switch is
         // already on, need the desktop answer before the first frame can be decided.
-        refreshLauncherHome("package ready")
+        home.refreshLauncherHome("package ready")
     }
 
     // ── Launcher Home surface ────────────────────────────────────────────────────
@@ -297,123 +256,6 @@ object HideBottomBarHooker : StaticHooker() {
      * being queried per frame. A pending probe is never doubled, and the draw gate keeps using the
      * last answer until a new one arrives.
      */
-    private fun refreshLauncherHome(reason: String) {
-        if (!hideInLauncherEnabled || !followGenerationActive) return
-        // Never inline. The callers are platform callbacks (a binder thread, or the keyguard state
-        // machine on the main thread) and the draw gate itself; asking the activity manager inside
-        // either would put that round trip on a path that must stay cheap. The gate keeps its
-        // previous answer for the current frame and repaints as soon as the probe returns.
-        if (!launcherHomeProbePending.compareAndSet(false, true)) return
-        val probe = Runnable {
-            launcherHomeProbeTask = null
-            try {
-                probeLauncherHome(reason)
-            } finally {
-                launcherHomeProbePending.set(false)
-            }
-        }
-        launcherHomeProbeTask = probe
-        followHandler.post(probe)
-    }
-
-    private fun probeLauncherHome(reason: String) {
-        if (!followGenerationActive) return
-        val context = hostContext.get() ?: return
-        val keyguardLocked = runCatching {
-            context.getSystemService(KeyguardManager::class.java)?.isKeyguardLocked == true
-        }.getOrDefault(false)
-        val probe = LauncherHomeProbe(
-            topTaskIsHome = runCatching { queryTopTaskIsLauncherHome(context) }.getOrElse {
-                DebugLog.d(TAG, "launcher Home probe failed: ${it.javaClass.simpleName}")
-                null
-            },
-            keyguardLocked = keyguardLocked
-        )
-        launcherHomeProbedAt = SystemClock.uptimeMillis()
-        // HYOS runs Recents inside the launcher activity, so the newest task keeps being Home
-        // while the recent-task list owns the bottom of the screen. Recents must keep deciding
-        // that surface itself; the launcher's authenticated Overview report outranks Shell's map,
-        // which keeps answering false for the Dart implementation.
-        val overviewOnScreen = state.isOverviewOnScreen(PRIMARY_DISPLAY) ||
-            queryOverviewVisible(PRIMARY_DISPLAY) == true
-        val next = LauncherHomePolicy.resolve(probe, overviewOnScreen, launcherHomeVisible)
-        if (next == launcherHomeVisible) return
-        launcherHomeVisible = next
-        DebugLog.i(TAG, "launcher Home visible=$next ($reason) " +
-            "top=${probe.topTaskIsHome} keyguard=${probe.keyguardLocked} " +
-            "overview=$overviewOnScreen")
-        // The gate lives in onDraw, and skipping a draw never schedules the next frame.
-        repaintGestureBarViews()
-    }
-
-    /** Whether the newest task of the primary display is the launcher's HOME component. */
-    private fun queryTopTaskIsLauncherHome(context: Context): Boolean? {
-        val homes = launcherHomeComponents(context)
-        if (homes.isEmpty()) {
-            DebugLog.d(TAG, "launcher Home probe unavailable: no resolved HOME component")
-            return null
-        }
-        val manager = context.getSystemService(ActivityManager::class.java) ?: return null
-        // REAL_GET_TASKS is declared by SystemUI; an unreadable list is not an answer.
-        // Same query shape as the shipped back-gesture runtime: most recent first, and the first
-        // task that belongs to this display is the one on screen. Visibility is deliberately not
-        // filtered on - skipping a task would fall through to the launcher sitting behind it.
-        val tasks = manager.getRunningTasks(MAX_TASKS_FOR_PROBE) ?: return null
-        for (task in tasks) {
-            if (taskDisplayId(task)?.let { it != PRIMARY_DISPLAY } == true) continue
-            val top = task.topActivity ?: continue
-            return LauncherHomePolicy.matchesHome(
-                LauncherHomePolicy.flatten(top.packageName, top.className), homes
-            )
-        }
-        // No task reported for this display at all: the platform has no answer right now.
-        return null
-    }
-
-    /**
-     * The display a running task belongs to, or null when the platform does not expose it.
-     *
-     * `TaskInfo.displayId` and `getDisplayId()` are both hidden from the SDK; SystemUI itself
-     * reads them, so one of the two shapes is present on every supported build.
-     */
-    private fun taskDisplayId(task: ActivityManager.RunningTaskInfo): Int? {
-        (runCatching { HostAccess.read(task, "displayId") }.getOrNull() as? Int)
-            ?.let { return it }
-        return runCatching {
-            HostAccess.method(task, "getDisplayId")?.invoke(task) as? Int
-        }.getOrNull()
-    }
-
-    /**
-     * Resolves the launcher's HOME components.
-     *
-     * The same default resolution the shipped back-gesture runtime uses, including the alias case:
-     * a launcher may publish its desktop through a target activity, and both flattened names are
-     * accepted. Resolution is cached only after it succeeds, so a package-manager answer that
-     * arrives late (a launcher update, a user switch) is retried instead of pinning an empty set.
-     */
-    private fun launcherHomeComponents(context: Context): Set<String> {
-        launcherHomeComponents.takeIf { it.isNotEmpty() }?.let { return it }
-        val resolved = runCatching {
-            val intent = Intent(Intent.ACTION_MAIN)
-                .addCategory(Intent.CATEGORY_HOME)
-                .setPackage(LauncherHomePolicy.LAUNCHER_PACKAGE)
-            val info = context.packageManager.resolveActivity(
-                intent, PackageManager.ResolveInfoFlags.of(PackageManager.MATCH_DEFAULT_ONLY.toLong())
-            )?.activityInfo
-            if (info == null || info.packageName != LauncherHomePolicy.LAUNCHER_PACKAGE) emptySet()
-            else buildSet {
-                add(LauncherHomePolicy.flatten(info.packageName, info.name))
-                info.targetActivity?.let {
-                    add(LauncherHomePolicy.flatten(info.packageName, it))
-                }
-            }
-        }.onFailure { DebugLog.w(TAG, "failed to resolve the launcher HOME component", it) }
-            .getOrDefault(emptySet())
-        if (resolved.isNotEmpty()) launcherHomeComponents = resolved
-        return resolved
-    }
-
     /** Adopts the SystemUI application context, keeping the last usable one across hot reload. */
     private fun adoptContext(context: Context?) {
         val usable = context?.applicationContext ?: context ?: return
@@ -451,19 +293,19 @@ object HideBottomBarHooker : StaticHooker() {
             // on must re-read the surface instead of trusting an answer from another session. A
             // value restored across replacement is kept: the switch did not change here, and the
             // forced re-probe below corrects it without drawing the bar for a frame in between.
-            if (!hideInLauncherEnabled) launcherHomeVisible = false
-            launcherHomeProbedAt = 0L
-            refreshLauncherHome("settings")
+            if (!hideInLauncherEnabled) home.launcherHomeVisible = false
+            home.launcherHomeProbedAt = 0L
+            home.refreshLauncherHome("settings")
         }
         if (!anyEnabled) {
             // Turning the feature off must hand every display back immediately, including a
             // suppression carried over from the previous generation.
-            cancelAllDeadlines()
+            deadlines.cancelAllDeadlines()
             val suppressed = state.suppressedDisplays()
             state.clear()
-            restoreHandles(suppressed)
+            presentation.restoreHandles(suppressed)
         } else {
-            applyCurrentState()
+            presentation.applyCurrentState()
         }
         // The draw gate only skips the *next* frame and nothing asks for one, so a committed
         // change repainted nothing: the pill already on screen stayed there after the switch was
@@ -482,64 +324,6 @@ object HideBottomBarHooker : StaticHooker() {
     }
 
     // ── Evidence → state ─────────────────────────────────────────────────────────
-
-    /** Overview visibility for one display. Returns whether the value changed the session. */
-    private fun onOverview(display: Int, visible: Boolean): Boolean {
-        if (state.hasOverviewReport(display) && state.isOverviewOnScreen(display) == visible) return false
-        val action = runCatching {
-            state.onOverview(display, visible, SystemClock.uptimeMillis())
-        }.onFailure { DebugLog.w(TAG, "failed to apply overview visibility", it) }.getOrNull()
-            ?: return false
-        applyAction(display, action)
-        applyCurrentState()
-        // The desktop decision must yield to Recents: HYOS keeps the launcher task on top while
-        // the recent-task list is open, so only this report can tell the two surfaces apart.
-        refreshLauncherHome("overview=$visible")
-        return true
-    }
-
-    private fun onAttachment(display: Int, attached: Boolean) {
-        runCatching {
-            val previousDeadline = state.deadlineFor(display)
-            val action = state.onAttachment(display, attached, SystemClock.uptimeMillis())
-            if (action == GestureBarState.Action.NONE && state.deadlineFor(display) == previousDeadline) return
-            // The bar is still drawn while leaving; only the transition end fades it out.
-            applyAction(display, action)
-        }.onFailure { DebugLog.w(TAG, "failed to apply navigation attachment", it) }
-        DebugLog.d(TAG, "attachment attached=$attached display=$display " +
-            "suppressed=${state.isSuppressed(display)}")
-    }
-
-    private fun onTransitionFinished(display: Int) {
-        if (!followGenerationActive || !state.isTracked(display)) return
-        runCatching {
-            // Query only the cancelled-swipe fallback; authenticated Overview owns other sessions.
-            val overview = if (state.needsTransitionQuery(display)) queryOverviewVisible(display) else null
-            val action = state.onTransitionFinished(display, overview)
-            if (action != GestureBarState.Action.NONE) {
-                DebugLog.d(TAG, "transition finished display=$display overview=$overview " +
-                    "suppressed=${state.isSuppressed(display)} action=$action")
-                applyAction(display, action)
-            }
-        }.onFailure { DebugLog.w(TAG, "failed to restore the gesture bar", it) }
-    }
-
-    private fun onDeadline(display: Int) {
-        if (!followGenerationActive) return
-        runCatching {
-            // Ask the platform rather than assuming: null means the native map is unreachable.
-            val overview = queryOverviewVisible(display)
-            val action = state.onDeadline(display, SystemClock.uptimeMillis(), overview)
-            DebugLog.d(TAG, "deadline display=$display overview=$overview " +
-                "suppressed=${state.isSuppressed(display)} action=$action")
-            if (action == GestureBarState.Action.NONE) {
-                // Still genuinely in Recents (or waiting on an answer): keep the guard alive.
-                scheduleDeadline(display)
-                return@runCatching
-            }
-            applyAction(display, action)
-        }.onFailure { DebugLog.w(TAG, "failed to release the gesture bar deadline", it) }
-    }
 
     /** Null when the native visibility map cannot be reached; callers must not guess. */
     /**
@@ -571,30 +355,6 @@ object HideBottomBarHooker : StaticHooker() {
     }.getOrElse {
         DebugLog.w(TAG, "failed to query native overview visibility", it)
         null
-    }
-
-    private fun applyAction(display: Int, action: GestureBarState.Action) {
-        when (action) {
-            GestureBarState.Action.FADE_OUT -> {
-                scheduleDeadline(display)
-                animateHandles(display, fadeOut = true)
-                DebugLog.d(TAG, "gesture bar fading out display=$display")
-            }
-            GestureBarState.Action.HIDE_NOW -> {
-                // The platform restored the token at display level and fades its own copy in
-                // there. Anything drawn here is that flash at the bottom of Recents, so stop
-                // painting immediately instead of fading.
-                scheduleDeadline(display)
-                fadeImmediately(display)
-                DebugLog.d(TAG, "gesture bar suppressed display=$display")
-            }
-            GestureBarState.Action.SHOW -> {
-                cancelDeadline(display)
-                animateHandles(display, fadeOut = false)
-                DebugLog.i(TAG, "gesture bar restored display=$display")
-            }
-            GestureBarState.Action.NONE -> scheduleDeadline(display)
-        }
     }
 
     /**
@@ -650,84 +410,9 @@ object HideBottomBarHooker : StaticHooker() {
         }
     }
 
-    /** Stops drawing the handles of a display at once, without an animation of our own. */
-    private fun fadeImmediately(display: Int) {
-        HostAccess.onMain {
-            if (!followGenerationActive) return@onMain
-            fadingDisplays.remove(display)
-            handleViews.snapshot().filterIsInstance<View>()
-                .filter { isHandle(it) && (it.display?.displayId ?: PRIMARY_DISPLAY) == display }
-                .forEach { view ->
-                    view.animate().cancel()
-                    selfDrivenAlpha.remove(view)
-                    hostAlphas.putIfAbsent(view, view.alpha)
-                    setHandleAlpha(view, 0f)
-                }
-        }
-    }
-
-    /** Re-applies the stored suppression to live views after recovery or a settings change. */
-    private fun applyCurrentState() {
-        HostAccess.onMain {
-            if (!followGenerationActive) return@onMain
-            handleViews.snapshot().filterIsInstance<View>().filter(::isHandle).forEach { view ->
-                val displayId = view.display?.displayId ?: PRIMARY_DISPLAY
-                if (state.isSuppressed(displayId)) {
-                    // Suppressed: remember the host alpha once, then keep the handle dark. A
-                    // repaint here must never brighten a bar that belongs to Recents.
-                    hostAlphas.putIfAbsent(view, view.alpha)
-                    setHandleAlpha(view, 0f)
-                } else if (displayId !in state.suppressedDisplays()) {
-                    // Only restore when this display is genuinely not suppressed. Without the
-                    // guard, a stale host alpha from a previous session is written back while
-                    // Recents is still on screen, which is the bar reappearing at the bottom.
-                    hostAlphas.remove(view)?.let { setHandleAlpha(view, it) }
-                }
-            }
-            state.suppressedDisplays().forEach(::scheduleDeadline)
-        }
-    }
-
     // ── Deadline timer ───────────────────────────────────────────────────────────
 
-    /**
-     * Keeps one callback per display in step with the current phase's deadline. A phase change can
-     * move the deadline in either direction (leaving -> hidden extends it, hidden -> returning
-     * shortens it), so an already-queued callback is replaced rather than kept.
-     */
-    private fun scheduleDeadline(display: Int) {
-        val at = state.deadlineFor(display)
-        if (at == 0L) { cancelDeadline(display); return }
-        val existing = synchronized(deadlines) { deadlines[display] }
-        if (existing != null && existing.at == at && followHandler.hasCallbacks(existing.task)) return
-        cancelDeadline(display)
-        val runnable = Runnable {
-            synchronized(deadlines) { deadlines.remove(display) }
-            onDeadline(display)
-        }
-        synchronized(deadlines) { deadlines[display] = PendingDeadline(at, runnable) }
-        followHandler.postDelayed(runnable, (at - SystemClock.uptimeMillis()).coerceAtLeast(0L))
-    }
-
-    private fun cancelDeadline(display: Int) {
-        synchronized(deadlines) { deadlines.remove(display) }?.let { followHandler.removeCallbacks(it.task) }
-    }
-
-    private fun cancelAllDeadlines() {
-        val pending = synchronized(deadlines) {
-            deadlines.values.toList().also { deadlines.clear() }
-        }
-        pending.forEach { followHandler.removeCallbacks(it.task) }
-    }
-
-    private class PendingDeadline(val at: Long, val task: Runnable)
-
     // ── View effects ─────────────────────────────────────────────────────────────
-
-    private fun setHandleAlpha(view: View, alpha: Float) {
-        ownAlphaWrite.set(true)
-        try { view.alpha = alpha } finally { ownAlphaWrite.remove() }
-    }
 
     private fun isHandle(view: View): Boolean =
         generateSequence(view.javaClass as Class<*>?) { it.superclass }
@@ -736,54 +421,6 @@ object HideBottomBarHooker : StaticHooker() {
     private fun isHandleOrDecoration(view: View): Boolean =
         isHandle(view) || generateSequence(view.javaClass as Class<*>?) { it.superclass }
             .any { it.name == DECORATION_VIEW }
-
-    /**
-     * Applies the stored suppression to the handles of one display. A reveal restores the alpha
-     * the host last asked for, so an immersive application is not forced to full opacity.
-     */
-    private fun animateHandles(display: Int, fadeOut: Boolean) {
-        HostAccess.onMain {
-            if (!followGenerationActive) return@onMain
-            handleViews.snapshot().filterIsInstance<View>()
-                .filter { isHandle(it) && (it.display?.displayId ?: PRIMARY_DISPLAY) == display }
-                .forEach { view ->
-                    view.animate().cancel()
-                    if (fadeOut) {
-                        hostAlphas.putIfAbsent(view, view.alpha)
-                        // The native token is still under the application, so this fades the real
-                        // handle instead of creating a second one. The display stays drawable
-                        // until the animation ends, otherwise there is no pill left to fade.
-                        fadingDisplays.add(display)
-                        selfDrivenAlpha.add(view)
-                        // The native token is still under the application, so this fades the real
-                        // handle instead of creating a second one.
-                        view.animate().alpha(0f).setDuration(FADE_OUT_MS)
-                            .setInterpolator(PathInterpolator(0.2f, 0f, 1f, 1f))
-                            .withEndAction {
-                                selfDrivenAlpha.remove(view)
-                                // Only stop painting once every handle of this display is done.
-                                val stillFading = handleViews.snapshot().filterIsInstance<View>()
-                                    .any { isHandle(it) && it in selfDrivenAlpha }
-                                if (!stillFading) fadingDisplays.remove(display)
-                            }
-                            .start()
-                    } else {
-                        selfDrivenAlpha.remove(view)
-                        hostAlphas.remove(view)?.let { setHandleAlpha(view, it) }
-                    }
-                }
-            if (!fadeOut) fadingDisplays.remove(display)
-        }
-    }
-
-    private fun restoreHandles(displays: Set<Int>) {
-        HostAccess.onMain {
-            handleViews.snapshot().filterIsInstance<View>().filter(::isHandle).forEach { view ->
-                val displayId = view.display?.displayId ?: PRIMARY_DISPLAY
-                if (displayId in displays) hostAlphas.remove(view)?.let { setHandleAlpha(view, it) }
-            }
-        }
-    }
 
     // ── Navigation bar layout ────────────────────────────────────────────────────
 
@@ -900,7 +537,7 @@ object HideBottomBarHooker : StaticHooker() {
                 methods.forEach { (name, parameters) ->
                     runCatching {
                         type.getDeclaredMethod(name, *parameters).hook {
-                            after { refreshLauncherHome("$className.$name") }
+                            after { home.refreshLauncherHome("$className.$name") }
                         }
                     }.onFailure { DebugLog.hookSkipped(TAG, "$className#$name", "${it.message}") }
                 }
@@ -923,14 +560,14 @@ object HideBottomBarHooker : StaticHooker() {
                 .getDeclaredMethod("onUpdate", Any::class.java, java.util.Collection::class.java))
             setAlpha.hook {
                 before { param ->
-                    if (!followGenerationActive || ownAlphaWrite.get() == true) return@before
+                    if (!followGenerationActive || presentation.ownAlphaWrite.get() == true) return@before
                     val view = param.thisObject as? View ?: return@before
                     val alpha = param.args[0] as? Float ?: return@before
                     // Our own animation's intermediate values are not the host's alpha.
-                    if (view in selfDrivenAlpha) return@before
-                    if (hostAlphas.containsKey(view)) {
+                    if (view in presentation.selfDrivenAlpha) return@before
+                    if (presentation.hostAlphas.containsKey(view)) {
                         // Remember what the host wanted, but never let it brighten a hidden bar.
-                        hostAlphas[view] = alpha
+                        presentation.hostAlphas[view] = alpha
                         val displayId = view.display?.displayId ?: PRIMARY_DISPLAY
                         if (state.isSuppressed(displayId)) param.args[0] = minOf(view.alpha, alpha)
                     }
@@ -958,7 +595,7 @@ object HideBottomBarHooker : StaticHooker() {
                     // enabled=false: the gesture started and the token moved to the leaving
                     // application. enabled=true: that transition ended and the token is back at
                     // display level, which is when the bar may fade out.
-                    runCatching { onAttachment(display, !enabled) }
+                    runCatching { events.onAttachment(display, !enabled) }
                         .onFailure { DebugLog.w(TAG, "failed to apply attachment sampling", it) }
                 }
             }
@@ -975,7 +612,7 @@ object HideBottomBarHooker : StaticHooker() {
                 .getDeclaredMethod("appTransitionFinished", Int::class.javaPrimitiveType).hook {
                     after { param ->
                         val display = param.args[0] as? Int ?: return@after
-                        runCatching { onTransitionFinished(display) }
+                        runCatching { events.onTransitionFinished(display) }
                             .onFailure { DebugLog.w(TAG, "failed to restore the gesture bar", it) }
                     }
                 }
@@ -998,7 +635,7 @@ object HideBottomBarHooker : StaticHooker() {
                 method.hook {
                     after { param ->
                         val displayId = param.args.firstOrNull() as? Int ?: return@after
-                        runCatching { onOverview(displayId, visible) }
+                        runCatching { events.onOverview(displayId, visible) }
                             .onFailure { DebugLog.w(TAG, "failed to apply overview visibility", it) }
                     }
                 }
@@ -1012,11 +649,11 @@ object HideBottomBarHooker : StaticHooker() {
             cl.loadClass("com.android.systemui.LauncherProxyService")
                 .getDeclaredMethod("disconnectFromLauncherService", String::class.java).hook {
                     after {
-                        cancelAllDeadlines()
+                        deadlines.cancelAllDeadlines()
                         state.clear()
                         AospBackSystemUiHooker.clearLauncherOverviewVisibility()
-                        restoreHandles(state.suppressedDisplays())
-                        applyCurrentState()
+                        presentation.restoreHandles(state.suppressedDisplays())
+                        presentation.applyCurrentState()
                     }
                 }
         } catch (t: Throwable) {
@@ -1054,7 +691,7 @@ object HideBottomBarHooker : StaticHooker() {
                         // even then it must keep drawing while its own fade-out animation runs.
                         val display = view.display?.displayId ?: PRIMARY_DISPLAY
                         if (hideGestureBarEnabled || launcherHomeSuppresses(display) ||
-                            (state.isSuppressed(display) && display !in fadingDisplays)
+                            (state.isSuppressed(display) && display !in presentation.fadingDisplays)
                         ) {
                             param.result = null
                         }
@@ -1076,10 +713,10 @@ object HideBottomBarHooker : StaticHooker() {
     private fun launcherHomeSuppresses(display: Int): Boolean {
         if (!hideInLauncherEnabled || display != PRIMARY_DISPLAY) return false
         val now = SystemClock.uptimeMillis()
-        if (launcherHomeProbedAt == 0L || now - launcherHomeProbedAt >= LAUNCHER_HOME_STALE_MS) {
-            refreshLauncherHome("draw")
+        if (home.launcherHomeProbedAt == 0L || now - home.launcherHomeProbedAt >= LAUNCHER_HOME_STALE_MS) {
+            home.refreshLauncherHome("draw")
         }
-        return launcherHomeVisible
+        return home.launcherHomeVisible
     }
 
     private fun hookDecorationView(cl: ClassLoader) {
@@ -1138,5 +775,4 @@ object HideBottomBarHooker : StaticHooker() {
     private const val LAUNCHER_HOME_STALE_MS = 700L
 
     /** The probe only needs the newest few tasks; the launcher Home task is always at the top. */
-    private const val MAX_TASKS_FOR_PROBE = 8
 }

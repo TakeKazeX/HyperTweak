@@ -1,4 +1,4 @@
-package com.takekazex.hypertweak.hook.rules.systemui
+package com.takekazex.hypertweak.settings.contract
 
 import kotlin.math.max
 

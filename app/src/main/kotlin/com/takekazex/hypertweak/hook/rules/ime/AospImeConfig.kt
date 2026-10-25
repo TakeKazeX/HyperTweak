@@ -1,6 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.ime
 
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+import com.takekazex.hypertweak.settings.contract.ImeLayout
 
 import com.takekazex.hypertweak.hook.Preferences
 
@@ -9,14 +10,6 @@ import com.takekazex.hypertweak.hook.Preferences
  * [Preferences].
  */
 object AospImeConfig {
-    /** Layout tokens `NavigationBarInflaterView.createView` actually inflates. */
-    const val BUTTON_HIDE_IME = "back"
-    const val BUTTON_HOME_HANDLE = "home_handle"
-    const val BUTTON_IME_SWITCHER = "ime_switcher"
-
-    /** Placeholder for "no key"; keeps the handle centred where a real button would sit. */
-    const val BUTTON_NONE = "space"
-
     /** `70AC` is an absolute 70dp width; the handle sits in its own centre group. */
     private const val SIDE_BUTTON_SPEC = "[70AC]"
 
@@ -31,14 +24,8 @@ object AospImeConfig {
      */
     fun forceAospForAll(): Boolean = Preferences.getBoolean(PlatformSettingsKeys.KEY_AOSP_IME_FORCE_ALL, false)
 
-    /** Keyboard content is padded so it ends exactly at the bar top (default). */
-    const val RAISE_STYLE_AOSP = 0
-
-    /** The keyboard's own bottom handling is left untouched; the bar overlays whatever is below. */
-    const val RAISE_STYLE_MIUI = 1
-
     fun raiseStyle(): Int =
-        Preferences.getInt(PlatformSettingsKeys.KEY_AOSP_IME_RAISE_STYLE, RAISE_STYLE_AOSP)
+        Preferences.getInt(PlatformSettingsKeys.KEY_AOSP_IME_RAISE_STYLE, ImeLayout.RAISE_STYLE_AOSP)
 
     fun selectedPackages(): Set<String> =
         Preferences.getStringSet(PlatformSettingsKeys.KEY_AOSP_IME_PACKAGES).mapNotNull(::normalize).toSet()
@@ -60,15 +47,13 @@ object AospImeConfig {
     }
 
     fun navBarLayoutStart(): String =
-        normalize(Preferences.getString(PlatformSettingsKeys.KEY_AOSP_IME_NAV_BAR_START, BUTTON_HIDE_IME))
-            ?: BUTTON_HIDE_IME
+        ImeLayout.button(Preferences.getString(PlatformSettingsKeys.KEY_AOSP_IME_NAV_BAR_START, ImeLayout.BUTTON_HIDE_IME), ImeLayout.BUTTON_HIDE_IME)
 
     fun navBarLayoutEnd(): String =
-        normalize(Preferences.getString(PlatformSettingsKeys.KEY_AOSP_IME_NAV_BAR_END, BUTTON_IME_SWITCHER))
-            ?: BUTTON_IME_SWITCHER
+        ImeLayout.button(Preferences.getString(PlatformSettingsKeys.KEY_AOSP_IME_NAV_BAR_END, ImeLayout.BUTTON_IME_SWITCHER), ImeLayout.BUTTON_IME_SWITCHER)
 
     fun navBarLayoutHandle(): String =
-        "${navBarLayoutStart()}$SIDE_BUTTON_SPEC;$BUTTON_HOME_HANDLE;${navBarLayoutEnd()}$SIDE_BUTTON_SPEC"
+        "${navBarLayoutStart()}$SIDE_BUTTON_SPEC;${ImeLayout.BUTTON_HOME_HANDLE};${navBarLayoutEnd()}$SIDE_BUTTON_SPEC"
 
     private fun normalize(value: String?): String? = value?.trim()?.takeIf { it.isNotEmpty() }
 }

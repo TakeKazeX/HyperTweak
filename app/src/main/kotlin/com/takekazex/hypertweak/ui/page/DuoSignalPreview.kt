@@ -14,16 +14,16 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.LocalContext
 import com.takekazex.hypertweak.settings.contract.SignalSvgStyle
-import com.takekazex.hypertweak.hook.rules.systemui.icon.IconSvgRepository
-import com.takekazex.hypertweak.hook.rules.systemui.icon.IconSvgRenderer
+import com.takekazex.hypertweak.presentation.icon.IconSvgRepository
+import com.takekazex.hypertweak.presentation.icon.IconSvgRenderer
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.takekazex.hypertweak.R
-import com.takekazex.hypertweak.hook.rules.systemui.icon.duo.DuoBattery
-import com.takekazex.hypertweak.hook.rules.systemui.icon.duo.DuoContent
-import com.takekazex.hypertweak.hook.rules.systemui.icon.duo.DuoDrawable
-import com.takekazex.hypertweak.hook.rules.systemui.icon.duo.DuoSizes
+import com.takekazex.hypertweak.presentation.icon.duo.DuoBattery
+import com.takekazex.hypertweak.presentation.icon.duo.DuoContent
+import com.takekazex.hypertweak.presentation.icon.duo.DuoDrawable
+import com.takekazex.hypertweak.presentation.icon.duo.DuoSizes
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /** Uses the production drawable, so settings previews cannot silently diverge from its geometry. */

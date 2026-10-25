@@ -2,6 +2,9 @@
 
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import com.takekazex.hypertweak.presentation.icon.IconSvgRepository
+import com.takekazex.hypertweak.presentation.icon.MobileSignalState
+
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.res.Resources

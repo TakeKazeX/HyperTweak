@@ -1,5 +1,8 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon.duo
 
+import com.takekazex.hypertweak.presentation.icon.duo.DuoNetwork
+import com.takekazex.hypertweak.presentation.icon.duo.DuoTransport
+
 import android.content.Context
 import android.net.ConnectivityManager
 import android.net.Network

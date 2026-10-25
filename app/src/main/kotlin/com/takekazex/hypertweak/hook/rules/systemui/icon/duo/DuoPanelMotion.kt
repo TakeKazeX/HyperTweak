@@ -1,5 +1,11 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon.duo
 
+import com.takekazex.hypertweak.presentation.icon.duo.NativeWifiDrawable
+
+import com.takekazex.hypertweak.presentation.icon.duo.DuoContent
+import com.takekazex.hypertweak.presentation.icon.duo.DuoDrawable
+import com.takekazex.hypertweak.presentation.icon.duo.DuoSizes
+
 import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
 
 import android.content.Context

@@ -1,4 +1,4 @@
-package com.takekazex.hypertweak.hook.rules.systemui.icon
+package com.takekazex.hypertweak.presentation.icon
 
 import kotlin.math.roundToInt
 

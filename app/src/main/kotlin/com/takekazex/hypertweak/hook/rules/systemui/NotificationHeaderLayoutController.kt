@@ -1,5 +1,9 @@
 package com.takekazex.hypertweak.hook.rules.systemui
 
+import com.takekazex.hypertweak.settings.contract.NotificationHeaderGeometryModel
+import com.takekazex.hypertweak.settings.contract.NotificationHeaderModel
+import com.takekazex.hypertweak.settings.contract.NotificationHeaderMotionModel
+
 import android.content.Context
 import android.content.res.Configuration
 import android.graphics.Rect

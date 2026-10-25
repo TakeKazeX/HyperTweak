@@ -1,4 +1,4 @@
-package com.takekazex.hypertweak.hook.rules.systemui.icon.duo
+package com.takekazex.hypertweak.presentation.icon.duo
 
 /** Component ratios are independent of the outer slot size; defaults preserve existing artwork. */
 data class DuoSizes(

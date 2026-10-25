@@ -3,7 +3,7 @@ package com.takekazex.hypertweak.ui.page
 import com.takekazex.hypertweak.settings.contract.IconSlotMode
 import com.takekazex.hypertweak.settings.contract.IconSlotPolicy
 import com.takekazex.hypertweak.settings.contract.IconSlotPolicyConfig
-import com.takekazex.hypertweak.hook.rules.systemui.icon.duo.DuoLayout
+import com.takekazex.hypertweak.presentation.icon.duo.DuoLayout
 
 /**
  * Pseudo-slot the preview draws with the production Duo glyph. It is never a host slot name.

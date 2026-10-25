@@ -1,11 +1,10 @@
 package com.takekazex.hypertweak.hook.rules.systemui
 
+import com.takekazex.hypertweak.settings.contract.NotificationHeaderModel
+import com.takekazex.hypertweak.settings.contract.NotificationHeaderMotionModel
+
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 
-import com.takekazex.hypertweak.hook.base.dex.DexRuntime
-
-import android.content.Context
-import android.content.res.Configuration
 import android.os.Handler
 import android.os.Looper
 import android.view.View
@@ -17,17 +16,12 @@ import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.util.DebugLog
-import java.io.File
 import java.lang.reflect.Field
 import java.lang.reflect.Method
 import java.util.IdentityHashMap
 import java.util.WeakHashMap
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
-import kotlin.math.roundToInt
-import org.luckypray.dexkit.DexKitBridge
-import org.luckypray.dexkit.query.enums.StringMatchType
-import org.luckypray.dexkit.result.MethodData
 
 /**
  * Customizes only OS4's new-control-center notification header
@@ -42,8 +36,6 @@ object NotificationHeaderHooker : StaticHooker() {
     private const val CLOCK_CLASS = "com.android.systemui.statusbar.views.MiuiClock"
     private const val EXPAND_CONTROLLER_CLASS =
         "com.android.systemui.controlcenter.shade.NotificationHeaderExpandController"
-    private const val CONFIG_CALLBACK_OWNER_MARKER =
-        "com.android.systemui.controlcenter.shade.NotificationHeaderExpandController\$configurationControllerCallback"
     private const val COMBINED_HEADER_CLASS =
         "com.android.systemui.controlcenter.shade.CombinedHeaderController"
     private const val COMBINED_EXPAND_CONTROLLER_CLASS =
@@ -56,37 +48,18 @@ object NotificationHeaderHooker : StaticHooker() {
         "com.android.systemui.shade.NotificationPanelViewController"
     private const val QUICK_SETTINGS_CONTROLLER_CLASS =
         "com.android.systemui.shade.QuickSettingsControllerImpl"
-    private const val COMBINED_HEADER_CONFIG_CALLBACK_OWNER_MARKER =
-        "com.android.systemui.controlcenter.shade.CombinedHeaderController\$configurationListener"
-    private const val NOTIFICATION_EXPANSION_CALLBACK_OWNER_MARKER =
-        "com.android.systemui.controlcenter.shade.NotificationHeaderExpandController\$notificationCallback"
-    private const val COMBINED_EXPANSION_CALLBACK_OWNER_MARKER =
-        "com.android.systemui.controlcenter.shade.CombinedHeaderExpandController\$notificationCallback"
     private const val NOTIFICATION_STACK_CLASS =
         "com.android.systemui.statusbar.notification.stack.NotificationStackScrollLayout"
-    private const val MIUI_CONFIGS_CLASS = "com.miui.utils.configs.MiuiConfigs"
-
-    private data class ControllerSizeState(
-        val bigTimeSize: Int,
-        val shadeSize: Int,
-        val flipSize: Int
-    )
-
-    private data class GeneratedCallbacks(
-        val notificationExpansion: Method?,
-        val combinedExpansion: Method?,
-        val combinedHeaderConfiguration: Method?,
-        val expandConfiguration: Method?
-    )
 
     private val main = Handler(Looper.getMainLooper())
     private val fields = HashMap<Pair<Class<*>, String>, Field?>()
     private val methods = HashMap<Triple<Class<*>, String, Int>, Method?>()
+    private val clockSizing = NotificationHeaderClockSizing(::field, ::read,
+        resolveClass = { it.toClassOrNull() }, timeScale = { timeScale })
     private val layoutController = NotificationHeaderLayoutController(
-        hostUsesVerticalMode = ::isVerticalMode,
-        hostUsesLandscapeMode = ::isLandscapeMode
+        hostUsesVerticalMode = clockSizing::isVerticalMode,
+        hostUsesLandscapeMode = clockSizing::isLandscapeMode
     ) { stage, error -> DebugLog.w(TAG, "$stage failed", error) }
-    private val controllerSizes = WeakHashMap<Any, ControllerSizeState>()
     private val shadeHeaderHeightAnimators = WeakHashMap<Any, Boolean>()
     private val notificationTopPaddingControllers = WeakHashMap<Any, Boolean>()
     private val resettingHeaders = IdentityHashMap<ViewGroup, Int>()
@@ -101,12 +74,10 @@ object NotificationHeaderHooker : StaticHooker() {
     @Volatile private var timeAlignment = NotificationHeaderModel.ALIGN_START
     @Volatile private var timeScale = NotificationHeaderModel.DEFAULT_TIME_SCALE
     @Volatile private var restoring = false
-    private var verticalModeMethod: Method? = null
-    private var landscapeModeMethod: Method? = null
-    private var generatedCallbacks: GeneratedCallbacks? = null
+    private var generatedCallbacks: NotificationHeaderCallbacks.GeneratedCallbacks? = null
 
     override fun saveHotReloadState(): Any = HostAccess.onMain {
-        listOf(layoutController.roots(), controllerSizes.keys.toList(),
+        listOf(layoutController.roots(), clockSizing.controllerSizes.keys.toList(),
             shadeHeaderHeightAnimators.keys.toList(), notificationTopPaddingControllers.keys.toList())
     }
 
@@ -114,7 +85,7 @@ object NotificationHeaderHooker : StaticHooker() {
         val saved = state as? List<*> ?: return
         HostAccess.onMain {
             if (!hasHeaderWork()) return@onMain
-            (saved.getOrNull(1) as? List<*>)?.filterNotNull()?.forEach(::applyClockSize)
+            (saved.getOrNull(1) as? List<*>)?.filterNotNull()?.forEach(clockSizing::applyClockSize)
             (saved.getOrNull(2) as? List<*>)?.filterNotNull()?.forEach { shadeHeaderHeightAnimators[it] = true }
             (saved.getOrNull(3) as? List<*>)?.filterNotNull()?.forEach { notificationTopPaddingControllers[it] = true }
             (saved.getOrNull(0) as? List<*>)?.filterIsInstance<ViewGroup>()?.forEach(::applyHeader)
@@ -135,7 +106,7 @@ object NotificationHeaderHooker : StaticHooker() {
             HostAccess.provider(host, "notificationTopPaddingControllerImplProvider")?.let {
                 notificationTopPaddingControllers[it] = true
             }
-            HostAccess.provider(host, "notificationHeaderExpandControllerProvider")?.let(::applyClockSize)
+            HostAccess.provider(host, "notificationHeaderExpandControllerProvider")?.let(clockSizing::applyClockSize)
         }
         roots.forEach { root ->
             guarded("existing header layout") {
@@ -148,7 +119,7 @@ object NotificationHeaderHooker : StaticHooker() {
             ?.let(::replayExpansion)
         syncShadeHeaderClipHeight()
         refreshNotificationTopPadding()
-        DebugLog.i(TAG, "hot reload header hosts=${roots.size} sizeControllers=${controllerSizes.size}")
+        DebugLog.i(TAG, "hot reload header hosts=${roots.size} sizeControllers=${clockSizing.controllerSizes.size}")
         return roots
     }
 
@@ -200,8 +171,8 @@ object NotificationHeaderHooker : StaticHooker() {
                     // Release everything this module owns in the header before the native values
                     // are applied; the sessions are dropped so the next enable rebuilds them.
                     layoutController.restoreAll()
-                    controllerSizes.keys.toList().forEach { guarded("restore expansion") { replayExpansion(it) } }
-                    controllerSizes.clear()
+                    clockSizing.controllerSizes.keys.toList().forEach { guarded("restore expansion") { replayExpansion(it) } }
+                    clockSizing.controllerSizes.clear()
                     roots.forEach { guarded("restore header host") {
                         updateCarrierFromHost(it)
                         it.requestLayout()
@@ -210,7 +181,7 @@ object NotificationHeaderHooker : StaticHooker() {
                     refreshNotificationTopPadding()
                 } else {
                     roots.forEach { guarded("header settings apply") { layoutController.apply(it, it.rootWindowInsets); applyHeader(it) } }
-                    controllerSizes.keys.toList().forEach { guarded("clock size apply") { applyClockSize(it); replayExpansion(it) } }
+                    clockSizing.controllerSizes.keys.toList().forEach { guarded("clock size apply") { clockSizing.applyClockSize(it); replayExpansion(it) } }
                     refreshNotificationTopPadding()
                 }
             }
@@ -232,17 +203,9 @@ object NotificationHeaderHooker : StaticHooker() {
             shadeHeaderHeightAnimators.keys.toList().forEach(::restoreShadeHeaderClipHeight)
             refreshNotificationTopPadding()
             headerRoots.forEach(::updateCarrierFromHost)
-            controllerSizes.forEach { (controller, state) ->
-                runCatching {
-                    field(controller.javaClass, "bigTimeSize")?.setInt(controller, state.bigTimeSize)
-                    field(controller.javaClass, "shadeHeaderNotificationClockTextSize")
-                        ?.setInt(controller, state.shadeSize)
-                    field(controller.javaClass, "qsControlHeaderClockFlipSize")
-                        ?.setInt(controller, state.flipSize)
-                }
-            }
-            controllerSizes.keys.toList().forEach { guarded("restore native expansion") { replayExpansion(it) } }
-            controllerSizes.clear()
+            clockSizing.restore()
+            clockSizing.controllerSizes.keys.toList().forEach { guarded("restore native expansion") { replayExpansion(it) } }
+            clockSizing.controllerSizes.clear()
             shadeHeaderHeightAnimators.clear()
             notificationTopPaddingControllers.clear()
             resettingHeaders.clear()
@@ -250,8 +213,7 @@ object NotificationHeaderHooker : StaticHooker() {
             notificationClockPositionDepth.remove()
             fields.clear()
             methods.clear()
-            verticalModeMethod = null
-            landscapeModeMethod = null
+            clockSizing.clearConfigMethods()
             generatedCallbacks = null
         }
         if (Looper.myLooper() == Looper.getMainLooper()) {
@@ -268,77 +230,6 @@ object NotificationHeaderHooker : StaticHooker() {
         dateAlignment = NotificationHeaderModel.ALIGN_START
         timeAlignment = NotificationHeaderModel.ALIGN_START
         timeScale = NotificationHeaderModel.DEFAULT_TIME_SCALE
-    }
-
-    private fun resolveGeneratedCallbacks(): GeneratedCallbacks? {
-        val apkPath = hookParam.appInfo?.sourceDir ?: return null
-        val methods = DexRuntime.resolveMethodMap(
-            "systemui.notification_header_callbacks", apkPath, dexCacheDirectory, classLoader, hookParam.appInfo,
-            validate = { key, method ->
-                val contract = when (key) {
-                    "notification" -> NOTIFICATION_EXPANSION_CALLBACK_OWNER_MARKER to "onExpansionChanged"
-                    "combined" -> COMBINED_EXPANSION_CALLBACK_OWNER_MARKER to "onStretchHeightChanged"
-                    "header" -> COMBINED_HEADER_CONFIG_CALLBACK_OWNER_MARKER to "onConfigChanged"
-                    "expand" -> CONFIG_CALLBACK_OWNER_MARKER to "onConfigChanged"
-                    else -> "" to ""
-                }
-                contract.second.isNotEmpty() && method.declaringClass.name.contains(contract.first) &&
-                    method.name == contract.second && method.parameterCount == 1 &&
-                    method.returnType == Void.TYPE && !java.lang.reflect.Modifier.isStatic(method.modifiers)
-            },
-        ) { bridge ->
-            val targets = GeneratedCallbacks(
-                notificationExpansion = resolveGeneratedCallback(
-                    bridge,
-                    NOTIFICATION_EXPANSION_CALLBACK_OWNER_MARKER,
-                    "onExpansionChanged"
-                ),
-                combinedExpansion = resolveGeneratedCallback(
-                    bridge,
-                    COMBINED_EXPANSION_CALLBACK_OWNER_MARKER,
-                    "onStretchHeightChanged"
-                ),
-                combinedHeaderConfiguration = resolveGeneratedCallback(
-                    bridge,
-                    COMBINED_HEADER_CONFIG_CALLBACK_OWNER_MARKER,
-                    "onConfigChanged"
-                ),
-                expandConfiguration = resolveGeneratedCallback(
-                    bridge,
-                    CONFIG_CALLBACK_OWNER_MARKER,
-                    "onConfigChanged"
-                )
-            )
-            mapOf("notification" to targets.notificationExpansion, "combined" to targets.combinedExpansion,
-                "header" to targets.combinedHeaderConfiguration, "expand" to targets.expandConfiguration)
-                .filterValues { it != null }.mapValues { requireNotNull(it.value) }
-        } ?: return null
-        return GeneratedCallbacks(methods["notification"], methods["combined"], methods["header"], methods["expand"])
-    }
-
-    private fun resolveGeneratedCallback(
-        bridge: DexKitBridge,
-        ownerMarker: String,
-        methodName: String
-    ): Method? {
-        val candidates = bridge.findMethod {
-            matcher {
-                declaredClass {
-                    className(ownerMarker, StringMatchType.Contains)
-                }
-                name(methodName)
-                paramCount(1)
-                returnType(Void.TYPE)
-            }
-        }.toList().filter { data ->
-            data.className.contains(ownerMarker) && data.methodName == methodName &&
-                data.paramCount == 1 && data.returnTypeName == Void.TYPE.name
-        }.mapNotNull { data ->
-            runCatching { data.getMethodInstance(classLoader) }
-                .onFailure { DebugLog.w(TAG, "failed to inspect ${data.className}#${data.methodName}", it) }
-                .getOrNull()
-        }.filter { !java.lang.reflect.Modifier.isStatic(it.modifiers) }
-        return candidates.singleOrNull()
     }
 
     override fun onHook() {
@@ -389,7 +280,9 @@ object NotificationHeaderHooker : StaticHooker() {
         // .HEADER owns these keys). Every entry point re-reads the current options through
         // layoutController and [hasHeaderWork], so a first enable, a size change or a disable is
         // applied by [refreshSettings] to the living header instead of needing a restart.
-        generatedCallbacks = resolveGeneratedCallbacks()
+        generatedCallbacks = hookParam.appInfo?.sourceDir?.let {
+            NotificationHeaderCallbacks.resolve(it, dexCacheDirectory, classLoader, hookParam.appInfo)
+        }
 
         installHeaderHooks()
         installClockSizeHooks()
@@ -831,7 +724,7 @@ object NotificationHeaderHooker : StaticHooker() {
         }
         controllerClass.hookAllConstructors {
             after { param -> guarded("expand controller constructor") {
-                applyClockSize(param.thisObject)
+                clockSizing.applyClockSize(param.thisObject)
             } }
         }
 
@@ -840,7 +733,7 @@ object NotificationHeaderHooker : StaticHooker() {
             method.hook {
                 after { param -> guarded("clock size config") {
                     readOuter(param.thisObject, EXPAND_CONTROLLER_CLASS)?.let { controller ->
-                        applyClockSize(controller)
+                        clockSizing.applyClockSize(controller)
                         replayExpansion(controller)
                     }
                 } }
@@ -865,73 +758,6 @@ object NotificationHeaderHooker : StaticHooker() {
                 }
             }
     }
-
-    @Suppress("DiscouragedApi")
-    private fun applyClockSize(controller: Any) {
-        val bigField = field(controller.javaClass, "bigTimeSize") ?: return
-        val shadeField = field(controller.javaClass, "shadeHeaderNotificationClockTextSize") ?: return
-        val flipField = field(controller.javaClass, "qsControlHeaderClockFlipSize") ?: return
-        controllerSizes.putIfAbsent(
-            controller,
-            ControllerSizeState(
-                bigField.getInt(controller),
-                shadeField.getInt(controller),
-                flipField.getInt(controller)
-            )
-        )
-        val context = read(controller, "context") as? Context ?: return
-        val resources = context.resources
-        val shadeId = resources.getIdentifier(
-            "shade_header_notification_clock_text_size",
-            "dimen",
-            "com.android.systemui"
-        )
-        val flipId = resources.getIdentifier(
-            "qs_control_header_clock_flip_size",
-            "dimen",
-            "com.android.systemui"
-        )
-        if (shadeId == 0 || flipId == 0) return
-        val sizeScale = if (isCustomPortraitMode(context)) {
-            timeScale
-        } else {
-            NotificationHeaderModel.DEFAULT_TIME_SCALE
-        }
-        val shadeSize = (resources.getDimensionPixelSize(shadeId) * sizeScale).roundToInt()
-        val flipSize = (resources.getDimensionPixelSize(flipId) * sizeScale).roundToInt()
-        shadeField.setInt(controller, shadeSize)
-        flipField.setInt(controller, flipSize)
-        bigField.setInt(controller, if (isFlipTinyScreen(context)) flipSize else shadeSize)
-    }
-
-    private fun isVerticalMode(context: Context): Boolean {
-        val method = verticalModeMethod ?: resolveMiuiConfigMethod("isVerticalMode")
-            ?.also { verticalModeMethod = it }
-        return runCatching { method?.invoke(null, context) as? Boolean }.getOrNull()
-            ?: (context.resources.configuration.orientation != Configuration.ORIENTATION_LANDSCAPE)
-    }
-
-    private fun isLandscapeMode(context: Context): Boolean {
-        val method = landscapeModeMethod ?: resolveMiuiConfigMethod("isLandscape")
-            ?.also { landscapeModeMethod = it }
-        return runCatching { method?.invoke(null, context) as? Boolean }.getOrNull()
-            ?: (context.resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE)
-    }
-
-    private fun isCustomPortraitMode(context: Context): Boolean =
-        !isLandscapeMode(context) &&
-            context.resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT &&
-            isVerticalMode(context)
-
-    private fun isFlipTinyScreen(context: Context): Boolean = runCatching {
-        resolveMiuiConfigMethod("isFlipTinyScreen")?.invoke(null, context) as? Boolean
-    }.getOrNull() ?: false
-
-    private fun resolveMiuiConfigMethod(name: String): Method? =
-        MIUI_CONFIGS_CLASS.toClassOrNull()?.declaredMethods?.firstOrNull {
-            it.name == name && it.parameterCount == 1 &&
-                Context::class.java.isAssignableFrom(it.parameterTypes[0])
-        }?.apply { isAccessible = true }
 
     private fun read(owner: Any, name: String): Any? = field(owner.javaClass, name)?.get(owner)
 
