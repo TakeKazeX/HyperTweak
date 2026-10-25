@@ -2,6 +2,12 @@
 
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
+
+import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
+
+import com.takekazex.hypertweak.settings.contract.SignalSvgStyle
+
 import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 
@@ -33,7 +39,6 @@ import androidx.core.view.isVisible
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
-import com.takekazex.hypertweak.hook.rules.systemui.icon.duo.DuoSignalHooker
 import com.takekazex.hypertweak.util.DebugLog
 import org.luckypray.dexkit.query.enums.StringMatchType
 import java.io.File
@@ -101,7 +106,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
     private val blocks = WeakHashMap<Any, Block>()
     private val rowIndex = WeakHashMap<Any, RowParts>()
     private val motions = IdentityHashMap<View, CarrierTypeMotion>()
-    private val duoTargets = IdentityHashMap<View, Any>()
+    private val duoTargets = SignalTargetOwnership<View>()
     private val endpointStates = IdentityHashMap<View, EndpointState>()
     private val maskedContainers = WeakHashMap<Any, CarrierMask>()
     private val wifiHandles = ArrayList<HostFlowCollector.Handle>()
@@ -335,8 +340,8 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
      */
     val requiresMobileState: Boolean
         get() = enabled ||
-            (Preferences.getBoolean(Preferences.KEY_CC_HIDE_DATE, false) &&
-                Preferences.getBoolean(Preferences.KEY_CC_CARRIER_TWO_LINE, false))
+            (Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_HIDE_DATE, false) &&
+                Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_CARRIER_TWO_LINE, false))
 
     override fun saveHotReloadState(): Any = onMainBlocking {
         listOf((knownLayouts.keys + blocks.keys.filterIsInstance<ViewGroup>()).distinct(),
@@ -502,26 +507,26 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
 
     override fun onHook() {
         if (assetExecutor.isShutdown) assetExecutor = newAssetExecutor()
-        networkOnFirstRow = Preferences.getBoolean(Preferences.KEY_CC_NETWORK_FIRST_ROW, false)
+        networkOnFirstRow = Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_NETWORK_FIRST_ROW, false)
         IconTunerFlows.init(classLoader)
         typeConfig = typeConfig.copy(
             small5GaEnabled = Preferences.getBoolean(
-                Preferences.KEY_ICON_CELLULAR_TYPE_SMALL_5GA,
+                IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_SMALL_5GA,
                 false
             )
         )
-        dataFirst = Preferences.getInt(Preferences.KEY_ICON_MOBILE_ROW_STYLE, 0) == 1
-        val hideDate = Preferences.getBoolean(Preferences.KEY_CC_HIDE_DATE, false)
-        val twoLine = Preferences.getBoolean(Preferences.KEY_CC_CARRIER_TWO_LINE, false)
+        dataFirst = Preferences.getInt(IconSettingsKeys.KEY_ICON_MOBILE_ROW_STYLE, 0) == 1
+        val hideDate = Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_HIDE_DATE, false)
+        val twoLine = Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_CARRIER_TWO_LINE, false)
         showNonDataType = Preferences.getBoolean(
-            Preferences.KEY_CC_CARRIER_SHOW_NON_DATA_TYPE,
+            SystemUiSettingsKeys.KEY_CC_CARRIER_SHOW_NON_DATA_TYPE,
             false
         )
         keepTypeOnWifi = Preferences.cellularTypeKeepsOnWifi()
-        showBadge = Preferences.getBoolean(Preferences.KEY_CC_CARRIER_SHOW_BADGE, true)
+        showBadge = Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_CARRIER_SHOW_BADGE, true)
         badgeTexts = listOf(
-            Preferences.getString(Preferences.KEY_CC_CARRIER_BADGE_ONE, "1"),
-            Preferences.getString(Preferences.KEY_CC_CARRIER_BADGE_TWO, "2")
+            Preferences.getString(SystemUiSettingsKeys.KEY_CC_CARRIER_BADGE_ONE, "1"),
+            Preferences.getString(SystemUiSettingsKeys.KEY_CC_CARRIER_BADGE_TWO, "2")
         ).mapIndexed(CarrierBlockPolicy::badgeText)
         // 开关 2 is the enabling switch for 开关 3/4: without the hidden date the second row would
         // overlap the date, and the settings page disables the dependent rows for the same reason.
@@ -759,13 +764,13 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
             val controlCenterVisible = ShadeSwitchMotionPolicy.controlCenterAtRest(shadeSwitchProgress)
             runCatching { LeftContainerHooker.onShadeSwitchStarted(controlCenterVisible) }
                 .onFailure { DebugLog.w(TAG, "shade-switch left handover failed", it) }
-            runCatching { DuoSignalHooker.onShadeSwitchStarted() }
+            runCatching { SignalHandoverEvents.shade.started() }
                 .onFailure { DebugLog.w(TAG, "shade-switch Duo handover failed", it) }
         } else {
             val controlCenterVisible = ShadeSwitchMotionPolicy.controlCenterAtRest(shadeSwitchProgress)
             runCatching { LeftContainerHooker.onShadeSwitchFinished(controlCenterVisible) }
                 .onFailure { DebugLog.w(TAG, "shade-switch left settle failed", it) }
-            runCatching { DuoSignalHooker.onShadeSwitchFinished(controlCenterVisible) }
+            runCatching { SignalHandoverEvents.shade.finished(controlCenterVisible) }
                 .onFailure { DebugLog.w(TAG, "shade-switch Duo settle failed", it) }
         }
     }
@@ -1033,20 +1038,20 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
             parts.signal -> parts.cellularReady
             else -> false
         }
-        if (!ready || !isUsable(target) || (duoTargets[target]?.let { it !== owner } == true)) return false
-        if (duoTargets[target] === owner) return true
+        if (!ready || !isUsable(target) || (target in duoTargets && !duoTargets.owns(target, owner))) return false
+        if (duoTargets.owns(target, owner)) return true
         motions.remove(target)?.clear()
         if (target === parts.type || target === parts.wifi) {
             parts.networkFade.lease(target, true)
         }
         target.alpha = 1f
-        duoTargets[target] = owner
+        check(duoTargets.acquire(target, owner))
         return true
     }
 
     fun releaseDuoTarget(target: View, owner: Any) {
-        if (duoTargets[target] !== owner) return
-        duoTargets.remove(target)
+        if (!duoTargets.owns(target, owner)) return
+        duoTargets.release(target, owner)
         val parts = rowIndex[target.parent]
         if (parts != null && (target === parts.wifi || target === parts.type)) {
             parts.networkFade.lease(target, false)
@@ -1223,8 +1228,8 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
             parts.rowState.restore(parts.row)
             parts.textState.restore(parts.carrierText)
             parts.carrierText.text = parts.nativeCarrierText
-            if (Preferences.getBoolean(if (parts.slot == 0) Preferences.KEY_ICON_HIDE_CARRIER_ONE
-                    else Preferences.KEY_ICON_HIDE_CARRIER_TWO, false)) parts.carrierText.visibility = View.GONE
+            if (Preferences.getBoolean(if (parts.slot == 0) IconSettingsKeys.KEY_ICON_HIDE_CARRIER_ONE
+                    else IconSettingsKeys.KEY_ICON_HIDE_CARRIER_TWO, false)) parts.carrierText.visibility = View.GONE
             parts.row.gravity = parts.gravity
             parts.row.isBaselineAligned = parts.baselineAligned
             parts.row.contentDescription = parts.contentDescription
@@ -1250,9 +1255,9 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         block.rows.forEach { parts ->
             rowIndex.remove(parts.row)
             rowIndex.remove(parts.networkSlot)
-            duoTargets.remove(parts.signal)
-            duoTargets.remove(parts.wifi)
-            duoTargets.remove(parts.type)
+            duoTargets.retire(parts.signal)
+            duoTargets.retire(parts.wifi)
+            duoTargets.retire(parts.type)
             parts.networkFade.clear()
             listOf(parts.signal, parts.badge, parts.airplaneText, parts.networkSlot).forEach(parts.row::removeView)
         }
@@ -1721,8 +1726,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         // The fake row is the visible stand-in while the panel is dragged.
         val fakeRow = header.findViewById<View>(fakeStatusBarId) as? ViewGroup
         if (fakeRow != null && fakeRow.isAttachedToWindow &&
-            !com.takekazex.hypertweak.hook.rules.systemui.icon.duo.DuoSignalHooker
-                .hasActiveProxy(fakeRow)
+            !SignalHandoverEvents.shade.hasActiveProxy(fakeRow)
         ) {
             glyphIn(fakeRow, wifi, subId)?.let { return it }
         }

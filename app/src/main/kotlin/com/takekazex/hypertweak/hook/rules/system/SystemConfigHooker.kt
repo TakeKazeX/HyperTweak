@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.system
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+
 import android.util.Log
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HotReloadMode
@@ -46,7 +48,7 @@ object SystemConfigHooker : StaticHooker() {
         // SystemConfig() singleton can be constructed at any point during early boot, so reading the
         // preference lazily inside the constructor callback risks seeing a not-yet-loaded value and
         // silently skipping the removal forever (the singleton never re-runs its constructor).
-        val removeGms = Preferences.getBoolean(Preferences.KEY_REMOVE_GMS_RESTRICTION, false)
+        val removeGms = Preferences.getBoolean(PlatformSettingsKeys.KEY_REMOVE_GMS_RESTRICTION, false)
         if (removeGms) {
             // Constructor hook: fires only when SystemConfig() is constructed after this module's
             // hooks install. The singleton is built inside `synchronized (SystemConfig.class)` in

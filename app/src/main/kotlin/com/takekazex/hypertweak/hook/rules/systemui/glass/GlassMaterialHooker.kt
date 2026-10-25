@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui.glass
 
+import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
+
 import android.content.res.Resources
 import android.view.View
 import com.takekazex.hypertweak.hook.Preferences
@@ -137,12 +139,12 @@ object GlassMaterialHooker : StaticHooker() {
      */
     fun refreshSettings() {
         val wasEnabled = enabled
-        enabled = Preferences.getBoolean(Preferences.KEY_GLASS_TUNER_ENABLED, false)
-        blendAlpha = Preferences.getFloat(Preferences.KEY_GLASS_TUNER_BLEND_ALPHA, 1f)
-        blendLightness = Preferences.getFloat(Preferences.KEY_GLASS_TUNER_BLEND_LIGHTNESS, 1f)
-        radiusScale = Preferences.getFloat(Preferences.KEY_GLASS_TUNER_RADIUS_SCALE, 1f)
-        glassOpacity = Preferences.getFloat(Preferences.KEY_GLASS_TUNER_GLASS_OPACITY, 1f)
-        glassTone = Preferences.getFloat(Preferences.KEY_GLASS_TUNER_GLASS_TONE, 1f)
+        enabled = Preferences.getBoolean(SystemUiSettingsKeys.KEY_GLASS_TUNER_ENABLED, false)
+        blendAlpha = Preferences.getFloat(SystemUiSettingsKeys.KEY_GLASS_TUNER_BLEND_ALPHA, 1f)
+        blendLightness = Preferences.getFloat(SystemUiSettingsKeys.KEY_GLASS_TUNER_BLEND_LIGHTNESS, 1f)
+        radiusScale = Preferences.getFloat(SystemUiSettingsKeys.KEY_GLASS_TUNER_RADIUS_SCALE, 1f)
+        glassOpacity = Preferences.getFloat(SystemUiSettingsKeys.KEY_GLASS_TUNER_GLASS_OPACITY, 1f)
+        glassTone = Preferences.getFloat(SystemUiSettingsKeys.KEY_GLASS_TUNER_GLASS_TONE, 1f)
         if (wasEnabled != enabled || !enabled) {
             if (enabled) installFunnels()
             // Let the host rebuild the current surfaces with the new tokens.
@@ -154,12 +156,12 @@ object GlassMaterialHooker : StaticHooker() {
     }
 
     override fun onHook() {
-        enabled = Preferences.getBoolean(Preferences.KEY_GLASS_TUNER_ENABLED, false)
-        blendAlpha = Preferences.getFloat(Preferences.KEY_GLASS_TUNER_BLEND_ALPHA, 1f)
-        blendLightness = Preferences.getFloat(Preferences.KEY_GLASS_TUNER_BLEND_LIGHTNESS, 1f)
-        radiusScale = Preferences.getFloat(Preferences.KEY_GLASS_TUNER_RADIUS_SCALE, 1f)
-        glassOpacity = Preferences.getFloat(Preferences.KEY_GLASS_TUNER_GLASS_OPACITY, 1f)
-        glassTone = Preferences.getFloat(Preferences.KEY_GLASS_TUNER_GLASS_TONE, 1f)
+        enabled = Preferences.getBoolean(SystemUiSettingsKeys.KEY_GLASS_TUNER_ENABLED, false)
+        blendAlpha = Preferences.getFloat(SystemUiSettingsKeys.KEY_GLASS_TUNER_BLEND_ALPHA, 1f)
+        blendLightness = Preferences.getFloat(SystemUiSettingsKeys.KEY_GLASS_TUNER_BLEND_LIGHTNESS, 1f)
+        radiusScale = Preferences.getFloat(SystemUiSettingsKeys.KEY_GLASS_TUNER_RADIUS_SCALE, 1f)
+        glassOpacity = Preferences.getFloat(SystemUiSettingsKeys.KEY_GLASS_TUNER_GLASS_OPACITY, 1f)
+        glassTone = Preferences.getFloat(SystemUiSettingsKeys.KEY_GLASS_TUNER_GLASS_TONE, 1f)
         installFunnels()
     }
 

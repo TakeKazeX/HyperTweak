@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.ui.page
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -44,40 +46,40 @@ fun WatermarkUnlockContent(
     // Local remember-backed state so the switches update instantly; the remote preference write is
     // async and reading Preferences directly in composition made them bounce back.
     var master by remember {
-        mutableStateOf(Preferences.getBoolean(Preferences.KEY_WM_UNLOCK_MASTER, false))
+        mutableStateOf(Preferences.getBoolean(PlatformSettingsKeys.KEY_WM_UNLOCK_MASTER, false))
     }
     var camera by remember {
-        mutableStateOf(Preferences.getBoolean(Preferences.KEY_WM_CAMERA, false))
+        mutableStateOf(Preferences.getBoolean(PlatformSettingsKeys.KEY_WM_CAMERA, false))
     }
     var leica by remember {
-        mutableStateOf(Preferences.getBoolean(Preferences.KEY_WM_LEICA, false))
+        mutableStateOf(Preferences.getBoolean(PlatformSettingsKeys.KEY_WM_LEICA, false))
     }
     var xiaomi by remember {
-        mutableStateOf(Preferences.getBoolean(Preferences.KEY_WM_XIAOMI, false))
+        mutableStateOf(Preferences.getBoolean(PlatformSettingsKeys.KEY_WM_XIAOMI, false))
     }
     var redmi by remember {
-        mutableStateOf(Preferences.getBoolean(Preferences.KEY_WM_REDMI, false))
+        mutableStateOf(Preferences.getBoolean(PlatformSettingsKeys.KEY_WM_REDMI, false))
     }
     var poco by remember {
-        mutableStateOf(Preferences.getBoolean(Preferences.KEY_WM_POCO, false))
+        mutableStateOf(Preferences.getBoolean(PlatformSettingsKeys.KEY_WM_POCO, false))
     }
     var disney1 by remember {
-        mutableStateOf(Preferences.getBoolean(Preferences.KEY_WM_DISNEY1, false))
+        mutableStateOf(Preferences.getBoolean(PlatformSettingsKeys.KEY_WM_DISNEY1, false))
     }
     var disney2 by remember {
-        mutableStateOf(Preferences.getBoolean(Preferences.KEY_WM_DISNEY2, false))
+        mutableStateOf(Preferences.getBoolean(PlatformSettingsKeys.KEY_WM_DISNEY2, false))
     }
     var disney3 by remember {
-        mutableStateOf(Preferences.getBoolean(Preferences.KEY_WM_DISNEY3, false))
+        mutableStateOf(Preferences.getBoolean(PlatformSettingsKeys.KEY_WM_DISNEY3, false))
     }
     var victoria by remember {
-        mutableStateOf(Preferences.getBoolean(Preferences.KEY_WM_VICTORIA, false))
+        mutableStateOf(Preferences.getBoolean(PlatformSettingsKeys.KEY_WM_VICTORIA, false))
     }
     var lcc by remember {
-        mutableStateOf(Preferences.getBoolean(Preferences.KEY_WM_LCC, false))
+        mutableStateOf(Preferences.getBoolean(PlatformSettingsKeys.KEY_WM_LCC, false))
     }
     var downloadAll by remember {
-        mutableStateOf(Preferences.getBoolean(Preferences.KEY_WM_DOWNLOAD_ALL, false))
+        mutableStateOf(Preferences.getBoolean(PlatformSettingsKeys.KEY_WM_DOWNLOAD_ALL, false))
     }
 
     fun set(key: String, value: Boolean) {
@@ -101,7 +103,7 @@ fun WatermarkUnlockContent(
                                 )
                             )
                         )
-                        set(Preferences.KEY_WM_UNLOCK_MASTER, enabled)
+                        set(PlatformSettingsKeys.KEY_WM_UNLOCK_MASTER, enabled)
                     },
                     title = stringResource(R.string.watermark_master_title),
                     summary = stringResource(R.string.watermark_master_summary)
@@ -110,7 +112,7 @@ fun WatermarkUnlockContent(
                     checked = camera,
                     onCheckedChange = { enabled ->
                         camera = enabled
-                        set(Preferences.KEY_WM_CAMERA, enabled)
+                        set(PlatformSettingsKeys.KEY_WM_CAMERA, enabled)
                     },
                     title = stringResource(R.string.watermark_camera_title),
                     summary = stringResource(R.string.watermark_camera_summary)
@@ -125,7 +127,7 @@ fun WatermarkUnlockContent(
                     checked = leica,
                     onCheckedChange = { enabled ->
                         leica = enabled
-                        set(Preferences.KEY_WM_LEICA, enabled)
+                        set(PlatformSettingsKeys.KEY_WM_LEICA, enabled)
                     },
                     title = stringResource(R.string.watermark_leica_title),
                     summary = stringResource(R.string.watermark_leica_summary),
@@ -135,7 +137,7 @@ fun WatermarkUnlockContent(
                     checked = xiaomi,
                     onCheckedChange = { enabled ->
                         xiaomi = enabled
-                        set(Preferences.KEY_WM_XIAOMI, enabled)
+                        set(PlatformSettingsKeys.KEY_WM_XIAOMI, enabled)
                     },
                     title = stringResource(R.string.watermark_xiaomi_title),
                     summary = stringResource(R.string.watermark_xiaomi_summary),
@@ -145,7 +147,7 @@ fun WatermarkUnlockContent(
                     checked = redmi,
                     onCheckedChange = { enabled ->
                         redmi = enabled
-                        set(Preferences.KEY_WM_REDMI, enabled)
+                        set(PlatformSettingsKeys.KEY_WM_REDMI, enabled)
                     },
                     title = stringResource(R.string.watermark_redmi_title),
                     summary = stringResource(R.string.watermark_redmi_summary),
@@ -155,7 +157,7 @@ fun WatermarkUnlockContent(
                     checked = poco,
                     onCheckedChange = { enabled ->
                         poco = enabled
-                        set(Preferences.KEY_WM_POCO, enabled)
+                        set(PlatformSettingsKeys.KEY_WM_POCO, enabled)
                     },
                     title = stringResource(R.string.watermark_poco_title),
                     summary = stringResource(R.string.watermark_poco_summary),
@@ -171,7 +173,7 @@ fun WatermarkUnlockContent(
                     checked = disney1,
                     onCheckedChange = { enabled ->
                         disney1 = enabled
-                        set(Preferences.KEY_WM_DISNEY1, enabled)
+                        set(PlatformSettingsKeys.KEY_WM_DISNEY1, enabled)
                     },
                     title = stringResource(R.string.watermark_disney1_title),
                     summary = stringResource(R.string.watermark_disney1_summary),
@@ -181,7 +183,7 @@ fun WatermarkUnlockContent(
                     checked = disney2,
                     onCheckedChange = { enabled ->
                         disney2 = enabled
-                        set(Preferences.KEY_WM_DISNEY2, enabled)
+                        set(PlatformSettingsKeys.KEY_WM_DISNEY2, enabled)
                     },
                     title = stringResource(R.string.watermark_disney2_title),
                     summary = stringResource(R.string.watermark_disney2_summary),
@@ -191,7 +193,7 @@ fun WatermarkUnlockContent(
                     checked = disney3,
                     onCheckedChange = { enabled ->
                         disney3 = enabled
-                        set(Preferences.KEY_WM_DISNEY3, enabled)
+                        set(PlatformSettingsKeys.KEY_WM_DISNEY3, enabled)
                     },
                     title = stringResource(R.string.watermark_disney3_title),
                     summary = stringResource(R.string.watermark_disney3_summary),
@@ -201,7 +203,7 @@ fun WatermarkUnlockContent(
                     checked = victoria,
                     onCheckedChange = { enabled ->
                         victoria = enabled
-                        set(Preferences.KEY_WM_VICTORIA, enabled)
+                        set(PlatformSettingsKeys.KEY_WM_VICTORIA, enabled)
                     },
                     title = stringResource(R.string.watermark_victoria_title),
                     summary = stringResource(R.string.watermark_victoria_summary),
@@ -211,7 +213,7 @@ fun WatermarkUnlockContent(
                     checked = lcc,
                     onCheckedChange = { enabled ->
                         lcc = enabled
-                        set(Preferences.KEY_WM_LCC, enabled)
+                        set(PlatformSettingsKeys.KEY_WM_LCC, enabled)
                     },
                     title = stringResource(R.string.watermark_lcc_title),
                     summary = stringResource(R.string.watermark_lcc_summary),
@@ -227,7 +229,7 @@ fun WatermarkUnlockContent(
                     checked = downloadAll,
                     onCheckedChange = { enabled ->
                         downloadAll = enabled
-                        set(Preferences.KEY_WM_DOWNLOAD_ALL, enabled)
+                        set(PlatformSettingsKeys.KEY_WM_DOWNLOAD_ALL, enabled)
                     },
                     title = stringResource(R.string.watermark_download_all_title),
                     summary = stringResource(R.string.watermark_download_all_summary),

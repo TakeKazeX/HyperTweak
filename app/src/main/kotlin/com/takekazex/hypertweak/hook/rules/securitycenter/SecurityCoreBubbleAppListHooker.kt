@@ -2,6 +2,8 @@
 
 package com.takekazex.hypertweak.hook.rules.securitycenter
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+
 import android.content.Context
 import android.content.pm.ApplicationInfo
 import android.os.Process
@@ -36,7 +38,7 @@ object SecurityCoreBubbleAppListHooker : StaticHooker() {
 
     override fun onHook() {
         if (!Preferences.getBoolean(
-                Preferences.KEY_SECURITY_CENTER_BUBBLE_NOTIFICATION_UNLOCK,
+                PlatformSettingsKeys.KEY_SECURITY_CENTER_BUBBLE_NOTIFICATION_UNLOCK,
                 false
             )
         ) {

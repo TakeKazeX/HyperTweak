@@ -1,5 +1,9 @@
 package com.takekazex.hypertweak.hook.rules.systemui
 
+import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
+
+import com.takekazex.hypertweak.settings.contract.LockscreenChargingOptions
+
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -62,17 +66,8 @@ object LockscreenChargingDetailHooker : StaticHooker() {
     /** The battery/charging role id used by `updateDeviceEntryIndication`. */
     private const val BATTERY_ROLE = 3
 
-    const val FIELD_WATTAGE = 1
-    const val FIELD_VOLTAGE = 2
-    const val FIELD_CURRENT = 4
-    const val FIELD_TEMPERATURE = 8
-    const val DEFAULT_FIELDS = FIELD_WATTAGE or FIELD_VOLTAGE or FIELD_CURRENT or FIELD_TEMPERATURE
-    const val DEFAULT_INTERVAL_MS = 2_000
-    private const val MIN_INTERVAL_MS = 1_000
-    private const val MAX_INTERVAL_MS = 10_000
-
     private fun detailEnabled(): Boolean =
-        Preferences.getBoolean(Preferences.KEY_LOCKSCREEN_CHARGING_DETAIL, false)
+        Preferences.getBoolean(SystemUiSettingsKeys.KEY_LOCKSCREEN_CHARGING_DETAIL, false)
 
     private var currIndicationTypeField: Field? = null
     private var viewField: Field? = null
@@ -344,11 +339,11 @@ object LockscreenChargingDetailHooker : StaticHooker() {
     // ─── Live sub-option readers (memo TTL 100 ms, so no SystemUI restart required) ───
 
     private fun fields(): Int =
-        Preferences.getInt(Preferences.KEY_LOCKSCREEN_CHARGING_DETAIL_FIELDS, DEFAULT_FIELDS)
+        Preferences.getInt(SystemUiSettingsKeys.KEY_LOCKSCREEN_CHARGING_DETAIL_FIELDS, LockscreenChargingOptions.DEFAULT_FIELDS)
 
     private fun refreshIntervalMs(): Int =
-        Preferences.getInt(Preferences.KEY_LOCKSCREEN_CHARGING_DETAIL_INTERVAL_MS, DEFAULT_INTERVAL_MS)
-            .coerceIn(MIN_INTERVAL_MS, MAX_INTERVAL_MS)
+        Preferences.getInt(SystemUiSettingsKeys.KEY_LOCKSCREEN_CHARGING_DETAIL_INTERVAL_MS, LockscreenChargingOptions.DEFAULT_INTERVAL_MS)
+            .coerceIn(LockscreenChargingOptions.MIN_INTERVAL_MS, LockscreenChargingOptions.MAX_INTERVAL_MS)
 
     private fun boundary(action: () -> Unit) =
         HookFailurePolicy.open(TAG, "charging lifecycle", Unit, action)
@@ -470,7 +465,7 @@ object LockscreenChargingDetailHooker : StaticHooker() {
             return
         }
         layouts.getOrPut(view) { BottomIndicationLayout(view) }.show(base, detail,
-            Preferences.getBoolean(Preferences.KEY_LOCKSCREEN_CHARGING_DETAIL_TWO_ROWS, true))
+            Preferences.getBoolean(SystemUiSettingsKeys.KEY_LOCKSCREEN_CHARGING_DETAIL_TWO_ROWS, true))
         if (!reportedFirstAppend) {
             reportedFirstAppend = true
             DebugLog.i(TAG, "appended live charge detail: $detail")
@@ -502,7 +497,7 @@ object LockscreenChargingDetailHooker : StaticHooker() {
         }
     }
 
-    internal fun needsCurrent(flags: Int): Boolean = flags and (FIELD_WATTAGE or FIELD_CURRENT) != 0
+    internal fun needsCurrent(flags: Int): Boolean = flags and (LockscreenChargingOptions.FIELD_WATTAGE or LockscreenChargingOptions.FIELD_CURRENT) != 0
 
     private fun readCurrentUa(batteryManager: BatteryManager?, method: Method?): Long {
         if (method != null && batteryManager != null) {
@@ -529,7 +524,7 @@ object LockscreenChargingDetailHooker : StaticHooker() {
         val voltageMv = cachedVoltageMv
         val currentUa = cachedCurrentUa
         val tempTenths = cachedTempTenths
-        if ((flags and FIELD_WATTAGE) != 0 && voltageMv > 0 && currentUa > 0) {
+        if ((flags and LockscreenChargingOptions.FIELD_WATTAGE) != 0 && voltageMv > 0 && currentUa > 0) {
             val watt = currentUa.toDouble() * voltageMv / 1e9
             parts += if (watt >= 10.0) {
                 String.format(Locale.US, "%.0fW", watt)
@@ -537,13 +532,13 @@ object LockscreenChargingDetailHooker : StaticHooker() {
                 String.format(Locale.US, "%.1fW", watt)
             }
         }
-        if ((flags and FIELD_VOLTAGE) != 0 && voltageMv > 0) {
+        if ((flags and LockscreenChargingOptions.FIELD_VOLTAGE) != 0 && voltageMv > 0) {
             parts += String.format(Locale.US, "%.1fV", voltageMv / 1000.0)
         }
-        if ((flags and FIELD_CURRENT) != 0 && currentUa > 0) {
+        if ((flags and LockscreenChargingOptions.FIELD_CURRENT) != 0 && currentUa > 0) {
             parts += String.format(Locale.US, "%.1fA", currentUa / 1_000_000.0)
         }
-        if ((flags and FIELD_TEMPERATURE) != 0 && tempTenths != Int.MIN_VALUE && tempTenths > -500) {
+        if ((flags and LockscreenChargingOptions.FIELD_TEMPERATURE) != 0 && tempTenths != Int.MIN_VALUE && tempTenths > -500) {
             parts += "${tempTenths / 10}°C"
         }
         return if (parts.isEmpty()) null else parts.joinToString(" · ")

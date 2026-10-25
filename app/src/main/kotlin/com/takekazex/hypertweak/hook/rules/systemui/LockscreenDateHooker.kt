@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui
 
+import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
+
 import android.view.View
 import android.view.ViewGroup
 import android.view.ViewTreeObserver
@@ -55,7 +57,7 @@ object LockscreenDateHooker : StaticHooker() {
      * suppressed date and stops observing until the switch is on again.
      */
     fun refreshSettings() {
-        val next = Preferences.getBoolean(Preferences.KEY_HIDE_LOCKSCREEN_DATE, false)
+        val next = Preferences.getBoolean(SystemUiSettingsKeys.KEY_HIDE_LOCKSCREEN_DATE, false)
         val changed = next != enabled
         enabled = next
         HostAccess.onMain {
@@ -72,7 +74,7 @@ object LockscreenDateHooker : StaticHooker() {
 
     override fun onHook() {
         if (!isMainProcess) return
-        enabled = Preferences.getBoolean(Preferences.KEY_HIDE_LOCKSCREEN_DATE, false)
+        enabled = Preferences.getBoolean(SystemUiSettingsKeys.KEY_HIDE_LOCKSCREEN_DATE, false)
         // The contract is resolved and the host hook installed regardless of the switch: an
         // accepted change reaches the living clock through [refreshSettings], and a generation
         // that starts disabled still needs [bind] and the root registry for the first enable.
@@ -116,7 +118,7 @@ object LockscreenDateHooker : StaticHooker() {
             // that starts disabled still classifies the living clock on its next attach.
             bindExisting = bind@{ root ->
                 if (root.isAttachedToWindow) roots[root] = true
-                enabled = Preferences.getBoolean(Preferences.KEY_HIDE_LOCKSCREEN_DATE, false)
+                enabled = Preferences.getBoolean(SystemUiSettingsKeys.KEY_HIDE_LOCKSCREEN_DATE, false)
                 bind?.invoke(root)
             }
             val attach = container.getDeclaredMethod("onAttachedToWindow")

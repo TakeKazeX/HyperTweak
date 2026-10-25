@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
+
 import com.takekazex.hypertweak.hook.base.HostAccess
 import android.provider.Settings
 import android.view.View
@@ -52,8 +54,8 @@ object CcBatteryStyleHooker : StaticHooker() {
     override fun onHook() {
         retiring = false
         if (!isMainProcess) return
-        val outside = Preferences.getBoolean(Preferences.KEY_CC_BATTERY_PERCENT_OUTSIDE, false)
-        leadingPercent = Preferences.getBoolean(Preferences.KEY_CC_BATTERY_PERCENT_LEFT, false)
+        val outside = Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_BATTERY_PERCENT_OUTSIDE, false)
+        leadingPercent = Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_BATTERY_PERCENT_LEFT, false)
         if (!outside && !leadingPercent) return
         val battery = BATTERY.toClassOrNull() ?: run {
             DebugLog.hookSkipped(TAG, "control-center battery style", "host class not found")

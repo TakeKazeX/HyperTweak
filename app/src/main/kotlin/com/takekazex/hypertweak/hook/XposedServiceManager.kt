@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook
 
+import com.takekazex.hypertweak.settings.contract.AppSettingsKeys
+
 import android.os.Bundle
 import com.takekazex.hypertweak.util.DebugLog
 import io.github.libxposed.service.HookedTarget
@@ -49,7 +51,7 @@ object XposedServiceManager : XposedServiceHelper.OnServiceListener {
             // IMPORTANT: init Preferences BEFORE emitting to serviceFlow.
             // LaunchedEffect(serviceConnected) in MainActivity reads from Preferences immediately
             // after observing the flow update, so RemotePreferences must be ready first.
-            val remotePrefs = service.getRemotePreferences(Preferences.NAME)
+            val remotePrefs = service.getRemotePreferences(AppSettingsKeys.NAME)
             Preferences.init(remotePrefs)
             RuntimeSettingsSignal.bind(remotePrefs)
             DebugLog.d("XposedService", "switched Preferences to RemotePreferences")

@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.dock
 
+import com.takekazex.hypertweak.settings.contract.DockConfig
+
 import android.content.Context
 import android.graphics.Color
 import android.graphics.Point

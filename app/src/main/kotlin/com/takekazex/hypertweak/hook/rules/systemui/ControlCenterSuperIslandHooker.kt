@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui
 
+import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
+
 import android.os.Handler
 import android.os.Looper
 import com.takekazex.hypertweak.hook.Preferences
@@ -73,7 +75,7 @@ class ControlCenterSuperIslandHooker : DynamicHooker() {
         fun value(owner: Any, getter: Method, reader: Method): Boolean =
             reader.invoke(getter.invoke(owner)) as? Boolean ?: false
         fun shouldHide(owner: Any): Boolean = !retiring &&
-            Preferences.getBoolean(Preferences.KEY_CC_HIDE_SUPER_ISLAND, false) &&
+            Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_HIDE_SUPER_ISLAND, false) &&
             (value(owner, expanded, expandedValue) || value(owner, swiping, swipeValue))
         fun refresh(owner: Any) {
             synchronized(knownControllers) { knownControllers[owner] = true }

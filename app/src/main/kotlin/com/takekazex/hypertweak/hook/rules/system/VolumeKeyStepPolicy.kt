@@ -1,6 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.system
 
-import com.takekazex.hypertweak.hook.Preferences
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+
 
 internal data class VolumeKeyStepConfiguration(
     val steps: Int,
@@ -21,13 +22,13 @@ internal object VolumeKeyStepPolicy {
         VolumeKeyStepConfiguration(
             steps = steps.coerceIn(MIN_STEPS, MAX_STEPS),
             scope = scope.coerceIn(
-                Preferences.VOLUME_KEY_SCOPE_MEDIA_ONLY,
-                Preferences.VOLUME_KEY_SCOPE_ACTIVE_STREAM
+                PlatformSettingsKeys.VOLUME_KEY_SCOPE_MEDIA_ONLY,
+                PlatformSettingsKeys.VOLUME_KEY_SCOPE_ACTIVE_STREAM
             )
         )
 
     fun appliesToStream(scope: Int, stream: Int): Boolean = when (scope) {
-        Preferences.VOLUME_KEY_SCOPE_ACTIVE_STREAM -> true
+        PlatformSettingsKeys.VOLUME_KEY_SCOPE_ACTIVE_STREAM -> true
         else -> stream == STREAM_MUSIC
     }
 

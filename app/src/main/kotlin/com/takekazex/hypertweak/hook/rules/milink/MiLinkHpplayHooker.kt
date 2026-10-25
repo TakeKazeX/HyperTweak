@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.milink
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+
 import android.content.Context
 import android.preference.PreferenceManager
 import androidx.core.content.edit
@@ -30,7 +32,7 @@ object MiLinkHpplayHooker : StaticHooker() {
 
     override fun onHook() {
         if (hookParam.packageName != PACKAGE) return
-        if (!Preferences.getBoolean(Preferences.KEY_MILINK_BLOCK_HPPLAY_FILES, false)) {
+        if (!Preferences.getBoolean(PlatformSettingsKeys.KEY_MILINK_BLOCK_HPPLAY_FILES, false)) {
             DebugLog.hookSkippedDebug(TAG, "MiLink HPPlay external files", "disabled")
             return
         }

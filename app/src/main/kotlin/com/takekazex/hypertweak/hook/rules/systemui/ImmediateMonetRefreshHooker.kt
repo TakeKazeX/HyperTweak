@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui
 
+import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
+
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 
 import android.app.WallpaperColors
@@ -285,8 +287,8 @@ object ImmediateMonetRefreshHooker : StaticHooker() {
     }
 
     private fun isEnabled(): Boolean = Preferences.getBoolean(
-        Preferences.KEY_IMMEDIATE_MONET_REFRESH,
-        Preferences.DEFAULT_IMMEDIATE_MONET_REFRESH
+        SystemUiSettingsKeys.KEY_IMMEDIATE_MONET_REFRESH,
+        SystemUiSettingsKeys.DEFAULT_IMMEDIATE_MONET_REFRESH
     )
 
     private fun rememberController(controller: Any) {

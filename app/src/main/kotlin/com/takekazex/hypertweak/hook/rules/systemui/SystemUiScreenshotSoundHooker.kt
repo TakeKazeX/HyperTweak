@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui
 
+import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
+
 import android.media.MediaActionSound
 import android.net.Uri
 import com.takekazex.hypertweak.hook.Preferences
@@ -27,7 +29,7 @@ object SystemUiScreenshotSoundHooker : StaticHooker() {
             MediaActionSound::class.java.getMethod("play", Int::class.javaPrimitiveType).hook {
                 before { param ->
                     if (
-                        Preferences.getBoolean(Preferences.KEY_HIDE_LOCKSCREEN_STATUS_BAR, false) &&
+                        Preferences.getBoolean(SystemUiSettingsKeys.KEY_HIDE_LOCKSCREEN_STATUS_BAR, false) &&
                             (param.args.getOrNull(0) as? Number)?.toInt() == MediaActionSound.SHUTTER_CLICK
                     ) {
                         // The MIUI screenshot process owns the real HyperOS shutter playback.
@@ -51,7 +53,7 @@ object SystemUiScreenshotSoundHooker : StaticHooker() {
             }.hook("miui_screenshot_sound_uri") {
                 before { param ->
                     if (
-                        Preferences.getBoolean(Preferences.KEY_HIDE_LOCKSCREEN_STATUS_BAR, false) &&
+                        Preferences.getBoolean(SystemUiSettingsKeys.KEY_HIDE_LOCKSCREEN_STATUS_BAR, false) &&
                             (param.args.getOrNull(0) as? Boolean) == false
                     ) {
                         param.result = hyperOsShutterSoundUri

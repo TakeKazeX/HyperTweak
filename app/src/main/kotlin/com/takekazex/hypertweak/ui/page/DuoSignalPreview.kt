@@ -13,7 +13,7 @@ import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.LocalContext
-import com.takekazex.hypertweak.hook.rules.systemui.icon.SignalSvgStyle
+import com.takekazex.hypertweak.settings.contract.SignalSvgStyle
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IconSvgRepository
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IconSvgRenderer
 import androidx.compose.ui.semantics.contentDescription

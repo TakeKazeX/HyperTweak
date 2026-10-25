@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
+
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.drawable.Drawable
@@ -14,7 +16,7 @@ object AirplaneIconHooker : StaticHooker() {
     override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
 
     override fun onHook() {
-        if (!Preferences.getBoolean(Preferences.KEY_ICON_MIRROR_AIRPLANE, false)) return
+        if (!Preferences.getBoolean(IconSettingsKeys.KEY_ICON_MIRROR_AIRPLANE, false)) return
         val type = "com.android.systemui.statusbar.StatusBarIconView".toClassOrNull() ?: return
         val slot = runCatching { type.getDeclaredField("mSlot").apply { isAccessible = true } }
             .getOrNull() ?: return

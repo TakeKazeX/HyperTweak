@@ -1,28 +1,22 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import com.takekazex.hypertweak.settings.contract.IconTunerContract
+import com.takekazex.hypertweak.settings.contract.IconSlotPolicy
+import com.takekazex.hypertweak.settings.contract.IconTunerSnapshot
+
+import com.takekazex.hypertweak.settings.contract.IconSlotPolicyConfig
+
+import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
+
 import com.takekazex.hypertweak.hook.Preferences
 
 /** Immutable preference snapshot shared by the P1 position and block-list hooks. */
-data class IconTunerSnapshot(
-    val policy: IconSlotPolicyConfig,
-    val stackedEnabled: Boolean,
-    val ignoreSystemHide: Boolean,
-    val hidePrivacy: Boolean,
-    val leftMode: Int
-)
 
 /**
  * Reads icon settings once at a host-process setup point. Current HyperTweak keys win over the
  * XiaomiHelper names so an existing user choice of `false` is not mistaken for an absent value.
  */
 object IconTunerOptions {
-    const val KEY_POSITION = "icon_tuner_position"
-    const val KEY_POSITION_VALUES = "icon_tuner_position_val"
-    const val KEY_POSITION_REORDER = "icon_tuner_position_reorder"
-    const val KEY_LEFT_MODE = "icon_left_container_mode"
-    const val LEFT_MODE_DISABLED = 0
-    const val LEFT_MODE_HOME = 1
-    const val LEFT_MODE_HOME_AND_LOCKSCREEN = 2
     private const val LEGACY_IGNORE_SYSTEM_HIDE = "statusbar_ignore_sys_hide"
     private const val LEGACY_HIDE_PRIVACY = "icon_tuner_hide_privacy"
     private const val LEGACY_EXTRA_BLOCKED = "icon_tuner_ext_blocked"
@@ -37,26 +31,6 @@ object IconTunerOptions {
         "dist_compute", "headset", "alarm_clock", "zen", "volume", "second_space"
     ) + IconSlotPolicy.MODULE_SLOTS
 
-    private val leftPreferenceSlots = linkedMapOf(
-        Preferences.KEY_ICON_LEFT_ZEN to "icon_tuner_left_zen",
-        Preferences.KEY_ICON_LEFT_VOLUME to "icon_tuner_left_volume",
-        Preferences.KEY_ICON_LEFT_HOTSPOT to "icon_tuner_left_hotspot",
-        Preferences.KEY_ICON_LEFT_ALARM_CLOCK to "icon_tuner_left_alarm_clock",
-        Preferences.KEY_ICON_LEFT_LOCATION to "icon_tuner_left_location",
-        Preferences.KEY_ICON_LEFT_BLUETOOTH to "icon_tuner_left_bluetooth",
-        Preferences.KEY_ICON_LEFT_NFC to "icon_tuner_left_nfc",
-        Preferences.KEY_ICON_LEFT_VPN to "icon_tuner_left_vpn",
-        Preferences.KEY_ICON_LEFT_AIRPLANE to "icon_tuner_left_airplane",
-        Preferences.KEY_ICON_LEFT_HEADSET to "icon_tuner_left_headset"
-    )
-
-    /**
-     * The left-placement toggles, in display order. The settings page renders exactly this list, so
-     * a toggle added here cannot be silently missing from the UI (and vice versa: the page has no
-     * label for an unknown key, which its test asserts).
-     */
-    val leftPreferenceKeys: List<String> = leftPreferenceSlots.keys.toList()
-
     fun snapshot(): IconTunerSnapshot {
         val modes = LinkedHashMap<String, Int>()
         policySlots.forEach { slot ->
@@ -64,34 +38,34 @@ object IconTunerOptions {
         }
 
         val stackedEnabled = readBoolean(
-            Preferences.KEY_ICON_STACKED_ENABLED,
+            IconSettingsKeys.KEY_ICON_STACKED_ENABLED,
             LEGACY_STACKED_ENABLED,
             false
         )
         val leftMode = readLeftMode()
-        val leftEnabled = leftMode != LEFT_MODE_DISABLED
+        val leftEnabled = leftMode != IconTunerContract.LEFT_MODE_DISABLED
 
         val leftSlots = LinkedHashSet<String>()
         if (leftEnabled) {
-            leftPreferenceSlots.forEach { (currentKey, legacyKey) ->
+            IconTunerContract.leftPreferenceSlots.forEach { (currentKey, legacyKey) ->
                 if (readBoolean(currentKey, legacyKey, false)) {
-                    leftSlots += slotsForLeftPreference(currentKey)
+                    leftSlots += IconTunerContract.slotsForLeftPreference(currentKey)
                 }
             }
         }
 
-        val position = readInt(KEY_POSITION, null, IconSlotPolicyConfig.POSITION_SYSTEM)
-        val customEntries = readStringSet(KEY_POSITION_VALUES, null)
+        val position = readInt(IconTunerContract.KEY_POSITION, null, IconSlotPolicyConfig.POSITION_SYSTEM)
+        val customEntries = readStringSet(IconTunerContract.KEY_POSITION_VALUES, null)
         // The legacy extra-hidden list is not a separate mode: an entry means HIDE_EVERYWHERE, which
         // the per-slot dropdown also offers, so it is folded in as a *default* for that slot.
         val slotModes = IconSlotPolicy.foldExtraHiddenIntoModes(
             modes,
-            parseSlotList(readString(Preferences.KEY_ICON_EXT_BLOCKED, LEGACY_EXTRA_BLOCKED, ""))
+            parseSlotList(readString(IconSettingsKeys.KEY_ICON_EXT_BLOCKED, LEGACY_EXTRA_BLOCKED, ""))
         )
         val policy = IconSlotPolicyConfig(
             position = position,
             customOrderEntries = customEntries,
-            reorderHidden = readBoolean(KEY_POSITION_REORDER, null, false),
+            reorderHidden = readBoolean(IconTunerContract.KEY_POSITION_REORDER, null, false),
             slotModes = slotModes,
             enabledModuleSlots = buildSet {
                 if (stackedEnabled) addAll(IconSlotPolicy.SIGNAL_SLOTS)
@@ -102,12 +76,12 @@ object IconTunerOptions {
             policy = policy,
             stackedEnabled = stackedEnabled,
             ignoreSystemHide = readBoolean(
-                Preferences.KEY_ICON_IGNORE_SYS_HIDE,
+                IconSettingsKeys.KEY_ICON_IGNORE_SYS_HIDE,
                 LEGACY_IGNORE_SYSTEM_HIDE,
                 false
             ),
             hidePrivacy = readBoolean(
-                Preferences.KEY_ICON_HIDE_PRIVACY,
+                IconSettingsKeys.KEY_ICON_HIDE_PRIVACY,
                 LEGACY_HIDE_PRIVACY,
                 false
             ),
@@ -115,28 +89,19 @@ object IconTunerOptions {
         )
     }
 
-    /** Expands one UI toggle to the exact host slot names consumed by the left-container hook. */
-    internal fun slotsForLeftPreference(key: String): List<String> = when (key) {
-        Preferences.KEY_ICON_LEFT_VOLUME -> listOf("volume", "mute")
-        Preferences.KEY_ICON_LEFT_ALARM_CLOCK -> listOf("alarm_clock")
-        Preferences.KEY_ICON_LEFT_LOCATION -> listOf("location", "gps")
-        Preferences.KEY_ICON_LEFT_HEADSET -> listOf("headset", "wireless_headset")
-        else -> listOf(key.substringAfterLast('_'))
-    }
-
     /** New left-placement modes preserve the old Boolean without reading it as an Int. */
     private fun readLeftMode(): Int {
-        if (Preferences.contains(KEY_LEFT_MODE)) {
-            return Preferences.getInt(KEY_LEFT_MODE, LEFT_MODE_DISABLED)
-                .coerceIn(LEFT_MODE_DISABLED, LEFT_MODE_HOME_AND_LOCKSCREEN)
+        if (Preferences.contains(IconTunerContract.KEY_LEFT_MODE)) {
+            return Preferences.getInt(IconTunerContract.KEY_LEFT_MODE, IconTunerContract.LEFT_MODE_DISABLED)
+                .coerceIn(IconTunerContract.LEFT_MODE_DISABLED, IconTunerContract.LEFT_MODE_HOME_AND_LOCKSCREEN)
         }
         val legacyKey = when {
-            Preferences.contains(Preferences.KEY_ICON_LEFT_CONTAINER_ENABLED) ->
-                Preferences.KEY_ICON_LEFT_CONTAINER_ENABLED
+            Preferences.contains(IconSettingsKeys.KEY_ICON_LEFT_CONTAINER_ENABLED) ->
+                IconSettingsKeys.KEY_ICON_LEFT_CONTAINER_ENABLED
             Preferences.contains(LEGACY_LEFT_CONTAINER) -> LEGACY_LEFT_CONTAINER
-            else -> return LEFT_MODE_DISABLED
+            else -> return IconTunerContract.LEFT_MODE_DISABLED
         }
-        return if (Preferences.getBoolean(legacyKey, false)) LEFT_MODE_HOME else LEFT_MODE_DISABLED
+        return if (Preferences.getBoolean(legacyKey, false)) IconTunerContract.LEFT_MODE_HOME else IconTunerContract.LEFT_MODE_DISABLED
     }
 
     private fun readSlotMode(slot: String): Int? {

@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui
 
+import com.takekazex.hypertweak.settings.contract.TileStateMessageDuration
+
 import org.junit.Assert.assertEquals
 import org.junit.Test
 

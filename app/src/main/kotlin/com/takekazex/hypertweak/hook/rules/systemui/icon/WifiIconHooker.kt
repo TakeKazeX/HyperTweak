@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
+
 import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 
@@ -97,21 +99,21 @@ object WifiIconHooker : StaticHooker() {
     override fun onHook() {
         retired = false
         IconTunerFlows.init(classLoader)
-        hideActivity = Preferences.getBoolean(Preferences.KEY_ICON_HIDE_WIFI_ACTIVITY, false)
-        hideType = Preferences.getBoolean(Preferences.KEY_ICON_HIDE_WIFI_TYPE, false)
-        hideUnavailable = Preferences.getBoolean(Preferences.KEY_ICON_HIDE_WIFI_UNAVAILABLE, false)
-        standardMode = Preferences.getInt(Preferences.KEY_ICON_WIFI_STANDARD_MODE, 0).coerceIn(0, 3)
+        hideActivity = Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_WIFI_ACTIVITY, false)
+        hideType = Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_WIFI_TYPE, false)
+        hideUnavailable = Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_WIFI_UNAVAILABLE, false)
+        standardMode = Preferences.getInt(IconSettingsKeys.KEY_ICON_WIFI_STANDARD_MODE, 0).coerceIn(0, 3)
         standardMap = WifiStandardPolicy.parseMap(
-            Preferences.getString(Preferences.KEY_ICON_WIFI_STANDARD_MAP, "4,5,6,7,8")
+            Preferences.getString(IconSettingsKeys.KEY_ICON_WIFI_STANDARD_MAP, "4,5,6,7,8")
         )
-        paddingEnabled = Preferences.getBoolean(Preferences.KEY_ICON_WIFI_PADDING, false)
+        paddingEnabled = Preferences.getBoolean(IconSettingsKeys.KEY_ICON_WIFI_PADDING, false)
         paddingStart = safeFloat(
-            Preferences.getFloat(Preferences.KEY_ICON_WIFI_PADDING_START_VAL, 0f)
+            Preferences.getFloat(IconSettingsKeys.KEY_ICON_WIFI_PADDING_START_VAL, 0f)
         )
         paddingEnd = safeFloat(
-            Preferences.getFloat(Preferences.KEY_ICON_WIFI_PADDING_END_VAL, 0f)
+            Preferences.getFloat(IconSettingsKeys.KEY_ICON_WIFI_PADDING_END_VAL, 0f)
         )
-        activityRight = Preferences.getBoolean(Preferences.KEY_ICON_WIFI_ACTIVITY_RIGHT, false)
+        activityRight = Preferences.getBoolean(IconSettingsKeys.KEY_ICON_WIFI_ACTIVITY_RIGHT, false)
         hookActivityDirection()
         hookAccessoryLayout()
         if (!hideActivity && !hideType && !hideUnavailable && standardMode == 0 &&

@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.settings
 
+import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
+
 import android.app.NotificationChannel
 import android.content.Context
 import com.takekazex.hypertweak.hook.Preferences
@@ -55,7 +57,7 @@ object ChannelKeyguardToggleHooker : StaticHooker() {
     private var capturedPref: Any? = null
 
     override fun onHook() {
-        if (!Preferences.getBoolean(Preferences.KEY_LOCKSCREEN_ALL_NOTIFICATIONS, false)) {
+        if (!Preferences.getBoolean(SystemUiSettingsKeys.KEY_LOCKSCREEN_ALL_NOTIFICATIONS, false)) {
             DebugLog.hookSkippedDebug(TAG, "per-channel keyguard toggle", "disabled")
             return
         }

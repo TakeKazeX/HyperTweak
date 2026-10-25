@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.system
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
@@ -38,8 +40,8 @@ object VolumeKeyStepsHooker : StaticHooker() {
 
     @Volatile
     private var activeConfiguration = VolumeKeyStepPolicy.configuration(
-        Preferences.DEFAULT_VOLUME_KEY_STEP_COUNT,
-        Preferences.VOLUME_KEY_SCOPE_MEDIA_ONLY
+        PlatformSettingsKeys.DEFAULT_VOLUME_KEY_STEP_COUNT,
+        PlatformSettingsKeys.VOLUME_KEY_SCOPE_MEDIA_ONLY
     )
 
     private lateinit var streamTypeField: Field
@@ -119,8 +121,8 @@ object VolumeKeyStepsHooker : StaticHooker() {
     @Synchronized
     fun refreshConfiguration() {
         val configuration = VolumeKeyStepPolicy.configuration(
-            Preferences.getInt(Preferences.KEY_VOLUME_KEY_STEP_COUNT, Preferences.DEFAULT_VOLUME_KEY_STEP_COUNT),
-            Preferences.getInt(Preferences.KEY_VOLUME_KEY_STEP_SCOPE, Preferences.VOLUME_KEY_SCOPE_MEDIA_ONLY)
+            Preferences.getInt(PlatformSettingsKeys.KEY_VOLUME_KEY_STEP_COUNT, PlatformSettingsKeys.DEFAULT_VOLUME_KEY_STEP_COUNT),
+            Preferences.getInt(PlatformSettingsKeys.KEY_VOLUME_KEY_STEP_SCOPE, PlatformSettingsKeys.VOLUME_KEY_SCOPE_MEDIA_ONLY)
         )
         if (configuration != activeConfiguration) {
             hardwareStepRemainders.clear()

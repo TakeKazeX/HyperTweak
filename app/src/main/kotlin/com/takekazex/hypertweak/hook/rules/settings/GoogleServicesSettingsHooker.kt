@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.settings
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+
 import android.content.Intent
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
@@ -34,7 +36,7 @@ object GoogleServicesSettingsHooker : StaticHooker() {
     }
 
     override fun onHook() {
-        if (!Preferences.getBoolean(Preferences.KEY_SHOW_GOOGLE_SERVICES_IN_SETTINGS, false)) {
+        if (!Preferences.getBoolean(PlatformSettingsKeys.KEY_SHOW_GOOGLE_SERVICES_IN_SETTINGS, false)) {
             DebugLog.hookSkippedDebug(TAG, "Settings home Google services entry", "disabled")
             return
         }
@@ -65,7 +67,7 @@ object GoogleServicesSettingsHooker : StaticHooker() {
             after { param ->
                 HookFailurePolicy.open(TAG, "$UPDATE_HEADER_LIST.after", Unit) {
                     if (!Preferences.getBoolean(
-                            Preferences.KEY_SHOW_GOOGLE_SERVICES_IN_SETTINGS,
+                            PlatformSettingsKeys.KEY_SHOW_GOOGLE_SERVICES_IN_SETTINGS,
                             false
                         )
                     ) {

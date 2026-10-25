@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+
 import android.content.ClipboardManager
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.CompatibleMethodResolver
@@ -51,7 +53,7 @@ object UnlockClipboardHooker : StaticHooker() {
     }
 
     override fun onHook() {
-        enabled = Preferences.getBoolean(Preferences.KEY_AOSP_CLIPBOARD_EDITOR, false)
+        enabled = Preferences.getBoolean(PlatformSettingsKeys.KEY_AOSP_CLIPBOARD_EDITOR, false)
         if (!enabled) {
             DebugLog.hookSkippedDebug(TAG, "clipboard overlay", "disabled")
             return

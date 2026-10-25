@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.ui.page
 
+import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
+
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -67,7 +69,7 @@ fun ControlCenterCornerPage(onBack: () -> Unit) {
     val handleRestartedScopes = LocalRestartScopeHandled.current
 
     var enabled by remember {
-        mutableStateOf(Preferences.getBoolean(Preferences.KEY_CC_CORNER_ENABLED, false))
+        mutableStateOf(Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_CORNER_ENABLED, false))
     }
 
     // Saveable so a pending restart prompt survives navigating away.
@@ -76,11 +78,11 @@ fun ControlCenterCornerPage(onBack: () -> Unit) {
     // All corner radius items with their preference keys, in the fixed display order.
     val items = remember {
         listOf(
-            CornerItem(R.string.tweaks_cc_corner_slider_title, R.string.tweaks_cc_corner_slider_summary, Preferences.KEY_CC_CORNER_SLIDER),
-            CornerItem(R.string.tweaks_cc_corner_tile_title, R.string.tweaks_cc_corner_tile_summary, Preferences.KEY_CC_CORNER_TILE),
-            CornerItem(R.string.tweaks_cc_corner_card_title, R.string.tweaks_cc_corner_card_summary, Preferences.KEY_CC_CORNER_CARD),
-            CornerItem(R.string.tweaks_cc_corner_device_title, R.string.tweaks_cc_corner_device_summary, Preferences.KEY_CC_CORNER_DEVICE),
-            CornerItem(R.string.tweaks_cc_corner_media_title, R.string.tweaks_cc_corner_media_summary, Preferences.KEY_CC_CORNER_MEDIA)
+            CornerItem(R.string.tweaks_cc_corner_slider_title, R.string.tweaks_cc_corner_slider_summary, SystemUiSettingsKeys.KEY_CC_CORNER_SLIDER),
+            CornerItem(R.string.tweaks_cc_corner_tile_title, R.string.tweaks_cc_corner_tile_summary, SystemUiSettingsKeys.KEY_CC_CORNER_TILE),
+            CornerItem(R.string.tweaks_cc_corner_card_title, R.string.tweaks_cc_corner_card_summary, SystemUiSettingsKeys.KEY_CC_CORNER_CARD),
+            CornerItem(R.string.tweaks_cc_corner_device_title, R.string.tweaks_cc_corner_device_summary, SystemUiSettingsKeys.KEY_CC_CORNER_DEVICE),
+            CornerItem(R.string.tweaks_cc_corner_media_title, R.string.tweaks_cc_corner_media_summary, SystemUiSettingsKeys.KEY_CC_CORNER_MEDIA)
         )
     }
 
@@ -122,7 +124,7 @@ fun ControlCenterCornerPage(onBack: () -> Unit) {
                             enabled = checked
                             restartPending = true
                             requestRestartScopes(RestartScopeSelection(systemUi = true))
-                            Preferences.putBoolean(Preferences.KEY_CC_CORNER_ENABLED, checked)
+                            Preferences.putBoolean(SystemUiSettingsKeys.KEY_CC_CORNER_ENABLED, checked)
                         },
                         title = stringResource(R.string.tweaks_cc_corner_enabled_title),
                         summary = stringResource(R.string.tweaks_cc_corner_enabled_summary)

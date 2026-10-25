@@ -1,4 +1,4 @@
-package com.takekazex.hypertweak.hook.rules.systemui.icon
+package com.takekazex.hypertweak.settings.contract
 
 /** Persisted artwork families and geometry of the bundled, unmodified SVGs. */
 enum class SignalSvgStyle(

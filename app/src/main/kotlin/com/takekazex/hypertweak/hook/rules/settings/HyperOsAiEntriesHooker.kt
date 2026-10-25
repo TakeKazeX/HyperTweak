@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.settings
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+
 import android.app.Activity
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
@@ -34,8 +36,8 @@ object HyperOsAiEntriesHooker : StaticHooker() {
         retired = false
         fragmentActivity = hostClass("androidx.fragment.app.FragmentActivity")
         val screen = hostClass("androidx.preference.PreferenceScreen") ?: return
-        hookAvailability(MODEL, "hyperos_ai:ondevice_model_entry", Preferences.KEY_SETTINGS_ONDEVICE_MODEL_ENTRY)
-        hookAvailability(GEMINI, "hyperos_ai:gemini_entry", Preferences.KEY_SETTINGS_GEMINI_ENTRY)
+        hookAvailability(MODEL, "hyperos_ai:ondevice_model_entry", PlatformSettingsKeys.KEY_SETTINGS_ONDEVICE_MODEL_ENTRY)
+        hookAvailability(GEMINI, "hyperos_ai:gemini_entry", PlatformSettingsKeys.KEY_SETTINGS_GEMINI_ENTRY)
         listOf(MODEL, GEMINI).forEach { name ->
             val owner = hostClass(name) ?: return@forEach
             displays[owner] = owner.getMethod("displayPreference", screen)

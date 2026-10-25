@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
+
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
@@ -60,15 +62,15 @@ object CellularIconHooker : StaticHooker() {
 
     override fun onHook() {
         IconTunerFlows.init(classLoader)
-        hideActivity = Preferences.getBoolean(Preferences.KEY_ICON_HIDE_CELLULAR_ACTIVITY, false)
-        hideType = Preferences.getBoolean(Preferences.KEY_ICON_HIDE_CELLULAR_TYPE, false)
-        hideRoamGlobal = Preferences.getBoolean(Preferences.KEY_ICON_HIDE_CELLULAR_ROAM_GLOBAL, false)
-        hideRoam = Preferences.getBoolean(Preferences.KEY_ICON_HIDE_CELLULAR_ROAM, false)
-        hideSmallRoam = Preferences.getBoolean(Preferences.KEY_ICON_HIDE_CELLULAR_SMALL_ROAM, false)
-        hideVoWifi = Preferences.getBoolean(Preferences.KEY_ICON_HIDE_CELLULAR_VOWIFI, false)
-        hideVolte = Preferences.getBoolean(Preferences.KEY_ICON_HIDE_CELLULAR_VOLTE, false)
-        hideVolteNoService = Preferences.getBoolean(Preferences.KEY_ICON_HIDE_CELLULAR_VOLTE_NO_SERVICE, false)
-        hideSpeechHd = Preferences.getBoolean(Preferences.KEY_ICON_HIDE_CELLULAR_SPEECH_HD, false)
+        hideActivity = Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_ACTIVITY, false)
+        hideType = Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_TYPE, false)
+        hideRoamGlobal = Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_ROAM_GLOBAL, false)
+        hideRoam = Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_ROAM, false)
+        hideSmallRoam = Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_SMALL_ROAM, false)
+        hideVoWifi = Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_VOWIFI, false)
+        hideVolte = Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_VOLTE, false)
+        hideVolteNoService = Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_VOLTE_NO_SERVICE, false)
+        hideSpeechHd = Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_SPEECH_HD, false)
 
         val anyEnabled = hideActivity || hideType || hideRoamGlobal || hideRoam || hideSmallRoam ||
             hideVoWifi || hideVolte || hideVolteNoService || hideSpeechHd

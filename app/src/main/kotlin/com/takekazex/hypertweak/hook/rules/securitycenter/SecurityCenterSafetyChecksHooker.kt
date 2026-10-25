@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.securitycenter
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.DynamicHooker
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
@@ -217,14 +219,14 @@ object SecurityCenterSafetyChecksHooker : DynamicHooker() {
     private fun install(targets: SecurityCenterSafetyTargets) {
         var installed = 0
         targets.localSuPredicates.forEach {
-            installed += installDynamicFalse(it, Preferences.KEY_SECURITY_CENTER_SKIP_LOCAL_SU_CHECK)
+            installed += installDynamicFalse(it, PlatformSettingsKeys.KEY_SECURITY_CENTER_SKIP_LOCAL_SU_CHECK)
         }
         installed += installDynamicFalse(targets.usbInterceptGetter,
-            Preferences.KEY_SECURITY_CENTER_DISABLE_USB_INSTALL_INTERCEPT)
+            PlatformSettingsKeys.KEY_SECURITY_CENTER_DISABLE_USB_INSTALL_INTERCEPT)
         installed += installDynamicFalse(targets.safePayGetter,
-            Preferences.KEY_SECURITY_CENTER_DISABLE_SAFEPAY_AUTO_SCAN)
+            PlatformSettingsKeys.KEY_SECURITY_CENTER_DISABLE_SAFEPAY_AUTO_SCAN)
         installed += installDynamicFalse(targets.rootScanGetter,
-            Preferences.KEY_SECURITY_CENTER_DISABLE_ROOT_SCAN_ITEM)
+            PlatformSettingsKeys.KEY_SECURITY_CENTER_DISABLE_ROOT_SCAN_ITEM)
         DebugLog.i(TAG, "dynamic gates installed=$installed process=${hookParam.processName}")
     }
 

@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.powerkeeper
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+
 import android.os.Bundle
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.StaticHooker
@@ -16,7 +18,7 @@ object FcmLivePowerKeeperHooker : StaticHooker() {
     private const val GMS_PACKAGE_NAME = "com.google.android.gms"
 
     override fun onInit() {
-        if (!Preferences.getBoolean(Preferences.KEY_FCM_LIVE_ENABLED, false)) {
+        if (!Preferences.getBoolean(PlatformSettingsKeys.KEY_FCM_LIVE_ENABLED, false)) {
             DebugLog.d(hookerName, "FCM Live disabled by user preference")
             return
         }

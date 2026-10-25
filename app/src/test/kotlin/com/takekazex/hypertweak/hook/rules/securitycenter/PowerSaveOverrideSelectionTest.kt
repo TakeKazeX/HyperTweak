@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.securitycenter
 
+import com.takekazex.hypertweak.settings.contract.PowerSaveOverrideSelection
+
 import org.junit.Assert.assertEquals
 import org.junit.Test
 

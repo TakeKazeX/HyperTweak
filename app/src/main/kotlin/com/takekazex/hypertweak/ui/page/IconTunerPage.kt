@@ -1,5 +1,13 @@
 package com.takekazex.hypertweak.ui.page
 
+import com.takekazex.hypertweak.settings.contract.IconTunerContract
+
+import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
+
+import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
+
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+
 import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -31,12 +39,11 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.hook.Preferences
-import com.takekazex.hypertweak.hook.rules.systemui.icon.IconSlotPolicy
-import com.takekazex.hypertweak.hook.rules.systemui.icon.IconSlotPolicyConfig
-import com.takekazex.hypertweak.hook.rules.systemui.icon.NotificationIconLimit
-import com.takekazex.hypertweak.hook.rules.systemui.icon.SignalSvgStyle
-import com.takekazex.hypertweak.hook.rules.systemui.icon.SignalWeight
-import com.takekazex.hypertweak.hook.rules.systemui.icon.IconTunerOptions
+import com.takekazex.hypertweak.settings.contract.IconSlotPolicy
+import com.takekazex.hypertweak.settings.contract.IconSlotPolicyConfig
+import com.takekazex.hypertweak.settings.contract.NotificationIconLimit
+import com.takekazex.hypertweak.settings.contract.SignalSvgStyle
+import com.takekazex.hypertweak.settings.contract.SignalWeight
 import com.takekazex.hypertweak.hook.rules.systemui.icon.duo.DuoLayout
 import com.takekazex.hypertweak.hook.rules.systemui.icon.duo.DuoSizes
 import kotlin.math.roundToInt
@@ -135,7 +142,7 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit, onNavig
         // Load the stored value once; defaults are only for keys never written.
         val stored: T = when (default) {
             is Boolean -> Preferences.getBoolean(key, default as Boolean) as T
-            is Int -> (if (key == Preferences.KEY_ICON_STACKED_SIGNAL_STYLE) Preferences.iconStackedSignalStyle()
+            is Int -> (if (key == IconSettingsKeys.KEY_ICON_STACKED_SIGNAL_STYLE) Preferences.iconStackedSignalStyle()
                 else Preferences.getInt(key, default as Int)) as T
             is Float -> Preferences.getFloat(key, default as Float) as T
             is String -> Preferences.getString(key, default as String) as T
@@ -178,58 +185,58 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit, onNavig
         stringResource(R.string.icon_slot_mode_hidden)
     )
 
-    val legacyLeftEnabled = pref(Preferences.KEY_ICON_LEFT_CONTAINER_ENABLED, false)
+    val legacyLeftEnabled = pref(IconSettingsKeys.KEY_ICON_LEFT_CONTAINER_ENABLED, false)
     val leftMode = pref(
-        IconTunerOptions.KEY_LEFT_MODE,
-        if (Preferences.contains(IconTunerOptions.KEY_LEFT_MODE)) {
-            Preferences.getInt(IconTunerOptions.KEY_LEFT_MODE, IconTunerOptions.LEFT_MODE_DISABLED)
+        IconTunerContract.KEY_LEFT_MODE,
+        if (Preferences.contains(IconTunerContract.KEY_LEFT_MODE)) {
+            Preferences.getInt(IconTunerContract.KEY_LEFT_MODE, IconTunerContract.LEFT_MODE_DISABLED)
         } else if (legacyLeftEnabled) {
-            IconTunerOptions.LEFT_MODE_HOME
+            IconTunerContract.LEFT_MODE_HOME
         } else {
-            IconTunerOptions.LEFT_MODE_DISABLED
+            IconTunerContract.LEFT_MODE_DISABLED
         }
     )
 
     // The preview and the 布局 tab read the same left-placement toggles, so the map is built once
     // here instead of inside the section.
-    val leftSelected = IconTunerOptions.leftPreferenceKeys.associateWith { key -> pref(key, false) }
+    val leftSelected = IconTunerContract.leftPreferenceKeys.associateWith { key -> pref(key, false) }
     val duoComponentPercents = listOf(
-        pref(Preferences.KEY_ICON_DUO_RING_SCALE, 100),
-        pref(Preferences.KEY_ICON_DUO_WIFI_SCALE, 100),
-        pref(Preferences.KEY_ICON_DUO_CELLULAR_SCALE, 100),
-        pref(Preferences.KEY_ICON_DUO_TYPE_SCALE, 100),
-        pref(Preferences.KEY_ICON_DUO_DOTS_SCALE, 100),
-        pref(Preferences.KEY_ICON_DUO_AIRPLANE_SCALE, 100),
-        pref(Preferences.KEY_ICON_DUO_BATTERY_SCALE, 100),
-        pref(Preferences.KEY_ICON_DUO_PERCENT_SCALE, 100)
+        pref(IconSettingsKeys.KEY_ICON_DUO_RING_SCALE, 100),
+        pref(IconSettingsKeys.KEY_ICON_DUO_WIFI_SCALE, 100),
+        pref(IconSettingsKeys.KEY_ICON_DUO_CELLULAR_SCALE, 100),
+        pref(IconSettingsKeys.KEY_ICON_DUO_TYPE_SCALE, 100),
+        pref(IconSettingsKeys.KEY_ICON_DUO_DOTS_SCALE, 100),
+        pref(IconSettingsKeys.KEY_ICON_DUO_AIRPLANE_SCALE, 100),
+        pref(IconSettingsKeys.KEY_ICON_DUO_BATTERY_SCALE, 100),
+        pref(IconSettingsKeys.KEY_ICON_DUO_PERCENT_SCALE, 100)
     )
     val previewModel = buildStatusBarPreview(
         StatusBarPreviewInput(
-            position = pref(IconTunerOptions.KEY_POSITION, IconSlotPolicyConfig.POSITION_SYSTEM),
-            customOrder = pref(IconTunerOptions.KEY_POSITION_VALUES, emptySet<String>()),
-            reorderHidden = pref(IconTunerOptions.KEY_POSITION_REORDER, false),
+            position = pref(IconTunerContract.KEY_POSITION, IconSlotPolicyConfig.POSITION_SYSTEM),
+            customOrder = pref(IconTunerContract.KEY_POSITION_VALUES, emptySet<String>()),
+            reorderHidden = pref(IconTunerContract.KEY_POSITION_REORDER, false),
             slotModes = IconSlotCatalog.slots.associateWith { pref(Preferences.slotKey(it), 0) },
             extraHidden = IconSlotPolicy.parseSlotList(
-                pref(Preferences.KEY_ICON_EXT_BLOCKED, "")
+                pref(IconSettingsKeys.KEY_ICON_EXT_BLOCKED, "")
             ).toSet(),
-            leftSlots = if (leftMode == IconTunerOptions.LEFT_MODE_DISABLED) {
+            leftSlots = if (leftMode == IconTunerContract.LEFT_MODE_DISABLED) {
                 emptySet()
             } else {
-                IconTunerOptions.leftPreferenceKeys
+                IconTunerContract.leftPreferenceKeys
                     .filter { leftSelected[it] == true }
-                    .flatMap { IconTunerOptions.slotsForLeftPreference(it) }
+                    .flatMap { IconTunerContract.slotsForLeftPreference(it) }
                     .toSet()
             },
-            stackedEnabled = pref(Preferences.KEY_ICON_STACKED_ENABLED, false),
-            duoEnabled = pref(Preferences.KEY_ICON_DUO_ENABLED, false),
+            stackedEnabled = pref(IconSettingsKeys.KEY_ICON_STACKED_ENABLED, false),
+            duoEnabled = pref(IconSettingsKeys.KEY_ICON_DUO_ENABLED, false),
             duoSizeDp = pref(
-                Preferences.KEY_ICON_DUO_SIZE,
+                IconSettingsKeys.KEY_ICON_DUO_SIZE,
                 DuoLayout.DEFAULT_ICON_SIZE_DP
             ).toFloat(),
-            hideMobileOnWifi = pref(Preferences.KEY_ICON_HIDE_MOBILE_ON_WIFI, false),
-            hideWifiConnected = pref(Preferences.KEY_ICON_HIDE_WIFI_UNAVAILABLE, false),
-            showCellularType = !pref(Preferences.KEY_ICON_HIDE_CELLULAR_TYPE, false),
-            small5GaEnabled = pref(Preferences.KEY_ICON_CELLULAR_TYPE_SMALL_5GA, false)
+            hideMobileOnWifi = pref(IconSettingsKeys.KEY_ICON_HIDE_MOBILE_ON_WIFI, false),
+            hideWifiConnected = pref(IconSettingsKeys.KEY_ICON_HIDE_WIFI_UNAVAILABLE, false),
+            showCellularType = !pref(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_TYPE, false),
+            small5GaEnabled = pref(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_SMALL_5GA, false)
         )
     )
 
@@ -258,7 +265,7 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit, onNavig
                 .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
         ) {
             Spacer(Modifier.height(padding.calculateTopPadding()))
-            StatusBarPreview(model = previewModel, mirrorAirplane = pref(Preferences.KEY_ICON_MIRROR_AIRPLANE, false), duoSizes = DuoSizes(
+            StatusBarPreview(model = previewModel, mirrorAirplane = pref(IconSettingsKeys.KEY_ICON_MIRROR_AIRPLANE, false), duoSizes = DuoSizes(
                 ring = DuoSizes.ratio(duoComponentPercents[0]),
                 wifi = DuoSizes.ratio(duoComponentPercents[1]),
                 cellular = DuoSizes.ratio(duoComponentPercents[2]),
@@ -292,8 +299,8 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit, onNavig
                             leftSelected = leftSelected,
                             onChange = { key, value ->
                                 changed(key, value)
-                                if (key == IconTunerOptions.KEY_LEFT_MODE && value is Int) {
-                                    changed(Preferences.KEY_ICON_LEFT_CONTAINER_ENABLED, value != 0)
+                                if (key == IconTunerContract.KEY_LEFT_MODE && value is Int) {
+                                    changed(IconSettingsKeys.KEY_ICON_LEFT_CONTAINER_ENABLED, value != 0)
                                 }
                             }
                         )
@@ -301,119 +308,119 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit, onNavig
                     1 -> {
                         DuoSignalSection(
                             componentPercents = duoComponentPercents,
-                            mirrorAirplane = pref(Preferences.KEY_ICON_MIRROR_AIRPLANE, false),
-                            enabled = pref(Preferences.KEY_ICON_DUO_ENABLED, false),
-                            expanded = pref(Preferences.KEY_ICON_DUO_EXPANDED, 1),
-                            small5GaEnabled = pref(Preferences.KEY_ICON_CELLULAR_TYPE_SMALL_5GA, false),
+                            mirrorAirplane = pref(IconSettingsKeys.KEY_ICON_MIRROR_AIRPLANE, false),
+                            enabled = pref(IconSettingsKeys.KEY_ICON_DUO_ENABLED, false),
+                            expanded = pref(IconSettingsKeys.KEY_ICON_DUO_EXPANDED, 1),
+                            small5GaEnabled = pref(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_SMALL_5GA, false),
                             sizeDp = pref(
-                                Preferences.KEY_ICON_DUO_SIZE,
+                                IconSettingsKeys.KEY_ICON_DUO_SIZE,
                                 DuoLayout.DEFAULT_ICON_SIZE_DP
                             ),
                             onChange = { key, value -> changed(key, value) }
                         )
                         StackedSignalSection(
-                            enabled = pref(Preferences.KEY_ICON_STACKED_ENABLED, false),
-                            artworkStyle = pref(Preferences.KEY_ICON_STACKED_SIGNAL_STYLE, 0),
-                            weight = pref(Preferences.KEY_ICON_STACKED_WEIGHT, 0f),
+                            enabled = pref(IconSettingsKeys.KEY_ICON_STACKED_ENABLED, false),
+                            artworkStyle = pref(IconSettingsKeys.KEY_ICON_STACKED_SIGNAL_STYLE, 0),
+                            weight = pref(IconSettingsKeys.KEY_ICON_STACKED_WEIGHT, 0f),
                             hideWhenDisconnected = pref(
-                                Preferences.KEY_ICON_STACKED_TYPE_HIDE_DISCONNECT,
+                                IconSettingsKeys.KEY_ICON_STACKED_TYPE_HIDE_DISCONNECT,
                                 false
                             ),
                             keepTypeOnWifi = pref(
-                                Preferences.KEY_ICON_CELLULAR_TYPE_KEEP_ON_WIFI,
+                                IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_KEEP_ON_WIFI,
                                 false
                             ),
-                            showRoaming = pref(Preferences.KEY_ICON_STACKED_TYPE_ROAMING, false),
+                            showRoaming = pref(IconSettingsKeys.KEY_ICON_STACKED_TYPE_ROAMING, false),
                             onChange = { key, value -> changed(key, value) }
                         )
                         CellularSection(
-                activity = pref(Preferences.KEY_ICON_HIDE_CELLULAR_ACTIVITY, false),
-                type = pref(Preferences.KEY_ICON_HIDE_CELLULAR_TYPE, false),
-                roam = pref(Preferences.KEY_ICON_HIDE_CELLULAR_ROAM, false),
-                smallRoam = pref(Preferences.KEY_ICON_HIDE_CELLULAR_SMALL_ROAM, false),
-                roamGlobal = pref(Preferences.KEY_ICON_HIDE_CELLULAR_ROAM_GLOBAL, false),
-                voWifi = pref(Preferences.KEY_ICON_HIDE_CELLULAR_VOWIFI, false),
-                volte = pref(Preferences.KEY_ICON_HIDE_CELLULAR_VOLTE, false),
-                volteNoService = pref(Preferences.KEY_ICON_HIDE_CELLULAR_VOLTE_NO_SERVICE, false),
-                speechHd = pref(Preferences.KEY_ICON_HIDE_CELLULAR_SPEECH_HD, false),
-                hideNonDefaultSim = pref(Preferences.KEY_ICON_HIDE_NON_DEFAULT_SIM, false),
-                hideSimOne = pref(Preferences.KEY_ICON_HIDE_SIM_ONE, false),
-                hideSimTwo = pref(Preferences.KEY_ICON_HIDE_SIM_TWO, false),
-                hideOnWifi = pref(Preferences.KEY_ICON_HIDE_MOBILE_ON_WIFI, false),
+                activity = pref(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_ACTIVITY, false),
+                type = pref(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_TYPE, false),
+                roam = pref(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_ROAM, false),
+                smallRoam = pref(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_SMALL_ROAM, false),
+                roamGlobal = pref(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_ROAM_GLOBAL, false),
+                voWifi = pref(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_VOWIFI, false),
+                volte = pref(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_VOLTE, false),
+                volteNoService = pref(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_VOLTE_NO_SERVICE, false),
+                speechHd = pref(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_SPEECH_HD, false),
+                hideNonDefaultSim = pref(IconSettingsKeys.KEY_ICON_HIDE_NON_DEFAULT_SIM, false),
+                hideSimOne = pref(IconSettingsKeys.KEY_ICON_HIDE_SIM_ONE, false),
+                hideSimTwo = pref(IconSettingsKeys.KEY_ICON_HIDE_SIM_TWO, false),
+                hideOnWifi = pref(IconSettingsKeys.KEY_ICON_HIDE_MOBILE_ON_WIFI, false),
                 onChange = { key, value ->
                     changed(key, value)
                 }
                         )
                         CellularTypeSection(
-                forceSingle = pref(Preferences.KEY_ICON_CELLULAR_TYPE_SINGLE, false),
-                useCustom = pref(Preferences.KEY_ICON_CELLULAR_TYPE_CUSTOM, false),
-                customValue = pref(Preferences.KEY_ICON_CELLULAR_TYPE_CUSTOM_VAL, ""),
-                swapSingle = pref(Preferences.KEY_ICON_CELLULAR_TYPE_SINGLE_SWAP, false),
-                small5GaEnabled = pref(Preferences.KEY_ICON_CELLULAR_TYPE_SMALL_5GA, false),
+                forceSingle = pref(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_SINGLE, false),
+                useCustom = pref(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_CUSTOM, false),
+                customValue = pref(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_CUSTOM_VAL, ""),
+                swapSingle = pref(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_SINGLE_SWAP, false),
+                small5GaEnabled = pref(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_SMALL_5GA, false),
                 onChange = { key, value -> changed(key, value) }
                         )
                     }
                     2 -> WifiSection(
-                        activity = pref(Preferences.KEY_ICON_HIDE_WIFI_ACTIVITY, false),
-                        type = pref(Preferences.KEY_ICON_HIDE_WIFI_TYPE, false),
-                        hideConnected = pref(Preferences.KEY_ICON_HIDE_WIFI_UNAVAILABLE, false),
-                        activityRight = pref(Preferences.KEY_ICON_WIFI_ACTIVITY_RIGHT, false),
-                        standardMode = pref(Preferences.KEY_ICON_WIFI_STANDARD_MODE, 0),
-                        standardMap = pref(Preferences.KEY_ICON_WIFI_STANDARD_MAP, "4,5,6,7,8"),
-                        paddingEnabled = pref(Preferences.KEY_ICON_WIFI_PADDING, false),
-                        paddingStart = pref(Preferences.KEY_ICON_WIFI_PADDING_START_VAL, 0f),
-                        paddingEnd = pref(Preferences.KEY_ICON_WIFI_PADDING_END_VAL, 0f),
+                        activity = pref(IconSettingsKeys.KEY_ICON_HIDE_WIFI_ACTIVITY, false),
+                        type = pref(IconSettingsKeys.KEY_ICON_HIDE_WIFI_TYPE, false),
+                        hideConnected = pref(IconSettingsKeys.KEY_ICON_HIDE_WIFI_UNAVAILABLE, false),
+                        activityRight = pref(IconSettingsKeys.KEY_ICON_WIFI_ACTIVITY_RIGHT, false),
+                        standardMode = pref(IconSettingsKeys.KEY_ICON_WIFI_STANDARD_MODE, 0),
+                        standardMap = pref(IconSettingsKeys.KEY_ICON_WIFI_STANDARD_MAP, "4,5,6,7,8"),
+                        paddingEnabled = pref(IconSettingsKeys.KEY_ICON_WIFI_PADDING, false),
+                        paddingStart = pref(IconSettingsKeys.KEY_ICON_WIFI_PADDING_START_VAL, 0f),
+                        paddingEnd = pref(IconSettingsKeys.KEY_ICON_WIFI_PADDING_END_VAL, 0f),
                         onChange = { key, value -> changed(key, value) }
                     )
                     3 -> {
                         SmallTitle(stringResource(R.string.icon_slot_airplane))
                         Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
                             TunerSwitch(
-                                pref(Preferences.KEY_ICON_MIRROR_AIRPLANE, false),
+                                pref(IconSettingsKeys.KEY_ICON_MIRROR_AIRPLANE, false),
                                 stringResource(R.string.icon_mirror_airplane),
                                 stringResource(R.string.icon_mirror_airplane_summary)
-                            ) { changed(Preferences.KEY_ICON_MIRROR_AIRPLANE, it) }
+                            ) { changed(IconSettingsKeys.KEY_ICON_MIRROR_AIRPLANE, it) }
                         }
 
                         NotificationSection(
-                enabled = pref(Preferences.KEY_STATUSBAR_NOTIFICATION_MAX, false),
+                enabled = pref(PlatformSettingsKeys.KEY_STATUSBAR_NOTIFICATION_MAX, false),
                 maximum = NotificationIconLimit.clamp(
                     pref(
-                        Preferences.KEY_STATUSBAR_NOTIFICATION_ICON_MAX,
+                        PlatformSettingsKeys.KEY_STATUSBAR_NOTIFICATION_ICON_MAX,
                         NotificationIconLimit.DEFAULT
                     )
                 ),
                 onChange = { key, value -> changed(key, value) }
                         )
                         BatteryStyleSection(
-                outside = pref(Preferences.KEY_CC_BATTERY_PERCENT_OUTSIDE, false),
-                leadingPercent = pref(Preferences.KEY_CC_BATTERY_PERCENT_LEFT, false),
+                outside = pref(SystemUiSettingsKeys.KEY_CC_BATTERY_PERCENT_OUTSIDE, false),
+                leadingPercent = pref(SystemUiSettingsKeys.KEY_CC_BATTERY_PERCENT_LEFT, false),
                 onChange = { key, value -> changed(key, value) }
                         )
                         CarrierSection(
-                hideOne = pref(Preferences.KEY_ICON_HIDE_CARRIER_ONE, false),
-                hideTwo = pref(Preferences.KEY_ICON_HIDE_CARRIER_TWO, false),
-                hideHd = pref(Preferences.KEY_ICON_HIDE_CARRIER_HD, false),
-                hideLsOne = pref(Preferences.KEY_ICON_HIDE_LS_CARRIER_ONE, false),
-                hideLsTwo = pref(Preferences.KEY_ICON_HIDE_LS_CARRIER_TWO, false),
-                ccCarrierLeft = pref(Preferences.KEY_CC_CARRIER_LEFT, false),
-                ccHideDate = pref(Preferences.KEY_CC_HIDE_DATE, false),
-                ccTwoLine = pref(Preferences.KEY_CC_CARRIER_TWO_LINE, false),
-                mobileRowStyle = pref(Preferences.KEY_ICON_MOBILE_ROW_STYLE, 0),
-                ccNetworkFirstRow = pref(Preferences.KEY_CC_NETWORK_FIRST_ROW, false),
-                ccShowNonDataType = pref(Preferences.KEY_CC_CARRIER_SHOW_NON_DATA_TYPE, false),
-                ccShowBadge = pref(Preferences.KEY_CC_CARRIER_SHOW_BADGE, true),
-                ccBadgeOne = pref(Preferences.KEY_CC_CARRIER_BADGE_ONE, "1"),
-                ccBadgeTwo = pref(Preferences.KEY_CC_CARRIER_BADGE_TWO, "2"),
+                hideOne = pref(IconSettingsKeys.KEY_ICON_HIDE_CARRIER_ONE, false),
+                hideTwo = pref(IconSettingsKeys.KEY_ICON_HIDE_CARRIER_TWO, false),
+                hideHd = pref(IconSettingsKeys.KEY_ICON_HIDE_CARRIER_HD, false),
+                hideLsOne = pref(IconSettingsKeys.KEY_ICON_HIDE_LS_CARRIER_ONE, false),
+                hideLsTwo = pref(IconSettingsKeys.KEY_ICON_HIDE_LS_CARRIER_TWO, false),
+                ccCarrierLeft = pref(SystemUiSettingsKeys.KEY_CC_CARRIER_LEFT, false),
+                ccHideDate = pref(SystemUiSettingsKeys.KEY_CC_HIDE_DATE, false),
+                ccTwoLine = pref(SystemUiSettingsKeys.KEY_CC_CARRIER_TWO_LINE, false),
+                mobileRowStyle = pref(IconSettingsKeys.KEY_ICON_MOBILE_ROW_STYLE, 0),
+                ccNetworkFirstRow = pref(SystemUiSettingsKeys.KEY_CC_NETWORK_FIRST_ROW, false),
+                ccShowNonDataType = pref(SystemUiSettingsKeys.KEY_CC_CARRIER_SHOW_NON_DATA_TYPE, false),
+                ccShowBadge = pref(SystemUiSettingsKeys.KEY_CC_CARRIER_SHOW_BADGE, true),
+                ccBadgeOne = pref(SystemUiSettingsKeys.KEY_CC_CARRIER_BADGE_ONE, "1"),
+                ccBadgeTwo = pref(SystemUiSettingsKeys.KEY_CC_CARRIER_BADGE_TWO, "2"),
                 onNavigateToIconRows = onNavigateToIconRows,
                 onChange = { key, value -> changed(key, value) }
                         )
                         SlotsSection(
                 slotModes = slotModes,
                 slotModeOf = { slot -> pref(Preferences.slotKey(slot), 0) },
-                ignoreSysHide = pref(Preferences.KEY_ICON_IGNORE_SYS_HIDE, false),
-                hidePrivacy = pref(Preferences.KEY_ICON_HIDE_PRIVACY, false),
-                regionSampling = pref(Preferences.KEY_STATUSBAR_REGION_SAMPLING, 0),
+                ignoreSysHide = pref(IconSettingsKeys.KEY_ICON_IGNORE_SYS_HIDE, false),
+                hidePrivacy = pref(IconSettingsKeys.KEY_ICON_HIDE_PRIVACY, false),
+                regionSampling = pref(PlatformSettingsKeys.KEY_STATUSBAR_REGION_SAMPLING, 0),
                 onChange = { key, value -> changed(key, value) }
                         )
                     }
@@ -444,18 +451,18 @@ private fun StackedSignalSection(
                 enabled,
                 stringResource(R.string.icon_stacked_signal_style),
                 stringResource(R.string.icon_stacked_signal_style_summary)
-            ) { onChange(Preferences.KEY_ICON_STACKED_ENABLED, it) }
+            ) { onChange(IconSettingsKeys.KEY_ICON_STACKED_ENABLED, it) }
             SliderRow(
                 "${stringResource(R.string.icon_stacked_signal_weight)} · ${(SignalWeight.normalize(weight) * 100).roundToInt()}%",
                 SignalWeight.normalize(weight), 0f, 1f
-            ) { onChange(Preferences.KEY_ICON_STACKED_WEIGHT, it) }
+            ) { onChange(IconSettingsKeys.KEY_ICON_STACKED_WEIGHT, it) }
             // Outside the `if (enabled)` guard on purpose: the rule also drives the two-line
             // control-center carrier block's type glyph, which works without stacked signal.
             TunerSwitch(
                 keepTypeOnWifi,
                 stringResource(R.string.icon_stacked_type_keep_on_wifi),
                 stringResource(R.string.icon_stacked_type_keep_on_wifi_summary)
-            ) { onChange(Preferences.KEY_ICON_CELLULAR_TYPE_KEEP_ON_WIFI, it) }
+            ) { onChange(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_KEEP_ON_WIFI, it) }
             if (enabled) {
                 OverlayDropdownPreference(
                     title = stringResource(R.string.icon_stacked_signal_artwork),
@@ -464,18 +471,18 @@ private fun StackedSignalSection(
                         stringResource(R.string.icon_stacked_signal_artwork_ios27)
                     ),
                     selectedIndex = style.storedValue,
-                    onSelectedIndexChange = { onChange(Preferences.KEY_ICON_STACKED_SIGNAL_STYLE, it) }
+                    onSelectedIndexChange = { onChange(IconSettingsKeys.KEY_ICON_STACKED_SIGNAL_STYLE, it) }
                 )
                 TunerSwitch(
                     hideWhenDisconnected,
                     stringResource(R.string.icon_stacked_type_hide_disconnect),
                     stringResource(R.string.icon_stacked_type_hide_disconnect_summary)
-                ) { onChange(Preferences.KEY_ICON_STACKED_TYPE_HIDE_DISCONNECT, it) }
+                ) { onChange(IconSettingsKeys.KEY_ICON_STACKED_TYPE_HIDE_DISCONNECT, it) }
                 TunerSwitch(
                     showRoaming,
                     stringResource(R.string.icon_stacked_type_roaming),
                     stringResource(R.string.icon_stacked_type_roaming_summary)
-                ) { onChange(Preferences.KEY_ICON_STACKED_TYPE_ROAMING, it) }
+                ) { onChange(IconSettingsKeys.KEY_ICON_STACKED_TYPE_ROAMING, it) }
             }
         }
     }
@@ -484,9 +491,9 @@ private fun StackedSignalSection(
 /**
  * Left-placement rows: the preference key, its label, and the slots it moves.
  *
- * [previewSlot] is resolved from [IconTunerOptions.slotsForLeftPreference] so the row cannot show a
+ * [previewSlot] is resolved from [IconTunerContract.slotsForLeftPreference] so the row cannot show a
  * different glyph than the hook's actual slot group, and [LeftContainerSectionTest] keeps the list
- * in step with [IconTunerOptions.leftPreferenceKeys].
+ * in step with [IconTunerContract.leftPreferenceKeys].
  */
 internal data class LeftToggleRow(
     val key: String,
@@ -496,20 +503,20 @@ internal data class LeftToggleRow(
 )
 
 internal val LEFT_TOGGLE_ROWS: List<LeftToggleRow> = listOf(
-    LeftToggleRow(Preferences.KEY_ICON_LEFT_ZEN, R.string.icon_left_zen, "zen"),
-    LeftToggleRow(Preferences.KEY_ICON_LEFT_VOLUME, R.string.icon_left_volume, "volume"),
-    LeftToggleRow(Preferences.KEY_ICON_LEFT_HOTSPOT, R.string.icon_left_hotspot, "hotspot"),
+    LeftToggleRow(IconSettingsKeys.KEY_ICON_LEFT_ZEN, R.string.icon_left_zen, "zen"),
+    LeftToggleRow(IconSettingsKeys.KEY_ICON_LEFT_VOLUME, R.string.icon_left_volume, "volume"),
+    LeftToggleRow(IconSettingsKeys.KEY_ICON_LEFT_HOTSPOT, R.string.icon_left_hotspot, "hotspot"),
     LeftToggleRow(
-        Preferences.KEY_ICON_LEFT_ALARM_CLOCK,
+        IconSettingsKeys.KEY_ICON_LEFT_ALARM_CLOCK,
         R.string.icon_left_alarm_clock,
         "alarm_clock"
     ),
-    LeftToggleRow(Preferences.KEY_ICON_LEFT_LOCATION, R.string.icon_left_location, "location"),
-    LeftToggleRow(Preferences.KEY_ICON_LEFT_BLUETOOTH, R.string.icon_left_bluetooth, "bluetooth"),
-    LeftToggleRow(Preferences.KEY_ICON_LEFT_NFC, R.string.icon_left_nfc, "nfc"),
-    LeftToggleRow(Preferences.KEY_ICON_LEFT_VPN, R.string.icon_left_vpn, "vpn"),
-    LeftToggleRow(Preferences.KEY_ICON_LEFT_AIRPLANE, R.string.icon_left_airplane, "airplane"),
-    LeftToggleRow(Preferences.KEY_ICON_LEFT_HEADSET, R.string.icon_left_headset, "headset")
+    LeftToggleRow(IconSettingsKeys.KEY_ICON_LEFT_LOCATION, R.string.icon_left_location, "location"),
+    LeftToggleRow(IconSettingsKeys.KEY_ICON_LEFT_BLUETOOTH, R.string.icon_left_bluetooth, "bluetooth"),
+    LeftToggleRow(IconSettingsKeys.KEY_ICON_LEFT_NFC, R.string.icon_left_nfc, "nfc"),
+    LeftToggleRow(IconSettingsKeys.KEY_ICON_LEFT_VPN, R.string.icon_left_vpn, "vpn"),
+    LeftToggleRow(IconSettingsKeys.KEY_ICON_LEFT_AIRPLANE, R.string.icon_left_airplane, "airplane"),
+    LeftToggleRow(IconSettingsKeys.KEY_ICON_LEFT_HEADSET, R.string.icon_left_headset, "headset")
 )
 
 /**
@@ -544,9 +551,9 @@ private fun LeftContainerSection(
                 summary = stringResource(R.string.icon_left_container_mode_summary),
                 items = modes,
                 selectedIndex = mode.coerceIn(0, modes.lastIndex),
-                onSelectedIndexChange = { onChange(IconTunerOptions.KEY_LEFT_MODE, it) }
+                onSelectedIndexChange = { onChange(IconTunerContract.KEY_LEFT_MODE, it) }
             )
-            if (mode != IconTunerOptions.LEFT_MODE_DISABLED) {
+            if (mode != IconTunerContract.LEFT_MODE_DISABLED) {
                 Text(
                     text = stringResource(R.string.icon_left_hint),
                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
@@ -597,67 +604,67 @@ private fun CellularSection(
                 activity,
                 stringResource(R.string.icon_hide_data_activity),
                 stringResource(R.string.icon_hide_data_activity_summary)
-            ) { onChange(Preferences.KEY_ICON_HIDE_CELLULAR_ACTIVITY, it) }
+            ) { onChange(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_ACTIVITY, it) }
             TunerSwitch(
                 type,
                 stringResource(R.string.icon_hide_network_type),
                 stringResource(R.string.icon_hide_network_type_summary)
-            ) { onChange(Preferences.KEY_ICON_HIDE_CELLULAR_TYPE, it) }
+            ) { onChange(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_TYPE, it) }
             TunerSwitch(
                 roam,
                 stringResource(R.string.icon_hide_roam_indicator),
                 stringResource(R.string.icon_hide_roam_indicator_summary)
-            ) { onChange(Preferences.KEY_ICON_HIDE_CELLULAR_ROAM, it) }
+            ) { onChange(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_ROAM, it) }
             TunerSwitch(
                 smallRoam,
                 stringResource(R.string.icon_hide_small_roam_indicator),
                 stringResource(R.string.icon_hide_small_roam_indicator_summary)
-            ) { onChange(Preferences.KEY_ICON_HIDE_CELLULAR_SMALL_ROAM, it) }
+            ) { onChange(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_SMALL_ROAM, it) }
             TunerSwitch(
                 roamGlobal,
                 stringResource(R.string.icon_hide_roam_globally),
                 stringResource(R.string.icon_hide_roam_globally_summary)
-            ) { onChange(Preferences.KEY_ICON_HIDE_CELLULAR_ROAM_GLOBAL, it) }
+            ) { onChange(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_ROAM_GLOBAL, it) }
             TunerSwitch(
                 voWifi,
                 stringResource(R.string.icon_hide_vowifi),
                 stringResource(R.string.icon_hide_vowifi_summary)
-            ) { onChange(Preferences.KEY_ICON_HIDE_CELLULAR_VOWIFI, it) }
+            ) { onChange(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_VOWIFI, it) }
             TunerSwitch(
                 volte,
                 stringResource(R.string.icon_hide_volte),
                 stringResource(R.string.icon_hide_volte_summary)
-            ) { onChange(Preferences.KEY_ICON_HIDE_CELLULAR_VOLTE, it) }
+            ) { onChange(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_VOLTE, it) }
             TunerSwitch(
                 volteNoService,
                 stringResource(R.string.icon_hide_volte_no_service),
                 stringResource(R.string.icon_hide_volte_no_service_summary)
-            ) { onChange(Preferences.KEY_ICON_HIDE_CELLULAR_VOLTE_NO_SERVICE, it) }
+            ) { onChange(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_VOLTE_NO_SERVICE, it) }
             TunerSwitch(
                 speechHd,
                 stringResource(R.string.icon_hide_hd_call),
                 stringResource(R.string.icon_hide_hd_call_summary)
-            ) { onChange(Preferences.KEY_ICON_HIDE_CELLULAR_SPEECH_HD, it) }
+            ) { onChange(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_SPEECH_HD, it) }
             TunerSwitch(
                 hideNonDefaultSim,
                 stringResource(R.string.icon_hide_non_default_sim_icon),
                 stringResource(R.string.icon_hide_non_default_sim_icon_summary)
-            ) { onChange(Preferences.KEY_ICON_HIDE_NON_DEFAULT_SIM, it) }
+            ) { onChange(IconSettingsKeys.KEY_ICON_HIDE_NON_DEFAULT_SIM, it) }
             TunerSwitch(
                 hideSimOne,
                 stringResource(R.string.icon_hide_sim_one),
                 stringResource(R.string.icon_hide_sim_one_summary)
-            ) { onChange(Preferences.KEY_ICON_HIDE_SIM_ONE, it) }
+            ) { onChange(IconSettingsKeys.KEY_ICON_HIDE_SIM_ONE, it) }
             TunerSwitch(
                 hideSimTwo,
                 stringResource(R.string.icon_hide_sim_two),
                 stringResource(R.string.icon_hide_sim_two_summary)
-            ) { onChange(Preferences.KEY_ICON_HIDE_SIM_TWO, it) }
+            ) { onChange(IconSettingsKeys.KEY_ICON_HIDE_SIM_TWO, it) }
             TunerSwitch(
                 hideOnWifi,
                 stringResource(R.string.icon_hide_mobile_on_wifi),
                 stringResource(R.string.icon_hide_mobile_on_wifi_summary)
-            ) { onChange(Preferences.KEY_ICON_HIDE_MOBILE_ON_WIFI, it) }
+            ) { onChange(IconSettingsKeys.KEY_ICON_HIDE_MOBILE_ON_WIFI, it) }
         }
     }
 }
@@ -688,33 +695,33 @@ private fun WifiSection(
                 activity,
                 stringResource(R.string.icon_hide_wifi_activity),
                 stringResource(R.string.icon_hide_wifi_activity_summary)
-            ) { onChange(Preferences.KEY_ICON_HIDE_WIFI_ACTIVITY, it) }
+            ) { onChange(IconSettingsKeys.KEY_ICON_HIDE_WIFI_ACTIVITY, it) }
             TunerSwitch(
                 type,
                 stringResource(R.string.icon_hide_wifi_standard),
                 stringResource(R.string.icon_hide_wifi_standard_summary)
-            ) { onChange(Preferences.KEY_ICON_HIDE_WIFI_TYPE, it) }
+            ) { onChange(IconSettingsKeys.KEY_ICON_HIDE_WIFI_TYPE, it) }
             TunerSwitch(
                 hideConnected,
                 stringResource(R.string.icon_hide_connected_wifi_icon),
                 stringResource(R.string.icon_hide_connected_wifi_icon_summary)
-            ) { onChange(Preferences.KEY_ICON_HIDE_WIFI_UNAVAILABLE, it) }
+            ) { onChange(IconSettingsKeys.KEY_ICON_HIDE_WIFI_UNAVAILABLE, it) }
             TunerSwitch(
                 activityRight,
                 stringResource(R.string.icon_wifi_activity_right),
                 stringResource(R.string.icon_wifi_activity_right_summary)
-            ) { onChange(Preferences.KEY_ICON_WIFI_ACTIVITY_RIGHT, it) }
+            ) { onChange(IconSettingsKeys.KEY_ICON_WIFI_ACTIVITY_RIGHT, it) }
             OverlayDropdownPreference(
                 title = stringResource(R.string.icon_wifi_standard_mode),
                 summary = stringResource(R.string.icon_wifi_standard_mode_summary),
                 items = standardModes,
                 selectedIndex = (standardMode - 0).coerceIn(0, standardModes.lastIndex),
-                onSelectedIndexChange = { onChange(Preferences.KEY_ICON_WIFI_STANDARD_MODE, it) }
+                onSelectedIndexChange = { onChange(IconSettingsKeys.KEY_ICON_WIFI_STANDARD_MODE, it) }
             )
             if (standardMode == 3) {
                 TextField(
                     value = standardMap,
-                    onValueChange = { onChange(Preferences.KEY_ICON_WIFI_STANDARD_MAP, it) },
+                    onValueChange = { onChange(IconSettingsKeys.KEY_ICON_WIFI_STANDARD_MAP, it) },
                     label = stringResource(R.string.icon_wifi_standard_map),
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)
                 )
@@ -723,13 +730,13 @@ private fun WifiSection(
                 paddingEnabled,
                 stringResource(R.string.icon_wifi_padding),
                 stringResource(R.string.icon_wifi_padding_summary)
-            ) { onChange(Preferences.KEY_ICON_WIFI_PADDING, it) }
+            ) { onChange(IconSettingsKeys.KEY_ICON_WIFI_PADDING, it) }
             if (paddingEnabled) {
                 SliderRow(stringResource(R.string.icon_wifi_padding_start), paddingStart, 0f, 24f) {
-                    onChange(Preferences.KEY_ICON_WIFI_PADDING_START_VAL, it)
+                    onChange(IconSettingsKeys.KEY_ICON_WIFI_PADDING_START_VAL, it)
                 }
                 SliderRow(stringResource(R.string.icon_wifi_padding_end), paddingEnd, 0f, 24f) {
-                    onChange(Preferences.KEY_ICON_WIFI_PADDING_END_VAL, it)
+                    onChange(IconSettingsKeys.KEY_ICON_WIFI_PADDING_END_VAL, it)
                 }
             }
         }
@@ -752,7 +759,7 @@ private fun PositionSection(onNavigateToIconOrder: () -> Unit) {
         stringResource(R.string.icon_position_custom)
     )
     val position = Preferences.getInt(
-        IconTunerOptions.KEY_POSITION,
+        IconTunerContract.KEY_POSITION,
         IconSlotPolicyConfig.POSITION_SYSTEM
     )
     SmallTitle(stringResource(R.string.icon_position_title))
@@ -778,10 +785,10 @@ private fun NotificationSection(
                 enabled,
                 stringResource(R.string.icon_notification_max),
                 stringResource(R.string.icon_notification_max_summary)
-            ) { onChange(Preferences.KEY_STATUSBAR_NOTIFICATION_MAX, it) }
+            ) { onChange(PlatformSettingsKeys.KEY_STATUSBAR_NOTIFICATION_MAX, it) }
             if (enabled) {
                 NotificationMaxIconsRow(maximum) {
-                    onChange(Preferences.KEY_STATUSBAR_NOTIFICATION_ICON_MAX, it)
+                    onChange(PlatformSettingsKeys.KEY_STATUSBAR_NOTIFICATION_ICON_MAX, it)
                 }
             }
         }
@@ -862,21 +869,21 @@ private fun CellularTypeSection(
                 forceSingle,
                 stringResource(R.string.icon_cellular_type_single),
                 stringResource(R.string.icon_cellular_type_single_summary)
-            ) { onChange(Preferences.KEY_ICON_CELLULAR_TYPE_SINGLE, it) }
+            ) { onChange(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_SINGLE, it) }
             TunerSwitch(
                 useCustom,
                 stringResource(R.string.icon_cellular_type_custom),
                 stringResource(R.string.icon_cellular_type_custom_summary)
-            ) { onChange(Preferences.KEY_ICON_CELLULAR_TYPE_CUSTOM, it) }
+            ) { onChange(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_CUSTOM, it) }
             TunerSwitch(
                 small5GaEnabled,
                 stringResource(R.string.icon_cellular_type_small_5ga),
                 stringResource(R.string.icon_cellular_type_small_5ga_summary)
-            ) { onChange(Preferences.KEY_ICON_CELLULAR_TYPE_SMALL_5GA, it) }
+            ) { onChange(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_SMALL_5GA, it) }
             if (useCustom) {
                 TextField(
                     value = customValue,
-                    onValueChange = { onChange(Preferences.KEY_ICON_CELLULAR_TYPE_CUSTOM_VAL, it) },
+                    onValueChange = { onChange(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_CUSTOM_VAL, it) },
                     label = stringResource(R.string.icon_cellular_type_custom_val),
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)
                 )
@@ -885,7 +892,7 @@ private fun CellularTypeSection(
                 swapSingle,
                 stringResource(R.string.icon_cellular_type_swap),
                 stringResource(R.string.icon_cellular_type_swap_summary)
-            ) { onChange(Preferences.KEY_ICON_CELLULAR_TYPE_SINGLE_SWAP, it) }
+            ) { onChange(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_SINGLE_SWAP, it) }
         }
     }
 }
@@ -912,12 +919,12 @@ private fun BatteryStyleSection(
                 outside,
                 stringResource(R.string.icon_battery_style_outside),
                 stringResource(R.string.icon_battery_style_outside_summary)
-            ) { onChange(Preferences.KEY_CC_BATTERY_PERCENT_OUTSIDE, it) }
+            ) { onChange(SystemUiSettingsKeys.KEY_CC_BATTERY_PERCENT_OUTSIDE, it) }
             TunerSwitch(
                 leadingPercent,
                 stringResource(R.string.icon_battery_style_left),
                 stringResource(R.string.icon_battery_style_left_summary)
-            ) { onChange(Preferences.KEY_CC_BATTERY_PERCENT_LEFT, it) }
+            ) { onChange(SystemUiSettingsKeys.KEY_CC_BATTERY_PERCENT_LEFT, it) }
         }
     }
 }
@@ -949,26 +956,26 @@ private fun CarrierSection(
                 ccCarrierLeft,
                 stringResource(R.string.icon_cc_carrier_left),
                 stringResource(R.string.icon_cc_carrier_left_summary)
-            ) { onChange(Preferences.KEY_CC_CARRIER_LEFT, it) }
+            ) { onChange(SystemUiSettingsKeys.KEY_CC_CARRIER_LEFT, it) }
             // 开关 2: hide the control-center date; it is also the enabling switch of 开关 3/4.
             TunerSwitch(
                 ccHideDate,
                 stringResource(R.string.icon_cc_hide_date),
                 stringResource(R.string.icon_cc_hide_date_summary)
-            ) { onChange(Preferences.KEY_CC_HIDE_DATE, it) }
+            ) { onChange(SystemUiSettingsKeys.KEY_CC_HIDE_DATE, it) }
             TunerSwitch(
                 ccTwoLine,
                 stringResource(R.string.icon_cc_carrier_two_line),
                 stringResource(R.string.icon_cc_carrier_two_line_summary),
                 enabled = ccHideDate
-            ) { onChange(Preferences.KEY_CC_CARRIER_TWO_LINE, it) }
+            ) { onChange(SystemUiSettingsKeys.KEY_CC_CARRIER_TWO_LINE, it) }
             OverlayDropdownPreference(
                 title = stringResource(R.string.icon_mobile_row_style),
                 summary = stringResource(R.string.icon_mobile_row_style_summary),
                 items = listOf(stringResource(R.string.icon_mobile_row_style_slot),
                     stringResource(R.string.icon_mobile_row_style_data)),
                 selectedIndex = mobileRowStyle.coerceIn(0, 1),
-                onSelectedIndexChange = { onChange(Preferences.KEY_ICON_MOBILE_ROW_STYLE, it) }
+                onSelectedIndexChange = { onChange(IconSettingsKeys.KEY_ICON_MOBILE_ROW_STYLE, it) }
             )
             if (mobileRowStyle == 0) {
                 TunerSwitch(
@@ -976,7 +983,7 @@ private fun CarrierSection(
                     stringResource(R.string.icon_cc_network_first_row),
                     stringResource(R.string.icon_cc_network_first_row_summary),
                     enabled = ccHideDate && ccTwoLine
-                ) { onChange(Preferences.KEY_CC_NETWORK_FIRST_ROW, it) }
+                ) { onChange(SystemUiSettingsKeys.KEY_CC_NETWORK_FIRST_ROW, it) }
             }
             ArrowPreference(
                 title = stringResource(R.string.icon_cc_rows_title),
@@ -988,18 +995,18 @@ private fun CarrierSection(
                 stringResource(R.string.icon_cc_carrier_show_badge),
                 stringResource(R.string.icon_cc_carrier_show_badge_summary),
                 enabled = ccHideDate && ccTwoLine
-            ) { onChange(Preferences.KEY_CC_CARRIER_SHOW_BADGE, it) }
+            ) { onChange(SystemUiSettingsKeys.KEY_CC_CARRIER_SHOW_BADGE, it) }
             if (ccHideDate && ccTwoLine && ccShowBadge) {
                 TextField(
                     value = ccBadgeOne,
-                    onValueChange = { onChange(Preferences.KEY_CC_CARRIER_BADGE_ONE, it) },
+                    onValueChange = { onChange(SystemUiSettingsKeys.KEY_CC_CARRIER_BADGE_ONE, it) },
                     label = stringResource(R.string.icon_cc_carrier_badge_one),
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)
                 )
                 TextField(
                     value = ccBadgeTwo,
-                    onValueChange = { onChange(Preferences.KEY_CC_CARRIER_BADGE_TWO, it) },
+                    onValueChange = { onChange(SystemUiSettingsKeys.KEY_CC_CARRIER_BADGE_TWO, it) },
                     label = stringResource(R.string.icon_cc_carrier_badge_two),
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)
@@ -1010,34 +1017,34 @@ private fun CarrierSection(
                 stringResource(R.string.icon_cc_carrier_show_non_data_type),
                 stringResource(R.string.icon_cc_carrier_show_non_data_type_summary),
                 enabled = ccHideDate && ccTwoLine
-            ) { onChange(Preferences.KEY_CC_CARRIER_SHOW_NON_DATA_TYPE, it) }
+            ) { onChange(SystemUiSettingsKeys.KEY_CC_CARRIER_SHOW_NON_DATA_TYPE, it) }
             TunerSwitch(
                 hideOne,
                 stringResource(R.string.icon_hide_carrier_one),
                 stringResource(if (ccHideDate && ccTwoLine) R.string.icon_cc_carrier_name_priority
                     else R.string.icon_hide_carrier_one_summary)
-            ) { onChange(Preferences.KEY_ICON_HIDE_CARRIER_ONE, it) }
+            ) { onChange(IconSettingsKeys.KEY_ICON_HIDE_CARRIER_ONE, it) }
             TunerSwitch(
                 hideTwo,
                 stringResource(R.string.icon_hide_carrier_two),
                 stringResource(if (ccHideDate && ccTwoLine) R.string.icon_cc_carrier_name_priority
                     else R.string.icon_hide_carrier_two_summary)
-            ) { onChange(Preferences.KEY_ICON_HIDE_CARRIER_TWO, it) }
+            ) { onChange(IconSettingsKeys.KEY_ICON_HIDE_CARRIER_TWO, it) }
             TunerSwitch(
                 hideHd,
                 stringResource(R.string.icon_hide_carrier_hd),
                 stringResource(R.string.icon_hide_carrier_hd_summary)
-            ) { onChange(Preferences.KEY_ICON_HIDE_CARRIER_HD, it) }
+            ) { onChange(IconSettingsKeys.KEY_ICON_HIDE_CARRIER_HD, it) }
             TunerSwitch(
                 hideLsOne,
                 stringResource(R.string.icon_hide_ls_carrier_one),
                 stringResource(R.string.icon_hide_ls_carrier_one_summary)
-            ) { onChange(Preferences.KEY_ICON_HIDE_LS_CARRIER_ONE, it) }
+            ) { onChange(IconSettingsKeys.KEY_ICON_HIDE_LS_CARRIER_ONE, it) }
             TunerSwitch(
                 hideLsTwo,
                 stringResource(R.string.icon_hide_ls_carrier_two),
                 stringResource(R.string.icon_hide_ls_carrier_two_summary)
-            ) { onChange(Preferences.KEY_ICON_HIDE_LS_CARRIER_TWO, it) }
+            ) { onChange(IconSettingsKeys.KEY_ICON_HIDE_LS_CARRIER_TWO, it) }
         }
     }
 }
@@ -1082,17 +1089,17 @@ private fun SlotsSection(
                 ignoreSysHide,
                 stringResource(R.string.icon_ignore_system_hiding),
                 stringResource(R.string.icon_ignore_system_hiding_summary)
-            ) { onChange(Preferences.KEY_ICON_IGNORE_SYS_HIDE, it) }
+            ) { onChange(IconSettingsKeys.KEY_ICON_IGNORE_SYS_HIDE, it) }
             TunerSwitch(
                 hidePrivacy,
                 stringResource(R.string.icon_hide_privacy_indicator),
                 stringResource(R.string.icon_hide_privacy_indicator_summary)
-            ) { onChange(Preferences.KEY_ICON_HIDE_PRIVACY, it) }
+            ) { onChange(IconSettingsKeys.KEY_ICON_HIDE_PRIVACY, it) }
             TunerSwitch(
                 regionSampling != 0,
                 stringResource(R.string.icon_region_sampling),
                 stringResource(R.string.icon_region_sampling_summary)
-            ) { onChange(Preferences.KEY_STATUSBAR_REGION_SAMPLING, if (it) 1 else 0) }
+            ) { onChange(PlatformSettingsKeys.KEY_STATUSBAR_REGION_SAMPLING, if (it) 1 else 0) }
         }
     }
 }
@@ -1141,27 +1148,27 @@ private fun DuoSignalSection(
     Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
         Column(Modifier.fillMaxWidth()) {
             TunerSwitch(enabled, stringResource(R.string.icon_duo_enabled),
-                stringResource(R.string.icon_duo_summary)) { onChange(Preferences.KEY_ICON_DUO_ENABLED, it) }
+                stringResource(R.string.icon_duo_summary)) { onChange(IconSettingsKeys.KEY_ICON_DUO_ENABLED, it) }
             if (enabled) {
                 OverlayDropdownPreference(
                     title = stringResource(R.string.icon_duo_expanded),
                     items = listOf(stringResource(R.string.icon_duo_keep), stringResource(R.string.icon_duo_native)),
                     selectedIndex = expanded.coerceIn(0, 1),
-                    onSelectedIndexChange = { onChange(Preferences.KEY_ICON_DUO_EXPANDED, it) }
+                    onSelectedIndexChange = { onChange(IconSettingsKeys.KEY_ICON_DUO_EXPANDED, it) }
                 )
-                DuoSizeRow(sizeDp) { onChange(Preferences.KEY_ICON_DUO_SIZE, it) }
+                DuoSizeRow(sizeDp) { onChange(IconSettingsKeys.KEY_ICON_DUO_SIZE, it) }
                 var advanced by rememberSaveable { mutableStateOf(false) }
                 TunerSwitch(advanced, stringResource(R.string.icon_duo_advanced)) { advanced = it }
                 if (advanced) {
                     val components = listOf(
-                        Preferences.KEY_ICON_DUO_RING_SCALE to R.string.icon_duo_ring_scale,
-                        Preferences.KEY_ICON_DUO_WIFI_SCALE to R.string.icon_duo_wifi_scale,
-                        Preferences.KEY_ICON_DUO_CELLULAR_SCALE to R.string.icon_duo_cellular_scale,
-                        Preferences.KEY_ICON_DUO_TYPE_SCALE to R.string.icon_duo_type_scale,
-                        Preferences.KEY_ICON_DUO_DOTS_SCALE to R.string.icon_duo_dots_scale,
-                        Preferences.KEY_ICON_DUO_AIRPLANE_SCALE to R.string.icon_duo_airplane_scale,
-                        Preferences.KEY_ICON_DUO_BATTERY_SCALE to R.string.icon_duo_battery_scale,
-                        Preferences.KEY_ICON_DUO_PERCENT_SCALE to R.string.icon_duo_percent_scale
+                        IconSettingsKeys.KEY_ICON_DUO_RING_SCALE to R.string.icon_duo_ring_scale,
+                        IconSettingsKeys.KEY_ICON_DUO_WIFI_SCALE to R.string.icon_duo_wifi_scale,
+                        IconSettingsKeys.KEY_ICON_DUO_CELLULAR_SCALE to R.string.icon_duo_cellular_scale,
+                        IconSettingsKeys.KEY_ICON_DUO_TYPE_SCALE to R.string.icon_duo_type_scale,
+                        IconSettingsKeys.KEY_ICON_DUO_DOTS_SCALE to R.string.icon_duo_dots_scale,
+                        IconSettingsKeys.KEY_ICON_DUO_AIRPLANE_SCALE to R.string.icon_duo_airplane_scale,
+                        IconSettingsKeys.KEY_ICON_DUO_BATTERY_SCALE to R.string.icon_duo_battery_scale,
+                        IconSettingsKeys.KEY_ICON_DUO_PERCENT_SCALE to R.string.icon_duo_percent_scale
                     )
                     components.forEachIndexed { index, (key, title) ->
                         IntSliderRow("${stringResource(title)} · ${componentPercents[index]}",

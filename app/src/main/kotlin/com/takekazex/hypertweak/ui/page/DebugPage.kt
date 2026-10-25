@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.ui.page
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+
 import android.app.Activity
 import android.annotation.SuppressLint
 import android.content.ClipboardManager
@@ -66,7 +68,7 @@ fun DebugPage(
 ) {
     val scrollBehavior = MiuixScrollBehavior()
     val context = LocalContext.current
-    var recordLogs by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_RECORD_LOGS, true)) }
+    var recordLogs by remember { mutableStateOf(Preferences.getBoolean(PlatformSettingsKeys.KEY_RECORD_LOGS, true)) }
     var clipboardReadSucceeded by remember { mutableStateOf<Boolean?>(null) }
     var showHotReloadDialog by remember { mutableStateOf(false) }
     // Posts via `su`/shell (see TestNotifier); no runtime permission is needed because the
@@ -94,7 +96,7 @@ fun DebugPage(
                         checked = recordLogs,
                         onCheckedChange = { enabled ->
                             recordLogs = enabled
-                            Preferences.putBoolean(Preferences.KEY_RECORD_LOGS, enabled)
+                            Preferences.putBoolean(PlatformSettingsKeys.KEY_RECORD_LOGS, enabled)
                         },
                         title = stringResource(R.string.debug_record_logs_title),
                         summary = stringResource(R.string.debug_record_logs_summary)

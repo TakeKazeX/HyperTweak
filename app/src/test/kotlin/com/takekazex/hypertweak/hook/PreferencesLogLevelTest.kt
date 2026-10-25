@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook
 
+import com.takekazex.hypertweak.settings.contract.AppSettingsKeys
+
 import android.content.SharedPreferences
 import org.junit.Assert.*
 import org.junit.Test
@@ -12,7 +14,7 @@ class PreferencesLogLevelTest {
         val previous = fields.map { it.get(Preferences) }
         val backend = Proxy.newProxyInstance(javaClass.classLoader, arrayOf(SharedPreferences::class.java)) { _, method, args ->
             when (method.name) {
-                "getInt" -> { assertEquals(Preferences.KEY_LOG_LEVEL, args!![0]); read() }
+                "getInt" -> { assertEquals(AppSettingsKeys.KEY_LOG_LEVEL, args!![0]); read() }
                 else -> error("log threshold must not call ${method.name}")
             }
         } as SharedPreferences

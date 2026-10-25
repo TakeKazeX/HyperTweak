@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.securitycenter
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.InstallPolicy
@@ -43,7 +45,7 @@ object DetailedPowerDataHooker : StaticHooker() {
     override val installPolicy: InstallPolicy = InstallPolicy.WHEN_ENABLED
 
     override fun isFeatureEnabled(): Boolean =
-        Preferences.getBoolean(Preferences.KEY_SECURITY_CENTER_SHOW_DETAILED_POWER_DATA, false)
+        Preferences.getBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_SHOW_DETAILED_POWER_DATA, false)
 
     override fun onHook() {
         if (hookParam.packageName != PACKAGE) return

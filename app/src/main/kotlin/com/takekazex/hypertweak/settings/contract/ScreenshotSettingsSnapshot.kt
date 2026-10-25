@@ -1,6 +1,7 @@
-package com.takekazex.hypertweak.hook.rules.screenshot
+package com.takekazex.hypertweak.settings.contract
 
-import com.takekazex.hypertweak.hook.Preferences
+import com.takekazex.hypertweak.settings.contract.ScreenshotSettingsKeys
+
 
 /** Complete, acknowledged screenshot settings; revisions survive app restarts within a boot. */
 internal data class ScreenshotSettingsSnapshot(
@@ -13,16 +14,16 @@ internal data class ScreenshotSettingsSnapshot(
 ) {
     companion object {
         const val REVISION = "screenshot_settings_revision"
-        fun owns(key: String) = key == Preferences.KEY_SCREENSHOT_AUTO_FRAME ||
-            key == Preferences.KEY_SCREENSHOT_FRAME_EDITOR_MODE || key == Preferences.KEY_SCREENSHOT_COPY_TO_CLIPBOARD ||
-            key == Preferences.KEY_SCREENSHOT_PICTURES_DIRECTORY
+        fun owns(key: String) = key == ScreenshotSettingsKeys.KEY_SCREENSHOT_AUTO_FRAME ||
+            key == ScreenshotSettingsKeys.KEY_SCREENSHOT_FRAME_EDITOR_MODE || key == ScreenshotSettingsKeys.KEY_SCREENSHOT_COPY_TO_CLIPBOARD ||
+            key == ScreenshotSettingsKeys.KEY_SCREENSHOT_PICTURES_DIRECTORY
         fun read(revision: Long, values: Map<String, *>): ScreenshotSettingsSnapshot? {
             if (revision <= 0) return null
-            val enabled = values[Preferences.KEY_SCREENSHOT_AUTO_FRAME] ?: false
-            val mode = values[Preferences.KEY_SCREENSHOT_FRAME_EDITOR_MODE] ?: 0
+            val enabled = values[ScreenshotSettingsKeys.KEY_SCREENSHOT_AUTO_FRAME] ?: false
+            val mode = values[ScreenshotSettingsKeys.KEY_SCREENSHOT_FRAME_EDITOR_MODE] ?: 0
             // Absent means off: a host generation without the saved value must not copy.
-            val copy = values[Preferences.KEY_SCREENSHOT_COPY_TO_CLIPBOARD] ?: false
-            val pictures = values[Preferences.KEY_SCREENSHOT_PICTURES_DIRECTORY] ?: false
+            val copy = values[ScreenshotSettingsKeys.KEY_SCREENSHOT_COPY_TO_CLIPBOARD] ?: false
+            val pictures = values[ScreenshotSettingsKeys.KEY_SCREENSHOT_PICTURES_DIRECTORY] ?: false
             if (pictures !is Boolean || enabled !is Boolean || mode !is Int || mode !in 0..1 || copy !is Boolean) return null
             return ScreenshotSettingsSnapshot(revision, enabled, mode, copy, pictures)
         }
@@ -30,10 +31,10 @@ internal data class ScreenshotSettingsSnapshot(
 
     fun mutate(key: String, value: Any, revision: Long): ScreenshotSettingsSnapshot? {
         if (!owns(key) || revision <= this.revision) return null
-        return read(revision, mapOf(Preferences.KEY_SCREENSHOT_AUTO_FRAME to enabled,
-            Preferences.KEY_SCREENSHOT_FRAME_EDITOR_MODE to editorMode,
-            Preferences.KEY_SCREENSHOT_COPY_TO_CLIPBOARD to copyToClipboard,
-            Preferences.KEY_SCREENSHOT_PICTURES_DIRECTORY to picturesDirectory) + (key to value))
+        return read(revision, mapOf(ScreenshotSettingsKeys.KEY_SCREENSHOT_AUTO_FRAME to enabled,
+            ScreenshotSettingsKeys.KEY_SCREENSHOT_FRAME_EDITOR_MODE to editorMode,
+            ScreenshotSettingsKeys.KEY_SCREENSHOT_COPY_TO_CLIPBOARD to copyToClipboard,
+            ScreenshotSettingsKeys.KEY_SCREENSHOT_PICTURES_DIRECTORY to picturesDirectory) + (key to value))
     }
 }
 
@@ -52,16 +53,9 @@ internal class ScreenshotSettingsLedger {
         if (values.size !in 3..5) return
         val revision = values[0] as? Long ?: return
         ScreenshotSettingsSnapshot.read(revision, mapOf(
-            Preferences.KEY_SCREENSHOT_AUTO_FRAME to values[1],
-            Preferences.KEY_SCREENSHOT_FRAME_EDITOR_MODE to values[2],
-            Preferences.KEY_SCREENSHOT_COPY_TO_CLIPBOARD to (values.getOrNull(3) ?: false),
-            Preferences.KEY_SCREENSHOT_PICTURES_DIRECTORY to (values.getOrNull(4) ?: false)))?.let(::accept)
+            ScreenshotSettingsKeys.KEY_SCREENSHOT_AUTO_FRAME to values[1],
+            ScreenshotSettingsKeys.KEY_SCREENSHOT_FRAME_EDITOR_MODE to values[2],
+            ScreenshotSettingsKeys.KEY_SCREENSHOT_COPY_TO_CLIPBOARD to (values.getOrNull(3) ?: false),
+            ScreenshotSettingsKeys.KEY_SCREENSHOT_PICTURES_DIRECTORY to (values.getOrNull(4) ?: false)))?.let(::accept)
     }
-}
-
-/** An existing editor keeps its source/layer representation until it is released. */
-internal class ScreenshotEditorSessions(private val currentMode: () -> Int) {
-    private val modes = java.util.WeakHashMap<Any, Int>()
-    @Synchronized fun mode(owner: Any): Int = modes.getOrPut(owner, currentMode)
-    @Synchronized fun release(owner: Any) { modes.remove(owner) }
 }

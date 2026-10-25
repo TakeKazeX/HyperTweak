@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.xmsf
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+
 import android.os.Bundle
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
@@ -62,7 +64,7 @@ object UnlockFocusAuthHooker : StaticHooker() {
         targets.errorDispatch.hook {
             before { param ->
                 HookFailurePolicy.open(TAG, "AuthSession error dispatch", Unit) {
-                    if (!Preferences.getBoolean(Preferences.KEY_XMSF_UNLOCK_FOCUS_AUTH, false)) {
+                    if (!Preferences.getBoolean(PlatformSettingsKeys.KEY_XMSF_UNLOCK_FOCUS_AUTH, false)) {
                         return@open
                     }
                     val error = param.args[0] ?: return@open

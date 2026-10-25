@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import com.takekazex.hypertweak.settings.contract.IconSlotPolicy
+
 import android.graphics.PorterDuff
 import android.view.View
 import android.widget.ImageView

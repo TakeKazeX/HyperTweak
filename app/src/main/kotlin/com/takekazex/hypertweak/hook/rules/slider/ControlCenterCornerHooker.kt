@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.slider
 
+import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
+
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 
 import android.graphics.drawable.GradientDrawable
@@ -318,7 +320,7 @@ class ControlCenterCornerHooker(
      * a coefficient change no longer needs a new plugin session or a SystemUI restart.
      */
     fun refreshSettings() {
-        val next = Preferences.getBoolean(Preferences.KEY_CC_CORNER_ENABLED, false)
+        val next = Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_CORNER_ENABLED, false)
         val changed = next != cornerEnabled
         cornerEnabled = next
         if (!changed) {
@@ -345,10 +347,10 @@ class ControlCenterCornerHooker(
     /** Tracks which preference owns an already-overridden surface, by its class family. */
     private fun radiusKeyFor(view: View): String = when {
         // The inner `icon` view of a tile is a plain ImageView; walk up to the tile holder.
-        ancestors(view).any { it.javaClass.name == TILE_CLASS } -> Preferences.KEY_CC_CORNER_TILE
-        ancestors(view).any { it.javaClass.name == CARD_CLASS } -> Preferences.KEY_CC_CORNER_CARD
-        ancestors(view).any { it.javaClass.name == DEVICE_ENTRY_CLASS } -> Preferences.KEY_CC_CORNER_DEVICE
-        else -> Preferences.KEY_CC_CORNER_SLIDER
+        ancestors(view).any { it.javaClass.name == TILE_CLASS } -> SystemUiSettingsKeys.KEY_CC_CORNER_TILE
+        ancestors(view).any { it.javaClass.name == CARD_CLASS } -> SystemUiSettingsKeys.KEY_CC_CORNER_CARD
+        ancestors(view).any { it.javaClass.name == DEVICE_ENTRY_CLASS } -> SystemUiSettingsKeys.KEY_CC_CORNER_DEVICE
+        else -> SystemUiSettingsKeys.KEY_CC_CORNER_SLIDER
     }
 
     /** The view itself and up to a handful of its ancestors, for a class-family lookup. */
@@ -362,32 +364,32 @@ class ControlCenterCornerHooker(
     }
 
     override fun onHook() {
-        cornerEnabled = Preferences.getBoolean(Preferences.KEY_CC_CORNER_ENABLED, false)
+        cornerEnabled = Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_CORNER_ENABLED, false)
 
         // Every hook reads the radius through this resolver at the moment it draws, so the
         // installed set never depends on the values that were committed at install time.
-        val sliderRadius = liveRadius(Preferences.KEY_CC_CORNER_SLIDER)
-        val tileRadius = liveRadius(Preferences.KEY_CC_CORNER_TILE)
-        val cardRadius = liveRadius(Preferences.KEY_CC_CORNER_CARD)
-        val deviceRadius = liveRadius(Preferences.KEY_CC_CORNER_DEVICE)
-        val mediaRadius = liveRadius(Preferences.KEY_CC_CORNER_MEDIA)
+        val sliderRadius = liveRadius(SystemUiSettingsKeys.KEY_CC_CORNER_SLIDER)
+        val tileRadius = liveRadius(SystemUiSettingsKeys.KEY_CC_CORNER_TILE)
+        val cardRadius = liveRadius(SystemUiSettingsKeys.KEY_CC_CORNER_CARD)
+        val deviceRadius = liveRadius(SystemUiSettingsKeys.KEY_CC_CORNER_DEVICE)
+        val mediaRadius = liveRadius(SystemUiSettingsKeys.KEY_CC_CORNER_MEDIA)
 
         Log.i("HyperTweak", "ControlCenterCorner: enabled=$cornerEnabled slider=$sliderRadius tile=$tileRadius card=$cardRadius device=$deviceRadius media=$mediaRadius")
 
         // ─── 1. Brightness/volume toggle slider track (ToggleSliderViewHolder) ─────────────
-        hookToggleSlider(Preferences.KEY_CC_CORNER_SLIDER)
+        hookToggleSlider(SystemUiSettingsKeys.KEY_CC_CORNER_SLIDER)
 
         // ─── 2. Small QS tiles (QSTileItemIconView) ───────────────────────────────────────
-        hookQSTileIcon(Preferences.KEY_CC_CORNER_TILE)
+        hookQSTileIcon(SystemUiSettingsKeys.KEY_CC_CORNER_TILE)
 
         // ─── 3. Big cards / WiFi traffic card (QSCardItemView) ────────────────────────────
-        hookQSCard(Preferences.KEY_CC_CORNER_CARD)
+        hookQSCard(SystemUiSettingsKeys.KEY_CC_CORNER_CARD)
 
         // ─── 3b. Device center (融合设备中心) entry row ─────────────────────────────────────
-        hookDeviceCenter(Preferences.KEY_CC_CORNER_DEVICE)
+        hookDeviceCenter(SystemUiSettingsKeys.KEY_CC_CORNER_DEVICE)
 
         // ─── 4. Media player (MediaPlayerController$MediaPlayerViewHolder) ────────────────
-        hookMediaPlayer(Preferences.KEY_CC_CORNER_MEDIA)
+        hookMediaPlayer(SystemUiSettingsKeys.KEY_CC_CORNER_MEDIA)
     }
 
     /**

@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.system
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 
 import android.os.Bundle
@@ -315,12 +317,12 @@ object SpatialAudioBlockerHooker : StaticHooker() {
         if (replacement != original) bundle.putString("extra_value", replacement)
     }
 
-    private fun adaptiveEnabled() = Preferences.getBoolean(Preferences.KEY_FORCE_ADAPTIVE_ANC, false)
+    private fun adaptiveEnabled() = Preferences.getBoolean(PlatformSettingsKeys.KEY_FORCE_ADAPTIVE_ANC, false)
 
     private fun forceAdaptiveEnabled() = adaptiveEnabled()
 
     private fun disableSpatialEnabled() =
-        Preferences.getBoolean(Preferences.KEY_DISABLE_SPATIAL_AUDIO, false)
+        Preferences.getBoolean(PlatformSettingsKeys.KEY_DISABLE_SPATIAL_AUDIO, false)
 
     private fun isSpatialKey(key: String?): Boolean = key?.contains("spatial", true) == true ||
         key?.contains("head_tracking", true) == true || key?.contains("headtracking", true) == true

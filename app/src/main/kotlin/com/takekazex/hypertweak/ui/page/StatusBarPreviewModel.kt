@@ -1,8 +1,8 @@
 package com.takekazex.hypertweak.ui.page
 
-import com.takekazex.hypertweak.hook.rules.systemui.icon.IconSlotMode
-import com.takekazex.hypertweak.hook.rules.systemui.icon.IconSlotPolicy
-import com.takekazex.hypertweak.hook.rules.systemui.icon.IconSlotPolicyConfig
+import com.takekazex.hypertweak.settings.contract.IconSlotMode
+import com.takekazex.hypertweak.settings.contract.IconSlotPolicy
+import com.takekazex.hypertweak.settings.contract.IconSlotPolicyConfig
 import com.takekazex.hypertweak.hook.rules.systemui.icon.duo.DuoLayout
 
 /**

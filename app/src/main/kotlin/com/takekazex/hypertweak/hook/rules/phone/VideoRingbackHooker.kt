@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.phone
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.StaticHooker
@@ -35,7 +37,7 @@ object VideoRingbackHooker : StaticHooker() {
 
     override fun onHook() {
         if (hookParam.packageName != PHONE_PACKAGE) return
-        if (!Preferences.getBoolean(Preferences.KEY_DISABLE_VIDEO_RINGBACK, false)) {
+        if (!Preferences.getBoolean(PlatformSettingsKeys.KEY_DISABLE_VIDEO_RINGBACK, false)) {
             DebugLog.hookSkippedDebug(TAG, "video ringback disable", "disabled")
             return
         }
@@ -134,5 +136,5 @@ object VideoRingbackHooker : StaticHooker() {
     }
 
     private fun isEnabled(): Boolean =
-        Preferences.getBoolean(Preferences.KEY_DISABLE_VIDEO_RINGBACK, false)
+        Preferences.getBoolean(PlatformSettingsKeys.KEY_DISABLE_VIDEO_RINGBACK, false)
 }

@@ -2,6 +2,8 @@
 
 package com.takekazex.hypertweak.hook.rules.downloads
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+
 import android.content.Context
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.StaticHooker
@@ -29,7 +31,7 @@ object DownloadXlLogDirectoryHooker : StaticHooker() {
     )
 
     override fun onHook() {
-        if (!Preferences.getBoolean(Preferences.KEY_BLOCK_DOWNLOAD_XL_LOG_DIR, false)) {
+        if (!Preferences.getBoolean(PlatformSettingsKeys.KEY_BLOCK_DOWNLOAD_XL_LOG_DIR, false)) {
             return
         }
 

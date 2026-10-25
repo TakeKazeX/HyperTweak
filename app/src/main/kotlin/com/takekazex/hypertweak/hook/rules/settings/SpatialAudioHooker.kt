@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.settings
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 
 import android.util.Log
@@ -126,5 +128,5 @@ class SpatialAudioHooker(
     }
 
     private fun disableSpatialEnabled() =
-        Preferences.getBoolean(Preferences.KEY_DISABLE_SPATIAL_AUDIO, false)
+        Preferences.getBoolean(PlatformSettingsKeys.KEY_DISABLE_SPATIAL_AUDIO, false)
 }

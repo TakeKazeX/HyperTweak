@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import com.takekazex.hypertweak.settings.contract.SignalSvgStyle
+
 import java.util.concurrent.atomic.AtomicLong
 
 /** Serializes asset retirement and completion; IO and rendering happen outside this monitor. */

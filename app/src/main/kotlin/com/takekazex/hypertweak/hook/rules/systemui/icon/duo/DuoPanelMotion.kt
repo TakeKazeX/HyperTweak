@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon.duo
 
+import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
+
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.ColorFilter
@@ -21,7 +23,7 @@ internal class DuoPanelMotion(context: Context, private val airplaneOnly: Boolea
     private val glyph = DuoDrawable(context).apply {
         networkOnly = true
         mirrorAirplane = com.takekazex.hypertweak.hook.Preferences.getBoolean(
-            com.takekazex.hypertweak.hook.Preferences.KEY_ICON_MIRROR_AIRPLANE, false)
+            IconSettingsKeys.KEY_ICON_MIRROR_AIRPLANE, false)
     }
     private var x = 0f
     private var y = 0f

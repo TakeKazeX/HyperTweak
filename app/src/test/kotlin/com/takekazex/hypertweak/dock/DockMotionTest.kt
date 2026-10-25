@@ -1,5 +1,9 @@
 package com.takekazex.hypertweak.dock
 
+import com.takekazex.hypertweak.settings.contract.DockGeometry
+
+import com.takekazex.hypertweak.settings.contract.DockConfig
+
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import org.junit.Assert.*

@@ -1,8 +1,10 @@
 package com.takekazex.hypertweak.hook.rules.camera
 
+import com.takekazex.hypertweak.settings.contract.CameraSettingsKeys
+
 /**
  * Per-effect-type video-size binding for 实况运镜 (MasterLive, mode 231)
- * (`Preferences.KEY_CAMERA_MASTERLIVE_VIDEO_SIZE_PROBE`).
+ * (`CameraSettingsKeys.KEY_CAMERA_MASTERLIVE_VIDEO_SIZE_PROBE`).
  *
  * WHY PER-TYPE (2026-08-28 user round): the previous probe pinned EVERY MasterLive capture to
  * the single 16:9 size 2304x1296. That made 主角非线性 ("2") and 自由线性 ("3") capture clean,

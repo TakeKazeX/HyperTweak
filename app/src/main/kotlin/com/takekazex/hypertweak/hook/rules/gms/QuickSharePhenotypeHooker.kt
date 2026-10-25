@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.gms
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+
 import com.takekazex.hypertweak.hook.base.dex.DexContractMembers
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 
@@ -44,7 +46,7 @@ import java.lang.reflect.Modifier
  * per-package protobuf snapshots (`phenotype/shared/<...>.pb`) that are rebuilt from
  * `config_packages.flags_content` + `flag_overrides` by the persistent-process flag store, and
  * a plain DB write alone is not guaranteed to trigger a rebuild. The hooker therefore combines
- * four layers (all idempotent, all gated on [Preferences.KEY_QUICK_SHARE_ENABLED]):
+ * four layers (all idempotent, all gated on [PlatformSettingsKeys.KEY_QUICK_SHARE_ENABLED]):
  *
  * 1. Raw DB override row (persistent, survives reboots and server syncs).
  * 2. The official `com.google.android.gms.phenotype.FLAG_OVERRIDE` broadcast (sent from the GMS
@@ -103,7 +105,7 @@ object QuickSharePhenotypeHooker : StaticHooker() {
 
     override fun onHook() {
         if (hookParam.packageName != GMS_PACKAGE) return
-        enabledCache = Preferences.getBoolean(Preferences.KEY_QUICK_SHARE_ENABLED, false)
+        enabledCache = Preferences.getBoolean(PlatformSettingsKeys.KEY_QUICK_SHARE_ENABLED, false)
         if (enabledCache) installGateHooks()
         else DebugLog.hookSkippedDebug(TAG, "Quick Share gates", "disabled")
     }
@@ -114,13 +116,13 @@ object QuickSharePhenotypeHooker : StaticHooker() {
         // would only contend on the same SQLite file. Falls back to running if not attached yet.
         // Secondary processes also need the enabled gate, but disabled generations need no
         // DexKit mapping/class materialization. Main-process override removal still runs.
-        enabledCache = Preferences.getBoolean(Preferences.KEY_QUICK_SHARE_ENABLED, false)
+        enabledCache = Preferences.getBoolean(PlatformSettingsKeys.KEY_QUICK_SHARE_ENABLED, false)
         if (enabledCache) installGateHooks()
         val isMain = runCatching { hookParam.isMainProcess }.getOrDefault(true)
         if (!isMain) return
 
         // Preferences is initialized by the caller before this point.
-        enabledCache = Preferences.getBoolean(Preferences.KEY_QUICK_SHARE_ENABLED, false)
+        enabledCache = Preferences.getBoolean(PlatformSettingsKeys.KEY_QUICK_SHARE_ENABLED, false)
         val enabled = enabledCache
         val appContext = context.applicationContext ?: context
         Thread {
@@ -146,7 +148,7 @@ object QuickSharePhenotypeHooker : StaticHooker() {
 
     private fun quickShareEnabled(): Boolean {
         if (Preferences.isInitialized) {
-            enabledCache = Preferences.getBoolean(Preferences.KEY_QUICK_SHARE_ENABLED, false)
+            enabledCache = Preferences.getBoolean(PlatformSettingsKeys.KEY_QUICK_SHARE_ENABLED, false)
         }
         return enabledCache
     }

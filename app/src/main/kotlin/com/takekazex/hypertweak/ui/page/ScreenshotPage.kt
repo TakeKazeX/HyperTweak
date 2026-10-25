@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.ui.page
 
+import com.takekazex.hypertweak.settings.contract.ScreenshotSettingsKeys
+
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -24,16 +26,16 @@ import com.takekazex.hypertweak.ui.effect.AppTopAppBar as TopAppBar
 fun ScreenshotPage(onBack: () -> Unit) {
     val behavior = MiuixScrollBehavior()
     var enabled by rememberSaveable {
-        mutableStateOf(Preferences.getBoolean(Preferences.KEY_SCREENSHOT_AUTO_FRAME, false))
+        mutableStateOf(Preferences.getBoolean(ScreenshotSettingsKeys.KEY_SCREENSHOT_AUTO_FRAME, false))
     }
     var editorMode by rememberSaveable {
-        mutableIntStateOf(Preferences.getInt(Preferences.KEY_SCREENSHOT_FRAME_EDITOR_MODE, 0).let { if (it == 1) 1 else 0 })
+        mutableIntStateOf(Preferences.getInt(ScreenshotSettingsKeys.KEY_SCREENSHOT_FRAME_EDITOR_MODE, 0).let { if (it == 1) 1 else 0 })
     }
     var copyToClipboard by rememberSaveable {
-        mutableStateOf(Preferences.getBoolean(Preferences.KEY_SCREENSHOT_COPY_TO_CLIPBOARD, false))
+        mutableStateOf(Preferences.getBoolean(ScreenshotSettingsKeys.KEY_SCREENSHOT_COPY_TO_CLIPBOARD, false))
     }
     var picturesDirectory by rememberSaveable {
-        mutableStateOf(Preferences.getBoolean(Preferences.KEY_SCREENSHOT_PICTURES_DIRECTORY, false))
+        mutableStateOf(Preferences.getBoolean(ScreenshotSettingsKeys.KEY_SCREENSHOT_PICTURES_DIRECTORY, false))
     }
     Scaffold(topBar = {
         TopAppBar(
@@ -55,7 +57,7 @@ fun ScreenshotPage(onBack: () -> Unit) {
                         checked = enabled,
                         onCheckedChange = {
                             enabled = it
-                            Preferences.putBoolean(Preferences.KEY_SCREENSHOT_AUTO_FRAME, it)
+                            Preferences.putBoolean(ScreenshotSettingsKeys.KEY_SCREENSHOT_AUTO_FRAME, it)
                         },
                         title = stringResource(R.string.screenshot_auto_frame_title),
                         summary = stringResource(R.string.screenshot_auto_frame_summary)
@@ -70,14 +72,14 @@ fun ScreenshotPage(onBack: () -> Unit) {
                         selectedIndex = editorMode,
                         onSelectedIndexChange = { mode ->
                             editorMode = mode
-                            Preferences.putInt(Preferences.KEY_SCREENSHOT_FRAME_EDITOR_MODE, mode)
+                            Preferences.putInt(ScreenshotSettingsKeys.KEY_SCREENSHOT_FRAME_EDITOR_MODE, mode)
                         }
                     )
                     SwitchPreference(
                         checked = copyToClipboard,
                         onCheckedChange = {
                             copyToClipboard = it
-                            Preferences.putBoolean(Preferences.KEY_SCREENSHOT_COPY_TO_CLIPBOARD, it)
+                            Preferences.putBoolean(ScreenshotSettingsKeys.KEY_SCREENSHOT_COPY_TO_CLIPBOARD, it)
                         },
                         title = stringResource(R.string.screenshot_copy_to_clipboard_title),
                         summary = stringResource(R.string.screenshot_copy_to_clipboard_summary)
@@ -86,7 +88,7 @@ fun ScreenshotPage(onBack: () -> Unit) {
                         checked = picturesDirectory,
                         onCheckedChange = {
                             picturesDirectory = it
-                            Preferences.putBoolean(Preferences.KEY_SCREENSHOT_PICTURES_DIRECTORY, it)
+                            Preferences.putBoolean(ScreenshotSettingsKeys.KEY_SCREENSHOT_PICTURES_DIRECTORY, it)
                         },
                         title = stringResource(R.string.screenshot_pictures_directory_title),
                         summary = stringResource(R.string.screenshot_pictures_directory_summary)

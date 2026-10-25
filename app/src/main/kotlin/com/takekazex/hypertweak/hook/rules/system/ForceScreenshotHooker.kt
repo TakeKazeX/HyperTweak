@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.system
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.hook.base.ThreadActivation
@@ -19,7 +21,7 @@ object ForceScreenshotHooker : StaticHooker() {
     }
 
     fun refreshSettings() {
-        enabled = ready && failure == null && Preferences.getBoolean(Preferences.KEY_FORCE_SCREENSHOT, false)
+        enabled = ready && failure == null && Preferences.getBoolean(PlatformSettingsKeys.KEY_FORCE_SCREENSHOT, false)
         DebugLog.i(hookerName, "settings applied enabled=$enabled ready=$ready failed=${failure != null}")
         failure?.let { DebugLog.w(hookerName, "capture policy disabled after host failure", it) }
         if (!enabled && restoreNativeSurfaces != null) recovery.schedule()

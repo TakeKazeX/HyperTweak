@@ -21,7 +21,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.net.toUri
 import com.takekazex.hypertweak.R
-import com.takekazex.hypertweak.dock.DockConfig
+import com.takekazex.hypertweak.settings.contract.DockConfig
 import com.takekazex.hypertweak.dock.DockSettingsWriter
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.ui.effect.DockPreviewView

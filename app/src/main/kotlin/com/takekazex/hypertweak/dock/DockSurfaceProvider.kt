@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.dock
 
+import com.takekazex.hypertweak.settings.contract.DockConfig
+
 import android.content.ContentProvider
 import android.content.ContentValues
 import android.content.res.Configuration

@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.securitycenter
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+
 import android.os.Bundle
 import android.content.Intent
 import android.content.Context
@@ -80,7 +82,7 @@ object SecurityCenterPrivacyEntriesHooker : StaticHooker() {
 
         val selectedAntiPeepingMode = antiPeepingMode()
         val needsAntiPeepingTargets =
-            selectedAntiPeepingMode != Preferences.SECURITY_CENTER_ANTI_PEEPING_SYSTEM_DEFAULT
+            selectedAntiPeepingMode != PlatformSettingsKeys.SECURITY_CENTER_ANTI_PEEPING_SYSTEM_DEFAULT
         val needsFrontAssistantTargets =
             hookParam.isMainProcess && isFrontCameraAssistantEnabled()
 
@@ -141,7 +143,7 @@ object SecurityCenterPrivacyEntriesHooker : StaticHooker() {
         profile: SecurityCenterPrivacyResolver,
         selectedAntiPeepingMode: Int
     ) {
-        if (selectedAntiPeepingMode != Preferences.SECURITY_CENTER_ANTI_PEEPING_SYSTEM_DEFAULT) {
+        if (selectedAntiPeepingMode != PlatformSettingsKeys.SECURITY_CENTER_ANTI_PEEPING_SYSTEM_DEFAULT) {
             hookAntiPeepingCapabilityGates(profile)
         }
         if (hookParam.isMainProcess && isFrontCameraAssistantEnabled()) {
@@ -161,7 +163,7 @@ object SecurityCenterPrivacyEntriesHooker : StaticHooker() {
             name = "securitycenter.privacy",
             resolve = { SecurityCenterPrivacyResolver.resolve(apkPath, classLoader, cacheDir) },
             install = { profile ->
-                if (antiPeepingMode != Preferences.SECURITY_CENTER_ANTI_PEEPING_SYSTEM_DEFAULT) {
+                if (antiPeepingMode != PlatformSettingsKeys.SECURITY_CENTER_ANTI_PEEPING_SYSTEM_DEFAULT) {
                     hookAntiPeepingCapabilityGates(profile)
                 }
                 DebugLog.d(TAG, "deferred anti-peeping gates installed mode=$antiPeepingMode")
@@ -171,30 +173,30 @@ object SecurityCenterPrivacyEntriesHooker : StaticHooker() {
 
     private fun hasAnyFeatureEnabled(): Boolean =
         isPrivacyCallEnabled() ||
-            antiPeepingMode() != Preferences.SECURITY_CENTER_ANTI_PEEPING_SYSTEM_DEFAULT ||
+            antiPeepingMode() != PlatformSettingsKeys.SECURITY_CENTER_ANTI_PEEPING_SYSTEM_DEFAULT ||
             isFrontCameraAssistantEnabled() ||
             isCallPrivacyCameraEnabled()
 
     private fun isPrivacyCallEnabled(): Boolean = Preferences.getBoolean(
-        Preferences.KEY_SECURITY_CENTER_PRIVACY_CALL_ENTRY,
+        PlatformSettingsKeys.KEY_SECURITY_CENTER_PRIVACY_CALL_ENTRY,
         false
     )
 
     private fun antiPeepingMode(): Int = Preferences.getInt(
-        Preferences.KEY_SECURITY_CENTER_ANTI_PEEPING_MODE,
-        Preferences.SECURITY_CENTER_ANTI_PEEPING_SYSTEM_DEFAULT
+        PlatformSettingsKeys.KEY_SECURITY_CENTER_ANTI_PEEPING_MODE,
+        PlatformSettingsKeys.SECURITY_CENTER_ANTI_PEEPING_SYSTEM_DEFAULT
     ).coerceIn(
-        Preferences.SECURITY_CENTER_ANTI_PEEPING_SYSTEM_DEFAULT,
-        Preferences.SECURITY_CENTER_ANTI_PEEPING_V2
+        PlatformSettingsKeys.SECURITY_CENTER_ANTI_PEEPING_SYSTEM_DEFAULT,
+        PlatformSettingsKeys.SECURITY_CENTER_ANTI_PEEPING_V2
     )
 
     private fun isFrontCameraAssistantEnabled(): Boolean = Preferences.getBoolean(
-        Preferences.KEY_SECURITY_CENTER_FRONT_CAMERA_ASSISTANT_ENTRY,
+        PlatformSettingsKeys.KEY_SECURITY_CENTER_FRONT_CAMERA_ASSISTANT_ENTRY,
         false
     )
 
     private fun isCallPrivacyCameraEnabled(): Boolean = Preferences.getBoolean(
-        Preferences.KEY_SECURITY_CENTER_CALL_PRIVACY_CAMERA_ENTRY,
+        PlatformSettingsKeys.KEY_SECURITY_CENTER_CALL_PRIVACY_CAMERA_ENTRY,
         false
     )
 
@@ -265,9 +267,9 @@ object SecurityCenterPrivacyEntriesHooker : StaticHooker() {
     /** Preserve native visibility until the current profile proves the requested capability. */
     private fun effectiveAntiPeepingMode(): Int {
         val selected = antiPeepingMode()
-        if (!antiPeepingSupportKnown) return Preferences.SECURITY_CENTER_ANTI_PEEPING_SYSTEM_DEFAULT
+        if (!antiPeepingSupportKnown) return PlatformSettingsKeys.SECURITY_CENTER_ANTI_PEEPING_SYSTEM_DEFAULT
         return selected.takeIf { it in supportedAntiPeepingModes }
-            ?: Preferences.SECURITY_CENTER_ANTI_PEEPING_SYSTEM_DEFAULT
+            ?: PlatformSettingsKeys.SECURITY_CENTER_ANTI_PEEPING_SYSTEM_DEFAULT
     }
 
     private fun visibilityOverride(key: String): Boolean? {
@@ -277,23 +279,23 @@ object SecurityCenterPrivacyEntriesHooker : StaticHooker() {
             PRIVACY_PROTECTION_CATEGORY_KEY ->
                 true.takeIf {
                     isPrivacyCallEnabled() ||
-                        antiPeeping != Preferences.SECURITY_CENTER_ANTI_PEEPING_SYSTEM_DEFAULT
+                        antiPeeping != PlatformSettingsKeys.SECURITY_CENTER_ANTI_PEEPING_SYSTEM_DEFAULT
                 }
 
             ANTI_PEEPING_V1_KEY -> when (antiPeeping) {
-                Preferences.SECURITY_CENTER_ANTI_PEEPING_SYSTEM_DEFAULT -> null
-                else -> antiPeeping == Preferences.SECURITY_CENTER_ANTI_PEEPING_V1
+                PlatformSettingsKeys.SECURITY_CENTER_ANTI_PEEPING_SYSTEM_DEFAULT -> null
+                else -> antiPeeping == PlatformSettingsKeys.SECURITY_CENTER_ANTI_PEEPING_V1
             }
 
             ANTI_PEEPING_V2_KEY,
             ANTI_PEEPING_V2_RECOMMEND_KEY -> when (antiPeeping) {
-                Preferences.SECURITY_CENTER_ANTI_PEEPING_SYSTEM_DEFAULT -> null
-                else -> antiPeeping == Preferences.SECURITY_CENTER_ANTI_PEEPING_V2
+                PlatformSettingsKeys.SECURITY_CENTER_ANTI_PEEPING_SYSTEM_DEFAULT -> null
+                else -> antiPeeping == PlatformSettingsKeys.SECURITY_CENTER_ANTI_PEEPING_V2
             }
 
             PRIVACY_V2_CATEGORY_KEY -> when (antiPeeping) {
-                Preferences.SECURITY_CENTER_ANTI_PEEPING_SYSTEM_DEFAULT -> null
-                else -> antiPeeping == Preferences.SECURITY_CENTER_ANTI_PEEPING_V2
+                PlatformSettingsKeys.SECURITY_CENTER_ANTI_PEEPING_SYSTEM_DEFAULT -> null
+                else -> antiPeeping == PlatformSettingsKeys.SECURITY_CENTER_ANTI_PEEPING_V2
             }
 
             GAME_BOOSTER_CUSTOM_CATEGORY_KEY ->
@@ -330,16 +332,16 @@ object SecurityCenterPrivacyEntriesHooker : StaticHooker() {
         val v1 = profile.antiPeepingV1()
         val v2 = profile.antiPeepingV2()
         supportedAntiPeepingModes = buildSet {
-            if (v1 != null) add(Preferences.SECURITY_CENTER_ANTI_PEEPING_V1)
-            if (v2 != null) add(Preferences.SECURITY_CENTER_ANTI_PEEPING_V2)
+            if (v1 != null) add(PlatformSettingsKeys.SECURITY_CENTER_ANTI_PEEPING_V1)
+            if (v2 != null) add(PlatformSettingsKeys.SECURITY_CENTER_ANTI_PEEPING_V2)
         }
         antiPeepingSupportKnown = true
         if (antiPeepingMode() !in supportedAntiPeepingModes) {
             DebugLog.w(TAG, "selected anti-peeping capability unavailable; preserving native gates")
             return
         }
-        listOf(v1 to Preferences.SECURITY_CENTER_ANTI_PEEPING_V1,
-            v2 to Preferences.SECURITY_CENTER_ANTI_PEEPING_V2).forEach { (method, selectedMode) ->
+        listOf(v1 to PlatformSettingsKeys.SECURITY_CENTER_ANTI_PEEPING_V1,
+            v2 to PlatformSettingsKeys.SECURITY_CENTER_ANTI_PEEPING_V2).forEach { (method, selectedMode) ->
             if (method == null) return@forEach
             runCatching {
                 profile.callers(method).forEach(::deoptimize)

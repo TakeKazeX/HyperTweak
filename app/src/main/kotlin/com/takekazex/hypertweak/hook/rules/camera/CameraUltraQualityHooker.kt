@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.camera
 
+import com.takekazex.hypertweak.settings.contract.CameraSettingsKeys
+
 import com.takekazex.hypertweak.hook.base.dex.DexOperandIndex
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.StaticHooker
@@ -56,7 +58,7 @@ object CameraUltraQualityHooker : StaticHooker() {
 
 
     private fun cameraUltraHdQuality(): Boolean =
-        Preferences.getBoolean(Preferences.KEY_CAMERA_ULTRA_HD_QUALITY, false)
+        Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_ULTRA_HD_QUALITY, false)
 
     private fun hookSelfieMirrorPreference() {
         val clazz = CameraFeatureResolver.selfieSettings(
@@ -77,7 +79,7 @@ object CameraUltraQualityHooker : StaticHooker() {
         deoptimize(method)
         method.hook("cam_selfie_mirror_preference") {
             before { param ->
-                if (!Preferences.getBoolean(Preferences.KEY_CAMERA_SELFIE_SETTINGS, false)) return@before
+                if (!Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_SELFIE_SETTINGS, false)) return@before
                 runCatching {
                     val group = groupField.get(param.thisObject) ?: return@runCatching
                     add.invoke(param.thisObject, group, "pref_front_mirror_boolean_key", true, ids[0], ids[1])
@@ -110,7 +112,7 @@ object CameraUltraQualityHooker : StaticHooker() {
         deoptimize(method)
         method.hook("cam_remove_common_selfie_mirror") {
             after { param ->
-                if (!Preferences.getBoolean(Preferences.KEY_CAMERA_SELFIE_SETTINGS, false)) return@after
+                if (!Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_SELFIE_SETTINGS, false)) return@after
                 runCatching {
                     val group = groupField.get(param.thisObject) ?: return@runCatching
                     val pref = find.invoke(group, "pref_front_mirror_boolean_key")
@@ -132,7 +134,7 @@ object CameraUltraQualityHooker : StaticHooker() {
             deoptimize(gate)
             gate.hook("cam_selfie_$key") {
                 after { param ->
-                    if (Preferences.getBoolean(Preferences.KEY_CAMERA_SELFIE_SETTINGS, false)) param.result = true
+                    if (Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_SELFIE_SETTINGS, false)) param.result = true
                 }
             }
         }

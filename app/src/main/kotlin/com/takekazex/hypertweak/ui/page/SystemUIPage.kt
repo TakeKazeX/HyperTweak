@@ -1,5 +1,9 @@
 package com.takekazex.hypertweak.ui.page
 
+import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
+
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+
 import android.annotation.SuppressLint
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
@@ -38,7 +42,7 @@ import kotlin.math.roundToInt
 import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.hook.NativeRuleConfig
 import com.takekazex.hypertweak.hook.Preferences
-import com.takekazex.hypertweak.hook.rules.systemui.TileStateMessageDuration
+import com.takekazex.hypertweak.settings.contract.TileStateMessageDuration
 import com.takekazex.hypertweak.hook.rules.system.VolumeKeyStepPolicy
 import com.takekazex.hypertweak.util.PlatformLevel
 import com.takekazex.hypertweak.util.RestartScopeSelection
@@ -124,25 +128,25 @@ fun SystemUIPage(
     val requestRestartScopes = LocalRestartScopeRequest.current
     val handleRestartedScopes = LocalRestartScopeHandled.current
     var hideLockscreenDate by rememberSaveable {
-        mutableStateOf(Preferences.getBoolean(Preferences.KEY_HIDE_LOCKSCREEN_DATE, false))
+        mutableStateOf(Preferences.getBoolean(SystemUiSettingsKeys.KEY_HIDE_LOCKSCREEN_DATE, false))
     }
 
     var volumeKeyStepCount by remember {
         mutableIntStateOf(
             Preferences.getInt(
-                Preferences.KEY_VOLUME_KEY_STEP_COUNT,
-                Preferences.DEFAULT_VOLUME_KEY_STEP_COUNT
+                PlatformSettingsKeys.KEY_VOLUME_KEY_STEP_COUNT,
+                PlatformSettingsKeys.DEFAULT_VOLUME_KEY_STEP_COUNT
             ).coerceIn(VolumeKeyStepPolicy.MIN_STEPS, VolumeKeyStepPolicy.MAX_STEPS)
         )
     }
     var volumeKeyStepScope by remember {
         mutableIntStateOf(
             Preferences.getInt(
-                Preferences.KEY_VOLUME_KEY_STEP_SCOPE,
-                Preferences.VOLUME_KEY_SCOPE_MEDIA_ONLY
+                PlatformSettingsKeys.KEY_VOLUME_KEY_STEP_SCOPE,
+                PlatformSettingsKeys.VOLUME_KEY_SCOPE_MEDIA_ONLY
             ).coerceIn(
-                Preferences.VOLUME_KEY_SCOPE_MEDIA_ONLY,
-                Preferences.VOLUME_KEY_SCOPE_ACTIVE_STREAM
+                PlatformSettingsKeys.VOLUME_KEY_SCOPE_MEDIA_ONLY,
+                PlatformSettingsKeys.VOLUME_KEY_SCOPE_ACTIVE_STREAM
             )
         )
     }
@@ -157,30 +161,30 @@ fun SystemUIPage(
     fun setVolumeKeyStepCount(value: Int) {
         val resolved = value.coerceIn(VolumeKeyStepPolicy.MIN_STEPS, VolumeKeyStepPolicy.MAX_STEPS)
         volumeKeyStepCount = resolved
-        Preferences.putInt(Preferences.KEY_VOLUME_KEY_STEP_COUNT, resolved)
+        Preferences.putInt(PlatformSettingsKeys.KEY_VOLUME_KEY_STEP_COUNT, resolved)
         Preferences.flush()
     }
     fun setVolumeKeyStepScope(value: Int) {
         val resolved = value.coerceIn(
-            Preferences.VOLUME_KEY_SCOPE_MEDIA_ONLY,
-            Preferences.VOLUME_KEY_SCOPE_ACTIVE_STREAM
+            PlatformSettingsKeys.VOLUME_KEY_SCOPE_MEDIA_ONLY,
+            PlatformSettingsKeys.VOLUME_KEY_SCOPE_ACTIVE_STREAM
         )
         volumeKeyStepScope = resolved
-        Preferences.putInt(Preferences.KEY_VOLUME_KEY_STEP_SCOPE, resolved)
+        Preferences.putInt(PlatformSettingsKeys.KEY_VOLUME_KEY_STEP_SCOPE, resolved)
         Preferences.flush()
     }
 
     var tileMessageDialog by rememberSaveable { mutableStateOf(false) }
     var tileMessageSeconds by rememberSaveable {
         mutableFloatStateOf(TileStateMessageDuration.normalize(Preferences.getInt(
-            Preferences.KEY_CC_TILE_MESSAGE_DURATION_MS, TileStateMessageDuration.DEFAULT_MS
+            SystemUiSettingsKeys.KEY_CC_TILE_MESSAGE_DURATION_MS, TileStateMessageDuration.DEFAULT_MS
         )) / 1000f)
     }
 
     fun setTileMessageSeconds(value: Float) {
         val milliseconds = TileStateMessageDuration.normalize((value * 1000).roundToInt())
         tileMessageSeconds = milliseconds / 1000f
-        Preferences.putInt(Preferences.KEY_CC_TILE_MESSAGE_DURATION_MS, milliseconds)
+        Preferences.putInt(SystemUiSettingsKeys.KEY_CC_TILE_MESSAGE_DURATION_MS, milliseconds)
         Preferences.flush()
     }
 
@@ -188,10 +192,10 @@ fun SystemUIPage(
 
     val powerButtonActionOptions = remember {
         listOf(
-            Preferences.POWER_BUTTON_ACTION_DISABLED to context.getString(R.string.tweaks_power_button_action_follow_system),
-            Preferences.POWER_BUTTON_ACTION_CIRCLE_TO_SEARCH to context.getString(R.string.tweaks_action_circle_to_search),
-            Preferences.POWER_BUTTON_ACTION_GOOGLE_LENS to context.getString(R.string.tweaks_action_google_lens),
-            Preferences.POWER_BUTTON_ACTION_DEFAULT_ASSISTANT to context.getString(R.string.tweaks_action_default_assistant)
+            PlatformSettingsKeys.POWER_BUTTON_ACTION_DISABLED to context.getString(R.string.tweaks_power_button_action_follow_system),
+            PlatformSettingsKeys.POWER_BUTTON_ACTION_CIRCLE_TO_SEARCH to context.getString(R.string.tweaks_action_circle_to_search),
+            PlatformSettingsKeys.POWER_BUTTON_ACTION_GOOGLE_LENS to context.getString(R.string.tweaks_action_google_lens),
+            PlatformSettingsKeys.POWER_BUTTON_ACTION_DEFAULT_ASSISTANT to context.getString(R.string.tweaks_action_default_assistant)
         )
     }
 
@@ -232,7 +236,7 @@ fun SystemUIPage(
                 Column(Modifier.fillMaxWidth()) {
                     OverlayDropdownPreference(
                         title = stringResource(R.string.volume_key_scope_title),
-                        summary = stringResource(if (volumeKeyStepScope == Preferences.VOLUME_KEY_SCOPE_MEDIA_ONLY) R.string.volume_key_scope_media else R.string.volume_key_scope_active_stream),
+                        summary = stringResource(if (volumeKeyStepScope == PlatformSettingsKeys.VOLUME_KEY_SCOPE_MEDIA_ONLY) R.string.volume_key_scope_media else R.string.volume_key_scope_active_stream),
                         showValue = false,
                         items = listOf(
                             stringResource(R.string.volume_key_scope_media),
@@ -318,7 +322,7 @@ fun SystemUIPage(
                         checked = freeformBlur,
                         onCheckedChange = { value ->
                             freeformBlur = value
-                            Preferences.putBoolean(Preferences.KEY_FREEFORM_BLUR_TRANSITION, value)
+                            Preferences.putBoolean(PlatformSettingsKeys.KEY_FREEFORM_BLUR_TRANSITION, value)
                         },
                         title = stringResource(R.string.settings_freeform_blur_title),
                         summary = stringResource(R.string.settings_freeform_blur_summary)
@@ -385,7 +389,7 @@ fun SystemUIPage(
                         checked = hideLockscreenDate,
                         onCheckedChange = { value ->
                             hideLockscreenDate = value
-                            Preferences.putBoolean(Preferences.KEY_HIDE_LOCKSCREEN_DATE, value)
+                            Preferences.putBoolean(SystemUiSettingsKeys.KEY_HIDE_LOCKSCREEN_DATE, value)
                             Preferences.flush()
                             requestRestartScopes(RestartScopeSelection(systemUi = true))
                         },

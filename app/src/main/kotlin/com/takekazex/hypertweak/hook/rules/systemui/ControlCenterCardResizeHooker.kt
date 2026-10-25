@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui
 
+import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
+
 import android.content.Context
 import android.util.Log
 import android.view.LayoutInflater
@@ -131,7 +133,7 @@ class ControlCenterCardResizeHooker : DynamicHooker() {
     private var refreshAdapter: java.lang.reflect.Method? = null
 
     private fun enabled(): Boolean =
-        Preferences.getBoolean(Preferences.KEY_CC_RESIZE_ENABLED, false)
+        Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_RESIZE_ENABLED, false)
 
     // ─── Size parsing ──────────────────────────────────────────────────────────
 
@@ -148,7 +150,7 @@ class ControlCenterCardResizeHooker : DynamicHooker() {
 
     /** Reads the per-card map into spec → (cols, rows). */
     private fun cardSizes(): Map<String, Pair<Int, Int>> {
-        val raw = Preferences.getString(Preferences.KEY_CC_CARD_SIZES, "")
+        val raw = Preferences.getString(SystemUiSettingsKeys.KEY_CC_CARD_SIZES, "")
         if (raw.isBlank()) return emptyMap()
         return raw.split(',').mapNotNull { entry ->
             val idx = entry.indexOf('=')
@@ -160,13 +162,13 @@ class ControlCenterCardResizeHooker : DynamicHooker() {
     }
 
     private fun tileCardSpecs(): Set<String> =
-        Preferences.getString(Preferences.KEY_CC_TILE_CARD_SPECS, "")
+        Preferences.getString(SystemUiSettingsKeys.KEY_CC_TILE_CARD_SPECS, "")
             .split(',').map { it.trim().lowercase() }.filter { it.isNotEmpty() }.toSet()
 
     // ─── Spans ─────────────────────────────────────────────────────────────────
 
     /**
-     * Card spans: per-spec overrides from [Preferences.KEY_CC_CARD_SIZES], plus the fixed 2-column
+     * Card spans: per-spec overrides from [SystemUiSettingsKeys.KEY_CC_CARD_SIZES], plus the fixed 2-column
      * span for converted quick-switch tiles. This hooker owns card spans entirely — the legacy
      * editor hooker force-yields once this master switch is on (see
      * [ControlCenterCardsEditHooker.installCardSpanHook]).
@@ -204,13 +206,13 @@ class ControlCenterCardResizeHooker : DynamicHooker() {
         // backed by fields or style logic; the override only applies while a size is configured.
         val targets = listOf(
             "miui.systemui.controlcenter.panel.main.media.MediaPlayerController" to
-                Preferences.KEY_CC_SIZE_MEDIA,
+                SystemUiSettingsKeys.KEY_CC_SIZE_MEDIA,
             "miui.systemui.controlcenter.panel.main.brightness.BrightnessSliderController" to
-                Preferences.KEY_CC_SIZE_BRIGHTNESS,
+                SystemUiSettingsKeys.KEY_CC_SIZE_BRIGHTNESS,
             "miui.systemui.controlcenter.panel.main.volume.VolumeSliderController" to
-                Preferences.KEY_CC_SIZE_VOLUME,
+                SystemUiSettingsKeys.KEY_CC_SIZE_VOLUME,
             "miui.systemui.controlcenter.panel.main.devicecenter.entry.DeviceCenterEntryController" to
-                Preferences.KEY_CC_SIZE_DEVICE
+                SystemUiSettingsKeys.KEY_CC_SIZE_DEVICE
         )
         var installed = 0
         targets.forEach { (name, key) ->
@@ -397,13 +399,13 @@ class ControlCenterCardResizeHooker : DynamicHooker() {
                     var changed = false
                     when (contentKey(owner)) {
                         "brightness" -> changed =
-                            applyConfiguredRows(itemView, lp, Preferences.KEY_CC_SIZE_BRIGHTNESS)
+                            applyConfiguredRows(itemView, lp, SystemUiSettingsKeys.KEY_CC_SIZE_BRIGHTNESS)
                         "volume" -> changed =
-                            applyConfiguredRows(itemView, lp, Preferences.KEY_CC_SIZE_VOLUME)
+                            applyConfiguredRows(itemView, lp, SystemUiSettingsKeys.KEY_CC_SIZE_VOLUME)
                         "devicecenter" -> changed =
-                            applyConfiguredRows(itemView, lp, Preferences.KEY_CC_SIZE_DEVICE)
+                            applyConfiguredRows(itemView, lp, SystemUiSettingsKeys.KEY_CC_SIZE_DEVICE)
                         "media" -> {
-                            val size = parseSize(Preferences.getString(Preferences.KEY_CC_SIZE_MEDIA, ""))
+                            val size = parseSize(Preferences.getString(SystemUiSettingsKeys.KEY_CC_SIZE_MEDIA, ""))
                             if (size != null) {
                                 // The XML root is a fixed-width square; a custom span must widen
                                 // with the grid or the view stays narrow inside its cell.
@@ -447,7 +449,7 @@ class ControlCenterCardResizeHooker : DynamicHooker() {
     }
 
     private fun stockDimenForKey(key: String): String = when (key) {
-        Preferences.KEY_CC_SIZE_DEVICE -> DIMEN_ROW_UNIT
+        SystemUiSettingsKeys.KEY_CC_SIZE_DEVICE -> DIMEN_ROW_UNIT
         else -> DIMEN_TWO_ROWS // sliders stock at 2 rows
     }
 
@@ -552,12 +554,12 @@ class ControlCenterCardResizeHooker : DynamicHooker() {
     }
 
     private fun configSignature(): String = listOf(
-        Preferences.getString(Preferences.KEY_CC_CARD_SIZES, ""),
-        Preferences.getString(Preferences.KEY_CC_SIZE_MEDIA, ""),
-        Preferences.getString(Preferences.KEY_CC_SIZE_BRIGHTNESS, ""),
-        Preferences.getString(Preferences.KEY_CC_SIZE_VOLUME, ""),
-        Preferences.getString(Preferences.KEY_CC_SIZE_DEVICE, ""),
-        Preferences.getString(Preferences.KEY_CC_TILE_CARD_SPECS, "")
+        Preferences.getString(SystemUiSettingsKeys.KEY_CC_CARD_SIZES, ""),
+        Preferences.getString(SystemUiSettingsKeys.KEY_CC_SIZE_MEDIA, ""),
+        Preferences.getString(SystemUiSettingsKeys.KEY_CC_SIZE_BRIGHTNESS, ""),
+        Preferences.getString(SystemUiSettingsKeys.KEY_CC_SIZE_VOLUME, ""),
+        Preferences.getString(SystemUiSettingsKeys.KEY_CC_SIZE_DEVICE, ""),
+        Preferences.getString(SystemUiSettingsKeys.KEY_CC_TILE_CARD_SPECS, "")
     ).joinToString("|")
 
     // ─── Helpers ───────────────────────────────────────────────────────────────

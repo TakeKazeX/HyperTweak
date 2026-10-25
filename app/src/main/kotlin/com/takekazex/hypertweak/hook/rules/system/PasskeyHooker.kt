@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.system
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
@@ -121,7 +123,7 @@ object PasskeyHooker : StaticHooker() {
         constructorRequestSession?.hook {
             after { param ->
                 HookFailurePolicy.open(TAG, "RequestSession#hybridService", Unit) {
-                    if (Preferences.getBoolean(Preferences.KEY_UNLOCK_PASSKEY, false)) {
+                    if (Preferences.getBoolean(PlatformSettingsKeys.KEY_UNLOCK_PASSKEY, false)) {
                         fHybridService.set(param.thisObject, "com.google.android.gms/.auth.api.credentials.credman.service.RemoteService")
                     }
                 }
@@ -144,7 +146,7 @@ object PasskeyHooker : StaticHooker() {
 
         mGetOemOverrideComponentName?.hook {
             intercept { chain ->
-                if (!Preferences.getBoolean(Preferences.KEY_UNLOCK_PASSKEY, false)) {
+                if (!Preferences.getBoolean(PlatformSettingsKeys.KEY_UNLOCK_PASSKEY, false)) {
                     return@intercept chain.proceed()
                 }
                 val args = chain.args
@@ -555,7 +557,7 @@ object PasskeyHooker : StaticHooker() {
             deoptimize(method)
             method.hook {
                 intercept { chain ->
-                    if (Preferences.getBoolean(Preferences.KEY_UNLOCK_PASSKEY, false)) {
+                    if (Preferences.getBoolean(PlatformSettingsKeys.KEY_UNLOCK_PASSKEY, false)) {
                         null
                     } else {
                         chain.proceed()
@@ -577,7 +579,7 @@ object PasskeyHooker : StaticHooker() {
                 val aMethod = iClass.getDeclaredMethod("getAppPackageName")
                 aMethod.hook {
                     intercept { chain ->
-                        if (Preferences.getBoolean(Preferences.KEY_UNLOCK_PASSKEY, false)) {
+                        if (Preferences.getBoolean(PlatformSettingsKeys.KEY_UNLOCK_PASSKEY, false)) {
                             ""
                         } else {
                             chain.proceed()
@@ -613,7 +615,7 @@ object PasskeyHooker : StaticHooker() {
     }
 
     private fun handleIsInternationalBuild(chain: Any): Any? {
-        if (fIsInternationalBuildBoolean == null || !Preferences.getBoolean(Preferences.KEY_UNLOCK_PASSKEY, false)) {
+        if (fIsInternationalBuildBoolean == null || !Preferences.getBoolean(PlatformSettingsKeys.KEY_UNLOCK_PASSKEY, false)) {
             return proceedChain(chain)
         }
         INTL_LOCK.lock()

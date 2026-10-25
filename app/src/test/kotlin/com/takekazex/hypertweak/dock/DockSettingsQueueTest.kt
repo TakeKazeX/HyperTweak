@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.dock
 
+import com.takekazex.hypertweak.settings.contract.DockConfig
+
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger

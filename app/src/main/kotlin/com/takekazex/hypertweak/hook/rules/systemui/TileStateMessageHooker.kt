@@ -1,5 +1,9 @@
 package com.takekazex.hypertweak.hook.rules.systemui
 
+import com.takekazex.hypertweak.settings.contract.TileStateMessageDuration
+
+import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
+
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
@@ -76,7 +80,7 @@ class TileStateMessageHooker : DynamicHooker() {
     }
 
     private var bindSlot: ((Any) -> Unit)? = null
-    private fun duration() = Preferences.getInt(Preferences.KEY_CC_TILE_MESSAGE_DURATION_MS, TileStateMessageDuration.DEFAULT_MS)
+    private fun duration() = Preferences.getInt(SystemUiSettingsKeys.KEY_CC_TILE_MESSAGE_DURATION_MS, TileStateMessageDuration.DEFAULT_MS)
     private fun reschedule(message: Any, duration: Int) {
         val start = completed[message] ?: return
         val handler = handlerField.get(ownerField.get(message)) as? Handler ?: return

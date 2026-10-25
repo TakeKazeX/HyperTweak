@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
+
 import com.takekazex.hypertweak.hook.base.HostAccess
 import android.telephony.SubscriptionManager
 import com.takekazex.hypertweak.hook.Preferences
@@ -119,14 +121,14 @@ object HideCellularIconHooker : StaticHooker() {
 
     override fun onHook() {
         IconTunerFlows.init(classLoader)
-        val stackedEnabled = Preferences.getBoolean(Preferences.KEY_ICON_STACKED_ENABLED, false)
+        val stackedEnabled = Preferences.getBoolean(IconSettingsKeys.KEY_ICON_STACKED_ENABLED, false)
         hideNonDefault = Preferences.getBoolean(
-            Preferences.KEY_ICON_HIDE_NON_DEFAULT_SIM,
+            IconSettingsKeys.KEY_ICON_HIDE_NON_DEFAULT_SIM,
             false
-        ) || Preferences.getBoolean(Preferences.KEY_ICON_HIDE_SIM_AUTO, false)
-        hideSimOne = Preferences.getBoolean(Preferences.KEY_ICON_HIDE_SIM_ONE, false)
-        hideSimTwo = Preferences.getBoolean(Preferences.KEY_ICON_HIDE_SIM_TWO, false)
-        hideOnWifi = Preferences.getBoolean(Preferences.KEY_ICON_HIDE_MOBILE_ON_WIFI, false)
+        ) || Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_SIM_AUTO, false)
+        hideSimOne = Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_SIM_ONE, false)
+        hideSimTwo = Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_SIM_TWO, false)
+        hideOnWifi = Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_MOBILE_ON_WIFI, false)
         if (stackedEnabled ||
             (!hideNonDefault && !hideSimOne && !hideSimTwo && !hideOnWifi)
         ) {

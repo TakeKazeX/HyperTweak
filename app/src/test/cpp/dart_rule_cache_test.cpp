@@ -308,5 +308,24 @@ int main(int argc, char** argv) {
     assert(strcmp(AndroidWidgetStackRuleReason(), "disabled") == 0);
     assert(hypertweak_widget_stack_requested == 0u);
     assert(hypertweak_widget_stack_ready == 0u);
+    // A failed family leaves an empty cache slot on a new settings generation.
+    // Retrying it must reuse that slot, not evict another family's live patched
+    // target and subsequently attempt to rediscover that target from patched code.
+    snapshot.assign(std::istreambuf_iterator<char>(std::ifstream(argv[1], std::ios::binary).rdbuf()), {});
+    identity[16] ^= 2u; // independent image identity, without relying on cache internals
+    records.clear();
+    memset(snapshot.data() + widget_offset, 0, 16u); // deliberate unavailable family
+    assert(!PrepareDartRuleTargets(reinterpret_cast<void*>(1), true, true, true, true, true, true, true, true));
+    DartResolution clear_before{};
+    assert(ResolveDartSites(reinterpret_cast<void*>(1), dart::kRecentsClearButtonTarget, &clear_before));
+    const uintptr_t clear_target = clear_before.Find("insert_overlay");
+    assert(clear_target != 0u);
+    memset(reinterpret_cast<void*>(clear_target), 0xa5, 16u); // installed/foreign patch: never rescan or overwrite it
+    InvalidateFailedDartRuleTargets();
+    assert(!PrepareDartRuleTargets(reinterpret_cast<void*>(1), true, true, true, true, true, true, true, true));
+    DartResolution clear_after{};
+    assert(ResolveDartSites(reinterpret_cast<void*>(1), dart::kRecentsClearButtonTarget, &clear_after));
+    assert(clear_after.Find("insert_overlay") == clear_target);
+    assert(*reinterpret_cast<const uint8_t*>(clear_target) == 0xa5);
     puts("PASS: cache identity/corruption/bounds/relocation, readiness, input deferral, idempotent apply, remap repair, and foreign-hook preservation");
 }

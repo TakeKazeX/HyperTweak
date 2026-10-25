@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import com.takekazex.hypertweak.settings.contract.ControlCenterPrivacyPolicy
+
 import org.junit.Assert.assertEquals
 import org.junit.Test
 

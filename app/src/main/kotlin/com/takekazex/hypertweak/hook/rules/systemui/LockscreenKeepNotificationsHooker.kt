@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui
 
+import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
+
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.HotReloadMode
@@ -50,7 +52,7 @@ object LockscreenKeepNotificationsHooker : StaticHooker() {
     override fun onHook() {
         mSbnField = null
         canShowOnKeyguard = null
-        if (!Preferences.getBoolean(Preferences.KEY_LOCKSCREEN_KEEP_NOTIFICATIONS, false)) {
+        if (!Preferences.getBoolean(SystemUiSettingsKeys.KEY_LOCKSCREEN_KEEP_NOTIFICATIONS, false)) {
             DebugLog.hookSkippedDebug(TAG, "lockscreen keep notifications", "disabled")
             return
         }

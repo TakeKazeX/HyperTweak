@@ -1,4 +1,4 @@
-package com.takekazex.hypertweak.dock
+package com.takekazex.hypertweak.settings.contract
 
 import kotlin.math.min
 import kotlin.math.roundToInt

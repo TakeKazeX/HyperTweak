@@ -1,9 +1,11 @@
 package com.takekazex.hypertweak.hook.rules.camera
 
+import com.takekazex.hypertweak.settings.contract.CameraSettingsKeys
+
 /**
  * Pure decision logic for injecting the 红毯运镜 (MasterLive effect type `"1"`, slow-motion
  * movement) entry into the served MasterLive effect table
- * (`Preferences.KEY_CAMERA_MASTERLIVE_RED_CARPET`; research:
+ * (`CameraSettingsKeys.KEY_CAMERA_MASTERLIVE_RED_CARPET`; research:
  * RESEARCH_MYRON_10_MASTERLIVE_REDCARPET.md).
  *
  * Background: the K100 Pro Max table (`q0()` → `Map<String, Le.a>`) ships types `"0"`

@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.securitycenter
 
+import com.takekazex.hypertweak.settings.contract.AppSettingsKeys
+
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
@@ -77,7 +79,7 @@ object AppDetailsIconLaunchHooker : DynamicHooker() {
         val id = root.resources.getIdentifier("app_manager_details_appicon", "id", PACKAGE)
         if (id == 0) return
         val icon = root.findViewById<View>(id) as? ImageView ?: return
-        val enabled = Preferences.getBoolean(Preferences.KEY_APP_DETAILS_ICON_LAUNCH, false)
+        val enabled = Preferences.getBoolean(AppSettingsKeys.KEY_APP_DETAILS_ICON_LAUNCH, false)
         if (!enabled) {
             restore(icon)
             return
@@ -88,7 +90,7 @@ object AppDetailsIconLaunchHooker : DynamicHooker() {
         if (icon !in icons) icons[icon] = Original(icon.isClickable, icon.focusable)
         icon.setOnClickListener {
             HookFailurePolicy.open(TAG, "launch application", Unit) {
-                if (retired || !Preferences.getBoolean(Preferences.KEY_APP_DETAILS_ICON_LAUNCH, false)) return@open
+                if (retired || !Preferences.getBoolean(AppSettingsKeys.KEY_APP_DETAILS_ICON_LAUNCH, false)) return@open
                 // Re-resolve at click time: an app can be disabled/uninstalled while this page lives.
                 val current = launchTarget(host) ?: return@open
                 host.getSystemService(LauncherApps::class.java)

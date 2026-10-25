@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.slider
 
+import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
+
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 
 import com.takekazex.hypertweak.hook.Preferences
@@ -128,8 +130,8 @@ class SliderPercentageHooker(
      * waits for the next plugin load and a disable releases the percentage rendering in place.
      */
     fun refreshSettings() {
-        val show = Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)
-        val sameStyle = Preferences.getBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false)
+        val show = Preferences.getBoolean(SystemUiSettingsKeys.KEY_SLIDER_SHOW_PERCENTAGE, false)
+        val sameStyle = Preferences.getBoolean(SystemUiSettingsKeys.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false)
         val changed = show != showPercentageEnabled || sameStyle != sameStyleEnabled
         showPercentageEnabled = show
         sameStyleEnabled = sameStyle
@@ -143,8 +145,8 @@ class SliderPercentageHooker(
     }
 
     override fun onHook() {
-        showPercentageEnabled = Preferences.getBoolean(Preferences.KEY_SLIDER_SHOW_PERCENTAGE, false)
-        sameStyleEnabled = Preferences.getBoolean(Preferences.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false)
+        showPercentageEnabled = Preferences.getBoolean(SystemUiSettingsKeys.KEY_SLIDER_SHOW_PERCENTAGE, false)
+        sameStyleEnabled = Preferences.getBoolean(SystemUiSettingsKeys.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false)
         SliderHookHelper.sameStyleEnabled = sameStyleEnabled
         // The plugin session owns these hooks for its whole life; the master switch is read at
         // render time, so a later enable does not need a new plugin session or a restart.

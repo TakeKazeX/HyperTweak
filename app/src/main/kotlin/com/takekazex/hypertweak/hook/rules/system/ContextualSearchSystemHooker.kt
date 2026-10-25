@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.system
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -56,12 +58,12 @@ object ContextualSearchSystemHooker : StaticHooker() {
      * The system-side bridge exists solely to make a Circle to Search entry point succeed. There
      * are two independent ones, so either being on is enough:
      * - the long-press power button action set to
-     *   [Preferences.POWER_BUTTON_ACTION_CIRCLE_TO_SEARCH] (see [PowerButtonCtsHooker]); or
+     *   [PlatformSettingsKeys.POWER_BUTTON_ACTION_CIRCLE_TO_SEARCH] (see [PowerButtonCtsHooker]); or
      * - the launcher's own long press on the gesture bar, which the native payload drives (see
      *   [NativeRuleConfig.KEY_CONTEXTUAL_SEARCH_LONG_PRESS]).
      */
     private fun isContextualSearchEnabled(): Boolean =
-        Preferences.powerButtonAction() == Preferences.POWER_BUTTON_ACTION_CIRCLE_TO_SEARCH ||
+        Preferences.powerButtonAction() == PlatformSettingsKeys.POWER_BUTTON_ACTION_CIRCLE_TO_SEARCH ||
             Preferences.contextualSearchLongPress()
 
     /**
@@ -76,7 +78,7 @@ object ContextualSearchSystemHooker : StaticHooker() {
         // system_server invocation, so it is gated on the power-button binding specifically --
         // not on [isContextualSearchEnabled], which the launcher entry point also satisfies.
         if (Preferences.powerButtonAction() !=
-            Preferences.POWER_BUTTON_ACTION_CIRCLE_TO_SEARCH
+            PlatformSettingsKeys.POWER_BUTTON_ACTION_CIRCLE_TO_SEARCH
         ) {
             return false
         }

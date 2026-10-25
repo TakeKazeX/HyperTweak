@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.googleapp
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+
 import android.app.Activity
 import com.takekazex.hypertweak.BuildConfig
 import com.takekazex.hypertweak.hook.Preferences
@@ -278,7 +280,7 @@ object GoogleAppLensEntryHooker : StaticHooker() {
     }
 
     private fun lensActionSelected(): Boolean =
-        Preferences.powerButtonAction() == Preferences.POWER_BUTTON_ACTION_GOOGLE_LENS
+        Preferences.powerButtonAction() == PlatformSettingsKeys.POWER_BUTTON_ACTION_GOOGLE_LENS
 
     private fun classFor(dexName: String): Class<*>? = runCatching {
         Class.forName(

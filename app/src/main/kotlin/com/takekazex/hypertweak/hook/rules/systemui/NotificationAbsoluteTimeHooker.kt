@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui
 
+import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
+
 import android.icu.text.RelativeDateTimeFormatter
 import android.text.format.DateFormat
 import android.view.View
@@ -85,7 +87,7 @@ object NotificationAbsoluteTimeHooker : StaticHooker() {
                     after { param -> boundary("accessibility") {
                         val view = param.thisObject as? TextView ?: return@boundary
                         if (!retiring && views.containsKey(view) && relativeField?.getBoolean(view) == true &&
-                            Preferences.getBoolean(Preferences.KEY_NOTIFICATION_ABSOLUTE_TIME, false)) {
+                            Preferences.getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_ABSOLUTE_TIME, false)) {
                             (param.args.firstOrNull() as? AccessibilityNodeInfo)?.text = view.text
                         }
                     } }
@@ -118,7 +120,7 @@ object NotificationAbsoluteTimeHooker : StaticHooker() {
 
     private fun render(view: TextView) {
         cancel(view)
-        if (retiring || !Preferences.getBoolean(Preferences.KEY_NOTIFICATION_ABSOLUTE_TIME, false) ||
+        if (retiring || !Preferences.getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_ABSOLUTE_TIME, false) ||
             relativeField?.getBoolean(view) != true || view.isGone) return
         val time = timeField?.getLong(view) ?: return
         val now = System.currentTimeMillis()
@@ -177,7 +179,7 @@ object NotificationAbsoluteTimeHooker : StaticHooker() {
     }
 
     private fun isEnabled(): Boolean = !retiring &&
-        Preferences.getBoolean(Preferences.KEY_NOTIFICATION_ABSOLUTE_TIME, false)
+        Preferences.getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_ABSOLUTE_TIME, false)
 
     override fun saveHotReloadState(): Any = HostAccess.onMain { views.keys.toList() }
 

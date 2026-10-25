@@ -1,5 +1,9 @@
 package com.takekazex.hypertweak.hook.rules.systemui
 
+import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
+
+import com.takekazex.hypertweak.settings.contract.LockscreenBottomTextOptions
+
 import android.view.View
 import android.view.ViewParent
 import com.takekazex.hypertweak.hook.Preferences
@@ -49,34 +53,6 @@ object LockscreenBottomTextHooker : StaticHooker() {
     private const val KEY_TO_UNLOCK_TYPE = 18
     private const val ENTER_TO_UNLOCK_TYPE = 19
 
-    const val MODE_BLACKLIST = 0
-    const val MODE_WHITELIST = 1
-
-    const val CATEGORY_CHARGING = 1
-    const val CATEGORY_DND = 1 shl 1
-    const val CATEGORY_NOTIFICATION_COUNT = 1 shl 2
-    const val CATEGORY_TRUST = 1 shl 3
-    const val CATEGORY_SWIPE = 1 shl 4
-    const val CATEGORY_OWNER_INFO = 1 shl 5
-    const val CATEGORY_DISCLOSURE = 1 shl 6
-    const val CATEGORY_LOGOUT = 1 shl 7
-    const val CATEGORY_ALIGNMENT = 1 shl 8
-    const val CATEGORY_TRANSIENT = 1 shl 9
-    const val CATEGORY_PERSISTENT_UNLOCK = 1 shl 10
-    const val CATEGORY_USER_LOCKED = 1 shl 11
-    const val CATEGORY_BIOMETRIC = 1 shl 12
-    const val CATEGORY_BIOMETRIC_FOLLOW_UP = 1 shl 13
-    const val CATEGORY_ADAPTIVE_AUTH = 1 shl 14
-    const val CATEGORY_WATCH_DISCONNECTED = 1 shl 15
-    const val CATEGORY_SECURE_LOCK_DEVICE = 1 shl 16
-    const val CATEGORY_CLICK_TO_UNLOCK = 1 shl 17
-    const val CATEGORY_KEY_TO_UNLOCK = 1 shl 18
-    const val CATEGORY_ENTER_TO_UNLOCK = 1 shl 19
-    const val CATEGORY_UNKNOWN = 1 shl 20
-
-    const val DEFAULT_MODE = MODE_BLACKLIST
-    const val DEFAULT_MASK = 0
-
     @Volatile
     private var enabled = false
 
@@ -119,7 +95,7 @@ object LockscreenBottomTextHooker : StaticHooker() {
      */
     fun refreshSettings() {
         val wasEnabled = enabled
-        enabled = Preferences.getBoolean(Preferences.KEY_LOCKSCREEN_BOTTOM_TEXT, false)
+        enabled = Preferences.getBoolean(SystemUiSettingsKeys.KEY_LOCKSCREEN_BOTTOM_TEXT, false)
         if (wasEnabled != enabled) {
             com.takekazex.hypertweak.hook.base.HostAccess.onMain {
                 knownIndicationViews.toList().filter { it.isAttachedToWindow }
@@ -134,7 +110,7 @@ object LockscreenBottomTextHooker : StaticHooker() {
         java.util.Collections.newSetFromMap(java.util.WeakHashMap<View, Boolean>())
 
     override fun onHook() {
-        enabled = Preferences.getBoolean(Preferences.KEY_LOCKSCREEN_BOTTOM_TEXT, false)
+        enabled = Preferences.getBoolean(SystemUiSettingsKeys.KEY_LOCKSCREEN_BOTTOM_TEXT, false)
         hookRotatingIndications()
         hookCompactStatusText()
         hookCompactStatusAnimations()
@@ -326,39 +302,39 @@ object LockscreenBottomTextHooker : StaticHooker() {
     private fun shouldHideIndicationType(type: Int): Boolean {
         if (!enabled) return false
         val category = when (type) {
-            OWNER_INFO_TYPE -> CATEGORY_OWNER_INFO
-            DISCLOSURE_TYPE -> CATEGORY_DISCLOSURE
-            LOGOUT_TYPE -> CATEGORY_LOGOUT
-            BATTERY_TYPE -> CATEGORY_CHARGING
-            ALIGNMENT_TYPE -> CATEGORY_ALIGNMENT
-            TRANSIENT_TYPE -> CATEGORY_TRANSIENT
-            TRUST_TYPE -> CATEGORY_TRUST
-            PERSISTENT_UNLOCK_TYPE -> CATEGORY_PERSISTENT_UNLOCK
-            USER_LOCKED_TYPE -> CATEGORY_USER_LOCKED
-            UNKNOWN_TYPE -> CATEGORY_UNKNOWN
+            OWNER_INFO_TYPE -> LockscreenBottomTextOptions.CATEGORY_OWNER_INFO
+            DISCLOSURE_TYPE -> LockscreenBottomTextOptions.CATEGORY_DISCLOSURE
+            LOGOUT_TYPE -> LockscreenBottomTextOptions.CATEGORY_LOGOUT
+            BATTERY_TYPE -> LockscreenBottomTextOptions.CATEGORY_CHARGING
+            ALIGNMENT_TYPE -> LockscreenBottomTextOptions.CATEGORY_ALIGNMENT
+            TRANSIENT_TYPE -> LockscreenBottomTextOptions.CATEGORY_TRANSIENT
+            TRUST_TYPE -> LockscreenBottomTextOptions.CATEGORY_TRUST
+            PERSISTENT_UNLOCK_TYPE -> LockscreenBottomTextOptions.CATEGORY_PERSISTENT_UNLOCK
+            USER_LOCKED_TYPE -> LockscreenBottomTextOptions.CATEGORY_USER_LOCKED
+            UNKNOWN_TYPE -> LockscreenBottomTextOptions.CATEGORY_UNKNOWN
             // HyperOS 4's controller intentionally ignores type 10; reverse charging is emitted
             // through the same type-3 indication as normal charging.
-            REVERSE_CHARGING_TYPE -> CATEGORY_CHARGING
-            BIOMETRIC_TYPE -> CATEGORY_BIOMETRIC
-            BIOMETRIC_FOLLOW_UP_TYPE -> CATEGORY_BIOMETRIC_FOLLOW_UP
-            DISMISSIBLE_TYPE -> CATEGORY_SWIPE
-            ADAPTIVE_AUTH_TYPE -> CATEGORY_ADAPTIVE_AUTH
-            WATCH_DISCONNECTED_TYPE -> CATEGORY_WATCH_DISCONNECTED
-            SECURE_LOCK_DEVICE_TYPE -> CATEGORY_SECURE_LOCK_DEVICE
-            CLICK_TO_UNLOCK_TYPE -> CATEGORY_CLICK_TO_UNLOCK
-            KEY_TO_UNLOCK_TYPE -> CATEGORY_KEY_TO_UNLOCK
-            ENTER_TO_UNLOCK_TYPE -> CATEGORY_ENTER_TO_UNLOCK
-            else -> CATEGORY_UNKNOWN
+            REVERSE_CHARGING_TYPE -> LockscreenBottomTextOptions.CATEGORY_CHARGING
+            BIOMETRIC_TYPE -> LockscreenBottomTextOptions.CATEGORY_BIOMETRIC
+            BIOMETRIC_FOLLOW_UP_TYPE -> LockscreenBottomTextOptions.CATEGORY_BIOMETRIC_FOLLOW_UP
+            DISMISSIBLE_TYPE -> LockscreenBottomTextOptions.CATEGORY_SWIPE
+            ADAPTIVE_AUTH_TYPE -> LockscreenBottomTextOptions.CATEGORY_ADAPTIVE_AUTH
+            WATCH_DISCONNECTED_TYPE -> LockscreenBottomTextOptions.CATEGORY_WATCH_DISCONNECTED
+            SECURE_LOCK_DEVICE_TYPE -> LockscreenBottomTextOptions.CATEGORY_SECURE_LOCK_DEVICE
+            CLICK_TO_UNLOCK_TYPE -> LockscreenBottomTextOptions.CATEGORY_CLICK_TO_UNLOCK
+            KEY_TO_UNLOCK_TYPE -> LockscreenBottomTextOptions.CATEGORY_KEY_TO_UNLOCK
+            ENTER_TO_UNLOCK_TYPE -> LockscreenBottomTextOptions.CATEGORY_ENTER_TO_UNLOCK
+            else -> LockscreenBottomTextOptions.CATEGORY_UNKNOWN
         }
         return !isAllowed(category)
     }
 
     private fun shouldHideCompactView(view: View): Boolean {
         return when (view.id) {
-            zenViewId -> !isAllowed(CATEGORY_DND)
-            notificationCountViewId -> !isAllowed(CATEGORY_NOTIFICATION_COUNT)
+            zenViewId -> !isAllowed(LockscreenBottomTextOptions.CATEGORY_DND)
+            notificationCountViewId -> !isAllowed(LockscreenBottomTextOptions.CATEGORY_NOTIFICATION_COUNT)
             dividingLineId ->
-                !isAllowed(CATEGORY_DND) || !isAllowed(CATEGORY_NOTIFICATION_COUNT)
+                !isAllowed(LockscreenBottomTextOptions.CATEGORY_DND) || !isAllowed(LockscreenBottomTextOptions.CATEGORY_NOTIFICATION_COUNT)
             else -> false
         }
     }
@@ -366,14 +342,14 @@ object LockscreenBottomTextHooker : StaticHooker() {
     private fun isAllowed(category: Int): Boolean {
         if (!enabled) return true
         val mask = Preferences.getInt(
-            Preferences.KEY_LOCKSCREEN_BOTTOM_TEXT_MASK,
-            DEFAULT_MASK
+            SystemUiSettingsKeys.KEY_LOCKSCREEN_BOTTOM_TEXT_MASK,
+            LockscreenBottomTextOptions.DEFAULT_MASK
         )
         val selected = (mask and category) != 0
         return if (Preferences.getInt(
-                Preferences.KEY_LOCKSCREEN_BOTTOM_TEXT_MODE,
-                DEFAULT_MODE
-            ) == MODE_WHITELIST
+                SystemUiSettingsKeys.KEY_LOCKSCREEN_BOTTOM_TEXT_MODE,
+                LockscreenBottomTextOptions.DEFAULT_MODE
+            ) == LockscreenBottomTextOptions.MODE_WHITELIST
         ) {
             selected
         } else {
@@ -398,7 +374,7 @@ object LockscreenBottomTextHooker : StaticHooker() {
     }
 
     private fun hasAllowedCompactStatus(): Boolean {
-        return isAllowed(CATEGORY_DND) || isAllowed(CATEGORY_NOTIFICATION_COUNT)
+        return isAllowed(LockscreenBottomTextOptions.CATEGORY_DND) || isAllowed(LockscreenBottomTextOptions.CATEGORY_NOTIFICATION_COUNT)
     }
 
     private fun isCompactStatusView(view: View): Boolean {

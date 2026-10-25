@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.personalassistant
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 
 import android.content.Context
@@ -42,7 +44,7 @@ object ModelSpoofHooker : StaticHooker() {
     override val installPolicy: InstallPolicy = InstallPolicy.WHEN_ENABLED
 
     override fun isFeatureEnabled(): Boolean =
-        Preferences.getBoolean(Preferences.KEY_PA_MODEL_SPOOF, false)
+        Preferences.getBoolean(PlatformSettingsKeys.KEY_PA_MODEL_SPOOF, false)
 
     override fun onHook() {
         if (!isFeatureEnabled()) {
@@ -62,15 +64,15 @@ object ModelSpoofHooker : StaticHooker() {
         deoptimize(method)
         method.hook {
             after { param ->
-                if (!Preferences.getBoolean(Preferences.KEY_PA_MODEL_SPOOF, false)) return@after
+                if (!Preferences.getBoolean(PlatformSettingsKeys.KEY_PA_MODEL_SPOOF, false)) return@after
                 val json = param.result as? JSONObject ?: return@after
                 val model = Preferences.getString(
-                    Preferences.KEY_PA_MODEL_SPOOF_MODEL,
-                    Preferences.DEFAULT_PA_MODEL_SPOOF_MODEL
+                    PlatformSettingsKeys.KEY_PA_MODEL_SPOOF_MODEL,
+                    PlatformSettingsKeys.DEFAULT_PA_MODEL_SPOOF_MODEL
                 )
                 val device = Preferences.getString(
-                    Preferences.KEY_PA_MODEL_SPOOF_DEVICE,
-                    Preferences.DEFAULT_PA_MODEL_SPOOF_DEVICE
+                    PlatformSettingsKeys.KEY_PA_MODEL_SPOOF_DEVICE,
+                    PlatformSettingsKeys.DEFAULT_PA_MODEL_SPOOF_DEVICE
                 )
                 if (model.isNotBlank()) json.put(MODEL_KEY, model)
                 if (device.isNotBlank()) json.put(DEVICE_KEY, device)

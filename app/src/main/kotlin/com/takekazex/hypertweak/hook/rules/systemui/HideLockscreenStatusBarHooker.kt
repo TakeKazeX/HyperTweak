@@ -2,6 +2,8 @@
 
 package com.takekazex.hypertweak.hook.rules.systemui
 
+import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
+
 import com.takekazex.hypertweak.hook.base.HostAccess
 import java.util.WeakHashMap
 import android.content.Context
@@ -64,7 +66,7 @@ object HideLockscreenStatusBarHooker : StaticHooker() {
      * intent first, so the interceptors cannot keep the view hidden by replaying the module value.
      */
     fun refreshSettings() {
-        val next = Preferences.getBoolean(Preferences.KEY_HIDE_LOCKSCREEN_STATUS_BAR, false)
+        val next = Preferences.getBoolean(SystemUiSettingsKeys.KEY_HIDE_LOCKSCREEN_STATUS_BAR, false)
         val changed = next != enabled
         enabled = next
         HostAccess.onMain {
@@ -91,7 +93,7 @@ object HideLockscreenStatusBarHooker : StaticHooker() {
     }
 
     override fun onHook() {
-        enabled = Preferences.getBoolean(Preferences.KEY_HIDE_LOCKSCREEN_STATUS_BAR, false)
+        enabled = Preferences.getBoolean(SystemUiSettingsKeys.KEY_HIDE_LOCKSCREEN_STATUS_BAR, false)
 
         val targetClass = runCatching {
             classLoader.loadClass("com.android.systemui.statusbar.phone.MiuiKeyguardStatusBarView")

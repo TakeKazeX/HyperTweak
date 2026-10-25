@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.module
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+
 import android.app.Activity
 import android.content.Intent
 import android.graphics.drawable.Icon
@@ -76,7 +78,7 @@ object SettingsHooker : StaticHooker() {
                 val list = param.args[0] as? MutableList<Any?> ?: return@after
                 val activity = param.thisObject as? Activity ?: return@after
 
-                val showInSettings = Preferences.getBoolean(Preferences.KEY_SHOW_IN_SETTINGS, false)
+                val showInSettings = Preferences.getBoolean(PlatformSettingsKeys.KEY_SHOW_IN_SETTINGS, false)
                 if (!showInSettings) {
                     runCatching {
                         val iterator = list.iterator()

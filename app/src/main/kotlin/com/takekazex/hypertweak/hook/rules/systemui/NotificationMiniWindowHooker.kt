@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui
 
+import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
+
 import android.app.PendingIntent
 import android.os.Handler
 import android.os.Looper
@@ -51,7 +53,7 @@ object NotificationMiniWindowHooker : StaticHooker() {
                 ?: error("Missing native row injector field")
             updateBar = row.getDeclaredMethod("updateMiniWindowBar").apply { isAccessible = true }
             updateTip = row.getDeclaredMethod("updateFreeformTipView").apply { isAccessible = true }
-            enabled = Preferences.getBoolean(Preferences.KEY_NOTIFICATION_MINI_WINDOW, false)
+            enabled = Preferences.getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_MINI_WINDOW, false)
             // Both verified callers write canSlide, then use native bar/touch handling. Avoid
             // already-inlined gate bodies after attaching to a living SystemUI process.
             deoptimize(updateBar!!)
@@ -81,7 +83,7 @@ object NotificationMiniWindowHooker : StaticHooker() {
 
     fun refreshSettings() {
         Preferences.invalidateRuntimeReadCache()
-        enabled = Preferences.getBoolean(Preferences.KEY_NOTIFICATION_MINI_WINDOW, false)
+        enabled = Preferences.getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_MINI_WINDOW, false)
         main.post {
             if (!retired) boundary("refresh existing rows") {
                 val views = ArrayList<View>()

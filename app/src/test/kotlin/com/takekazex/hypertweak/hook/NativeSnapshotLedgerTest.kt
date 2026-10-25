@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -33,10 +35,10 @@ class NativeSnapshotLedgerTest {
     }
     @Test fun `partial malformed metadata and invalid columns never become defaults`() {
         for (value in listOf<Any>(-1L, "1", 1)) assertNull(NativeRuleStateSnapshot.read {
-            mapOf(Preferences.KEY_NATIVE_RULE_REVISION to value)
+            mapOf(PlatformSettingsKeys.KEY_NATIVE_RULE_REVISION to value)
         })
-        assertNull(NativeRuleStateSnapshot.read { mapOf(Preferences.KEY_OPENED_FOLDER_COLUMNS to 6) })
-        assertNull(NativeRuleStateSnapshot.read { mapOf(Preferences.KEY_ALLOW_ANDROID_WIDGETS_TO_ASSISTANT to 1) })
+        assertNull(NativeRuleStateSnapshot.read { mapOf(PlatformSettingsKeys.KEY_OPENED_FOLDER_COLUMNS to 6) })
+        assertNull(NativeRuleStateSnapshot.read { mapOf(PlatformSettingsKeys.KEY_ALLOW_ANDROID_WIDGETS_TO_ASSISTANT to 1) })
     }
     @Test fun `replacement generation retains authority using framework transferable values`() {
         val previous = NativeSnapshotLedger()

@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.camera
 
+import com.takekazex.hypertweak.settings.contract.CameraSettingsKeys
+
 import com.takekazex.hypertweak.hook.base.dex.DexOperandIndex
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 
@@ -373,7 +375,7 @@ object CameraImpersonationHooker : StaticHooker() {
         deoptimize(vMethod)
         vMethod.hook("cam_impersonate_theme_lcc") {
             after { param ->
-                if (Preferences.getBoolean(Preferences.KEY_CAMERA_IMPERSONATE_THEME_LCC, false)) {
+                if (Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_IMPERSONATE_THEME_LCC, false)) {
                     param.result = true
                 }
             }
@@ -384,7 +386,7 @@ object CameraImpersonationHooker : StaticHooker() {
     // ─── 7. Keep the 相机配色 (tint color) settings entry visible under the fake LCC theme ─
 
     private fun hookLccCustomizationProvider() {
-        if (!Preferences.getBoolean(Preferences.KEY_CAMERA_IMPERSONATE_THEME_LCC, false)) {
+        if (!Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_IMPERSONATE_THEME_LCC, false)) {
             DebugLog.d(TAG, "adaptive tint-color gate skipped; fake LCC theme is disabled")
             return
         }
@@ -412,7 +414,7 @@ object CameraImpersonationHooker : StaticHooker() {
         deoptimize(gateMethod)
         gateMethod.hook("cam_restore_tint_color") {
             before { param ->
-                if (Preferences.getBoolean(Preferences.KEY_CAMERA_IMPERSONATE_THEME_LCC, false)) {
+                if (Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_IMPERSONATE_THEME_LCC, false)) {
                     param.result = true
                 }
             }
@@ -566,7 +568,7 @@ object CameraImpersonationHooker : StaticHooker() {
                 deoptimize(method)
                 method.hook("cam_leica_style_${method.declaringClass.name}") {
                     after { param ->
-                        if (leicaStyle() || Preferences.getBoolean(Preferences.KEY_CAMERA_ALL_SHUTTER_SOUNDS, false)) {
+                        if (leicaStyle() || Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_ALL_SHUTTER_SOUNDS, false)) {
                             param.result = true
                         }
                     }
@@ -623,7 +625,7 @@ object CameraImpersonationHooker : StaticHooker() {
         loadMethod.hook("cam_shutter_sound_load_scope") {
             before {
                 currentShutterSoundLoadScope().addLast(
-                    Preferences.getBoolean(Preferences.KEY_CAMERA_ALL_SHUTTER_SOUNDS, false),
+                    Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_ALL_SHUTTER_SOUNDS, false),
                 )
             }
             after {
@@ -797,7 +799,7 @@ object CameraImpersonationHooker : StaticHooker() {
                 after { param ->
                     val unlockLegendary = legendaryMomentUnlock()
                     val unlockExtras = Preferences.getBoolean(
-                        Preferences.KEY_CAMERA_LEGENDARY_EXTRA_MODES,
+                        CameraSettingsKeys.KEY_CAMERA_LEGENDARY_EXTRA_MODES,
                         false,
                     )
                     if (!unlockLegendary && !unlockExtras &&
@@ -1606,7 +1608,7 @@ object CameraImpersonationHooker : StaticHooker() {
     private fun keepModel(): Boolean = true
 
     private fun leicaStyle(): Boolean =
-        Preferences.getBoolean(Preferences.KEY_CAMERA_LEICA_STYLE, false)
+        Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_LEICA_STYLE, false)
 
     private fun legendaryMomentUnlock(): Boolean {
         val mode = Preferences.cameraLegendaryMomentMode()
@@ -1614,30 +1616,30 @@ object CameraImpersonationHooker : StaticHooker() {
     }
 
     private fun smartCompositionUnlock(): Boolean =
-        Preferences.getBoolean(Preferences.KEY_CAMERA_SMART_COMPOSITION, false)
+        Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_SMART_COMPOSITION, false)
 
     private fun contentCredentialUnlock(): Boolean =
-        Preferences.getBoolean(Preferences.KEY_CAMERA_CONTENT_CREDENTIAL, false)
+        Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_CONTENT_CREDENTIAL, false)
 
     private fun adaptiveLensUnlock(): Boolean =
-        Preferences.getBoolean(Preferences.KEY_CAMERA_ADAPTIVE_LENS, false)
+        Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_ADAPTIVE_LENS, false)
 
     private fun masterliveEnabled(): Boolean =
-        Preferences.getBoolean(Preferences.KEY_CAMERA_MASTERLIVE_ENABLE, false)
+        Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_MASTERLIVE_ENABLE, false)
 
     private fun masterliveTeleFallback(): Boolean =
-        Preferences.getBoolean(Preferences.KEY_CAMERA_MASTERLIVE_TELE_FALLBACK, false)
+        Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_MASTERLIVE_TELE_FALLBACK, false)
 
     private fun videoSizeProbeEnabled(): Boolean =
-        Preferences.getBoolean(Preferences.KEY_CAMERA_MASTERLIVE_VIDEO_SIZE_PROBE, false)
+        Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_MASTERLIVE_VIDEO_SIZE_PROBE, false)
 
     private val redCarpetCaptureReady = java.util.concurrent.atomic.AtomicBoolean(
         !CameraMasterLiveRedCarpet.needsSlowMotionFallback(Build.DEVICE, Build.HARDWARE),
     )
 
     private fun redCarpetEnabled(): Boolean = redCarpetCaptureReady.get() &&
-        Preferences.getBoolean(Preferences.KEY_CAMERA_MASTERLIVE_RED_CARPET, false)
+        Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_MASTERLIVE_RED_CARPET, false)
 
     private fun fullFocalEnabled(): Boolean =
-        Preferences.getBoolean(Preferences.KEY_CAMERA_MASTERLIVE_FULL_FOCAL, false)
+        Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_MASTERLIVE_FULL_FOCAL, false)
 }

@@ -1,6 +1,6 @@
 package com.takekazex.hypertweak.hook.base
 
-import com.takekazex.hypertweak.hook.rules.systemui.icon.IconSettingsPreferencePolicy
+import com.takekazex.hypertweak.settings.contract.IconSettingsPreferencePolicy
 
 import org.junit.Assert.*
 import org.junit.Test

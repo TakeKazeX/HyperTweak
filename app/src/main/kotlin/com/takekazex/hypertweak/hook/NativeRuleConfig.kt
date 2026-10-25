@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+
 import android.content.Context
 import com.takekazex.hypertweak.util.DebugLog
 import java.io.File
@@ -52,28 +54,28 @@ object NativeRuleConfig {
             append('=')
             append(
                 openedFolderColumns.coerceIn(
-                    Preferences.MIN_OPENED_FOLDER_COLUMNS,
-                    Preferences.MAX_OPENED_FOLDER_COLUMNS
+                    PlatformSettingsKeys.MIN_OPENED_FOLDER_COLUMNS,
+                    PlatformSettingsKeys.MAX_OPENED_FOLDER_COLUMNS
                 )
             )
             append('\n')
-            append(Preferences.KEY_ALLOW_ANDROID_WIDGETS_TO_ASSISTANT)
+            append(PlatformSettingsKeys.KEY_ALLOW_ANDROID_WIDGETS_TO_ASSISTANT)
             append('=')
             append(if (assistantWidgets) '1' else '0')
             append('\n')
-            append(Preferences.KEY_ANDROID_WIDGET_STACK)
+            append(PlatformSettingsKeys.KEY_ANDROID_WIDGET_STACK)
             append('=')
             append(if (widgetStack) '1' else '0')
             append('\n')
-            append(Preferences.KEY_FOLDER_STACK_PREVIEW)
+            append(PlatformSettingsKeys.KEY_FOLDER_STACK_PREVIEW)
             append('=')
             append(if (folderStack) '1' else '0')
             append('\n')
-            append(Preferences.KEY_RECENTS_CARD_HAPTIC)
+            append(PlatformSettingsKeys.KEY_RECENTS_CARD_HAPTIC)
             append('=')
             append(if (recentsHaptic) '1' else '0')
             append('\n')
-            append(Preferences.KEY_XIAOAI_GESTURE_OPTIONS)
+            append(PlatformSettingsKeys.KEY_XIAOAI_GESTURE_OPTIONS)
             append('=')
             append(if (xiaoaiOptions) '1' else '0')
             append('\n')

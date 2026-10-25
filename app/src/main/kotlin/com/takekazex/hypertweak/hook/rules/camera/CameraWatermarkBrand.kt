@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.camera
 
+import com.takekazex.hypertweak.settings.contract.CameraSettingsKeys
+
 import android.os.Build
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.util.DebugLog
@@ -37,16 +39,16 @@ object CameraWatermarkBrand {
      * (`KEY_CAMERA_WM_CUSTOM`) is on and the value is non-blank.
      */
     fun customBrand(): String =
-        if (Preferences.getBoolean(Preferences.KEY_CAMERA_WM_CUSTOM, false)) {
-            Preferences.getString(Preferences.KEY_CAMERA_WM_CUSTOM_BRAND, "").trim()
+        if (Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_WM_CUSTOM, false)) {
+            Preferences.getString(CameraSettingsKeys.KEY_CAMERA_WM_CUSTOM_BRAND, "").trim()
         } else {
             ""
         }
 
     /** Custom model override; only honoured when `KEY_CAMERA_WM_CUSTOM` is on. */
     fun customModel(): String =
-        if (Preferences.getBoolean(Preferences.KEY_CAMERA_WM_CUSTOM, false)) {
-            Preferences.getString(Preferences.KEY_CAMERA_WM_CUSTOM_MODEL, "").trim()
+        if (Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_WM_CUSTOM, false)) {
+            Preferences.getString(CameraSettingsKeys.KEY_CAMERA_WM_CUSTOM_MODEL, "").trim()
         } else {
             ""
         }

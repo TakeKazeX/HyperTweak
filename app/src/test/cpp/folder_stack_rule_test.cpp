@@ -107,6 +107,43 @@ int main(int argc, char** argv) {
     // Allocation-class relocation is decoded from the current image, never from a CID table.
     uint32_t call=0, allocatorWord=0; uintptr_t allocation=0;
     const auto factory=resolved.sites[2].offset;
+    // A compiler may exchange the two argument spill slots in every branch.
+    // Aliasing them, reading an unsaved slot or changing only one branch must
+    // still fail even though the instruction masks admit displacement changes.
+    std::vector<std::pair<uintptr_t,uint32_t>> arguments;
+    for (size_t i=0;i+8<=dart::kFolderStackTarget.sites[2].pattern.size;i+=4) {
+        uint32_t a=0,b=0;assert(dart::ReadInsn(image,factory+i,&a));
+        assert(dart::ReadInsn(image,factory+i+4,&b));
+        if ((a&0xffe00fffu)!=0xf84003a3u || (b&0xffe00fffu)!=0xf84003a5u) continue;
+        arguments.push_back({factory+i,a});arguments.push_back({factory+i+4,b});
+    }
+    assert(arguments.size()>=4);
+    const auto replace_displacement=[](uint32_t word,uint32_t other) {
+        return (word&0xffe00fffu)|(other&0x001ff000u);
+    };
+    for (size_t i=0;i<arguments.size();i+=2) {
+        const auto a=replace_displacement(arguments[i].second,arguments[i+1].second);
+        const auto b=replace_displacement(arguments[i+1].second,arguments[i].second);
+        memcpy(image_bytes.data()+arguments[i].first,&a,4);
+        memcpy(image_bytes.data()+arguments[i+1].first,&b,4);
+    }
+    Layout exchanged{};assert(Decode(resolution,&exchanged));
+    for (const auto& value:arguments) memcpy(image_bytes.data()+value.first,&value.second,4);
+    auto bad_argument=replace_displacement(arguments[0].second,arguments[1].second);
+    memcpy(image_bytes.data()+arguments[0].first,&bad_argument,4);
+    Layout bad_arguments{};assert(!Decode(resolution,&bad_arguments));
+    memcpy(image_bytes.data()+arguments[0].first,&arguments[0].second,4);
+    // Swapping just one branch preserves distinct slots, but breaks the shared
+    // constructor's argument order across the factory.
+    auto swapped_second=replace_displacement(arguments[1].second,arguments[0].second);
+    memcpy(image_bytes.data()+arguments[0].first,&bad_argument,4);
+    memcpy(image_bytes.data()+arguments[1].first,&swapped_second,4);
+    assert(!Decode(resolution,&bad_arguments));
+    memcpy(image_bytes.data()+arguments[1].first,&arguments[1].second,4);
+    bad_argument=replace_displacement(arguments[0].second,0u);
+    memcpy(image_bytes.data()+arguments[0].first,&bad_argument,4);
+    assert(!Decode(resolution,&bad_arguments));
+    memcpy(image_bytes.data()+arguments[0].first,&arguments[0].second,4);
     for (size_t i=0; i+4<dart::kFolderStackTarget.sites[2].pattern.size; i+=4) {
         uintptr_t stub=0; uint32_t lo=0, hi=0;
         assert(dart::ReadInsn(image,factory+i,&call));

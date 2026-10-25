@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.util
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+
 import com.takekazex.hypertweak.hook.Preferences
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
@@ -7,8 +9,8 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 internal enum class WirelessLogger(val property: String, val service: String, val preference: String) {
-    CNSS("persist.vendor.cnss_diag.enable", "init.svc.vendor.cnss_diag", Preferences.KEY_WIFI_CNSS_DIAG_ENABLED),
-    TCPDUMP("persist.vendor.tcpdump.enable", "init.svc.vendor.tcpdump", Preferences.KEY_WIFI_TCPDUMP_ENABLED)
+    CNSS("persist.vendor.cnss_diag.enable", "init.svc.vendor.cnss_diag", PlatformSettingsKeys.KEY_WIFI_CNSS_DIAG_ENABLED),
+    TCPDUMP("persist.vendor.tcpdump.enable", "init.svc.vendor.tcpdump", PlatformSettingsKeys.KEY_WIFI_TCPDUMP_ENABLED)
 }
 
 internal enum class WirelessState { RUNNING, STOPPED, ABNORMAL, UNKNOWN, UNSUPPORTED }

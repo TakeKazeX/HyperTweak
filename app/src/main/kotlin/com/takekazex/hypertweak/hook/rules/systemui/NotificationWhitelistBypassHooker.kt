@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui
 
+import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
+
 import android.content.Context
 import android.content.SharedPreferences
 import android.service.notification.StatusBarNotification
@@ -48,7 +50,7 @@ object NotificationWhitelistBypassHooker : StaticHooker() {
             val decision = "com.android.systemui.statusbar.notification.interruption.VisualInterruptionDecisionProviderImplInjector".toClassOrNull()
                 ?: error("Missing native interruption decision")
             decision.declaredMethods.forEach { deoptimize(it) }
-            enabled = Preferences.getBoolean(Preferences.KEY_NOTIFICATION_WHITELIST_BYPASS, false)
+            enabled = Preferences.getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_WHITELIST_BYPASS, false)
             canFloat.hook {
                 after { param -> boundary("whitelist") {
                     if (!enabled || retired || !domestic || param.result != false) return@boundary
@@ -87,7 +89,7 @@ object NotificationWhitelistBypassHooker : StaticHooker() {
 
     fun refreshSettings() {
         Preferences.invalidateRuntimeReadCache()
-        enabled = Preferences.getBoolean(Preferences.KEY_NOTIFICATION_WHITELIST_BYPASS, false)
+        enabled = Preferences.getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_WHITELIST_BYPASS, false)
     }
 
     override fun onPrepareHotReload() {

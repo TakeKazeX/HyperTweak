@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.securitycenter
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+
 import android.content.ContentResolver
 import android.provider.Settings
 import com.takekazex.hypertweak.hook.Preferences
@@ -30,14 +32,14 @@ object LowBatteryWarningHooker : StaticHooker() {
     override fun onHook() {
         if (hookParam.packageName != PACKAGE) return
         val mode = selectedMode()
-        if (mode == Preferences.SECURITY_CENTER_LOW_BATTERY_FOLLOW) {
+        if (mode == PlatformSettingsKeys.SECURITY_CENTER_LOW_BATTERY_FOLLOW) {
             DebugLog.hookSkippedDebug(TAG, "low-battery warning", "follow system")
             return
         }
 
         var installed = 0
         installed += hookIntReads(Settings.System::class.java)
-        if (mode == Preferences.SECURITY_CENTER_LOW_BATTERY_SILENT) {
+        if (mode == PlatformSettingsKeys.SECURITY_CENTER_LOW_BATTERY_SILENT) {
             installed += hookStringReads(Settings.System::class.java)
             installed += hookStringReads(Settings.Global::class.java)
         }
@@ -50,24 +52,24 @@ object LowBatteryWarningHooker : StaticHooker() {
     }
 
     private fun selectedMode(): Int {
-        if (Preferences.contains(Preferences.KEY_SECURITY_CENTER_LOW_BATTERY_MODE)) {
+        if (Preferences.contains(PlatformSettingsKeys.KEY_SECURITY_CENTER_LOW_BATTERY_MODE)) {
             return Preferences.getInt(
-                Preferences.KEY_SECURITY_CENTER_LOW_BATTERY_MODE,
-                Preferences.SECURITY_CENTER_LOW_BATTERY_FOLLOW
+                PlatformSettingsKeys.KEY_SECURITY_CENTER_LOW_BATTERY_MODE,
+                PlatformSettingsKeys.SECURITY_CENTER_LOW_BATTERY_FOLLOW
             ).coerceIn(
-                Preferences.SECURITY_CENTER_LOW_BATTERY_FOLLOW,
-                Preferences.SECURITY_CENTER_LOW_BATTERY_SILENT
+                PlatformSettingsKeys.SECURITY_CENTER_LOW_BATTERY_FOLLOW,
+                PlatformSettingsKeys.SECURITY_CENTER_LOW_BATTERY_SILENT
             )
         }
 
         // Version 1 stored one boolean. Its enabled state meant both dialog and sound were hidden.
         return if (
-            Preferences.contains(Preferences.KEY_SECURITY_CENTER_HIDE_LOW_BATTERY_WARNING) &&
-            Preferences.getBoolean(Preferences.KEY_SECURITY_CENTER_HIDE_LOW_BATTERY_WARNING, false)
+            Preferences.contains(PlatformSettingsKeys.KEY_SECURITY_CENTER_HIDE_LOW_BATTERY_WARNING) &&
+            Preferences.getBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_HIDE_LOW_BATTERY_WARNING, false)
         ) {
-            Preferences.SECURITY_CENTER_LOW_BATTERY_SILENT
+            PlatformSettingsKeys.SECURITY_CENTER_LOW_BATTERY_SILENT
         } else {
-            Preferences.SECURITY_CENTER_LOW_BATTERY_FOLLOW
+            PlatformSettingsKeys.SECURITY_CENTER_LOW_BATTERY_FOLLOW
         }
     }
 
@@ -83,7 +85,7 @@ object LowBatteryWarningHooker : StaticHooker() {
             install(method, "${owner.name}.getInt") { param ->
                 if (
                     param.args.getOrNull(1) as? String == DIALOG_DISABLED &&
-                    selectedMode() != Preferences.SECURITY_CENTER_LOW_BATTERY_FOLLOW
+                    selectedMode() != PlatformSettingsKeys.SECURITY_CENTER_LOW_BATTERY_FOLLOW
                 ) {
                     param.result = 1
                 }
@@ -104,7 +106,7 @@ object LowBatteryWarningHooker : StaticHooker() {
             install(method, "${owner.name}.getString") { param ->
                 if (
                     param.args.getOrNull(1) as? String == SOUND &&
-                    selectedMode() == Preferences.SECURITY_CENTER_LOW_BATTERY_SILENT
+                    selectedMode() == PlatformSettingsKeys.SECURITY_CENTER_LOW_BATTERY_SILENT
                 ) {
                     param.result = null
                 }

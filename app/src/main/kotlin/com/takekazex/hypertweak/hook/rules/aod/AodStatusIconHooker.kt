@@ -2,6 +2,8 @@
 
 package com.takekazex.hypertweak.hook.rules.aod
 
+import com.takekazex.hypertweak.settings.contract.AodSettingsKeys
+
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
@@ -17,7 +19,6 @@ import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
-import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.rules.systemui.AODHooker
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.DynamicHooker
@@ -387,7 +388,7 @@ class AodStatusIconHooker : DynamicHooker() {
             }
         } else null
         val proxy = percentProxy(binding)
-        if (settings.percentPosition == Preferences.AOD_PERCENT_POSITION_DUO_CENTER) {
+        if (settings.percentPosition == AodSettingsKeys.AOD_PERCENT_POSITION_DUO_CENTER) {
             proxy.text = binding.battery?.percent?.let {
                 NumberFormat.getIntegerInstance(Locale.getDefault()).format(it)
             }.orEmpty()
@@ -401,7 +402,7 @@ class AodStatusIconHooker : DynamicHooker() {
         proxy.typeface = binding.percent.typeface
         proxy.letterSpacing = binding.percent.letterSpacing
         proxy.visibility = View.VISIBLE
-        val positionCenter = settings.percentPosition == Preferences.AOD_PERCENT_POSITION_DUO_CENTER
+        val positionCenter = settings.percentPosition == AodSettingsKeys.AOD_PERCENT_POSITION_DUO_CENTER
         val foreground = binding.percent.currentTextColor.takeIf { it != Color.TRANSPARENT } ?: Color.WHITE
         DuoSignalHooker.updateAodDuoView(
             context = binding.root.context,
@@ -411,7 +412,7 @@ class AodStatusIconHooker : DynamicHooker() {
             batteryDrawable = batteryGlyph,
             percentVisible = settings.percent,
             percentBelow = positionCenter,
-            percentOnRight = settings.percentPosition == Preferences.AOD_PERCENT_POSITION_RIGHT,
+            percentOnRight = settings.percentPosition == AodSettingsKeys.AOD_PERCENT_POSITION_RIGHT,
             percentContainer = wrapper,
             percentValue = proxy,
             percentFallback = binding.battery?.percent?.toString(),
@@ -426,8 +427,8 @@ class AodStatusIconHooker : DynamicHooker() {
     }
 
     private fun applyNativePreferences(binding: Binding, settings: AodIconSettings) {
-        val position = if (settings.percentPosition == Preferences.AOD_PERCENT_POSITION_LEFT)
-            Preferences.AOD_PERCENT_POSITION_LEFT else Preferences.AOD_PERCENT_POSITION_RIGHT
+        val position = if (settings.percentPosition == AodSettingsKeys.AOD_PERCENT_POSITION_LEFT)
+            AodSettingsKeys.AOD_PERCENT_POSITION_LEFT else AodSettingsKeys.AOD_PERCENT_POSITION_RIGHT
         positionNativePercent(binding, position)
         binding.icon.visibility = if (settings.batteryIcon) View.VISIBLE else View.GONE
         binding.percent.visibility = if (settings.percent) View.VISIBLE else View.GONE
@@ -438,7 +439,7 @@ class AodStatusIconHooker : DynamicHooker() {
         val root = binding.root
         if (root.indexOfChild(binding.icon) < 0 || root.indexOfChild(binding.percent) < 0) return
         root.layoutDirection = View.LAYOUT_DIRECTION_LTR
-        val desiredIndex = if (position == Preferences.AOD_PERCENT_POSITION_LEFT) 0 else root.childCount - 1
+        val desiredIndex = if (position == AodSettingsKeys.AOD_PERCENT_POSITION_LEFT) 0 else root.childCount - 1
         if (root.indexOfChild(binding.percent) != desiredIndex) {
             root.removeView(binding.percent)
             root.addView(binding.percent, desiredIndex.coerceIn(0, root.childCount),

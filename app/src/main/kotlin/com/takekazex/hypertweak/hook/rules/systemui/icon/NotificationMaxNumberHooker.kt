@@ -1,5 +1,9 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import com.takekazex.hypertweak.settings.contract.NotificationIconLimit
+
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+
 import android.view.View
 import android.view.ViewGroup
 import com.takekazex.hypertweak.hook.Preferences
@@ -48,10 +52,10 @@ object NotificationMaxNumberHooker : StaticHooker() {
     }
 
     override fun onHook() {
-        enabled = Preferences.getBoolean(Preferences.KEY_STATUSBAR_NOTIFICATION_MAX, false)
+        enabled = Preferences.getBoolean(PlatformSettingsKeys.KEY_STATUSBAR_NOTIFICATION_MAX, false)
         maximum = NotificationIconLimit.clamp(
             Preferences.getInt(
-                Preferences.KEY_STATUSBAR_NOTIFICATION_ICON_MAX,
+                PlatformSettingsKeys.KEY_STATUSBAR_NOTIFICATION_ICON_MAX,
                 NotificationIconLimit.DEFAULT
             )
         )

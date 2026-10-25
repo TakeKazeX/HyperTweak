@@ -1,5 +1,9 @@
 package com.takekazex.hypertweak.hook.rules.system
 
+import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
+
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+
 import android.content.res.Resources
 import android.os.IBinder
 import android.view.SurfaceControl
@@ -59,7 +63,7 @@ object GestureBarTransitionHooker : StaticHooker() {
     private val recovery by lazy { SystemServerStartupRetry(TAG, action = ::releaseDisabledSessions) }
 
     private fun settings() = GestureBarTransitionSettings(attachEnabled(),
-        Preferences.getBoolean(Preferences.KEY_HIDE_GESTURE_BAR_RECENTS, false))
+        Preferences.getBoolean(PlatformSettingsKeys.KEY_HIDE_GESTURE_BAR_RECENTS, false))
 
     override fun saveHotReloadState(): Any = sessions.toMap()
     override fun restoreHotReloadState(state: Any?) {
@@ -304,5 +308,5 @@ object GestureBarTransitionHooker : StaticHooker() {
 
     /** Read per transition; the platform's cached field is never made sticky. */
     private fun attachEnabled(): Boolean =
-        Preferences.getBoolean(Preferences.KEY_GESTURE_BAR_ATTACH_TRANSITION, false)
+        Preferences.getBoolean(SystemUiSettingsKeys.KEY_GESTURE_BAR_ATTACH_TRANSITION, false)
 }

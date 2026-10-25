@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.util
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+
 import com.takekazex.hypertweak.hook.Preferences
 
 /**
@@ -43,11 +45,11 @@ object ScopePromptStore {
     private val lock = Any()
 
     fun ignoredPrompts(): Set<ScopePrompt> = Preferences
-        .getStringSet(Preferences.KEY_IGNORED_SCOPE_PROMPTS)
+        .getStringSet(PlatformSettingsKeys.KEY_IGNORED_SCOPE_PROMPTS)
         .mapNotNull(ScopePrompt::parse)
         .toSet()
 
-    fun ignoredIds(): Set<String> = Preferences.getStringSet(Preferences.KEY_IGNORED_SCOPE_PROMPTS)
+    fun ignoredIds(): Set<String> = Preferences.getStringSet(PlatformSettingsKeys.KEY_IGNORED_SCOPE_PROMPTS)
 
     fun ignore(prompt: ScopePrompt) {
         update { it + prompt.id }
@@ -64,8 +66,8 @@ object ScopePromptStore {
 
     private fun update(transform: (Set<String>) -> Set<String>) {
         synchronized(lock) {
-            val current = Preferences.getStringSet(Preferences.KEY_IGNORED_SCOPE_PROMPTS)
-            Preferences.putStringSet(Preferences.KEY_IGNORED_SCOPE_PROMPTS, transform(current))
+            val current = Preferences.getStringSet(PlatformSettingsKeys.KEY_IGNORED_SCOPE_PROMPTS)
+            Preferences.putStringSet(PlatformSettingsKeys.KEY_IGNORED_SCOPE_PROMPTS, transform(current))
             // The Home card refreshes immediately after the click; make the dismissal visible to
             // the next read instead of racing the serialized remote-preference writer.
             Preferences.flush()

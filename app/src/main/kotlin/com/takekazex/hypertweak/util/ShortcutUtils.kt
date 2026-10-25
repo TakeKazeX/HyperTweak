@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.util
 
+import com.takekazex.hypertweak.settings.contract.AppSettingsKeys
+
 import android.content.Context
 import android.content.Intent
 import android.graphics.Canvas
@@ -41,18 +43,18 @@ object ShortcutUtils {
 
     fun getEnabledShortcutIds(): Set<String> {
         val defaults = setOf("lsposed", "installerx", "dev_settings")
-        return Preferences.getStringSet(Preferences.KEY_APP_SHORTCUTS, defaults)
+        return Preferences.getStringSet(AppSettingsKeys.KEY_APP_SHORTCUTS, defaults)
     }
 
     fun getOrderedList(): List<String> {
-        val orderStr = Preferences.getString(Preferences.KEY_APP_SHORTCUTS_ORDER, "")
+        val orderStr = Preferences.getString(AppSettingsKeys.KEY_APP_SHORTCUTS_ORDER, "")
         if (orderStr.isNotEmpty()) return orderStr.split(",").filter { it.isNotEmpty() }
         return getEnabledShortcutIds().toList()
     }
 
     fun saveOrder(orderedIds: List<String>) {
-        Preferences.putString(Preferences.KEY_APP_SHORTCUTS_ORDER, orderedIds.joinToString(","))
-        Preferences.putStringSet(Preferences.KEY_APP_SHORTCUTS, orderedIds.toSet())
+        Preferences.putString(AppSettingsKeys.KEY_APP_SHORTCUTS_ORDER, orderedIds.joinToString(","))
+        Preferences.putStringSet(AppSettingsKeys.KEY_APP_SHORTCUTS, orderedIds.toSet())
     }
 
     private fun loadAppIcon(context: Context, def: ShortcutDef): IconCompat {
@@ -79,7 +81,7 @@ object ShortcutUtils {
         // language preference can differ from the device language.
         val localizedContext = LocaleHelper.getLocalizedContext(
             context,
-            Preferences.getInt(Preferences.KEY_LANGUAGE, 0)
+            Preferences.getInt(AppSettingsKeys.KEY_LANGUAGE, 0)
         )
         val shortcuts = orderedIds.take(5).mapNotNull { id ->
             val def = allDefs[id] ?: return@mapNotNull null

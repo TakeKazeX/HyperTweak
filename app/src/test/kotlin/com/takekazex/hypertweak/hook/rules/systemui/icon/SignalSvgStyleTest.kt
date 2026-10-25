@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import com.takekazex.hypertweak.settings.contract.SignalSvgStyle
+
 import org.junit.Assert.*
 import org.junit.Test
 

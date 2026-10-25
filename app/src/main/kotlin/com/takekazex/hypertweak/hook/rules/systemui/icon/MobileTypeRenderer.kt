@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import com.takekazex.hypertweak.settings.contract.MobileTypeLabelStyle
+
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color

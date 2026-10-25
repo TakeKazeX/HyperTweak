@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.backgesture.hooks.systemui;
 
+import com.takekazex.hypertweak.settings.contract.BackGestureKeys;
+
 import android.annotation.SuppressLint;
 import android.app.ActivityThread;
 import android.app.BroadcastOptions;
@@ -40,7 +42,7 @@ public abstract class SystemUiHookRuntime extends SystemUiAnimationRuntime {
     protected final SharedPreferences.OnSharedPreferenceChangeListener
             contextualSearchStatePreferenceListener = (preferences, key) -> {
                 if (key != null && !PredictiveBackPreferences.KEY_CONTEXTUAL_SEARCH_LONG_PRESS.equals(key)
-                        && !com.takekazex.hypertweak.hook.Preferences.KEY_BACK_GESTURE_ENABLED.equals(key)
+                        && !BackGestureKeys.KEY_BACK_GESTURE_ENABLED.equals(key)
                         && !PredictiveBackPreferences.KEY_HYPEROS_INDICATOR.equals(key)
                         && !PredictiveBackPreferences.KEY_HYPEROS_INDICATOR_BLUR.equals(key)
                         && !PredictiveBackPreferences.KEY_GESTURE_HAPTICS_DISABLED.equals(key)) {

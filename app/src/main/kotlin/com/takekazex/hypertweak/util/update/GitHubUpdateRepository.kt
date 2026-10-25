@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.util.update
 
+import com.takekazex.hypertweak.settings.contract.AppSettingsKeys
+
 import com.takekazex.hypertweak.BuildConfig
 import com.takekazex.hypertweak.hook.Preferences
 import kotlinx.coroutines.Dispatchers
@@ -26,7 +28,7 @@ class GitHubUpdateRepository(
         now: Long = System.currentTimeMillis()
     ): UpdateCheckResult = withContext(Dispatchers.IO) {
         val interval = UpdateCheckInterval.fromIndex(
-            Preferences.getInt(Preferences.KEY_UPDATE_CHECK_INTERVAL, UpdateCheckInterval.DAILY.index)
+            Preferences.getInt(AppSettingsKeys.KEY_UPDATE_CHECK_INTERVAL, UpdateCheckInterval.DAILY.index)
         )
         if (!force && !stateStore.shouldCheck(channel, interval, now)) {
             val cached = stateStore.cachedInfo(channel)
@@ -37,9 +39,9 @@ class GitHubUpdateRepository(
 
         stateStore.recordAttempt(channel, now)
         val configuredMode = UpdateProxyMode.fromValue(
-            Preferences.getString(Preferences.KEY_UPDATE_PROXY_MODE, UpdateProxyMode.OFFICIAL.wireValue)
+            Preferences.getString(AppSettingsKeys.KEY_UPDATE_PROXY_MODE, UpdateProxyMode.OFFICIAL.wireValue)
         )
-        val configuredProxy = Preferences.getString(Preferences.KEY_UPDATE_PROXY_URL, "")
+        val configuredProxy = Preferences.getString(AppSettingsKeys.KEY_UPDATE_PROXY_URL, "")
         val releaseEndpoint = "${UpdateNetworkPolicy.API_BASE}${channel.releaseApiPath}"
 
         val releaseCall = callWithProxyFallback(configuredMode, configuredProxy) { mode ->
@@ -170,9 +172,9 @@ class GitHubUpdateRepository(
             throw UpdateException.InvalidMetadata("APK download URL is not a repository asset")
         }
         val configuredMode = UpdateProxyMode.fromValue(
-            Preferences.getString(Preferences.KEY_UPDATE_PROXY_MODE, UpdateProxyMode.OFFICIAL.wireValue)
+            Preferences.getString(AppSettingsKeys.KEY_UPDATE_PROXY_MODE, UpdateProxyMode.OFFICIAL.wireValue)
         )
-        val configuredProxy = Preferences.getString(Preferences.KEY_UPDATE_PROXY_URL, "")
+        val configuredProxy = Preferences.getString(AppSettingsKeys.KEY_UPDATE_PROXY_URL, "")
         val firstAttempt = runCatching {
             downloadOnce(info, configuredMode, configuredProxy, onProgress)
         }
@@ -185,7 +187,7 @@ class GitHubUpdateRepository(
     }
 
     suspend fun testProxy(): ProxyTestState = withContext(Dispatchers.IO) {
-        val proxy = Preferences.getString(Preferences.KEY_UPDATE_PROXY_URL, "")
+        val proxy = Preferences.getString(AppSettingsKeys.KEY_UPDATE_PROXY_URL, "")
         val normalized = UpdateNetworkPolicy.normalizeProxy(proxy)
         if (normalized == null && proxy.isNotBlank()) {
             return@withContext ProxyTestState.Failure(apiReachable = false, assetReachable = false)

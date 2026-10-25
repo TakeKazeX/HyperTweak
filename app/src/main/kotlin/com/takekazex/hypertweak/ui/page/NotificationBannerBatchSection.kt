@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.ui.page
 
+import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
+
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -27,7 +29,7 @@ internal fun NotificationBannerBatchSection() {
     var showReport by remember { mutableStateOf(false) }
     var showDetails by rememberSaveable { mutableStateOf(false) }
     var whitelistBypass by rememberSaveable {
-        mutableStateOf(Preferences.getBoolean(Preferences.KEY_NOTIFICATION_WHITELIST_BYPASS, false))
+        mutableStateOf(Preferences.getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_WHITELIST_BYPASS, false))
     }
     val result = state.result
 
@@ -74,7 +76,7 @@ internal fun NotificationBannerBatchSection() {
                 checked = whitelistBypass,
                 onCheckedChange = {
                     whitelistBypass = it
-                    Preferences.putBoolean(Preferences.KEY_NOTIFICATION_WHITELIST_BYPASS, it)
+                    Preferences.putBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_WHITELIST_BYPASS, it)
                     Preferences.flush()
                 },
             )

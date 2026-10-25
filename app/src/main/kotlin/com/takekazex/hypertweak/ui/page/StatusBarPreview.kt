@@ -33,7 +33,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.takekazex.hypertweak.R
-import com.takekazex.hypertweak.hook.rules.systemui.icon.MobileTypeLabelStyle
+import com.takekazex.hypertweak.settings.contract.MobileTypeLabelStyle
 import com.takekazex.hypertweak.hook.rules.systemui.icon.duo.DuoBattery
 import com.takekazex.hypertweak.hook.rules.systemui.icon.duo.DuoContent
 import com.takekazex.hypertweak.hook.rules.systemui.icon.duo.DuoDrawable

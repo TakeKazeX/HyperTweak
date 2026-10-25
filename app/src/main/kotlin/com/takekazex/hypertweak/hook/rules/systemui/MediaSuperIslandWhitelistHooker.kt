@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.DynamicHooker
@@ -50,7 +52,7 @@ class MediaSuperIslandWhitelistHooker : DynamicHooker() {
             before { param ->
                 HookFailurePolicy.open(TAG, "$SETTINGS_MANAGER#mediaIslandSupportMiniWindow", Unit) {
                     if (Preferences.getBoolean(
-                            Preferences.KEY_MEDIA_SUPER_ISLAND_UNLOCK_WHITELIST,
+                            PlatformSettingsKeys.KEY_MEDIA_SUPER_ISLAND_UNLOCK_WHITELIST,
                             false
                         )
                     ) {

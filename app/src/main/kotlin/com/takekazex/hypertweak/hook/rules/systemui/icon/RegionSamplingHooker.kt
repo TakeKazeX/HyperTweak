@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+
 import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 
@@ -70,7 +72,7 @@ object RegionSamplingHooker : StaticHooker() {
 
     override fun onHook() {
         retiring = false
-        val mode = Preferences.getInt(Preferences.KEY_STATUSBAR_REGION_SAMPLING, 0)
+        val mode = Preferences.getInt(PlatformSettingsKeys.KEY_STATUSBAR_REGION_SAMPLING, 0)
         if (mode !in 1..2) {
             DebugLog.hookSkippedDebug(TAG, "RegionSampling", "mode $mode not active")
             return

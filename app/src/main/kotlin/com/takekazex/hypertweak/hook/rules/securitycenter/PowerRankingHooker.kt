@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.securitycenter
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 
 import android.content.Context
@@ -50,11 +52,11 @@ object PowerRankingHooker : StaticHooker() {
     override val installPolicy: InstallPolicy = InstallPolicy.WHEN_ENABLED
 
     override fun isFeatureEnabled(): Boolean =
-        Preferences.getBoolean(Preferences.KEY_SECURITY_CENTER_RESTORE_POWER_RANKING, false)
+        Preferences.getBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_RESTORE_POWER_RANKING, false)
 
     override fun onHook() {
         if (hookParam.packageName != PACKAGE) return
-        if (!Preferences.getBoolean(Preferences.KEY_SECURITY_CENTER_RESTORE_POWER_RANKING, false)) {
+        if (!Preferences.getBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_RESTORE_POWER_RANKING, false)) {
             DebugLog.hookSkippedDebug(TAG, "power ranking", "disabled")
             return
         }

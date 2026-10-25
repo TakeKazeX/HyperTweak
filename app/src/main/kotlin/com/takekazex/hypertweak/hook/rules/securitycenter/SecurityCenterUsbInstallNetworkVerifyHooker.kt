@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.securitycenter
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+
 import android.app.Activity
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.DynamicHooker
@@ -266,7 +268,7 @@ object SecurityCenterUsbInstallNetworkVerifyHooker : DynamicHooker() {
                 before { param ->
                     HookFailurePolicy.open(TAG, "skip online check", Unit) {
                         val activity = param.thisObject as? Activity ?: return@open
-                        if (!Preferences.getBoolean(Preferences.KEY_SECURITY_CENTER_BYPASS_USB_INSTALL_NETWORK_VERIFY, false)) return@open
+                        if (!Preferences.getBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_BYPASS_USB_INSTALL_NETWORK_VERIFY, false)) return@open
                         val isInput = runCatching { targets.inputField.getBoolean(activity) }.getOrElse { error ->
                             DebugLog.w(TAG, "could not read resolved USB input-mode field", error)
                             return@open

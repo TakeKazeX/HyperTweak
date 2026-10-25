@@ -1,5 +1,9 @@
 package com.takekazex.hypertweak.hook.rules.systemui
 
+import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
+
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 
 import com.takekazex.hypertweak.hook.Preferences
@@ -47,10 +51,10 @@ object KeyguardFingerprintAvoidHooker : StaticHooker() {
         "com.android.keyguard.panel.KeyguardPanelViewController\$nsslLockYPosition_delegate\$lambda"
 
     @Volatile
-    private var mode = Preferences.LOCKSCREEN_FINGERPRINT_AVOID_DEFAULT
+    private var mode = PlatformSettingsKeys.LOCKSCREEN_FINGERPRINT_AVOID_DEFAULT
 
     override fun onPrepareHotReload() {
-        mode = Preferences.LOCKSCREEN_FINGERPRINT_AVOID_DEFAULT
+        mode = PlatformSettingsKeys.LOCKSCREEN_FINGERPRINT_AVOID_DEFAULT
     }
 
     /**
@@ -60,16 +64,16 @@ object KeyguardFingerprintAvoidHooker : StaticHooker() {
      */
     fun refreshSettings() {
         mode = Preferences.getInt(
-            Preferences.KEY_LOCKSCREEN_FINGERPRINT_AVOID,
-            Preferences.LOCKSCREEN_FINGERPRINT_AVOID_DEFAULT
+            SystemUiSettingsKeys.KEY_LOCKSCREEN_FINGERPRINT_AVOID,
+            PlatformSettingsKeys.LOCKSCREEN_FINGERPRINT_AVOID_DEFAULT
         )
         DebugLog.i(TAG, "settings applied mode=$mode")
     }
 
     override fun onHook() {
         mode = Preferences.getInt(
-            Preferences.KEY_LOCKSCREEN_FINGERPRINT_AVOID,
-            Preferences.LOCKSCREEN_FINGERPRINT_AVOID_DEFAULT
+            SystemUiSettingsKeys.KEY_LOCKSCREEN_FINGERPRINT_AVOID,
+            PlatformSettingsKeys.LOCKSCREEN_FINGERPRINT_AVOID_DEFAULT
         )
         // Installed for the generation regardless of the mode: the body reads [mode] at run time,
         // so the first non-default choice applies to the living lock screen.
@@ -89,7 +93,7 @@ object KeyguardFingerprintAvoidHooker : StaticHooker() {
 
         invoke.hook {
             before { param ->
-                if (mode == Preferences.LOCKSCREEN_FINGERPRINT_AVOID_DEFAULT) return@before
+                if (mode == PlatformSettingsKeys.LOCKSCREEN_FINGERPRINT_AVOID_DEFAULT) return@before
                 val values = param.args.getOrNull(1) as? Array<*> ?: return@before
                 if (values.size != 7) return@before
                 val booleanIndices = values.indices.filter { values[it] is Boolean }
@@ -97,7 +101,7 @@ object KeyguardFingerprintAvoidHooker : StaticHooker() {
                     DebugLog.w(TAG, "expected exactly two Boolean inputs, found=${booleanIndices.size}")
                     return@before
                 }
-                val forced = mode == Preferences.LOCKSCREEN_FINGERPRINT_AVOID_ALWAYS
+                val forced = mode == PlatformSettingsKeys.LOCKSCREEN_FINGERPRINT_AVOID_ALWAYS
                 // Never pollute the combine operator's cached source array: returning to native
                 // mode must see the original booleans, not our previous override.
                 @Suppress("UNCHECKED_CAST")

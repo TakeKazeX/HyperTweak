@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.securitycenter
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+
 import android.os.Handler
 import android.os.Looper
 import android.view.View
@@ -35,8 +37,8 @@ object SecurityCenterPopupHooker : DynamicHooker() {
                                val launchView: Field, val dolbyText: Int, val callers: List<Method>)
 
     private fun policy() = SidebarPopupPolicy(
-        Preferences.getBoolean(Preferences.KEY_SECURITY_CENTER_HIDE_DOLBY_POPUP, false),
-        Preferences.getBoolean(Preferences.KEY_SECURITY_CENTER_HIDE_GAME_POPUP, false),
+        Preferences.getBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_HIDE_DOLBY_POPUP, false),
+        Preferences.getBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_HIDE_GAME_POPUP, false),
     )
 
     override fun onHook() {

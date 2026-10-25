@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.camera
 
+import com.takekazex.hypertweak.settings.contract.CameraSettingsKeys
+
 import com.takekazex.hypertweak.hook.base.dex.DexOperandIndex
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.StaticHooker
@@ -36,7 +38,7 @@ object CameraDeviceMismatchHooker : StaticHooker() {
         gate.hook("cam_device_mismatch_gate") {
             after { param ->
                 runCatching {
-                    if ((Preferences.getBoolean(Preferences.KEY_CAMERA_IGNORE_DEVICE_MISMATCH, false) ||
+                    if ((Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_IGNORE_DEVICE_MISMATCH, false) ||
                             CameraLegendaryProfileState.selectedProfileApplied()) &&
                         param.result == true
                     ) {

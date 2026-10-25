@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.mediaeditor
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+
 import com.takekazex.hypertweak.hook.base.dex.DexContractMembers
 import com.takekazex.hypertweak.hook.base.dex.MethodDescriptorCodec
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
@@ -57,7 +59,7 @@ import java.util.concurrent.atomic.AtomicBoolean
  *    its marker and return shape. The 2.10.43 reader remains resolvable but has no callers.
  *
  * 4. **Bulk download** — cloud watermark zips are normally fetched on demand when a menu item is
- *    tapped. With [Preferences.KEY_WM_DOWNLOAD_ALL] on, the menu-builder after-hook walks the
+ *    tapped. With [PlatformSettingsKeys.KEY_WM_DOWNLOAD_ALL] on, the menu-builder after-hook walks the
  *    freshly built menu and calls the resolved legacy dispatcher or v3 fetcher for every
  *    `CloudWatermarkItem` (listener supplied via a dynamic proxy).
  *
@@ -72,18 +74,18 @@ object MediaEditorWatermarkHooker : StaticHooker() {
 
     /** Every switch this hooker serves; any one of them being on justifies installing it. */
     private val WATERMARK_KEYS = listOf(
-        Preferences.KEY_WM_UNLOCK_MASTER,
-        Preferences.KEY_WM_LEICA,
-        Preferences.KEY_WM_XIAOMI,
-        Preferences.KEY_WM_REDMI,
-        Preferences.KEY_WM_POCO,
-        Preferences.KEY_WM_DISNEY1,
-        Preferences.KEY_WM_DISNEY2,
-        Preferences.KEY_WM_DISNEY3,
-        Preferences.KEY_WM_VICTORIA,
-        Preferences.KEY_WM_LCC,
-        Preferences.KEY_WM_DOWNLOAD_ALL,
-        Preferences.KEY_WM_CAMERA,
+        PlatformSettingsKeys.KEY_WM_UNLOCK_MASTER,
+        PlatformSettingsKeys.KEY_WM_LEICA,
+        PlatformSettingsKeys.KEY_WM_XIAOMI,
+        PlatformSettingsKeys.KEY_WM_REDMI,
+        PlatformSettingsKeys.KEY_WM_POCO,
+        PlatformSettingsKeys.KEY_WM_DISNEY1,
+        PlatformSettingsKeys.KEY_WM_DISNEY2,
+        PlatformSettingsKeys.KEY_WM_DISNEY3,
+        PlatformSettingsKeys.KEY_WM_VICTORIA,
+        PlatformSettingsKeys.KEY_WM_LCC,
+        PlatformSettingsKeys.KEY_WM_DOWNLOAD_ALL,
+        PlatformSettingsKeys.KEY_WM_CAMERA,
     )
 
     // Stable (non-obfuscated) business classes of the editor.
@@ -220,9 +222,9 @@ object MediaEditorWatermarkHooker : StaticHooker() {
                 ) + target.deviceGateMethods.mapKeys { "gate." + it.key }.mapValues { MethodDescriptorCodec.descriptor(it.value) }
             },
             decode = { members ->
-                val keys = listOf(Preferences.KEY_WM_LEICA, Preferences.KEY_WM_XIAOMI, Preferences.KEY_WM_REDMI,
-                    Preferences.KEY_WM_POCO, Preferences.KEY_WM_VICTORIA, Preferences.KEY_WM_DISNEY3,
-                    Preferences.KEY_WM_LCC, Preferences.KEY_WM_DISNEY1, Preferences.KEY_WM_DISNEY2)
+                val keys = listOf(PlatformSettingsKeys.KEY_WM_LEICA, PlatformSettingsKeys.KEY_WM_XIAOMI, PlatformSettingsKeys.KEY_WM_REDMI,
+                    PlatformSettingsKeys.KEY_WM_POCO, PlatformSettingsKeys.KEY_WM_VICTORIA, PlatformSettingsKeys.KEY_WM_DISNEY3,
+                    PlatformSettingsKeys.KEY_WM_LCC, PlatformSettingsKeys.KEY_WM_DISNEY1, PlatformSettingsKeys.KEY_WM_DISNEY2)
                 val gates = keys.associateWith { members.method("gate.$it").also { method ->
                     require(Modifier.isStatic(method.modifiers) && method.parameterCount == 0 && method.returnType == Boolean::class.javaPrimitiveType)
                 } }
@@ -415,22 +417,22 @@ object MediaEditorWatermarkHooker : StaticHooker() {
         // The six device gates have distinct DEX profiles: 3 and 4 list fields, one list with
         // and without a same-owner call, one lazy value, and one reference to the theme-gate owner.
         val wnResolved = listOf(
-            resolveUnique(wnOwner.name, wnMethods, Preferences.KEY_WM_LEICA) {
+            resolveUnique(wnOwner.name, wnMethods, PlatformSettingsKeys.KEY_WM_LEICA) {
                 listFieldCount(it, wnOwner) == 3
             },
-            resolveUnique(wnOwner.name, wnMethods, Preferences.KEY_WM_XIAOMI) {
+            resolveUnique(wnOwner.name, wnMethods, PlatformSettingsKeys.KEY_WM_XIAOMI) {
                 listFieldCount(it, wnOwner) == 1 && invokesOwner(it, wnOwner)
             },
-            resolveUnique(wnOwner.name, wnMethods, Preferences.KEY_WM_REDMI) {
+            resolveUnique(wnOwner.name, wnMethods, PlatformSettingsKeys.KEY_WM_REDMI) {
                 listFieldCount(it, wnOwner) == 4
             },
-            resolveUnique(wnOwner.name, wnMethods, Preferences.KEY_WM_POCO) {
+            resolveUnique(wnOwner.name, wnMethods, PlatformSettingsKeys.KEY_WM_POCO) {
                 listFieldCount(it, wnOwner) == 1 && !invokesOwner(it, wnOwner)
             },
-            resolveUnique(wnOwner.name, wnMethods, Preferences.KEY_WM_VICTORIA) {
+            resolveUnique(wnOwner.name, wnMethods, PlatformSettingsKeys.KEY_WM_VICTORIA) {
                 ownFields(it, wnOwner).size == 1 && listFieldCount(it, wnOwner) == 0
             },
-            resolveUnique(wnOwner.name, wnMethods, Preferences.KEY_WM_DISNEY3) {
+            resolveUnique(wnOwner.name, wnMethods, PlatformSettingsKeys.KEY_WM_DISNEY3) {
                 listFieldCount(it, wnOwner) == 0 && referencesOwner(it, znOwner)
             }
         ).all { it }
@@ -457,9 +459,9 @@ object MediaEditorWatermarkHooker : StaticHooker() {
 
             val decoded = decodeGateStrings(bridge, helperBody)
             val preference = when {
-                decoded.any { it.equals("LCC", ignoreCase = true) } -> Preferences.KEY_WM_LCC
-                decoded.any { it.equals("WestCoast-II", ignoreCase = true) } -> Preferences.KEY_WM_DISNEY2
-                decoded.any { it.equals("WestCoast", ignoreCase = true) } -> Preferences.KEY_WM_DISNEY1
+                decoded.any { it.equals("LCC", ignoreCase = true) } -> PlatformSettingsKeys.KEY_WM_LCC
+                decoded.any { it.equals("WestCoast-II", ignoreCase = true) } -> PlatformSettingsKeys.KEY_WM_DISNEY2
+                decoded.any { it.equals("WestCoast", ignoreCase = true) } -> PlatformSettingsKeys.KEY_WM_DISNEY1
                 else -> null
             } ?: return@forEach
             val method = materializeGateMethod(data) ?: return@forEach
@@ -470,9 +472,9 @@ object MediaEditorWatermarkHooker : StaticHooker() {
         }
 
         listOf(
-            Preferences.KEY_WM_LCC,
-            Preferences.KEY_WM_DISNEY1,
-            Preferences.KEY_WM_DISNEY2
+            PlatformSettingsKeys.KEY_WM_LCC,
+            PlatformSettingsKeys.KEY_WM_DISNEY1,
+            PlatformSettingsKeys.KEY_WM_DISNEY2
         ).forEach { preference ->
             val method = markerPreferences[preference]
             if (method == null) {
@@ -849,7 +851,7 @@ object MediaEditorWatermarkHooker : StaticHooker() {
         // 3. Downloaded-resource filter: force the debug property read to true when resolvable.
         c.tb0VBInvoke?.hook("wm_debug_filter") {
             after { param ->
-                if (Preferences.getBoolean(Preferences.KEY_WM_UNLOCK_MASTER, false)) {
+                if (Preferences.getBoolean(PlatformSettingsKeys.KEY_WM_UNLOCK_MASTER, false)) {
                     param.result = true
                 }
             }
@@ -908,7 +910,7 @@ object MediaEditorWatermarkHooker : StaticHooker() {
 
         ctor.hook {
             after { param ->
-                if (!Preferences.getBoolean(Preferences.KEY_WM_UNLOCK_MASTER, false)) return@after
+                if (!Preferences.getBoolean(PlatformSettingsKeys.KEY_WM_UNLOCK_MASTER, false)) return@after
                 val args = param.args
                 try {
                     @Suppress("UNCHECKED_CAST")
@@ -924,7 +926,7 @@ object MediaEditorWatermarkHooker : StaticHooker() {
                     @Suppress("UNCHECKED_CAST")
                     val displayApps = args[displayAppIdx] as? MutableList<String>
 
-                    if (Preferences.getBoolean(Preferences.KEY_WM_LCC, false)) {
+                    if (Preferences.getBoolean(PlatformSettingsKeys.KEY_WM_LCC, false)) {
                         // Both LCC watermark sets (CN and global) regardless of mod_device.
                         supportDevices?.let { list ->
                             for (i in list.indices) {
@@ -985,7 +987,7 @@ object MediaEditorWatermarkHooker : StaticHooker() {
         deoptimize(constructor)
         constructor.hook("wm_cloud_data_v3") {
             after { param ->
-                if (!Preferences.getBoolean(Preferences.KEY_WM_UNLOCK_MASTER, false)) return@after
+                if (!Preferences.getBoolean(PlatformSettingsKeys.KEY_WM_UNLOCK_MASTER, false)) return@after
                 try {
                     val target = param.thisObject
                     val args = param.args
@@ -1009,7 +1011,7 @@ object MediaEditorWatermarkHooker : StaticHooker() {
                     // Keep the native device lists; per-category gate hooks decide whether a
                     // device-group tag is visible. Only the LCC tags are remapped, matching the
                     // legacy build's explicit LCC switch.
-                    if (Preferences.getBoolean(Preferences.KEY_WM_LCC, false)) {
+                    if (Preferences.getBoolean(PlatformSettingsKeys.KEY_WM_LCC, false)) {
                         rewriteStringList(fieldFor(13), target) { tag ->
                             if (tag in LCC_DEVICE_TAGS) "*" else tag
                         }
@@ -1102,7 +1104,7 @@ object MediaEditorWatermarkHooker : StaticHooker() {
         deoptimize(modern.menuBuilder)
         modern.menuBuilder.hook("wm_cloud_menu_download") {
             after { param ->
-                if (!Preferences.getBoolean(Preferences.KEY_WM_DOWNLOAD_ALL, false)) return@after
+                if (!Preferences.getBoolean(PlatformSettingsKeys.KEY_WM_DOWNLOAD_ALL, false)) return@after
                 if (!downloaded.compareAndSet(false, true)) return@after
                 val map = param.result as? Map<*, *> ?: return@after
                 val proxy = runCatching {
@@ -1155,7 +1157,7 @@ object MediaEditorWatermarkHooker : StaticHooker() {
 
         vyILoad.hook("wm_bulk_download") {
             after { param ->
-                if (!Preferences.getBoolean(Preferences.KEY_WM_DOWNLOAD_ALL, false)) return@after
+                if (!Preferences.getBoolean(PlatformSettingsKeys.KEY_WM_DOWNLOAD_ALL, false)) return@after
                 if (!downloaded.compareAndSet(false, true)) return@after
                 val map = param.result as? Map<*, *> ?: return@after
                 val proxy = try {
@@ -1196,7 +1198,7 @@ object MediaEditorWatermarkHooker : StaticHooker() {
     // ─── Preference helpers ────────────────────────────────────────────────────
 
     private fun masterAnd(key: String): Boolean {
-        return Preferences.getBoolean(Preferences.KEY_WM_UNLOCK_MASTER, false) &&
+        return Preferences.getBoolean(PlatformSettingsKeys.KEY_WM_UNLOCK_MASTER, false) &&
             Preferences.getBoolean(key, false)
     }
 }

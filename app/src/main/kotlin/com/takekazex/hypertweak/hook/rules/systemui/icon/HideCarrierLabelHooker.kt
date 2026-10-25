@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
+
 import com.takekazex.hypertweak.hook.base.HostAccess
 import android.view.View
 import android.view.ViewGroup
@@ -67,11 +69,11 @@ object HideCarrierLabelHooker : StaticHooker() {
     }
 
     override fun onHook() {
-        hideOne = Preferences.getBoolean(Preferences.KEY_ICON_HIDE_CARRIER_ONE, false)
-        hideTwo = Preferences.getBoolean(Preferences.KEY_ICON_HIDE_CARRIER_TWO, false)
-        hideHd = Preferences.getBoolean(Preferences.KEY_ICON_HIDE_CARRIER_HD, false)
-        hideLsOne = Preferences.getBoolean(Preferences.KEY_ICON_HIDE_LS_CARRIER_ONE, false)
-        hideLsTwo = Preferences.getBoolean(Preferences.KEY_ICON_HIDE_LS_CARRIER_TWO, false)
+        hideOne = Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_CARRIER_ONE, false)
+        hideTwo = Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_CARRIER_TWO, false)
+        hideHd = Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_CARRIER_HD, false)
+        hideLsOne = Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_LS_CARRIER_ONE, false)
+        hideLsTwo = Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_LS_CARRIER_TWO, false)
         if (!hideOne && !hideTwo && !hideHd && !hideLsOne && !hideLsTwo) {
             DebugLog.hookSkippedDebug(TAG, "HideCarrierLabel", "disabled")
             return

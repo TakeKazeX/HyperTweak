@@ -1,5 +1,9 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import com.takekazex.hypertweak.settings.contract.ControlCenterPrivacyPolicy
+
+import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
+
 import com.takekazex.hypertweak.hook.base.HostAccess
 import android.content.pm.ApplicationInfo
 import android.content.res.Configuration
@@ -115,19 +119,19 @@ object ControlCenterPrivacyHooker : StaticHooker() {
     }
 
     override fun onHook() {
-        enabled = isMainProcess && Preferences.getBoolean(Preferences.KEY_CC_PRIVACY_ENABLED, false)
+        enabled = isMainProcess && Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_PRIVACY_ENABLED, false)
         retiring = false
         if (!enabled) return
-        center = Preferences.getBoolean(Preferences.KEY_CC_PRIVACY_CENTER, true)
-        background = Preferences.getBoolean(Preferences.KEY_CC_PRIVACY_BACKGROUND, false)
-        colored = Preferences.getBoolean(Preferences.KEY_CC_PRIVACY_COLORED, true)
-        names = Preferences.getBoolean(Preferences.KEY_CC_PRIVACY_NAMES, true)
-        allApps = Preferences.getBoolean(Preferences.KEY_CC_PRIVACY_ALL_APPS, true)
-        arrow = Preferences.getBoolean(Preferences.KEY_CC_PRIVACY_ARROW, true)
-        dot = Preferences.getBoolean(Preferences.KEY_CC_PRIVACY_DOT, false)
-        iconSize = Preferences.getInt(Preferences.KEY_CC_PRIVACY_ICON_SIZE, ControlCenterPrivacyPolicy.DEFAULT_ICON_SIZE).coerceIn(16, 32)
-        textSize = Preferences.getInt(Preferences.KEY_CC_PRIVACY_TEXT_SIZE, ControlCenterPrivacyPolicy.DEFAULT_TEXT_SIZE).coerceIn(9, 20)
-        offset = Preferences.getInt(Preferences.KEY_CC_PRIVACY_OFFSET, ControlCenterPrivacyPolicy.DEFAULT_OFFSET).coerceIn(-16, 24)
+        center = Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_PRIVACY_CENTER, true)
+        background = Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_PRIVACY_BACKGROUND, false)
+        colored = Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_PRIVACY_COLORED, true)
+        names = Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_PRIVACY_NAMES, true)
+        allApps = Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_PRIVACY_ALL_APPS, true)
+        arrow = Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_PRIVACY_ARROW, true)
+        dot = Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_PRIVACY_DOT, false)
+        iconSize = Preferences.getInt(SystemUiSettingsKeys.KEY_CC_PRIVACY_ICON_SIZE, ControlCenterPrivacyPolicy.DEFAULT_ICON_SIZE).coerceIn(16, 32)
+        textSize = Preferences.getInt(SystemUiSettingsKeys.KEY_CC_PRIVACY_TEXT_SIZE, ControlCenterPrivacyPolicy.DEFAULT_TEXT_SIZE).coerceIn(9, 20)
+        offset = Preferences.getInt(SystemUiSettingsKeys.KEY_CC_PRIVACY_OFFSET, ControlCenterPrivacyPolicy.DEFAULT_OFFSET).coerceIn(-16, 24)
         val viewClass = VIEW.toClassOrNull() ?: return
         controllerClass = CONTROLLER.toClassOrNull() ?: return
         val headerClass = HEADER.toClassOrNull() ?: return

@@ -1,12 +1,18 @@
 package com.takekazex.hypertweak.hook.rules.screenshot
 
-import com.takekazex.hypertweak.hook.Preferences
+import com.takekazex.hypertweak.settings.contract.ScreenshotSettingsKeys
+
+
+import com.takekazex.hypertweak.settings.contract.ScreenshotSettingsLedger
+
+import com.takekazex.hypertweak.settings.contract.ScreenshotSettingsSnapshot
+
 import org.junit.Assert.*
 import org.junit.Test
 
 class ScreenshotSettingsSnapshotTest {
-    private val enabledKey = Preferences.KEY_SCREENSHOT_AUTO_FRAME
-    private val modeKey = Preferences.KEY_SCREENSHOT_FRAME_EDITOR_MODE
+    private val enabledKey = ScreenshotSettingsKeys.KEY_SCREENSHOT_AUTO_FRAME
+    private val modeKey = ScreenshotSettingsKeys.KEY_SCREENSHOT_FRAME_EDITOR_MODE
 
     @Test fun `next capture uses the pushed value even when remote preferences stay stale`() {
         val mainProcess = ScreenshotSettingsLedger()
@@ -65,7 +71,7 @@ class ScreenshotSettingsSnapshotTest {
         val old = ScreenshotSettingsSnapshot.read(1, mapOf(enabledKey to false, modeKey to 0))!!
         assertFalse(old.copyToClipboard)
         ledger.accept(old)
-        assertTrue(ledger.latest()!!.mutate(Preferences.KEY_SCREENSHOT_COPY_TO_CLIPBOARD, true, 2)!!.let(ledger::accept))
+        assertTrue(ledger.latest()!!.mutate(ScreenshotSettingsKeys.KEY_SCREENSHOT_COPY_TO_CLIPBOARD, true, 2)!!.let(ledger::accept))
         assertTrue(ScreenshotSettingsLedger().also { it.restore(ledger.save()) }.latest()!!.copyToClipboard)
         // An older payload that predates the switch cannot resurrect a copy request.
         val legacy = ScreenshotSettingsLedger().also { it.restore(arrayOf<Any>(3L, false, 0)) }
@@ -74,7 +80,7 @@ class ScreenshotSettingsSnapshotTest {
     }
 
     @Test fun `directory enable disable reset and legacy hot reload use acknowledged values`() {
-        val key = Preferences.KEY_SCREENSHOT_PICTURES_DIRECTORY
+        val key = ScreenshotSettingsKeys.KEY_SCREENSHOT_PICTURES_DIRECTORY
         val baseline = ScreenshotSettingsSnapshot(1, true, 1, true)
         val enabled = baseline.mutate(key, true, 2)!!
         assertTrue(enabled.picturesDirectory)

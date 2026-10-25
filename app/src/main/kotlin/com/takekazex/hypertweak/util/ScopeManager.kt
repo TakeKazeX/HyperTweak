@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.util
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+
 import android.content.Context
 import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.hook.Preferences
@@ -91,12 +93,12 @@ object ScopeManager {
     suspend fun launcherScopeRecommendation(): ScopePrompt? {
         val live = currentScope() ?: return null
         val launcherNeeded = Preferences.hideRecentsClearButton() ||
-            Preferences.openedFolderColumns() != Preferences.DEFAULT_OPENED_FOLDER_COLUMNS ||
+            Preferences.openedFolderColumns() != PlatformSettingsKeys.DEFAULT_OPENED_FOLDER_COLUMNS ||
             Preferences.contextualSearchLongPress() ||
             (PlatformLevel.isOs4 &&
-                Preferences.getBoolean(Preferences.KEY_HIDE_GESTURE_BAR_RECENTS, false)) ||
-            (PlatformLevel.isOs4 && com.takekazex.hypertweak.dock.DockConfig.decode(Preferences.getString(
-                com.takekazex.hypertweak.dock.DockConfig.KEY, com.takekazex.hypertweak.dock.DockConfig().encode()))?.enabled == true)
+                Preferences.getBoolean(PlatformSettingsKeys.KEY_HIDE_GESTURE_BAR_RECENTS, false)) ||
+            (PlatformLevel.isOs4 && com.takekazex.hypertweak.settings.contract.DockConfig.decode(Preferences.getString(
+                com.takekazex.hypertweak.settings.contract.DockConfig.KEY, com.takekazex.hypertweak.settings.contract.DockConfig().encode()))?.enabled == true)
         return if (LAUNCHER_PACKAGE !in live && launcherNeeded) {
             ScopePrompt(ScopePromptAction.RESTORE, LAUNCHER_PACKAGE)
         } else {

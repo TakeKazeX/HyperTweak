@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui.island
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+
 import android.graphics.Typeface
 import android.os.Bundle
 import android.os.Handler
@@ -56,7 +58,7 @@ class IslandTimeFontHooker : DynamicHooker() {
             existing.forEach { holder ->
                 HookFailurePolicy.open(TAG, "refresh timer font", Unit) { update?.invoke(holder) }
             }
-            DebugLog.i(TAG, "settings applied enabled=${Preferences.getBoolean(Preferences.KEY_ISLAND_NARROW_TIME_FONT, false)} holders=${existing.size} narrowViews=${leases.size}")
+            DebugLog.i(TAG, "settings applied enabled=${Preferences.getBoolean(PlatformSettingsKeys.KEY_ISLAND_NARROW_TIME_FONT, false)} holders=${existing.size} narrowViews=${leases.size}")
         }
     }
     fun refreshSettings() {
@@ -139,7 +141,7 @@ class IslandTimeFontHooker : DynamicHooker() {
         fun apply(holder: Any, view: TextView, slot: Slot) {
             val packageName = (currentData.invoke(holder)?.let { extras.invoke(it) } as? Bundle)
                 ?.getString("miui.pkg.name")
-            if (retiring || !Preferences.getBoolean(Preferences.KEY_ISLAND_NARROW_TIME_FONT, false) ||
+            if (retiring || !Preferences.getBoolean(PlatformSettingsKeys.KEY_ISLAND_NARROW_TIME_FONT, false) ||
                 !IslandTimeFontPolicy.eligible(packageName, slot.numeric, view.text)) {
                 release(view)
                 return

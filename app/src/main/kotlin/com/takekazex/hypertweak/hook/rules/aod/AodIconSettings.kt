@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.aod
 
+import com.takekazex.hypertweak.settings.contract.AodSettingsKeys
+
 import com.takekazex.hypertweak.hook.Preferences
 
 /** One decision shared by the AOD plugin row and SystemUI's transitioning keyguard row. */
@@ -13,7 +15,7 @@ internal data class AodIconSettings(
     val showRow: Boolean get() = batteryIcon || duo || percent
     val centerBattery: Boolean get() = !centerSignal
     val customized: Boolean get() = !batteryIcon || duo || !percent ||
-        percentPosition != Preferences.AOD_PERCENT_POSITION_RIGHT
+        percentPosition != AodSettingsKeys.AOD_PERCENT_POSITION_RIGHT
 
     companion object {
         /** The all-default configuration, used wherever a lit lock screen must ignore AOD options. */
@@ -22,26 +24,26 @@ internal data class AodIconSettings(
             duo = false,
             percent = true,
             centerSignal = false,
-            percentPosition = Preferences.AOD_PERCENT_POSITION_RIGHT
+            percentPosition = AodSettingsKeys.AOD_PERCENT_POSITION_RIGHT
         )
 
         fun current(): AodIconSettings {
-            val duo = Preferences.getBoolean(Preferences.KEY_AOD_DUO_ENABLED, false)
+            val duo = Preferences.getBoolean(AodSettingsKeys.KEY_AOD_DUO_ENABLED, false)
             val centerSignal = Preferences.getInt(
-                Preferences.KEY_AOD_DUO_CENTER_CONTENT,
-                Preferences.AOD_DUO_CENTER_BATTERY
-            ) == Preferences.AOD_DUO_CENTER_SIGNAL
+                AodSettingsKeys.KEY_AOD_DUO_CENTER_CONTENT,
+                AodSettingsKeys.AOD_DUO_CENTER_BATTERY
+            ) == AodSettingsKeys.AOD_DUO_CENTER_SIGNAL
             val position = Preferences.getInt(
-                Preferences.KEY_AOD_PERCENT_POSITION,
-                Preferences.AOD_PERCENT_POSITION_RIGHT
-            ).coerceIn(Preferences.AOD_PERCENT_POSITION_LEFT, Preferences.AOD_PERCENT_POSITION_DUO_CENTER)
+                AodSettingsKeys.KEY_AOD_PERCENT_POSITION,
+                AodSettingsKeys.AOD_PERCENT_POSITION_RIGHT
+            ).coerceIn(AodSettingsKeys.AOD_PERCENT_POSITION_LEFT, AodSettingsKeys.AOD_PERCENT_POSITION_DUO_CENTER)
             return AodIconSettings(
-                batteryIcon = Preferences.getBoolean(Preferences.KEY_AOD_BATTERY_ICON_VISIBLE, true),
+                batteryIcon = Preferences.getBoolean(AodSettingsKeys.KEY_AOD_BATTERY_ICON_VISIBLE, true),
                 duo = duo,
-                percent = Preferences.getBoolean(Preferences.KEY_AOD_BATTERY_PERCENT_VISIBLE, true),
+                percent = Preferences.getBoolean(AodSettingsKeys.KEY_AOD_BATTERY_PERCENT_VISIBLE, true),
                 centerSignal = centerSignal,
-                percentPosition = if (centerSignal && position == Preferences.AOD_PERCENT_POSITION_DUO_CENTER)
-                    Preferences.AOD_PERCENT_POSITION_RIGHT else position
+                percentPosition = if (centerSignal && position == AodSettingsKeys.AOD_PERCENT_POSITION_DUO_CENTER)
+                    AodSettingsKeys.AOD_PERCENT_POSITION_RIGHT else position
             )
         }
     }

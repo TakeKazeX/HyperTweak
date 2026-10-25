@@ -15,7 +15,7 @@ import android.graphics.RectF
 import android.graphics.Typeface
 import android.graphics.drawable.Drawable
 import androidx.core.graphics.withSave
-import com.takekazex.hypertweak.hook.rules.systemui.icon.MobileTypeLabelStyle
+import com.takekazex.hypertweak.settings.contract.MobileTypeLabelStyle
 import com.takekazex.hypertweak.hook.rules.systemui.icon.AirplaneIconHooker
 import kotlin.math.min
 import kotlin.math.roundToInt

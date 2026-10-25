@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.aicr
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 
 import android.content.Context
@@ -367,7 +369,7 @@ object AicrDefaultBrowserHooker : StaticHooker() {
         }.getOrNull()
 
     private fun isEnabled(): Boolean =
-        Preferences.getBoolean(Preferences.KEY_AICR_COPY_DIRECT_DEFAULT_BROWSER, false)
+        Preferences.getBoolean(PlatformSettingsKeys.KEY_AICR_COPY_DIRECT_DEFAULT_BROWSER, false)
 }
 
 /** Persistent feature cache identity. */

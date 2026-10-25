@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.guardprovider
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+
 import com.takekazex.hypertweak.hook.base.dex.DexContractMembers
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 
@@ -34,7 +36,7 @@ object GuardProviderUploadAppListHooker : StaticHooker() {
 
     override fun onHook() {
         if (hookParam.packageName != PACKAGE) return
-        if (!Preferences.getBoolean(Preferences.KEY_GUARD_PROVIDER_BLOCK_UPLOAD_APP_LIST, false)) {
+        if (!Preferences.getBoolean(PlatformSettingsKeys.KEY_GUARD_PROVIDER_BLOCK_UPLOAD_APP_LIST, false)) {
             DebugLog.hookSkippedDebug(TAG, "GuardProvider app-list upload", "disabled")
             return
         }

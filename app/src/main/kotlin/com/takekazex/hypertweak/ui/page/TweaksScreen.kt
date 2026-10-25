@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.ui.page
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+
 import android.annotation.SuppressLint
 import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.hook.Preferences
@@ -326,16 +328,16 @@ private fun ModelSpoofValuesRow() {
     var displayModel by remember {
         mutableStateOf(
             Preferences.getString(
-                Preferences.KEY_PA_MODEL_SPOOF_MODEL,
-                Preferences.DEFAULT_PA_MODEL_SPOOF_MODEL
+                PlatformSettingsKeys.KEY_PA_MODEL_SPOOF_MODEL,
+                PlatformSettingsKeys.DEFAULT_PA_MODEL_SPOOF_MODEL
             )
         )
     }
     var displayDevice by remember {
         mutableStateOf(
             Preferences.getString(
-                Preferences.KEY_PA_MODEL_SPOOF_DEVICE,
-                Preferences.DEFAULT_PA_MODEL_SPOOF_DEVICE
+                PlatformSettingsKeys.KEY_PA_MODEL_SPOOF_DEVICE,
+                PlatformSettingsKeys.DEFAULT_PA_MODEL_SPOOF_DEVICE
             )
         )
     }
@@ -381,8 +383,8 @@ private fun ModelSpoofValuesRow() {
                 TextButton(
                     text = stringResource(R.string.scale_ok),
                     onClick = {
-                        Preferences.putString(Preferences.KEY_PA_MODEL_SPOOF_MODEL, modelInput)
-                        Preferences.putString(Preferences.KEY_PA_MODEL_SPOOF_DEVICE, deviceInput)
+                        Preferences.putString(PlatformSettingsKeys.KEY_PA_MODEL_SPOOF_MODEL, modelInput)
+                        Preferences.putString(PlatformSettingsKeys.KEY_PA_MODEL_SPOOF_DEVICE, deviceInput)
                         displayModel = modelInput
                         displayDevice = deviceInput
                         editing = false

@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.trustservice
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+
 import com.takekazex.hypertweak.hook.base.dex.DexContractMembers
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 
@@ -28,7 +30,7 @@ object MiTrustRiskMonitoringHooker : StaticHooker() {
 
     override fun onHook() {
         if (hookParam.packageName != PACKAGE) return
-        if (!Preferences.getBoolean(Preferences.KEY_MITRUST_DISABLE_RISK_MONITORING, false)) {
+        if (!Preferences.getBoolean(PlatformSettingsKeys.KEY_MITRUST_DISABLE_RISK_MONITORING, false)) {
             DebugLog.hookSkippedDebug(TAG, "MiTrustService MRM gate", "disabled")
             return
         }

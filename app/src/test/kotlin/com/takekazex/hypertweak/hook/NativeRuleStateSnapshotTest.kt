@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -12,15 +14,15 @@ class NativeRuleStateSnapshotTest {
     }
     @Test fun completeSnapshotKeepsIndependentSwitches() {
         assertEquals(NativeRuleStateSnapshot(true, 5, false), NativeRuleStateSnapshot.read { mapOf(
-            Preferences.KEY_HIDE_RECENTS_CLEAR_BUTTON to true,
-            Preferences.KEY_OPENED_FOLDER_COLUMNS to 5,
-            Preferences.KEY_CONTEXTUAL_SEARCH_LONG_PRESS to false
+            PlatformSettingsKeys.KEY_HIDE_RECENTS_CLEAR_BUTTON to true,
+            PlatformSettingsKeys.KEY_OPENED_FOLDER_COLUMNS to 5,
+            PlatformSettingsKeys.KEY_CONTEXTUAL_SEARCH_LONG_PRESS to false
         ) })
     }
     @Test fun malformedChannelDoesNotPartiallyOverwriteConfiguration() {
         assertNull(NativeRuleStateSnapshot.read { mapOf(
-            Preferences.KEY_HIDE_RECENTS_CLEAR_BUTTON to "false",
-            Preferences.KEY_OPENED_FOLDER_COLUMNS to 4
+            PlatformSettingsKeys.KEY_HIDE_RECENTS_CLEAR_BUTTON to "false",
+            PlatformSettingsKeys.KEY_OPENED_FOLDER_COLUMNS to 4
         ) })
     }
 }

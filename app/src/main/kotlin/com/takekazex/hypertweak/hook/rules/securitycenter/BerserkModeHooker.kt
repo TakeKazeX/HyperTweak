@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.securitycenter
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.InstallPolicy
@@ -81,7 +83,7 @@ object BerserkModeHooker : StaticHooker() {
     override val installPolicy: InstallPolicy = InstallPolicy.WHEN_ENABLED
 
     override fun isFeatureEnabled(): Boolean =
-        Preferences.getBoolean(Preferences.KEY_SECURITY_CENTER_SHOW_BERSERK_MODE, false)
+        Preferences.getBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_SHOW_BERSERK_MODE, false)
 
     private const val TAG = "BerserkMode"
     private const val PACKAGE = "com.miui.securitycenter"

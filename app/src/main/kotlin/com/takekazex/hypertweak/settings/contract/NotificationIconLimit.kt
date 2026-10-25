@@ -1,4 +1,4 @@
-package com.takekazex.hypertweak.hook.rules.systemui.icon
+package com.takekazex.hypertweak.settings.contract
 
 /**
  * The one numeric contract for the "limit notification icons" control:

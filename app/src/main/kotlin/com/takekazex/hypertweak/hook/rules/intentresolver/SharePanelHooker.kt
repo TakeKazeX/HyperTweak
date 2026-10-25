@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.intentresolver
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+
 import android.app.Activity
 import android.view.View
 import android.view.ViewGroup
@@ -72,7 +74,7 @@ object SharePanelHooker : DynamicHooker() {
                     resolved.gridField.get(param.thisObject)?.let { grid ->
                         synchronized(grids) { grids[grid] = true }
                     }
-                    if (Preferences.getBoolean(Preferences.KEY_SHARE_PANEL_SHOW_ALL, false)) param.result = false
+                    if (Preferences.getBoolean(PlatformSettingsKeys.KEY_SHARE_PANEL_SHOW_ALL, false)) param.result = false
                 }
             }
         }

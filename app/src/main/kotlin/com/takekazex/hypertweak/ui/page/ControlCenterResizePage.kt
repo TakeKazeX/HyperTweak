@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.ui.page
 
+import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
+
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -73,7 +75,7 @@ fun ControlCenterResizePage(onBack: () -> Unit) {
     val handleRestartedScopes = LocalRestartScopeHandled.current
 
     var enabled by remember {
-        mutableStateOf(Preferences.getBoolean(Preferences.KEY_CC_RESIZE_ENABLED, false))
+        mutableStateOf(Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_RESIZE_ENABLED, false))
     }
     var restartPending by rememberSaveable { mutableStateOf(false) }
 
@@ -110,7 +112,7 @@ fun ControlCenterResizePage(onBack: () -> Unit) {
                         onCheckedChange = { checked ->
                             enabled = checked
                             markPending()
-                            Preferences.putBoolean(Preferences.KEY_CC_RESIZE_ENABLED, checked)
+                            Preferences.putBoolean(SystemUiSettingsKeys.KEY_CC_RESIZE_ENABLED, checked)
                         },
                         title = stringResource(R.string.cc_resize_title),
                         summary = stringResource(R.string.cc_resize_enabled_summary)
@@ -162,7 +164,7 @@ fun ControlCenterResizePage(onBack: () -> Unit) {
                     TokenSizeRow(
                         title = stringResource(R.string.cc_size_brightness),
                         summary = stringResource(R.string.cc_size_brightness_summary),
-                        key = Preferences.KEY_CC_SIZE_BRIGHTNESS,
+                        key = SystemUiSettingsKeys.KEY_CC_SIZE_BRIGHTNESS,
                         options = SLIDER_SIZE_OPTIONS,
                         defaults = SizeOption(1, 2),
                         onSelect = { markPending() }
@@ -170,7 +172,7 @@ fun ControlCenterResizePage(onBack: () -> Unit) {
                     TokenSizeRow(
                         title = stringResource(R.string.cc_size_volume),
                         summary = stringResource(R.string.cc_size_volume_summary),
-                        key = Preferences.KEY_CC_SIZE_VOLUME,
+                        key = SystemUiSettingsKeys.KEY_CC_SIZE_VOLUME,
                         options = SLIDER_SIZE_OPTIONS,
                         defaults = SizeOption(1, 2),
                         onSelect = { markPending() }
@@ -185,7 +187,7 @@ fun ControlCenterResizePage(onBack: () -> Unit) {
                     TokenSizeRow(
                         title = stringResource(R.string.cc_size_media),
                         summary = stringResource(R.string.cc_size_media_summary),
-                        key = Preferences.KEY_CC_SIZE_MEDIA,
+                        key = SystemUiSettingsKeys.KEY_CC_SIZE_MEDIA,
                         options = MEDIA_SIZE_OPTIONS,
                         defaults = SizeOption(2, 2),
                         onSelect = { markPending() }
@@ -193,7 +195,7 @@ fun ControlCenterResizePage(onBack: () -> Unit) {
                     TokenSizeRow(
                         title = stringResource(R.string.cc_size_device),
                         summary = stringResource(R.string.cc_size_device_summary),
-                        key = Preferences.KEY_CC_SIZE_DEVICE,
+                        key = SystemUiSettingsKeys.KEY_CC_SIZE_DEVICE,
                         options = DEVICE_SIZE_OPTIONS,
                         defaults = SizeOption(4, 1),
                         onSelect = { markPending() }
@@ -260,7 +262,7 @@ private val cardSizesState = mutableStateMapOf<String, String>()
 private fun cardSizeFor(spec: String): String {
     if (!cardSizesState.containsKey("__loaded__")) {
         cardSizesState.clear()
-        Preferences.getString(Preferences.KEY_CC_CARD_SIZES, "")
+        Preferences.getString(SystemUiSettingsKeys.KEY_CC_CARD_SIZES, "")
             .split(',')
             .mapNotNull { entry ->
                 val idx = entry.indexOf('=')
@@ -279,7 +281,7 @@ private fun setCardSize(spec: String, value: String) {
     val raw = cardSizesState.entries
         .filter { it.key != "__loaded__" && it.value.isNotBlank() }
         .joinToString(",") { "${it.key}=${it.value}" }
-    Preferences.putString(Preferences.KEY_CC_CARD_SIZES, raw)
+    Preferences.putString(SystemUiSettingsKeys.KEY_CC_CARD_SIZES, raw)
 }
 
 private enum class CardSpecRow(val spec: String, val titleRes: Int) {
@@ -371,7 +373,7 @@ private enum class KnownTileSpec(val spec: String, val titleRes: Int) {
 private val knownSpecTokens = KnownTileSpec.entries.map { it.spec }.toSet()
 
 private fun readTileCardSpecs(): Set<String> =
-    Preferences.getString(Preferences.KEY_CC_TILE_CARD_SPECS, "")
+    Preferences.getString(SystemUiSettingsKeys.KEY_CC_TILE_CARD_SPECS, "")
         .split(',').map { it.trim().lowercase() }.filter { it.isNotEmpty() }.toSet()
 
 /** Rewrites the spec key keeping unknown (hand-typed) specs intact. */
@@ -379,7 +381,7 @@ private fun writeTileCardSpecs(spec: String, add: Boolean) {
     val known = readTileCardSpecs().toMutableSet()
     if (add) known += spec else known -= spec
     val customs = readTileCardSpecs().filterNot { it in knownSpecTokens }
-    Preferences.putString(Preferences.KEY_CC_TILE_CARD_SPECS, (known + customs).joinToString(","))
+    Preferences.putString(SystemUiSettingsKeys.KEY_CC_TILE_CARD_SPECS, (known + customs).joinToString(","))
 }
 
 @Composable
@@ -421,7 +423,7 @@ private fun CustomTileSpecRow(onSelect: () -> Unit) {
                         val customs = text.split(',').map { it.trim().lowercase() }
                             .filter { it.isNotEmpty() }
                         Preferences.putString(
-                            Preferences.KEY_CC_TILE_CARD_SPECS, (known + customs).joinToString(",")
+                            SystemUiSettingsKeys.KEY_CC_TILE_CARD_SPECS, (known + customs).joinToString(",")
                         )
                         onSelect()
                         expanded = false

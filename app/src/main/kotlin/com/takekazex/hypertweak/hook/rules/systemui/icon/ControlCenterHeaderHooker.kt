@@ -1,5 +1,9 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import com.takekazex.hypertweak.settings.contract.ControlCenterPrivacyPolicy
+
+import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
+
 import android.content.Context
 import android.content.res.Configuration
 import android.content.res.Resources
@@ -51,8 +55,8 @@ object ControlCenterHeaderHooker : StaticHooker() {
 
     /** Configured visibility is retained across rotation. */
     fun twoLineConfigured(): Boolean =
-        Preferences.getBoolean(Preferences.KEY_CC_HIDE_DATE, false) &&
-            Preferences.getBoolean(Preferences.KEY_CC_CARRIER_TWO_LINE, false)
+        Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_HIDE_DATE, false) &&
+            Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_CARRIER_TWO_LINE, false)
 
     fun secondRowStatusIconsEnabled(context: Context): Boolean =
         twoLineConfigured() && supportsCompactLayout(context)
@@ -93,13 +97,13 @@ object ControlCenterHeaderHooker : StaticHooker() {
     }
 
     override fun onHook() {
-        carrierLeft = Preferences.getBoolean(Preferences.KEY_CC_CARRIER_LEFT, false)
-        hideDate = Preferences.getBoolean(Preferences.KEY_CC_HIDE_DATE, false)
+        carrierLeft = Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_CARRIER_LEFT, false)
+        hideDate = Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_HIDE_DATE, false)
         // Read the same placement policy before carrier recovery runs. This does not depend on
         // whether the replacement privacy hook has already attached or recovered its old views.
-        privacyEnabled = Preferences.getBoolean(Preferences.KEY_CC_PRIVACY_ENABLED, false)
-        privacyCentered = Preferences.getBoolean(Preferences.KEY_CC_PRIVACY_CENTER, true)
-        privacyOffset = Preferences.getInt(Preferences.KEY_CC_PRIVACY_OFFSET,
+        privacyEnabled = Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_PRIVACY_ENABLED, false)
+        privacyCentered = Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_PRIVACY_CENTER, true)
+        privacyOffset = Preferences.getInt(SystemUiSettingsKeys.KEY_CC_PRIVACY_OFFSET,
             ControlCenterPrivacyPolicy.DEFAULT_OFFSET).coerceIn(-16, 24)
         if (!carrierLeft && !hideDate) return
         val controller = CONTROLLER_CLASS.toClassOrNull() ?: return

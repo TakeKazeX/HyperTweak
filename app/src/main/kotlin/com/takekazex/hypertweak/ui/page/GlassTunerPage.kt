@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.ui.page
 
+import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
+
 import android.annotation.SuppressLint
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -144,12 +146,12 @@ fun GlassTunerPage(onBack: () -> Unit) {
         systemUiRestartPending = true
     }
 
-    val enabled = pref(Preferences.KEY_GLASS_TUNER_ENABLED, false)
-    val blendAlpha = pref(Preferences.KEY_GLASS_TUNER_BLEND_ALPHA, 1f)
-    val blendLightness = pref(Preferences.KEY_GLASS_TUNER_BLEND_LIGHTNESS, 1f)
-    val radiusScale = pref(Preferences.KEY_GLASS_TUNER_RADIUS_SCALE, 1f)
-    val glassOpacity = pref(Preferences.KEY_GLASS_TUNER_GLASS_OPACITY, 1f)
-    val glassTone = pref(Preferences.KEY_GLASS_TUNER_GLASS_TONE, 1f)
+    val enabled = pref(SystemUiSettingsKeys.KEY_GLASS_TUNER_ENABLED, false)
+    val blendAlpha = pref(SystemUiSettingsKeys.KEY_GLASS_TUNER_BLEND_ALPHA, 1f)
+    val blendLightness = pref(SystemUiSettingsKeys.KEY_GLASS_TUNER_BLEND_LIGHTNESS, 1f)
+    val radiusScale = pref(SystemUiSettingsKeys.KEY_GLASS_TUNER_RADIUS_SCALE, 1f)
+    val glassOpacity = pref(SystemUiSettingsKeys.KEY_GLASS_TUNER_GLASS_OPACITY, 1f)
+    val glassTone = pref(SystemUiSettingsKeys.KEY_GLASS_TUNER_GLASS_TONE, 1f)
 
     val bundledPreview = remember(context) { decodeBundledGlassPreviewSample(context) }
     var previewBitmap by remember { mutableStateOf(bundledPreview.bitmap) }
@@ -204,18 +206,18 @@ fun GlassTunerPage(onBack: () -> Unit) {
 
     fun applyTunerValues(values: GlassTunerValues) {
         requestRestartScopes(RestartScopeSelection(systemUi = true))
-        prefs[Preferences.KEY_GLASS_TUNER_ENABLED] = values.enabled
-        prefs[Preferences.KEY_GLASS_TUNER_BLEND_ALPHA] = values.blendAlpha
-        prefs[Preferences.KEY_GLASS_TUNER_BLEND_LIGHTNESS] = values.blendLightness
-        prefs[Preferences.KEY_GLASS_TUNER_RADIUS_SCALE] = values.radiusScale
-        prefs[Preferences.KEY_GLASS_TUNER_GLASS_OPACITY] = values.glassOpacity
-        prefs[Preferences.KEY_GLASS_TUNER_GLASS_TONE] = values.glassTone
-        Preferences.putBoolean(Preferences.KEY_GLASS_TUNER_ENABLED, values.enabled)
-        Preferences.putFloat(Preferences.KEY_GLASS_TUNER_BLEND_ALPHA, values.blendAlpha)
-        Preferences.putFloat(Preferences.KEY_GLASS_TUNER_BLEND_LIGHTNESS, values.blendLightness)
-        Preferences.putFloat(Preferences.KEY_GLASS_TUNER_RADIUS_SCALE, values.radiusScale)
-        Preferences.putFloat(Preferences.KEY_GLASS_TUNER_GLASS_OPACITY, values.glassOpacity)
-        Preferences.putFloat(Preferences.KEY_GLASS_TUNER_GLASS_TONE, values.glassTone)
+        prefs[SystemUiSettingsKeys.KEY_GLASS_TUNER_ENABLED] = values.enabled
+        prefs[SystemUiSettingsKeys.KEY_GLASS_TUNER_BLEND_ALPHA] = values.blendAlpha
+        prefs[SystemUiSettingsKeys.KEY_GLASS_TUNER_BLEND_LIGHTNESS] = values.blendLightness
+        prefs[SystemUiSettingsKeys.KEY_GLASS_TUNER_RADIUS_SCALE] = values.radiusScale
+        prefs[SystemUiSettingsKeys.KEY_GLASS_TUNER_GLASS_OPACITY] = values.glassOpacity
+        prefs[SystemUiSettingsKeys.KEY_GLASS_TUNER_GLASS_TONE] = values.glassTone
+        Preferences.putBoolean(SystemUiSettingsKeys.KEY_GLASS_TUNER_ENABLED, values.enabled)
+        Preferences.putFloat(SystemUiSettingsKeys.KEY_GLASS_TUNER_BLEND_ALPHA, values.blendAlpha)
+        Preferences.putFloat(SystemUiSettingsKeys.KEY_GLASS_TUNER_BLEND_LIGHTNESS, values.blendLightness)
+        Preferences.putFloat(SystemUiSettingsKeys.KEY_GLASS_TUNER_RADIUS_SCALE, values.radiusScale)
+        Preferences.putFloat(SystemUiSettingsKeys.KEY_GLASS_TUNER_GLASS_OPACITY, values.glassOpacity)
+        Preferences.putFloat(SystemUiSettingsKeys.KEY_GLASS_TUNER_GLASS_TONE, values.glassTone)
         previewBlendAlpha = values.blendAlpha
         previewBlendLightness = values.blendLightness
         previewRadiusScale = values.radiusScale
@@ -479,7 +481,7 @@ fun GlassTunerPage(onBack: () -> Unit) {
                 Column(Modifier.fillMaxWidth()) {
                     SwitchPreference(
                         checked = enabled,
-                        onCheckedChange = { changed(Preferences.KEY_GLASS_TUNER_ENABLED, it) },
+                        onCheckedChange = { changed(SystemUiSettingsKeys.KEY_GLASS_TUNER_ENABLED, it) },
                         title = stringResource(R.string.glass_custom_parameters),
                         summary = stringResource(R.string.glass_parameters_summary)
                     )
@@ -498,7 +500,7 @@ fun GlassTunerPage(onBack: () -> Unit) {
                                 defaultValue = 1f,
                                 format = { "${(it * 100).toInt()}%" },
                                 onValueChange = { previewBlendAlpha = it },
-                                onValueChangeFinished = { changed(Preferences.KEY_GLASS_TUNER_BLEND_ALPHA, it) },
+                                onValueChangeFinished = { changed(SystemUiSettingsKeys.KEY_GLASS_TUNER_BLEND_ALPHA, it) },
                             )
                             GlassSliderPreference(
                                 title = stringResource(R.string.glass_blend_lightness),
@@ -509,7 +511,7 @@ fun GlassTunerPage(onBack: () -> Unit) {
                                 defaultValue = 1f,
                                 format = { "${(it * 100).toInt()}%" },
                                 onValueChange = { previewBlendLightness = it },
-                                onValueChangeFinished = { changed(Preferences.KEY_GLASS_TUNER_BLEND_LIGHTNESS, it) },
+                                onValueChangeFinished = { changed(SystemUiSettingsKeys.KEY_GLASS_TUNER_BLEND_LIGHTNESS, it) },
                             )
                             GlassSliderPreference(
                                 title = stringResource(R.string.glass_blur_radius),
@@ -520,7 +522,7 @@ fun GlassTunerPage(onBack: () -> Unit) {
                                 defaultValue = 1f,
                                 format = { "${(it * 100).toInt()}%" },
                                 onValueChange = { previewRadiusScale = it },
-                                onValueChangeFinished = { changed(Preferences.KEY_GLASS_TUNER_RADIUS_SCALE, it) },
+                                onValueChangeFinished = { changed(SystemUiSettingsKeys.KEY_GLASS_TUNER_RADIUS_SCALE, it) },
                             )
                             GlassSliderPreference(
                                 title = stringResource(R.string.glass_glass_opacity),
@@ -531,7 +533,7 @@ fun GlassTunerPage(onBack: () -> Unit) {
                                 defaultValue = 1f,
                                 format = { "${(it * 100).toInt()}%" },
                                 onValueChange = { previewGlassOpacity = it },
-                                onValueChangeFinished = { changed(Preferences.KEY_GLASS_TUNER_GLASS_OPACITY, it) },
+                                onValueChangeFinished = { changed(SystemUiSettingsKeys.KEY_GLASS_TUNER_GLASS_OPACITY, it) },
                             )
                             GlassSliderPreference(
                                 title = stringResource(R.string.glass_glass_tone),
@@ -542,7 +544,7 @@ fun GlassTunerPage(onBack: () -> Unit) {
                                 defaultValue = 1f,
                                 format = { "${(it * 100).toInt()}%" },
                                 onValueChange = { previewGlassTone = it },
-                                onValueChangeFinished = { changed(Preferences.KEY_GLASS_TUNER_GLASS_TONE, it) },
+                                onValueChangeFinished = { changed(SystemUiSettingsKeys.KEY_GLASS_TUNER_GLASS_TONE, it) },
                             )
                         }
                     }
@@ -555,11 +557,11 @@ fun GlassTunerPage(onBack: () -> Unit) {
                             previewRadiusScale = 1f
                             previewGlassOpacity = 1f
                             previewGlassTone = 1f
-                            changed(Preferences.KEY_GLASS_TUNER_BLEND_ALPHA, 1f)
-                            changed(Preferences.KEY_GLASS_TUNER_BLEND_LIGHTNESS, 1f)
-                            changed(Preferences.KEY_GLASS_TUNER_RADIUS_SCALE, 1f)
-                            changed(Preferences.KEY_GLASS_TUNER_GLASS_OPACITY, 1f)
-                            changed(Preferences.KEY_GLASS_TUNER_GLASS_TONE, 1f)
+                            changed(SystemUiSettingsKeys.KEY_GLASS_TUNER_BLEND_ALPHA, 1f)
+                            changed(SystemUiSettingsKeys.KEY_GLASS_TUNER_BLEND_LIGHTNESS, 1f)
+                            changed(SystemUiSettingsKeys.KEY_GLASS_TUNER_RADIUS_SCALE, 1f)
+                            changed(SystemUiSettingsKeys.KEY_GLASS_TUNER_GLASS_OPACITY, 1f)
+                            changed(SystemUiSettingsKeys.KEY_GLASS_TUNER_GLASS_TONE, 1f)
                             Toast.makeText(context, R.string.glass_reset_done, Toast.LENGTH_SHORT).show()
                         },
                     )

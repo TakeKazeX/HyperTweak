@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.googleapp
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+
 import com.takekazex.hypertweak.hook.base.dex.DexContractMembers
 import android.content.Context
 import com.takekazex.hypertweak.hook.Preferences
@@ -106,7 +108,7 @@ object GoogleAppAskAboutScreenHooker : StaticHooker() {
     private val thumbnailOverrideLogged = AtomicBoolean()
 
     private fun featureEnabled(): Boolean {
-        enabledCache = Preferences.getBoolean(Preferences.KEY_ASK_ABOUT_SCREEN, false)
+        enabledCache = Preferences.getBoolean(PlatformSettingsKeys.KEY_ASK_ABOUT_SCREEN, false)
         return enabledCache
     }
 

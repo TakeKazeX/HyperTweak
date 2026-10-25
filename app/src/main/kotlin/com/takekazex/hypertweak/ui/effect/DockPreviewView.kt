@@ -7,11 +7,11 @@ import android.graphics.drawable.GradientDrawable
 import android.view.View
 import android.widget.FrameLayout
 import android.widget.ImageView
-import com.takekazex.hypertweak.dock.DockConfig
-import com.takekazex.hypertweak.dock.DockGeometry
+import com.takekazex.hypertweak.settings.contract.DockConfig
+import com.takekazex.hypertweak.settings.contract.DockGeometry
 import com.takekazex.hypertweak.dock.DockMaterialView
-import com.takekazex.hypertweak.dock.DockBounds
-import com.takekazex.hypertweak.dock.DockPreviewGeometry
+import com.takekazex.hypertweak.settings.contract.DockBounds
+import com.takekazex.hypertweak.settings.contract.DockPreviewGeometry
 import kotlin.math.roundToInt
 
 /** Icons are foreground siblings: changing the panel never moves or blurs the sample icons. */

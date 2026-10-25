@@ -1,4 +1,4 @@
-package com.takekazex.hypertweak.hook.rules.systemui.icon
+package com.takekazex.hypertweak.settings.contract
 
 /** Identity is per user, while repeated permission uses by one app share a label. */
 internal object ControlCenterPrivacyPolicy {

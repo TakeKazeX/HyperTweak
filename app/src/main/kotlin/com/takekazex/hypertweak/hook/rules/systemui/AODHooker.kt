@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui
 
+import com.takekazex.hypertweak.settings.contract.AodSettingsKeys
+
 import com.takekazex.hypertweak.hook.base.dex.DexContractMembers
 import android.app.Activity
 import android.content.Context
@@ -49,7 +51,7 @@ object AODHooker : StaticHooker() {
 
     override fun onHook() {
         generation++
-        enabled = Preferences.getBoolean(Preferences.KEY_AOD_FULLSCREEN, false)
+        enabled = Preferences.getBoolean(AodSettingsKeys.KEY_AOD_FULLSCREEN, false)
         val parser = "miui.util.FeatureParser".toClassOrNull() ?: return
         val get = parser.getDeclaredMethod("getBoolean", String::class.java, Boolean::class.javaPrimitiveType)
         // API-102 can attach this generation before the old generation's hook is removed.
@@ -131,7 +133,7 @@ object AODHooker : StaticHooker() {
 
     /** A capability update must update native caches and the already constructed manager too. */
     fun refreshSettings() = HostAccess.onMain {
-        val next = Preferences.getBoolean(Preferences.KEY_AOD_FULLSCREEN, false)
+        val next = Preferences.getBoolean(AodSettingsKeys.KEY_AOD_FULLSCREEN, false)
         val changed = next != enabled
         enabled = next
         capabilities.forEach { StaticFieldWriter.setBoolean(it, isFullscreenSupported()) }

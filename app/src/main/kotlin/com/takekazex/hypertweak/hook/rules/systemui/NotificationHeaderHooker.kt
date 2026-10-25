@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui
 
+import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
+
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 
 import android.content.Context
@@ -168,15 +170,15 @@ object NotificationHeaderHooker : StaticHooker() {
      */
     fun refreshSettings() {
         val previousWork = hasHeaderWork()
-        hideCarrier = Preferences.getBoolean(Preferences.KEY_NOTIFICATION_HEADER_HIDE_CARRIER, false)
-        hideTime = Preferences.getBoolean(Preferences.KEY_NOTIFICATION_HEADER_HIDE_TIME, false)
-        hideDate = Preferences.getBoolean(Preferences.KEY_NOTIFICATION_HEADER_HIDE_DATE, false)
-        dateAboveTime = Preferences.getBoolean(Preferences.KEY_NOTIFICATION_HEADER_DATE_ABOVE_TIME, false)
+        hideCarrier = Preferences.getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_HIDE_CARRIER, false)
+        hideTime = Preferences.getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_HIDE_TIME, false)
+        hideDate = Preferences.getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_HIDE_DATE, false)
+        dateAboveTime = Preferences.getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_DATE_ABOVE_TIME, false)
         dateAlignment = NotificationHeaderModel.normalizeAlignment(
-            Preferences.getInt(Preferences.KEY_NOTIFICATION_HEADER_DATE_ALIGNMENT, NotificationHeaderModel.ALIGN_START)
+            Preferences.getInt(SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_DATE_ALIGNMENT, NotificationHeaderModel.ALIGN_START)
         )
         timeAlignment = NotificationHeaderModel.normalizeAlignment(
-            Preferences.getInt(Preferences.KEY_NOTIFICATION_HEADER_TIME_ALIGNMENT, NotificationHeaderModel.ALIGN_START)
+            Preferences.getInt(SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_TIME_ALIGNMENT, NotificationHeaderModel.ALIGN_START)
         )
         timeScale = NotificationHeaderModel.normalizeTimeScale(Preferences.getNotificationHeaderTimeScale())
         layoutController.configure(
@@ -341,22 +343,22 @@ object NotificationHeaderHooker : StaticHooker() {
 
     override fun onHook() {
         restoring = false
-        hideCarrier = Preferences.getBoolean(Preferences.KEY_NOTIFICATION_HEADER_HIDE_CARRIER, false)
-        hideTime = Preferences.getBoolean(Preferences.KEY_NOTIFICATION_HEADER_HIDE_TIME, false)
-        hideDate = Preferences.getBoolean(Preferences.KEY_NOTIFICATION_HEADER_HIDE_DATE, false)
+        hideCarrier = Preferences.getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_HIDE_CARRIER, false)
+        hideTime = Preferences.getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_HIDE_TIME, false)
+        hideDate = Preferences.getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_HIDE_DATE, false)
         dateAboveTime = Preferences.getBoolean(
-            Preferences.KEY_NOTIFICATION_HEADER_DATE_ABOVE_TIME,
+            SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_DATE_ABOVE_TIME,
             false
         )
         dateAlignment = NotificationHeaderModel.normalizeAlignment(
             Preferences.getInt(
-                Preferences.KEY_NOTIFICATION_HEADER_DATE_ALIGNMENT,
+                SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_DATE_ALIGNMENT,
                 NotificationHeaderModel.ALIGN_START
             )
         )
         timeAlignment = NotificationHeaderModel.normalizeAlignment(
             Preferences.getInt(
-                Preferences.KEY_NOTIFICATION_HEADER_TIME_ALIGNMENT,
+                SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_TIME_ALIGNMENT,
                 NotificationHeaderModel.ALIGN_START
             )
         )

@@ -1,5 +1,11 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import com.takekazex.hypertweak.settings.contract.IconSlotPolicy
+
+import com.takekazex.hypertweak.settings.contract.IconSurface
+
+import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
+
 import com.takekazex.hypertweak.hook.base.HostAccess
 import android.content.Context
 import android.os.Handler
@@ -184,7 +190,7 @@ object IconPositionHooker : StaticHooker() {
         retiring = false
         IconTunerFlows.init(classLoader)
         options = IconTunerOptions.snapshot()
-        rowOverrides = Preferences.getStringSet(Preferences.KEY_CC_ICON_ROW_OVERRIDES, emptySet())
+        rowOverrides = Preferences.getStringSet(SystemUiSettingsKeys.KEY_CC_ICON_ROW_OVERRIDES, emptySet())
         hookStatusBarIconListFactory()
         hookIgnoredSlots()
         networkVisibility.clear()

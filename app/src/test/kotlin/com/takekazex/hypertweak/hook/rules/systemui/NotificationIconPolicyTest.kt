@@ -1,6 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui
 
-import com.takekazex.hypertweak.hook.Preferences
+import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
+
 import com.takekazex.hypertweak.hook.base.RuntimeSettingsGroups
 import org.junit.Assert.*
 import org.junit.Test
@@ -18,7 +19,7 @@ class NotificationIconPolicyTest {
     }
 
     @Test fun resettingModeDeliversTheDefaultToSystemUi() {
-        val key = Preferences.KEY_NOTIFICATION_ICON_FILTER_MODE
+        val key = SystemUiSettingsKeys.KEY_NOTIFICATION_ICON_FILTER_MODE
         val group = RuntimeSettingsGroups.NOTIFICATION_ICONS
         assertEquals(setOf(group), RuntimeSettingsGroups.affected(key))
         assertEquals(mapOf(key to 0), RuntimeSettingsGroups.subset("com.android.systemui", mapOf(key to 0)))

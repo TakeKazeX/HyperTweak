@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.screenshot
 
+
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 import com.takekazex.hypertweak.hook.base.dex.DexFeature
 import android.annotation.SuppressLint

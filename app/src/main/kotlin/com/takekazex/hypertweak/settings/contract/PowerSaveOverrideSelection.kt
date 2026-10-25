@@ -1,4 +1,4 @@
-package com.takekazex.hypertweak.hook.rules.securitycenter
+package com.takekazex.hypertweak.settings.contract
 
 /** Flatten the old master-gated snapshot without enabling dormant sibling switches. */
 internal object PowerSaveOverrideSelection {

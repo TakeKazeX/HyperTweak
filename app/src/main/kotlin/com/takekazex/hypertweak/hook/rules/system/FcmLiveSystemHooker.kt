@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.system
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ApplicationInfo
@@ -31,7 +33,7 @@ object FcmLiveSystemHooker : StaticHooker() {
     private var loggedImmutableWhiteList = false
 
     override fun onInit() {
-        if (!Preferences.getBoolean(Preferences.KEY_FCM_LIVE_ENABLED, false)) {
+        if (!Preferences.getBoolean(PlatformSettingsKeys.KEY_FCM_LIVE_ENABLED, false)) {
             DebugLog.d(hookerName, "FCM Live disabled by user preference")
             return
         }

@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui
 
+import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
+
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
@@ -141,11 +143,11 @@ object NotificationHeaderWeatherHooker : StaticHooker() {
      * installed for the process generation, exactly like a fresh install, so this needs no restart.
      */
     fun refreshSettings() {
-        val nextEnabled = Preferences.getBoolean(Preferences.KEY_NOTIFICATION_HEADER_WEATHER_ENABLED, false)
-        val nextRegion = Preferences.getBoolean(Preferences.KEY_NOTIFICATION_HEADER_WEATHER_REGION, false)
+        val nextEnabled = Preferences.getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_WEATHER_ENABLED, false)
+        val nextRegion = Preferences.getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_WEATHER_REGION, false)
         val nextType = NotificationHeaderModel.normalizeWeatherType(
             Preferences.getInt(
-                Preferences.KEY_NOTIFICATION_HEADER_WEATHER_TYPE,
+                SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_WEATHER_TYPE,
                 NotificationHeaderModel.WEATHER_CONDITION
             )
         )
@@ -190,11 +192,11 @@ object NotificationHeaderWeatherHooker : StaticHooker() {
 
     override fun onHook() {
         retiring = false
-        enabled = Preferences.getBoolean(Preferences.KEY_NOTIFICATION_HEADER_WEATHER_ENABLED, false)
-        showRegion = Preferences.getBoolean(Preferences.KEY_NOTIFICATION_HEADER_WEATHER_REGION, false)
+        enabled = Preferences.getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_WEATHER_ENABLED, false)
+        showRegion = Preferences.getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_WEATHER_REGION, false)
         weatherType = NotificationHeaderModel.normalizeWeatherType(
             Preferences.getInt(
-                Preferences.KEY_NOTIFICATION_HEADER_WEATHER_TYPE,
+                SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_WEATHER_TYPE,
                 NotificationHeaderModel.WEATHER_CONDITION
             )
         )

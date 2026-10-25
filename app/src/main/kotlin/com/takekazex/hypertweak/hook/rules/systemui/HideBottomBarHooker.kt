@@ -2,6 +2,10 @@
 
 package com.takekazex.hypertweak.hook.rules.systemui
 
+import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
+
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+
 import android.app.ActivityManager
 import android.app.KeyguardManager
 import android.content.Context
@@ -29,10 +33,10 @@ import java.util.concurrent.atomic.AtomicBoolean
  * bottom of the screen.
  *
  * Four independent switches share this one draw path, which is why they live in one hooker:
- * - [Preferences.KEY_HIDE_GESTURE_BAR] hides it everywhere (the original feature);
- * - [Preferences.KEY_HIDE_GESTURE_BAR_RECENTS] hides it only in recent tasks;
- * - [Preferences.KEY_HIDE_GESTURE_BAR_LAUNCHER] hides it only over the launcher's Home surface;
- * - [Preferences.KEY_GESTURE_BAR_ATTACH_TRANSITION] keeps it attached to the application during
+ * - [PlatformSettingsKeys.KEY_HIDE_GESTURE_BAR] hides it everywhere (the original feature);
+ * - [PlatformSettingsKeys.KEY_HIDE_GESTURE_BAR_RECENTS] hides it only in recent tasks;
+ * - [PlatformSettingsKeys.KEY_HIDE_GESTURE_BAR_LAUNCHER] hides it only over the launcher's Home surface;
+ * - [SystemUiSettingsKeys.KEY_GESTURE_BAR_ATTACH_TRANSITION] keeps it attached to the application during
  *   the swipe-up transition, which is what makes hiding it there look native.
  *
  * The desktop switch is decided by [LauncherHomePolicy] from the newest task of the primary
@@ -470,11 +474,11 @@ object HideBottomBarHooker : StaticHooker() {
     }
 
     private fun loadSettings() {
-        hideGestureBarEnabled = Preferences.getBoolean(Preferences.KEY_HIDE_GESTURE_BAR, false)
-        raiseLayoutEnabled = Preferences.getBoolean(Preferences.KEY_GESTURE_BAR_RAISE_LAYOUT, false)
-        hideInRecentsEnabled = Preferences.getBoolean(Preferences.KEY_HIDE_GESTURE_BAR_RECENTS, false)
-        hideInLauncherEnabled = Preferences.getBoolean(Preferences.KEY_HIDE_GESTURE_BAR_LAUNCHER, false)
-        attachTransitionEnabled = Preferences.getBoolean(Preferences.KEY_GESTURE_BAR_ATTACH_TRANSITION, false)
+        hideGestureBarEnabled = Preferences.getBoolean(PlatformSettingsKeys.KEY_HIDE_GESTURE_BAR, false)
+        raiseLayoutEnabled = Preferences.getBoolean(SystemUiSettingsKeys.KEY_GESTURE_BAR_RAISE_LAYOUT, false)
+        hideInRecentsEnabled = Preferences.getBoolean(PlatformSettingsKeys.KEY_HIDE_GESTURE_BAR_RECENTS, false)
+        hideInLauncherEnabled = Preferences.getBoolean(PlatformSettingsKeys.KEY_HIDE_GESTURE_BAR_LAUNCHER, false)
+        attachTransitionEnabled = Preferences.getBoolean(SystemUiSettingsKeys.KEY_GESTURE_BAR_ATTACH_TRANSITION, false)
     }
 
     // ── Evidence → state ─────────────────────────────────────────────────────────

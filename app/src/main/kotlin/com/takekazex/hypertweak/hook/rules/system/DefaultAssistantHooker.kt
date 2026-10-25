@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.system
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
@@ -456,7 +458,7 @@ object DefaultAssistantHooker : StaticHooker() {
     // ─── Platform access ──────────────────────────────────────────────────────
 
     private fun isDefaultAssistantAction(): Boolean =
-        Preferences.powerButtonAction() == Preferences.POWER_BUTTON_ACTION_DEFAULT_ASSISTANT
+        Preferences.powerButtonAction() == PlatformSettingsKeys.POWER_BUTTON_ACTION_DEFAULT_ASSISTANT
 
     private fun currentAssistantSetting(context: Context): String? =
         runCatching { Settings.Secure.getString(context.contentResolver, SETTING_ASSISTANT) }

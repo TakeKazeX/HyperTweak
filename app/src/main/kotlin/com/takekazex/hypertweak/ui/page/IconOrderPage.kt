@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.ui.page
 
+import com.takekazex.hypertweak.settings.contract.IconTunerContract
+
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -46,9 +48,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.hook.Preferences
-import com.takekazex.hypertweak.hook.rules.systemui.icon.IconSlotPolicy
-import com.takekazex.hypertweak.hook.rules.systemui.icon.IconSlotPolicyConfig
-import com.takekazex.hypertweak.hook.rules.systemui.icon.IconTunerOptions
+import com.takekazex.hypertweak.settings.contract.IconSlotPolicy
+import com.takekazex.hypertweak.settings.contract.IconSlotPolicyConfig
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import top.yukonga.miuix.kmp.basic.Card
@@ -106,7 +107,7 @@ fun IconOrderPage(onBack: () -> Unit) {
     val viewport = remember { OrderViewport() }
 
     val storedEntries = remember {
-        Preferences.getStringSet(IconTunerOptions.KEY_POSITION_VALUES, emptySet())
+        Preferences.getStringSet(IconTunerContract.KEY_POSITION_VALUES, emptySet())
     }
     // Entries the catalog cannot draw are carried over verbatim: the user never sees them here,
     // and dropping them would silently undo an older hand-written configuration.
@@ -120,13 +121,13 @@ fun IconOrderPage(onBack: () -> Unit) {
     var position by rememberSaveable {
         mutableIntStateOf(
             Preferences.getInt(
-                IconTunerOptions.KEY_POSITION,
+                IconTunerContract.KEY_POSITION,
                 IconSlotPolicyConfig.POSITION_SYSTEM
             )
         )
     }
     var reorderHidden by rememberSaveable {
-        mutableStateOf(Preferences.getBoolean(IconTunerOptions.KEY_POSITION_REORDER, false))
+        mutableStateOf(Preferences.getBoolean(IconTunerContract.KEY_POSITION_REORDER, false))
     }
     var order by rememberSaveable {
         mutableStateOf(IconSlotPolicy.displayOrder(storedEntries, IconSlotCatalog.orderSlots))
@@ -135,7 +136,7 @@ fun IconOrderPage(onBack: () -> Unit) {
     /** Stores the displayed order plus the carry-over entries the list cannot show. */
     fun persistOrder(slots: List<String>) {
         Preferences.putStringSet(
-            IconTunerOptions.KEY_POSITION_VALUES,
+            IconTunerContract.KEY_POSITION_VALUES,
             IconSlotPolicy.orderEntries(slots + offCatalogSlots)
         )
     }
@@ -192,7 +193,7 @@ fun IconOrderPage(onBack: () -> Unit) {
                             selectedIndex = position.coerceIn(0, positions.lastIndex),
                             onSelectedIndexChange = { index ->
                                 position = index
-                                Preferences.putInt(IconTunerOptions.KEY_POSITION, index)
+                                Preferences.putInt(IconTunerContract.KEY_POSITION, index)
                             }
                         )
                         SwitchPreference(
@@ -200,7 +201,7 @@ fun IconOrderPage(onBack: () -> Unit) {
                             onCheckedChange = { checked ->
                                 reorderHidden = checked
                                 Preferences.putBoolean(
-                                    IconTunerOptions.KEY_POSITION_REORDER,
+                                    IconTunerContract.KEY_POSITION_REORDER,
                                     checked
                                 )
                             },
@@ -231,7 +232,7 @@ fun IconOrderPage(onBack: () -> Unit) {
                                     // only: an empty set is the stored form of "system order".
                                     order = IconSlotCatalog.orderSlots
                                     Preferences.putStringSet(
-                                        IconTunerOptions.KEY_POSITION_VALUES,
+                                        IconTunerContract.KEY_POSITION_VALUES,
                                         IconSlotPolicy.orderEntries(offCatalogSlots)
                                     )
                                     },

@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.securitycenter
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.DynamicHooker
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
@@ -30,10 +32,10 @@ object CarrierOfflineConfigHooker : DynamicHooker() {
         val (targetClass, key) = when {
             hookParam.packageName == SECURITY_CENTER &&
                 (hookParam.processName == SECURITY_CENTER || hookParam.processName == "$SECURITY_CENTER.remote") ->
-                NETWORK_ASSISTANT_MODEL to Preferences.KEY_NETWORK_ASSISTANT_IGNORE_OFFLINE
+                NETWORK_ASSISTANT_MODEL to PlatformSettingsKeys.KEY_NETWORK_ASSISTANT_IGNORE_OFFLINE
             hookParam.packageName == CONTACTS &&
                 (hookParam.processName == CONTACTS || hookParam.processName == "$CONTACTS:business") ->
-                CONTACTS_BUSINESS_MODEL to Preferences.KEY_CONTACTS_BUSINESS_HALL_IGNORE_OFFLINE
+                CONTACTS_BUSINESS_MODEL to PlatformSettingsKeys.KEY_CONTACTS_BUSINESS_HALL_IGNORE_OFFLINE
             else -> return
         }
         val apkPath = hookParam.appInfo?.sourceDir?.takeIf(String::isNotBlank) ?: run {

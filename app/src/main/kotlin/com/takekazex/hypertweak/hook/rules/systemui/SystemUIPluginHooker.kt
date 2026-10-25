@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui
 
+import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
+
 import com.takekazex.hypertweak.hook.rules.systemui.island.ThreeIslandHooker
 import com.takekazex.hypertweak.hook.rules.systemui.island.IslandTimeFontHooker
 import com.takekazex.hypertweak.hook.rules.systemui.island.LiveUpdateIconHooker
@@ -7,7 +9,6 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.pm.ApplicationInfo
-import android.util.Log
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.HotReloadPluginState
 import com.takekazex.hypertweak.hook.base.StaticHooker
@@ -111,9 +112,9 @@ object SystemUIPluginHooker : StaticHooker() {
 
     /** Attaches an optional sub-hooker the first time its switch is on; the switch alone skips it. */
     private fun ensureOptionalHookers(session: PluginHookSession) {
-        val edit = Preferences.getBoolean(Preferences.KEY_CC_EDIT_ENABLED, false)
-        val resize = Preferences.getBoolean(Preferences.KEY_CC_RESIZE_ENABLED, false)
-        val deviceIcon = Preferences.getBoolean(Preferences.KEY_MEDIA_CARD_HIDE_DEVICE_SWITCH, false)
+        val edit = Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_EDIT_ENABLED, false)
+        val resize = Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_RESIZE_ENABLED, false)
+        val deviceIcon = Preferences.getBoolean(SystemUiSettingsKeys.KEY_MEDIA_CARD_HIDE_DEVICE_SWITCH, false)
         val loader = session.classLoader
         if (edit && session.cardsEditHooker == null) {
             val hooker = ControlCenterCardsEditHooker()
@@ -165,7 +166,6 @@ object SystemUIPluginHooker : StaticHooker() {
         val clzPluginInstance = "com.android.systemui.shared.plugins.PluginInstance".toClassOrNull()
         if (clzPluginInstance == null) {
             DebugLog.hookSkipped("SystemUIPlugin", "PluginInstance", "class not found")
-            Log.e("HyperTweak", "SystemUIPluginHooker: com.android.systemui.shared.plugins.PluginInstance class not found")
             return
         }
 
@@ -179,7 +179,7 @@ object SystemUIPluginHooker : StaticHooker() {
                         // short names; accept both so one hooker covers both plugin generations.
                         val componentName = readPluginField(pluginInstance, "mComponentName", "componentName") as? ComponentName
 
-                        Log.i("HyperTweak", "SystemUIPluginHooker: loadPlugin component=$componentName")
+                        DebugLog.d("SystemUIPlugin", "loadPlugin component=$componentName")
                         if (componentName != null &&
                             (isControlCenterPlugin(componentName) || isAodPlugin(componentName))) {
                             attachPluginHooker(pluginInstance, componentName)
@@ -189,7 +189,6 @@ object SystemUIPluginHooker : StaticHooker() {
             }
         } ?: run {
             DebugLog.hookSkipped("SystemUIPlugin", "PluginInstance#loadPlugin", "method not found")
-            Log.e("HyperTweak", "SystemUIPluginHooker: loadPlugin method not found")
         }
 
         // Hook unloadPlugin() to release hooks and prevent leaks when plugin is unloaded
@@ -242,7 +241,6 @@ object SystemUIPluginHooker : StaticHooker() {
             }
         } ?: run {
             DebugLog.hookSkipped("SystemUIPlugin", "PluginInstance#unloadPlugin", "method not found")
-            Log.e("HyperTweak", "SystemUIPluginHooker: unloadPlugin method not found")
         }
     }
 
@@ -278,22 +276,21 @@ object SystemUIPluginHooker : StaticHooker() {
         val classLoader = (appContext as? ContextWrapper)?.classLoader
             ?: plugin?.javaClass?.classLoader
             ?: readPluginField(pluginInstance, "mClassLoader") as? ClassLoader
-        Log.i(
-            "HyperTweak",
+        DebugLog.d(
+            "SystemUIPlugin",
             "SystemUIPluginHooker: loaded component=$componentName " +
                 "plugin=${plugin?.javaClass?.name} loader=${classLoader?.javaClass?.name}"
         )
         if (classLoader == null) {
             DebugLog.hookFailed("SystemUIPlugin", "PluginInstance#loadPlugin classLoader", null)
-            Log.e("HyperTweak", "SystemUIPluginHooker: failed to extract loaded plugin ClassLoader")
             return
         }
         if (isControlCenterPlugin(componentName)) {
             runCatching {
                 classLoader.loadClass("miui.systemui.controlcenter.panel.main.recyclerview.MainPanelAdapter")
-                Log.i("HyperTweak", "SystemUIPluginHooker: plugin MainPanelAdapter resolved")
+                DebugLog.d("SystemUIPlugin", "plugin MainPanelAdapter resolved")
             }.onFailure { t ->
-                Log.w("HyperTweak", "SystemUIPluginHooker: plugin MainPanelAdapter unresolved", t)
+                DebugLog.w("SystemUIPlugin", "plugin MainPanelAdapter unresolved", t)
             }
         }
 
@@ -326,7 +323,7 @@ object SystemUIPluginHooker : StaticHooker() {
         val hooker = if (state.appContext != null && state.pluginApkPath.isNotEmpty()) {
             SliderPercentageHooker(state.appContext, state.pluginApkPath)
         } else {
-            Log.w("HyperTweak", "SystemUIPluginHooker: Missing context or APK paths, instantiating with default fallback")
+            DebugLog.w("SystemUIPlugin", "Missing context or APK paths, instantiating with default fallback")
             SliderPercentageHooker()
         }
         val cornerHooker = if (state.appContext != null && state.pluginApkPath.isNotEmpty()) {
@@ -355,13 +352,13 @@ object SystemUIPluginHooker : StaticHooker() {
                 mediaSuperIslandWhitelistHooker = mediaSuperIslandWhitelistHooker,
                 classLoader = state.classLoader
             ).also { session ->
-                if (Preferences.getBoolean(Preferences.KEY_CC_EDIT_ENABLED, false)) {
+                if (Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_EDIT_ENABLED, false)) {
                     session.cardsEditHooker = ControlCenterCardsEditHooker()
                 }
-                if (Preferences.getBoolean(Preferences.KEY_CC_RESIZE_ENABLED, false)) {
+                if (Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_RESIZE_ENABLED, false)) {
                     session.cardResizeHooker = ControlCenterCardResizeHooker()
                 }
-                if (Preferences.getBoolean(Preferences.KEY_MEDIA_CARD_HIDE_DEVICE_SWITCH, false)) {
+                if (Preferences.getBoolean(SystemUiSettingsKeys.KEY_MEDIA_CARD_HIDE_DEVICE_SWITCH, false)) {
                     session.mediaDeviceIconHooker = MediaPlayerDeviceIconHooker()
                 }
             }
@@ -402,12 +399,10 @@ object SystemUIPluginHooker : StaticHooker() {
             runCatching { attach(hooker, state.classLoader) }
                 .onFailure { t ->
                     DebugLog.e("SystemUIPlugin", "failed to attach slider-percent plugin hook", t)
-                    Log.e("HyperTweak", "SystemUIPluginHooker: slider-percent attach failed", t)
                 }
             runCatching { attach(cornerHooker, state.classLoader) }
                 .onFailure { t ->
                     DebugLog.e("SystemUIPlugin", "failed to attach corner plugin hook", t)
-                    Log.e("HyperTweak", "SystemUIPluginHooker: corner attach failed", t)
                 }
             runCatching { attach(session.tileMessageHooker, state.classLoader) }
                 .onFailure { DebugLog.e("SystemUIPlugin", "failed to attach tile-message duration", it) }
@@ -417,28 +412,24 @@ object SystemUIPluginHooker : StaticHooker() {
                 runCatching { attach(cardsEditHooker, state.classLoader) }
                     .onFailure { t ->
                         DebugLog.e("SystemUIPlugin", "failed to attach cards-edit plugin hook", t)
-                        Log.e("HyperTweak", "SystemUIPluginHooker: cards-edit attach failed", t)
                     }
             }
             if (cardResizeHooker != null) {
                 runCatching { attach(cardResizeHooker, state.classLoader) }
                     .onFailure { t ->
                         DebugLog.e("SystemUIPlugin", "failed to attach card-resize plugin hook", t)
-                        Log.e("HyperTweak", "SystemUIPluginHooker: card-resize attach failed", t)
                     }
             }
             if (mediaDeviceIconHooker != null) {
                 runCatching { attach(mediaDeviceIconHooker, state.classLoader) }
                     .onFailure { t ->
                         DebugLog.e("SystemUIPlugin", "failed to attach media-device-icon plugin hook", t)
-                        Log.e("HyperTweak", "SystemUIPluginHooker: media-device-icon attach failed", t)
                     }
             }
             run {
                 runCatching { attach(mediaSuperIslandWhitelistHooker, state.classLoader) }
                     .onFailure { t ->
                         DebugLog.e("SystemUIPlugin", "failed to attach media Super Island plugin hook", t)
-                        Log.e("HyperTweak", "SystemUIPluginHooker: media Super Island attach failed", t)
                     }
             }
         } finally { sharedSession?.close() }

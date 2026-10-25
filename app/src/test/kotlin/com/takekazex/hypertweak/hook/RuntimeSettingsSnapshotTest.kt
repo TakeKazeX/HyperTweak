@@ -1,5 +1,11 @@
 package com.takekazex.hypertweak.hook
 
+import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
+
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+
+import com.takekazex.hypertweak.settings.contract.BackGestureKeys
+
 import com.takekazex.hypertweak.hook.base.RuntimeSettingsGroups
 import org.junit.Assert.*
 import org.junit.Test
@@ -38,24 +44,24 @@ class RuntimeSettingsSnapshotTest {
     }
     @Test fun islandCommitsReachTheSameLedgerAndResetCannotResurrectRemoteTrue() {
         val ledger = RuntimeSettingsLedger()
-        val enabled = RuntimeSettingsSnapshot.read(1, mapOf(Preferences.KEY_THREE_ISLANDS to true,
-            Preferences.KEY_ISLAND_NARROW_TIME_FONT to true))!!
+        val enabled = RuntimeSettingsSnapshot.read(1, mapOf(PlatformSettingsKeys.KEY_THREE_ISLANDS to true,
+            PlatformSettingsKeys.KEY_ISLAND_NARROW_TIME_FONT to true))!!
         assertTrue(ledger.accept(enabled))
-        val disabled = enabled.mutate(Preferences.KEY_THREE_ISLANDS, false, 2)!!
+        val disabled = enabled.mutate(PlatformSettingsKeys.KEY_THREE_ISLANDS, false, 2)!!
         assertEquals(setOf(RuntimeSettingsGroups.ISLANDS), ledger.changedGroups(disabled))
         assertTrue(ledger.accept(disabled))
-        assertEquals(false, ledger.value(Preferences.KEY_THREE_ISLANDS))
+        assertEquals(false, ledger.value(PlatformSettingsKeys.KEY_THREE_ISLANDS))
         assertTrue(ledger.accept(RuntimeSettingsSnapshot.read(3, emptyMap<String, Any>())!!))
-        assertTrue(ledger.owns(Preferences.KEY_THREE_ISLANDS))
-        assertNull(ledger.value(Preferences.KEY_THREE_ISLANDS))
+        assertTrue(ledger.owns(PlatformSettingsKeys.KEY_THREE_ISLANDS))
+        assertNull(ledger.value(PlatformSettingsKeys.KEY_THREE_ISLANDS))
         assertFalse(ledger.accept(enabled))
     }
     @Test fun settingRegistryRoutesIslandKeysWithoutUnrelatedIconRebuilds() {
-        listOf(Preferences.KEY_REMOVE_ISLAND_PLACEHOLDER, Preferences.KEY_THREE_ISLANDS, Preferences.KEY_LANDSCAPE_FULL_ISLANDS,
-            Preferences.KEY_LANDSCAPE_MORE_ISLANDS, Preferences.KEY_CC_HIDE_SUPER_ISLAND,
-            Preferences.KEY_ISLAND_NARROW_TIME_FONT, Preferences.KEY_ISLAND_LIVE_UPDATE_ICON,
-            Preferences.KEY_MEDIA_SUPER_ISLAND_UNLOCK_WHITELIST,
-            Preferences.KEY_FOCUS_NOTIFICATION_UNLOCK_WHITELIST).forEach { key ->
+        listOf(PlatformSettingsKeys.KEY_REMOVE_ISLAND_PLACEHOLDER, PlatformSettingsKeys.KEY_THREE_ISLANDS, PlatformSettingsKeys.KEY_LANDSCAPE_FULL_ISLANDS,
+            PlatformSettingsKeys.KEY_LANDSCAPE_MORE_ISLANDS, SystemUiSettingsKeys.KEY_CC_HIDE_SUPER_ISLAND,
+            PlatformSettingsKeys.KEY_ISLAND_NARROW_TIME_FONT, PlatformSettingsKeys.KEY_ISLAND_LIVE_UPDATE_ICON,
+            PlatformSettingsKeys.KEY_MEDIA_SUPER_ISLAND_UNLOCK_WHITELIST,
+            PlatformSettingsKeys.KEY_FOCUS_NOTIFICATION_UNLOCK_WHITELIST).forEach { key ->
             assertTrue(key, RuntimeSettingsSnapshot.owns(key))
             assertEquals(key, setOf(RuntimeSettingsGroups.ISLANDS), RuntimeSettingsGroups.affected(key))
         }
@@ -69,7 +75,7 @@ class RuntimeSettingsSnapshotTest {
         )))
     }
     @Test fun floatWhitelistSwitchRoutesLiveAndResetDropsOldPackageSnapshot() {
-        val key = Preferences.KEY_NOTIFICATION_WHITELIST_BYPASS
+        val key = SystemUiSettingsKeys.KEY_NOTIFICATION_WHITELIST_BYPASS
         assertEquals(setOf(RuntimeSettingsGroups.NOTIFICATION_WHITELIST), RuntimeSettingsGroups.affected(key))
         assertTrue(RuntimeSettingsGroups.owns("com.android.systemui", key))
         assertFalse(RuntimeSettingsGroups.owns("com.android.settings", key))
@@ -103,11 +109,11 @@ class RuntimeSettingsSnapshotTest {
 
     @Test fun securityChecksAndCarrierKeysRouteToTheirHostsAndRequireBooleans() {
         val securityKeys = setOf(
-            Preferences.KEY_SECURITY_CENTER_SKIP_LOCAL_SU_CHECK,
-            Preferences.KEY_SECURITY_CENTER_DISABLE_SAFEPAY_AUTO_SCAN,
-            Preferences.KEY_SECURITY_CENTER_DISABLE_ROOT_SCAN_ITEM,
-            Preferences.KEY_SECURITY_CENTER_DISABLE_USB_INSTALL_INTERCEPT,
-            Preferences.KEY_SECURITY_CENTER_BYPASS_USB_INSTALL_NETWORK_VERIFY,
+            PlatformSettingsKeys.KEY_SECURITY_CENTER_SKIP_LOCAL_SU_CHECK,
+            PlatformSettingsKeys.KEY_SECURITY_CENTER_DISABLE_SAFEPAY_AUTO_SCAN,
+            PlatformSettingsKeys.KEY_SECURITY_CENTER_DISABLE_ROOT_SCAN_ITEM,
+            PlatformSettingsKeys.KEY_SECURITY_CENTER_DISABLE_USB_INSTALL_INTERCEPT,
+            PlatformSettingsKeys.KEY_SECURITY_CENTER_BYPASS_USB_INSTALL_NETWORK_VERIFY,
         )
         securityKeys.forEach { key ->
             assertEquals(setOf(RuntimeSettingsGroups.SECURITY_CHECKS), RuntimeSettingsGroups.affected(key))
@@ -115,17 +121,17 @@ class RuntimeSettingsSnapshotTest {
             assertNull(RuntimeSettingsSnapshot.read(1, mapOf(key to 1)))
         }
         assertEquals(setOf(RuntimeSettingsGroups.SECURITY_CHECKS), RuntimeSettingsGroups.affected(
-            Preferences.KEY_GUARD_PROVIDER_DISABLE_ENVIRONMENT_CHECK
+            PlatformSettingsKeys.KEY_GUARD_PROVIDER_DISABLE_ENVIRONMENT_CHECK
         ))
-        assertTrue(RuntimeSettingsGroups.owns("com.miui.guardprovider", Preferences.KEY_GUARD_PROVIDER_DISABLE_ENVIRONMENT_CHECK))
+        assertTrue(RuntimeSettingsGroups.owns("com.miui.guardprovider", PlatformSettingsKeys.KEY_GUARD_PROVIDER_DISABLE_ENVIRONMENT_CHECK))
         assertEquals(setOf(RuntimeSettingsGroups.OFFLINE_CONFIG), RuntimeSettingsGroups.affected(
-            Preferences.KEY_NETWORK_ASSISTANT_IGNORE_OFFLINE
+            PlatformSettingsKeys.KEY_NETWORK_ASSISTANT_IGNORE_OFFLINE
         ))
         assertEquals(setOf(RuntimeSettingsGroups.OFFLINE_CONFIG), RuntimeSettingsGroups.affected(
-            Preferences.KEY_CONTACTS_BUSINESS_HALL_IGNORE_OFFLINE
+            PlatformSettingsKeys.KEY_CONTACTS_BUSINESS_HALL_IGNORE_OFFLINE
         ))
-        assertTrue(RuntimeSettingsGroups.owns("com.miui.securitycenter", Preferences.KEY_NETWORK_ASSISTANT_IGNORE_OFFLINE))
-        assertTrue(RuntimeSettingsGroups.owns("com.android.contacts", Preferences.KEY_CONTACTS_BUSINESS_HALL_IGNORE_OFFLINE))
+        assertTrue(RuntimeSettingsGroups.owns("com.miui.securitycenter", PlatformSettingsKeys.KEY_NETWORK_ASSISTANT_IGNORE_OFFLINE))
+        assertTrue(RuntimeSettingsGroups.owns("com.android.contacts", PlatformSettingsKeys.KEY_CONTACTS_BUSINESS_HALL_IGNORE_OFFLINE))
         assertEquals("com.miui.securitycenter", RuntimeSettingsGroups.target("com.miui.securitycenter.remote"))
         assertEquals("com.miui.securitycenter", RuntimeSettingsGroups.target("com.miui.securitycenter.cache"))
         assertTrue(RuntimeSettingsGroups.forProcess("com.miui.securitycenter.remote").contains(RuntimeSettingsGroups.OFFLINE_CONFIG))
@@ -143,26 +149,26 @@ class RuntimeSettingsSnapshotTest {
         assertEquals(true, restored.value("icon_duo_enabled"))
         val upgraded = RuntimeSettingsSnapshot.read(2, mapOf(
             "icon_duo_enabled" to true,
-            Preferences.KEY_GUARD_PROVIDER_DISABLE_ENVIRONMENT_CHECK to true,
-            Preferences.KEY_SECURITY_CENTER_SKIP_LOCAL_SU_CHECK to false,
-            Preferences.KEY_CONTACTS_BUSINESS_HALL_IGNORE_OFFLINE to false,
+            PlatformSettingsKeys.KEY_GUARD_PROVIDER_DISABLE_ENVIRONMENT_CHECK to true,
+            PlatformSettingsKeys.KEY_SECURITY_CENTER_SKIP_LOCAL_SU_CHECK to false,
+            PlatformSettingsKeys.KEY_CONTACTS_BUSINESS_HALL_IGNORE_OFFLINE to false,
         ))!!
         assertEquals(setOf(RuntimeSettingsGroups.SECURITY_CHECKS, RuntimeSettingsGroups.OFFLINE_CONFIG),
             RuntimeSettingsGroups.changed(legacy.values, upgraded.values))
         assertTrue(restored.accept(upgraded))
-        assertEquals(true, restored.value(Preferences.KEY_GUARD_PROVIDER_DISABLE_ENVIRONMENT_CHECK))
-        assertEquals(false, restored.value(Preferences.KEY_SECURITY_CENTER_SKIP_LOCAL_SU_CHECK))
+        assertEquals(true, restored.value(PlatformSettingsKeys.KEY_GUARD_PROVIDER_DISABLE_ENVIRONMENT_CHECK))
+        assertEquals(false, restored.value(PlatformSettingsKeys.KEY_SECURITY_CENTER_SKIP_LOCAL_SU_CHECK))
         val reset = RuntimeSettingsSnapshot.read(3, emptyMap<String, Any>())!!
         assertTrue(restored.accept(reset))
-        assertTrue(restored.owns(Preferences.KEY_SECURITY_CENTER_SKIP_LOCAL_SU_CHECK))
-        assertNull(restored.value(Preferences.KEY_SECURITY_CENTER_SKIP_LOCAL_SU_CHECK))
+        assertTrue(restored.owns(PlatformSettingsKeys.KEY_SECURITY_CENTER_SKIP_LOCAL_SU_CHECK))
+        assertNull(restored.value(PlatformSettingsKeys.KEY_SECURITY_CENTER_SKIP_LOCAL_SU_CHECK))
         assertNull(RuntimeSettingsSnapshot.read(4, mapOf(
-            Preferences.KEY_GUARD_PROVIDER_DISABLE_ENVIRONMENT_CHECK to "true"
+            PlatformSettingsKeys.KEY_GUARD_PROVIDER_DISABLE_ENVIRONMENT_CHECK to "true"
         )))
     }
     @Test fun dropdownSelectionKeepsBothFlagsInOneAcknowledgedGeneration() {
-        val indicator = Preferences.KEY_BACK_GESTURE_HYPEROS_INDICATOR
-        val material = Preferences.KEY_BACK_GESTURE_INDICATOR_BLUR
+        val indicator = BackGestureKeys.KEY_BACK_GESTURE_HYPEROS_INDICATOR
+        val material = BackGestureKeys.KEY_BACK_GESTURE_INDICATOR_BLUR
         val baseline = RuntimeSettingsSnapshot.read(1, mapOf(indicator to false, material to false))!!
         val selection = RuntimeSettingsSnapshot.read(2, baseline.values + mapOf(indicator to true, material to true))!!
         val ledger = RuntimeSettingsLedger()

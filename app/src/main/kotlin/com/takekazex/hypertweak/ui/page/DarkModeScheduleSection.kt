@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.ui.page
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.*
@@ -17,11 +19,11 @@ import top.yukonga.miuix.kmp.preference.SwitchPreference
 
 @Composable
 internal fun DarkModeScheduleSection() {
-    var enabled by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_DARK_MODE_IMMEDIATE_SCHEDULE, false)) }
+    var enabled by remember { mutableStateOf(Preferences.getBoolean(PlatformSettingsKeys.KEY_DARK_MODE_IMMEDIATE_SCHEDULE, false)) }
     val lifecycle = LocalLifecycleOwner.current.lifecycle.currentStateAsState().value
     LaunchedEffect(lifecycle) {
         if (lifecycle == Lifecycle.State.RESUMED) {
-            enabled = Preferences.getBoolean(Preferences.KEY_DARK_MODE_IMMEDIATE_SCHEDULE, false)
+            enabled = Preferences.getBoolean(PlatformSettingsKeys.KEY_DARK_MODE_IMMEDIATE_SCHEDULE, false)
         }
     }
     SmallTitle(stringResource(R.string.dark_mode_schedule_section))
@@ -30,7 +32,7 @@ internal fun DarkModeScheduleSection() {
             checked = enabled,
             onCheckedChange = {
                 enabled = it
-                Preferences.putBoolean(Preferences.KEY_DARK_MODE_IMMEDIATE_SCHEDULE, it)
+                Preferences.putBoolean(PlatformSettingsKeys.KEY_DARK_MODE_IMMEDIATE_SCHEDULE, it)
             },
             title = stringResource(R.string.dark_mode_schedule_immediate),
             summary = stringResource(R.string.dark_mode_schedule_immediate_summary)

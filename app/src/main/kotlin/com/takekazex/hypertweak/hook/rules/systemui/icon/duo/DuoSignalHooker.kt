@@ -1,6 +1,12 @@
 @file:Suppress("StaticFieldLeak")
 package com.takekazex.hypertweak.hook.rules.systemui.icon.duo
 
+import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
+
+import com.takekazex.hypertweak.settings.contract.AodSettingsKeys
+
+import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
+
 import android.animation.ValueAnimator
 import android.view.animation.LinearInterpolator
 import android.content.Context
@@ -33,8 +39,9 @@ import com.takekazex.hypertweak.hook.rules.systemui.AODHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.HostFlowCollector
 import com.takekazex.hypertweak.hook.rules.systemui.icon.HostIconBridge
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IconSvgRenderer
-import com.takekazex.hypertweak.hook.rules.systemui.icon.SignalSvgStyle
+import com.takekazex.hypertweak.settings.contract.SignalSvgStyle
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IconSvgRepository
+import com.takekazex.hypertweak.hook.rules.systemui.icon.SignalHandoverEvents
 import com.takekazex.hypertweak.hook.rules.systemui.icon.ControlCenterCarrierBlockHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.ControlCenterHeaderHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IconPositionHooker
@@ -165,7 +172,7 @@ object DuoSignalHooker : StaticHooker() {
     private class DuoView(context: Context) : View(context) {
         val icon = DuoDrawable(context).also {
             it.callback = this
-            it.mirrorAirplane = Preferences.getBoolean(Preferences.KEY_ICON_MIRROR_AIRPLANE, false)
+            it.mirrorAirplane = Preferences.getBoolean(IconSettingsKeys.KEY_ICON_MIRROR_AIRPLANE, false)
         }
         var drawFailed: ((Throwable) -> Unit)? = null
         private var reportedDrawFailure = false
@@ -448,33 +455,37 @@ object DuoSignalHooker : StaticHooker() {
 
     override fun onHook() {
         epoch++
-        dataFirst = Preferences.getInt(Preferences.KEY_ICON_MOBILE_ROW_STYLE, 0) == 1
+        dataFirst = Preferences.getInt(IconSettingsKeys.KEY_ICON_MOBILE_ROW_STYLE, 0) == 1
         small5GaEnabled = Preferences.getBoolean(
-            Preferences.KEY_ICON_CELLULAR_TYPE_SMALL_5GA,
+            IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_SMALL_5GA,
             false
         )
-        standardEnabled = Preferences.getBoolean(Preferences.KEY_ICON_DUO_ENABLED, false)
+        standardEnabled = Preferences.getBoolean(IconSettingsKeys.KEY_ICON_DUO_ENABLED, false)
         // The keyguard row is always owned by this hooker: an accepted AOD snapshot refreshes it
         // through [refreshAodSettings], so the first AOD option does not need a SystemUI restart.
         enabled = PlatformLevel.isOs4 && isMainProcess
         if (!enabled) return
-        expandedStyle = if (Preferences.getInt(Preferences.KEY_ICON_DUO_EXPANDED, 1) == 0)
+        SignalHandoverEvents.shade.bind(this, ::onShadeSwitchStarted, ::onShadeSwitchFinished,
+            activeProxy = { it is View && hasActiveProxy(it) },
+            ownsAirplane = { it is ViewGroup && ownsAirplane(it) },
+            requiresMobile = { requiresMobileState }, mobile = ::onMobileState)
+        expandedStyle = if (Preferences.getInt(IconSettingsKeys.KEY_ICON_DUO_EXPANDED, 1) == 0)
             DuoExpandedStyle.KEEP_DUO else DuoExpandedStyle.RESTORE_NATIVE
         iconSizeDp = DuoLayout.safeSizeDp(
             Preferences.getInt(
-                Preferences.KEY_ICON_DUO_SIZE,
+                IconSettingsKeys.KEY_ICON_DUO_SIZE,
                 DuoLayout.DEFAULT_ICON_SIZE_DP
             ).toFloat()
         )
         componentSizes = DuoSizes(
-            ring = DuoSizes.ratio(Preferences.getInt(Preferences.KEY_ICON_DUO_RING_SCALE, 100)),
-            wifi = DuoSizes.ratio(Preferences.getInt(Preferences.KEY_ICON_DUO_WIFI_SCALE, 100)),
-            cellular = DuoSizes.ratio(Preferences.getInt(Preferences.KEY_ICON_DUO_CELLULAR_SCALE, 100)),
-            type = DuoSizes.ratio(Preferences.getInt(Preferences.KEY_ICON_DUO_TYPE_SCALE, 100)),
-            dots = DuoSizes.ratio(Preferences.getInt(Preferences.KEY_ICON_DUO_DOTS_SCALE, 100)),
-            airplane = DuoSizes.ratio(Preferences.getInt(Preferences.KEY_ICON_DUO_AIRPLANE_SCALE, 100)),
-            battery = DuoSizes.ratio(Preferences.getInt(Preferences.KEY_ICON_DUO_BATTERY_SCALE, 100)),
-            percent = DuoSizes.ratio(Preferences.getInt(Preferences.KEY_ICON_DUO_PERCENT_SCALE, 100))
+            ring = DuoSizes.ratio(Preferences.getInt(IconSettingsKeys.KEY_ICON_DUO_RING_SCALE, 100)),
+            wifi = DuoSizes.ratio(Preferences.getInt(IconSettingsKeys.KEY_ICON_DUO_WIFI_SCALE, 100)),
+            cellular = DuoSizes.ratio(Preferences.getInt(IconSettingsKeys.KEY_ICON_DUO_CELLULAR_SCALE, 100)),
+            type = DuoSizes.ratio(Preferences.getInt(IconSettingsKeys.KEY_ICON_DUO_TYPE_SCALE, 100)),
+            dots = DuoSizes.ratio(Preferences.getInt(IconSettingsKeys.KEY_ICON_DUO_DOTS_SCALE, 100)),
+            airplane = DuoSizes.ratio(Preferences.getInt(IconSettingsKeys.KEY_ICON_DUO_AIRPLANE_SCALE, 100)),
+            battery = DuoSizes.ratio(Preferences.getInt(IconSettingsKeys.KEY_ICON_DUO_BATTERY_SCALE, 100)),
+            percent = DuoSizes.ratio(Preferences.getInt(IconSettingsKeys.KEY_ICON_DUO_PERCENT_SCALE, 100))
         )
         resolveDozingSource()
         IconTunerFlows.init(classLoader)
@@ -610,17 +621,17 @@ object DuoSignalHooker : StaticHooker() {
     /** Reuses the SystemUI Duo renderer inside MIUI AOD's own process and battery container. */
     internal fun createAodDuoView(context: Context): View = DuoView(context).apply {
         iconSizeDp = DuoLayout.safeSizeDp(
-            Preferences.getInt(Preferences.KEY_ICON_DUO_SIZE, DuoLayout.DEFAULT_ICON_SIZE_DP).toFloat()
+            Preferences.getInt(IconSettingsKeys.KEY_ICON_DUO_SIZE, DuoLayout.DEFAULT_ICON_SIZE_DP).toFloat()
         )
         icon.sizes = DuoSizes(
-            ring = DuoSizes.ratio(Preferences.getInt(Preferences.KEY_ICON_DUO_RING_SCALE, 100)),
-            wifi = DuoSizes.ratio(Preferences.getInt(Preferences.KEY_ICON_DUO_WIFI_SCALE, 100)),
-            cellular = DuoSizes.ratio(Preferences.getInt(Preferences.KEY_ICON_DUO_CELLULAR_SCALE, 100)),
-            type = DuoSizes.ratio(Preferences.getInt(Preferences.KEY_ICON_DUO_TYPE_SCALE, 100)),
-            dots = DuoSizes.ratio(Preferences.getInt(Preferences.KEY_ICON_DUO_DOTS_SCALE, 100)),
-            airplane = DuoSizes.ratio(Preferences.getInt(Preferences.KEY_ICON_DUO_AIRPLANE_SCALE, 100)),
-            battery = DuoSizes.ratio(Preferences.getInt(Preferences.KEY_ICON_DUO_BATTERY_SCALE, 100)),
-            percent = DuoSizes.ratio(Preferences.getInt(Preferences.KEY_ICON_DUO_PERCENT_SCALE, 100))
+            ring = DuoSizes.ratio(Preferences.getInt(IconSettingsKeys.KEY_ICON_DUO_RING_SCALE, 100)),
+            wifi = DuoSizes.ratio(Preferences.getInt(IconSettingsKeys.KEY_ICON_DUO_WIFI_SCALE, 100)),
+            cellular = DuoSizes.ratio(Preferences.getInt(IconSettingsKeys.KEY_ICON_DUO_CELLULAR_SCALE, 100)),
+            type = DuoSizes.ratio(Preferences.getInt(IconSettingsKeys.KEY_ICON_DUO_TYPE_SCALE, 100)),
+            dots = DuoSizes.ratio(Preferences.getInt(IconSettingsKeys.KEY_ICON_DUO_DOTS_SCALE, 100)),
+            airplane = DuoSizes.ratio(Preferences.getInt(IconSettingsKeys.KEY_ICON_DUO_AIRPLANE_SCALE, 100)),
+            battery = DuoSizes.ratio(Preferences.getInt(IconSettingsKeys.KEY_ICON_DUO_BATTERY_SCALE, 100)),
+            percent = DuoSizes.ratio(Preferences.getInt(IconSettingsKeys.KEY_ICON_DUO_PERCENT_SCALE, 100))
         )
     }
 
@@ -642,14 +653,14 @@ object DuoSignalHooker : StaticHooker() {
         val duoView = target as? DuoView ?: return
         duoView.icon.foreground = foreground
         duoView.icon.sizes = DuoSizes(
-            ring = DuoSizes.ratio(Preferences.getInt(Preferences.KEY_ICON_DUO_RING_SCALE, 100)),
-            wifi = DuoSizes.ratio(Preferences.getInt(Preferences.KEY_ICON_DUO_WIFI_SCALE, 100)),
-            cellular = DuoSizes.ratio(Preferences.getInt(Preferences.KEY_ICON_DUO_CELLULAR_SCALE, 100)),
-            type = DuoSizes.ratio(Preferences.getInt(Preferences.KEY_ICON_DUO_TYPE_SCALE, 100)),
-            dots = DuoSizes.ratio(Preferences.getInt(Preferences.KEY_ICON_DUO_DOTS_SCALE, 100)),
-            airplane = DuoSizes.ratio(Preferences.getInt(Preferences.KEY_ICON_DUO_AIRPLANE_SCALE, 100)),
-            battery = DuoSizes.ratio(Preferences.getInt(Preferences.KEY_ICON_DUO_BATTERY_SCALE, 100)),
-            percent = DuoSizes.ratio(Preferences.getInt(Preferences.KEY_ICON_DUO_PERCENT_SCALE, 100))
+            ring = DuoSizes.ratio(Preferences.getInt(IconSettingsKeys.KEY_ICON_DUO_RING_SCALE, 100)),
+            wifi = DuoSizes.ratio(Preferences.getInt(IconSettingsKeys.KEY_ICON_DUO_WIFI_SCALE, 100)),
+            cellular = DuoSizes.ratio(Preferences.getInt(IconSettingsKeys.KEY_ICON_DUO_CELLULAR_SCALE, 100)),
+            type = DuoSizes.ratio(Preferences.getInt(IconSettingsKeys.KEY_ICON_DUO_TYPE_SCALE, 100)),
+            dots = DuoSizes.ratio(Preferences.getInt(IconSettingsKeys.KEY_ICON_DUO_DOTS_SCALE, 100)),
+            airplane = DuoSizes.ratio(Preferences.getInt(IconSettingsKeys.KEY_ICON_DUO_AIRPLANE_SCALE, 100)),
+            battery = DuoSizes.ratio(Preferences.getInt(IconSettingsKeys.KEY_ICON_DUO_BATTERY_SCALE, 100)),
+            percent = DuoSizes.ratio(Preferences.getInt(IconSettingsKeys.KEY_ICON_DUO_PERCENT_SCALE, 100))
         )
         duoView.layoutDirection = if (percentOnRight) View.LAYOUT_DIRECTION_RTL
             else View.LAYOUT_DIRECTION_LTR
@@ -664,7 +675,7 @@ object DuoSignalHooker : StaticHooker() {
         )
         duoView.submit(
             content,
-            Preferences.getBoolean(Preferences.KEY_ICON_CELLULAR_TYPE_SMALL_5GA, false),
+            Preferences.getBoolean(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_SMALL_5GA, false),
             renderAodCellularSignal(context, content)
         )
     }
@@ -721,7 +732,7 @@ object DuoSignalHooker : StaticHooker() {
         val assets = loadCellularSignalAssets(context) ?: return null
         return runCatching {
             IconSvgRenderer.signalPicture(if (levels.size > 1) assets.stacked else assets.single, levels,
-                weight = Preferences.getFloat(Preferences.KEY_ICON_STACKED_WEIGHT, 0f))
+                weight = Preferences.getFloat(IconSettingsKeys.KEY_ICON_STACKED_WEIGHT, 0f))
         }.onFailure { DebugLog.w(TAG, "cellular signal vector recording failed", it) }.getOrNull()
     }
 
@@ -850,7 +861,7 @@ object DuoSignalHooker : StaticHooker() {
         if (binding.reconciling) return
         binding.reconciling = true
         try {
-            expandedStyle = if (Preferences.getInt(Preferences.KEY_ICON_DUO_EXPANDED, 1) == 0)
+            expandedStyle = if (Preferences.getInt(IconSettingsKeys.KEY_ICON_DUO_EXPANDED, 1) == 0)
                 DuoExpandedStyle.KEEP_DUO else DuoExpandedStyle.RESTORE_NATIVE
             val battery = binding.battery
             if (binding.active && batteryLayoutField?.get(binding.parent) !== binding.view) binding.failed = true
@@ -936,7 +947,7 @@ object DuoSignalHooker : StaticHooker() {
             val percentView = read(battery, "mBatteryPercentView") as? TextView
             val percentMark = read(battery, "mBatteryPercentMarkView") as? TextView
             val showLeadingPercent = DuoPolicy.leadingPercent(binding.surface, expandedStyle,
-                Preferences.getBoolean(Preferences.KEY_CC_BATTERY_PERCENT_LEFT, false))
+                Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_BATTERY_PERCENT_LEFT, false))
             val batteryGlyph = if (batteryOnly) originalBatteryDrawable(binding) else null
             if (batteryOnly && batteryGlyph == null) {
                 if (aod != null) hideForAod(binding) else restore(binding)
@@ -1183,7 +1194,7 @@ object DuoSignalHooker : StaticHooker() {
             ?.takeIf { it.isVisible }
         val left = battery.paddingLeft
         val percentLeft = if (AodIconSettings.current().percentPosition ==
-            Preferences.AOD_PERCENT_POSITION_LEFT) left else
+            AodSettingsKeys.AOD_PERCENT_POSITION_LEFT) left else
             left + icon.measuredWidth + (charging?.measuredWidth ?: 0)
         val iconLeft = if (percentLeft == left) left + percent.measuredWidth else left
         icon.layout(iconLeft, icon.top, iconLeft + icon.measuredWidth, icon.bottom)
@@ -1215,7 +1226,7 @@ object DuoSignalHooker : StaticHooker() {
             it.includeFontPadding = false
             binding.aodPercent = it
         }
-        proxy.text = if (settings.percentPosition == Preferences.AOD_PERCENT_POSITION_DUO_CENTER)
+        proxy.text = if (settings.percentPosition == AodSettingsKeys.AOD_PERCENT_POSITION_DUO_CENTER)
             content.battery.percent.toString() else "${content.battery.percent}%"
         hostPercent?.let {
             proxy.setTextSize(TypedValue.COMPLEX_UNIT_PX, it.textSize)
@@ -1224,7 +1235,7 @@ object DuoSignalHooker : StaticHooker() {
         }
         proxy.setTextColor(hostPercent?.currentTextColor ?: binding.view.icon.foreground)
         proxy.visibility = View.VISIBLE
-        val centerPercent = settings.percentPosition == Preferences.AOD_PERCENT_POSITION_DUO_CENTER
+        val centerPercent = settings.percentPosition == AodSettingsKeys.AOD_PERCENT_POSITION_DUO_CENTER
         updateAodDuoView(
             context = binding.battery.context,
             target = binding.view,
@@ -1233,7 +1244,7 @@ object DuoSignalHooker : StaticHooker() {
             batteryDrawable = batteryGlyph,
             percentVisible = settings.percent,
             percentBelow = centerPercent,
-            percentOnRight = settings.percentPosition == Preferences.AOD_PERCENT_POSITION_RIGHT,
+            percentOnRight = settings.percentPosition == AodSettingsKeys.AOD_PERCENT_POSITION_RIGHT,
             percentContainer = binding.parent,
             percentValue = proxy,
             percentFallback = content.battery.percent.toString(),
@@ -1416,8 +1427,8 @@ object DuoSignalHooker : StaticHooker() {
         binding.surface != DuoSurface.HOME && binding.surface != DuoSurface.KEYGUARD &&
         expandedStyle == DuoExpandedStyle.KEEP_DUO &&
         ControlCenterHeaderHooker.supportsCompactLayout(binding.battery) &&
-        Preferences.getBoolean(Preferences.KEY_CC_HIDE_DATE, false) &&
-        Preferences.getBoolean(Preferences.KEY_CC_CARRIER_TWO_LINE, false)
+        Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_HIDE_DATE, false) &&
+        Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_CARRIER_TWO_LINE, false)
 
     private fun clearSignalMotions(binding: Binding) {
         if (binding.dotsInMotion) {
@@ -1938,21 +1949,21 @@ object DuoSignalHooker : StaticHooker() {
             DebugLog.hookSkippedDebug(TAG, "AOD settings refresh", "Duo module disabled")
             return
         }
-        standardEnabled = Preferences.getBoolean(Preferences.KEY_ICON_DUO_ENABLED, false)
-        expandedStyle = if (Preferences.getInt(Preferences.KEY_ICON_DUO_EXPANDED, 1) == 0)
+        standardEnabled = Preferences.getBoolean(IconSettingsKeys.KEY_ICON_DUO_ENABLED, false)
+        expandedStyle = if (Preferences.getInt(IconSettingsKeys.KEY_ICON_DUO_EXPANDED, 1) == 0)
             DuoExpandedStyle.KEEP_DUO else DuoExpandedStyle.RESTORE_NATIVE
         iconSizeDp = DuoLayout.safeSizeDp(
-            Preferences.getInt(Preferences.KEY_ICON_DUO_SIZE, DuoLayout.DEFAULT_ICON_SIZE_DP).toFloat()
+            Preferences.getInt(IconSettingsKeys.KEY_ICON_DUO_SIZE, DuoLayout.DEFAULT_ICON_SIZE_DP).toFloat()
         )
         componentSizes = DuoSizes(
-            ring = DuoSizes.ratio(Preferences.getInt(Preferences.KEY_ICON_DUO_RING_SCALE, 100)),
-            wifi = DuoSizes.ratio(Preferences.getInt(Preferences.KEY_ICON_DUO_WIFI_SCALE, 100)),
-            cellular = DuoSizes.ratio(Preferences.getInt(Preferences.KEY_ICON_DUO_CELLULAR_SCALE, 100)),
-            type = DuoSizes.ratio(Preferences.getInt(Preferences.KEY_ICON_DUO_TYPE_SCALE, 100)),
-            dots = DuoSizes.ratio(Preferences.getInt(Preferences.KEY_ICON_DUO_DOTS_SCALE, 100)),
-            airplane = DuoSizes.ratio(Preferences.getInt(Preferences.KEY_ICON_DUO_AIRPLANE_SCALE, 100)),
-            battery = DuoSizes.ratio(Preferences.getInt(Preferences.KEY_ICON_DUO_BATTERY_SCALE, 100)),
-            percent = DuoSizes.ratio(Preferences.getInt(Preferences.KEY_ICON_DUO_PERCENT_SCALE, 100))
+            ring = DuoSizes.ratio(Preferences.getInt(IconSettingsKeys.KEY_ICON_DUO_RING_SCALE, 100)),
+            wifi = DuoSizes.ratio(Preferences.getInt(IconSettingsKeys.KEY_ICON_DUO_WIFI_SCALE, 100)),
+            cellular = DuoSizes.ratio(Preferences.getInt(IconSettingsKeys.KEY_ICON_DUO_CELLULAR_SCALE, 100)),
+            type = DuoSizes.ratio(Preferences.getInt(IconSettingsKeys.KEY_ICON_DUO_TYPE_SCALE, 100)),
+            dots = DuoSizes.ratio(Preferences.getInt(IconSettingsKeys.KEY_ICON_DUO_DOTS_SCALE, 100)),
+            airplane = DuoSizes.ratio(Preferences.getInt(IconSettingsKeys.KEY_ICON_DUO_AIRPLANE_SCALE, 100)),
+            battery = DuoSizes.ratio(Preferences.getInt(IconSettingsKeys.KEY_ICON_DUO_BATTERY_SCALE, 100)),
+            percent = DuoSizes.ratio(Preferences.getInt(IconSettingsKeys.KEY_ICON_DUO_PERCENT_SCALE, 100))
         )
         val token = epoch
         main.post { if (enabled && token == epoch) guarded {
@@ -2016,6 +2027,7 @@ object DuoSignalHooker : StaticHooker() {
     }
 
     override fun onPrepareHotReload() {
+        SignalHandoverEvents.shade.retire(this)
         enabled = false
         epoch++
         // Finish native restoration before the lifecycle removes this generation's hooks.

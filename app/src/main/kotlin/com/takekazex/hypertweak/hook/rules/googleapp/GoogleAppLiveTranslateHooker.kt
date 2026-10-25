@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.googleapp
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+
 import com.takekazex.hypertweak.hook.base.dex.DexContractMembers
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HotReloadMode
@@ -59,7 +61,7 @@ object GoogleAppLiveTranslateHooker : StaticHooker() {
     private var enabledCache = false
 
     private fun featureEnabled(): Boolean {
-        enabledCache = Preferences.getBoolean(Preferences.KEY_FULL_SCREEN_TRANSLATE, false)
+        enabledCache = Preferences.getBoolean(PlatformSettingsKeys.KEY_FULL_SCREEN_TRANSLATE, false)
         return enabledCache
     }
 

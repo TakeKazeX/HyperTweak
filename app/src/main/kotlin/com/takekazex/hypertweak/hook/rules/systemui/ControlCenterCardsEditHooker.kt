@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui
 
+import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
+
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
@@ -67,14 +69,14 @@ import java.util.concurrent.ConcurrentHashMap
  * safely, so its refresh keeps the animator on and the two cards slide to their new slots.
  *
  * Order model: sections are atomic units ranked by a comma-separated key list
- * ([Preferences.KEY_CC_MAIN_CONTENT_ORDER]; keys `qscards,media,brightness,volume,devicecenter`
+ * ([SystemUiSettingsKeys.KEY_CC_MAIN_CONTENT_ORDER]; keys `qscards,media,brightness,volume,devicecenter`
  * plus `qslist` for the tile grid). An empty stored value means "follow the system" — the map is
  * left in stock priority order until the user drags something for the first time. Dragging
  * places the dragged section at the target's slot: for a downward move the insert index is the
  * target's slot *after* the source is removed (`to - 1`), so the section never lands one slot
  * past the target — with the tile grid as the target that used to drop the whole card section
  * below the grid, past the 未添加 pool (大卡掉落到最底下没加进开关的区域). Within 大卡片, swapping
- * the WiFi/cellular cards reorders their specs through [Preferences.KEY_CC_TOP_CARD_ORDER].
+ * the WiFi/cellular cards reorders their specs through [SystemUiSettingsKeys.KEY_CC_TOP_CARD_ORDER].
  */
 class ControlCenterCardsEditHooker : DynamicHooker() {
     override val hotReloadMode = HotReloadMode.RECREATE
@@ -198,7 +200,7 @@ class ControlCenterCardsEditHooker : DynamicHooker() {
 
     /**
      * Legacy stopgap: keeps the WiFi card at the compact 1-col span. Yielded entirely once
-     * [Preferences.KEY_CC_RESIZE_ENABLED] is on — the size hooker then owns every card span from
+     * [SystemUiSettingsKeys.KEY_CC_RESIZE_ENABLED] is on — the size hooker then owns every card span from
      * its own configuration (an unconfigured spec falls back to the system span).
      */
     private fun installCardSpanHook() {
@@ -211,7 +213,7 @@ class ControlCenterCardsEditHooker : DynamicHooker() {
         span.hook {
             before { param ->
                 if (!enabled()) return@before
-                if (Preferences.getBoolean(Preferences.KEY_CC_RESIZE_ENABLED, false)) {
+                if (Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_RESIZE_ENABLED, false)) {
                     return@before
                 }
                 runCatching {
@@ -259,7 +261,7 @@ class ControlCenterCardsEditHooker : DynamicHooker() {
     }.getOrNull()
 
     private fun enabled(): Boolean =
-        Preferences.getBoolean(Preferences.KEY_CC_EDIT_ENABLED, false)
+        Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_EDIT_ENABLED, false)
 
     // ─── Edit-mode visibility ──────────────────────────────────────────────────
 
@@ -618,11 +620,11 @@ class ControlCenterCardsEditHooker : DynamicHooker() {
     }
 
     private fun storedContentOrder(): List<String> =
-        (committedContentOrder ?: Preferences.getString(Preferences.KEY_CC_MAIN_CONTENT_ORDER, ""))
+        (committedContentOrder ?: Preferences.getString(SystemUiSettingsKeys.KEY_CC_MAIN_CONTENT_ORDER, ""))
             .split(',').map { it.trim().lowercase() }.filter { it.isNotEmpty() }
 
     private fun storedCardOrder(): List<String> =
-        (committedCardOrder ?: Preferences.getString(Preferences.KEY_CC_TOP_CARD_ORDER, ""))
+        (committedCardOrder ?: Preferences.getString(SystemUiSettingsKeys.KEY_CC_TOP_CARD_ORDER, ""))
             .split(',').map { it.trim().lowercase() }.filter { it.isNotEmpty() }
 
     // ─── Cross-content drag ────────────────────────────────────────────────────
@@ -759,7 +761,7 @@ class ControlCenterCardsEditHooker : DynamicHooker() {
             if (from < 0 || to < 0 || from == to) return null
             order.add(to, order.removeAt(from))
             pendingCardOrder = order
-            persistOrder(Preferences.KEY_CC_TOP_CARD_ORDER, order)
+            persistOrder(SystemUiSettingsKeys.KEY_CC_TOP_CARD_ORDER, order)
             dragGeneration++
             // A one-position swap animates like a native tile move: do NOT suppress the editor's
             // item animator for this refresh, so the two cards slide to their new slots instead of
@@ -790,7 +792,7 @@ class ControlCenterCardsEditHooker : DynamicHooker() {
         val insertAt = if (from < to) to - 1 else to
         order.add(insertAt, order.removeAt(from))
         pendingContentOrder = order
-        persistOrder(Preferences.KEY_CC_MAIN_CONTENT_ORDER, order)
+        persistOrder(SystemUiSettingsKeys.KEY_CC_MAIN_CONTENT_ORDER, order)
         dragGeneration++
         postRefresh(adapter, animate = false)
         return true
@@ -799,9 +801,9 @@ class ControlCenterCardsEditHooker : DynamicHooker() {
     /** Persist every accepted move so a host that skips its drag-end callback cannot lose it. */
     private fun persistOrder(key: String, order: List<String>) {
         val value = order.joinToString(",")
-        if (key == Preferences.KEY_CC_MAIN_CONTENT_ORDER) {
+        if (key == SystemUiSettingsKeys.KEY_CC_MAIN_CONTENT_ORDER) {
             committedContentOrder = value
-        } else if (key == Preferences.KEY_CC_TOP_CARD_ORDER) {
+        } else if (key == SystemUiSettingsKeys.KEY_CC_TOP_CARD_ORDER) {
             committedCardOrder = value
         }
         Preferences.putStringSynchronous(key, value)
@@ -936,14 +938,14 @@ class ControlCenterCardsEditHooker : DynamicHooker() {
             val value = content.joinToString(",")
             pendingContentOrder = null
             committedContentOrder = value
-            Preferences.putStringSynchronous(Preferences.KEY_CC_MAIN_CONTENT_ORDER, value)
+            Preferences.putStringSynchronous(SystemUiSettingsKeys.KEY_CC_MAIN_CONTENT_ORDER, value)
             Log.i(TAG, "ControlCenterCardsEdit: content order saved=$value")
         }
         if (cards != null) {
             val value = cards.joinToString(",")
             pendingCardOrder = null
             committedCardOrder = value
-            Preferences.putStringSynchronous(Preferences.KEY_CC_TOP_CARD_ORDER, value)
+            Preferences.putStringSynchronous(SystemUiSettingsKeys.KEY_CC_TOP_CARD_ORDER, value)
             Log.i(TAG, "ControlCenterCardsEdit: card order saved=$value")
         }
         if (content == null && cards == null) {
@@ -954,7 +956,7 @@ class ControlCenterCardsEditHooker : DynamicHooker() {
             if (current.toSet() == stock.toSet() && current != stock) {
                 val value = current.joinToString(",")
                 committedContentOrder = value
-                Preferences.putStringSynchronous(Preferences.KEY_CC_MAIN_CONTENT_ORDER, value)
+                Preferences.putStringSynchronous(SystemUiSettingsKeys.KEY_CC_MAIN_CONTENT_ORDER, value)
                 Log.i(TAG, "ControlCenterCardsEdit: captured adapter order=$value")
             }
             return

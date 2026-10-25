@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui
 
+import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
+
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
@@ -53,7 +55,7 @@ object StatusBarHideSilentHooker : StaticHooker() {
         if (!isMainProcess) return
         retired = false
         enabled = Preferences.notificationMoreSettings()
-        threshold = NotificationIconPolicy.threshold(Preferences.getInt(Preferences.KEY_NOTIFICATION_ICON_FILTER_MODE, 0))
+        threshold = NotificationIconPolicy.threshold(Preferences.getInt(SystemUiSettingsKeys.KEY_NOTIFICATION_ICON_FILTER_MODE, 0))
         val builderClass = BUILDER.toClassOrNull() ?: run {
             DebugLog.hookSkipped(TAG, BUILDER, "class not found")
             return
@@ -137,7 +139,7 @@ object StatusBarHideSilentHooker : StaticHooker() {
     fun refreshSettings() {
         Preferences.invalidateRuntimeReadCache()
         enabled = Preferences.notificationMoreSettings()
-        threshold = NotificationIconPolicy.threshold(Preferences.getInt(Preferences.KEY_NOTIFICATION_ICON_FILTER_MODE, 0))
+        threshold = NotificationIconPolicy.threshold(Preferences.getInt(SystemUiSettingsKeys.KEY_NOTIFICATION_ICON_FILTER_MODE, 0))
         main.post { if (!retired) requestRebuild() }
     }
 

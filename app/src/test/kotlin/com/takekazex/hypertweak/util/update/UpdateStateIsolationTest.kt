@@ -1,6 +1,7 @@
 package com.takekazex.hypertweak.util.update
 
-import com.takekazex.hypertweak.hook.Preferences
+import com.takekazex.hypertweak.settings.contract.AppSettingsKeys
+
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -20,10 +21,10 @@ import org.junit.Test
  */
 class UpdateStateIsolationTest {
     private val allowedUserSettings = setOf(
-        Preferences.KEY_UPDATE_CHANNEL,
-        Preferences.KEY_UPDATE_CHECK_INTERVAL,
-        Preferences.KEY_UPDATE_PROXY_MODE,
-        Preferences.KEY_UPDATE_PROXY_URL
+        AppSettingsKeys.KEY_UPDATE_CHANNEL,
+        AppSettingsKeys.KEY_UPDATE_CHECK_INTERVAL,
+        AppSettingsKeys.KEY_UPDATE_PROXY_MODE,
+        AppSettingsKeys.KEY_UPDATE_PROXY_URL
     )
 
     @Test
@@ -43,7 +44,7 @@ class UpdateStateIsolationTest {
     @Test
     fun `the update state uses its own preferences file`() {
         // Sharing `hypertweak_settings` would put the ephemeral keys inside the exported file.
-        assertNotEquals(Preferences.NAME, UpdateStateStore.NAME)
+        assertNotEquals(AppSettingsKeys.NAME, UpdateStateStore.NAME)
     }
 
     @Test

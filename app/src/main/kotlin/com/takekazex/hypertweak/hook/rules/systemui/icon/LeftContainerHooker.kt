@@ -1,5 +1,9 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import com.takekazex.hypertweak.settings.contract.IconTunerContract
+
+import com.takekazex.hypertweak.settings.contract.IconSlotPolicy
+
 import android.content.Context
 import android.app.KeyguardManager
 import android.os.Handler
@@ -123,7 +127,7 @@ object LeftContainerHooker : StaticHooker() {
         CC_STATUS_ROW_CLASS, CC_QS_HEADER_CLASS, CC_FAKE_STATUS_ROW_CLASS
     )
 
-    // The per-toggle slot groups live in `IconTunerOptions.slotsForLeftPreference` only: an earlier
+    // The per-toggle slot groups live in `IconTunerContract.slotsForLeftPreference` only: an earlier
     // copy here was never read (the live path is `snapshot().policy.leftSlots`) and would have
     // drifted from the slots the hook actually moves.
 
@@ -135,7 +139,7 @@ object LeftContainerHooker : StaticHooker() {
     private var activeSlots: Set<String> = emptySet()
 
     @Volatile
-    private var leftMode = IconTunerOptions.LEFT_MODE_DISABLED
+    private var leftMode = IconTunerContract.LEFT_MODE_DISABLED
 
     private val mainHandler = Handler(Looper.getMainLooper())
     private val reconcileRunnable = Runnable { reconcileTick() }
@@ -157,7 +161,7 @@ object LeftContainerHooker : StaticHooker() {
 
     /**
      * Same for the lockscreen row, from the keyguard state. Non-empty only in
-     * [IconTunerOptions.LEFT_MODE_HOME_AND_LOCKSCREEN] (its own left container exists), which is why
+     * [IconTunerContract.LEFT_MODE_HOME_AND_LOCKSCREEN] (its own left container exists), which is why
      * the per-location rule in [IconSlotPolicy.ownedSlotsFor] can hand the keyguard its own set
      * instead of the home bar's.
      */
@@ -211,7 +215,7 @@ object LeftContainerHooker : StaticHooker() {
         val layoutParams: ViewGroup.LayoutParams?
     )
 
-    private fun masterEnabled(): Boolean = leftMode != IconTunerOptions.LEFT_MODE_DISABLED
+    private fun masterEnabled(): Boolean = leftMode != IconTunerContract.LEFT_MODE_DISABLED
 
     /** Owned slots as of the last tick, so a change can refresh the merged block lists. */
     private var publishedOwnedSlots: Set<String> = emptySet()
@@ -279,9 +283,9 @@ object LeftContainerHooker : StaticHooker() {
         if (!active || state.leftHost.visibility != View.VISIBLE ||
             !state.leftHost.isAttachedToWindow || !state.leftHost.isShown
         ) return false
-        if (state.isKeyguard) return leftMode == IconTunerOptions.LEFT_MODE_HOME_AND_LOCKSCREEN &&
+        if (state.isKeyguard) return leftMode == IconTunerContract.LEFT_MODE_HOME_AND_LOCKSCREEN &&
             keyguardShowing()
-        return leftMode >= IconTunerOptions.LEFT_MODE_HOME && !keyguardShowing()
+        return leftMode >= IconTunerContract.LEFT_MODE_HOME && !keyguardShowing()
     }
 
     private fun <T> onMainBlocking(action: () -> T): T {
@@ -1435,8 +1439,7 @@ object LeftContainerHooker : StaticHooker() {
     /** Idempotent: sees the current right-cluster children and mirrors them into the left. */
     private fun syncClones(state: LeftState) {
         val right = state.rightContainer
-        val duoOwnsAirplane = com.takekazex.hypertweak.hook.rules.systemui.icon.duo.DuoSignalHooker
-            .ownsAirplane(right)
+        val duoOwnsAirplane = SignalHandoverEvents.shade.ownsAirplane(right)
         val slots = if (duoOwnsAirplane) activeSlots - "airplane" else activeSlots
         // 1. Drop clones whose slot is no longer selected or has no live view on the right.
         val it = state.clones.entries.iterator()

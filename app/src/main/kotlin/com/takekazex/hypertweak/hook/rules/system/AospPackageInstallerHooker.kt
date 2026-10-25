@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.system
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.HotReloadMode
@@ -39,7 +41,7 @@ object AospPackageInstallerHooker : StaticHooker() {
     private fun depth(): Int = forcedCtsDepth.get() ?: 0
 
     private fun isEnabled(): Boolean =
-        Preferences.getBoolean(Preferences.KEY_AOSP_PACKAGE_INSTALLER, false)
+        Preferences.getBoolean(PlatformSettingsKeys.KEY_AOSP_PACKAGE_INSTALLER, false)
 
     override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
 

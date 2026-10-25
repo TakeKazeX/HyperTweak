@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui
 
+import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
+
 import android.content.Context
 import android.content.res.ColorStateList
 import android.content.res.Configuration
@@ -501,5 +503,5 @@ object NotificationMonetTextColorHooker : StaticHooker() {
     private fun isNight(context: Context): Boolean = context.resources.configuration.uiMode and
         Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
     private fun isEnabled(): Boolean = !retiring &&
-        Preferences.getBoolean(Preferences.KEY_NOTIFICATION_MONET_TEXT_COLOR, false)
+        Preferences.getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_MONET_TEXT_COLOR, false)
 }

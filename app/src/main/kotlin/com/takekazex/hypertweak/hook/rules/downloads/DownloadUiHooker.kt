@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.downloads
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+
 import com.takekazex.hypertweak.hook.base.dex.DexContractMembers
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 
@@ -53,12 +55,12 @@ object DownloadUiHooker : StaticHooker() {
 
     override fun onHook() {
         val alwaysShowLink = Preferences.getBoolean(
-            Preferences.KEY_DOWNLOAD_ALWAYS_SHOW_FULL_LINK,
+            PlatformSettingsKeys.KEY_DOWNLOAD_ALWAYS_SHOW_FULL_LINK,
             false
         )
-        val hideXl = Preferences.getBoolean(Preferences.KEY_DOWNLOAD_HIDE_XL, false)
+        val hideXl = Preferences.getBoolean(PlatformSettingsKeys.KEY_DOWNLOAD_HIDE_XL, false)
         val addNewButton = Preferences.getBoolean(
-            Preferences.KEY_DOWNLOAD_ADD_NEW_BUTTON,
+            PlatformSettingsKeys.KEY_DOWNLOAD_ADD_NEW_BUTTON,
             false
         )
 

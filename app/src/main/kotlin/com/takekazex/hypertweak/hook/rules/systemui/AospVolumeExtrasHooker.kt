@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+
 import android.app.Dialog
 import android.app.NotificationManager
 import android.content.Context
@@ -115,7 +117,7 @@ object AospVolumeExtrasHooker : StaticHooker() {
     }
 
     override fun onHook() {
-        if (!Preferences.getBoolean(Preferences.KEY_AOSP_VOLUME_PANEL, false)) {
+        if (!Preferences.getBoolean(PlatformSettingsKeys.KEY_AOSP_VOLUME_PANEL, false)) {
             DebugLog.hookSkippedDebug(TAG, "AOSP volume extras", "AOSP volume panel disabled")
             return
         }

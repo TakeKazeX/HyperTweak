@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui.island
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+
 import android.content.res.ColorStateList
 import android.graphics.Bitmap
 import android.graphics.Canvas
@@ -73,7 +75,7 @@ class LiveUpdateIconHooker : DynamicHooker() {
             if (retiring || !owner.isInstance(holder)) return
             val image = iconField.get(holder) as? ImageView ?: return
             release(image)
-            if (!Preferences.getBoolean(Preferences.KEY_ISLAND_LIVE_UPDATE_ICON, false)) return
+            if (!Preferences.getBoolean(PlatformSettingsKeys.KEY_ISLAND_LIVE_UPDATE_ICON, false)) return
             val info = picInfo.invoke(holder) ?: return
             val bundle = currentData.invoke(holder)?.let { extras.invoke(it) as? Bundle }
             if (!LiveUpdateIconPolicy.eligible(bundle?.getBoolean("miui.focus.isPromoted", false) == true,

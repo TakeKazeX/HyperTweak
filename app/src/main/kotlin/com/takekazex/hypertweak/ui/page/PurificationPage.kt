@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.ui.page
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.verticalScroll
@@ -43,7 +45,7 @@ fun PurificationPage(
     onBlockMiLinkHpplayFilesChange: (Boolean) -> Unit,
 ) {
     var aicrCopyDirectDefaultBrowser by remember {
-        mutableStateOf(Preferences.getBoolean(Preferences.KEY_AICR_COPY_DIRECT_DEFAULT_BROWSER, false))
+        mutableStateOf(Preferences.getBoolean(PlatformSettingsKeys.KEY_AICR_COPY_DIRECT_DEFAULT_BROWSER, false))
     }
     val scrollBehavior = MiuixScrollBehavior()
     val scrollState = rememberSaveable(saver = ScrollState.Saver) { ScrollState(0) }
@@ -74,7 +76,7 @@ fun PurificationPage(
                     checked = aicrCopyDirectDefaultBrowser,
                     onCheckedChange = { enabled ->
                         aicrCopyDirectDefaultBrowser = enabled
-                        Preferences.putBoolean(Preferences.KEY_AICR_COPY_DIRECT_DEFAULT_BROWSER, enabled)
+                        Preferences.putBoolean(PlatformSettingsKeys.KEY_AICR_COPY_DIRECT_DEFAULT_BROWSER, enabled)
                     },
                     title = stringResource(R.string.tweaks_aicr_default_browser_title),
                     summary = stringResource(R.string.tweaks_aicr_default_browser_summary)

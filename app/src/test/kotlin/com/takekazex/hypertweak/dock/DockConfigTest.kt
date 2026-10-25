@@ -1,5 +1,13 @@
 package com.takekazex.hypertweak.dock
 
+import com.takekazex.hypertweak.settings.contract.DockGeometry
+
+import com.takekazex.hypertweak.settings.contract.DockBounds
+
+import com.takekazex.hypertweak.settings.contract.DockPreviewGeometry
+
+import com.takekazex.hypertweak.settings.contract.DockConfig
+
 import org.junit.Assert.*
 import org.junit.Test
 

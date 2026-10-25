@@ -1,6 +1,17 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
-import com.takekazex.hypertweak.hook.Preferences
+import com.takekazex.hypertweak.settings.contract.IconSlotPolicy
+
+import com.takekazex.hypertweak.settings.contract.IconTunerContract
+
+import com.takekazex.hypertweak.settings.contract.IconSlotPolicyConfig
+
+import com.takekazex.hypertweak.settings.contract.IconSlotMode
+
+import com.takekazex.hypertweak.settings.contract.IconSurface
+
+import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
+
 import com.takekazex.hypertweak.ui.page.IconSlotCatalog
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -368,7 +379,7 @@ class IconSlotPolicyTest {
     fun leftAlarmToggleUsesAlarmClockSlotNotClockSlot() {
         assertEquals(
             listOf("alarm_clock"),
-            IconTunerOptions.slotsForLeftPreference(Preferences.KEY_ICON_LEFT_ALARM_CLOCK)
+            IconTunerContract.slotsForLeftPreference(IconSettingsKeys.KEY_ICON_LEFT_ALARM_CLOCK)
         )
     }
 

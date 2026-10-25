@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+
 import android.content.Context
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
@@ -67,7 +69,7 @@ object FocusNotificationWhitelistHooker : StaticHooker() {
         method.hook {
             before { param ->
                 HookFailurePolicy.open(TAG, target, Unit) {
-                    if (!Preferences.getBoolean(Preferences.KEY_FOCUS_NOTIFICATION_UNLOCK_WHITELIST, false)) return@open
+                    if (!Preferences.getBoolean(PlatformSettingsKeys.KEY_FOCUS_NOTIFICATION_UNLOCK_WHITELIST, false)) return@open
                     val context = param.args[0] as? Context ?: return@open
                     val pkg = param.args[1] as? String ?: return@open
                     val focusPref = try {

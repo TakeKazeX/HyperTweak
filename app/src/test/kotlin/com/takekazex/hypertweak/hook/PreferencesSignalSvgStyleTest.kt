@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook
 
+import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
+
 import android.content.SharedPreferences
 import com.takekazex.hypertweak.hook.base.RuntimeSettingsGroups
 import java.lang.reflect.Proxy
@@ -7,7 +9,7 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class PreferencesSignalSvgStyleTest {
-    private val key = Preferences.KEY_ICON_STACKED_SIGNAL_STYLE
+    private val key = IconSettingsKeys.KEY_ICON_STACKED_SIGNAL_STYLE
     private val legacy = "icon_tuner_stacked_icon_svg_stacked"
 
     private fun isolated(values: Map<String, Any> = emptyMap(), block: () -> Unit) {

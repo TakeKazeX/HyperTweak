@@ -1,6 +1,6 @@
 package com.takekazex.hypertweak.ui.page
 
-import com.takekazex.hypertweak.hook.rules.systemui.icon.IconSlotPolicyConfig
+import com.takekazex.hypertweak.settings.contract.IconSlotPolicyConfig
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue

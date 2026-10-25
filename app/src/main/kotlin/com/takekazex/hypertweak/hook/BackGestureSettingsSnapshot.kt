@@ -1,5 +1,10 @@
 package com.takekazex.hypertweak.hook
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+
+import com.takekazex.hypertweak.settings.contract.BackGestureKeys
+
+
 /** Complete settings committed by the app; the existing authenticated settings channel carries it. */
 internal data class BackGestureSettingsSnapshot(val values: List<Boolean>, val revision: Long, val epoch: Long) {
     init { require(values.size == KEYS.size && revision >= 0 && epoch >= 0) }
@@ -12,12 +17,12 @@ internal data class BackGestureSettingsSnapshot(val values: List<Boolean>, val r
     fun save(): Array<Any> = arrayOf(revision, epoch, *values.toTypedArray())
     companion object {
         const val REVISION = "back_gesture_settings_revision"
-        val KEYS = listOf(Preferences.KEY_BACK_GESTURE_ENABLED,
-            Preferences.KEY_BACK_GESTURE_HYPEROS_INDICATOR, Preferences.KEY_BACK_GESTURE_HYPEROS_HAPTICS,
-            Preferences.KEY_BACK_GESTURE_ENHANCED_HAPTICS, Preferences.KEY_BACK_GESTURE_SLIDE_ANIMATION,
-            Preferences.KEY_BACK_GESTURE_CROSS_ACTIVITY_WALLPAPER, Preferences.KEY_BACK_GESTURE_CROSS_TASK_WALLPAPER,
-            Preferences.KEY_CONTEXTUAL_SEARCH_HAPTICS, Preferences.KEY_FULLSCREEN_DIRECT_BACK,
-            Preferences.KEY_BACK_GESTURE_INDICATOR_BLUR, Preferences.KEY_BACK_GESTURE_HAPTICS_DISABLED)
+        val KEYS = listOf(BackGestureKeys.KEY_BACK_GESTURE_ENABLED,
+            BackGestureKeys.KEY_BACK_GESTURE_HYPEROS_INDICATOR, BackGestureKeys.KEY_BACK_GESTURE_HYPEROS_HAPTICS,
+            BackGestureKeys.KEY_BACK_GESTURE_ENHANCED_HAPTICS, BackGestureKeys.KEY_BACK_GESTURE_SLIDE_ANIMATION,
+            BackGestureKeys.KEY_BACK_GESTURE_CROSS_ACTIVITY_WALLPAPER, BackGestureKeys.KEY_BACK_GESTURE_CROSS_TASK_WALLPAPER,
+            PlatformSettingsKeys.KEY_CONTEXTUAL_SEARCH_HAPTICS, BackGestureKeys.KEY_FULLSCREEN_DIRECT_BACK,
+            BackGestureKeys.KEY_BACK_GESTURE_INDICATOR_BLUR, BackGestureKeys.KEY_BACK_GESTURE_HAPTICS_DISABLED)
         fun read(values: Map<String, *>): BackGestureSettingsSnapshot? = runCatching {
             val flags = KEYS.map { key ->
                 val value = values[key]

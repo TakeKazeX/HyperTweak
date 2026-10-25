@@ -1,0 +1,688 @@
+[
+  {
+    "package": "com.android.systemui",
+    "process": "com.android.systemui",
+    "targets": [
+      "RestartBroadcastHooker",
+      "AODHooker",
+      "AodWallpaperHandoffHooker",
+      "HideFingerprintIcon",
+      "HideLockscreenStatusBarHooker",
+      "NotificationHeaderClockSecondsHooker",
+      "NotificationHeaderHooker",
+      "NotificationHeaderWeatherHooker",
+      "NotificationMonetTextColorHooker",
+      "NotificationFontWeightHooker",
+      "NotificationAbsoluteTimeHooker",
+      "SystemUiScreenshotSoundHooker",
+      "KeyguardFingerprintAvoidHooker",
+      "LockscreenChargingDetailHooker",
+      "LockscreenBottomTextHooker",
+      "LockscreenDateHooker",
+      "ImmediateMonetRefreshHooker",
+      "BatteryAutoPowerSaveHooker",
+      "SystemUIPluginHooker",
+      "AospSystemUiPluginBlockHooker",
+      "AospVolumeHapticHooker",
+      "AospBackSystemUiHooker",
+      "AospVolumeExtrasHooker",
+      "ExtendUnlockHooker",
+      "ProxyLaunchHooker",
+      "UnlockClipboardHooker",
+      "HideBottomBarHooker",
+      "@icons",
+      "GlassMaterialHooker",
+      "MediaCardHideAppIconHooker",
+      "MediaCardHideDeviceSwitchHooker",
+      "LockscreenAllNotificationsHooker",
+      "LockscreenKeepNotificationsHooker",
+      "FocusNotificationWhitelistHooker",
+      "NotificationMiniWindowHooker",
+      "NotificationWhitelistBypassHooker",
+      "SystemUiBubbleNotificationWhitelistHooker",
+      "NotificationBlockFoldHooker",
+      "StatusBarHideSilentHooker",
+      "FreeformBlurTransitionHooker"
+    ]
+  },
+  {
+    "package": "com.android.systemui",
+    "process": "com.android.systemui:aux",
+    "targets": [
+      "RestartBroadcastHooker",
+      "AODHooker",
+      "AodWallpaperHandoffHooker",
+      "HideFingerprintIcon",
+      "HideLockscreenStatusBarHooker",
+      "NotificationHeaderClockSecondsHooker",
+      "NotificationHeaderHooker",
+      "NotificationHeaderWeatherHooker",
+      "NotificationMonetTextColorHooker",
+      "NotificationFontWeightHooker",
+      "NotificationAbsoluteTimeHooker",
+      "SystemUiScreenshotSoundHooker",
+      "KeyguardFingerprintAvoidHooker",
+      "LockscreenChargingDetailHooker",
+      "LockscreenBottomTextHooker",
+      "LockscreenDateHooker",
+      "ImmediateMonetRefreshHooker",
+      "BatteryAutoPowerSaveHooker",
+      "SystemUIPluginHooker",
+      "AospSystemUiPluginBlockHooker",
+      "AospVolumeHapticHooker",
+      "AospBackSystemUiHooker",
+      "AospVolumeExtrasHooker",
+      "ExtendUnlockHooker",
+      "ProxyLaunchHooker",
+      "UnlockClipboardHooker",
+      "HideBottomBarHooker",
+      "@icons",
+      "GlassMaterialHooker",
+      "MediaCardHideAppIconHooker",
+      "MediaCardHideDeviceSwitchHooker",
+      "LockscreenAllNotificationsHooker",
+      "LockscreenKeepNotificationsHooker",
+      "FocusNotificationWhitelistHooker",
+      "NotificationMiniWindowHooker",
+      "NotificationWhitelistBypassHooker",
+      "SystemUiBubbleNotificationWhitelistHooker",
+      "NotificationBlockFoldHooker",
+      "StatusBarHideSilentHooker",
+      "FreeformBlurTransitionHooker"
+    ]
+  },
+  {
+    "package": "com.miui.voiceassist",
+    "process": "com.miui.voiceassist",
+    "targets": [
+      "RestartBroadcastHooker",
+      "XiaoaiGestureHooker"
+    ]
+  },
+  {
+    "package": "com.miui.voiceassist",
+    "process": "com.miui.voiceassist:aux",
+    "targets": [
+      "RestartBroadcastHooker",
+      "XiaoaiGestureHooker"
+    ]
+  },
+  {
+    "package": "com.miui.screenshot",
+    "process": "com.miui.screenshot",
+    "targets": [
+      "SystemUiScreenshotSoundHooker",
+      "ScreenshotAutoFrameHooker",
+      "ScreenshotSaveDirectoryHooker",
+      "ScreenshotClipboardHooker"
+    ]
+  },
+  {
+    "package": "com.miui.screenshot",
+    "process": "com.miui.screenshot:aux",
+    "targets": [
+      "SystemUiScreenshotSoundHooker",
+      "ScreenshotAutoFrameHooker",
+      "ScreenshotSaveDirectoryHooker",
+      "ScreenshotClipboardHooker"
+    ]
+  },
+  {
+    "package": "com.lbe.security.miui",
+    "process": "com.lbe.security.miui",
+    "targets": [
+      "LbeClipboardToastHooker"
+    ]
+  },
+  {
+    "package": "com.lbe.security.miui",
+    "process": "com.lbe.security.miui:aux",
+    "targets": [
+      "LbeClipboardToastHooker"
+    ]
+  },
+  {
+    "package": "com.miui.home",
+    "process": "com.miui.home",
+    "targets": []
+  },
+  {
+    "package": "com.miui.home",
+    "process": "com.miui.home:aux",
+    "targets": []
+  },
+  {
+    "package": "com.miui.aod",
+    "process": "com.miui.aod",
+    "targets": [
+      "RestartBroadcastHooker",
+      "AODHooker",
+      "AodStatusIconHooker"
+    ]
+  },
+  {
+    "package": "com.miui.aod",
+    "process": "com.miui.aod:aux",
+    "targets": [
+      "RestartBroadcastHooker",
+      "AODHooker",
+      "AodStatusIconHooker"
+    ]
+  },
+  {
+    "package": "com.android.settings",
+    "process": "com.android.settings",
+    "targets": [
+      "GlobalSettingsInterfaceHooker",
+      "RestartBroadcastHooker",
+      "SettingsHooker",
+      "AODHooker",
+      "PasskeyHooker",
+      "BluetoothPluginHooker",
+      "SpatialAudioHooker",
+      "VisualPerceptionSettingsHooker",
+      "AonGestureSettingsHooker",
+      "AdaptiveRefreshSettingsHooker",
+      "ChannelKeyguardToggleHooker",
+      "NotificationMoreSettingsHooker",
+      "NotificationBadgeSettingsHooker",
+      "GoogleServicesSettingsHooker",
+      "HyperOsAiEntriesHooker"
+    ]
+  },
+  {
+    "package": "com.android.settings",
+    "process": "com.android.settings:aux",
+    "targets": [
+      "GlobalSettingsInterfaceHooker",
+      "RestartBroadcastHooker",
+      "SettingsHooker",
+      "AODHooker",
+      "PasskeyHooker",
+      "BluetoothPluginHooker",
+      "SpatialAudioHooker",
+      "VisualPerceptionSettingsHooker",
+      "AonGestureSettingsHooker",
+      "AdaptiveRefreshSettingsHooker",
+      "ChannelKeyguardToggleHooker",
+      "NotificationMoreSettingsHooker",
+      "NotificationBadgeSettingsHooker",
+      "GoogleServicesSettingsHooker",
+      "HyperOsAiEntriesHooker"
+    ]
+  },
+  {
+    "package": "com.android.phone",
+    "process": "com.android.phone",
+    "targets": [
+      "VideoRingbackHooker"
+    ]
+  },
+  {
+    "package": "com.android.phone",
+    "process": "com.android.phone:aux",
+    "targets": [
+      "VideoRingbackHooker"
+    ]
+  },
+  {
+    "package": "com.xiaomi.phone",
+    "process": "com.xiaomi.phone",
+    "targets": []
+  },
+  {
+    "package": "com.xiaomi.phone",
+    "process": "com.xiaomi.phone:aux",
+    "targets": []
+  },
+  {
+    "package": "com.xiaomi.aon",
+    "process": "com.xiaomi.aon",
+    "targets": []
+  },
+  {
+    "package": "com.xiaomi.aon",
+    "process": "com.xiaomi.aon:aux",
+    "targets": []
+  },
+  {
+    "package": "com.miui.securitycenter",
+    "process": "com.miui.securitycenter",
+    "targets": [
+      "RestartBroadcastHooker",
+      "PasskeyHooker",
+      "AospAppInfoEntryHooker",
+      "AospAppManagerEntryHooker",
+      "BatteryInfoHooker",
+      "BerserkModeHooker",
+      "BubbleNotificationWhitelistHooker",
+      "LowBatteryWarningHooker",
+      "DetailedPowerDataHooker",
+      "PowerRankingHooker",
+      "PowerSaveOverrideHooker",
+      "MoreBatteryInfoHooker",
+      "WarningCountdownHooker",
+      "SecurityCenterPrivacyEntriesHooker",
+      "LbeClipboardToastHooker",
+      "SecurityCenterSafetyChecksHooker",
+      "AppDetailsIconLaunchHooker",
+      "SecurityCenterUsbInstallNetworkVerifyHooker",
+      "CarrierOfflineConfigHooker"
+    ]
+  },
+  {
+    "package": "com.miui.securitycenter",
+    "process": "com.miui.securitycenter:aux",
+    "targets": [
+      "RestartBroadcastHooker",
+      "AospAppInfoEntryHooker",
+      "AospAppManagerEntryHooker",
+      "BerserkModeHooker",
+      "BubbleNotificationWhitelistHooker",
+      "LowBatteryWarningHooker",
+      "DetailedPowerDataHooker",
+      "PowerRankingHooker",
+      "PowerSaveOverrideHooker",
+      "MoreBatteryInfoHooker",
+      "WarningCountdownHooker",
+      "SecurityCenterPrivacyEntriesHooker",
+      "LbeClipboardToastHooker"
+    ]
+  },
+  {
+    "package": "com.miui.securitycenter",
+    "process": "com.miui.securitycenter.cache",
+    "targets": [
+      "RestartBroadcastHooker",
+      "PasskeyHooker",
+      "AospAppInfoEntryHooker",
+      "AospAppManagerEntryHooker",
+      "BerserkModeHooker",
+      "BubbleNotificationWhitelistHooker",
+      "LowBatteryWarningHooker",
+      "DetailedPowerDataHooker",
+      "PowerRankingHooker",
+      "PowerSaveOverrideHooker",
+      "MoreBatteryInfoHooker",
+      "WarningCountdownHooker",
+      "SecurityCenterPrivacyEntriesHooker",
+      "LbeClipboardToastHooker",
+      "SecurityCenterSafetyChecksHooker"
+    ]
+  },
+  {
+    "package": "com.miui.securitycenter",
+    "process": "com.miui.securitycenter.remote",
+    "targets": [
+      "RestartBroadcastHooker",
+      "AospAppInfoEntryHooker",
+      "AospAppManagerEntryHooker",
+      "BerserkModeHooker",
+      "BubbleNotificationWhitelistHooker",
+      "LowBatteryWarningHooker",
+      "DetailedPowerDataHooker",
+      "PowerRankingHooker",
+      "PowerSaveOverrideHooker",
+      "MoreBatteryInfoHooker",
+      "WarningCountdownHooker",
+      "SecurityCenterPrivacyEntriesHooker",
+      "LbeClipboardToastHooker",
+      "SecurityCenterSafetyChecksHooker",
+      "CarrierOfflineConfigHooker"
+    ]
+  },
+  {
+    "package": "com.miui.securitycenter",
+    "process": "com.miui.securitycenter:ui",
+    "targets": [
+      "RestartBroadcastHooker",
+      "AospAppInfoEntryHooker",
+      "AospAppManagerEntryHooker",
+      "BerserkModeHooker",
+      "BubbleNotificationWhitelistHooker",
+      "LowBatteryWarningHooker",
+      "DetailedPowerDataHooker",
+      "PowerRankingHooker",
+      "PowerSaveOverrideHooker",
+      "MoreBatteryInfoHooker",
+      "WarningCountdownHooker",
+      "SecurityCenterPrivacyEntriesHooker",
+      "LbeClipboardToastHooker",
+      "SecurityCenterDockHooker",
+      "SecurityCenterPopupHooker"
+    ]
+  },
+  {
+    "package": "com.miui.securitycore",
+    "process": "com.miui.securitycore",
+    "targets": [
+      "RestartBroadcastHooker",
+      "SecurityCoreBubbleAppListHooker"
+    ]
+  },
+  {
+    "package": "com.miui.securitycore",
+    "process": "com.miui.securitycore:aux",
+    "targets": [
+      "RestartBroadcastHooker",
+      "SecurityCoreBubbleAppListHooker"
+    ]
+  },
+  {
+    "package": "com.miui.powerkeeper",
+    "process": "com.miui.powerkeeper",
+    "targets": [
+      "RestartBroadcastHooker",
+      "FcmLivePowerKeeperHooker"
+    ]
+  },
+  {
+    "package": "com.miui.powerkeeper",
+    "process": "com.miui.powerkeeper:aux",
+    "targets": [
+      "RestartBroadcastHooker",
+      "FcmLivePowerKeeperHooker"
+    ]
+  },
+  {
+    "package": "com.google.android.gms",
+    "process": "com.google.android.gms",
+    "targets": [
+      "QuickSharePhenotypeHooker"
+    ]
+  },
+  {
+    "package": "com.google.android.gms",
+    "process": "com.google.android.gms:aux",
+    "targets": [
+      "QuickSharePhenotypeHooker"
+    ]
+  },
+  {
+    "package": "com.google.android.googlequicksearchbox",
+    "process": "com.google.android.googlequicksearchbox",
+    "targets": []
+  },
+  {
+    "package": "com.google.android.googlequicksearchbox",
+    "process": "com.google.android.googlequicksearchbox:aux",
+    "targets": []
+  },
+  {
+    "package": "com.google.android.googlequicksearchbox",
+    "process": "com.google.android.googlequicksearchbox:googleapp",
+    "targets": [
+      "GoogleAppRuntime"
+    ]
+  },
+  {
+    "package": "com.miui.mediaeditor",
+    "process": "com.miui.mediaeditor",
+    "targets": [
+      "MediaEditorWatermarkHooker"
+    ]
+  },
+  {
+    "package": "com.miui.mediaeditor",
+    "process": "com.miui.mediaeditor:aux",
+    "targets": [
+      "MediaEditorWatermarkHooker"
+    ]
+  },
+  {
+    "package": "com.miui.personalassistant",
+    "process": "com.miui.personalassistant",
+    "targets": [
+      "ModelSpoofHooker",
+      "AndroidWidgetPickerHooker"
+    ]
+  },
+  {
+    "package": "com.miui.personalassistant",
+    "process": "com.miui.personalassistant:aux",
+    "targets": [
+      "ModelSpoofHooker",
+      "AndroidWidgetPickerHooker"
+    ]
+  },
+  {
+    "package": "com.android.camera",
+    "process": "com.android.camera",
+    "targets": [
+      "CameraDeviceMismatchHooker",
+      "CameraLegendaryProfileHooker",
+      "CameraWatermarkHooker",
+      "CameraImpersonationHooker",
+      "CameraUltraQualityHooker"
+    ]
+  },
+  {
+    "package": "com.android.camera",
+    "process": "com.android.camera:aux",
+    "targets": [
+      "CameraDeviceMismatchHooker",
+      "CameraLegendaryProfileHooker",
+      "CameraWatermarkHooker",
+      "CameraImpersonationHooker",
+      "CameraUltraQualityHooker"
+    ]
+  },
+  {
+    "package": "com.android.providers.downloads",
+    "process": "com.android.providers.downloads",
+    "targets": [
+      "DownloadXlLogDirectoryHooker"
+    ]
+  },
+  {
+    "package": "com.android.providers.downloads",
+    "process": "com.android.providers.downloads:aux",
+    "targets": [
+      "DownloadXlLogDirectoryHooker"
+    ]
+  },
+  {
+    "package": "com.android.providers.downloads.ui",
+    "process": "com.android.providers.downloads.ui",
+    "targets": [
+      "DownloadUiHooker"
+    ]
+  },
+  {
+    "package": "com.android.providers.downloads.ui",
+    "process": "com.android.providers.downloads.ui:aux",
+    "targets": [
+      "DownloadUiHooker"
+    ]
+  },
+  {
+    "package": "com.android.thememanager",
+    "process": "com.android.thememanager",
+    "targets": [
+      "ThemeManagerRightsCheckHooker"
+    ]
+  },
+  {
+    "package": "com.android.thememanager",
+    "process": "com.android.thememanager:aux",
+    "targets": [
+      "ThemeManagerRightsCheckHooker"
+    ]
+  },
+  {
+    "package": "com.xiaomi.xmsf",
+    "process": "com.xiaomi.xmsf",
+    "targets": [
+      "RestartBroadcastHooker",
+      "UnlockFocusAuthHooker"
+    ]
+  },
+  {
+    "package": "com.xiaomi.xmsf",
+    "process": "com.xiaomi.xmsf:aux",
+    "targets": [
+      "RestartBroadcastHooker",
+      "UnlockFocusAuthHooker"
+    ]
+  },
+  {
+    "package": "com.xiaomi.scanner",
+    "process": "com.xiaomi.scanner",
+    "targets": [
+      "RestartBroadcastHooker",
+      "PasskeyHooker"
+    ]
+  },
+  {
+    "package": "com.xiaomi.scanner",
+    "process": "com.xiaomi.scanner:aux",
+    "targets": [
+      "RestartBroadcastHooker",
+      "PasskeyHooker"
+    ]
+  },
+  {
+    "package": "com.xiaomi.trustservice",
+    "process": "com.xiaomi.trustservice",
+    "targets": [
+      "RestartBroadcastHooker",
+      "MiTrustRiskMonitoringHooker"
+    ]
+  },
+  {
+    "package": "com.xiaomi.trustservice",
+    "process": "com.xiaomi.trustservice:aux",
+    "targets": [
+      "RestartBroadcastHooker",
+      "MiTrustRiskMonitoringHooker"
+    ]
+  },
+  {
+    "package": "com.miui.guardprovider",
+    "process": "com.miui.guardprovider",
+    "targets": [
+      "RestartBroadcastHooker",
+      "GuardProviderEnvironmentCheckHooker",
+      "GuardProviderUploadAppListHooker"
+    ]
+  },
+  {
+    "package": "com.miui.guardprovider",
+    "process": "com.miui.guardprovider:aux",
+    "targets": [
+      "RestartBroadcastHooker",
+      "GuardProviderEnvironmentCheckHooker",
+      "GuardProviderUploadAppListHooker"
+    ]
+  },
+  {
+    "package": "com.android.photopicker",
+    "process": "com.android.photopicker",
+    "targets": [
+      "NativeFilePickerHooker"
+    ]
+  },
+  {
+    "package": "com.android.photopicker",
+    "process": "com.android.photopicker:aux",
+    "targets": [
+      "NativeFilePickerHooker"
+    ]
+  },
+  {
+    "package": "com.android.intentresolver",
+    "process": "com.android.intentresolver",
+    "targets": [
+      "SharePanelHooker"
+    ]
+  },
+  {
+    "package": "com.android.intentresolver",
+    "process": "com.android.intentresolver:aux",
+    "targets": [
+      "SharePanelHooker"
+    ]
+  },
+  {
+    "package": "com.android.contacts",
+    "process": "com.android.contacts",
+    "targets": [
+      "RestartBroadcastHooker",
+      "CarrierOfflineConfigHooker"
+    ]
+  },
+  {
+    "package": "com.android.contacts",
+    "process": "com.android.contacts:aux",
+    "targets": [
+      "RestartBroadcastHooker",
+      "CarrierOfflineConfigHooker"
+    ]
+  },
+  {
+    "package": "com.milink.service",
+    "process": "com.milink.service",
+    "targets": [
+      "RestartBroadcastHooker",
+      "MiLinkHpplayHooker",
+      "SpatialAudioBlockerHooker"
+    ]
+  },
+  {
+    "package": "com.milink.service",
+    "process": "com.milink.service:aux",
+    "targets": [
+      "RestartBroadcastHooker",
+      "MiLinkHpplayHooker",
+      "SpatialAudioBlockerHooker"
+    ]
+  },
+  {
+    "package": "com.xiaomi.bluetooth",
+    "process": "com.xiaomi.bluetooth",
+    "targets": [
+      "RestartBroadcastHooker",
+      "BluetoothPluginHooker",
+      "SpatialAudioBlockerHooker"
+    ]
+  },
+  {
+    "package": "com.xiaomi.bluetooth",
+    "process": "com.xiaomi.bluetooth:aux",
+    "targets": [
+      "RestartBroadcastHooker",
+      "BluetoothPluginHooker",
+      "SpatialAudioBlockerHooker"
+    ]
+  },
+  {
+    "package": "com.xiaomi.aicr",
+    "process": "com.xiaomi.aicr",
+    "targets": [
+      "AicrBrowserWhitelistHooker",
+      "AicrDefaultBrowserHooker"
+    ]
+  },
+  {
+    "package": "com.xiaomi.aicr",
+    "process": "com.xiaomi.aicr:aux",
+    "targets": [
+      "AicrBrowserWhitelistHooker",
+      "AicrDefaultBrowserHooker"
+    ]
+  },
+  {
+    "package": "com.takekazex.hypertweak",
+    "process": "com.takekazex.hypertweak",
+    "targets": [
+      "ModuleStatusHooker"
+    ]
+  },
+  {
+    "package": "com.takekazex.hypertweak",
+    "process": "com.takekazex.hypertweak:aux",
+    "targets": [
+      "ModuleStatusHooker"
+    ]
+  }
+]

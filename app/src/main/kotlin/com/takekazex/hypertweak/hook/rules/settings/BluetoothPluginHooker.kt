@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.settings
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+
 import android.util.Log
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.StaticHooker
@@ -139,8 +141,8 @@ object BluetoothPluginHooker : StaticHooker() {
     }
 
     private fun disableSpatialEnabled() =
-        Preferences.getBoolean(Preferences.KEY_DISABLE_SPATIAL_AUDIO, false)
+        Preferences.getBoolean(PlatformSettingsKeys.KEY_DISABLE_SPATIAL_AUDIO, false)
 
     private fun forceAdaptiveEnabled() =
-        Preferences.getBoolean(Preferences.KEY_FORCE_ADAPTIVE_ANC, false)
+        Preferences.getBoolean(PlatformSettingsKeys.KEY_FORCE_ADAPTIVE_ANC, false)
 }

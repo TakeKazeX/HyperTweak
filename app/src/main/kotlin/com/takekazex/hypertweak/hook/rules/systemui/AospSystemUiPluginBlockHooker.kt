@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+
 import android.content.ComponentName
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.CompatibleMethodResolver
@@ -39,8 +41,8 @@ object AospSystemUiPluginBlockHooker : StaticHooker() {
 
     override fun onHook() {
         blockedClasses = buildSet {
-            if (Preferences.getBoolean(Preferences.KEY_AOSP_POWER_MENU, false)) add(GLOBAL_ACTIONS_PLUGIN)
-            if (Preferences.getBoolean(Preferences.KEY_AOSP_VOLUME_PANEL, false)) add(VOLUME_DIALOG_PLUGIN)
+            if (Preferences.getBoolean(PlatformSettingsKeys.KEY_AOSP_POWER_MENU, false)) add(GLOBAL_ACTIONS_PLUGIN)
+            if (Preferences.getBoolean(PlatformSettingsKeys.KEY_AOSP_VOLUME_PANEL, false)) add(VOLUME_DIALOG_PLUGIN)
         }
         if (blockedClasses.isEmpty()) {
             DebugLog.hookSkippedDebug(TAG, "MIUI SystemUI plugins", "disabled")

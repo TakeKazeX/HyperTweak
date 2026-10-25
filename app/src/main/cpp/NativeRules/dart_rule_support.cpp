@@ -71,7 +71,13 @@ void CacheStore(uint8_t* base, const dart::TargetSpec& spec,
         if (SameKey(g_cache[i], base, spec, identity)) { slot = i; break; }
     }
     if (slot == kMaxCacheEntries) {
-        slot = g_cache_next++ % kMaxCacheEntries;
+        // Failed-family invalidation leaves holes. Fill those before rotating:
+        // evicting a successful family here loses its addresses after its own
+        // instructions have been patched, making a later scan reject live hooks.
+        for (size_t i = 0u; i < kMaxCacheEntries; ++i) {
+            if (g_cache[i].spec == nullptr) { slot = i; break; }
+        }
+        if (slot == kMaxCacheEntries) slot = g_cache_next++ % kMaxCacheEntries;
         g_cache[slot] = CacheEntry{};
     }
     auto& entry = g_cache[slot];

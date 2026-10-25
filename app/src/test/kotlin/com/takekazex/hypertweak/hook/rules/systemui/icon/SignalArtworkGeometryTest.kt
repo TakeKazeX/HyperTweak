@@ -1,5 +1,9 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import com.takekazex.hypertweak.settings.contract.SignalWeight
+
+import com.takekazex.hypertweak.settings.contract.SignalSvgStyle
+
 import java.io.File
 import javax.xml.parsers.DocumentBuilderFactory
 import kotlin.math.abs

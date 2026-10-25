@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.guardprovider
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.DynamicHooker
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
@@ -101,7 +103,7 @@ object GuardProviderEnvironmentCheckHooker : DynamicHooker() {
                 before { param ->
                     HookFailurePolicy.open(TAG, "${method.name}.before", Unit) {
                         if (Preferences.getBoolean(
-                                Preferences.KEY_GUARD_PROVIDER_DISABLE_ENVIRONMENT_CHECK,
+                                PlatformSettingsKeys.KEY_GUARD_PROVIDER_DISABLE_ENVIRONMENT_CHECK,
                                 false
                             )
                         ) param.result = false

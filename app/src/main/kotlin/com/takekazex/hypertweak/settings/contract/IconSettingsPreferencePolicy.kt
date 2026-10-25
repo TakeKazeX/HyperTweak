@@ -1,4 +1,4 @@
-package com.takekazex.hypertweak.hook.rules.systemui.icon
+package com.takekazex.hypertweak.settings.contract
 
 internal object IconSettingsPreferencePolicy {
     fun affectsIcons(key: String?): Boolean = key == null || key == "prefs_epoch" ||

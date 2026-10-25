@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.system
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+
 import android.app.Activity
 import android.content.ComponentName
 import android.content.Intent
@@ -45,7 +47,7 @@ internal abstract class PickerHooker(private val key: String) : StaticHooker() {
 }
 
 /** Filters only implicit requests; explicit app-selected components/packages stay usable. */
-internal object NativePhotoPickerHooker : PickerHooker(Preferences.KEY_NATIVE_PHOTO_PICKER) {
+internal object NativePhotoPickerHooker : PickerHooker(PlatformSettingsKeys.KEY_NATIVE_PHOTO_PICKER) {
     override fun onHook() {
         enabled = isFeatureEnabled()
         install("picker candidates", {
@@ -83,7 +85,7 @@ internal object NativePhotoPickerHooker : PickerHooker(Preferences.KEY_NATIVE_PH
 
 }
 
-internal object NativeFilePickerHooker : PickerHooker(Preferences.KEY_NATIVE_FILE_PICKER) {
+internal object NativeFilePickerHooker : PickerHooker(PlatformSettingsKeys.KEY_NATIVE_FILE_PICKER) {
     const val PACKAGE = "com.android.photopicker"
     override fun onHook() {
         enabled = isFeatureEnabled()

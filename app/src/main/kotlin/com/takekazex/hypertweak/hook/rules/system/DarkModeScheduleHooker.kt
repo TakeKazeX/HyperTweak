@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.system
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.InstallPolicy
@@ -52,7 +54,7 @@ object DarkModeScheduleHooker : StaticHooker() {
     override val installPolicy = InstallPolicy.WHEN_ENABLED
     @Volatile private var enabled = false
     @Volatile private var access: DarkModeScheduleAccess? = null
-    override fun isFeatureEnabled() = Preferences.getBoolean(Preferences.KEY_DARK_MODE_IMMEDIATE_SCHEDULE, false)
+    override fun isFeatureEnabled() = Preferences.getBoolean(PlatformSettingsKeys.KEY_DARK_MODE_IMMEDIATE_SCHEDULE, false)
 
     fun refreshSettings(): Boolean {
         Preferences.invalidateRuntimeReadCache()

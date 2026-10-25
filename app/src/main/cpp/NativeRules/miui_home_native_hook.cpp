@@ -1,4 +1,6 @@
 #include "lsposed_hook_backend.h"
+#include "launcher_process_identity.h"
+#include "dart_mapped_image.h"
 #include "clear_button_rule.h"
 #include "folder_columns_rule.h"
 #include "assistant_widget_rule.h"
@@ -149,6 +151,9 @@ extern "C" bool HyperTweakIsLauncherProcess();
 
 namespace {
 
+using namespace hypertweak::native::identity;
+using namespace hypertweak::native::mapped;
+
 constexpr uint32_t kDartDrawerRemapped = uint32_t{1} << 0u;
 constexpr uint32_t kDartOverviewEnterRemapped = uint32_t{1} << 1u;
 constexpr uint32_t kDartOverviewExitRemapped = uint32_t{1} << 2u;
@@ -165,7 +170,6 @@ constexpr char kLogTag[] = "MiuiHomeHyosLsp";
 // with the public wrapper's 48-byte result and aborted in Scudo.  The raw tail
 // shim preserves that ABI. Device validation remains bounded by LSPosed's
 // module/scope state, the exact process, and immutable library IDs.
-constexpr char kSpawnerPath[] = "/system_ext/bin/hyos_spawner";
 constexpr char kHyperRuntimeName[] = "libhyper_os_flutter.so";
 constexpr char kBroadcastPrivatePath[] =
         "/system_ext/lib64/libhyper_os_broadcast_private.dylib.so";
@@ -179,17 +183,7 @@ constexpr char kBroadcastIntentWithFeatureSymbol[] =
         "_RNvXs_NtCslLvADlVgqlk_26hyper_os_broadcast_private8sys_implNtB4_31"
         "ActivityManagerServiceProxyImplNtB4_27ActivityManagerServiceProxy26"
         "broadcastIntentWithFeature";
-constexpr char kLauncherProcessName[] = "com.miui.home";
-constexpr char kDataLauncherLibraryTail[] =
-        "/base.apk!/lib/arm64-v8a/libapp_launcher.so";
-constexpr char kSystemLauncherLibraryTail[] =
-        "/MiuiHome.apk!/lib/arm64-v8a/libapp_launcher.so";
 constexpr char kLauncherEntrySymbol[] = "app_entry_point";
-constexpr char kDartLibraryName[] = "libapp.so";
-constexpr char kDartLibraryTail[] = "/libapp.so";
-constexpr char kDartSnapshotInstructionsSymbol[] =
-        "_kDartIsolateSnapshotInstructions";
-constexpr char kDartSnapshotBuildIdSymbol[] = "_kDartSnapshotBuildId";
 using DlopenFn = void* (*)(const char*, int);
 using MotionEventIntFn = int32_t (*)(void*);
 using MotionEventLongFn = int64_t (*)(void*);
@@ -677,113 +671,6 @@ float ReadMotionY(void* event) {
     return get_y == nullptr ? raw_y : get_y(event);
 }
 
-constexpr size_t ConstStringLength(const char* value) {
-    size_t length = 0u;
-    if (value == nullptr) return length;
-    while (value[length] != '\0') ++length;
-    return length;
-}
-
-constexpr bool StartsWith(const char* value, const char* prefix) {
-    if (value == nullptr || prefix == nullptr) return false;
-    for (size_t index = 0u; prefix[index] != '\0'; ++index) {
-        if (value[index] != prefix[index]) return false;
-    }
-    return true;
-}
-
-constexpr bool StringsEqual(const char* left, const char* right) {
-    if (left == nullptr || right == nullptr) return false;
-    size_t index = 0u;
-    while (left[index] != '\0' && right[index] != '\0') {
-        if (left[index] != right[index]) return false;
-        ++index;
-    }
-    return left[index] == right[index];
-}
-
-constexpr bool EndsWith(const char* value, const char* suffix) {
-    if (value == nullptr || suffix == nullptr) return false;
-    const size_t value_length = ConstStringLength(value);
-    const size_t suffix_length = ConstStringLength(suffix);
-    if (suffix_length > value_length) return false;
-    const size_t start = value_length - suffix_length;
-    for (size_t index = 0u; index < suffix_length; ++index) {
-        if (value[start + index] != suffix[index]) return false;
-    }
-    return true;
-}
-
-constexpr bool IsLauncherLibraryPath(const char* path) {
-    if (path == nullptr) return false;
-    if (StringsEqual(path, "libapp_launcher.so")) return true;
-    if (StartsWith(path, "/data/app/") &&
-            EndsWith(path, kDataLauncherLibraryTail)) {
-        return true;
-    }
-    return StartsWith(path, "/product/priv-app/MiuiHome/") &&
-            EndsWith(path, kSystemLauncherLibraryTail);
-}
-
-constexpr bool IsDartLibraryPath(const char* path) {
-    return StringsEqual(path, kDartLibraryName) ||
-            EndsWith(path, kDartLibraryTail);
-}
-
-static_assert(IsLauncherLibraryPath(
-        "/data/app/~~token/com.miui.home-token/base.apk!/lib/arm64-v8a/"
-        "libapp_launcher.so"));
-static_assert(IsLauncherLibraryPath(
-        "/product/priv-app/MiuiHome/MiuiHome.apk!/lib/arm64-v8a/"
-        "libapp_launcher.so"));
-static_assert(!IsLauncherLibraryPath(
-        "/data/app/token/base.apk!/lib/armeabi-v7a/libapp_launcher.so"));
-static_assert(!IsLauncherLibraryPath(
-        "/data/app/token/base.apk!/lib/arm64-v8a/libnot_launcher.so"));
-static_assert(!IsLauncherLibraryPath(
-        "/data/local/tmp/base.apk!/lib/arm64-v8a/libapp_launcher.so"));
-static_assert(IsLauncherLibraryPath("libapp_launcher.so"));
-static_assert(StringsEqual("com.miui.home", kLauncherProcessName));
-static_assert(!StringsEqual("com.miui.home:remote", kLauncherProcessName));
-static_assert(!StringsEqual("com.evil.home", kLauncherProcessName));
-
-bool IsLauncherProcess() {
-    const int fd = open("/proc/self/cmdline", O_RDONLY | O_CLOEXEC);
-    if (fd < 0) return false;
-    char command_line[64]{};
-    ssize_t result;
-    do {
-        result = read(fd, command_line, sizeof(command_line));
-    } while (result < 0 && errno == EINTR);
-    close(fd);
-    if (result <= 0) return false;
-
-    constexpr size_t expected_length =
-            ConstStringLength(kLauncherProcessName);
-    return static_cast<size_t>(result) > expected_length &&
-            command_line[expected_length] == '\0' &&
-            StringsEqual(command_line, kLauncherProcessName);
-}
-
-bool IsHyosSpawnerProcessFamily() {
-    char executable[128]{};
-    const ssize_t length = readlink("/proc/self/exe", executable,
-                                    sizeof(executable) - 1u);
-    if (length <= 0 || static_cast<size_t>(length) >= sizeof(executable)) {
-        return false;
-    }
-    executable[length] = '\0';
-    return StringsEqual(executable, kSpawnerPath);
-}
-
-// LSPosed's HYOS entry is initialized in the root spawner (whose cmdline is
-// currently `usap64`) before it forks the package process.  The old check
-// required the spawner itself to already advertise com.miui.home, which is no
-// longer true after the launcher update.  Keep the executable identity as the
-// hard boundary and accept the actual launcher child as well.
-bool IsLauncherHookProcess() {
-    return IsLauncherProcess() || IsHyosSpawnerProcessFamily();
-}
 
 void MarkLsposedLauncherSpecialized() {
     if (__atomic_exchange_n(&g_hyos_launcher_specialized, uint32_t{1},
@@ -822,83 +709,6 @@ constexpr char kAcceptedStateAction[] =
 constexpr char kLauncherStateOwnerEpochExtra[] =
         "launcher_state_owner_epoch";
 
-bool MatchesCode(const uint8_t* base, uintptr_t offset,
-                 const uint8_t* expected, size_t expected_size) {
-    return base != nullptr && expected != nullptr && expected_size != 0u &&
-            memcmp(base + offset, expected, expected_size) == 0;
-}
-
-bool DartMappedRangeHasFlags(const uint8_t* base, uintptr_t offset,
-                             size_t size, uint32_t required_flags) {
-    if (base == nullptr || offset == 0u || size == 0u ||
-            offset > UINTPTR_MAX - size) {
-        return false;
-    }
-    const auto* header = reinterpret_cast<const Elf64_Ehdr*>(base);
-    if (memcmp(header->e_ident, ELFMAG, SELFMAG) != 0 ||
-            header->e_ident[EI_CLASS] != ELFCLASS64 ||
-            header->e_ident[EI_DATA] != ELFDATA2LSB ||
-            header->e_type != ET_DYN || header->e_machine != EM_AARCH64 ||
-            header->e_phentsize != sizeof(Elf64_Phdr) ||
-            header->e_phnum == 0u || header->e_phnum > 128u ||
-            header->e_phoff > 0x10000u) {
-        return false;
-    }
-    const auto* programs = reinterpret_cast<const Elf64_Phdr*>(
-            base + header->e_phoff);
-    const uintptr_t end = offset + size;
-    for (uint16_t index = 0u; index < header->e_phnum; ++index) {
-        const Elf64_Phdr& program = programs[index];
-        if (program.p_type != PT_LOAD ||
-                (program.p_flags & required_flags) != required_flags ||
-                program.p_vaddr > UINTPTR_MAX - program.p_memsz) {
-            continue;
-        }
-        const uintptr_t segment_start =
-                static_cast<uintptr_t>(program.p_vaddr);
-        const uintptr_t segment_end = segment_start +
-                static_cast<uintptr_t>(program.p_memsz);
-        if (offset >= segment_start && end <= segment_end) return true;
-    }
-    return false;
-}
-
-bool DartBlTargets(const uint8_t* base, uintptr_t instruction_offset,
-                   uintptr_t expected_target) {
-    if (!DartMappedRangeHasFlags(base, instruction_offset, sizeof(uint32_t),
-                                 PF_R | PF_X)) {
-        return false;
-    }
-    uint32_t instruction = 0u;
-    memcpy(&instruction, base + instruction_offset, sizeof(instruction));
-    if ((instruction & 0xfc000000u) != 0x94000000u) return false;
-    int64_t immediate = static_cast<int64_t>(instruction & 0x03ffffffu);
-    if ((immediate & (int64_t{1} << 25u)) != 0) {
-        immediate -= int64_t{1} << 26u;
-    }
-    const int64_t target = static_cast<int64_t>(instruction_offset) +
-            immediate * 4;
-    return target >= 0 && static_cast<uintptr_t>(target) == expected_target;
-}
-
-bool MatchesLauncherProfile(
-        const uint8_t* base, void* app_entry_point,
-        const miui_home_profiles::LauncherProfile& profile) {
-    if (base == nullptr || app_entry_point != base + profile.entry_offset ||
-            profile.identity_fingerprints == nullptr ||
-            profile.identity_fingerprint_count == 0u) {
-        return false;
-    }
-    for (size_t index = 0u; index < profile.identity_fingerprint_count;
-         ++index) {
-        const auto& fingerprint = profile.identity_fingerprints[index];
-        if (!MatchesCode(base, fingerprint.offset, fingerprint.bytes,
-                         fingerprint.size)) {
-            return false;
-        }
-    }
-    return true;
-}
 
 const miui_home_profiles::LauncherProfile* ResolveLauncherProfile(
         void* app_entry_point, uint8_t** resolved_base) {
@@ -5065,49 +4875,11 @@ void RefreshContextualSearchConfig() {
 
 }  // namespace
 
-bool MiuiHomeHyosResolveDartImage(void* dart_handle, uint8_t** base_out,
-                                  const uint8_t** build_id_out) {
-    if (dart_handle == nullptr || base_out == nullptr ||
-            build_id_out == nullptr) {
-        return false;
-    }
-    void* instructions = dlsym(dart_handle,
-                               kDartSnapshotInstructionsSymbol);
-    void* build_id = dlsym(dart_handle, kDartSnapshotBuildIdSymbol);
-    Dl_info info{};
-    if (instructions == nullptr || build_id == nullptr ||
-            dladdr(instructions, &info) == 0 || info.dli_fbase == nullptr ||
-            !IsDartLibraryPath(info.dli_fname)) {
-        return false;
-    }
-    auto* base = static_cast<uint8_t*>(info.dli_fbase);
-    const uintptr_t base_address = reinterpret_cast<uintptr_t>(base);
-    const uintptr_t instructions_address =
-            reinterpret_cast<uintptr_t>(instructions);
-    const uintptr_t build_id_address = reinterpret_cast<uintptr_t>(build_id);
-    if (instructions_address < base_address || build_id_address < base_address) {
-        return false;
-    }
-    const uintptr_t instructions_offset = instructions_address - base_address;
-    const uintptr_t build_id_offset = build_id_address - base_address;
-    if (!DartMappedRangeHasFlags(base, instructions_offset, sizeof(uint32_t),
-                                 PF_R | PF_X) ||
-            !DartMappedRangeHasFlags(base, build_id_offset, 32u, PF_R)) {
-        return false;
-    }
-    *base_out = base;
-    *build_id_out = static_cast<const uint8_t*>(build_id);
-    return true;
-}
 
 void* MiuiHomeHyosCurrentDartHandle() {
     return g_dart_app_handle;
 }
 
-bool MiuiHomeHyosDartRangeHasFlags(const uint8_t* base, uintptr_t offset,
-                                   size_t size, uint32_t required_flags) {
-    return DartMappedRangeHasFlags(base, offset, size, required_flags);
-}
 
 // Module-facing gate for the gesture-bar contextual-search long press. The shared
 // config file is written by the module, but scoped storage refuses the launcher

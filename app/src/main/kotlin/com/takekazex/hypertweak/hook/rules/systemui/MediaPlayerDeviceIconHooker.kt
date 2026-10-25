@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui
 
+import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
+
 import android.view.View
 import androidx.core.view.isGone
 import com.takekazex.hypertweak.hook.Preferences
@@ -111,7 +113,7 @@ class MediaPlayerDeviceIconHooker : DynamicHooker() {
     }
 
     private fun isEnabled(): Boolean =
-        Preferences.getBoolean(Preferences.KEY_MEDIA_CARD_HIDE_DEVICE_SWITCH, false)
+        Preferences.getBoolean(SystemUiSettingsKeys.KEY_MEDIA_CARD_HIDE_DEVICE_SWITCH, false)
 
     private fun hideIcon(holder: Any, icon: View) {
         val known = hiddenIcons[holder]

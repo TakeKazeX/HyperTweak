@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.dock
 
+import com.takekazex.hypertweak.settings.contract.DockConfig
+
 import com.takekazex.hypertweak.hook.Preferences
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CancellationException

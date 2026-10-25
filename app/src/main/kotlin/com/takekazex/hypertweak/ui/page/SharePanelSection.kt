@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.ui.page
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.*
@@ -17,11 +19,11 @@ import top.yukonga.miuix.kmp.preference.SwitchPreference
 
 @Composable
 internal fun SharePanelSection() {
-    var enabled by remember { mutableStateOf(Preferences.getBoolean(Preferences.KEY_SHARE_PANEL_SHOW_ALL, false)) }
+    var enabled by remember { mutableStateOf(Preferences.getBoolean(PlatformSettingsKeys.KEY_SHARE_PANEL_SHOW_ALL, false)) }
     val lifecycle = LocalLifecycleOwner.current.lifecycle.currentStateAsState().value
     LaunchedEffect(lifecycle) {
         if (lifecycle == Lifecycle.State.RESUMED) {
-            enabled = Preferences.getBoolean(Preferences.KEY_SHARE_PANEL_SHOW_ALL, false)
+            enabled = Preferences.getBoolean(PlatformSettingsKeys.KEY_SHARE_PANEL_SHOW_ALL, false)
         }
     }
     SmallTitle(stringResource(R.string.share_panel_title))
@@ -30,7 +32,7 @@ internal fun SharePanelSection() {
             checked = enabled,
             onCheckedChange = {
                 enabled = it
-                Preferences.putBoolean(Preferences.KEY_SHARE_PANEL_SHOW_ALL, it)
+                Preferences.putBoolean(PlatformSettingsKeys.KEY_SHARE_PANEL_SHOW_ALL, it)
             },
             title = stringResource(R.string.share_panel_show_all),
             summary = stringResource(R.string.share_panel_show_all_summary)

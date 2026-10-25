@@ -1,5 +1,9 @@
 package com.takekazex.hypertweak.hook.rules.backgesture.hooks.systemui;
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys;
+
+import com.takekazex.hypertweak.settings.contract.BackGestureKeys;
+
 import com.takekazex.hypertweak.hook.Preferences;
 
 import android.annotation.SuppressLint;
@@ -161,7 +165,7 @@ public abstract class SystemUiInputPolicyRuntime extends HookRuntimeCore {
 
     protected boolean isFullscreenDirectBackEnabled() {
         return Preferences.INSTANCE.backGestureBoolean(
-                Preferences.KEY_FULLSCREEN_DIRECT_BACK,
+                BackGestureKeys.KEY_FULLSCREEN_DIRECT_BACK,
                 PredictiveBackPreferences.DEFAULT_FULLSCREEN_DIRECT_BACK);
     }
 
@@ -189,7 +193,7 @@ public abstract class SystemUiInputPolicyRuntime extends HookRuntimeCore {
         try {
             // HyperTweak: consume the acknowledged live snapshot, including hot reload/reset.
             return Preferences.INSTANCE.backGestureBoolean(
-                    Preferences.KEY_CONTEXTUAL_SEARCH_HAPTICS,
+                    PlatformSettingsKeys.KEY_CONTEXTUAL_SEARCH_HAPTICS,
                     PredictiveBackPreferences.DEFAULT_CONTEXTUAL_SEARCH_HAPTICS);
         } catch (Throwable throwable) {
             moduleLog(Log.WARN, TAG,

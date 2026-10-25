@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui
 
+import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
+
 import android.graphics.Typeface
 import android.view.View
 import android.view.ViewGroup
@@ -250,5 +252,5 @@ object NotificationFontWeightHooker : StaticHooker() {
     }
 
     private fun isEnabled(): Boolean =
-        !retiring && Preferences.getBoolean(Preferences.KEY_NOTIFICATION_FONT_WEIGHT, false)
+        !retiring && Preferences.getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_FONT_WEIGHT, false)
 }

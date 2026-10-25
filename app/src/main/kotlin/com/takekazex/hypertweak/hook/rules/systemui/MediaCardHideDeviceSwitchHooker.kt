@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui
 
+import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
+
 import android.view.View
 import android.view.ViewGroup
 import com.takekazex.hypertweak.hook.Preferences
@@ -121,7 +123,7 @@ object MediaCardHideDeviceSwitchHooker : StaticHooker() {
      * restores the visibility the host last requested when disabled.
      */
     fun refreshSettings() {
-        val next = Preferences.getBoolean(Preferences.KEY_MEDIA_CARD_HIDE_DEVICE_SWITCH, false)
+        val next = Preferences.getBoolean(SystemUiSettingsKeys.KEY_MEDIA_CARD_HIDE_DEVICE_SWITCH, false)
         val changed = next != enabled
         enabled = next
         HostAccess.onMain {
@@ -152,7 +154,7 @@ object MediaCardHideDeviceSwitchHooker : StaticHooker() {
         aospSeamlessIconField = null
         mediaSwitchVisibilityIds.clear()
         visibilityGuardLogged.set(false)
-        enabled = Preferences.getBoolean(Preferences.KEY_MEDIA_CARD_HIDE_DEVICE_SWITCH, false)
+        enabled = Preferences.getBoolean(SystemUiSettingsKeys.KEY_MEDIA_CARD_HIDE_DEVICE_SWITCH, false)
         installVisibilityGuard()
         installShadeHook()
         installIslandHook()

@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 // Instruction/data-flow contracts. Runtime locations, allocation CIDs and strategy fields
 // are decoded from the current image; there is no version/build-ID/address table.
+// Pool displacements and GDT selector immediates may move without changing these
+// functions. Masks retain their opcodes, registers and surrounding data flow.
+// The constructor's two local argument spills may exchange slots; their pairing
+// is validated below instead of treating the compiler's spill order as an ABI.
 namespace {
 constexpr uint32_t kStackGetterWords[] = {
     0xa9bf79fdu, 0xaa0f03fdu, 0xd10081efu, 0xaa0103e3u, 0xf81f03a1u, 0xf81e83a2u,
@@ -23,7 +27,7 @@ constexpr uint32_t kStackGetterMasks[] = {
     0xffffffffu, 0xffe00fffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
     0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
     0xffffffffu, 0xffc003ffu, 0xffffffffu, 0xffffffffu, 0xffc003ffu, 0xfc000000u,
-    0xffffffffu, 0xffc003ffu, 0xffffffffu, 0xffffffffu, 0xfc000000u, 0xffffffffu,
+    0xffffffffu, 0xffc003ffu, 0xffc003ffu, 0xffffffffu, 0xfc000000u, 0xffffffffu,
     0xffffffffu, 0xfc000000u, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffc003ffu,
     0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
     0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
@@ -185,23 +189,23 @@ constexpr uint32_t kStackFactoryMasks[] = {
     0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
     0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xfc000000u,
     0xffffffffu, 0xffffffffu, 0xffffffffu, 0xfc000000u, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xfc000000u, 0xffffffffu,
+    0xffffffffu, 0xffffffffu, 0xffe00fffu, 0xffe00fffu, 0xfc000000u, 0xffffffffu,
     0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xfc000000u,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xfc000000u,
+    0xffffffffu, 0xffffffffu, 0xffe00fffu, 0xffe00fffu, 0xffffffffu, 0xfc000000u,
     0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
+    0xfc000000u, 0xffffffffu, 0xffffffffu, 0xffe00fffu, 0xffe00fffu, 0xffffffffu,
     0xfc000000u, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xfc000000u, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xfc000000u, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
+    0xffffffffu, 0xfc000000u, 0xffffffffu, 0xffffffffu, 0xffe00fffu, 0xffe00fffu,
     0xffffffffu, 0xfc000000u, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
     0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xfc000000u, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xfc000000u, 0xffffffffu,
+    0xffffffffu, 0xffe00fffu, 0xffe00fffu, 0xffffffffu, 0xfc000000u, 0xffffffffu,
     0xffffffffu, 0xffffffffu, 0xffffffffu, 0xfc000000u, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xfc000000u, 0xffffffffu, 0xffffffffu,
+    0xffe00fffu, 0xffe00fffu, 0xffffffffu, 0xfc000000u, 0xffffffffu, 0xffffffffu,
     0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xfc000000u,
     0xffffffffu, 0xffffffffu, 0xffffffffu, 0xfc000000u, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xfc000000u, 0xffffffffu, 0xffffffffu,
+    0xffe00fffu, 0xffe00fffu, 0xffffffffu, 0xfc000000u, 0xffffffffu, 0xffffffffu,
     0xffffffffu, 0xffffffffu, 0xfc000000u, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xfc000000u, 0xffffffffu, 0xffffffffu,
+    0xffffffffu, 0xffe00fffu, 0xffe00fffu, 0xfc000000u, 0xffffffffu, 0xffffffffu,
     0xffffffffu, 0xffffffffu,
 };
 constexpr uint32_t kStackBuilderWords[] = {
@@ -319,7 +323,7 @@ constexpr uint32_t kStackBuilderMasks[] = {
     0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
     0xffffffffu, 0xfc000000u, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
     0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xfc000000u,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffc003ffu, 0xffffffffu, 0xfc000000u,
+    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffc003ffu, 0xffc003ffu, 0xfc000000u,
     0xffffffffu, 0xfc000000u, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
     0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
     0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
@@ -387,18 +391,18 @@ constexpr uint32_t kStackChildrenMasks[] = {
     0xffc003ffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffc003ffu, 0xfc000000u,
     0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
     0xffffffffu, 0xffffffffu, 0xfc000000u, 0xffffffffu, 0xffffffffu, 0xffc003ffu,
-    0xffffffffu, 0xfc000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u,
+    0xffc003ffu, 0xfc000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u,
     0xffc003ffu, 0xfc000000u, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
     0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
     0xffffffffu, 0xffffffffu, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u,
     0xffc003ffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffc003ffu, 0xffffffffu, 0xffc003ffu,
-    0xffffffffu, 0xfc000000u, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
+    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffe0001fu,
+    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffc003ffu, 0xffc003ffu, 0xffc003ffu,
+    0xffc003ffu, 0xfc000000u, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
     0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
     0xffffffffu, 0xffffffffu, 0xfc000000u, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xfc000000u, 0xffc003ffu, 0xffffffffu,
-    0xffffffffu, 0xffc003ffu, 0xffffffffu, 0xffffffffu, 0xffc003ffu, 0xffffffffu,
+    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xfc000000u, 0xffc003ffu, 0xffc003ffu,
+    0xffffffffu, 0xffc003ffu, 0xffc003ffu, 0xffffffffu, 0xffc003ffu, 0xffc003ffu,
     0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
     0xffc003ffu, 0xffc003ffu, 0xfc000000u,
 };
@@ -457,14 +461,14 @@ constexpr uint32_t kStackRefreshMasks[] = {
     0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffc003ffu, 0xffc003ffu, 0xffc003ffu,
     0xffffffffu, 0xffffffffu, 0xffc003ffu, 0xfc000000u, 0xffffffffu, 0xfc000000u,
     0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
+    0xffe0001fu, 0xffe0001fu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
+    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffe0001fu, 0xffe0001fu,
     0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
+    0xffffffffu, 0xffffffffu, 0xffc003ffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
+    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffc003ffu, 0xffffffffu,
     0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
     0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffc003ffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffc003ffu,
+    0xffe0001fu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffc003ffu,
     0xffc003ffu, 0xffc003ffu, 0xffffffffu, 0xffffffffu, 0xffc003ffu, 0xfc000000u,
     0xffffffffu, 0xffc003ffu, 0xffffffffu, 0xffffffffu, 0xffc003ffu, 0xfc000000u,
     0xffffffffu, 0xffffffffu, 0xfc000000u, 0xffffffffu, 0xffffffffu, 0xffffffffu,
@@ -610,6 +614,36 @@ bool StackAllocation(const Image& image, uintptr_t call, uint32_t* cid) {
     *cid = (((lo >> 5u) & 0xffffu) | (((hi >> 5u) & 0xffffu) << 16u)) >> 12u;
     return *cid > 0u && *cid < 0x100000u;
 }
+int StackFrameDisplacement(uint32_t word) {
+    const int immediate = static_cast<int>((word >> 12u) & 0x1ffu);
+    return immediate < 256 ? immediate : immediate - 512;
+}
+bool StackFactoryArguments(const Image& image, uintptr_t factory) {
+    int saved[2] = {}, argument[2] = {};
+    unsigned stores = 0, pairs = 0;
+    // The two values are saved before reading the layout enum. Decode their
+    // actual frame slots, then require every constructor branch to use both.
+    for (size_t i = 0; i < sizeof(kStackFactoryWords); i += 4) {
+        const auto word = StackWord(image, factory + i);
+        if (word == 0xf8407024u) break;
+        if ((word & 0xffe00fffu) != 0xf80003a3u &&
+            (word & 0xffe00fffu) != 0xf80003a5u) continue;
+        if (stores == 2) return false;
+        saved[stores++] = StackFrameDisplacement(word);
+    }
+    if (stores != 2 || saved[0] >= 0 || saved[1] >= 0 || saved[0] == saved[1]) return false;
+    for (size_t i = 0; i + 8 <= sizeof(kStackFactoryWords); i += 4) {
+        const auto first = StackWord(image, factory + i);
+        const auto second = StackWord(image, factory + i + 4);
+        if ((first & 0xffe00fffu) != 0xf84003a3u ||
+            (second & 0xffe00fffu) != 0xf84003a5u) continue;
+        const int a = StackFrameDisplacement(first), b = StackFrameDisplacement(second);
+        if (!((a == saved[0] && b == saved[1]) || (a == saved[1] && b == saved[0]))) return false;
+        if (pairs != 0 && (a != argument[0] || b != argument[1])) return false;
+        argument[0] = a; argument[1] = b; ++pairs;
+    }
+    return pairs >= 2;
+}
 }
 bool VerifyFolderStackReturn(uintptr_t address) {
     return MatchPatternAtAddress(address, {kStackReturn, nullptr, sizeof(kStackReturn)});
@@ -623,6 +657,7 @@ bool DecodeFolderStackLayout(const Image& image, uintptr_t getter, uintptr_t pro
                         kFlagRead | kFlagExec)) return false;
     if (!MatchBytes(image,builder,kFolderStackSites[3].pattern,kFlagRead|kFlagExec) ||
         !MatchBytes(image,children,kFolderStackSites[4].pattern,kFlagRead|kFlagExec)) return false;
+    if (!StackFactoryArguments(image, factory)) return false;
     FolderStackLayout out{};
     unsigned patch_count = 0, list_count = 0, factory_count = 0, allocation_count = 0;
     // Derive the return site from the validated indexed compressed-array read,

@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.system
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+
 import android.content.Context
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HotReloadMode
@@ -133,7 +135,7 @@ object PowerButtonCtsHooker : StaticHooker() {
     private var systemContextCache: Context? = null
 
     override fun onHook() {
-        if (Preferences.powerButtonAction() == Preferences.POWER_BUTTON_ACTION_DISABLED) {
+        if (Preferences.powerButtonAction() == PlatformSettingsKeys.POWER_BUTTON_ACTION_DISABLED) {
             DebugLog.hookSkippedDebug(SCOPE, "power button long press", "action disabled")
             return
         }
@@ -318,7 +320,7 @@ object PowerButtonCtsHooker : StaticHooker() {
     }
 
     private fun dispatchEnabled(): Boolean =
-        Preferences.powerButtonAction() != Preferences.POWER_BUTTON_ACTION_DISABLED
+        Preferences.powerButtonAction() != PlatformSettingsKeys.POWER_BUTTON_ACTION_DISABLED
 
     /** `SingleKeyGestureEvent.getKeyCode()`; -1 when unavailable, which matches no real key. */
     private fun readEventKeyCode(event: Any): Int = runCatching {
@@ -388,15 +390,15 @@ object PowerButtonCtsHooker : StaticHooker() {
     ): Boolean {
         markPowerKeyHandled(policy)
         val dispatched = when (Preferences.powerButtonAction()) {
-            Preferences.POWER_BUTTON_ACTION_CIRCLE_TO_SEARCH -> {
+            PlatformSettingsKeys.POWER_BUTTON_ACTION_CIRCLE_TO_SEARCH -> {
                 DebugLog.i(SCOPE, "$layer long-press power -> Circle to Search")
                 ContextualSearchSystemHooker.startFromSystemServer()
             }
-            Preferences.POWER_BUTTON_ACTION_GOOGLE_LENS -> {
+            PlatformSettingsKeys.POWER_BUTTON_ACTION_GOOGLE_LENS -> {
                 DebugLog.i(SCOPE, "$layer long-press power -> Google Lens")
                 launchGoogleLens()
             }
-            Preferences.POWER_BUTTON_ACTION_DEFAULT_ASSISTANT -> {
+            PlatformSettingsKeys.POWER_BUTTON_ACTION_DEFAULT_ASSISTANT -> {
                 DebugLog.i(SCOPE, "$layer long-press power -> default assistant")
                 launchDefaultAssistant(policy, eventTime)
             }

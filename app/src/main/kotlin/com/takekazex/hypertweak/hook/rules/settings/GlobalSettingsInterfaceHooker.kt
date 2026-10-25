@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.settings
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.DebugLog
@@ -18,7 +20,7 @@ object GlobalSettingsInterfaceHooker : StaticHooker() {
             DebugLog.hookSkippedDebug(TAG, SETTINGS_PACKAGE, "not the Settings main process")
             return
         }
-        if (!Preferences.getBoolean(Preferences.KEY_SETTINGS_GLOBAL_INTERFACE, false)) {
+        if (!Preferences.getBoolean(PlatformSettingsKeys.KEY_SETTINGS_GLOBAL_INTERFACE, false)) {
             DebugLog.hookSkippedDebug(TAG, "international Settings interface", "disabled")
             return
         }

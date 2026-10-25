@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.ui.page
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -118,7 +120,7 @@ fun PowerSavePage(onBack: () -> Unit) {
                         onCheckedChange = { checked ->
                             refreshRate = checked
                             setOverride(
-                                Preferences.KEY_KEEP_REFRESH_RATE_IN_POWER_SAVE,
+                                PlatformSettingsKeys.KEY_KEEP_REFRESH_RATE_IN_POWER_SAVE,
                                 checked,
                                 securityCenterScope,
                             )
@@ -131,7 +133,7 @@ fun PowerSavePage(onBack: () -> Unit) {
                         onCheckedChange = { checked ->
                             hapticFeedback = checked
                             setOverride(
-                                Preferences.KEY_KEEP_HAPTIC_FEEDBACK_IN_POWER_SAVE,
+                                PlatformSettingsKeys.KEY_KEEP_HAPTIC_FEEDBACK_IN_POWER_SAVE,
                                 checked,
                                 securityCenterScope,
                             )
@@ -144,7 +146,7 @@ fun PowerSavePage(onBack: () -> Unit) {
                         onCheckedChange = { checked ->
                             systemSounds = checked
                             setOverride(
-                                Preferences.KEY_KEEP_SYSTEM_SOUNDS_IN_POWER_SAVE,
+                                PlatformSettingsKeys.KEY_KEEP_SYSTEM_SOUNDS_IN_POWER_SAVE,
                                 checked,
                                 securityCenterScope,
                             )
@@ -157,7 +159,7 @@ fun PowerSavePage(onBack: () -> Unit) {
                         onCheckedChange = { checked ->
                             wakeupGestures = checked
                             setOverride(
-                                Preferences.KEY_KEEP_WAKEUP_GESTURES_IN_POWER_SAVE,
+                                PlatformSettingsKeys.KEY_KEEP_WAKEUP_GESTURES_IN_POWER_SAVE,
                                 checked,
                                 securityCenterScope,
                             )
@@ -176,7 +178,7 @@ fun PowerSavePage(onBack: () -> Unit) {
                         onCheckedChange = { checked ->
                             autoPowerSave = checked
                             setOverride(
-                                Preferences.KEY_BATTERY_AUTO_POWER_SAVE_ENABLED,
+                                PlatformSettingsKeys.KEY_BATTERY_AUTO_POWER_SAVE_ENABLED,
                                 checked,
                                 systemUiScope,
                             )
@@ -194,7 +196,7 @@ fun PowerSavePage(onBack: () -> Unit) {
                         },
                         onValueSettled = {
                             Preferences.putInt(
-                                Preferences.KEY_BATTERY_AUTO_POWER_SAVE_THRESHOLD,
+                                PlatformSettingsKeys.KEY_BATTERY_AUTO_POWER_SAVE_THRESHOLD,
                                 autoThreshold.roundToInt(),
                             )
                             requestRestart(systemUiScope)
@@ -205,7 +207,7 @@ fun PowerSavePage(onBack: () -> Unit) {
                         onCheckedChange = { checked ->
                             exitWhenCharging = checked
                             setOverride(
-                                Preferences.KEY_EXIT_POWER_SAVE_WHEN_CHARGING,
+                                PlatformSettingsKeys.KEY_EXIT_POWER_SAVE_WHEN_CHARGING,
                                 checked,
                                 systemUiScope,
                             )
@@ -263,8 +265,8 @@ private fun ThresholdRow(
     onValueChange: (Float) -> Unit,
     onValueSettled: () -> Unit,
 ) {
-    val range = Preferences.MIN_BATTERY_AUTO_POWER_SAVE_THRESHOLD..
-        Preferences.MAX_BATTERY_AUTO_POWER_SAVE_THRESHOLD
+    val range = PlatformSettingsKeys.MIN_BATTERY_AUTO_POWER_SAVE_THRESHOLD..
+        PlatformSettingsKeys.MAX_BATTERY_AUTO_POWER_SAVE_THRESHOLD
     val current = { value.roundToInt().coerceIn(range.first, range.last) }
     ArrowPreference(
         title = stringResource(R.string.power_save_auto_threshold_title),

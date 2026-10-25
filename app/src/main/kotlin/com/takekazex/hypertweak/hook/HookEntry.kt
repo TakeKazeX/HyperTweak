@@ -1,5 +1,17 @@
 package com.takekazex.hypertweak.hook
 
+import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
+
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+
+import com.takekazex.hypertweak.settings.contract.AppSettingsKeys
+
+import com.takekazex.hypertweak.hook.bootstrap.RuntimeSettingsParticipants
+
+import com.takekazex.hypertweak.hook.bootstrap.SystemServerHookPlan
+
+import com.takekazex.hypertweak.hook.bootstrap.PackageHookPlan
+
 import android.content.SharedPreferences
 import android.content.pm.ApplicationInfo
 import android.content.Context
@@ -9,18 +21,9 @@ import com.takekazex.hypertweak.hook.base.HotReloadHandleStore
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.ModuleContext
 import com.takekazex.hypertweak.hook.rules.systemui.AODHooker
-import com.takekazex.hypertweak.hook.rules.systemui.AodWallpaperHandoffHooker
 import com.takekazex.hypertweak.hook.rules.aod.AodStatusIconHooker
-import com.takekazex.hypertweak.hook.rules.systemui.AospSystemUiPluginBlockHooker
-import com.takekazex.hypertweak.hook.rules.systemui.AospVolumeHapticHooker
-import com.takekazex.hypertweak.hook.rules.systemui.AospVolumeExtrasHooker
 import com.takekazex.hypertweak.hook.rules.systemui.ExtendUnlockHooker
 import com.takekazex.hypertweak.hook.rules.systemui.ProxyLaunchHooker
-import com.takekazex.hypertweak.hook.rules.systemui.UnlockClipboardHooker
-import com.takekazex.hypertweak.hook.rules.lbe.LbeClipboardToastHooker
-import com.takekazex.hypertweak.hook.rules.aicr.AicrBrowserWhitelistHooker
-import com.takekazex.hypertweak.hook.rules.aicr.AicrDefaultBrowserHooker
-import com.takekazex.hypertweak.hook.rules.systemui.HideFingerprintIcon
 import com.takekazex.hypertweak.hook.rules.systemui.HideBottomBarHooker
 import com.takekazex.hypertweak.hook.rules.systemui.HideLockscreenStatusBarHooker
 import com.takekazex.hypertweak.hook.rules.systemui.NotificationHeaderClockSecondsHooker
@@ -29,24 +32,7 @@ import com.takekazex.hypertweak.hook.rules.systemui.NotificationHeaderWeatherHoo
 import com.takekazex.hypertweak.hook.rules.systemui.NotificationMonetTextColorHooker
 import com.takekazex.hypertweak.hook.rules.systemui.NotificationFontWeightHooker
 import com.takekazex.hypertweak.hook.rules.systemui.NotificationAbsoluteTimeHooker
-import com.takekazex.hypertweak.hook.rules.systemui.SystemUiScreenshotSoundHooker
-import com.takekazex.hypertweak.hook.rules.systemui.SystemUiLiveSettings
-import com.takekazex.hypertweak.hook.rules.screenshot.ScreenshotSaveDirectoryHooker
-import com.takekazex.hypertweak.hook.rules.screenshot.ScreenshotClipboardHooker
-import com.takekazex.hypertweak.hook.rules.screenshot.ScreenshotAutoFrameHooker
-import com.takekazex.hypertweak.hook.rules.systemui.ImmediateMonetRefreshHooker
-import com.takekazex.hypertweak.hook.rules.systemui.KeyguardFingerprintAvoidHooker
-import com.takekazex.hypertweak.hook.rules.systemui.MediaCardHideAppIconHooker
-import com.takekazex.hypertweak.hook.rules.systemui.MediaCardHideDeviceSwitchHooker
-import com.takekazex.hypertweak.hook.rules.systemui.LockscreenAllNotificationsHooker
-import com.takekazex.hypertweak.hook.rules.systemui.LockscreenKeepNotificationsHooker
-import com.takekazex.hypertweak.hook.rules.systemui.FocusNotificationWhitelistHooker
-import com.takekazex.hypertweak.hook.rules.systemui.NotificationMiniWindowHooker
-import com.takekazex.hypertweak.hook.rules.systemui.NotificationWhitelistBypassHooker
-import com.takekazex.hypertweak.hook.rules.systemui.SystemUiBubbleNotificationWhitelistHooker
-import com.takekazex.hypertweak.hook.rules.systemui.NotificationBlockFoldHooker
-import com.takekazex.hypertweak.hook.rules.systemui.StatusBarHideSilentHooker
-import com.takekazex.hypertweak.hook.rules.systemui.FreeformBlurTransitionHooker
+import com.takekazex.hypertweak.settings.contract.SystemUiLiveSettings
 import com.takekazex.hypertweak.hook.rules.systemui.icon.CellularIconHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.WifiIconHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.HideCellularIconHooker
@@ -66,94 +52,15 @@ import com.takekazex.hypertweak.hook.rules.systemui.icon.RegionSamplingHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.CellularTypeIconHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.NotificationMaxNumberHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.LeftContainerHooker
-import com.takekazex.hypertweak.hook.rules.module.ModuleStatusHooker
-import com.takekazex.hypertweak.hook.rules.module.SettingsHooker
-import com.takekazex.hypertweak.hook.rules.ime.AospImeConfig
-import com.takekazex.hypertweak.hook.rules.ime.AospImeHooker
-import com.takekazex.hypertweak.hook.rules.ime.AospImeSystemHooker
-import com.takekazex.hypertweak.hook.rules.securitycenter.AppDetailsIconLaunchHooker
-import com.takekazex.hypertweak.hook.rules.securitycenter.AospAppInfoEntryHooker
-import com.takekazex.hypertweak.hook.rules.securitycenter.AospAppManagerEntryHooker
 import com.takekazex.hypertweak.hook.rules.securitycenter.BatteryInfoHooker
-import com.takekazex.hypertweak.hook.rules.securitycenter.BerserkModeHooker
-import com.takekazex.hypertweak.hook.rules.securitycenter.BubbleNotificationWhitelistHooker
-import com.takekazex.hypertweak.hook.rules.securitycenter.DetailedPowerDataHooker
-import com.takekazex.hypertweak.hook.rules.securitycenter.LowBatteryWarningHooker
-import com.takekazex.hypertweak.hook.rules.securitycenter.MoreBatteryInfoHooker
-import com.takekazex.hypertweak.hook.rules.securitycenter.PowerRankingHooker
-import com.takekazex.hypertweak.hook.rules.securitycenter.PowerSaveOverrideHooker
-import com.takekazex.hypertweak.hook.rules.securitycenter.SecurityCoreBubbleAppListHooker
-import com.takekazex.hypertweak.hook.rules.securitycenter.SecurityCenterPrivacyEntriesHooker
-import com.takekazex.hypertweak.hook.rules.securitycenter.SecurityCenterPopupHooker
-import com.takekazex.hypertweak.hook.rules.securitycenter.SecurityCenterDockHooker
-import com.takekazex.hypertweak.hook.rules.securitycenter.SecurityCenterDockHost
-import com.takekazex.hypertweak.hook.rules.securitycenter.SecurityCenterSafetyChecksHooker
-import com.takekazex.hypertweak.hook.rules.securitycenter.SecurityCenterUsbInstallNetworkVerifyHooker
-import com.takekazex.hypertweak.hook.rules.securitycenter.CarrierOfflineConfigHooker
-import com.takekazex.hypertweak.hook.rules.securitycenter.WarningCountdownHooker
-import com.takekazex.hypertweak.hook.rules.system.NativePhotoPickerHooker
-import com.takekazex.hypertweak.hook.rules.system.NativeFilePickerHooker
-import com.takekazex.hypertweak.hook.rules.system.AospPackageInstallerHooker
-import com.takekazex.hypertweak.hook.rules.system.SystemConfigHooker
-import com.takekazex.hypertweak.hook.rules.system.ThemeDrmRevalidationHooker
-import com.takekazex.hypertweak.hook.rules.system.CircleToSearchGestureHooker
-import com.takekazex.hypertweak.hook.rules.system.ContextualSearchSystemHooker
-import com.takekazex.hypertweak.hook.rules.system.DefaultAssistantHooker
-import com.takekazex.hypertweak.hook.rules.system.PowerButtonCtsHooker
-import com.takekazex.hypertweak.hook.rules.system.PasskeyHooker
-import com.takekazex.hypertweak.hook.rules.system.SpatialAudioBlockerHooker
-import com.takekazex.hypertweak.hook.rules.system.AonRuntimeGateHooker
-import com.takekazex.hypertweak.hook.rules.system.VolumeKeyStepsHooker
-import com.takekazex.hypertweak.hook.rules.system.AonGestureFeatureHooker
-import com.takekazex.hypertweak.hook.rules.system.AdaptiveRefreshRuntimeHooker
 import com.takekazex.hypertweak.hook.rules.system.BatteryAutoPowerSaveHooker
-import com.takekazex.hypertweak.hook.rules.system.ForceDarkAppListHooker
-import com.takekazex.hypertweak.hook.rules.settings.BluetoothPluginHooker
-import com.takekazex.hypertweak.hook.rules.settings.SpatialAudioHooker
-import com.takekazex.hypertweak.hook.rules.settings.VisualPerceptionSettingsHooker
-import com.takekazex.hypertweak.hook.rules.settings.AonGestureSettingsHooker
-import com.takekazex.hypertweak.hook.rules.settings.AdaptiveRefreshSettingsHooker
-import com.takekazex.hypertweak.hook.rules.settings.ChannelKeyguardToggleHooker
-import com.takekazex.hypertweak.hook.rules.settings.GlobalSettingsInterfaceHooker
-import com.takekazex.hypertweak.hook.rules.settings.NotificationMoreSettingsHooker
-import com.takekazex.hypertweak.hook.rules.settings.NotificationBadgeSettingsHooker
-import com.takekazex.hypertweak.hook.rules.settings.GoogleServicesSettingsHooker
-import com.takekazex.hypertweak.hook.rules.settings.HyperOsAiEntriesHooker
-import com.takekazex.hypertweak.hook.rules.phone.VideoRingbackHooker
-import com.takekazex.hypertweak.hook.rules.system.FcmLiveSystemHooker
 import com.takekazex.hypertweak.hook.rules.systemui.SystemUIPluginHooker
-import com.takekazex.hypertweak.hook.rules.systemui.LockscreenChargingDetailHooker
-import com.takekazex.hypertweak.hook.rules.systemui.LockscreenBottomTextHooker
-import com.takekazex.hypertweak.hook.rules.systemui.LockscreenDateHooker
-import com.takekazex.hypertweak.hook.rules.systemui.glass.GlassMaterialHooker
 import com.takekazex.hypertweak.hook.rules.module.RestartBroadcastHooker
-import com.takekazex.hypertweak.hook.rules.powerkeeper.FcmLivePowerKeeperHooker
 import com.takekazex.hypertweak.hook.rules.gms.QuickSharePhenotypeHooker
 import com.takekazex.hypertweak.hook.rules.googleapp.GoogleAppProcessPolicy
 import com.takekazex.hypertweak.hook.rules.googleapp.GoogleAppRuntime
-import com.takekazex.hypertweak.hook.rules.mediaeditor.MediaEditorWatermarkHooker
-import com.takekazex.hypertweak.hook.rules.personalassistant.ModelSpoofHooker
-import com.takekazex.hypertweak.hook.rules.personalassistant.AndroidWidgetPickerHooker
-import com.takekazex.hypertweak.hook.rules.camera.CameraWatermarkHooker
-import com.takekazex.hypertweak.hook.rules.camera.CameraImpersonationHooker
-import com.takekazex.hypertweak.hook.rules.camera.CameraUltraQualityHooker
-import com.takekazex.hypertweak.hook.rules.camera.CameraDeviceMismatchHooker
-import com.takekazex.hypertweak.hook.rules.camera.CameraLegendaryProfileHooker
-import com.takekazex.hypertweak.hook.rules.xmsf.UnlockFocusAuthHooker
-import com.takekazex.hypertweak.hook.rules.downloads.DownloadXlLogDirectoryHooker
-import com.takekazex.hypertweak.hook.rules.downloads.DownloadUiHooker
-import com.takekazex.hypertweak.hook.rules.guardprovider.GuardProviderEnvironmentCheckHooker
-import com.takekazex.hypertweak.hook.rules.guardprovider.GuardProviderUploadAppListHooker
-import com.takekazex.hypertweak.hook.rules.voiceassist.XiaoaiGestureHooker
-import com.takekazex.hypertweak.hook.rules.intentresolver.SharePanelHooker
-import com.takekazex.hypertweak.hook.rules.milink.MiLinkHpplayHooker
-import com.takekazex.hypertweak.hook.rules.trustservice.MiTrustRiskMonitoringHooker
-import com.takekazex.hypertweak.hook.rules.thememanager.ThemeManagerRightsCheckHooker
-import com.takekazex.hypertweak.hook.rules.system.SystemServerReadinessHooker
-import com.takekazex.hypertweak.hook.rules.system.GestureBarTransitionHooker
 import com.takekazex.hypertweak.util.DebugLog
 import com.takekazex.hypertweak.util.PlatformLevel
-import com.takekazex.hypertweak.hook.rules.backgesture.AospBackSystemHooker
 import com.takekazex.hypertweak.hook.rules.backgesture.AospBackSystemUiHooker
 import io.github.libxposed.api.XposedModule
 import io.github.libxposed.api.XposedModuleInterface
@@ -207,164 +114,20 @@ class HookEntry : XposedModule() {
             remove = { settingsHandler.removeCallbacks(it) },
             failure = { id, error -> DebugLog.w("RuntimeSettings", "reload failed participant=$id", error) }
         ).apply {
-            // Participants receive the committed keys that changed, so a shared domain can route
-            // each key to the hooker that owns it instead of re-running every consumer.
-            fun registerForProcess(id: String, apply: (Set<String>) -> Boolean) {
-                if (id in RuntimeSettingsGroups.forProcess(processName, isSystemServer)) {
-                    if (id == RuntimeSettingsGroups.SECURITY_DOCK || id == RuntimeSettingsGroups.DARK_MODE) registerWithRetryBudget(id, 120, apply)
-                    else register(id, apply)
-                }
-            }
-            registerForProcess(RuntimeSettingsGroups.ICONS) { keys ->
-                if (!iconSettingsLock.tryLock()) false else try { applyLiveIconSettings(keys) }
-                finally { iconSettingsLock.unlock() }
-            }
-            registerForProcess(RuntimeSettingsGroups.NATIVE_PHOTO_PICKER) { _ ->
-                NativePhotoPickerHooker.refreshSettings(); true
-            }
-            registerForProcess(RuntimeSettingsGroups.NATIVE_FILE_PICKER) { _ ->
-                NativeFilePickerHooker.refreshSettings(); true
-            }
-            registerForProcess(RuntimeSettingsGroups.FORCE_SCREENSHOT) { _ ->
-                com.takekazex.hypertweak.hook.rules.system.ForceScreenshotHooker.refreshSettings(); true
-            }
-            registerForProcess(RuntimeSettingsGroups.DARK_MODE) { _ ->
-                com.takekazex.hypertweak.hook.rules.system.DarkModeScheduleHooker.refreshSettings()
-            }
-            registerForProcess(RuntimeSettingsGroups.SCREENSHOT) { _ -> Preferences.invalidateRuntimeReadCache(); true }
-            registerForProcess(RuntimeSettingsGroups.BACK) { _ ->
-                RuntimeSettingsPreferences.dispatch(setOf(RuntimeSettingsGroups.BACK))
-                if (processName == "com.android.systemui") AospBackSystemUiHooker.refreshPreferences()
-                true
-            }
-            registerForProcess(RuntimeSettingsGroups.NATIVE) { _ -> publishNativeRuleSwitches(); true }
-            registerForProcess(RuntimeSettingsGroups.DOCK) { _ -> com.takekazex.hypertweak.hook.rules.system.DockBackgroundHooker.refreshSettings() }
-            registerForProcess(RuntimeSettingsGroups.VOLUME) { _ -> if (isSystemServer) VolumeKeyStepsHooker.refreshConfiguration(); true }
-            // system_server: the hooker re-reads the attach switch per transition.
-            registerForProcess(RuntimeSettingsGroups.GESTURE_BAR) { _ ->
-                Preferences.invalidateRuntimeReadCache()
-                GestureBarTransitionHooker.refreshSettings()
-                true
-            }
-            // SystemUI: the draw hooks cache the switches, so refresh those copies. Disabling also
-            // repaints the handle views, because suppressing onDraw leaves the last frame on screen.
-            registerForProcess(RuntimeSettingsGroups.GESTURE_BAR_UI) { _ ->
-                Preferences.invalidateRuntimeReadCache()
-                HideBottomBarHooker.refreshSettings()
-                true
-            }
-            registerForProcess(RuntimeSettingsGroups.XMSF) { _ -> Preferences.invalidateRuntimeReadCache(); true }
-            // Re-evaluate presence only; cold targets use each feature's managed preparation.
-            registerForProcess(RuntimeSettingsGroups.GATED_FEATURES) { _ ->
-                Preferences.invalidateRuntimeReadCache()
-                var applied = true
-                rootHookers.toList().forEach { hooker ->
-                    runCatching {
-                        hooker.refreshFeatureState()
-                        if (hooker is AicrDefaultBrowserHooker) hooker.refreshPresentation()
-                    }.onFailure {
-                        applied = false
-                        DebugLog.w("HookEntry", "gated refresh failed hooker=${hooker.hookerName}", it)
-                    }
-                }
-                applied
-            }
-            registerForProcess(RuntimeSettingsGroups.APP_DETAILS) { _ ->
-                if (processName == "com.miui.securitycenter") AppDetailsIconLaunchHooker.refreshSettings()
-                true
-            }
-            registerForProcess(RuntimeSettingsGroups.SECURITY_POPUPS) { _ ->
-                if (processName == SecurityCenterDockHost.PROCESS) SecurityCenterPopupHooker.refreshSettings() else true
-            }
-            registerForProcess(RuntimeSettingsGroups.SECURITY_DOCK) { _ ->
-                if (processName != SecurityCenterDockHost.PROCESS) true
-                else when (SecurityCenterDockHooker.refreshSettings()) {
-                    // Keep tracking the asynchronous owner until its main-thread repaint succeeds.
-                    SecurityCenterDockHooker.Refresh.PENDING -> false
-                    SecurityCenterDockHooker.Refresh.APPLIED -> true
-                    SecurityCenterDockHooker.Refresh.UNAVAILABLE -> false
-                }
-            }
-            registerForProcess(RuntimeSettingsGroups.SECURITY_CHECKS) { _ -> Preferences.invalidateRuntimeReadCache(); true }
-            registerForProcess(RuntimeSettingsGroups.OFFLINE_CONFIG) { _ -> Preferences.invalidateRuntimeReadCache(); true }
-            registerForProcess(RuntimeSettingsGroups.XIAOAI_GESTURES) { _ -> true }
-            registerForProcess(RuntimeSettingsGroups.SETTINGS_AI) { _ ->
-                HyperOsAiEntriesHooker.refreshSettings()
-            }
-            registerForProcess(RuntimeSettingsGroups.SHARE_PANEL) { _ ->
-                SharePanelHooker.refreshSettings()
-                true
-            }
-            // Keyguard battery row: SystemUI's keyguard status bar (Duo) and the AOD plugin rows
-            // (SystemUI-hosted plugin or the standalone AOD process).
-            registerForProcess(RuntimeSettingsGroups.AOD) { _ -> applyLiveAodSettings() }
-            registerForProcess(RuntimeSettingsGroups.AOD_CAPABILITY) { _ ->
-                AODHooker.refreshSettings()
-                if (processName == "com.android.systemui") applyLiveAodSettings()
-                true
-            }
-            registerForProcess(RuntimeSettingsGroups.NOTIFICATION_ICONS) { _ ->
-                StatusBarHideSilentHooker.refreshSettings()
-                true
-            }
-            registerForProcess(RuntimeSettingsGroups.NOTIFICATION_MINI_WINDOW) { _ ->
-                NotificationMiniWindowHooker.refreshSettings()
-                true
-            }
-            registerForProcess(RuntimeSettingsGroups.NOTIFICATION_WHITELIST) { _ ->
-                NotificationWhitelistBypassHooker.refreshSettings()
-                true
-            }
-            registerForProcess(RuntimeSettingsGroups.FREEFORM_BLUR) { _ ->
-                FreeformBlurTransitionHooker.refreshSettings()
-                true
-            }
-            registerForProcess(RuntimeSettingsGroups.KEYGUARD) { _ ->
-                Preferences.invalidateRuntimeReadCache()
-                HideLockscreenStatusBarHooker.refreshSettings()
-                LockscreenDateHooker.refreshSettings()
-                HideFingerprintIcon.refreshSettings()
-                true
-            }
-            registerForProcess(RuntimeSettingsGroups.HEADER) { keys ->
-                applyHeaderSettings(keys)
-                true
-            }
-            registerForProcess(RuntimeSettingsGroups.NOTIFICATION_TEXT) { keys ->
-                applyNotificationTextSettings(keys)
-                true
-            }
-            registerForProcess(RuntimeSettingsGroups.MEDIA_CARD) { _ ->
-                MediaCardHideAppIconHooker.refreshSettings()
-                MediaCardHideDeviceSwitchHooker.refreshSettings()
-                SystemUIPluginHooker.reloadControlCenterSettings()
-                true
-            }
-            registerForProcess(RuntimeSettingsGroups.CONTROL_CENTER_PLUGIN) { _ ->
-                SystemUIPluginHooker.reloadControlCenterSettings()
-                true
-            }
-            registerForProcess(RuntimeSettingsGroups.GLASS) { _ ->
-                GlassMaterialHooker.refreshSettings()
-                true
-            }
-            registerForProcess(RuntimeSettingsGroups.LOCKSCREEN) { _ ->
-                Preferences.invalidateRuntimeReadCache()
-                LockscreenBottomTextHooker.refreshSettings()
-                LockscreenChargingDetailHooker.refreshSettings()
-                KeyguardFingerprintAvoidHooker.refreshSettings()
-                true
-            }
-            registerForProcess(RuntimeSettingsGroups.POWER_SAVE) { _ ->
-                BatteryAutoPowerSaveHooker.refreshSettings()
-                true
-            }
-            registerForProcess(RuntimeSettingsGroups.ISLANDS) { _ ->
-                if (generationRetired) true else {
-                    Preferences.invalidateRuntimeReadCache()
-                    SystemUIPluginHooker.reloadIslandSettings()
-                }
-            }
+            RuntimeSettingsParticipants.install(this, processName, isSystemServer,
+                RuntimeSettingsParticipants.Actions(
+                    icons = { keys ->
+                        if (!iconSettingsLock.tryLock()) false else try { applyLiveIconSettings(keys) }
+                        finally { iconSettingsLock.unlock() }
+                    },
+                    publishNative = { publishNativeRuleSwitches() },
+                    aod = { applyLiveAodSettings() },
+                    header = { applyHeaderSettings(it) },
+                    notificationText = { applyNotificationTextSettings(it) },
+                    hookers = { rootHookers.toList() },
+                    retired = { generationRetired }
+                )
+            )
         }
     }
     private fun requestSettingsReload(groups: Set<String>, keys: Set<String> = emptySet()) {
@@ -442,9 +205,9 @@ class HookEntry : XposedModule() {
         if (keys.isNotEmpty() && keys.none { it in SystemUiLiveSettings.HEADER_KEYS }) return
         val layoutKeys = SystemUiLiveSettings.HEADER_KEYS - KEY_HEADER_CLOCK_SECONDS
         val weatherKeys = setOf(
-            Preferences.KEY_NOTIFICATION_HEADER_WEATHER_ENABLED,
-            Preferences.KEY_NOTIFICATION_HEADER_WEATHER_REGION,
-            Preferences.KEY_NOTIFICATION_HEADER_WEATHER_TYPE
+            SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_WEATHER_ENABLED,
+            SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_WEATHER_REGION,
+            SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_WEATHER_TYPE
         )
         if (keys.isEmpty() || keys.any { it in layoutKeys }) NotificationHeaderHooker.refreshSettings()
         if (keys.isEmpty() || keys.any { it in weatherKeys }) NotificationHeaderWeatherHooker.refreshSettings()
@@ -457,13 +220,13 @@ class HookEntry : XposedModule() {
     /** Applies a committed notification-text snapshot to the displayed notifications. */
     private fun applyNotificationTextSettings(keys: Set<String>) {
         if (keys.isNotEmpty() && keys.none { it in SystemUiLiveSettings.NOTIFICATION_TEXT_KEYS }) return
-        if (keys.isEmpty() || Preferences.KEY_NOTIFICATION_MONET_TEXT_COLOR in keys) {
+        if (keys.isEmpty() || SystemUiSettingsKeys.KEY_NOTIFICATION_MONET_TEXT_COLOR in keys) {
             NotificationMonetTextColorHooker.refreshSettings()
         }
-        if (keys.isEmpty() || Preferences.KEY_NOTIFICATION_ABSOLUTE_TIME in keys) {
+        if (keys.isEmpty() || SystemUiSettingsKeys.KEY_NOTIFICATION_ABSOLUTE_TIME in keys) {
             NotificationAbsoluteTimeHooker.refreshSettings()
         }
-        if (keys.isEmpty() || Preferences.KEY_NOTIFICATION_FONT_WEIGHT in keys) {
+        if (keys.isEmpty() || SystemUiSettingsKeys.KEY_NOTIFICATION_FONT_WEIGHT in keys) {
             NotificationFontWeightHooker.refreshSettings()
         }
     }
@@ -520,7 +283,7 @@ class HookEntry : XposedModule() {
     private fun iconValueSnapshot(): String {
         val values = RuntimeSettingsStore.values() ?: return ""
         return values.entries
-            .filter { com.takekazex.hypertweak.hook.rules.systemui.icon.IconSettingsPreferencePolicy.affectsIcons(it.key) }
+            .filter { com.takekazex.hypertweak.settings.contract.IconSettingsPreferencePolicy.affectsIcons(it.key) }
             .sortedBy { it.key }
             .joinToString("|") { (key, value) -> key + "=" + value }
     }
@@ -1176,7 +939,7 @@ class HookEntry : XposedModule() {
             publisher.publish()
             return
         }
-        if ((!remoteSettingsReady && !RuntimeSettingsStore.owns(Preferences.KEY_NATIVE_RULE_REVISION)) || processName != LAUNCHER_PACKAGE) return
+        if ((!remoteSettingsReady && !RuntimeSettingsStore.owns(PlatformSettingsKeys.KEY_NATIVE_RULE_REVISION)) || processName != LAUNCHER_PACKAGE) return
         runCatching {
             NativeRules.applyRuleSwitches(
                 hideRecentsClearButton = Preferences.hideRecentsClearButton(),
@@ -1192,7 +955,7 @@ class HookEntry : XposedModule() {
     /** Runs one attempt at binding the daemon's remote preferences; true on success. */
     private fun tryInitPreferences(): Boolean {
         return try {
-            val remotePrefs = getRemotePreferences(Preferences.NAME)
+            val remotePrefs = getRemotePreferences(AppSettingsKeys.NAME)
             Preferences.init(remotePrefs)
             bindRuntimePreferencesListener(remotePrefs)
             requestSettingsReload(RuntimeSettingsGroups.forProcess(processName, isSystemServer))
@@ -1217,49 +980,8 @@ class HookEntry : XposedModule() {
             isSystemServer = true,
             appContext = null
         )
-        attachHooker(SystemServerReadinessHooker, classLoader, ctx, replacementHandles)
-        attachHooker(AospBackSystemHooker, classLoader, ctx, replacementHandles)
-        attachHooker(com.takekazex.hypertweak.hook.rules.system.DockBackgroundHooker, classLoader, ctx, replacementHandles)
-        attachHooker(com.takekazex.hypertweak.hook.rules.system.ForceScreenshotHooker, classLoader, ctx, replacementHandles)
-        attachHooker(SystemConfigHooker, classLoader, ctx, replacementHandles)
-        // The enabled com.android.systemui.gesture.line.overlay turns
-        // config_attachNavBarToAppDuringTransition off, so the gesture bar stays a separate layer
-        // during the swipe-up recents transition. DisplayPolicy caches it in system_server.
-        attachHooker(GestureBarTransitionHooker, classLoader, ctx, replacementHandles)
-        attachHooker(ContextualSearchSystemHooker, classLoader, ctx, replacementHandles)
-        attachHooker(PowerButtonCtsHooker, classLoader, ctx, replacementHandles)
-        // Aligns the AOSP assistant setting with the assistant selected in 默认应用 so the
-        // platform's own assist path can launch it (see the hooker's comment for what HyperOS
-        // leaves inconsistent).
-        attachHooker(DefaultAssistantHooker, classLoader, ctx, replacementHandles)
-        // Binds the launcher's gesture-bar long press to a route that reaches Circle to Search
-        // instead of XiaoAI; the native terminal patch alone is not enough (see the hooker).
-        attachHooker(CircleToSearchGestureHooker, classLoader, ctx, replacementHandles)
-        attachHooker(PasskeyHooker, classLoader, ctx, replacementHandles)
-        attachHooker(FcmLiveSystemHooker, classLoader, ctx, replacementHandles)
-        attachHooker(NativePhotoPickerHooker, classLoader, ctx, replacementHandles)
-        attachHooker(NativeFilePickerHooker, classLoader, ctx, replacementHandles)
-        attachHooker(AospPackageInstallerHooker, classLoader, ctx, replacementHandles)
-        // AON visual-perception runtime gates (感知锁屏/靠近亮屏/非注视感知) are resource bools read by
-        // miui-services inside system_server; the Settings-side unlock alone cannot activate them.
-        attachHooker(AonRuntimeGateHooker, classLoader, ctx, replacementHandles)
-        attachHooker(VolumeKeyStepsHooker, classLoader, ctx, replacementHandles)
-        // Experimental: let the AON air-gesture controller honour left/right + double-press, which
-        // the stock ROM always zeroes for AON (it only enables up/down).
-        attachHooker(AonGestureFeatureHooker, classLoader, ctx, replacementHandles)
-        // 自适应刷新率Pro (Mimotion PWM): force ro.display.enable_pwm_switch so
-        // DisplayFeatureManagerService's boot-time setDimmingMode() re-applies the Secure mode after
-        // a reboot on builds where the vendor prop is unset (see AdaptiveRefreshSettingsHooker).
-        attachHooker(AdaptiveRefreshRuntimeHooker, classLoader, ctx, replacementHandles)
-        // Dark-mode app data is returned through the uimode Binder. Keep system_server as the
-        // single source of truth so Settings and app processes observe the same persistent state.
-        attachHooker(com.takekazex.hypertweak.hook.rules.system.DarkModeScheduleHooker, classLoader, ctx, replacementHandles)
-        attachHooker(ForceDarkAppListHooker, classLoader, ctx, replacementHandles)
-        // Stops the framework's periodic theme DRM re-validation from restoring the default theme
-        // when a locally imported (third-party) theme is applied.
-        attachHooker(ThemeDrmRevalidationHooker, classLoader, ctx, replacementHandles)
-        if (AospImeConfig.isEnabled()) {
-            attachHooker(AospImeSystemHooker, classLoader, ctx, replacementHandles)
+        SystemServerHookPlan.attach { hooker ->
+            attachHooker(hooker, classLoader, ctx, replacementHandles)
         }
     }
 
@@ -1287,305 +1009,12 @@ class HookEntry : XposedModule() {
             ?.let(com.takekazex.hypertweak.hook.base.dex.DexRuntime::beginSession)
         try {
 
-        // Input methods are chosen by the user, so they cannot be listed in the `when` below. All
-        // the targets are boot-classpath classes present in every process, so a wrong package only
-        // installs hooks that never fire; the picker does the real validation.
-        if (AospImeConfig.shouldHookImePackage(packageName)) {
-            attachHooker(AospImeHooker, classLoader, ctx, replacementHandles)
-        }
-
-        when (packageName) {
-            "com.android.systemui" -> {
-                attachHooker(RestartBroadcastHooker, classLoader, ctx, replacementHandles)
-                attachHooker(AODHooker, classLoader, ctx, replacementHandles)
-                attachHooker(AodWallpaperHandoffHooker, classLoader, ctx, replacementHandles)
-                attachHooker(HideFingerprintIcon, classLoader, ctx, replacementHandles)
-                attachHooker(HideLockscreenStatusBarHooker, classLoader, ctx, replacementHandles)
-                attachHooker(NotificationHeaderClockSecondsHooker, classLoader, ctx, replacementHandles)
-                attachHooker(NotificationHeaderHooker, classLoader, ctx, replacementHandles)
-                attachHooker(NotificationHeaderWeatherHooker, classLoader, ctx, replacementHandles)
-                attachHooker(NotificationMonetTextColorHooker, classLoader, ctx, replacementHandles)
-                attachHooker(NotificationFontWeightHooker, classLoader, ctx, replacementHandles)
-                attachHooker(NotificationAbsoluteTimeHooker, classLoader, ctx, replacementHandles)
-                attachHooker(SystemUiScreenshotSoundHooker, classLoader, ctx, replacementHandles)
-                attachHooker(KeyguardFingerprintAvoidHooker, classLoader, ctx, replacementHandles)
-                attachHooker(LockscreenChargingDetailHooker, classLoader, ctx, replacementHandles)
-                attachHooker(LockscreenBottomTextHooker, classLoader, ctx, replacementHandles)
-                attachHooker(LockscreenDateHooker, classLoader, ctx, replacementHandles)
-                attachHooker(ImmediateMonetRefreshHooker, classLoader, ctx, replacementHandles)
-                // Auto power save needs a persistent process: SystemUI holds DEVICE_POWER and is
-                // always scoped, so the battery receiver lives here rather than in the app.
-                attachHooker(BatteryAutoPowerSaveHooker, classLoader, ctx, replacementHandles)
-                attachHooker(SystemUIPluginHooker, classLoader, ctx, replacementHandles)
-                attachHooker(AospSystemUiPluginBlockHooker, classLoader, ctx, replacementHandles)
-                attachHooker(AospVolumeHapticHooker, classLoader, ctx, replacementHandles)
-                attachHooker(AospBackSystemUiHooker, classLoader, ctx, replacementHandles)
-                attachHooker(AospVolumeExtrasHooker, classLoader, ctx, replacementHandles)
-                attachHooker(ExtendUnlockHooker, classLoader, ctx, replacementHandles)
-                attachHooker(ProxyLaunchHooker, classLoader, ctx, replacementHandles)
-                attachHooker(UnlockClipboardHooker, classLoader, ctx, replacementHandles)
-                attachHooker(HideBottomBarHooker, classLoader, ctx, replacementHandles)
-                iconHookers().forEach { attachHooker(it, classLoader, ctx, replacementHandles) }
-                // Baseline for the boot resync: the first full snapshot must be comparable to the
-                // values these hooks were just installed from, not to "unknown".
-                iconSnapshotAtInstall = iconValueSnapshot()
-                attachHooker(GlassMaterialHooker, classLoader, ctx, replacementHandles)
-                attachHooker(MediaCardHideAppIconHooker, classLoader, ctx, replacementHandles)
-                attachHooker(MediaCardHideDeviceSwitchHooker, classLoader, ctx, replacementHandles)
-                attachHooker(LockscreenAllNotificationsHooker, classLoader, ctx, replacementHandles)
-                attachHooker(LockscreenKeepNotificationsHooker, classLoader, ctx, replacementHandles)
-                attachHooker(FocusNotificationWhitelistHooker, classLoader, ctx, replacementHandles)
-                attachHooker(NotificationMiniWindowHooker, classLoader, ctx, replacementHandles)
-                attachHooker(NotificationWhitelistBypassHooker, classLoader, ctx, replacementHandles)
-                attachHooker(SystemUiBubbleNotificationWhitelistHooker, classLoader, ctx, replacementHandles)
-                // Notification fold suppression (its own switch) and the status-bar "silent
-                // notification" classifier. Its explicit two-mode icon filter is delivered live;
-                // the channel-settings repair still belongs to the Settings process.
-                attachHooker(NotificationBlockFoldHooker, classLoader, ctx, replacementHandles)
-                attachHooker(StatusBarHideSilentHooker, classLoader, ctx, replacementHandles)
-                // 多任务过渡模糊: the WM Shell multitasking classes reach this process through the
-                // `com.miui.wm.shell` shared library declared in SystemUI's manifest, so the plain
-                // SystemUI class loader resolves them (same channel as HideBottomBarHooker's
-                // MiuiDecorationBottomView).
-                attachHooker(FreeformBlurTransitionHooker, classLoader, ctx, replacementHandles)
-                // ControlCenterCardsEditHooker and ControlCenterCardResizeHooker attach only
-                // through SystemUIPluginHooker: their target classes live in
-                // the miui.systemui.plugin APK, whose PathClassLoader only exists after
-                // PluginInstance.loadPlugin() runs — SystemUIPluginHooker attaches it with that
-                // loader (see attachPluginHooker).
-            }
-            "com.miui.voiceassist" -> {
-                attachHooker(RestartBroadcastHooker, classLoader, ctx, replacementHandles)
-                attachHooker(XiaoaiGestureHooker, classLoader, ctx, replacementHandles)
-            }
-            "com.miui.screenshot" -> {
-                // HyperOS delegates normal screenshots to this process. Its provider hard-codes
-                // screenshot.ogg, which is the short AOSP-style click on this CN build; redirect
-                // that URI to the ROM's longer shutter sound when the lockscreen-bar tweak is on.
-                attachHooker(SystemUiScreenshotSoundHooker, classLoader, ctx, replacementHandles)
-                // Frame preparation must start before the two full save-family walks, so a cold
-                // first capture has the best chance of reaching a fully protected save contract.
-                attachHooker(ScreenshotAutoFrameHooker, classLoader, ctx, replacementHandles)
-                attachHooker(ScreenshotSaveDirectoryHooker, classLoader, ctx, replacementHandles)
-                attachHooker(ScreenshotClipboardHooker, classLoader, ctx, replacementHandles)
-            }
-            "com.lbe.security.miui" -> {
-                attachHooker(LbeClipboardToastHooker, classLoader, ctx, replacementHandles)
-            }
-            "com.miui.home" -> {
-                // The launcher rules need no Java hook here: LSPosed injects only the native
-                // payload into the launcher, so feature switches reach it through
-                // NativeRuleConfig rather than through this process.
-            }
-            "com.miui.aod" -> {
-                attachHooker(RestartBroadcastHooker, classLoader, ctx, replacementHandles)
-                attachHooker(AODHooker, classLoader, ctx, replacementHandles)
-                attachHooker(AodStatusIconHooker(), classLoader, ctx, replacementHandles)
-            }
-            "com.android.settings" -> {
-                // Flip Settings' process-local MIUI build flags before its own classes initialize.
-                attachHooker(GlobalSettingsInterfaceHooker, classLoader, ctx, replacementHandles)
-                attachHooker(RestartBroadcastHooker, classLoader, ctx, replacementHandles)
-                attachHooker(SettingsHooker, classLoader, ctx, replacementHandles)
-                attachHooker(AODHooker, classLoader, ctx, replacementHandles)
-                attachHooker(PasskeyHooker, classLoader, ctx, replacementHandles)
-                // The Bluetooth extension is loaded by Settings, so its UI hook must be
-                // attached in this process as well as the Bluetooth service process.
-                attachHooker(BluetoothPluginHooker, classLoader, ctx, replacementHandles)
-                attachHooker(SpatialAudioHooker(), classLoader, ctx, replacementHandles)
-                attachHooker(VisualPerceptionSettingsHooker, classLoader, ctx, replacementHandles)
-                // Experimental: link the orphaned 左右挥手 / 隔空暂停或播放 pages into the AON
-                // 隔空手势 landing list (stock ROM never references those fragments).
-                attachHooker(AonGestureSettingsHooker, classLoader, ctx, replacementHandles)
-                // 自适应刷新率Pro (Mimotion PWM): force ro.display.enable_pwm_switch so the
-                // 显示与亮度 mimotion_pwm_enable row is not removed by MiuiDisplaySettings on
-                // builds where the vendor prop is unset (see AdaptiveRefreshRuntimeHooker).
-                attachHooker(AdaptiveRefreshSettingsHooker, classLoader, ctx, replacementHandles)
-                // Reveal the per-channel 锁屏通知（allow_keyguard）switch in the notification channel
-                // page; only effective when the SystemUI-side lockscreen-all-notifications hook is on.
-                attachHooker(ChannelKeyguardToggleHooker, classLoader, ctx, replacementHandles)
-                // Reveal + wire up the channel page's importance drop-down and badge checkbox
-                // (HyperOS ships both as shells with no write-back listener).
-                attachHooker(NotificationMoreSettingsHooker, classLoader, ctx, replacementHandles)
-                attachHooker(NotificationBadgeSettingsHooker, classLoader, ctx, replacementHandles)
-                // Restore Settings' own Google services home-page header on domestic builds.
-                attachHooker(GoogleServicesSettingsHooker, classLoader, ctx, replacementHandles)
-                // Reveal the 小米澎湃AI page's 端侧大模型 / Gemini rows through the shared dispatcher.
-                attachHooker(HyperOsAiEntriesHooker, classLoader, ctx, replacementHandles)
-            }
-            "com.android.phone" -> {
-                // The native HyperPhone page delegates the CRBT capability and setter to this
-                // telephony service; keep both the display gate and modem-setting boundary here.
-                attachHooker(VideoRingbackHooker, classLoader, ctx, replacementHandles)
-            }
-            "com.xiaomi.phone" -> {
-                // HyperPhone caches the CRBT capability it read from the telephony service above,
-                // so disabling video ringback only takes effect once this UI process restarts.
-                // There is deliberately no feature hook here — the package is scoped so the
-                // restart receiver registered in onPackageReady can kill it without root.
-            }
-            "com.xiaomi.aon" -> {
-                // AON service/attention process. No feature hook attaches here: the
-                // visual-perception / air-gesture capability gates live in com.android.settings
-                // (MiuiUtils, VisualPerceptionSettingsHooker) and in system_server
-                // (AonRuntimeGateHooker, AonGestureFeatureHooker). The process is still scoped on
-                // purpose: every scoped package gets the in-process restart receiver registered by
-                // onPackageReady (see RestartBroadcastHooker.register), which lets the user restart
-                // the attention service from the module's restart picker without root.
-            }
-            "com.miui.securitycenter" -> {
-                // One DexKit bridge for the whole package dispatch: every consumer below reuses
-                // the session opened here. Opening one per hooker cost seconds on the 81 MB APK
-                // and pushed the auxiliary processes past ActivityManager's provider deadline.
-                fun attachSecurityCenterHookers() {
-                    attachHooker(RestartBroadcastHooker, classLoader, ctx, replacementHandles)
-                    // Default-credential writers live in the main Application on older builds and
-                    // in CacheService (`.cache`) on OS4. Other Security Center processes have no
-                    // target for this hook, so they must not pay its DEX resolution.
-                    if (processName == packageName || processName == "$packageName.cache") {
-                        attachHooker(PasskeyHooker, classLoader, ctx, replacementHandles)
-                    }
-                    attachHooker(AospAppInfoEntryHooker, classLoader, ctx, replacementHandles)
-                    attachHooker(AospAppManagerEntryHooker, classLoader, ctx, replacementHandles)
-                    // Only the main application process owns the on-demand battery request receiver.
-                    // Auxiliary Security Center processes must not start another sampling worker.
-                    if (processName == packageName) {
-                        attachHooker(BatteryInfoHooker, classLoader, ctx, replacementHandles)
-                    }
-                    attachHooker(BerserkModeHooker, classLoader, ctx, replacementHandles)
-                    attachHooker(BubbleNotificationWhitelistHooker, classLoader, ctx, replacementHandles)
-                    attachHooker(LowBatteryWarningHooker, classLoader, ctx, replacementHandles)
-                    attachHooker(DetailedPowerDataHooker, classLoader, ctx, replacementHandles)
-                    attachHooker(PowerRankingHooker, classLoader, ctx, replacementHandles)
-                    // The 省电模式 pins come from Security Center's remote process (PowerSaveService),
-                    // so this cannot be limited to the main application process.
-                    attachHooker(PowerSaveOverrideHooker, classLoader, ctx, replacementHandles)
-                    attachHooker(MoreBatteryInfoHooker, classLoader, ctx, replacementHandles)
-                    attachHooker(WarningCountdownHooker, classLoader, ctx, replacementHandles)
-                    // Anti-peeping capability checks also run in Security Center's remote process;
-                    // the hooker limits preference and function-card changes to the main process.
-                    attachHooker(SecurityCenterPrivacyEntriesHooker, classLoader, ctx, replacementHandles)
-                    // Security Center ships its own copy of the vendor clipboard-read overlay and is the
-                    // one that actually builds it; see LbeClipboardToastHooker.
-                    attachHooker(LbeClipboardToastHooker, classLoader, ctx, replacementHandles)
-                    if (processName == packageName || processName == "$packageName.cache" || processName == "$packageName.remote") {
-                        attachHooker(SecurityCenterSafetyChecksHooker, classLoader, ctx, replacementHandles)
-                    }
-                    if (processName == SecurityCenterDockHost.PROCESS) {
-                        attachHooker(SecurityCenterDockHooker, classLoader, ctx, replacementHandles)
-                        attachHooker(SecurityCenterPopupHooker, classLoader, ctx, replacementHandles)
-                    }
-                    if (processName == packageName) {
-                        attachHooker(AppDetailsIconLaunchHooker, classLoader, ctx, replacementHandles)
-                        attachHooker(SecurityCenterUsbInstallNetworkVerifyHooker, classLoader, ctx, replacementHandles)
-                    }
-                    if (processName == packageName || processName == "$packageName.remote") {
-                        attachHooker(CarrierOfflineConfigHooker, classLoader, ctx, replacementHandles)
-                    }
-                }
-                attachSecurityCenterHookers()
-            }
-            "com.miui.securitycore" -> {
-                attachHooker(RestartBroadcastHooker, classLoader, ctx, replacementHandles)
-                attachHooker(SecurityCoreBubbleAppListHooker, classLoader, ctx, replacementHandles)
-            }
-            "com.miui.powerkeeper" -> {
-                attachHooker(RestartBroadcastHooker, classLoader, ctx, replacementHandles)
-                attachHooker(FcmLivePowerKeeperHooker, classLoader, ctx, replacementHandles)
-            }
-            "com.google.android.gms" -> {
-                // Only the phenotype DB write runs in GMS (see QuickSharePhenotypeHooker);
-                // GMS is added to the scope dynamically when the Quick Share switch is on.
-                attachHooker(QuickSharePhenotypeHooker, classLoader, ctx, replacementHandles)
-            }
-            "com.google.android.googlequicksearchbox" -> {
-                // Keep the package scope for Lens/OMNI features, but dispatch only in their UI process.
-                if (GoogleAppProcessPolicy.ownsUi(packageName, processName)) {
-                    attachHooker(GoogleAppRuntime, classLoader, ctx, replacementHandles)
-                }
-            }
-            "com.miui.mediaeditor" -> {
-                attachHooker(MediaEditorWatermarkHooker, classLoader, ctx, replacementHandles)
-            }
-            "com.miui.personalassistant" -> {
-                // 机型伪装: rewrites phoneModel/phoneDevice in the assistant's request environment
-                // so Xiaomi's server delivers the 澎湃G1-gated "智能测算" MAML suit (精准电量).
-                attachHooker(ModelSpoofHooker, classLoader, ctx, replacementHandles)
-                attachHooker(AndroidWidgetPickerHooker, classLoader, ctx, replacementHandles)
-            }
-            "com.android.camera" -> {
-                // Runs before Camera.onCreate; the after-hook preserves model-config initialization
-                // while suppressing only the APK/device mismatch exit guard when opted in.
-                attachHooker(CameraDeviceMismatchHooker, classLoader, ctx, replacementHandles)
-                // Register profile selection after the camera config provider initializes it.
-                attachHooker(CameraLegendaryProfileHooker, classLoader, ctx, replacementHandles)
-                attachHooker(CameraWatermarkHooker, classLoader, ctx, replacementHandles)
-                // Must attach after CameraWatermarkHooker so its device-logo hook and the
-                // camera feature hooks share the structurally resolved config facade.
-                attachHooker(CameraImpersonationHooker, classLoader, ctx, replacementHandles)
-                // Queue config-dependent hooks behind provider initialization and profile selection.
-                attachHooker(CameraUltraQualityHooker, classLoader, ctx, replacementHandles)
-            }
-            "com.android.providers.downloads" -> {
-                // The provider's optional Xunlei log setup creates /storage/emulated/0/.xlDownload
-                // even with debug logging off. The feature only blocks that log path; downloads
-                // continue through the provider's normal engine.
-                attachHooker(DownloadXlLogDirectoryHooker, classLoader, ctx, replacementHandles)
-            }
-            "com.android.providers.downloads.ui" -> {
-                // The Download Manager UI has its own package/process and must be explicitly
-                // scoped; provider-side .xlDownload filtering does not reach this process.
-                attachHooker(DownloadUiHooker, classLoader, ctx, replacementHandles)
-            }
-            "com.android.thememanager" -> {
-                // Local/third-party theme apply gate. The framework-side counterpart lives in
-                // system_server (ThemeDrmRevalidationHooker).
-                attachHooker(ThemeManagerRightsCheckHooker, classLoader, ctx, replacementHandles)
-            }
-            "com.xiaomi.xmsf" -> {
-                attachHooker(RestartBroadcastHooker, classLoader, ctx, replacementHandles)
-                attachHooker(UnlockFocusAuthHooker, classLoader, ctx, replacementHandles)
-            }
-            "com.xiaomi.scanner" -> {
-                attachHooker(RestartBroadcastHooker, classLoader, ctx, replacementHandles)
-                attachHooker(PasskeyHooker, classLoader, ctx, replacementHandles)
-            }
-            "com.xiaomi.trustservice" -> {
-                attachHooker(RestartBroadcastHooker, classLoader, ctx, replacementHandles)
-                attachHooker(MiTrustRiskMonitoringHooker, classLoader, ctx, replacementHandles)
-            }
-            "com.miui.guardprovider" -> {
-                attachHooker(RestartBroadcastHooker, classLoader, ctx, replacementHandles)
-                attachHooker(GuardProviderEnvironmentCheckHooker, classLoader, ctx, replacementHandles)
-                attachHooker(GuardProviderUploadAppListHooker, classLoader, ctx, replacementHandles)
-            }
-            "com.android.photopicker" -> {
-                attachHooker(NativeFilePickerHooker, classLoader, ctx, replacementHandles)
-            }
-            "com.android.intentresolver" -> {
-                attachHooker(SharePanelHooker, classLoader, ctx, replacementHandles)
-            }
-            "com.android.contacts" -> {
-                attachHooker(RestartBroadcastHooker, classLoader, ctx, replacementHandles)
-                attachHooker(CarrierOfflineConfigHooker, classLoader, ctx, replacementHandles)
-            }
-            "com.milink.service" -> {
-                attachHooker(RestartBroadcastHooker, classLoader, ctx, replacementHandles)
-                attachHooker(MiLinkHpplayHooker, classLoader, ctx, replacementHandles)
-                attachHooker(SpatialAudioBlockerHooker, classLoader, ctx, replacementHandles)
-            }
-            "com.xiaomi.bluetooth" -> {
-                attachHooker(RestartBroadcastHooker, classLoader, ctx, replacementHandles)
-                attachHooker(BluetoothPluginHooker, classLoader, ctx, replacementHandles)
-                attachHooker(SpatialAudioBlockerHooker, classLoader, ctx, replacementHandles)
-            }
-            "com.xiaomi.aicr" -> {
-                attachHooker(AicrBrowserWhitelistHooker, classLoader, ctx, replacementHandles)
-                attachHooker(AicrDefaultBrowserHooker, classLoader, ctx, replacementHandles)
-            }
-            "com.takekazex.hypertweak" -> {
-                attachHooker(ModuleStatusHooker, classLoader, ctx, replacementHandles)
-            }
+        PackageHookPlan.attach(ctx, installIcons = {
+            iconHookers().forEach { attachHooker(it, classLoader, ctx, replacementHandles) }
+            // Compare the first full boot snapshot with the values used at installation.
+            iconSnapshotAtInstall = iconValueSnapshot()
+        }) { hooker ->
+            attachHooker(hooker, classLoader, ctx, replacementHandles)
         }
         } finally {
             sharedSession?.close()

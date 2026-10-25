@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.securitycenter
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 
 import android.app.Activity
@@ -28,7 +30,7 @@ import java.lang.reflect.Modifier
  * confirm pages (USB debugging, device manager, accessibility, OAID, MIUI
  * optimization, …).
  *
- * Modes (see [Preferences.KEY_SECURITY_CENTER_PERMISSION_WARNING_MODE]):
+ * Modes (see [PlatformSettingsKeys.KEY_SECURITY_CENTER_PERMISSION_WARNING_MODE]):
  * - 0 follow system: no hook.
  * - 1 skip countdown: rewrites the Activity input Bundle (`KET_STEP_COUNT=0`,
  *   `KEY_ALLOW_ENABLE=true`) before `InterceptBaseActivity.onCreate`, the single
@@ -112,7 +114,7 @@ object WarningCountdownHooker : StaticHooker() {
     override fun onHook() {
         if (hookParam.packageName != PACKAGE) return
         val mode = selectedMode()
-        if (mode == Preferences.SECURITY_CENTER_WARNING_FOLLOW_SYSTEM) {
+        if (mode == PlatformSettingsKeys.SECURITY_CENTER_WARNING_FOLLOW_SYSTEM) {
             DebugLog.hookSkippedDebug(TAG, "permission warning intercept", "follow system")
             return
         }
@@ -121,18 +123,18 @@ object WarningCountdownHooker : StaticHooker() {
         hookAdbInputApplyPath()
         hookAdbVerifyPath()
 
-        if (mode == Preferences.SECURITY_CENTER_WARNING_DIRECT_APPROVE) {
+        if (mode == PlatformSettingsKeys.SECURITY_CENTER_WARNING_DIRECT_APPROVE) {
             prepareDexTargets(name = WarningCountdownFeature.id,
                 resolve = ::resolveConfirmMethod, install = ::hookDirectApprovePath)
         }
     }
 
     private fun selectedMode(): Int = Preferences.getInt(
-        Preferences.KEY_SECURITY_CENTER_PERMISSION_WARNING_MODE,
-        Preferences.SECURITY_CENTER_WARNING_FOLLOW_SYSTEM
+        PlatformSettingsKeys.KEY_SECURITY_CENTER_PERMISSION_WARNING_MODE,
+        PlatformSettingsKeys.SECURITY_CENTER_WARNING_FOLLOW_SYSTEM
     ).coerceIn(
-        Preferences.SECURITY_CENTER_WARNING_FOLLOW_SYSTEM,
-        Preferences.SECURITY_CENTER_WARNING_DIRECT_APPROVE
+        PlatformSettingsKeys.SECURITY_CENTER_WARNING_FOLLOW_SYSTEM,
+        PlatformSettingsKeys.SECURITY_CENTER_WARNING_DIRECT_APPROVE
     )
 
     /** True when the current call must keep native behavior (hard exclusion). */
@@ -188,8 +190,8 @@ object WarningCountdownHooker : StaticHooker() {
 
     private fun rewriteInputBundle(param: HookParam) {
         val mode = selectedMode()
-        if (mode != Preferences.SECURITY_CENTER_WARNING_SKIP_COUNTDOWN &&
-            mode != Preferences.SECURITY_CENTER_WARNING_DIRECT_APPROVE
+        if (mode != PlatformSettingsKeys.SECURITY_CENTER_WARNING_SKIP_COUNTDOWN &&
+            mode != PlatformSettingsKeys.SECURITY_CENTER_WARNING_DIRECT_APPROVE
         ) {
             return
         }
@@ -375,7 +377,7 @@ object WarningCountdownHooker : StaticHooker() {
         onClick.hook("warning_countdown_adb_input_on_click") {
             after { param ->
                 HookFailurePolicy.open(TAG, "AdbInputApply.onClick.after", Unit) {
-                    if (selectedMode() == Preferences.SECURITY_CENTER_WARNING_FOLLOW_SYSTEM) {
+                    if (selectedMode() == PlatformSettingsKeys.SECURITY_CENTER_WARNING_FOLLOW_SYSTEM) {
                         return@open
                     }
                     // 拒绝 finishes the page; any other click advanced a step and
@@ -390,7 +392,7 @@ object WarningCountdownHooker : StaticHooker() {
     }
 
     private fun applyToAdbInputPage(activity: Any) {
-        if (selectedMode() == Preferences.SECURITY_CENTER_WARNING_FOLLOW_SYSTEM) return
+        if (selectedMode() == PlatformSettingsKeys.SECURITY_CENTER_WARNING_FOLLOW_SYSTEM) return
         // The no-Mi-account branch returns before setContentView, so the page has no views
         // and has already handed off to the verification step by itself. Touching it here
         // would NPE inside the probe and would start that verification a second time.
@@ -399,7 +401,7 @@ object WarningCountdownHooker : StaticHooker() {
         // 直接跳过警告: land the native result immediately instead of walking the 3 steps
         // and then waiting on the Mi-account risk check. When the write does not take,
         // fall through so the page is at least immediately tappable.
-        if (selectedMode() == Preferences.SECURITY_CENTER_WARNING_DIRECT_APPROVE &&
+        if (selectedMode() == PlatformSettingsKeys.SECURITY_CENTER_WARNING_DIRECT_APPROVE &&
             grantAdbInput(activity)
         ) {
             DebugLog.i(TAG, "adb input page granted directly; verification bypassed")
@@ -530,7 +532,7 @@ object WarningCountdownHooker : StaticHooker() {
         onCreate.hook("warning_countdown_adb_verify_on_create") {
             after { param ->
                 HookFailurePolicy.open(TAG, "AdbInstallVerify.onCreate.after", Unit) {
-                    if (selectedMode() == Preferences.SECURITY_CENTER_WARNING_FOLLOW_SYSTEM) {
+                    if (selectedMode() == PlatformSettingsKeys.SECURITY_CENTER_WARNING_FOLLOW_SYSTEM) {
                         return@open
                     }
                     val activity = param.thisObjectOrNull as? Activity ?: return@open

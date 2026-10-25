@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.ui.page
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+
 import android.annotation.SuppressLint
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -144,7 +146,7 @@ fun ExperimentalFeaturesPage(
                         checked = unlockVisual,
                         onCheckedChange = {
                             unlockVisual = it
-                            Preferences.putBoolean(Preferences.KEY_UNLOCK_MORE_VISUAL_PERCEPTION, it)
+                            Preferences.putBoolean(PlatformSettingsKeys.KEY_UNLOCK_MORE_VISUAL_PERCEPTION, it)
                         },
                         title = stringResource(R.string.settings_unlock_visual_perception_title),
                         summary = stringResource(R.string.settings_unlock_visual_perception_summary)
@@ -153,7 +155,7 @@ fun ExperimentalFeaturesPage(
                         checked = unlockGestures,
                         onCheckedChange = {
                             unlockGestures = it
-                            Preferences.putBoolean(Preferences.KEY_UNLOCK_MORE_AON_GESTURES, it)
+                            Preferences.putBoolean(PlatformSettingsKeys.KEY_UNLOCK_MORE_AON_GESTURES, it)
                         },
                         title = stringResource(R.string.settings_unlock_aon_gestures_title),
                         summary = stringResource(R.string.settings_unlock_aon_gestures_summary)
@@ -166,7 +168,7 @@ fun ExperimentalFeaturesPage(
                         checked = unlockAdaptiveRefresh,
                         onCheckedChange = {
                             unlockAdaptiveRefresh = it
-                            Preferences.putBoolean(Preferences.KEY_UNLOCK_ADAPTIVE_REFRESH_PRO, it)
+                            Preferences.putBoolean(PlatformSettingsKeys.KEY_UNLOCK_ADAPTIVE_REFRESH_PRO, it)
                         },
                         title = stringResource(R.string.settings_unlock_adaptive_refresh_title),
                         summary = stringResource(R.string.settings_unlock_adaptive_refresh_summary)

@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui
 
+import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
+
 import android.view.View
 import android.view.ViewGroup
 import com.takekazex.hypertweak.hook.Preferences
@@ -91,7 +93,7 @@ object MediaCardHideAppIconHooker : StaticHooker() {
      * disabling restores the original visibility of every icon this module hid.
      */
     fun refreshSettings() {
-        val next = Preferences.getBoolean(Preferences.KEY_MEDIA_CARD_HIDE_APP_ICON, false)
+        val next = Preferences.getBoolean(SystemUiSettingsKeys.KEY_MEDIA_CARD_HIDE_APP_ICON, false)
         val changed = next != enabled
         enabled = next
         HostAccess.onMain {
@@ -108,7 +110,7 @@ object MediaCardHideAppIconHooker : StaticHooker() {
     override fun onHook() {
         shadeAppIconField = null
         islandAppIconField = null
-        enabled = Preferences.getBoolean(Preferences.KEY_MEDIA_CARD_HIDE_APP_ICON, false)
+        enabled = Preferences.getBoolean(SystemUiSettingsKeys.KEY_MEDIA_CARD_HIDE_APP_ICON, false)
         installShadeHook()
         installIslandHook()
     }

@@ -1,5 +1,11 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import com.takekazex.hypertweak.settings.contract.MobileTypeLabelStyle
+
+import com.takekazex.hypertweak.settings.contract.SmallMobileTypeLabel
+
+import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
+
 import com.takekazex.hypertweak.hook.base.HostAccess
 import android.graphics.Canvas
 import android.graphics.Paint
@@ -84,12 +90,12 @@ object CellularTypeIconHooker : StaticHooker() {
     }
 
     override fun onHook() {
-        forceSingle = Preferences.getBoolean(Preferences.KEY_ICON_CELLULAR_TYPE_SINGLE, false)
-        swapSingle = Preferences.getBoolean(Preferences.KEY_ICON_CELLULAR_TYPE_SINGLE_SWAP, false)
-        useCustom = Preferences.getBoolean(Preferences.KEY_ICON_CELLULAR_TYPE_CUSTOM, false)
-        customType = Preferences.getString(Preferences.KEY_ICON_CELLULAR_TYPE_CUSTOM_VAL, "").trim()
+        forceSingle = Preferences.getBoolean(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_SINGLE, false)
+        swapSingle = Preferences.getBoolean(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_SINGLE_SWAP, false)
+        useCustom = Preferences.getBoolean(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_CUSTOM, false)
+        customType = Preferences.getString(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_CUSTOM_VAL, "").trim()
         small5GaEnabled = Preferences.getBoolean(
-            Preferences.KEY_ICON_CELLULAR_TYPE_SMALL_5GA,
+            IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_SMALL_5GA,
             false
         )
 

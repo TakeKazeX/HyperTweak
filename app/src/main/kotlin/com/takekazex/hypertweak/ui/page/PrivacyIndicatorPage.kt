@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.ui.page
 
+import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
+
 import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -30,7 +32,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.hook.Preferences
-import com.takekazex.hypertweak.hook.rules.systemui.icon.ControlCenterPrivacyPolicy
+import com.takekazex.hypertweak.settings.contract.ControlCenterPrivacyPolicy
 import com.takekazex.hypertweak.util.RestartScopeSelection
 import com.takekazex.hypertweak.ui.effect.AppScaffold as Scaffold
 import com.takekazex.hypertweak.ui.effect.AppTopAppBar as TopAppBar
@@ -103,17 +105,17 @@ fun PrivacyIndicatorPage(onBack: () -> Unit) {
             .verticalScroll(scrollState)) {
             Spacer(Modifier.height(padding.calculateTopPadding() + 8.dp))
             PrivacyHeaderSection(
-                enabled = pref(Preferences.KEY_CC_PRIVACY_ENABLED, false),
-                centered = pref(Preferences.KEY_CC_PRIVACY_CENTER, true),
-                background = pref(Preferences.KEY_CC_PRIVACY_BACKGROUND, false),
-                colored = pref(Preferences.KEY_CC_PRIVACY_COLORED, true),
-                names = pref(Preferences.KEY_CC_PRIVACY_NAMES, true),
-                allApps = pref(Preferences.KEY_CC_PRIVACY_ALL_APPS, true),
-                arrow = pref(Preferences.KEY_CC_PRIVACY_ARROW, true),
-                dot = pref(Preferences.KEY_CC_PRIVACY_DOT, false),
-                iconSize = pref(Preferences.KEY_CC_PRIVACY_ICON_SIZE, ControlCenterPrivacyPolicy.DEFAULT_ICON_SIZE),
-                textSize = pref(Preferences.KEY_CC_PRIVACY_TEXT_SIZE, ControlCenterPrivacyPolicy.DEFAULT_TEXT_SIZE),
-                offset = pref(Preferences.KEY_CC_PRIVACY_OFFSET, ControlCenterPrivacyPolicy.DEFAULT_OFFSET),
+                enabled = pref(SystemUiSettingsKeys.KEY_CC_PRIVACY_ENABLED, false),
+                centered = pref(SystemUiSettingsKeys.KEY_CC_PRIVACY_CENTER, true),
+                background = pref(SystemUiSettingsKeys.KEY_CC_PRIVACY_BACKGROUND, false),
+                colored = pref(SystemUiSettingsKeys.KEY_CC_PRIVACY_COLORED, true),
+                names = pref(SystemUiSettingsKeys.KEY_CC_PRIVACY_NAMES, true),
+                allApps = pref(SystemUiSettingsKeys.KEY_CC_PRIVACY_ALL_APPS, true),
+                arrow = pref(SystemUiSettingsKeys.KEY_CC_PRIVACY_ARROW, true),
+                dot = pref(SystemUiSettingsKeys.KEY_CC_PRIVACY_DOT, false),
+                iconSize = pref(SystemUiSettingsKeys.KEY_CC_PRIVACY_ICON_SIZE, ControlCenterPrivacyPolicy.DEFAULT_ICON_SIZE),
+                textSize = pref(SystemUiSettingsKeys.KEY_CC_PRIVACY_TEXT_SIZE, ControlCenterPrivacyPolicy.DEFAULT_TEXT_SIZE),
+                offset = pref(SystemUiSettingsKeys.KEY_CC_PRIVACY_OFFSET, ControlCenterPrivacyPolicy.DEFAULT_OFFSET),
                 onChange = { key, value -> changed(key, value) }
             )
             Spacer(Modifier.height(padding.calculateBottomPadding() + 16.dp))
@@ -164,7 +166,7 @@ private fun PrivacyHeaderSection(
         Column(Modifier.fillMaxWidth()) {
             TunerSwitch(enabled, stringResource(R.string.icon_cc_privacy_enabled),
                 stringResource(R.string.icon_cc_privacy_enabled_summary)) {
-                onChange(Preferences.KEY_CC_PRIVACY_ENABLED, it)
+                onChange(SystemUiSettingsKeys.KEY_CC_PRIVACY_ENABLED, it)
             }
             if (enabled) {
                 ArrowPreference(
@@ -172,48 +174,48 @@ private fun PrivacyHeaderSection(
                     summary = stringResource(R.string.icon_cc_privacy_reset_summary),
                     onClick = {
                         listOf<Pair<String, Any>>(
-                            Preferences.KEY_CC_PRIVACY_CENTER to true,
-                            Preferences.KEY_CC_PRIVACY_BACKGROUND to false,
-                            Preferences.KEY_CC_PRIVACY_COLORED to true,
-                            Preferences.KEY_CC_PRIVACY_NAMES to true,
-                            Preferences.KEY_CC_PRIVACY_ALL_APPS to true,
-                            Preferences.KEY_CC_PRIVACY_ARROW to true,
-                            Preferences.KEY_CC_PRIVACY_DOT to false,
-                            Preferences.KEY_CC_PRIVACY_ICON_SIZE to ControlCenterPrivacyPolicy.DEFAULT_ICON_SIZE,
-                            Preferences.KEY_CC_PRIVACY_TEXT_SIZE to ControlCenterPrivacyPolicy.DEFAULT_TEXT_SIZE,
-                            Preferences.KEY_CC_PRIVACY_OFFSET to ControlCenterPrivacyPolicy.DEFAULT_OFFSET
+                            SystemUiSettingsKeys.KEY_CC_PRIVACY_CENTER to true,
+                            SystemUiSettingsKeys.KEY_CC_PRIVACY_BACKGROUND to false,
+                            SystemUiSettingsKeys.KEY_CC_PRIVACY_COLORED to true,
+                            SystemUiSettingsKeys.KEY_CC_PRIVACY_NAMES to true,
+                            SystemUiSettingsKeys.KEY_CC_PRIVACY_ALL_APPS to true,
+                            SystemUiSettingsKeys.KEY_CC_PRIVACY_ARROW to true,
+                            SystemUiSettingsKeys.KEY_CC_PRIVACY_DOT to false,
+                            SystemUiSettingsKeys.KEY_CC_PRIVACY_ICON_SIZE to ControlCenterPrivacyPolicy.DEFAULT_ICON_SIZE,
+                            SystemUiSettingsKeys.KEY_CC_PRIVACY_TEXT_SIZE to ControlCenterPrivacyPolicy.DEFAULT_TEXT_SIZE,
+                            SystemUiSettingsKeys.KEY_CC_PRIVACY_OFFSET to ControlCenterPrivacyPolicy.DEFAULT_OFFSET
                         ).forEach { (key, value) -> onChange(key, value) }
                     }
                 )
                 TunerSwitch(centered, stringResource(R.string.icon_cc_privacy_center)) {
-                    onChange(Preferences.KEY_CC_PRIVACY_CENTER, it)
+                    onChange(SystemUiSettingsKeys.KEY_CC_PRIVACY_CENTER, it)
                 }
                 TunerSwitch(background, stringResource(R.string.icon_cc_privacy_background)) {
-                    onChange(Preferences.KEY_CC_PRIVACY_BACKGROUND, it)
+                    onChange(SystemUiSettingsKeys.KEY_CC_PRIVACY_BACKGROUND, it)
                 }
                 TunerSwitch(colored, stringResource(R.string.icon_cc_privacy_colored)) {
-                    onChange(Preferences.KEY_CC_PRIVACY_COLORED, it)
+                    onChange(SystemUiSettingsKeys.KEY_CC_PRIVACY_COLORED, it)
                 }
                 TunerSwitch(names, stringResource(R.string.icon_cc_privacy_names)) {
-                    onChange(Preferences.KEY_CC_PRIVACY_NAMES, it)
+                    onChange(SystemUiSettingsKeys.KEY_CC_PRIVACY_NAMES, it)
                 }
                 TunerSwitch(allApps, stringResource(R.string.icon_cc_privacy_all_apps), enabled = names) {
-                    onChange(Preferences.KEY_CC_PRIVACY_ALL_APPS, it)
+                    onChange(SystemUiSettingsKeys.KEY_CC_PRIVACY_ALL_APPS, it)
                 }
                 TunerSwitch(arrow, stringResource(R.string.icon_cc_privacy_arrow)) {
-                    onChange(Preferences.KEY_CC_PRIVACY_ARROW, it)
+                    onChange(SystemUiSettingsKeys.KEY_CC_PRIVACY_ARROW, it)
                 }
                 TunerSwitch(dot, stringResource(R.string.icon_cc_privacy_dot)) {
-                    onChange(Preferences.KEY_CC_PRIVACY_DOT, it)
+                    onChange(SystemUiSettingsKeys.KEY_CC_PRIVACY_DOT, it)
                 }
                 PrivacySizeRow(R.string.icon_cc_privacy_icon_size, iconSize, 16..32, "dp") {
-                    onChange(Preferences.KEY_CC_PRIVACY_ICON_SIZE, it)
+                    onChange(SystemUiSettingsKeys.KEY_CC_PRIVACY_ICON_SIZE, it)
                 }
                 PrivacySizeRow(R.string.icon_cc_privacy_text_size, textSize, 9..20, "sp") {
-                    onChange(Preferences.KEY_CC_PRIVACY_TEXT_SIZE, it)
+                    onChange(SystemUiSettingsKeys.KEY_CC_PRIVACY_TEXT_SIZE, it)
                 }
                 PrivacySizeRow(R.string.icon_cc_privacy_offset, offset, -16..24, "dp") {
-                    onChange(Preferences.KEY_CC_PRIVACY_OFFSET, it)
+                    onChange(SystemUiSettingsKeys.KEY_CC_PRIVACY_OFFSET, it)
                 }
             }
         }

@@ -1,11 +1,15 @@
 package com.takekazex.hypertweak.hook
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+
+import com.takekazex.hypertweak.settings.contract.BackGestureKeys
+
 import org.junit.Assert.*
 import org.junit.Test
 
 class BackGestureSettingsSnapshotTest {
-    private val indicator = Preferences.KEY_BACK_GESTURE_HYPEROS_INDICATOR
-    private val slide = Preferences.KEY_BACK_GESTURE_SLIDE_ANIMATION
+    private val indicator = BackGestureKeys.KEY_BACK_GESTURE_HYPEROS_INDICATOR
+    private val slide = BackGestureKeys.KEY_BACK_GESTURE_SLIDE_ANIMATION
     private fun baseline() = requireNotNull(BackGestureSettingsSnapshot.read(emptyMap<String, Any>()))
 
     @Test fun `switching back to AOSP rejects delayed HyperOS replay`() {
@@ -63,7 +67,7 @@ class BackGestureSettingsSnapshotTest {
     }
 
     @Test fun `contextual search haptics remain live across disable reset and hot reload`() {
-        val key = Preferences.KEY_CONTEXTUAL_SEARCH_HAPTICS
+        val key = PlatformSettingsKeys.KEY_CONTEXTUAL_SEARCH_HAPTICS
         val enabled = baseline().mutate(key, true, 1)
         val disabled = enabled.mutate(key, false, 2)
         val ledger = BackGestureSettingsLedger()
@@ -81,7 +85,7 @@ class BackGestureSettingsSnapshotTest {
         assertEquals(25L, restored.revision)
         assertEquals(3L, restored.epoch)
         assertEquals(true, restored.value(slide))
-        assertEquals(false, restored.value(Preferences.KEY_CONTEXTUAL_SEARCH_HAPTICS))
+        assertEquals(false, restored.value(PlatformSettingsKeys.KEY_CONTEXTUAL_SEARCH_HAPTICS))
     }
 
     @Test fun `eight-flag reload preserves haptics and defaults fullscreen back off`() {
@@ -89,12 +93,12 @@ class BackGestureSettingsSnapshotTest {
         val restored = requireNotNull(BackGestureSettingsSnapshot.restore(old))
         assertEquals(26L, restored.revision)
         assertEquals(4L, restored.epoch)
-        assertEquals(true, restored.value(Preferences.KEY_CONTEXTUAL_SEARCH_HAPTICS))
-        assertEquals(false, restored.value(Preferences.KEY_FULLSCREEN_DIRECT_BACK))
+        assertEquals(true, restored.value(PlatformSettingsKeys.KEY_CONTEXTUAL_SEARCH_HAPTICS))
+        assertEquals(false, restored.value(BackGestureKeys.KEY_FULLSCREEN_DIRECT_BACK))
     }
 
     @Test fun `fullscreen selection survives reload and rejects stale updates after reset`() {
-        val key = Preferences.KEY_FULLSCREEN_DIRECT_BACK
+        val key = BackGestureKeys.KEY_FULLSCREEN_DIRECT_BACK
         val enabled = baseline().mutate(key, true, 1)
         val disabled = enabled.mutate(key, false, 2)
         val ledger = BackGestureSettingsLedger()
@@ -122,14 +126,14 @@ class BackGestureSettingsSnapshotTest {
         val restored = requireNotNull(BackGestureSettingsSnapshot.restore(old))
         assertEquals(31L, restored.revision)
         assertEquals(5L, restored.epoch)
-        assertEquals(true, restored.value(Preferences.KEY_BACK_GESTURE_HYPEROS_HAPTICS))
-        assertEquals(false, restored.value(Preferences.KEY_BACK_GESTURE_INDICATOR_BLUR))
-        assertEquals(false, restored.value(Preferences.KEY_BACK_GESTURE_HAPTICS_DISABLED))
+        assertEquals(true, restored.value(BackGestureKeys.KEY_BACK_GESTURE_HYPEROS_HAPTICS))
+        assertEquals(false, restored.value(BackGestureKeys.KEY_BACK_GESTURE_INDICATOR_BLUR))
+        assertEquals(false, restored.value(BackGestureKeys.KEY_BACK_GESTURE_HAPTICS_DISABLED))
     }
 
     @Test fun `material and mute follow acknowledged reload disable and reset`() {
-        val material = Preferences.KEY_BACK_GESTURE_INDICATOR_BLUR
-        val mute = Preferences.KEY_BACK_GESTURE_HAPTICS_DISABLED
+        val material = BackGestureKeys.KEY_BACK_GESTURE_INDICATOR_BLUR
+        val mute = BackGestureKeys.KEY_BACK_GESTURE_HAPTICS_DISABLED
         val enabled = baseline().mutate(material, true, 1).mutate(mute, true, 2)
         val disabled = enabled.mutate(material, false, 3).mutate(mute, false, 4)
         val ledger = BackGestureSettingsLedger()

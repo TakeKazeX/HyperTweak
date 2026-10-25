@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.securitycenter
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
@@ -50,7 +52,7 @@ object AospAppManagerEntryHooker : StaticHooker() {
     override val hotReloadMode = HotReloadMode.RECREATE
 
     override fun onHook() {
-        if (!Preferences.getBoolean(Preferences.KEY_AOSP_APP_MANAGER_ENTRY, false)) {
+        if (!Preferences.getBoolean(PlatformSettingsKeys.KEY_AOSP_APP_MANAGER_ENTRY, false)) {
             DebugLog.hookSkippedDebug(TAG, "app manager menu", "disabled")
             return
         }

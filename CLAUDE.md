@@ -10,6 +10,8 @@ Use `build.gradle.kts` and `app/build.gradle.kts` for current plugins, SDKs, Jav
 ## Source map
 Kotlin sources: `app/src/main/kotlin/com/takekazex/hypertweak/`.
 - `hook/`: process entry and feature hooks; `hook/base/`: shared resolution and lifecycle infrastructure.
+- `hook/bootstrap/`: explicit package/system-server installation plans and process-side settings participants. `HookEntry` retains DEX-session, loader, handle and generation ownership; participant coverage is validated before dispatcher registration.
+- `settings/contract/`: storage-independent domain keys/defaults, shared lockscreen options, Dock configuration, icon slot/control policies, signal artwork style and screenshot snapshot parsing. Callers use domain `*Keys` directly; `Preferences` remains the runtime read/write boundary without duplicate constant aliases. Storage diagnostics use `SettingsDiagnostics`, bound by `DebugLog` at process bootstrap, with a non-recursive platform fallback.
 - `ui/`: Compose screens; `util/`: shared utilities, including `PlatformLevel.kt` for OS3/OS4 gates.
 - `HookEntry` initializes processes; `Preferences` is the runtime/cross-process settings boundary; `BaseHooker` owns hook lifecycle. `hook/base/dex` owns feature descriptors, APK identity caches, serialized resolution and cancellable background preparation; `DexKitManager` is the native bridge backend; consumers use `DexRuntime` and `BaseHooker.prepareDexTargets` instead of managing bridge, worker, cache or cancellation state. Runtime settings refresh existing island policies without reinstalling or scanning DEX on the main thread.
 - JVM tests: `app/src/test/`. Scope metadata: `app/src/main/resources/META-INF/xposed/scope.list`; also inspect `app/src/main/res/values/arrays.xml` when changing scope presentation or checking release parity.
@@ -168,6 +170,8 @@ and `docs/HOT_RELOAD_TEST_CHECKLIST.md` for the complete test inventory.
 Native AOT identity: `_kDartSnapshotBuildId` points to the 32-byte GNU note (16-byte header followed by the 16-byte ID), not the ID alone. The upstream Dart resolver validates this note and the mapped executable ranges before feature code reads the target.
 
 Dart feature targets are resolved **structurally**, not from a per-build table: `dart_image.cpp` (ELF validation, AArch64 decoding, instruction-kind classification, masked patterns) plus `dart_targets.cpp` (one spec per site, tiered evidence) re-derive each address from instruction shape and call-graph relationships, so a launcher update does not need a new table row. `dart_rule_support.cpp` is the Android-only bridge that turns a spec into runtime addresses for a rule; the two rules carry no build id and no RVA. Any site that is not uniquely resolvable is rejected rather than guessed.
+
+`launcher_process_identity.*` owns native process/library admission; `dart_mapped_image.*` owns mapped-ELF bounds and branch checks plus the existing image-resolution ABI. The entry TU retains mutable runtime state, callbacks and assembly cells. Carrier/Duo target leases use referential identity through `SignalTargetOwnership`; `SignalHandoverEvents` routes Shade events without the Carrier constructing the Duo renderer. View indexes, animation state and masks retain their own lifecycles.
 
 Authoring a new hook:
 - Declare a `TargetSpec` in `dart_targets.cpp` and a rule that consumes it. Nothing in `miui_home_native_hook.cpp` changes.

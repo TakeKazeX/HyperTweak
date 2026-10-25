@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.ui.page
 
+import com.takekazex.hypertweak.settings.contract.AppSettingsKeys
+
 import android.annotation.SuppressLint
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -125,7 +127,7 @@ fun LogsPage(
     var loading by remember { mutableStateOf(true) }
     var selectedFilter by rememberSaveable { mutableStateOf(LogFilter.All) }
     var logLevel by remember {
-        mutableStateOf(logLevelFromPriority(Preferences.getInt(Preferences.KEY_LOG_LEVEL, DebugLog.DEFAULT_LEVEL)))
+        mutableStateOf(logLevelFromPriority(Preferences.getInt(AppSettingsKeys.KEY_LOG_LEVEL, DebugLog.DEFAULT_LEVEL)))
     }
     var exportStatus by remember { mutableStateOf<String?>(null) }
     var refreshGeneration by remember { mutableIntStateOf(0) }
@@ -142,7 +144,7 @@ fun LogsPage(
         }
         entries = snapshot.records
         lsposedStatus = snapshot.lsposedStatus
-        val global = Preferences.getInt(Preferences.KEY_LOG_LEVEL, DebugLog.DEFAULT_LEVEL)
+        val global = Preferences.getInt(AppSettingsKeys.KEY_LOG_LEVEL, DebugLog.DEFAULT_LEVEL)
         logLevel = logLevelFromPriority(global)
         loading = false
     }
@@ -246,7 +248,7 @@ fun LogsPage(
                     onSelected = { selectedFilter = it },
                     onLogLevelSelected = {
                         logLevel = it
-                        Preferences.putInt(Preferences.KEY_LOG_LEVEL, it.priority)
+                        Preferences.putInt(AppSettingsKeys.KEY_LOG_LEVEL, it.priority)
                     },
                     onExport = onExport
                 )

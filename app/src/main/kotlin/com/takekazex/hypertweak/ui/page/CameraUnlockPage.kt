@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.ui.page
 
+import com.takekazex.hypertweak.settings.contract.CameraSettingsKeys
+
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -68,64 +70,64 @@ fun CameraUnlockContent(
     }
 
     var ignoreDeviceMismatch by remember {
-        mutableStateOf(Preferences.getBoolean(Preferences.KEY_CAMERA_IGNORE_DEVICE_MISMATCH, false))
+        mutableStateOf(Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_IGNORE_DEVICE_MISMATCH, false))
     }
     var leicaStyle by remember {
-        mutableStateOf(Preferences.getBoolean(Preferences.KEY_CAMERA_LEICA_STYLE, false))
+        mutableStateOf(Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_LEICA_STYLE, false))
     }
     var allShutterSounds by remember {
-        mutableStateOf(Preferences.getBoolean(Preferences.KEY_CAMERA_ALL_SHUTTER_SOUNDS, false))
+        mutableStateOf(Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_ALL_SHUTTER_SOUNDS, false))
     }
     var ultraHdQuality by remember {
-        mutableStateOf(Preferences.getBoolean(Preferences.KEY_CAMERA_ULTRA_HD_QUALITY, false))
+        mutableStateOf(Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_ULTRA_HD_QUALITY, false))
     }
     var selfieSettings by remember {
-        mutableStateOf(Preferences.getBoolean(Preferences.KEY_CAMERA_SELFIE_SETTINGS, false))
+        mutableStateOf(Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_SELFIE_SETTINGS, false))
     }
     var legendaryMomentMode by remember {
         mutableStateOf(Preferences.cameraLegendaryMomentMode())
     }
     var legendaryExtraModes by remember {
-        mutableStateOf(Preferences.getBoolean(Preferences.KEY_CAMERA_LEGENDARY_EXTRA_MODES, false))
+        mutableStateOf(Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_LEGENDARY_EXTRA_MODES, false))
     }
     var smartComposition by remember {
-        mutableStateOf(Preferences.getBoolean(Preferences.KEY_CAMERA_SMART_COMPOSITION, false))
+        mutableStateOf(Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_SMART_COMPOSITION, false))
     }
     var contentCredential by remember {
-        mutableStateOf(Preferences.getBoolean(Preferences.KEY_CAMERA_CONTENT_CREDENTIAL, false))
+        mutableStateOf(Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_CONTENT_CREDENTIAL, false))
     }
     var adaptiveLens by remember {
-        mutableStateOf(Preferences.getBoolean(Preferences.KEY_CAMERA_ADAPTIVE_LENS, false))
+        mutableStateOf(Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_ADAPTIVE_LENS, false))
     }
     var masterLiveEnable by remember {
-        mutableStateOf(Preferences.getBoolean(Preferences.KEY_CAMERA_MASTERLIVE_ENABLE, false))
+        mutableStateOf(Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_MASTERLIVE_ENABLE, false))
     }
     var mlRedCarpet by remember {
         mutableStateOf(
-            Preferences.getBoolean(Preferences.KEY_CAMERA_MASTERLIVE_RED_CARPET, false)
+            Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_MASTERLIVE_RED_CARPET, false)
         )
     }
     var mlFullFocal by remember {
         mutableStateOf(
-            Preferences.getBoolean(Preferences.KEY_CAMERA_MASTERLIVE_FULL_FOCAL, false)
+            Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_MASTERLIVE_FULL_FOCAL, false)
         )
     }
     var mlVideoSizeProbe by remember {
         mutableStateOf(
-            Preferences.getBoolean(Preferences.KEY_CAMERA_MASTERLIVE_VIDEO_SIZE_PROBE, false)
+            Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_MASTERLIVE_VIDEO_SIZE_PROBE, false)
         )
     }
     var themeLcc by remember {
-        mutableStateOf(Preferences.getBoolean(Preferences.KEY_CAMERA_IMPERSONATE_THEME_LCC, false))
+        mutableStateOf(Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_IMPERSONATE_THEME_LCC, false))
     }
     var customWm by remember {
-        mutableStateOf(Preferences.getBoolean(Preferences.KEY_CAMERA_WM_CUSTOM, false))
+        mutableStateOf(Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_WM_CUSTOM, false))
     }
     var customBrand by remember {
-        mutableStateOf(Preferences.getString(Preferences.KEY_CAMERA_WM_CUSTOM_BRAND))
+        mutableStateOf(Preferences.getString(CameraSettingsKeys.KEY_CAMERA_WM_CUSTOM_BRAND))
     }
     var customModel by remember {
-        mutableStateOf(Preferences.getString(Preferences.KEY_CAMERA_WM_CUSTOM_MODEL))
+        mutableStateOf(Preferences.getString(CameraSettingsKeys.KEY_CAMERA_WM_CUSTOM_MODEL))
     }
     var editingBrand by remember { mutableStateOf(false) }
     var editingModel by remember { mutableStateOf(false) }
@@ -145,7 +147,7 @@ fun CameraUnlockContent(
                     checked = ignoreDeviceMismatch,
                     onCheckedChange = { enabled ->
                         ignoreDeviceMismatch = enabled
-                        set(Preferences.KEY_CAMERA_IGNORE_DEVICE_MISMATCH, enabled, needsRestart = true)
+                        set(CameraSettingsKeys.KEY_CAMERA_IGNORE_DEVICE_MISMATCH, enabled, needsRestart = true)
                     },
                     title = stringResource(R.string.camera_unlock_ignore_mismatch_title),
                     summary = stringResource(R.string.camera_unlock_ignore_mismatch_summary)
@@ -154,7 +156,7 @@ fun CameraUnlockContent(
                     checked = leicaStyle,
                     onCheckedChange = { enabled ->
                         leicaStyle = enabled
-                        set(Preferences.KEY_CAMERA_LEICA_STYLE, enabled, needsRestart = true)
+                        set(CameraSettingsKeys.KEY_CAMERA_LEICA_STYLE, enabled, needsRestart = true)
                     },
                     title = stringResource(R.string.camera_unlock_leica_style_title),
                     summary = stringResource(R.string.camera_unlock_leica_style_summary)
@@ -163,7 +165,7 @@ fun CameraUnlockContent(
                     checked = allShutterSounds,
                     onCheckedChange = { enabled ->
                         allShutterSounds = enabled
-                        set(Preferences.KEY_CAMERA_ALL_SHUTTER_SOUNDS, enabled, needsRestart = true)
+                        set(CameraSettingsKeys.KEY_CAMERA_ALL_SHUTTER_SOUNDS, enabled, needsRestart = true)
                     },
                     title = stringResource(R.string.camera_unlock_all_shutter_sounds_title),
                     summary = stringResource(R.string.camera_unlock_all_shutter_sounds_summary)
@@ -172,7 +174,7 @@ fun CameraUnlockContent(
                     checked = ultraHdQuality,
                     onCheckedChange = { enabled ->
                         ultraHdQuality = enabled
-                        set(Preferences.KEY_CAMERA_ULTRA_HD_QUALITY, enabled, needsRestart = true)
+                        set(CameraSettingsKeys.KEY_CAMERA_ULTRA_HD_QUALITY, enabled, needsRestart = true)
                     },
                     title = stringResource(R.string.camera_unlock_ultra_hd_title),
                     summary = stringResource(R.string.camera_unlock_ultra_hd_summary)
@@ -181,7 +183,7 @@ fun CameraUnlockContent(
                     checked = selfieSettings,
                     onCheckedChange = { enabled ->
                         selfieSettings = enabled
-                        set(Preferences.KEY_CAMERA_SELFIE_SETTINGS, enabled, needsRestart = true)
+                        set(CameraSettingsKeys.KEY_CAMERA_SELFIE_SETTINGS, enabled, needsRestart = true)
                     },
                     title = stringResource(R.string.camera_unlock_selfie_settings_title),
                     summary = stringResource(R.string.camera_unlock_selfie_settings_summary)
@@ -206,7 +208,7 @@ fun CameraUnlockContent(
                     checked = legendaryExtraModes,
                     onCheckedChange = { enabled ->
                         legendaryExtraModes = enabled
-                        set(Preferences.KEY_CAMERA_LEGENDARY_EXTRA_MODES, enabled, needsRestart = true)
+                        set(CameraSettingsKeys.KEY_CAMERA_LEGENDARY_EXTRA_MODES, enabled, needsRestart = true)
                     },
                     title = stringResource(R.string.camera_unlock_legendary_extra_modes_title),
                     summary = stringResource(R.string.camera_unlock_legendary_extra_modes_summary)
@@ -215,7 +217,7 @@ fun CameraUnlockContent(
                     checked = smartComposition,
                     onCheckedChange = { enabled ->
                         smartComposition = enabled
-                        set(Preferences.KEY_CAMERA_SMART_COMPOSITION, enabled)
+                        set(CameraSettingsKeys.KEY_CAMERA_SMART_COMPOSITION, enabled)
                     },
                     title = stringResource(R.string.camera_unlock_smart_composition_title),
                     summary = stringResource(R.string.camera_unlock_smart_composition_summary)
@@ -224,7 +226,7 @@ fun CameraUnlockContent(
                     checked = contentCredential,
                     onCheckedChange = { enabled ->
                         contentCredential = enabled
-                        set(Preferences.KEY_CAMERA_CONTENT_CREDENTIAL, enabled, needsRestart = true)
+                        set(CameraSettingsKeys.KEY_CAMERA_CONTENT_CREDENTIAL, enabled, needsRestart = true)
                     },
                     title = stringResource(R.string.camera_unlock_content_credential_title),
                     summary = stringResource(R.string.camera_unlock_content_credential_summary)
@@ -233,7 +235,7 @@ fun CameraUnlockContent(
                     checked = adaptiveLens,
                     onCheckedChange = { enabled ->
                         adaptiveLens = enabled
-                        set(Preferences.KEY_CAMERA_ADAPTIVE_LENS, enabled)
+                        set(CameraSettingsKeys.KEY_CAMERA_ADAPTIVE_LENS, enabled)
                     },
                     title = stringResource(R.string.camera_unlock_adaptive_lens_title),
                     summary = stringResource(R.string.camera_unlock_adaptive_lens_summary)
@@ -242,7 +244,7 @@ fun CameraUnlockContent(
                     checked = masterLiveEnable,
                     onCheckedChange = { enabled ->
                         masterLiveEnable = enabled
-                        set(Preferences.KEY_CAMERA_MASTERLIVE_ENABLE, enabled, needsRestart = true)
+                        set(CameraSettingsKeys.KEY_CAMERA_MASTERLIVE_ENABLE, enabled, needsRestart = true)
                     },
                     title = stringResource(R.string.camera_unlock_masterlive_title),
                     summary = stringResource(R.string.camera_unlock_masterlive_summary)
@@ -251,7 +253,7 @@ fun CameraUnlockContent(
                     checked = mlRedCarpet,
                     onCheckedChange = { enabled ->
                         mlRedCarpet = enabled
-                        set(Preferences.KEY_CAMERA_MASTERLIVE_RED_CARPET, enabled, needsRestart = true)
+                        set(CameraSettingsKeys.KEY_CAMERA_MASTERLIVE_RED_CARPET, enabled, needsRestart = true)
                     },
                     title = stringResource(R.string.camera_unlock_red_carpet_title),
                     summary = stringResource(R.string.camera_unlock_red_carpet_summary)
@@ -260,7 +262,7 @@ fun CameraUnlockContent(
                     checked = mlFullFocal,
                     onCheckedChange = { enabled ->
                         mlFullFocal = enabled
-                        set(Preferences.KEY_CAMERA_MASTERLIVE_FULL_FOCAL, enabled, needsRestart = true)
+                        set(CameraSettingsKeys.KEY_CAMERA_MASTERLIVE_FULL_FOCAL, enabled, needsRestart = true)
                     },
                     title = stringResource(R.string.camera_unlock_full_focal_title),
                     summary = stringResource(R.string.camera_unlock_full_focal_summary)
@@ -269,7 +271,7 @@ fun CameraUnlockContent(
                     checked = mlVideoSizeProbe,
                     onCheckedChange = { enabled ->
                         mlVideoSizeProbe = enabled
-                        set(Preferences.KEY_CAMERA_MASTERLIVE_VIDEO_SIZE_PROBE, enabled, needsRestart = true)
+                        set(CameraSettingsKeys.KEY_CAMERA_MASTERLIVE_VIDEO_SIZE_PROBE, enabled, needsRestart = true)
                     },
                     title = stringResource(R.string.camera_unlock_video_size_probe_title),
                     summary = stringResource(R.string.camera_unlock_video_size_probe_summary)
@@ -278,7 +280,7 @@ fun CameraUnlockContent(
                     checked = themeLcc,
                     onCheckedChange = { enabled ->
                         themeLcc = enabled
-                        set(Preferences.KEY_CAMERA_IMPERSONATE_THEME_LCC, enabled)
+                        set(CameraSettingsKeys.KEY_CAMERA_IMPERSONATE_THEME_LCC, enabled)
                     },
                     title = stringResource(R.string.camera_unlock_theme_lcc_title),
                     summary = stringResource(R.string.camera_unlock_theme_lcc_summary)
@@ -287,7 +289,7 @@ fun CameraUnlockContent(
                     checked = customWm,
                     onCheckedChange = { enabled ->
                         customWm = enabled
-                        set(Preferences.KEY_CAMERA_WM_CUSTOM, enabled)
+                        set(CameraSettingsKeys.KEY_CAMERA_WM_CUSTOM, enabled)
                         if (!enabled) {
                             editingBrand = false
                             editingModel = false
@@ -352,7 +354,7 @@ fun CameraUnlockContent(
             onDismissRequest = { editingBrand = false },
             onConfirm = { value ->
                 customBrand = value
-                Preferences.putString(Preferences.KEY_CAMERA_WM_CUSTOM_BRAND, value)
+                Preferences.putString(CameraSettingsKeys.KEY_CAMERA_WM_CUSTOM_BRAND, value)
                 editingBrand = false
             }
         )
@@ -363,7 +365,7 @@ fun CameraUnlockContent(
             onDismissRequest = { editingModel = false },
             onConfirm = { value ->
                 customModel = value
-                Preferences.putString(Preferences.KEY_CAMERA_WM_CUSTOM_MODEL, value)
+                Preferences.putString(CameraSettingsKeys.KEY_CAMERA_WM_CUSTOM_MODEL, value)
                 editingModel = false
             }
         )

@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.securitycenter
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+
 import android.content.pm.PackageInfo
 import android.content.pm.ResolveInfo
 import android.os.Handler
@@ -306,9 +308,9 @@ object SecurityCenterDockHooker : DynamicHooker() {
     }
 
     private fun readSettings() = SecurityCenterDockSettings(
-        Preferences.getBoolean(Preferences.KEY_SECURITY_CENTER_DOCK_UNLIMITED_PINNED, false),
-        Preferences.getBoolean(Preferences.KEY_SECURITY_CENTER_DOCK_UNLIMITED_PREDICTIONS, false),
-        Preferences.getInt(Preferences.KEY_SECURITY_CENTER_DOCK_PREDICT_LIMIT, 8).coerceIn(0, 15))
+        Preferences.getBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_DOCK_UNLIMITED_PINNED, false),
+        Preferences.getBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_DOCK_UNLIMITED_PREDICTIONS, false),
+        Preferences.getInt(PlatformSettingsKeys.KEY_SECURITY_CENTER_DOCK_PREDICT_LIMIT, 8).coerceIn(0, 15))
 
     /**
      * Outcome of a settings application.

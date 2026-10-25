@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.securitycenter
 
+import com.takekazex.hypertweak.settings.contract.AppSettingsKeys
+
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -135,7 +137,7 @@ object BatteryInfoHooker : StaticHooker() {
             val sampledAt = Bundle()
             val validUntil = Bundle()
             val bundle = Bundle()
-            val zh = when (Preferences.getInt(Preferences.KEY_LANGUAGE, 0)) {
+            val zh = when (Preferences.getInt(AppSettingsKeys.KEY_LANGUAGE, 0)) {
                 1 -> true
                 2 -> false
                 else -> Locale.getDefault().language == "zh"

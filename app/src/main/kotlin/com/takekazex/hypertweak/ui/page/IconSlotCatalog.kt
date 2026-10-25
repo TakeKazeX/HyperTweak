@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.ui.page
 
+import com.takekazex.hypertweak.settings.contract.IconSlotPolicy
+
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import com.takekazex.hypertweak.R

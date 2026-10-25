@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+
 import android.content.Context
 import android.content.ContentResolver
 import android.provider.Settings
@@ -62,7 +64,7 @@ object SystemUiBubbleNotificationWhitelistHooker : StaticHooker() {
 
     override fun onHook() {
         if (!Preferences.getBoolean(
-                Preferences.KEY_SECURITY_CENTER_BUBBLE_NOTIFICATION_UNLOCK,
+                PlatformSettingsKeys.KEY_SECURITY_CENTER_BUBBLE_NOTIFICATION_UNLOCK,
                 false
             )
         ) {
@@ -120,7 +122,7 @@ object SystemUiBubbleNotificationWhitelistHooker : StaticHooker() {
                 after { param ->
                     HookFailurePolicy.open(TAG, "isAppEnableBubbleNotification", Unit) {
                         if (!Preferences.getBoolean(
-                                Preferences.KEY_SECURITY_CENTER_BUBBLE_NOTIFICATION_UNLOCK,
+                                PlatformSettingsKeys.KEY_SECURITY_CENTER_BUBBLE_NOTIFICATION_UNLOCK,
                                 false
                             )
                         ) {

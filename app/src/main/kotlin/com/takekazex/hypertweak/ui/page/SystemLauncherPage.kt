@@ -1,5 +1,9 @@
 package com.takekazex.hypertweak.ui.page
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+
+import com.takekazex.hypertweak.settings.contract.BackGestureKeys
+
 import android.annotation.SuppressLint
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -64,17 +68,17 @@ fun SystemLauncherPage(onBack: () -> Unit, onNavigateToDockBackground: () -> Uni
     var recentsHaptic by rememberSaveable { mutableStateOf(Preferences.recentsCardHaptic()) }
     var assistantWidgets by rememberSaveable { mutableStateOf(Preferences.allowAndroidWidgetsToAssistant()) }
     var openedFolderColumns by rememberSaveable { mutableIntStateOf(Preferences.openedFolderColumns()) }
-    var backGestureEnabled by rememberSaveable { mutableStateOf(Preferences.backGestureBoolean(Preferences.KEY_BACK_GESTURE_ENABLED, false)) }
-    var hyperosIndicator by rememberSaveable { mutableStateOf(Preferences.getBoolean(Preferences.KEY_BACK_GESTURE_HYPEROS_INDICATOR, false)) }
-    var indicatorBlur by rememberSaveable { mutableStateOf(Preferences.getBoolean(Preferences.KEY_BACK_GESTURE_INDICATOR_BLUR, false)) }
-    var hapticsDisabled by rememberSaveable { mutableStateOf(Preferences.getBoolean(Preferences.KEY_BACK_GESTURE_HAPTICS_DISABLED, false)) }
-    var hyperosHaptics by rememberSaveable { mutableStateOf(Preferences.getBoolean(Preferences.KEY_BACK_GESTURE_HYPEROS_HAPTICS, false)) }
-    var enhancedHaptics by rememberSaveable { mutableStateOf(Preferences.getBoolean(Preferences.KEY_BACK_GESTURE_ENHANCED_HAPTICS, false)) }
-    var slideAnimation by rememberSaveable { mutableStateOf(Preferences.getBoolean(Preferences.KEY_BACK_GESTURE_SLIDE_ANIMATION, false)) }
-    var crossActivityWallpaper by rememberSaveable { mutableStateOf(Preferences.getBoolean(Preferences.KEY_BACK_GESTURE_CROSS_ACTIVITY_WALLPAPER, false)) }
-    var crossTaskWallpaper by rememberSaveable { mutableStateOf(Preferences.getBoolean(Preferences.KEY_BACK_GESTURE_CROSS_TASK_WALLPAPER, false)) }
+    var backGestureEnabled by rememberSaveable { mutableStateOf(Preferences.backGestureBoolean(BackGestureKeys.KEY_BACK_GESTURE_ENABLED, false)) }
+    var hyperosIndicator by rememberSaveable { mutableStateOf(Preferences.getBoolean(BackGestureKeys.KEY_BACK_GESTURE_HYPEROS_INDICATOR, false)) }
+    var indicatorBlur by rememberSaveable { mutableStateOf(Preferences.getBoolean(BackGestureKeys.KEY_BACK_GESTURE_INDICATOR_BLUR, false)) }
+    var hapticsDisabled by rememberSaveable { mutableStateOf(Preferences.getBoolean(BackGestureKeys.KEY_BACK_GESTURE_HAPTICS_DISABLED, false)) }
+    var hyperosHaptics by rememberSaveable { mutableStateOf(Preferences.getBoolean(BackGestureKeys.KEY_BACK_GESTURE_HYPEROS_HAPTICS, false)) }
+    var enhancedHaptics by rememberSaveable { mutableStateOf(Preferences.getBoolean(BackGestureKeys.KEY_BACK_GESTURE_ENHANCED_HAPTICS, false)) }
+    var slideAnimation by rememberSaveable { mutableStateOf(Preferences.getBoolean(BackGestureKeys.KEY_BACK_GESTURE_SLIDE_ANIMATION, false)) }
+    var crossActivityWallpaper by rememberSaveable { mutableStateOf(Preferences.getBoolean(BackGestureKeys.KEY_BACK_GESTURE_CROSS_ACTIVITY_WALLPAPER, false)) }
+    var crossTaskWallpaper by rememberSaveable { mutableStateOf(Preferences.getBoolean(BackGestureKeys.KEY_BACK_GESTURE_CROSS_TASK_WALLPAPER, false)) }
     var fullscreenDirectBack by rememberSaveable {
-        mutableStateOf(Preferences.getBoolean(Preferences.KEY_FULLSCREEN_DIRECT_BACK, false))
+        mutableStateOf(Preferences.getBoolean(BackGestureKeys.KEY_FULLSCREEN_DIRECT_BACK, false))
     }
     Scaffold(topBar = {
         TopAppBar(
@@ -102,7 +106,7 @@ fun SystemLauncherPage(onBack: () -> Unit, onNavigateToDockBackground: () -> Uni
                     checked = xiaoaiOptions,
                     onCheckedChange = {
                         xiaoaiOptions = it
-                        Preferences.putBoolean(Preferences.KEY_XIAOAI_GESTURE_OPTIONS, it)
+                        Preferences.putBoolean(PlatformSettingsKeys.KEY_XIAOAI_GESTURE_OPTIONS, it)
                         NativeRuleConfig.publish(context, hideRecentsClearButton, openedFolderColumns, xiaoaiOptions = it)
                     },
                     title = stringResource(R.string.settings_xiaoai_gesture_options_title),
@@ -118,7 +122,7 @@ fun SystemLauncherPage(onBack: () -> Unit, onNavigateToDockBackground: () -> Uni
                         checked = hideRecentsClearButton,
                         onCheckedChange = {
                             hideRecentsClearButton = it
-                            Preferences.putBoolean(Preferences.KEY_HIDE_RECENTS_CLEAR_BUTTON, it)
+                            Preferences.putBoolean(PlatformSettingsKeys.KEY_HIDE_RECENTS_CLEAR_BUTTON, it)
                             // Preferences delivers the live snapshot to the launcher; keep the
                             // legacy file as an inspectable diagnostic copy.
                             NativeRuleConfig.publish(context, it, openedFolderColumns)
@@ -131,7 +135,7 @@ fun SystemLauncherPage(onBack: () -> Unit, onNavigateToDockBackground: () -> Uni
                             checked = recentsHaptic,
                             onCheckedChange = {
                                 recentsHaptic = it
-                                Preferences.putBoolean(Preferences.KEY_RECENTS_CARD_HAPTIC, it)
+                                Preferences.putBoolean(PlatformSettingsKeys.KEY_RECENTS_CARD_HAPTIC, it)
                                 NativeRuleConfig.publish(context, hideRecentsClearButton, openedFolderColumns, recentsHaptic = it)
                             },
                             title = stringResource(R.string.settings_recents_card_haptic_title),
@@ -143,7 +147,7 @@ fun SystemLauncherPage(onBack: () -> Unit, onNavigateToDockBackground: () -> Uni
                             checked = assistantWidgets,
                             onCheckedChange = {
                                 assistantWidgets = it
-                                Preferences.putBoolean(Preferences.KEY_ALLOW_ANDROID_WIDGETS_TO_ASSISTANT, it)
+                                Preferences.putBoolean(PlatformSettingsKeys.KEY_ALLOW_ANDROID_WIDGETS_TO_ASSISTANT, it)
                                 NativeRuleConfig.publish(context, hideRecentsClearButton, openedFolderColumns,
                                     assistantWidgets = it)
                             },
@@ -154,7 +158,7 @@ fun SystemLauncherPage(onBack: () -> Unit, onNavigateToDockBackground: () -> Uni
                             checked = widgetStack,
                             onCheckedChange = {
                                 widgetStack = it
-                                Preferences.putBoolean(Preferences.KEY_ANDROID_WIDGET_STACK, it)
+                                Preferences.putBoolean(PlatformSettingsKeys.KEY_ANDROID_WIDGET_STACK, it)
                                 NativeRuleConfig.publish(context, hideRecentsClearButton, openedFolderColumns, widgetStack = it)
                             },
                             title = stringResource(R.string.settings_android_widget_stack_title),
@@ -164,7 +168,7 @@ fun SystemLauncherPage(onBack: () -> Unit, onNavigateToDockBackground: () -> Uni
                             checked = folderStack,
                             onCheckedChange = {
                                 folderStack = it
-                                Preferences.putBoolean(Preferences.KEY_FOLDER_STACK_PREVIEW, it)
+                                Preferences.putBoolean(PlatformSettingsKeys.KEY_FOLDER_STACK_PREVIEW, it)
                                 NativeRuleConfig.publish(context, hideRecentsClearButton, openedFolderColumns, folderStack = it)
                             },
                             title = stringResource(R.string.settings_folder_stack_preview_title),
@@ -179,16 +183,16 @@ fun SystemLauncherPage(onBack: () -> Unit, onNavigateToDockBackground: () -> Uni
                                 stringResource(R.string.settings_opened_folder_columns_five)
                             ),
                             selectedIndex = (
-                                openedFolderColumns - Preferences.DEFAULT_OPENED_FOLDER_COLUMNS
+                                openedFolderColumns - PlatformSettingsKeys.DEFAULT_OPENED_FOLDER_COLUMNS
                             ).coerceIn(0, 2),
                             onSelectedIndexChange = { index ->
                                 openedFolderColumns =
-                                    (Preferences.DEFAULT_OPENED_FOLDER_COLUMNS + index).coerceIn(
-                                        Preferences.MIN_OPENED_FOLDER_COLUMNS,
-                                        Preferences.MAX_OPENED_FOLDER_COLUMNS
+                                    (PlatformSettingsKeys.DEFAULT_OPENED_FOLDER_COLUMNS + index).coerceIn(
+                                        PlatformSettingsKeys.MIN_OPENED_FOLDER_COLUMNS,
+                                        PlatformSettingsKeys.MAX_OPENED_FOLDER_COLUMNS
                                     )
                                 Preferences.putInt(
-                                    Preferences.KEY_OPENED_FOLDER_COLUMNS,
+                                    PlatformSettingsKeys.KEY_OPENED_FOLDER_COLUMNS,
                                     openedFolderColumns
                                 )
                                 NativeRuleConfig.publish(
@@ -230,7 +234,7 @@ fun SystemLauncherPage(onBack: () -> Unit, onNavigateToDockBackground: () -> Uni
                             enabled = backOptionsAvailable,
                             onCheckedChange = {
                                 backGestureEnabled = it
-                                Preferences.putBoolean(Preferences.KEY_BACK_GESTURE_ENABLED, it)
+                                Preferences.putBoolean(BackGestureKeys.KEY_BACK_GESTURE_ENABLED, it)
                             }
                         )
                         if (upstreamInstalled == true) {
@@ -258,7 +262,7 @@ fun SystemLauncherPage(onBack: () -> Unit, onNavigateToDockBackground: () -> Uni
                             enabled = backOptionsAvailable && backGestureEnabled,
                             onSelectedIndexChange = {
                                 fullscreenDirectBack = it == 1
-                                Preferences.putBoolean(Preferences.KEY_FULLSCREEN_DIRECT_BACK, fullscreenDirectBack)
+                                Preferences.putBoolean(BackGestureKeys.KEY_FULLSCREEN_DIRECT_BACK, fullscreenDirectBack)
                             }
                         )
                         OverlayDropdownPreference(
@@ -270,8 +274,8 @@ fun SystemLauncherPage(onBack: () -> Unit, onNavigateToDockBackground: () -> Uni
                                 hyperosIndicator = it != 0
                                 indicatorBlur = it == 2
                                 Preferences.putBackGestureAppearance(mapOf(
-                                    Preferences.KEY_BACK_GESTURE_HYPEROS_INDICATOR to hyperosIndicator,
-                                    Preferences.KEY_BACK_GESTURE_INDICATOR_BLUR to indicatorBlur
+                                    BackGestureKeys.KEY_BACK_GESTURE_HYPEROS_INDICATOR to hyperosIndicator,
+                                    BackGestureKeys.KEY_BACK_GESTURE_INDICATOR_BLUR to indicatorBlur
                                 ))
                             }
                         )
@@ -284,8 +288,8 @@ fun SystemLauncherPage(onBack: () -> Unit, onNavigateToDockBackground: () -> Uni
                                 hapticsDisabled = it == 2
                                 if (!hapticsDisabled) hyperosHaptics = it == 1
                                 Preferences.putBackGestureAppearance(mapOf(
-                                    Preferences.KEY_BACK_GESTURE_HAPTICS_DISABLED to hapticsDisabled,
-                                    Preferences.KEY_BACK_GESTURE_HYPEROS_HAPTICS to hyperosHaptics
+                                    BackGestureKeys.KEY_BACK_GESTURE_HAPTICS_DISABLED to hapticsDisabled,
+                                    BackGestureKeys.KEY_BACK_GESTURE_HYPEROS_HAPTICS to hyperosHaptics
                                 ))
                             }
                         )
@@ -296,7 +300,7 @@ fun SystemLauncherPage(onBack: () -> Unit, onNavigateToDockBackground: () -> Uni
                             enabled = backOptionsAvailable && backGestureEnabled && hyperosHaptics && !hapticsDisabled,
                             onCheckedChange = {
                                 enhancedHaptics = it
-                                Preferences.putBoolean(Preferences.KEY_BACK_GESTURE_ENHANCED_HAPTICS, it)
+                                Preferences.putBoolean(BackGestureKeys.KEY_BACK_GESTURE_ENHANCED_HAPTICS, it)
                             }
                         )
                         SwitchPreference(
@@ -306,7 +310,7 @@ fun SystemLauncherPage(onBack: () -> Unit, onNavigateToDockBackground: () -> Uni
                             enabled = backOptionsAvailable && backGestureEnabled,
                             onCheckedChange = {
                                 slideAnimation = it
-                                Preferences.putBoolean(Preferences.KEY_BACK_GESTURE_SLIDE_ANIMATION, it)
+                                Preferences.putBoolean(BackGestureKeys.KEY_BACK_GESTURE_SLIDE_ANIMATION, it)
                             }
                         )
                         SwitchPreference(
@@ -316,7 +320,7 @@ fun SystemLauncherPage(onBack: () -> Unit, onNavigateToDockBackground: () -> Uni
                             enabled = backOptionsAvailable && backGestureEnabled,
                             onCheckedChange = {
                                 crossActivityWallpaper = it
-                                Preferences.putBoolean(Preferences.KEY_BACK_GESTURE_CROSS_ACTIVITY_WALLPAPER, it)
+                                Preferences.putBoolean(BackGestureKeys.KEY_BACK_GESTURE_CROSS_ACTIVITY_WALLPAPER, it)
                             }
                         )
                         SwitchPreference(
@@ -326,7 +330,7 @@ fun SystemLauncherPage(onBack: () -> Unit, onNavigateToDockBackground: () -> Uni
                             enabled = backOptionsAvailable && backGestureEnabled,
                             onCheckedChange = {
                                 crossTaskWallpaper = it
-                                Preferences.putBoolean(Preferences.KEY_BACK_GESTURE_CROSS_TASK_WALLPAPER, it)
+                                Preferences.putBoolean(BackGestureKeys.KEY_BACK_GESTURE_CROSS_TASK_WALLPAPER, it)
                             }
                         )
                     }

@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.lbe
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 
 import android.content.Context
@@ -74,7 +76,7 @@ object LbeClipboardToastHooker : StaticHooker() {
     }
 
     override fun onHook() {
-        enabled = Preferences.getBoolean(Preferences.KEY_LBE_CLIPBOARD_TOAST, false)
+        enabled = Preferences.getBoolean(PlatformSettingsKeys.KEY_LBE_CLIPBOARD_TOAST, false)
         if (!enabled) {
             DebugLog.hookSkippedDebug(TAG, hookParam.packageName, "clipboard Toast disabled")
             return

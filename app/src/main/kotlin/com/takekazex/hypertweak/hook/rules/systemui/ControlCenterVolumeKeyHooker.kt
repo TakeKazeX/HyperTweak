@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+
 import android.annotation.SuppressLint
 import android.media.AudioManager
 import android.widget.SeekBar
@@ -44,8 +46,8 @@ class ControlCenterVolumeKeyHooker : DynamicHooker() {
                         slider.invoke(controller) !is SeekBar) return@open
                     val increase = param.args.firstOrNull() as? Boolean ?: return@open
                     val configuration = VolumeKeyStepPolicy.configuration(
-                        Preferences.getInt(Preferences.KEY_VOLUME_KEY_STEP_COUNT, Preferences.DEFAULT_VOLUME_KEY_STEP_COUNT),
-                        Preferences.getInt(Preferences.KEY_VOLUME_KEY_STEP_SCOPE, Preferences.VOLUME_KEY_SCOPE_MEDIA_ONLY)
+                        Preferences.getInt(PlatformSettingsKeys.KEY_VOLUME_KEY_STEP_COUNT, PlatformSettingsKeys.DEFAULT_VOLUME_KEY_STEP_COUNT),
+                        Preferences.getInt(PlatformSettingsKeys.KEY_VOLUME_KEY_STEP_SCOPE, PlatformSettingsKeys.VOLUME_KEY_SCOPE_MEDIA_ONLY)
                     )
                     val range = maximum.getInt(controller) - minimum.getInt(controller)
                     if (range <= 0) return@open

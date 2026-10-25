@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak
 
+import com.takekazex.hypertweak.settings.contract.AppSettingsKeys
+
 import android.app.Application
 import android.content.Context
 import com.takekazex.hypertweak.hook.NativeRuleConfig
@@ -18,7 +20,7 @@ class HyperTweakApp : Application() {
         XposedServiceManager.init()
 
         // Synchronously initialize local preferences
-        val localPrefs = getSharedPreferences(Preferences.NAME, Context.MODE_PRIVATE)
+        val localPrefs = getSharedPreferences(AppSettingsKeys.NAME, Context.MODE_PRIVATE)
         Preferences.init(localPrefs, useLocalOnly = true)
         Preferences.initLocalCache(this)
         DebugLog.ensureSession()

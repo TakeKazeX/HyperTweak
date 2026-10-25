@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.ui.page
 
+import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
+
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -27,7 +29,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.hook.Preferences
-import com.takekazex.hypertweak.hook.rules.systemui.LockscreenChargingDetailHooker
+import com.takekazex.hypertweak.settings.contract.LockscreenChargingOptions
 import com.takekazex.hypertweak.util.RestartScopeSelection
 import com.takekazex.hypertweak.util.RestartUtils
 import top.yukonga.miuix.kmp.basic.Card
@@ -58,24 +60,24 @@ fun ChargingDetailPage(onBack: () -> Unit) {
     val handleRestartedScopes = LocalRestartScopeHandled.current
 
     var enabled by remember {
-        mutableStateOf(Preferences.getBoolean(Preferences.KEY_LOCKSCREEN_CHARGING_DETAIL, false))
+        mutableStateOf(Preferences.getBoolean(SystemUiSettingsKeys.KEY_LOCKSCREEN_CHARGING_DETAIL, false))
     }
     var twoRows by remember {
-        mutableStateOf(Preferences.getBoolean(Preferences.KEY_LOCKSCREEN_CHARGING_DETAIL_TWO_ROWS, true))
+        mutableStateOf(Preferences.getBoolean(SystemUiSettingsKeys.KEY_LOCKSCREEN_CHARGING_DETAIL_TWO_ROWS, true))
     }
     var intervalMs by remember {
         mutableIntStateOf(
             Preferences.getInt(
-                Preferences.KEY_LOCKSCREEN_CHARGING_DETAIL_INTERVAL_MS,
-                LockscreenChargingDetailHooker.DEFAULT_INTERVAL_MS
+                SystemUiSettingsKeys.KEY_LOCKSCREEN_CHARGING_DETAIL_INTERVAL_MS,
+                LockscreenChargingOptions.DEFAULT_INTERVAL_MS
             )
         )
     }
     var fields by remember {
         mutableIntStateOf(
             Preferences.getInt(
-                Preferences.KEY_LOCKSCREEN_CHARGING_DETAIL_FIELDS,
-                LockscreenChargingDetailHooker.DEFAULT_FIELDS
+                SystemUiSettingsKeys.KEY_LOCKSCREEN_CHARGING_DETAIL_FIELDS,
+                LockscreenChargingOptions.DEFAULT_FIELDS
             )
         )
     }
@@ -103,7 +105,7 @@ fun ChargingDetailPage(onBack: () -> Unit) {
                         checked = enabled,
                         onCheckedChange = { checked ->
                             enabled = checked
-                            Preferences.putBoolean(Preferences.KEY_LOCKSCREEN_CHARGING_DETAIL, checked)
+                            Preferences.putBoolean(SystemUiSettingsKeys.KEY_LOCKSCREEN_CHARGING_DETAIL, checked)
                         },
                         title = stringResource(R.string.charging_enabled_title),
                         summary = stringResource(R.string.charging_enabled_summary)
@@ -133,7 +135,7 @@ fun ChargingDetailPage(onBack: () -> Unit) {
                     checked = twoRows,
                     onCheckedChange = { checked ->
                         twoRows = checked
-                        Preferences.putBoolean(Preferences.KEY_LOCKSCREEN_CHARGING_DETAIL_TWO_ROWS, checked)
+                        Preferences.putBoolean(SystemUiSettingsKeys.KEY_LOCKSCREEN_CHARGING_DETAIL_TWO_ROWS, checked)
                     },
                     title = stringResource(R.string.charging_two_rows_title),
                     summary = stringResource(R.string.charging_two_rows_summary)
@@ -161,7 +163,7 @@ fun ChargingDetailPage(onBack: () -> Unit) {
                         onSelectedIndexChange = { index ->
                             listOf(1000, 2000, 3000, 5000).getOrNull(index)?.let { ms ->
                                 intervalMs = ms
-                                Preferences.putInt(Preferences.KEY_LOCKSCREEN_CHARGING_DETAIL_INTERVAL_MS, ms)
+                                Preferences.putInt(SystemUiSettingsKeys.KEY_LOCKSCREEN_CHARGING_DETAIL_INTERVAL_MS, ms)
                             }
                         }
                     )
@@ -172,44 +174,44 @@ fun ChargingDetailPage(onBack: () -> Unit) {
             Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
                 Column(Modifier.fillMaxWidth()) {
                     ChargingFieldSwitch(
-                        checked = (fields and LockscreenChargingDetailHooker.FIELD_WATTAGE) != 0,
+                        checked = (fields and LockscreenChargingOptions.FIELD_WATTAGE) != 0,
                         title = stringResource(R.string.charging_field_wattage_title),
                         summary = stringResource(R.string.charging_field_wattage_summary),
                         current = fields,
-                        bit = LockscreenChargingDetailHooker.FIELD_WATTAGE
+                        bit = LockscreenChargingOptions.FIELD_WATTAGE
                     ) { value ->
                         fields = value
-                        Preferences.putInt(Preferences.KEY_LOCKSCREEN_CHARGING_DETAIL_FIELDS, value)
+                        Preferences.putInt(SystemUiSettingsKeys.KEY_LOCKSCREEN_CHARGING_DETAIL_FIELDS, value)
                     }
                     ChargingFieldSwitch(
-                        checked = (fields and LockscreenChargingDetailHooker.FIELD_VOLTAGE) != 0,
+                        checked = (fields and LockscreenChargingOptions.FIELD_VOLTAGE) != 0,
                         title = stringResource(R.string.charging_field_voltage_title),
                         summary = stringResource(R.string.charging_field_voltage_summary),
                         current = fields,
-                        bit = LockscreenChargingDetailHooker.FIELD_VOLTAGE
+                        bit = LockscreenChargingOptions.FIELD_VOLTAGE
                     ) { value ->
                         fields = value
-                        Preferences.putInt(Preferences.KEY_LOCKSCREEN_CHARGING_DETAIL_FIELDS, value)
+                        Preferences.putInt(SystemUiSettingsKeys.KEY_LOCKSCREEN_CHARGING_DETAIL_FIELDS, value)
                     }
                     ChargingFieldSwitch(
-                        checked = (fields and LockscreenChargingDetailHooker.FIELD_CURRENT) != 0,
+                        checked = (fields and LockscreenChargingOptions.FIELD_CURRENT) != 0,
                         title = stringResource(R.string.charging_field_current_title),
                         summary = stringResource(R.string.charging_field_current_summary),
                         current = fields,
-                        bit = LockscreenChargingDetailHooker.FIELD_CURRENT
+                        bit = LockscreenChargingOptions.FIELD_CURRENT
                     ) { value ->
                         fields = value
-                        Preferences.putInt(Preferences.KEY_LOCKSCREEN_CHARGING_DETAIL_FIELDS, value)
+                        Preferences.putInt(SystemUiSettingsKeys.KEY_LOCKSCREEN_CHARGING_DETAIL_FIELDS, value)
                     }
                     ChargingFieldSwitch(
-                        checked = (fields and LockscreenChargingDetailHooker.FIELD_TEMPERATURE) != 0,
+                        checked = (fields and LockscreenChargingOptions.FIELD_TEMPERATURE) != 0,
                         title = stringResource(R.string.charging_field_temperature_title),
                         summary = stringResource(R.string.charging_field_temperature_summary),
                         current = fields,
-                        bit = LockscreenChargingDetailHooker.FIELD_TEMPERATURE
+                        bit = LockscreenChargingOptions.FIELD_TEMPERATURE
                     ) { value ->
                         fields = value
-                        Preferences.putInt(Preferences.KEY_LOCKSCREEN_CHARGING_DETAIL_FIELDS, value)
+                        Preferences.putInt(SystemUiSettingsKeys.KEY_LOCKSCREEN_CHARGING_DETAIL_FIELDS, value)
                     }
                 }
             }

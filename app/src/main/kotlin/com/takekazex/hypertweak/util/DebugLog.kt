@@ -43,6 +43,7 @@ object DebugLog {
 
     fun setProcessTag(tag: String) {
         processTag = tag
+        SettingsDiagnostics.bind(::write)
     }
 
     /**
@@ -91,6 +92,7 @@ object DebugLog {
     }
 
     fun bindXposed(interfaceRef: XposedInterface) {
+        SettingsDiagnostics.bind(::write)
         sessionHeaderEmitted = false
         xposed = interfaceRef
         d("DebugLog", "bound LSPosed logger api=${interfaceRef.apiVersion}")

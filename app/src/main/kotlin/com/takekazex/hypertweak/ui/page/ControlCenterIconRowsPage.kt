@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.ui.page
 
+import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
+
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
@@ -24,7 +26,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.hook.Preferences
-import com.takekazex.hypertweak.hook.rules.systemui.icon.IconSlotPolicy
+import com.takekazex.hypertweak.settings.contract.IconSlotPolicy
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -44,7 +46,7 @@ fun ControlCenterIconRowsPage(onBack: () -> Unit) {
     val scrollBehavior = MiuixScrollBehavior()
     val listState = rememberLazyListState()
     var entries by rememberSaveable {
-        mutableStateOf(Preferences.getStringSet(Preferences.KEY_CC_ICON_ROW_OVERRIDES, emptySet()).toList())
+        mutableStateOf(Preferences.getStringSet(SystemUiSettingsKeys.KEY_CC_ICON_ROW_OVERRIDES, emptySet()).toList())
     }
     val choices = listOf(stringResource(R.string.icon_cc_row_first), stringResource(R.string.icon_cc_row_second))
     Scaffold(topBar = {
@@ -76,7 +78,7 @@ fun ControlCenterIconRowsPage(onBack: () -> Unit) {
                         onSelectedIndexChange = { index ->
                             val updated = IconSlotPolicy.withControlCenterRow(entries.toSet(), slot, index + 1)
                             entries = updated.toList()
-                            Preferences.putStringSet(Preferences.KEY_CC_ICON_ROW_OVERRIDES, updated)
+                            Preferences.putStringSet(SystemUiSettingsKeys.KEY_CC_ICON_ROW_OVERRIDES, updated)
                         }
                     )
                 }

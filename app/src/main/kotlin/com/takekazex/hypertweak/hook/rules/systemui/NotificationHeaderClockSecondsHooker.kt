@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui
 
+import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
+
 import android.text.format.DateFormat
 import android.view.View
 import android.widget.TextView
@@ -78,7 +80,7 @@ object NotificationHeaderClockSecondsHooker : StaticHooker() {
      * disabling stops the tick and restores the stock clock on the existing header views.
      */
     fun refreshSettings() {
-        val next = Preferences.getBoolean(Preferences.KEY_NOTIFICATION_HEADER_CLOCK_SECONDS, false)
+        val next = Preferences.getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_CLOCK_SECONDS, false)
         val changed = next != persistentHeaderEnabled
         persistentHeaderEnabled = next
         HostAccess.onMain {
@@ -128,7 +130,7 @@ object NotificationHeaderClockSecondsHooker : StaticHooker() {
     override fun onHook() {
         retiring = false
         persistentHeaderEnabled = Preferences.getBoolean(
-            Preferences.KEY_NOTIFICATION_HEADER_CLOCK_SECONDS,
+            SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_CLOCK_SECONDS,
             false
         )
 

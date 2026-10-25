@@ -1,10 +1,13 @@
 package com.takekazex.hypertweak.hook.rules.system
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+
+
 /** The desired vendor state, independent of delayed/stale state observations. */
 internal object BatteryAutoPowerSavePolicy {
-    const val MIN_THRESHOLD = 10
-    const val MAX_THRESHOLD = 50
-    const val DEFAULT_THRESHOLD = 20
+    const val MIN_THRESHOLD = PlatformSettingsKeys.MIN_BATTERY_AUTO_POWER_SAVE_THRESHOLD
+    const val MAX_THRESHOLD = PlatformSettingsKeys.MAX_BATTERY_AUTO_POWER_SAVE_THRESHOLD
+    const val DEFAULT_THRESHOLD = PlatformSettingsKeys.DEFAULT_BATTERY_AUTO_POWER_SAVE_THRESHOLD
 
     fun target(
         enabled: Boolean,

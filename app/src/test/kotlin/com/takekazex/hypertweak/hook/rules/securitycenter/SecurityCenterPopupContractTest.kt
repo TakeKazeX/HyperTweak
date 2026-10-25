@@ -1,6 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.securitycenter
 
-import com.takekazex.hypertweak.hook.Preferences
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+
 import com.takekazex.hypertweak.hook.RuntimeSettingsLedger
 import com.takekazex.hypertweak.hook.RuntimeSettingsSnapshot
 import com.takekazex.hypertweak.hook.base.RuntimeSettingsGroups
@@ -37,8 +38,8 @@ class SecurityCenterPopupContractTest {
     }
 
     @Test fun liveRoutingMigratesFromAbsentFeatureAndSupportsDisableAndReset() {
-        val dolby = Preferences.KEY_SECURITY_CENTER_HIDE_DOLBY_POPUP
-        val game = Preferences.KEY_SECURITY_CENTER_HIDE_GAME_POPUP
+        val dolby = PlatformSettingsKeys.KEY_SECURITY_CENTER_HIDE_DOLBY_POPUP
+        val game = PlatformSettingsKeys.KEY_SECURITY_CENTER_HIDE_GAME_POPUP
         val groups = setOf(RuntimeSettingsGroups.SECURITY_POPUPS)
         for (key in listOf(dolby, game)) {
             assertEquals(groups, RuntimeSettingsGroups.affected(key))

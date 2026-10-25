@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+
 import android.app.KeyguardManager
 import android.content.ComponentName
 import android.content.Context
@@ -94,7 +96,7 @@ object ExtendUnlockHooker : StaticHooker() {
      */
     fun syncTrustAgent(context: Context) {
         HookFailurePolicy.open(TAG, "syncTrustAgent", Unit) {
-            val wanted = Preferences.getBoolean(Preferences.KEY_EXTEND_UNLOCK_FIX, false)
+            val wanted = Preferences.getBoolean(PlatformSettingsKeys.KEY_EXTEND_UNLOCK_FIX, false)
             val lockPatternUtils = "com.android.internal.widget.LockPatternUtils".toClassOrNull()
                 ?: return@open
             val instance = lockPatternUtils.getConstructor(Context::class.java).newInstance(context)
@@ -133,7 +135,7 @@ object ExtendUnlockHooker : StaticHooker() {
     }
 
     override fun onHook() {
-        enabled = Preferences.getBoolean(Preferences.KEY_EXTEND_UNLOCK_FIX, false)
+        enabled = Preferences.getBoolean(PlatformSettingsKeys.KEY_EXTEND_UNLOCK_FIX, false)
         if (!enabled) {
             DebugLog.hookSkippedDebug(TAG, "keyguard trust state", "disabled")
             return

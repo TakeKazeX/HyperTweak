@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.ui.page
 
+import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
+
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -28,7 +30,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.hook.Preferences
-import com.takekazex.hypertweak.hook.rules.systemui.LockscreenBottomTextHooker
+import com.takekazex.hypertweak.settings.contract.LockscreenBottomTextOptions
 import com.takekazex.hypertweak.util.RestartScopeSelection
 import com.takekazex.hypertweak.util.RestartUtils
 import top.yukonga.miuix.kmp.basic.Card
@@ -55,21 +57,21 @@ fun LockscreenBottomTextPage(onBack: () -> Unit) {
     val handleRestartedScopes = LocalRestartScopeHandled.current
 
     var enabled by remember {
-        mutableStateOf(Preferences.getBoolean(Preferences.KEY_LOCKSCREEN_BOTTOM_TEXT, false))
+        mutableStateOf(Preferences.getBoolean(SystemUiSettingsKeys.KEY_LOCKSCREEN_BOTTOM_TEXT, false))
     }
     var mode by remember {
         mutableIntStateOf(
             Preferences.getInt(
-                Preferences.KEY_LOCKSCREEN_BOTTOM_TEXT_MODE,
-                LockscreenBottomTextHooker.DEFAULT_MODE
+                SystemUiSettingsKeys.KEY_LOCKSCREEN_BOTTOM_TEXT_MODE,
+                LockscreenBottomTextOptions.DEFAULT_MODE
             )
         )
     }
     var mask by remember {
         mutableIntStateOf(
             Preferences.getInt(
-                Preferences.KEY_LOCKSCREEN_BOTTOM_TEXT_MASK,
-                LockscreenBottomTextHooker.DEFAULT_MASK
+                SystemUiSettingsKeys.KEY_LOCKSCREEN_BOTTOM_TEXT_MASK,
+                LockscreenBottomTextOptions.DEFAULT_MASK
             )
         )
     }
@@ -82,7 +84,7 @@ fun LockscreenBottomTextPage(onBack: () -> Unit) {
 
     fun setMaskBit(bit: Int, checked: Boolean) {
         mask = if (checked) mask or bit else mask and bit.inv()
-        Preferences.putInt(Preferences.KEY_LOCKSCREEN_BOTTOM_TEXT_MASK, mask)
+        Preferences.putInt(SystemUiSettingsKeys.KEY_LOCKSCREEN_BOTTOM_TEXT_MASK, mask)
         requestSystemUiRestart()
     }
 
@@ -113,7 +115,7 @@ fun LockscreenBottomTextPage(onBack: () -> Unit) {
                         checked = enabled,
                         onCheckedChange = { checked ->
                             enabled = checked
-                            Preferences.putBoolean(Preferences.KEY_LOCKSCREEN_BOTTOM_TEXT, checked)
+                            Preferences.putBoolean(SystemUiSettingsKeys.KEY_LOCKSCREEN_BOTTOM_TEXT, checked)
                             requestSystemUiRestart()
                         },
                         title = stringResource(R.string.bottom_text_enabled_title),
@@ -146,12 +148,12 @@ fun LockscreenBottomTextPage(onBack: () -> Unit) {
                             stringResource(R.string.bottom_text_mode_whitelist)
                         ),
                         selectedIndex = mode.coerceIn(
-                            LockscreenBottomTextHooker.MODE_BLACKLIST,
-                            LockscreenBottomTextHooker.MODE_WHITELIST
+                            LockscreenBottomTextOptions.MODE_BLACKLIST,
+                            LockscreenBottomTextOptions.MODE_WHITELIST
                         ),
                         onSelectedIndexChange = { selected ->
                             mode = selected
-                            Preferences.putInt(Preferences.KEY_LOCKSCREEN_BOTTOM_TEXT_MODE, selected)
+                            Preferences.putInt(SystemUiSettingsKeys.KEY_LOCKSCREEN_BOTTOM_TEXT_MODE, selected)
                             requestSystemUiRestart()
                         }
                     )
@@ -162,140 +164,140 @@ fun LockscreenBottomTextPage(onBack: () -> Unit) {
             Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
                 Column(Modifier.fillMaxWidth()) {
                     BottomTextSwitch(
-                        checked = mask and LockscreenBottomTextHooker.CATEGORY_CHARGING != 0,
+                        checked = mask and LockscreenBottomTextOptions.CATEGORY_CHARGING != 0,
                         title = stringResource(R.string.bottom_text_charging_title),
                         summary = stringResource(R.string.bottom_text_charging_summary),
-                        onCheckedChange = { setMaskBit(LockscreenBottomTextHooker.CATEGORY_CHARGING, it) }
+                        onCheckedChange = { setMaskBit(LockscreenBottomTextOptions.CATEGORY_CHARGING, it) }
                     )
                     BottomTextSwitch(
-                        checked = mask and LockscreenBottomTextHooker.CATEGORY_DND != 0,
+                        checked = mask and LockscreenBottomTextOptions.CATEGORY_DND != 0,
                         title = stringResource(R.string.bottom_text_dnd_title),
                         summary = stringResource(R.string.bottom_text_dnd_summary),
-                        onCheckedChange = { setMaskBit(LockscreenBottomTextHooker.CATEGORY_DND, it) }
+                        onCheckedChange = { setMaskBit(LockscreenBottomTextOptions.CATEGORY_DND, it) }
                     )
                     BottomTextSwitch(
-                        checked = mask and LockscreenBottomTextHooker.CATEGORY_NOTIFICATION_COUNT != 0,
+                        checked = mask and LockscreenBottomTextOptions.CATEGORY_NOTIFICATION_COUNT != 0,
                         title = stringResource(R.string.bottom_text_notification_title),
                         summary = stringResource(R.string.bottom_text_notification_summary),
                         onCheckedChange = {
-                            setMaskBit(LockscreenBottomTextHooker.CATEGORY_NOTIFICATION_COUNT, it)
+                            setMaskBit(LockscreenBottomTextOptions.CATEGORY_NOTIFICATION_COUNT, it)
                         }
                     )
                     BottomTextSwitch(
-                        checked = mask and LockscreenBottomTextHooker.CATEGORY_TRUST != 0,
+                        checked = mask and LockscreenBottomTextOptions.CATEGORY_TRUST != 0,
                         title = stringResource(R.string.bottom_text_trust_title),
                         summary = stringResource(R.string.bottom_text_trust_summary),
-                        onCheckedChange = { setMaskBit(LockscreenBottomTextHooker.CATEGORY_TRUST, it) }
+                        onCheckedChange = { setMaskBit(LockscreenBottomTextOptions.CATEGORY_TRUST, it) }
                     )
                     BottomTextSwitch(
-                        checked = mask and LockscreenBottomTextHooker.CATEGORY_SWIPE != 0,
+                        checked = mask and LockscreenBottomTextOptions.CATEGORY_SWIPE != 0,
                         title = stringResource(R.string.bottom_text_swipe_title),
                         summary = stringResource(R.string.bottom_text_swipe_summary),
-                        onCheckedChange = { setMaskBit(LockscreenBottomTextHooker.CATEGORY_SWIPE, it) }
+                        onCheckedChange = { setMaskBit(LockscreenBottomTextOptions.CATEGORY_SWIPE, it) }
                     )
                     BottomTextSwitch(
-                        checked = mask and LockscreenBottomTextHooker.CATEGORY_OWNER_INFO != 0,
+                        checked = mask and LockscreenBottomTextOptions.CATEGORY_OWNER_INFO != 0,
                         title = stringResource(R.string.bottom_text_owner_info_title),
                         summary = stringResource(R.string.bottom_text_owner_info_summary),
-                        onCheckedChange = { setMaskBit(LockscreenBottomTextHooker.CATEGORY_OWNER_INFO, it) }
+                        onCheckedChange = { setMaskBit(LockscreenBottomTextOptions.CATEGORY_OWNER_INFO, it) }
                     )
                     BottomTextSwitch(
-                        checked = mask and LockscreenBottomTextHooker.CATEGORY_DISCLOSURE != 0,
+                        checked = mask and LockscreenBottomTextOptions.CATEGORY_DISCLOSURE != 0,
                         title = stringResource(R.string.bottom_text_disclosure_title),
                         summary = stringResource(R.string.bottom_text_disclosure_summary),
-                        onCheckedChange = { setMaskBit(LockscreenBottomTextHooker.CATEGORY_DISCLOSURE, it) }
+                        onCheckedChange = { setMaskBit(LockscreenBottomTextOptions.CATEGORY_DISCLOSURE, it) }
                     )
                     BottomTextSwitch(
-                        checked = mask and LockscreenBottomTextHooker.CATEGORY_LOGOUT != 0,
+                        checked = mask and LockscreenBottomTextOptions.CATEGORY_LOGOUT != 0,
                         title = stringResource(R.string.bottom_text_logout_title),
                         summary = stringResource(R.string.bottom_text_logout_summary),
-                        onCheckedChange = { setMaskBit(LockscreenBottomTextHooker.CATEGORY_LOGOUT, it) }
+                        onCheckedChange = { setMaskBit(LockscreenBottomTextOptions.CATEGORY_LOGOUT, it) }
                     )
                     BottomTextSwitch(
-                        checked = mask and LockscreenBottomTextHooker.CATEGORY_ALIGNMENT != 0,
+                        checked = mask and LockscreenBottomTextOptions.CATEGORY_ALIGNMENT != 0,
                         title = stringResource(R.string.bottom_text_alignment_title),
                         summary = stringResource(R.string.bottom_text_alignment_summary),
-                        onCheckedChange = { setMaskBit(LockscreenBottomTextHooker.CATEGORY_ALIGNMENT, it) }
+                        onCheckedChange = { setMaskBit(LockscreenBottomTextOptions.CATEGORY_ALIGNMENT, it) }
                     )
                     BottomTextSwitch(
-                        checked = mask and LockscreenBottomTextHooker.CATEGORY_TRANSIENT != 0,
+                        checked = mask and LockscreenBottomTextOptions.CATEGORY_TRANSIENT != 0,
                         title = stringResource(R.string.bottom_text_transient_title),
                         summary = stringResource(R.string.bottom_text_transient_summary),
-                        onCheckedChange = { setMaskBit(LockscreenBottomTextHooker.CATEGORY_TRANSIENT, it) }
+                        onCheckedChange = { setMaskBit(LockscreenBottomTextOptions.CATEGORY_TRANSIENT, it) }
                     )
                     BottomTextSwitch(
-                        checked = mask and LockscreenBottomTextHooker.CATEGORY_PERSISTENT_UNLOCK != 0,
+                        checked = mask and LockscreenBottomTextOptions.CATEGORY_PERSISTENT_UNLOCK != 0,
                         title = stringResource(R.string.bottom_text_persistent_unlock_title),
                         summary = stringResource(R.string.bottom_text_persistent_unlock_summary),
                         onCheckedChange = {
-                            setMaskBit(LockscreenBottomTextHooker.CATEGORY_PERSISTENT_UNLOCK, it)
+                            setMaskBit(LockscreenBottomTextOptions.CATEGORY_PERSISTENT_UNLOCK, it)
                         }
                     )
                     BottomTextSwitch(
-                        checked = mask and LockscreenBottomTextHooker.CATEGORY_USER_LOCKED != 0,
+                        checked = mask and LockscreenBottomTextOptions.CATEGORY_USER_LOCKED != 0,
                         title = stringResource(R.string.bottom_text_user_locked_title),
                         summary = stringResource(R.string.bottom_text_user_locked_summary),
-                        onCheckedChange = { setMaskBit(LockscreenBottomTextHooker.CATEGORY_USER_LOCKED, it) }
+                        onCheckedChange = { setMaskBit(LockscreenBottomTextOptions.CATEGORY_USER_LOCKED, it) }
                     )
                     BottomTextSwitch(
-                        checked = mask and LockscreenBottomTextHooker.CATEGORY_BIOMETRIC != 0,
+                        checked = mask and LockscreenBottomTextOptions.CATEGORY_BIOMETRIC != 0,
                         title = stringResource(R.string.bottom_text_biometric_title),
                         summary = stringResource(R.string.bottom_text_biometric_summary),
-                        onCheckedChange = { setMaskBit(LockscreenBottomTextHooker.CATEGORY_BIOMETRIC, it) }
+                        onCheckedChange = { setMaskBit(LockscreenBottomTextOptions.CATEGORY_BIOMETRIC, it) }
                     )
                     BottomTextSwitch(
-                        checked = mask and LockscreenBottomTextHooker.CATEGORY_BIOMETRIC_FOLLOW_UP != 0,
+                        checked = mask and LockscreenBottomTextOptions.CATEGORY_BIOMETRIC_FOLLOW_UP != 0,
                         title = stringResource(R.string.bottom_text_biometric_follow_up_title),
                         summary = stringResource(R.string.bottom_text_biometric_follow_up_summary),
                         onCheckedChange = {
-                            setMaskBit(LockscreenBottomTextHooker.CATEGORY_BIOMETRIC_FOLLOW_UP, it)
+                            setMaskBit(LockscreenBottomTextOptions.CATEGORY_BIOMETRIC_FOLLOW_UP, it)
                         }
                     )
                     BottomTextSwitch(
-                        checked = mask and LockscreenBottomTextHooker.CATEGORY_ADAPTIVE_AUTH != 0,
+                        checked = mask and LockscreenBottomTextOptions.CATEGORY_ADAPTIVE_AUTH != 0,
                         title = stringResource(R.string.bottom_text_adaptive_auth_title),
                         summary = stringResource(R.string.bottom_text_adaptive_auth_summary),
-                        onCheckedChange = { setMaskBit(LockscreenBottomTextHooker.CATEGORY_ADAPTIVE_AUTH, it) }
+                        onCheckedChange = { setMaskBit(LockscreenBottomTextOptions.CATEGORY_ADAPTIVE_AUTH, it) }
                     )
                     BottomTextSwitch(
-                        checked = mask and LockscreenBottomTextHooker.CATEGORY_WATCH_DISCONNECTED != 0,
+                        checked = mask and LockscreenBottomTextOptions.CATEGORY_WATCH_DISCONNECTED != 0,
                         title = stringResource(R.string.bottom_text_watch_disconnected_title),
                         summary = stringResource(R.string.bottom_text_watch_disconnected_summary),
                         onCheckedChange = {
-                            setMaskBit(LockscreenBottomTextHooker.CATEGORY_WATCH_DISCONNECTED, it)
+                            setMaskBit(LockscreenBottomTextOptions.CATEGORY_WATCH_DISCONNECTED, it)
                         }
                     )
                     BottomTextSwitch(
-                        checked = mask and LockscreenBottomTextHooker.CATEGORY_SECURE_LOCK_DEVICE != 0,
+                        checked = mask and LockscreenBottomTextOptions.CATEGORY_SECURE_LOCK_DEVICE != 0,
                         title = stringResource(R.string.bottom_text_secure_lock_device_title),
                         summary = stringResource(R.string.bottom_text_secure_lock_device_summary),
                         onCheckedChange = {
-                            setMaskBit(LockscreenBottomTextHooker.CATEGORY_SECURE_LOCK_DEVICE, it)
+                            setMaskBit(LockscreenBottomTextOptions.CATEGORY_SECURE_LOCK_DEVICE, it)
                         }
                     )
                     BottomTextSwitch(
-                        checked = mask and LockscreenBottomTextHooker.CATEGORY_CLICK_TO_UNLOCK != 0,
+                        checked = mask and LockscreenBottomTextOptions.CATEGORY_CLICK_TO_UNLOCK != 0,
                         title = stringResource(R.string.bottom_text_click_to_unlock_title),
                         summary = stringResource(R.string.bottom_text_click_to_unlock_summary),
-                        onCheckedChange = { setMaskBit(LockscreenBottomTextHooker.CATEGORY_CLICK_TO_UNLOCK, it) }
+                        onCheckedChange = { setMaskBit(LockscreenBottomTextOptions.CATEGORY_CLICK_TO_UNLOCK, it) }
                     )
                     BottomTextSwitch(
-                        checked = mask and LockscreenBottomTextHooker.CATEGORY_KEY_TO_UNLOCK != 0,
+                        checked = mask and LockscreenBottomTextOptions.CATEGORY_KEY_TO_UNLOCK != 0,
                         title = stringResource(R.string.bottom_text_key_to_unlock_title),
                         summary = stringResource(R.string.bottom_text_key_to_unlock_summary),
-                        onCheckedChange = { setMaskBit(LockscreenBottomTextHooker.CATEGORY_KEY_TO_UNLOCK, it) }
+                        onCheckedChange = { setMaskBit(LockscreenBottomTextOptions.CATEGORY_KEY_TO_UNLOCK, it) }
                     )
                     BottomTextSwitch(
-                        checked = mask and LockscreenBottomTextHooker.CATEGORY_ENTER_TO_UNLOCK != 0,
+                        checked = mask and LockscreenBottomTextOptions.CATEGORY_ENTER_TO_UNLOCK != 0,
                         title = stringResource(R.string.bottom_text_enter_to_unlock_title),
                         summary = stringResource(R.string.bottom_text_enter_to_unlock_summary),
-                        onCheckedChange = { setMaskBit(LockscreenBottomTextHooker.CATEGORY_ENTER_TO_UNLOCK, it) }
+                        onCheckedChange = { setMaskBit(LockscreenBottomTextOptions.CATEGORY_ENTER_TO_UNLOCK, it) }
                     )
                     BottomTextSwitch(
-                        checked = mask and LockscreenBottomTextHooker.CATEGORY_UNKNOWN != 0,
+                        checked = mask and LockscreenBottomTextOptions.CATEGORY_UNKNOWN != 0,
                         title = stringResource(R.string.bottom_text_unknown_title),
                         summary = stringResource(R.string.bottom_text_unknown_summary),
-                        onCheckedChange = { setMaskBit(LockscreenBottomTextHooker.CATEGORY_UNKNOWN, it) }
+                        onCheckedChange = { setMaskBit(LockscreenBottomTextOptions.CATEGORY_UNKNOWN, it) }
                     )
                 }
             }

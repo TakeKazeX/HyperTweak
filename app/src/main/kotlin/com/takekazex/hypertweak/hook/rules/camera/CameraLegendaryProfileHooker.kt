@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.camera
 
+import com.takekazex.hypertweak.settings.contract.CameraSettingsKeys
+
 import android.view.View
 import com.takekazex.hypertweak.hook.CameraLegendaryMomentMode
 import com.takekazex.hypertweak.hook.Preferences
@@ -375,7 +377,7 @@ object CameraLegendaryProfileHooker : StaticHooker() {
     }
 
     private fun extraModesEnabled(): Boolean =
-        Preferences.getBoolean(Preferences.KEY_CAMERA_LEGENDARY_EXTRA_MODES, false)
+        Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_LEGENDARY_EXTRA_MODES, false)
 
     private fun pixelItemLookupDepth(): Int = pixelItemLookupDepth.get() ?: 0
 

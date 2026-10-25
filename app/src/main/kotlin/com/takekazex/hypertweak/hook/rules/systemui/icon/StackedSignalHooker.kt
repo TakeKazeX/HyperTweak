@@ -2,10 +2,17 @@
 
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import com.takekazex.hypertweak.settings.contract.IconSlotPolicy
+
+import com.takekazex.hypertweak.settings.contract.IconSlotMode
+
+import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
+
+import com.takekazex.hypertweak.settings.contract.SignalSvgStyle
+
 import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 
-import com.takekazex.hypertweak.hook.rules.systemui.icon.duo.DuoSignalHooker
 import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Picture
@@ -276,12 +283,12 @@ object StackedSignalHooker : StaticHooker() {
     private var dataFirst = false
 
     override fun onHook() {
-        dataFirst = Preferences.getInt(Preferences.KEY_ICON_MOBILE_ROW_STYLE, 0) == 1
+        dataFirst = Preferences.getInt(IconSettingsKeys.KEY_ICON_MOBILE_ROW_STYLE, 0) == 1
         IconTunerFlows.init(classLoader)
         options = IconTunerOptions.snapshot()
-        renderStacked = Preferences.getBoolean(Preferences.KEY_ICON_STACKED_ENABLED, false)
-        hideMobileOnWifi = Preferences.getBoolean(Preferences.KEY_ICON_HIDE_MOBILE_ON_WIFI, false)
-        enabled = renderStacked || DuoSignalHooker.requiresMobileState ||
+        renderStacked = Preferences.getBoolean(IconSettingsKeys.KEY_ICON_STACKED_ENABLED, false)
+        hideMobileOnWifi = Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_MOBILE_ON_WIFI, false)
+        enabled = renderStacked || SignalHandoverEvents.shade.requiresMobileState() ||
             ControlCenterCarrierBlockHooker.requiresMobileState
         typeConfig = readTypeConfig()
         if (!enabled) {
@@ -296,7 +303,7 @@ object StackedSignalHooker : StaticHooker() {
             DebugLog.hookSkipped(TAG, "MiuiMobileIconVMImpl#isVisible", "getter bridge unavailable")
             return
         }
-        if (renderStacked && !DuoSignalHooker.requiresMobileState) hookPanelMotion()
+        if (renderStacked && !SignalHandoverEvents.shade.requiresMobileState()) hookPanelMotion()
         hookCreateViewModel()
         hookAdapterStart()
         adapterReference?.get()?.let { scheduleAdapterRestore(it, generation.get()) }
@@ -322,7 +329,7 @@ object StackedSignalHooker : StaticHooker() {
                 val motion = panelMotions.getOrPut(owner) { StackedPanelMotion(owner) }
                 runCatching {
                     val drawable = publishedSignalPicture.takeIf {
-                        enabled && hasPublishedReplacement() && !DuoSignalHooker.requiresMobileState &&
+                        enabled && hasPublishedReplacement() && !SignalHandoverEvents.shade.requiresMobileState() &&
                             !(hideMobileOnWifi && signalState.wifiConnected)
                     }
                     motion.update(publishedSignalRows, drawable?.picture, param.args.firstOrNull() as? Float,
@@ -909,7 +916,7 @@ object StackedSignalHooker : StaticHooker() {
             state.subscriptionOrder.size <= MobileSignalState.MAX_RENDER_ROWS &&
             state.subscriptionOrder.all { it in factoryViewModelIds } &&
             state.subscriptionOrder.all { bindings[it]?.bindingGeneration == generation.get() }
-        DuoSignalHooker.onMobileState(state, complete)
+        SignalHandoverEvents.shade.onMobileState(state, complete)
         ControlCenterCarrierBlockHooker.onMobileState(state, complete)
         if (!renderStacked) {
             restoreNative()
@@ -1030,7 +1037,7 @@ object StackedSignalHooker : StaticHooker() {
         publishedSignalPicture = if (replacementVisible) PublishedSignalPicture(IconSvgRenderer.signalPicture(
             if (renderRows.size > 1) assets.stacked.document else assets.single.document,
             renderRows.map { it.level }, SIGNAL_ALPHA_BG, SIGNAL_ALPHA_ERROR,
-            weight = Preferences.getFloat(Preferences.KEY_ICON_STACKED_WEIGHT, 0f)),
+            weight = Preferences.getFloat(IconSettingsKeys.KEY_ICON_STACKED_WEIGHT, 0f)),
             assets.style.stackedSplitFraction) else null
         renderTypeSlot(state, bridge)
         if (panelMotions.isNotEmpty()) {
@@ -1184,16 +1191,16 @@ object StackedSignalHooker : StaticHooker() {
      */
     private fun readTypeConfig(): MobileTypeConfig = MobileTypeConfig(
         hideWhenDisconnected = Preferences.getBoolean(
-            Preferences.KEY_ICON_STACKED_TYPE_HIDE_DISCONNECT,
+            IconSettingsKeys.KEY_ICON_STACKED_TYPE_HIDE_DISCONNECT,
             false
         ),
         hideWhenWifiAvailable = !Preferences.cellularTypeKeepsOnWifi(),
         showRoamingPrefix = Preferences.getBoolean(
-            Preferences.KEY_ICON_STACKED_TYPE_ROAMING,
+            IconSettingsKeys.KEY_ICON_STACKED_TYPE_ROAMING,
             false
         ),
         small5GaEnabled = Preferences.getBoolean(
-            Preferences.KEY_ICON_CELLULAR_TYPE_SMALL_5GA,
+            IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_SMALL_5GA,
             false
         )
     ).safe()
@@ -1211,7 +1218,7 @@ object StackedSignalHooker : StaticHooker() {
             paddingEndPx = SIGNAL_PADDING_END_PX,
             densityDpi = context?.resources?.displayMetrics?.densityDpi ?: 0,
             fontScale = context?.resources?.configuration?.fontScale ?: 1f,
-            signalWeight = Preferences.getFloat(Preferences.KEY_ICON_STACKED_WEIGHT, 0f),
+            signalWeight = Preferences.getFloat(IconSettingsKeys.KEY_ICON_STACKED_WEIGHT, 0f),
             configVersion = 3
         )
     }

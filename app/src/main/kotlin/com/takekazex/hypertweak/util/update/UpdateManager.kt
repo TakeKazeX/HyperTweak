@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.util.update
 
+import com.takekazex.hypertweak.settings.contract.AppSettingsKeys
+
 import android.content.Intent
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
@@ -44,22 +46,22 @@ class UpdateManager(private val activity: ComponentActivity) {
     val proxyTestState: StateFlow<ProxyTestState> = _proxyTestState.asStateFlow()
 
     fun channel(): UpdateChannel = UpdateChannel.fromValue(
-        Preferences.getString(Preferences.KEY_UPDATE_CHANNEL, UpdateChannel.STABLE.wireValue)
+        Preferences.getString(AppSettingsKeys.KEY_UPDATE_CHANNEL, UpdateChannel.STABLE.wireValue)
     )
 
     fun interval(): UpdateCheckInterval = UpdateCheckInterval.fromIndex(
-        Preferences.getInt(Preferences.KEY_UPDATE_CHECK_INTERVAL, UpdateCheckInterval.DAILY.index)
+        Preferences.getInt(AppSettingsKeys.KEY_UPDATE_CHECK_INTERVAL, UpdateCheckInterval.DAILY.index)
     )
 
     fun proxyMode(): UpdateProxyMode = UpdateProxyMode.fromValue(
-        Preferences.getString(Preferences.KEY_UPDATE_PROXY_MODE, UpdateProxyMode.OFFICIAL.wireValue)
+        Preferences.getString(AppSettingsKeys.KEY_UPDATE_PROXY_MODE, UpdateProxyMode.OFFICIAL.wireValue)
     )
 
-    fun proxyAddress(): String = Preferences.getString(Preferences.KEY_UPDATE_PROXY_URL, "")
+    fun proxyAddress(): String = Preferences.getString(AppSettingsKeys.KEY_UPDATE_PROXY_URL, "")
 
     fun setChannel(channel: UpdateChannel) {
         val previous = this.channel()
-        Preferences.putString(Preferences.KEY_UPDATE_CHANNEL, channel.wireValue)
+        Preferences.putString(AppSettingsKeys.KEY_UPDATE_CHANNEL, channel.wireValue)
         if (previous == channel) return
 
         // Switching channels must not leave the previous channel's work in place:
@@ -110,16 +112,16 @@ class UpdateManager(private val activity: ComponentActivity) {
     }
 
     fun setInterval(interval: UpdateCheckInterval) {
-        Preferences.putInt(Preferences.KEY_UPDATE_CHECK_INTERVAL, interval.index)
+        Preferences.putInt(AppSettingsKeys.KEY_UPDATE_CHECK_INTERVAL, interval.index)
     }
 
     fun setProxyMode(mode: UpdateProxyMode) {
-        Preferences.putString(Preferences.KEY_UPDATE_PROXY_MODE, mode.wireValue)
+        Preferences.putString(AppSettingsKeys.KEY_UPDATE_PROXY_MODE, mode.wireValue)
         if (mode == UpdateProxyMode.THIRD_PARTY) testProxy()
     }
 
     fun setProxyAddress(address: String) {
-        Preferences.putString(Preferences.KEY_UPDATE_PROXY_URL, address.trim())
+        Preferences.putString(AppSettingsKeys.KEY_UPDATE_PROXY_URL, address.trim())
     }
 
     fun startAutoCheck() {

@@ -1,6 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui
 
-import com.takekazex.hypertweak.hook.Preferences
+import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
+
 import com.takekazex.hypertweak.hook.RuntimeSettingsSnapshot
 import com.takekazex.hypertweak.hook.base.RuntimeSettingsGroups
 import org.junit.Assert.*
@@ -29,7 +30,7 @@ class NotificationSlideWhitelistTest {
     }
 
     @Test fun resetAndUpgradeSnapshotsReachOnlyTheSystemUiParticipant() {
-        val key = Preferences.KEY_NOTIFICATION_MINI_WINDOW
+        val key = SystemUiSettingsKeys.KEY_NOTIFICATION_MINI_WINDOW
         val group = RuntimeSettingsGroups.NOTIFICATION_MINI_WINDOW
         assertEquals(setOf(group), RuntimeSettingsGroups.affected(key))
         for (value in listOf(false, true)) {

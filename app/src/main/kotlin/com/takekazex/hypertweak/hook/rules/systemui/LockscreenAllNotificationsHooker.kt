@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui
 
+import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
+
 import android.content.Context
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
@@ -45,7 +47,7 @@ object LockscreenAllNotificationsHooker : StaticHooker() {
     private const val PACKAGE_KEY_SUFFIX = "_keyguard"
 
     override fun onHook() {
-        if (!Preferences.getBoolean(Preferences.KEY_LOCKSCREEN_ALL_NOTIFICATIONS, false)) {
+        if (!Preferences.getBoolean(SystemUiSettingsKeys.KEY_LOCKSCREEN_ALL_NOTIFICATIONS, false)) {
             DebugLog.hookSkippedDebug(TAG, "lockscreen notification gate", "disabled")
             return
         }

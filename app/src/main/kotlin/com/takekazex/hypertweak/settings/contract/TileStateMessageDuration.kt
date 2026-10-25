@@ -1,4 +1,4 @@
-package com.takekazex.hypertweak.hook.rules.systemui
+package com.takekazex.hypertweak.settings.contract
 
 /** Dwell starts at native show-animation completion; animations keep their own timing. */
 object TileStateMessageDuration {

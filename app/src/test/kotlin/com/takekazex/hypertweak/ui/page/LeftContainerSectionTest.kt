@@ -1,6 +1,7 @@
 package com.takekazex.hypertweak.ui.page
 
-import com.takekazex.hypertweak.hook.rules.systemui.icon.IconTunerOptions
+import com.takekazex.hypertweak.settings.contract.IconTunerContract
+
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
@@ -10,7 +11,7 @@ import org.junit.Test
  * Guards the 图标左置 rows against drifting from the slots the hook actually moves.
  *
  * The rows are a hand-written list (each needs its own wording) while the moved slots come from
- * [IconTunerOptions.slotsForLeftPreference], so a toggle added on either side would otherwise
+ * [IconTunerContract.slotsForLeftPreference], so a toggle added on either side would otherwise
  * appear in the UI without a preview, or exist in the hook without any way to switch it.
  */
 class LeftContainerSectionTest {
@@ -18,7 +19,7 @@ class LeftContainerSectionTest {
     @Test
     fun rowsCoverExactlyTheHookSideToggles() {
         assertEquals(
-            IconTunerOptions.leftPreferenceKeys,
+            IconTunerContract.leftPreferenceKeys,
             LEFT_TOGGLE_ROWS.map { it.key }
         )
     }
@@ -41,16 +42,16 @@ class LeftContainerSectionTest {
         LEFT_TOGGLE_ROWS.forEach { row ->
             assertTrue(
                 "row '${row.key}' previews '${row.previewSlot}', " +
-                    "but the hook moves ${IconTunerOptions.slotsForLeftPreference(row.key)}",
-                row.previewSlot in IconTunerOptions.slotsForLeftPreference(row.key)
+                    "but the hook moves ${IconTunerContract.slotsForLeftPreference(row.key)}",
+                row.previewSlot in IconTunerContract.slotsForLeftPreference(row.key)
             )
         }
     }
 
     @Test
     fun everyMovedSlotIsVisibleInTheCatalog() {
-        IconTunerOptions.leftPreferenceKeys
-            .flatMap { IconTunerOptions.slotsForLeftPreference(it) }
+        IconTunerContract.leftPreferenceKeys
+            .flatMap { IconTunerContract.slotsForLeftPreference(it) }
             .forEach { slot ->
                 assertNotNull("moved slot '$slot' has no catalog entry", IconSlotCatalog.of(slot))
             }

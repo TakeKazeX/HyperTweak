@@ -6,16 +6,29 @@
 
 package com.takekazex.hypertweak.hook
 
-import com.takekazex.hypertweak.hook.rules.screenshot.ScreenshotSettingsLedger
-import com.takekazex.hypertweak.hook.rules.screenshot.ScreenshotSettingsSnapshot
+import com.takekazex.hypertweak.settings.contract.CameraSettingsKeys
+
+import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
+
+import com.takekazex.hypertweak.settings.contract.ScreenshotSettingsKeys
+
+import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
+
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+
+import com.takekazex.hypertweak.settings.contract.BackGestureKeys
+
+import com.takekazex.hypertweak.settings.contract.AppSettingsKeys
+
+import com.takekazex.hypertweak.settings.contract.ScreenshotSettingsLedger
+import com.takekazex.hypertweak.settings.contract.ScreenshotSettingsSnapshot
 import com.takekazex.hypertweak.hook.base.RuntimeSettingsGroups
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.core.content.edit
-import com.takekazex.hypertweak.hook.rules.securitycenter.PowerSaveOverrideSelection
-import com.takekazex.hypertweak.hook.rules.system.BatteryAutoPowerSavePolicy
-import com.takekazex.hypertweak.hook.rules.systemui.icon.SignalSvgStyle
-import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.settings.contract.PowerSaveOverrideSelection
+import com.takekazex.hypertweak.settings.contract.SignalSvgStyle
+import com.takekazex.hypertweak.util.SettingsDiagnostics
 import io.github.lingqiqi5211.ezhooktool.xposed.EzXposed
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CountDownLatch
@@ -23,22 +36,9 @@ import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
 object Preferences {
-    const val NAME = "hypertweak_settings"
-    const val KEY_BACK_GESTURE_ENABLED = "back_gesture_enabled"
-    const val KEY_BACK_GESTURE_HYPEROS_INDICATOR = "hyperos_indicator_style"
-    const val KEY_BACK_GESTURE_INDICATOR_BLUR = "hyperos_indicator_blur"
-    const val KEY_BACK_GESTURE_HAPTICS_DISABLED = "back_gesture_haptics_disabled"
-    const val KEY_BACK_GESTURE_HYPEROS_HAPTICS = "hyperos_indicator_haptics"
-    const val KEY_BACK_GESTURE_ENHANCED_HAPTICS = "hyperos_indicator_haptics_enhanced"
-    const val KEY_BACK_GESTURE_SLIDE_ANIMATION = "hyperos_slide_back_animation"
-    const val KEY_BACK_GESTURE_CROSS_ACTIVITY_WALLPAPER = "back_gesture_cross_activity_wallpaper"
-    const val KEY_BACK_GESTURE_CROSS_TASK_WALLPAPER = "back_gesture_cross_task_wallpaper"
-
-    const val KEY_FULLSCREEN_DIRECT_BACK = "fullscreen_direct_back"
-
     private val liveBackSettings = BackGestureSettingsLedger()
     fun backGestureEnabled(): Boolean = !com.takekazex.hypertweak.util.UpstreamBackGesture.installed &&
-        backGestureBoolean(KEY_BACK_GESTURE_ENABLED, false)
+        backGestureBoolean(BackGestureKeys.KEY_BACK_GESTURE_ENABLED, false)
     fun backGestureBoolean(key: String, defaultValue: Boolean): Boolean =
         if (RuntimeSettingsStore.owns(key)) getBoolean(key, defaultValue) else liveBackSettings.latest()?.value(key) ?: runCatching {
             if (isInitialized) remotePrefs.getBoolean(key, defaultValue) else defaultValue
@@ -53,48 +53,21 @@ object Preferences {
     /** The vendored runtime uses the same authoritative source and listeners as other hooks. */
     fun backGesturePreferences(): SharedPreferences = RuntimeSettingsPreferences
     internal fun runtimePreferenceSource(): SharedPreferences? = if (isInitialized) remotePrefs else null
-    internal const val KEY_NATIVE_RULE_REVISION = "native_rules_revision"
     private const val CACHE_NAME = "hypertweak_cache"
-    const val DEFAULT_SEED_COLOR = 0
-    const val DEFAULT_IMMEDIATE_MONET_REFRESH = true
-
     // Key names
-    const val KEY_AOD_FULLSCREEN = "support_aod_fullscreen"
-    const val KEY_AOD_BATTERY_ICON_VISIBLE = "aod_battery_icon_visible"
-    const val KEY_AOD_DUO_ENABLED = "aod_duo_enabled"
-    const val KEY_AOD_BATTERY_PERCENT_VISIBLE = "aod_battery_percent_visible"
-    const val KEY_AOD_PERCENT_POSITION = "aod_percent_position"
-    const val KEY_AOD_DUO_CENTER_CONTENT = "aod_duo_center_content"
-    const val AOD_PERCENT_POSITION_LEFT = 0
-    const val AOD_PERCENT_POSITION_RIGHT = 1
-    const val AOD_PERCENT_POSITION_DUO_CENTER = 2
-    const val AOD_DUO_CENTER_BATTERY = 0
-    const val AOD_DUO_CENTER_SIGNAL = 1
-    const val KEY_REMOVE_GMS_RESTRICTION = "remove_gms_restriction"
-
     /**
      * Stops the CN Download Manager's optional Xunlei log files from creating the shared-storage
      * `.xlDownload` directory. The hook is scoped to `com.android.providers.downloads`, is off by
      * default, and is read when that process is restarted.
      */
-    const val KEY_BLOCK_DOWNLOAD_XL_LOG_DIR = "block_download_xl_log_dir"
-
     /** Shows the original URL instead of a task description in Download Manager details. */
-    const val KEY_DOWNLOAD_ALWAYS_SHOW_FULL_LINK = "download_always_show_full_link"
-
     /** Hides the Download Manager's Xunlei action-bar entry. */
-    const val KEY_DOWNLOAD_HIDE_XL = "download_hide_xl"
-
     /** Adds an independent new-download action-bar button to the Download Manager. */
-    const val KEY_DOWNLOAD_ADD_NEW_BUTTON = "download_add_new_button"
-
     /**
      * Unlocks Nearby Share (Quick Share) on CN Google Play services by overriding the
      * `sharing_supports_latchsky` phenotype flag to true in GMS's CE `phenotype.db`.
      * GMS must be in the Xposed scope (requested when the switch is turned on).
      */
-    const val KEY_QUICK_SHARE_ENABLED = "quick_share_enabled"
-
     /**
      * Shows the full-screen live-translate (屏幕实时翻译) button inside Circle to Search
      * (即圈即搜) on the Google app (`com.google.android.googlequicksearchbox`).
@@ -105,8 +78,6 @@ object Preferences {
      * switch flips the preference and queues the Google app in the Home restart dialog. The
      * runtime may prepare its bridge while disabled, but callbacks preserve the native result.
      */
-    const val KEY_FULL_SCREEN_TRANSLATE = "circle_to_search_full_screen_translate"
-
     /**
      * Shows "Ask about this screen" (针对屏幕内容提问) in the Circle to Search (即圈即搜)
      * Lensient searchbox on the Google app (`com.google.android.googlequicksearchbox`).
@@ -117,108 +88,56 @@ object Preferences {
      * dialog. The runtime may prepare the native bridge while disabled, but every callback
      * preserves Google's original behavior until this switch is enabled.
      */
-    const val KEY_ASK_ABOUT_SCREEN = "circle_to_search_ask_about_screen"
     /** Legacy aggregate switch kept as a fallback for upgrades from the original single toggle. */
-    const val KEY_HIDE_FINGERPRINT = "hide_fingerprint"
     /** Independently hides the fingerprint icon and halo on the always-on display (AOD). */
-    const val KEY_HIDE_FINGERPRINT_AOD = "hide_fingerprint_aod"
     /** Independently hides the fingerprint icon and halo on the interactive lockscreen. */
-    const val KEY_HIDE_FINGERPRINT_LOCKSCREEN = "hide_fingerprint_lockscreen"
-    const val KEY_HIDE_FINGERPRINT_APP_AUTH = "hide_fingerprint_app_auth"
-    const val KEY_HIDE_LOCKSCREEN_STATUS_BAR = "hide_lockscreen_status_bar"
-    const val KEY_SCREENSHOT_AUTO_FRAME = "screenshot_auto_frame"
-    const val KEY_SCREENSHOT_FRAME_EDITOR_MODE = "screenshot_frame_editor_mode"
     /** Copies each screenshot into the clipboard through the host's own write path. */
-    const val KEY_SCREENSHOT_COPY_TO_CLIPBOARD = "screenshot_copy_to_clipboard"
-    const val KEY_SCREENSHOT_PICTURES_DIRECTORY = "screenshot_pictures_directory"
     private val screenshotSettings = ScreenshotSettingsLedger()
-    fun screenshotAutoFrameEnabled(): Boolean = if (RuntimeSettingsStore.owns(KEY_SCREENSHOT_AUTO_FRAME)) getBoolean(KEY_SCREENSHOT_AUTO_FRAME, false) else screenshotSettings.latest()?.enabled
-        ?: getBoolean(KEY_SCREENSHOT_AUTO_FRAME, false)
-    fun screenshotEditorMode(): Int = if (RuntimeSettingsStore.owns(KEY_SCREENSHOT_FRAME_EDITOR_MODE)) getInt(KEY_SCREENSHOT_FRAME_EDITOR_MODE, 0).coerceIn(0, 1) else screenshotSettings.latest()?.editorMode
-        ?: getInt(KEY_SCREENSHOT_FRAME_EDITOR_MODE, 0).let { if (it == 1) 1 else 0 }
-    fun screenshotCopyToClipboard(): Boolean = if (RuntimeSettingsStore.owns(KEY_SCREENSHOT_COPY_TO_CLIPBOARD)) getBoolean(KEY_SCREENSHOT_COPY_TO_CLIPBOARD, false) else screenshotSettings.latest()?.copyToClipboard
-        ?: getBoolean(KEY_SCREENSHOT_COPY_TO_CLIPBOARD, false)
-    fun screenshotPicturesDirectory(): Boolean = if (RuntimeSettingsStore.owns(KEY_SCREENSHOT_PICTURES_DIRECTORY)) getBoolean(KEY_SCREENSHOT_PICTURES_DIRECTORY, false) else screenshotSettings.latest()?.picturesDirectory
-        ?: getBoolean(KEY_SCREENSHOT_PICTURES_DIRECTORY, false)
+    fun screenshotAutoFrameEnabled(): Boolean = if (RuntimeSettingsStore.owns(ScreenshotSettingsKeys.KEY_SCREENSHOT_AUTO_FRAME)) getBoolean(ScreenshotSettingsKeys.KEY_SCREENSHOT_AUTO_FRAME, false) else screenshotSettings.latest()?.enabled
+        ?: getBoolean(ScreenshotSettingsKeys.KEY_SCREENSHOT_AUTO_FRAME, false)
+    fun screenshotEditorMode(): Int = if (RuntimeSettingsStore.owns(ScreenshotSettingsKeys.KEY_SCREENSHOT_FRAME_EDITOR_MODE)) getInt(ScreenshotSettingsKeys.KEY_SCREENSHOT_FRAME_EDITOR_MODE, 0).coerceIn(0, 1) else screenshotSettings.latest()?.editorMode
+        ?: getInt(ScreenshotSettingsKeys.KEY_SCREENSHOT_FRAME_EDITOR_MODE, 0).let { if (it == 1) 1 else 0 }
+    fun screenshotCopyToClipboard(): Boolean = if (RuntimeSettingsStore.owns(ScreenshotSettingsKeys.KEY_SCREENSHOT_COPY_TO_CLIPBOARD)) getBoolean(ScreenshotSettingsKeys.KEY_SCREENSHOT_COPY_TO_CLIPBOARD, false) else screenshotSettings.latest()?.copyToClipboard
+        ?: getBoolean(ScreenshotSettingsKeys.KEY_SCREENSHOT_COPY_TO_CLIPBOARD, false)
+    fun screenshotPicturesDirectory(): Boolean = if (RuntimeSettingsStore.owns(ScreenshotSettingsKeys.KEY_SCREENSHOT_PICTURES_DIRECTORY)) getBoolean(ScreenshotSettingsKeys.KEY_SCREENSHOT_PICTURES_DIRECTORY, false) else screenshotSettings.latest()?.picturesDirectory
+        ?: getBoolean(ScreenshotSettingsKeys.KEY_SCREENSHOT_PICTURES_DIRECTORY, false)
     internal fun acceptScreenshotSettings(snapshot: ScreenshotSettingsSnapshot): Boolean = screenshotSettings.accept(snapshot)
     internal fun saveScreenshotSettings(): Array<Any>? = screenshotSettings.save()
     internal fun restoreScreenshotSettings(state: Any?) = screenshotSettings.restore(state)
-
-    const val KEY_HIDE_LOCKSCREEN_DATE = "hide_lockscreen_date"
 
     /**
      * Filters the text shown at the bottom of the interactive lockscreen. The hook keeps the
      * unlock gesture and notification cards intact; only the bottom indication text and the
      * compact DND/notification-count labels are filtered.
      */
-    const val KEY_LOCKSCREEN_BOTTOM_TEXT = "lockscreen_bottom_text"
-    const val KEY_LOCKSCREEN_BOTTOM_TEXT_MODE = "lockscreen_bottom_text_mode"
-    const val KEY_LOCKSCREEN_BOTTOM_TEXT_MASK = "lockscreen_bottom_text_mask"
-
     /** Adds seconds to the large clock shown when the notification shade is expanded. */
-    const val KEY_NOTIFICATION_HEADER_CLOCK_SECONDS = "notification_header_clock_seconds"
-
     /** OS4 new-control-center notification header customization. */
-    const val KEY_NOTIFICATION_HEADER_HIDE_CARRIER = "notification_header_hide_carrier"
-    const val KEY_NOTIFICATION_HEADER_HIDE_TIME = "notification_header_hide_time"
-    const val KEY_NOTIFICATION_HEADER_HIDE_DATE = "notification_header_hide_date"
-    const val KEY_NOTIFICATION_HEADER_DATE_ABOVE_TIME = "notification_header_date_above_time"
-    const val KEY_NOTIFICATION_HEADER_DATE_ALIGNMENT = "notification_header_date_alignment"
-    const val KEY_NOTIFICATION_HEADER_TIME_ALIGNMENT = "notification_header_time_alignment"
-    const val KEY_NOTIFICATION_HEADER_TIME_SCALE = "notification_header_time_scale"
-    const val KEY_NOTIFICATION_HEADER_WEATHER_ENABLED = "notification_header_weather_enabled"
-    const val KEY_NOTIFICATION_HEADER_WEATHER_REGION = "notification_header_weather_region"
-    const val KEY_NOTIFICATION_HEADER_WEATHER_TYPE = "notification_header_weather_type"
-
     /** Disables Monet-derived colors for framework-generated notification text. */
-    const val KEY_NOTIFICATION_MONET_TEXT_COLOR = "notification_monet_text_color"
-
     /** Restores framework notification typefaces after MIUI's notification styling runs. */
-    const val KEY_NOTIFICATION_FONT_WEIGHT = "notification_font_weight"
-    const val KEY_NOTIFICATION_ABSOLUTE_TIME = "notification_absolute_time"
-
     /**
      * Lockscreen notification fingerprint avoidance (锁屏通知指纹避让), OS4 SystemUI. Read by
      * `KeyguardFingerprintAvoidHooker` at hook-install time; requires a SystemUI restart.
      * 0 = follow the system (avoid when fingerprint unlock is enabled and templates are enrolled),
      * 1 = never avoid the in-display fingerprint icon, 2 = always avoid it.
      */
-    const val KEY_LOCKSCREEN_FINGERPRINT_AVOID = "lockscreen_fingerprint_avoid"
-    const val LOCKSCREEN_FINGERPRINT_AVOID_DEFAULT = 0
-    const val LOCKSCREEN_FINGERPRINT_AVOID_NO = 1
-    const val LOCKSCREEN_FINGERPRINT_AVOID_ALWAYS = 2
-
     /**
      * Appends live charging telemetry (wattage / voltage / current / temperature) to the lock
      * screen's bottom charging indication line, replacing the plain "充电中xx% / 已充满电" text
      * with a configurable one- or two-row layout. Read by
      * `LockscreenChargingDetailHooker`; requires a SystemUI restart (restart-scope key).
      */
-    const val KEY_LOCKSCREEN_CHARGING_DETAIL = "lockscreen_charging_detail"
-
     /** Two rows by default; use a new key so removed legacy false values do not opt users out. */
-    const val KEY_LOCKSCREEN_CHARGING_DETAIL_TWO_ROWS = "lockscreen_charging_detail_two_rows"
-
     /**
      * Live-read by the hooker each render (sub-options of the charging detail feature): which
      * telemetry fields to show (bitmask of [LockscreenChargingDetailHooker]'s FIELD_* bits,
      * all four on by default), and how often the values refresh (ms). These are read on every
      * indication render, so they take effect without a SystemUI restart once the main switch is on.
      */
-    const val KEY_LOCKSCREEN_CHARGING_DETAIL_FIELDS = "lockscreen_charging_detail_fields"
-    const val KEY_LOCKSCREEN_CHARGING_DETAIL_INTERVAL_MS = "lockscreen_charging_detail_interval_ms"
-
-    const val KEY_HIDE_GESTURE_BAR = "hide_gesture_bar"
-    const val KEY_HIDE_GESTURE_BAR_RECENTS = "hide_gesture_bar_recents"
-
     /**
      * Hides the gesture bar only while the launcher's Home surface owns the primary display
      * (桌面隐藏小白条). Read live by `HideBottomBarHooker` in SystemUI, which re-reads the
      * top task on the host events that change what the bottom of the screen belongs to.
      */
-    const val KEY_HIDE_GESTURE_BAR_LAUNCHER = "hide_gesture_bar_launcher"
-    const val KEY_GESTURE_BAR_RAISE_LAYOUT = "gesture_bar_raise_layout"
-
     /**
      * Keeps the gesture bar attached to the app while the swipe-up recents transition plays
      * (小白条跟手上滑). HyperOS's enabled `com.android.systemui.gesture.line.overlay` sets
@@ -226,8 +145,6 @@ object Preferences {
      * layer and does not follow the finger. Read live by `GestureBarTransitionHooker` in
      * system_server on every configuration change; the hooker itself installs at boot.
      */
-    const val KEY_GESTURE_BAR_ATTACH_TRANSITION = "gesture_bar_attach_transition"
-
     /**
      * Long-press power button action (长按电源键操作). `PowerButtonCtsHooker` intercepts
      * `PhoneWindowManager$PowerKeyRule.onLongPress(SingleKeyGestureEvent)` (the single entry
@@ -245,223 +162,102 @@ object Preferences {
      * install. The power-long-press haptic has no preference: it fires whenever a custom action
      * is bound.
      */
-    const val KEY_POWER_BUTTON_ACTION = "power_button_long_press_action"
-    const val POWER_BUTTON_ACTION_DISABLED = 0
-    const val POWER_BUTTON_ACTION_CIRCLE_TO_SEARCH = 1
-    const val POWER_BUTTON_ACTION_DEFAULT_ASSISTANT = 2
-
     /**
      * Google Lens (Google 智能镜头), the camera/image search surface. Unlike
      * [POWER_BUTTON_ACTION_CIRCLE_TO_SEARCH] this is not the contextual-search overlay: it needs no
      * platform bridge and no `ContextualSearchSystemHooker` install, so it works while the
      * Circle to Search feature is off and has no Google App process requirements of its own.
      */
-    const val POWER_BUTTON_ACTION_GOOGLE_LENS = 3
-
     /** Legacy single-switch Circle to Search enable; superseded by [KEY_POWER_BUTTON_ACTION]. */
-    const val KEY_POWER_BUTTON_CTS = "power_button_circle_to_search"
-    const val KEY_SHOW_IN_SETTINGS = "show_in_settings"
     /** Restores Settings' native Google services home-page entry on domestic builds. */
-    const val KEY_SHOW_GOOGLE_SERVICES_IN_SETTINGS = "show_google_services_in_settings"
     /** Makes Settings follow its own international-build UI branches in this process. */
-    const val KEY_SETTINGS_GLOBAL_INTERFACE = "settings_global_interface"
     /**
      * Shows the 小米澎湃AI page's 端侧大模型 row. The ROM hides it because the on-device model
      * capability answer for this model is negative, while the activity it opens is functional;
      * see [com.takekazex.hypertweak.hook.rules.settings.HyperOsAiEntriesHooker].
      */
-    const val KEY_SETTINGS_ONDEVICE_MODEL_ENTRY = "settings_ondevice_model_entry"
     /**
      * Shows the 小米澎湃AI page's Gemini row next to the unchanged native 超级小爱 card.
      */
-    const val KEY_SETTINGS_GEMINI_ENTRY = "settings_gemini_entry"
     // Verified mirrors of device-persistent vendor properties; never replayed at boot or upgrade.
-    const val KEY_WIFI_CNSS_DIAG_ENABLED = "wifi_cnss_diag_enabled"
-    const val KEY_WIFI_TCPDUMP_ENABLED = "wifi_tcpdump_enabled"
-
     /** Forces the Phone service to keep video ringback disabled and exposes its native switch. */
-    const val KEY_DISABLE_VIDEO_RINGBACK = "disable_video_ringback"
     /** Replaces the LBE clipboard-reading overlay with a standard Android Toast. */
-    const val KEY_LBE_CLIPBOARD_TOAST = "lbe_clipboard_toast"
-
     /** Routes Xiaomi AI Engine Copy Direct web actions through the current system browser. */
-    const val KEY_AICR_COPY_DIRECT_DEFAULT_BROWSER = "aicr_copy_direct_default_browser"
-
     /** Disables MiTrustService's MRM risk-monitoring initialization gate. */
-    const val KEY_MITRUST_DISABLE_RISK_MONITORING = "mitrust_disable_risk_monitoring"
-
     /** Makes GuardProvider's verified su/root environment predicates report a clean device. */
-    const val KEY_GUARD_PROVIDER_DISABLE_ENVIRONMENT_CHECK = "guard_provider_disable_environment_check"
-
     /** Skips Security Center's four verified local File.exists() su probes. */
-    const val KEY_SECURITY_CENTER_DOCK_UNLIMITED_PINNED = "securitycenter_dock_unlimited_pinned"
-    const val KEY_SECURITY_CENTER_DOCK_UNLIMITED_PREDICTIONS = "securitycenter_dock_unlimited_predictions"
-    const val KEY_SECURITY_CENTER_HIDE_DOLBY_POPUP = "securitycenter_hide_dolby_popup"
-    const val KEY_SECURITY_CENTER_HIDE_GAME_POPUP = "securitycenter_hide_game_popup"
-    const val KEY_SECURITY_CENTER_DOCK_PREDICT_LIMIT = "securitycenter_dock_predict_limit"
-    const val KEY_SECURITY_CENTER_SKIP_LOCAL_SU_CHECK = "securitycenter_skip_local_su_check"
     /** Disables the independent SafePay automatic app-scan preference. */
-    const val KEY_SECURITY_CENTER_DISABLE_SAFEPAY_AUTO_SCAN = "securitycenter_disable_safepay_auto_scan"
     /** Hides the independent root scan item from Security Center's scan configuration. */
-    const val KEY_SECURITY_CENTER_DISABLE_ROOT_SCAN_ITEM = "securitycenter_disable_root_scan_item"
     /** Disables Security Center's USB-install permission interception. */
-    const val KEY_SECURITY_CENTER_DISABLE_USB_INSTALL_INTERCEPT = "securitycenter_disable_usb_install_intercept"
     /** Skips network verification only when enabling USB installation (is_input=false). */
-    const val KEY_SECURITY_CENTER_BYPASS_USB_INSTALL_NETWORK_VERIFY = "securitycenter_bypass_usb_install_network_verify"
     /** Ignores carrier offline metadata in Network Assistant's business flows. */
-    const val KEY_NETWORK_ASSISTANT_IGNORE_OFFLINE = "network_assistant_ignore_offline"
     /** Ignores carrier offline metadata in Contacts' mobile business hall. */
-    const val KEY_CONTACTS_BUSINESS_HALL_IGNORE_OFFLINE = "contacts_business_hall_ignore_offline"
-    const val KEY_SHARE_PANEL_SHOW_ALL = "share_panel_show_all"
-
     /** Stops GuardProvider from serializing/uploading its non-system installed-app list. */
-    const val KEY_GUARD_PROVIDER_BLOCK_UPLOAD_APP_LIST = "guard_provider_block_upload_app_list"
-
     /** Prevents MiLink's HPPlay/LeBo integration from creating optional external files. */
-    const val KEY_MILINK_BLOCK_HPPLAY_FILES = "milink_block_hpplay_files"
-
     /**
      * Lets the Theme Manager apply locally imported (third-party) themes by disabling MIUI's OMA
      * DRM rights verification. Gates both the app-side rights check that blocks the apply and the
      * system_server re-validation that would otherwise restore the default theme afterwards.
      */
-    const val KEY_ALLOW_THIRD_PARTY_THEME = "allow_third_party_theme"
-
-    const val KEY_HIDE_LAUNCHER_ICON = "hide_launcher_icon"
-    const val KEY_SLIDER_SHOW_PERCENTAGE = "systemui_control_center_slider_show_percentage_enabled"
-    const val KEY_SLIDER_SAME_PERCENTAGE_STYLE = "systemui_control_center_slider_same_percentage_style_enabled"
-
     // Control Center corner-radius overrides. Each group keeps its own dp value (Float);
     // 0 means "no override" (follow the system design), any positive value is applied as the
     // GradientDrawable/outline corner radius of the corresponding control center element.
     // The hooker converts dp → px at hook time (plugins expect px for these APIs).
-    const val KEY_CC_CORNER_ENABLED = "systemui_control_center_corner_enabled"
-    const val KEY_CC_CORNER_SLIDER = "systemui_control_center_corner_slider_dp"
-    const val KEY_CC_CORNER_TILE = "systemui_control_center_corner_tile_dp"
-    const val KEY_CC_CORNER_CARD = "systemui_control_center_corner_card_dp"
-    const val KEY_CC_CORNER_DEVICE = "systemui_control_center_corner_device_dp"
-    const val KEY_CC_CORNER_MEDIA = "systemui_control_center_corner_media_dp"
     /** Native tile-state header dwell after the show animation; milliseconds, 0..5000. */
-    const val KEY_CC_TILE_MESSAGE_DURATION_MS = "systemui_control_center_tile_message_duration_ms"
-
     /** Comma-separated top-card specs, e.g. `cell,wifi`. Empty = follow the system order. */
-    const val KEY_CC_TOP_CARD_ORDER = "systemui_control_center_top_card_order"
     /**
      * Comma-separated main-panel section keys (`qscards,media,brightness,volume,devicecenter,qslist`),
      * written by the editor drag hook and re-applied by [KEY_CC_EDIT_ENABLED]'s ordering hook.
      */
-    const val KEY_CC_MAIN_CONTENT_ORDER = "systemui_control_center_main_content_order"
     /**
      * Master switch for the control-center editor cards feature: shows the fixed main-panel
      * contents (big cards, media player, brightness/volume sliders, device center) inside
      * 编辑与排序 and makes them drag-reorderable like the quick actions.
      */
-    const val KEY_CC_EDIT_ENABLED = "systemui_control_center_edit_enabled"
     /**
      * Master switch for control-center element sizes ([ControlCenterCardResizeHooker]). The
      * hooks are installed at plugin load, so enabling needs a SystemUI restart; every size
      * below is re-read live on each bind.
      */
-    const val KEY_CC_RESIZE_ENABLED = "systemui_control_center_resize_enabled"
     /**
      * Per-card sizes as comma-separated `spec=CxR` entries (`wifi=1x1`), C = span columns,
      * R = row units (1 row = `qs_card_item_height`). An absent spec or a 0 dimension means
      * follow the system.
      */
-    const val KEY_CC_CARD_SIZES = "systemui_control_center_card_sizes"
     /** Fixed-content sizes as a single `CxR` token; empty = follow the system. */
-    const val KEY_CC_SIZE_MEDIA = "systemui_control_center_size_media"
-    const val KEY_CC_SIZE_BRIGHTNESS = "systemui_control_center_size_brightness"
-    const val KEY_CC_SIZE_VOLUME = "systemui_control_center_size_volume"
-    const val KEY_CC_SIZE_DEVICE = "systemui_control_center_size_device"
     /**
      * Comma-separated quick-switch tile specs that render with the big-card view (2 columns
      * × 1 row) instead of the small tile view.
      */
-    const val KEY_CC_TILE_CARD_SPECS = "systemui_control_center_tile_card_specs"
-    const val KEY_APP_BLUR_MODE = "app_blur_mode"
-    const val KEY_THEME_MODE = "theme_mode"
-    const val KEY_USE_MONET = "theme_use_monet"
-    const val KEY_SEED_COLOR = "theme_seed_color"
-    const val KEY_THEME_PALETTE_STYLE = "theme_palette_style"
-    const val KEY_PURE_BLACK_DARK_THEME = "pure_black_dark_theme"
-    const val KEY_USE_FLOATING_BOTTOM_BAR = "use_floating_bottom_bar"
-    const val KEY_FLOATING_BAR_STYLE = "floating_bar_style"
-    const val KEY_PREDICTIVE_BACK_STYLE = "predictive_back_style"
-    const val KEY_PREDICTIVE_BACK_FOLLOW_GESTURE = "predictive_back_follow_gesture"
-    const val KEY_ALLOW_LANDSCAPE = "allow_landscape"
-    const val KEY_UNLOCK_PASSKEY = "unlock_passkey"
     /** Shows third-party apps in HyperOS's per-app force-dark list without enabling them automatically. */
-    const val KEY_UNLOCK_THIRD_PARTY_DARK_MODE = "unlock_third_party_dark_mode"
-
     // AOSP restore.
     /** Legacy combined switch: absent independent keys inherit it on upgrade. */
-    const val KEY_DARK_MODE_IMMEDIATE_SCHEDULE = "dark_mode_immediate_schedule"
-    const val KEY_NATIVE_PICKER = "native_picker"
-    const val KEY_NATIVE_PHOTO_PICKER = "native_photo_picker"
-    const val KEY_NATIVE_FILE_PICKER = "native_file_picker"
-
     /**
      * Hands package installs back to the AOSP installer. Relaxes MIUI install verification while
      * the installer-selection methods run; see `AospPackageInstallerHooker`.
      */
-    const val KEY_AOSP_PACKAGE_INSTALLER = "aosp_package_installer"
-
     /** Blocks MIUI's global-actions plugin so SystemUI falls back to the AOSP power menu. */
-    const val KEY_AOSP_POWER_MENU = "aosp_power_menu"
-
     /** Blocks MIUI's volume-dialog plugin so SystemUI falls back to the AOSP volume panel. */
-    const val KEY_AOSP_VOLUME_PANEL = "aosp_volume_panel"
-
     /**
      * When the AOSP volume panel is active, replaces its generic MSDL "continuous" slider haptic
      * (the strong sustained buzz on every volume change) with MIUI's own per-scene adapted waveform
      * (`miui.util.HapticFeedbackUtil`), matching the feel of the stock MIUI volume panel.
      * Only meaningful while [KEY_AOSP_VOLUME_PANEL] is on. Defaults off.
      */
-    const val KEY_AOSP_VOLUME_HAPTIC_MIUI = "aosp_volume_haptic_miui"
-
-    const val KEY_FORCE_SCREENSHOT = "system_force_screenshot"
-
     /**
      * Number of volume-index steps from minimum to maximum for hardware volume-key adjustments.
      * Applied live through the remote preference listener in system_server and SystemUI.
      * The next key adjustment uses the new count or [KEY_VOLUME_KEY_STEP_SCOPE].
      */
-    const val KEY_VOLUME_KEY_STEP_COUNT = "volume_key_step_count"
-    const val KEY_VOLUME_KEY_STEP_SCOPE = "volume_key_step_scope"
-
-    const val DEFAULT_VOLUME_KEY_STEP_COUNT = 15
-    const val VOLUME_KEY_SCOPE_MEDIA_ONLY = 0
-    const val VOLUME_KEY_SCOPE_ACTIVE_STREAM = 1
-
     /** Re-derives keyguard trust state from TrustManagerService when SystemUI's cache goes stale. */
-    const val KEY_EXTEND_UNLOCK_FIX = "extend_unlock_fix"
-
     /** Lets AOSP's clipboard overlay editor appear for real copies, not just CTS. */
-    const val KEY_AOSP_CLIPBOARD_EDITOR = "aosp_clipboard_editor"
-
-    const val KEY_APP_DETAILS_ICON_LAUNCH = "app_details_icon_launch"
-
     /** Security Center entry points into Settings' AOSP app screens. */
-    const val KEY_AOSP_APP_INFO_ENTRY = "aosp_app_info_entry"
-    const val KEY_AOSP_APP_MANAGER_ENTRY = "aosp_app_manager_entry"
-
     /** Expands Security Center's bubble-app list while keeping per-app and edge-bubble gates. */
-    const val KEY_SECURITY_CENTER_BUBBLE_NOTIFICATION_UNLOCK = "securitycenter_bubble_notification_unlock"
-
     /** Legacy aggregate low-battery warning switch kept for preference migration. */
-    const val KEY_SECURITY_CENTER_HIDE_LOW_BATTERY_WARNING = "securitycenter_hide_low_battery_warning"
-
     /**
      * Security Center low-battery warning mode: 0 follows stock, 1 hides only the dialog, and 2
      * suppresses both the dialog and the sound.
      */
-    const val KEY_SECURITY_CENTER_LOW_BATTERY_MODE = "securitycenter_low_battery_mode"
-    const val SECURITY_CENTER_LOW_BATTERY_FOLLOW = 0
-    const val SECURITY_CENTER_LOW_BATTERY_HIDE_DIALOG = 1
-    const val SECURITY_CENTER_LOW_BATTERY_SILENT = 2
-
     /**
      * Security Center permission-warning intercept mode (危险权限确认倒计时). Read by
      * `WarningCountdownHooker` at hook-install time; requires a Security Center restart.
@@ -470,73 +266,26 @@ object Preferences {
      * `miui_close_optimization` permission keeps the native page, countdown and manual Allow
      * in every mode.
      */
-    const val KEY_SECURITY_CENTER_PERMISSION_WARNING_MODE = "securitycenter_permission_warning_mode"
-    const val SECURITY_CENTER_WARNING_FOLLOW_SYSTEM = 0
-    const val SECURITY_CENTER_WARNING_SKIP_COUNTDOWN = 1
-    const val SECURITY_CENTER_WARNING_DIRECT_APPROVE = 2
-
     /** Exposes Security Center's screen-use and detailed power-ranking data path. */
-    const val KEY_SECURITY_CENTER_SHOW_DETAILED_POWER_DATA = "securitycenter_show_detailed_power_data"
-
     /** Keeps Security Center's app-ranking card when the stock percentage threshold hides it. */
-    const val KEY_SECURITY_CENTER_RESTORE_POWER_RANKING = "securitycenter_restore_power_ranking"
-
     /** Makes Security Center expose its device-specific Wild/Berserk performance label. */
-    const val KEY_SECURITY_CENTER_SHOW_BERSERK_MODE = "securitycenter_show_berserk_mode"
-
     /** Keeps and extends the native battery-protection information rows. */
-    const val KEY_SECURITY_CENTER_MORE_BATTERY_INFO = "securitycenter_more_battery_info"
-
     /** Independently exposes Security Center's native privacy-call preference. */
-    const val KEY_SECURITY_CENTER_PRIVACY_CALL_ENTRY = "securitycenter_privacy_call_entry"
-
     /** Selects a native anti-peeping implementation, or leaves Security Center unchanged. */
-    const val KEY_SECURITY_CENTER_ANTI_PEEPING_MODE = "securitycenter_anti_peeping_mode"
-    const val SECURITY_CENTER_ANTI_PEEPING_SYSTEM_DEFAULT = 0
-    const val SECURITY_CENTER_ANTI_PEEPING_V1 = 1
-    const val SECURITY_CENTER_ANTI_PEEPING_V2 = 2
-
     /** Independently exposes native front-camera assistant and beauty preferences. */
-    const val KEY_SECURITY_CENTER_FRONT_CAMERA_ASSISTANT_ENTRY =
-        "securitycenter_front_camera_assistant_entry"
-
     /** Independently exposes native call privacy-camera preferences. */
-    const val KEY_SECURITY_CENTER_CALL_PRIVACY_CAMERA_ENTRY =
-        "securitycenter_call_privacy_camera_entry"
-
     /** Restores AOSP's full-screen IME navigation bar. */
-    const val KEY_AOSP_IME_ENABLED = "aosp_ime_fullscreen"
-
     /** Input methods the AOSP IME hooks apply to; also drives the dynamic scope request. */
-    const val KEY_AOSP_IME_PACKAGES = "aosp_ime_packages"
-    const val KEY_AOSP_IME_NAV_BAR_START = "aosp_ime_nav_bar_start"
-    const val KEY_AOSP_IME_NAV_BAR_END = "aosp_ime_nav_bar_end"
-
     /** Lists every enabled input method in MIUI's keyboard switcher. Unverified off-device. */
-    const val KEY_AOSP_IME_MIUI_IME_LIST = "aosp_ime_miui_ime_list"
-
     /**
      * Forces the AOSP bar on MIUI-customized keyboards (搜狗小米版 / 百度小米版 / 讯飞小米版 etc.)
      * whose own 全面屏优化 bottom view would otherwise win, instead of leaving them alone.
      */
-    const val KEY_AOSP_IME_FORCE_ALL = "aosp_ime_force_all"
-
     /**
      * How the keyboard content is positioned relative to the AOSP bar: 0 raises the content so it
      * ends exactly at the bar top (AOSP style), 1 leaves the keyboard's own bottom handling alone
      * (MIUI style). See [AospImeConfig.RAISE_STYLE_AOSP].
      */
-    const val KEY_AOSP_IME_RAISE_STYLE = "aosp_ime_raise_style"
-    const val KEY_LANGUAGE = "app_language"
-
-    const val KEY_PAGE_SCALE = "page_scale"
-    const val KEY_APP_SHORTCUTS = "app_shortcuts"
-    const val KEY_APP_SHORTCUTS_ORDER = "app_shortcuts_order"
-    const val KEY_DISABLE_SPATIAL_AUDIO = "disable_spatial_audio"
-    const val KEY_FORCE_ADAPTIVE_ANC = "force_adaptive_anc"
-    const val KEY_FCM_LIVE_ENABLED = "fcm_live_enabled"
-    const val KEY_IMMEDIATE_MONET_REFRESH = "immediate_monet_refresh"
-
     /**
      * Hides the source-app icon overlay on the media cards (封面隐藏来源应用图标): the 24dp
      * `CachingIconView` on the top-left corner of the album cover in both the notification-shade
@@ -544,8 +293,6 @@ object Preferences {
      * (`MiuiIslandMediaViewBinderImpl`). Read by `MediaCardHideAppIconHooker` at hook-install
      * time; requires a SystemUI restart.
      */
-    const val KEY_MEDIA_CARD_HIDE_APP_ICON = "media_card_hide_app_icon"
-
     /**
      * Hides the device-switch button on the media cards (隐藏设备切换按钮): the top-right
      * `media_seamless` on the notification-shade card (`MiuiMediaViewControllerImpl.setSeamless`)
@@ -554,24 +301,18 @@ object Preferences {
      * read by `MediaCardHideDeviceSwitchHooker` at hook-install time; the plugin half gates
      * attachment at plugin load and re-reads live per callback. Requires a SystemUI restart.
      */
-    const val KEY_MEDIA_CARD_HIDE_DEVICE_SWITCH = "media_card_hide_device_switch"
-
     /**
      * Lets every notification show on the lockscreen (锁屏通知限制): forces
      * `NotificationSettingsManager.canShowOnKeyguard(Context, pkg, channel)` to return true, so
      * both the package-level and the CN whitelist channel-level gates pass. Read by
      * `LockscreenAllNotificationsHooker` at hook-install time; requires a SystemUI restart.
      */
-    const val KEY_LOCKSCREEN_ALL_NOTIFICATIONS = "lockscreen_all_notifications"
-
     /**
      * Keeps notifications on the lockscreen after they were already seen (解锁后保留通知): hooks
      * `NotificationFilterController.forceHideOnKeyguard` to skip the `mHasShownAfterUnlock`
      * branch while keeping the `canShowOnKeyguard()` gate. Read by
      * `LockscreenKeepNotificationsHooker` at hook-install time; requires a SystemUI restart.
      */
-    const val KEY_LOCKSCREEN_KEEP_NOTIFICATIONS = "lockscreen_keep_notifications"
-
     // ─── Notification channel page + fold / silent status-bar filters (experimental 通知) ───
 
     /**
@@ -592,27 +333,18 @@ object Preferences {
      * the user reaches through 隐藏功能 → 通知设置) and leaves that control's value alone. Requires a
      * Settings and a SystemUI restart to install.
      */
-    const val KEY_NOTIFICATION_MORE_SETTINGS = "notification_more_settings"
-
     /**
      * 通知角标: the same defect as [KEY_NOTIFICATION_MORE_SETTINGS], for the channel page's
      * 「显示角标」 checkbox (key `setting_badge`, field `mBadge`). Read by
      * `NotificationBadgeSettingsHooker` at hook-install time; requires a Settings restart.
      */
-    const val KEY_NOTIFICATION_BADGE = "notification_badge"
-
     /**
      * 禁止折叠通知: forces `MiuiBaseNotifUtil.shouldSuppressFold()` to true, i.e. the international
      * build's "never fold" behavior. That single ROM gate is consulted by ~35 call sites covering
      * every fold entry point. Read by `NotificationBlockFoldHooker` at hook-install time; requires
      * a SystemUI restart.
      */
-    const val KEY_NOTIFICATION_ICON_FILTER_MODE = "notification_icon_filter_mode"
     /** Ignore only the native floating-notification whitelist fallback. */
-    const val KEY_NOTIFICATION_WHITELIST_BYPASS = "notification_float_whitelist_bypass"
-    const val KEY_NOTIFICATION_MINI_WINDOW = "notification_mini_window"
-    const val KEY_NOTIFICATION_BLOCK_FOLD = "notification_block_fold"
-
     /**
      * 多任务过渡模糊 (SystemUI): restores the dynamic gaussian-blur transition HyperOS uses when a
      * freeform / split-screen / full-screen window is swapped, and removes the opaque bottom board
@@ -625,25 +357,11 @@ object Preferences {
      * ROM's own hide easings. Read by `FreeformBlurTransitionHooker` at hook-install time; requires a
      * SystemUI restart.
      */
-    const val KEY_FREEFORM_BLUR_TRANSITION = "freeform_blur_transition"
-
     /** Experimental native one-big/two-small scheduling; disabled by default. */
-    const val KEY_REMOVE_ISLAND_PLACEHOLDER = "systemui_remove_island_placeholder"
-    const val KEY_THREE_ISLANDS = "systemui_three_islands"
-
     /** Independent landscape native full-template layout for occupied summaries. */
-    const val KEY_LANDSCAPE_FULL_ISLANDS = "systemui_landscape_full_islands"
-    const val KEY_LANDSCAPE_MORE_ISLANDS = "systemui_landscape_more_islands"
-
     /** Hide Super Island through the plugin temporary-hide path while Control Center appears. */
-    const val KEY_CC_HIDE_SUPER_ISLAND = "systemui_cc_hide_super_island"
-
     /** Native condensed digits for Clock and Recorder island timers. */
-    const val KEY_ISLAND_NARROW_TIME_FONT = "systemui_island_narrow_time_font"
-
     /** Restore contrast for dark monochrome icons from promoted ongoing notifications. */
-    const val KEY_ISLAND_LIVE_UPDATE_ICON = "systemui_island_live_update_icon"
-
     /**
      * Removes the Super Island notification whitelist (SystemUI): hooks
      * `NotificationSettingsManager.canShowFocusState` / `canShowFocusStateApp` to treat every
@@ -651,27 +369,19 @@ object Preferences {
      * user who explicitly turned an app off keeps it off, while everything without an explicit
      * off is unlocked. Read live by `FocusNotificationWhitelistHooker`.
      */
-    const val KEY_FOCUS_NOTIFICATION_UNLOCK_WHITELIST = "focus_notification_unlock_whitelist"
-
     /**
      * Removes the media Super Island dropdown whitelist (MIUI SystemUI plugin): hooks
      * `miui.systemui.notification.NotificationSettingsManager.mediaIslandSupportMiniWindow` to
      * allow media mini-windows/dropdowns from every package. The hook is attached when the plugin
      * loads unconditionally and reads this preference live at callback time.
      */
-    const val KEY_MEDIA_SUPER_ISLAND_UNLOCK_WHITELIST = "media_super_island_unlock_whitelist"
-
     /**
      * Unlocks the Super Island whitelist signature verification (com.xiaomi.xmsf): hooks
      * `com.xiaomi.xms.auth.AuthSession`'s error dispatch (R8-obfuscated, resolved by signature)
      * to force every auth request to succeed, so arbitrary apps pass xmsf's whitelist signature
      * check. `UnlockFocusAuthHooker` attaches unconditionally and reads the switch live.
      */
-    const val KEY_XMSF_UNLOCK_FOCUS_AUTH = "xmsf_unlock_focus_auth"
-
     /** Scope restore/remove prompts the user chose to ignore permanently. */
-    const val KEY_IGNORED_SCOPE_PROMPTS = "ignored_scope_prompts"
-
     /**
      * 机型伪装 (device-model spoof) for the Smart Assistant (`com.miui.personalassistant`). When
      * on, `ModelSpoofHooker` re-writes the `phoneModel` / `phoneDevice` fields that the assistant
@@ -681,101 +391,40 @@ object Preferences {
      * the hook callback, so toggling or editing takes effect on the next request without an
      * assistant restart. Requires `com.miui.personalassistant` in the module scope.
      */
-    const val KEY_PA_MODEL_SPOOF = "pa_model_spoof"
-    const val KEY_PA_MODEL_SPOOF_MODEL = "pa_model_spoof_model"
-    const val KEY_PA_MODEL_SPOOF_DEVICE = "pa_model_spoof_device"
-    const val DEFAULT_PA_MODEL_SPOOF_MODEL = "2203121C"
-    const val DEFAULT_PA_MODEL_SPOOF_DEVICE = "thor"
-
-    const val KEY_PENDING_RESTART_SCOPES = "pending_restart_scopes"
-    const val KEY_LOG_LEVEL = "debug_log_level"
-    const val KEY_RECORD_LOGS = "record_logs"
-
     // Status-bar icon tuner, ported from Hyper Helper's icon tuner (see the reverse-engineering
     // workspace, cache/xiaomihelper-2bfd4873a4138764). Each switch is read by a SystemUI hook at
     // hook-install time and requires a SystemUI restart; IconTunerPage keeps its own state and
     // reports that restart through LocalRestartScopeRequest.
-    const val KEY_ICON_HIDE_CELLULAR_ACTIVITY = "icon_hide_cellular_activity"
-    const val KEY_ICON_HIDE_CELLULAR_TYPE = "icon_hide_cellular_type"
-    const val KEY_ICON_HIDE_CELLULAR_ROAM = "icon_hide_cellular_roam"
-    const val KEY_ICON_HIDE_CELLULAR_ROAM_GLOBAL = "icon_hide_cellular_roam_global"
-    const val KEY_ICON_HIDE_CELLULAR_SMALL_ROAM = "icon_hide_cellular_small_roam"
-    const val KEY_ICON_HIDE_CELLULAR_VOWIFI = "icon_hide_cellular_vowifi"
-    const val KEY_ICON_HIDE_CELLULAR_VOLTE = "icon_hide_cellular_volte"
-    const val KEY_ICON_HIDE_CELLULAR_VOLTE_NO_SERVICE = "icon_hide_cellular_volte_no_service"
-    const val KEY_ICON_HIDE_CELLULAR_SPEECH_HD = "icon_hide_cellular_speech_hd"
-    const val KEY_ICON_HIDE_WIFI_ACTIVITY = "icon_hide_wifi_activity"
-    const val KEY_ICON_HIDE_WIFI_TYPE = "icon_hide_wifi_type"
-    const val KEY_ICON_HIDE_WIFI_UNAVAILABLE = "icon_hide_wifi_unavailable"
-    const val KEY_ICON_WIFI_ACTIVITY_RIGHT = "icon_wifi_activity_right"
-
     // Hide the cellular icon of the non-default SIM when multiple SIMs are active.
-    const val KEY_ICON_HIDE_NON_DEFAULT_SIM = "icon_hide_non_default_sim"
-    const val KEY_ICON_HIDE_SIM_AUTO = "icon_hide_sim_auto"
-    const val KEY_ICON_HIDE_SIM_ONE = "icon_hide_sim_one"
-    const val KEY_ICON_HIDE_SIM_TWO = "icon_hide_sim_two"
-
     // Hide the whole mobile signal icon (signal bars and network type) while WiFi is the connected
     // default network. Applies to the native cellular row and, when stacked signal is enabled, to
     // the module-owned stacked slot as well.
-    const val KEY_ICON_HIDE_MOBILE_ON_WIFI = "icon_hide_mobile_on_wifi"
-
     // Cellular type display, ported from Hyper Helper's `CellularTypeIcon` (keys match upstream
     // f32.m/q/r). Forces the single-carrier type text and/or a custom type name.
-    const val KEY_ICON_CELLULAR_TYPE_SINGLE = "icon_tuner_cellular_type_single"
-    const val KEY_ICON_CELLULAR_TYPE_SINGLE_SWAP = "icon_tuner_cellular_type_single_swap"
-    const val KEY_ICON_CELLULAR_TYPE_CUSTOM = "icon_tuner_cellular_type_custom"
-    const val KEY_ICON_CELLULAR_TYPE_CUSTOM_VAL = "icon_tuner_cellular_type_custom_val"
-    const val KEY_ICON_CELLULAR_TYPE_SMALL_5GA = "icon_tuner_cellular_type_small_5ga"
-
     // Stacked mobile signal — rebuilt on Flux Decor 2.0.3's view-level model (see
     // docs/FLUX_DECOR_STACKED_SIGNAL_PLAN.md). The SVG keys match Hyper Helper's t32.f-o:
     // single/stacked styles are independent because their source documents have different id
     // matrices; style 2 means the validated imported SVG for that side.
-    const val KEY_ICON_DUO_ENABLED = "icon_duo_enabled"
-    const val KEY_ICON_DUO_EXPANDED = "icon_duo_expanded"
-
     /** Duo glyph height in dp, clamped by `DuoLayout` to its own range. */
-    const val KEY_ICON_DUO_SIZE = "icon_duo_size"
-    const val KEY_ICON_DUO_RING_SCALE = "icon_duo_ring_scale"
-    const val KEY_ICON_DUO_WIFI_SCALE = "icon_duo_wifi_scale"
-    const val KEY_ICON_DUO_CELLULAR_SCALE = "icon_duo_cellular_scale"
-    const val KEY_ICON_DUO_TYPE_SCALE = "icon_duo_type_scale"
-    const val KEY_ICON_DUO_DOTS_SCALE = "icon_duo_dots_scale"
-    const val KEY_ICON_DUO_AIRPLANE_SCALE = "icon_duo_airplane_scale"
-    const val KEY_ICON_DUO_BATTERY_SCALE = "icon_duo_battery_scale"
-    const val KEY_ICON_DUO_PERCENT_SCALE = "icon_duo_percent_scale"
-
-    const val KEY_ICON_STACKED_SIGNAL_STYLE = "icon_stacked_signal_style"
     private const val LEGACY_KEY_ICON_STACKED_SVG_STACKED = "icon_tuner_stacked_icon_svg_stacked"
 
     /** Compatibility read only: new 0/1 wins; old stacked 3 selects the surviving iOS family. */
     fun iconStackedSignalStyle(): Int {
-        if (RuntimeSettingsStore.owns(KEY_ICON_STACKED_SIGNAL_STYLE)) {
+        if (RuntimeSettingsStore.owns(IconSettingsKeys.KEY_ICON_STACKED_SIGNAL_STYLE)) {
             val values = RuntimeSettingsStore.values().orEmpty()
             return SignalSvgStyle.resolve(
-                values.containsKey(KEY_ICON_STACKED_SIGNAL_STYLE),
-                values[KEY_ICON_STACKED_SIGNAL_STYLE] as? Int,
+                values.containsKey(IconSettingsKeys.KEY_ICON_STACKED_SIGNAL_STYLE),
+                values[IconSettingsKeys.KEY_ICON_STACKED_SIGNAL_STYLE] as? Int,
                 values[LEGACY_KEY_ICON_STACKED_SVG_STACKED] as? Int
             ).storedValue
         }
-        val currentPresent = contains(KEY_ICON_STACKED_SIGNAL_STYLE)
+        val currentPresent = contains(IconSettingsKeys.KEY_ICON_STACKED_SIGNAL_STYLE)
         return SignalSvgStyle.resolve(
             currentPresent,
-            if (currentPresent) runCatching { getInt(KEY_ICON_STACKED_SIGNAL_STYLE, 0) }.getOrDefault(0) else null,
+            if (currentPresent) runCatching { getInt(IconSettingsKeys.KEY_ICON_STACKED_SIGNAL_STYLE, 0) }.getOrDefault(0) else null,
             if (!currentPresent) runCatching { getInt(LEGACY_KEY_ICON_STACKED_SVG_STACKED, 0) }.getOrDefault(0) else null
         ).storedValue
     }
-
-    const val KEY_ICON_STACKED_ENABLED = "icon_stacked_enabled"
-    const val KEY_ICON_STACKED_WEIGHT = "icon_tuner_stacked_weight"
-    const val KEY_ICON_STACKED_ALPHA_FG = "icon_tuner_stacked_icon_alpha_fg"
-    const val KEY_ICON_STACKED_ALPHA_BG = "icon_tuner_stacked_icon_alpha_bg"
-    const val KEY_ICON_STACKED_ALPHA_ERROR = "icon_tuner_stacked_icon_alpha_error"
-    const val KEY_ICON_STACKED_PADDING_START = "icon_tuner_stacked_icon_padding_start"
-    const val KEY_ICON_STACKED_PADDING_END = "icon_tuner_stacked_icon_padding_end"
-    const val KEY_ICON_STACKED_TYPE_HIDE_DISCONNECT = "icon_tuner_stacked_type_hide_disconnect"
-    const val KEY_ICON_STACKED_TYPE_HIDE_WIFI = "icon_tuner_stacked_type_hide_wifi"
 
     /**
      * 连接 WiFi 时依旧显示蜂窝类型.
@@ -789,22 +438,6 @@ object Preferences {
      * [KEY_ICON_STACKED_TYPE_HIDE_WIFI] was the inverse, opt-in switch; it stays only as the
      * migration source for [cellularTypeKeepsOnWifi].
      */
-    const val KEY_ICON_CELLULAR_TYPE_KEEP_ON_WIFI = "icon_tuner_cellular_type_keep_on_wifi"
-    const val KEY_ICON_STACKED_TYPE_ROAMING = "stacked_s_type_roaming"
-    const val KEY_ICON_STACKED_TYPE_SIZE = "icon_tuner_stacked_type_size_val"
-    const val KEY_ICON_STACKED_TYPE_WEIGHT = "stacked_s_type_weight_val"
-    const val KEY_ICON_STACKED_TYPE_SINGLE_WEIGHT = "sb_font_stacked_type_single_weight"
-    const val KEY_ICON_STACKED_TYPE_WIDTH_CONDENSED = "sb_font_stacked_type_width_condensed"
-    const val KEY_ICON_STACKED_TYPE_PADDING_START = "icon_tuner_stacked_type_padding_left_val"
-    const val KEY_ICON_STACKED_TYPE_PADDING_END = "icon_tuner_stacked_type_padding_right_val"
-    const val KEY_ICON_STACKED_TYPE_VERTICAL_OFFSET = "icon_tuner_stacked_type_v_offset"
-    const val KEY_ICON_STACKED_TYPE_FONT = "sb_font_stacked_type_font"
-    const val KEY_ICON_WIFI_STANDARD_MODE = "icon_tuner_wifi_standard_mode"
-    const val KEY_ICON_WIFI_STANDARD_MAP = "icon_tuner_wifi_standard_map"
-    const val KEY_ICON_WIFI_PADDING = "icon_tuner_wifi_padding"
-    const val KEY_ICON_WIFI_PADDING_START_VAL = "icon_tuner_wifi_padding_start_val"
-    const val KEY_ICON_WIFI_PADDING_END_VAL = "icon_tuner_wifi_padding_end_val"
-
     /**
      * 图标左置 (left-container icon placement), ported from Hyper Helper's `LeftContainer`
      * (OS4_ADAPTATION_PLAN.md T2) and rebuilt for the OS4 home status bar. The master switch
@@ -812,27 +445,9 @@ object Preferences {
      * slot's icon out of the right cluster into the left container (e.g. 勿扰/静音/热点 to the
      * right of the clock). All keys are read at `onHook()`; a SystemUI restart applies changes.
      */
-    const val KEY_ICON_LEFT_CONTAINER_ENABLED = "icon_left_container_enabled"
-    const val KEY_ICON_LEFT_ZEN = "icon_left_zen"
-    const val KEY_ICON_LEFT_VOLUME = "icon_left_volume"
-    const val KEY_ICON_LEFT_HOTSPOT = "icon_left_hotspot"
-    const val KEY_ICON_LEFT_ALARM_CLOCK = "icon_left_alarm_clock"
-    const val KEY_ICON_LEFT_LOCATION = "icon_left_location"
-    const val KEY_ICON_LEFT_BLUETOOTH = "icon_left_bluetooth"
-    const val KEY_ICON_LEFT_NFC = "icon_left_nfc"
-    const val KEY_ICON_LEFT_VPN = "icon_left_vpn"
-    const val KEY_ICON_MIRROR_AIRPLANE = "icon_mirror_airplane"
-    const val KEY_ICON_LEFT_AIRPLANE = "icon_left_airplane"
-    const val KEY_ICON_LEFT_HEADSET = "icon_left_headset"
     // Carrier label hiding, ported from Hyper Helper's `HideCarrierLabel` (keys match upstream
     // w22.* / x22.e-f). `KEY_ICON_HIDE_CARRIER_*` cover the status-bar / control-center carrier
     // rows and the HD icon; `KEY_ICON_HIDE_LS_CARRIER_*` cover the lockscreen header.
-    const val KEY_ICON_HIDE_CARRIER_ONE = "statusbar_hide_carrier_one"
-    const val KEY_ICON_HIDE_CARRIER_TWO = "statusbar_hide_carrier_two"
-    const val KEY_ICON_HIDE_CARRIER_HD = "statusbar_hide_carrier_hd"
-    const val KEY_ICON_HIDE_LS_CARRIER_ONE = "systemui_ls_hide_carrier_one"
-    const val KEY_ICON_HIDE_LS_CARRIER_TWO = "systemui_ls_hide_carrier_two"
-
     // Control-center header carrier block (see `ControlCenterHeaderHooker` and
     // `ControlCenterCarrierBlockHooker`):
     //   KEY_CC_CARRIER_LEFT              — 开关 1: draw the carrier label on the leading edge.
@@ -840,30 +455,7 @@ object Preferences {
     //                                      switch of 开关 3/4 (a disabled parent greys them out).
     //   KEY_CC_CARRIER_TWO_LINE          — 开关 3: two rows, [signal] carrier [type/WiFi].
     //   KEY_CC_CARRIER_SHOW_NON_DATA_TYPE— 开关 4: also draw the non-data SIM's type.
-    const val KEY_CC_CARRIER_LEFT = "systemui_cc_carrier_left"
-    const val KEY_CC_HIDE_DATE = "systemui_cc_hide_date"
     // Shared by carrier rows, stacked signal and Duo: 0 = SIM slot, 1 = data SIM first.
-    const val KEY_ICON_MOBILE_ROW_STYLE = "icon_tuner_mobile_row_style"
-    const val KEY_CC_NETWORK_FIRST_ROW = "systemui_cc_network_first_row"
-    const val KEY_CC_CARRIER_TWO_LINE = "systemui_cc_carrier_two_line"
-    const val KEY_CC_ICON_ROW_OVERRIDES = "systemui_cc_icon_row_overrides"
-    const val KEY_CC_CARRIER_SHOW_NON_DATA_TYPE = "systemui_cc_carrier_show_non_data_type"
-    const val KEY_CC_CARRIER_SHOW_BADGE = "systemui_cc_carrier_show_badge"
-    const val KEY_CC_CARRIER_BADGE_ONE = "systemui_cc_carrier_badge_one"
-    const val KEY_CC_CARRIER_BADGE_TWO = "systemui_cc_carrier_badge_two"
-
-    const val KEY_CC_PRIVACY_ENABLED = "systemui_cc_privacy_enabled"
-    const val KEY_CC_PRIVACY_CENTER = "systemui_cc_privacy_center"
-    const val KEY_CC_PRIVACY_BACKGROUND = "systemui_cc_privacy_background"
-    const val KEY_CC_PRIVACY_COLORED = "systemui_cc_privacy_colored"
-    const val KEY_CC_PRIVACY_NAMES = "systemui_cc_privacy_names"
-    const val KEY_CC_PRIVACY_ALL_APPS = "systemui_cc_privacy_all_apps"
-    const val KEY_CC_PRIVACY_ARROW = "systemui_cc_privacy_arrow"
-    const val KEY_CC_PRIVACY_DOT = "systemui_cc_privacy_dot"
-    const val KEY_CC_PRIVACY_ICON_SIZE = "systemui_cc_privacy_icon_size"
-    const val KEY_CC_PRIVACY_TEXT_SIZE = "systemui_cc_privacy_text_size"
-    const val KEY_CC_PRIVACY_OFFSET = "systemui_cc_privacy_offset"
-
     // Control-center battery percentage style (see `CcBatteryStyleHooker`). Both switches target
     // only the control center's own `MiuiBatteryMeterView` instances (the CC header icons and the
     // fake status bar used while the CC expands); the home status bar, lockscreen and notification
@@ -874,59 +466,34 @@ object Preferences {
     //   KEY_CC_BATTERY_PERCENT_LEFT — 开关 2: put that outside percentage on the leading edge
     //                                 (visual left in LTR). The in-glyph number has no left/right
     //                                 side, so this switch also selects the outside style.
-    const val KEY_CC_BATTERY_PERCENT_OUTSIDE = "systemui_cc_battery_percent_outside"
-    const val KEY_CC_BATTERY_PERCENT_LEFT = "systemui_cc_battery_percent_left"
-
     // Force status-bar region sampling (light-bar samples the region behind the status bar so
     // icons/background adapt), ported from Hyper Helper's `RegionSampling` (key matches upstream
     // i32.c). Int-typed: 0 off, 1 on.
-    const val KEY_STATUSBAR_REGION_SAMPLING = "statusbar_region_sampling"
-
     // Limit how many notification icons the status bar keeps (ported from Hyper Helper's u32.a/b;
     // the switch is off by default). The count is Int-typed: minimum 0 (keep no notification
     // icons), default 3, maximum 15 — see `NotificationIconLimit`, which the settings row and
     // `NotificationMaxNumberHooker` both use.
-    const val KEY_STATUSBAR_NOTIFICATION_MAX = "statusbar_notif_max"
-    const val KEY_STATUSBAR_NOTIFICATION_ICON_MAX = "statusbar_notif_icon_max"
-
     // Slot show/hide modes (0 = follow system, 1 = show everywhere, 2 = status bar only,
     // 3 = control center only, 4 = hide everywhere). Keys are generated by [slotKey].
-    const val KEY_ICON_EXT_BLOCKED = "icon_ext_blocked"
-
     // Ignore the system's own icon hiding.
-    const val KEY_ICON_IGNORE_SYS_HIDE = "icon_ignore_sys_hide"
-    const val KEY_ICON_HIDE_PRIVACY = "icon_hide_privacy"
-
     // OS4 material style glass tuning (Settings → Display → Visual style, 材质风格). The
     // SystemUI hook intercepts the blur/blend resources behind 清透磨砂 and 柔光玻璃, so the
     // page keeps its own state and reports a SystemUI restart through LocalRestartScopeRequest.
-    const val KEY_GLASS_TUNER_ENABLED = "glass_tuner_enabled"
-
     /** Blend opacity multiplier (0.1..1.0, 1.0 = original); scales every blend color alpha. */
-    const val KEY_GLASS_TUNER_BLEND_ALPHA = "glass_tuner_blend_alpha"
-
     /**
      * Blend color lightness (0.5..1.5, 1.0 = original). Below 1.0 mixes the blend colors toward
      * black (darker tint), above 1.0 toward white (lighter, more transparent-looking tint).
      */
-    const val KEY_GLASS_TUNER_BLEND_LIGHTNESS = "glass_tuner_blend_lightness"
-
     /** Blur max-radius multiplier (0.0..2.0, 1.0 = original); scales every blur radius dimen. */
-    const val KEY_GLASS_TUNER_RADIUS_SCALE = "glass_tuner_radius_scale"
-
     /**
      * Glass card effect multiplier (0.1..1.0, 1.0 = original). Scales the glass-shader params
      * behind the notification / media card material (darkening, white tint, highlights).
      */
-    const val KEY_GLASS_TUNER_GLASS_OPACITY = "glass_tuner_glass_opacity"
-
     /**
      * Glass tone multiplier (0.0..2.0, 1.0 = original). Scales the shader's base cast —
      * luminance mix, brightness and blurred-backdrop saturation — that survives at zero
      * opacity and reads as a grey, heavy look; lower is lighter and more see-through.
      */
-    const val KEY_GLASS_TUNER_GLASS_TONE = "glass_tuner_glass_tone"
-
     // Status-bar slot preference key for [slot]; shared by the hooks and the settings UI.
     fun slotKey(slot: String): String = "icon_tuner_slot_$slot"
 
@@ -937,28 +504,28 @@ object Preferences {
      * existing users keep their Circle to Search binding without touching the setting.
      */
     fun powerButtonAction(): Int {
-        val action = getInt(KEY_POWER_BUTTON_ACTION, -1)
-        if (action == POWER_BUTTON_ACTION_DISABLED ||
-            action == POWER_BUTTON_ACTION_CIRCLE_TO_SEARCH ||
-            action == POWER_BUTTON_ACTION_DEFAULT_ASSISTANT ||
-            action == POWER_BUTTON_ACTION_GOOGLE_LENS
+        val action = getInt(PlatformSettingsKeys.KEY_POWER_BUTTON_ACTION, -1)
+        if (action == PlatformSettingsKeys.POWER_BUTTON_ACTION_DISABLED ||
+            action == PlatformSettingsKeys.POWER_BUTTON_ACTION_CIRCLE_TO_SEARCH ||
+            action == PlatformSettingsKeys.POWER_BUTTON_ACTION_DEFAULT_ASSISTANT ||
+            action == PlatformSettingsKeys.POWER_BUTTON_ACTION_GOOGLE_LENS
         ) {
             return action
         }
-        return if (getBoolean(KEY_POWER_BUTTON_CTS, false)) {
-            POWER_BUTTON_ACTION_CIRCLE_TO_SEARCH
+        return if (getBoolean(PlatformSettingsKeys.KEY_POWER_BUTTON_CTS, false)) {
+            PlatformSettingsKeys.POWER_BUTTON_ACTION_CIRCLE_TO_SEARCH
         } else {
-            POWER_BUTTON_ACTION_DISABLED
+            PlatformSettingsKeys.POWER_BUTTON_ACTION_DISABLED
         }
     }
 
     /** Persists the long-press power action and drops the superseded legacy boolean. */
     fun setPowerButtonAction(action: Int) {
-        memoInvalidate(KEY_POWER_BUTTON_ACTION)
-        memoInvalidate(KEY_POWER_BUTTON_CTS)
+        memoInvalidate(PlatformSettingsKeys.KEY_POWER_BUTTON_ACTION)
+        memoInvalidate(PlatformSettingsKeys.KEY_POWER_BUTTON_CTS)
         write {
-            putInt(KEY_POWER_BUTTON_ACTION, action)
-            remove(KEY_POWER_BUTTON_CTS)
+            putInt(PlatformSettingsKeys.KEY_POWER_BUTTON_ACTION, action)
+            remove(PlatformSettingsKeys.KEY_POWER_BUTTON_CTS)
         }
     }
 
@@ -968,13 +535,13 @@ object Preferences {
      * A missing new key migrates the old Boolean (true → Leica Moment).
      */
     fun cameraLegendaryMomentMode(): String {
-        val stored = if (contains(KEY_CAMERA_LEGENDARY_MOMENT_MODE)) {
-            getString(KEY_CAMERA_LEGENDARY_MOMENT_MODE, "")
+        val stored = if (contains(CameraSettingsKeys.KEY_CAMERA_LEGENDARY_MOMENT_MODE)) {
+            getString(CameraSettingsKeys.KEY_CAMERA_LEGENDARY_MOMENT_MODE, "")
         } else {
             null
         }
-        val legacy = if (stored == null && contains(KEY_CAMERA_LEGENDARY_MOMENT)) {
-            getBoolean(KEY_CAMERA_LEGENDARY_MOMENT, false)
+        val legacy = if (stored == null && contains(CameraSettingsKeys.KEY_CAMERA_LEGENDARY_MOMENT)) {
+            getBoolean(CameraSettingsKeys.KEY_CAMERA_LEGENDARY_MOMENT, false)
         } else {
             null
         }
@@ -983,48 +550,30 @@ object Preferences {
 
     /** Persists the selected name and drops the superseded Boolean. */
     fun setCameraLegendaryMomentMode(mode: String) {
-        memoInvalidate(KEY_CAMERA_LEGENDARY_MOMENT_MODE)
-        memoInvalidate(KEY_CAMERA_LEGENDARY_MOMENT)
+        memoInvalidate(CameraSettingsKeys.KEY_CAMERA_LEGENDARY_MOMENT_MODE)
+        memoInvalidate(CameraSettingsKeys.KEY_CAMERA_LEGENDARY_MOMENT)
         write {
-            putString(KEY_CAMERA_LEGENDARY_MOMENT_MODE, mode)
-            remove(KEY_CAMERA_LEGENDARY_MOMENT)
+            putString(CameraSettingsKeys.KEY_CAMERA_LEGENDARY_MOMENT_MODE, mode)
+            remove(CameraSettingsKeys.KEY_CAMERA_LEGENDARY_MOMENT)
         }
     }
 
     // Media-editor watermark unlock (com.miui.mediaeditor). See
     // `MediaEditorWatermarkHooker`; switches are read live, so only the first enable of
     // KEY_WM_UNLOCK_MASTER needs the editor process restarted (to install the hooks).
-    const val KEY_WM_UNLOCK_MASTER = "wm_unlock_master"
-    const val KEY_WM_LEICA = "wm_leica"
-    const val KEY_WM_XIAOMI = "wm_xiaomi"
-    const val KEY_WM_REDMI = "wm_redmi"
-    const val KEY_WM_POCO = "wm_poco"
-    const val KEY_WM_DISNEY1 = "wm_disney1"
-    const val KEY_WM_DISNEY2 = "wm_disney2"
-    const val KEY_WM_DISNEY3 = "wm_disney3"
-    const val KEY_WM_VICTORIA = "wm_victoria"
-    const val KEY_WM_LCC = "wm_lcc"
-    const val KEY_WM_DOWNLOAD_ALL = "wm_download_all"
-
     /** Camera app (com.android.camera) watermark unlock; see `CameraWatermarkHooker`. */
-    const val KEY_WM_CAMERA = "wm_camera"
-
     /**
      * Continue past the camera APK's device-configuration mismatch guard; see
      * [com.takekazex.hypertweak.hook.rules.camera.CameraDeviceMismatchHooker]. Default off.
      * Selecting the Nezha/Madrid Legendary profile also bypasses the guard after the target ABI
      * has been verified.
      */
-    const val KEY_CAMERA_IGNORE_DEVICE_MISMATCH = "camera_ignore_device_mismatch"
-
     /**
      * Fake the Leica LCC theme gate (`Je.c#V()`) for the camera app; see
      * `CameraImpersonationHooker`. Unlocks features gated on the LCC theme (e.g. 徕卡一瞬)
      * and keeps the 相机配色 settings entry visible, WITHOUT the flagship config swap and
      * without changing any real device theme property. Read live (100 ms memo).
      */
-    const val KEY_CAMERA_IMPERSONATE_THEME_LCC = "camera_impersonate_theme_lcc"
-
     /**
      * Restore the Leica photography-style (摄影风格 cv_type 徕卡经典 ↔ 徕卡生动) switcher. The
      * 摄影风格 component and the top-bar style entries gate on the config's `F3()`
@@ -1038,19 +587,13 @@ object Preferences {
      * when `F3()` is true; the resident bounds clamp keeps an old out-of-range selection
      * from crashing the list). Default off.
      */
-    const val KEY_CAMERA_LEICA_STYLE = "camera_impersonate_leica_style"
-
     /** Adds the Leica shutter-sound choices without requiring a flagship camera profile. */
-    const val KEY_CAMERA_ALL_SHUTTER_SOUNDS = "camera_all_shutter_sounds"
-
     /**
      * MasterLive (实况运镜) role-23 (`Standalone`) -> role-20 (`tele`) fallback on the role
      * adapter (`u6.e`/jadx `p703u6.e` `M()`), so the 15x endpoint of the K100 Pro Max effect
      * table resolves on devices whose tele is only labelled role 20 (Samsung JN5). Harmless
      * when role 23 exists (falls back only when `get(23)==-1`). Default off.
      */
-    const val KEY_CAMERA_MASTERLIVE_TELE_FALLBACK = "camera_masterlive_tele_fallback"
-
     /**
      * MasterLive (实况运镜) video-size probe — opt-in on every device. On myron the
      * MasterLive live-video stream is sized with the HAL masterlive ratio tag (`G()`,
@@ -1067,8 +610,6 @@ object Preferences {
      * MasterLive component value (`j#A(231)` → `pref_master_live_key`); unreadable falls
      * back to the verified 16:9. Requires a camera restart after changing.
      */
-    const val KEY_CAMERA_MASTERLIVE_VIDEO_SIZE_PROBE = "camera_masterlive_video_size_probe"
-
     /**
      * MasterLive (实况运镜) 红毯运镜 injection (default off). The K100 Pro Max effect table
      * (`q0()`) ships only types "0" (超清实况), "2" (主角非线性) and "3" (自由线性) — the
@@ -1081,8 +622,6 @@ object Preferences {
      * the entry up natively (type-switch driven), and the default effect stays 超清实况.
      * Live-read (100 ms memo); visibility needs a camera restart.
      */
-    const val KEY_CAMERA_MASTERLIVE_RED_CARPET = "camera_masterlive_red_carpet"
-
     /**
      * MasterLive (实况运镜) full focal line-up (超清实况焦段条, default off). The zoom toggle
      * strip inside 实况运镜 reads the config's per-mode zoom stops `v1()` keyed by mode id:
@@ -1095,23 +634,16 @@ object Preferences {
      * an existing key is never touched, and no other mode's stops change. Read live; takes
      * effect on the next mode entry (camera restart if open).
      */
-    const val KEY_CAMERA_MASTERLIVE_FULL_FOCAL = "camera_masterlive_full_focal"
-
     /**
      * Custom watermark master switch. When on, the user-typed brand / model overrides
      * (`KEY_CAMERA_WM_CUSTOM_BRAND` / `KEY_CAMERA_WM_CUSTOM_MODEL`) replace the device's own
      * watermark text in `CameraImpersonationHooker` and `CameraWatermarkHooker.hookDeviceLogo`;
      * when off, the values are ignored. Default off.
      */
-    const val KEY_CAMERA_WM_CUSTOM = "camera_wm_custom"
-
     /**
      * User-typed custom watermark brand / model, honoured only while `KEY_CAMERA_WM_CUSTOM`
      * is on; blank = fall back to the device's own brand / marketname.
      */
-    const val KEY_CAMERA_WM_CUSTOM_BRAND = "camera_wm_custom_brand"
-    const val KEY_CAMERA_WM_CUSTOM_MODEL = "camera_wm_custom_model"
-
     /**
      * Camera app (com.android.camera) 超高图片质量 (ultra-high image quality) fixed unlock;
      * see `CameraUltraQualityHooker`. The 设置→图片质量 option list (`SettingImageQuality`,
@@ -1124,20 +656,10 @@ object Preferences {
      * stock behaviour here, which also re-clamps a stale stored 超高 selection back to 高.
      * Plain JPEG-quality values with no HAL dependency. Read live (100 ms memo); default off.
      */
-    const val KEY_CAMERA_ULTRA_HD_QUALITY = "camera_ultra_hd_quality"
-
     /** Put 自拍镜像 inside the camera's 自拍设置 page instead of 通用设置. */
-    const val KEY_CAMERA_SELFIE_SETTINGS = "camera_selfie_settings"
-
     /** Current Leica/Legendary Moment target-profile selector. */
-    const val KEY_CAMERA_LEGENDARY_MOMENT_MODE = "camera_legendary_moment_mode"
-
     /** Optional 200MP Pixel item and Cinematic mode entry. */
-    const val KEY_CAMERA_LEGENDARY_EXTRA_MODES = "camera_legendary_extra_modes"
-
     /** Legacy single-switch value, migrated by [cameraLegendaryMomentMode]. */
-    const val KEY_CAMERA_LEGENDARY_MOMENT = "camera_legendary_moment"
-
     /**
      * 智能构图 (smart composition) unlock; default OFF. Three independent levers, one switch:
      *
@@ -1165,8 +687,6 @@ object Preferences {
      * Read live; reopen the settings page to refresh the rows (the D3/M3 callbacks and the
      * top-row injection all re-read this key per call).
      */
-    const val KEY_CAMERA_SMART_COMPOSITION = "camera_smart_composition"
-
     /**
      * 内容凭证 (Content Credentials, C2PA) setting unlock; manual on every device and off by
      * default. The 设置→水印 entry
@@ -1180,8 +700,6 @@ object Preferences {
      * BOTH enabling and disabling need a camera app restart, and whether photos actually
      * carry verifiable credentials still depends on the HAL/mivi pipeline.
      */
-    const val KEY_CAMERA_CONTENT_CREDENTIAL = "camera_content_credential"
-
     /**
      * 自适应镜头 (adaptive lens / auto fallback) setting unlock; default OFF, experimental.
      * The 设置→拍照 entry (`pref_camera_auto_fallback` → `AutoFallbackFragment`) shows only
@@ -1194,11 +712,6 @@ object Preferences {
      * On a HAL that does not implement the vendor keys the zoom path may behave oddly — turn
      * it off if switching lenses glitches.
      */
-    const val KEY_CAMERA_ADAPTIVE_LENS = "camera_adaptive_lens"
-
-    const val KEY_UNLOCK_MORE_VISUAL_PERCEPTION = "unlock_more_visual_perception"
-    const val KEY_UNLOCK_MORE_AON_GESTURES = "unlock_more_aon_gestures"
-
     /**
      * 自适应刷新率Pro (Mimotion PWM dimming) unlock. On HyperOS the 显示与亮度 row
      * `mimotion_pwm_enable` is only shown when the vendor build sets `ro.display.enable_pwm_switch`
@@ -1210,8 +723,6 @@ object Preferences {
      * docs/FEATURE_DETAIL.md. Whether extra dynamic refresh gears actually appear still depends on the
      * panel/vendor displayfeature HAL (effect 20) support.
      */
-    const val KEY_UNLOCK_ADAPTIVE_REFRESH_PRO = "unlock_adaptive_refresh_pro"
-
     /**
      * Power-save overrides: keep the features HyperOS pins while 省电模式 is active. Security Center
      * (手机管家), from its remote process, writes fixed values into Settings on entering power save
@@ -1225,12 +736,6 @@ object Preferences {
      * The four feature switches are independent. [KEY_POWER_SAVE_OVERRIDE_MASTER] is a legacy
      * compatibility gate, flattened to enabled on the first individual edit.
      */
-    const val KEY_POWER_SAVE_OVERRIDE_MASTER = "power_save_override_master"
-    const val KEY_KEEP_REFRESH_RATE_IN_POWER_SAVE = "keep_refresh_rate_in_power_save"
-    const val KEY_KEEP_HAPTIC_FEEDBACK_IN_POWER_SAVE = "keep_haptic_feedback_in_power_save"
-    const val KEY_KEEP_SYSTEM_SOUNDS_IN_POWER_SAVE = "keep_system_sounds_in_power_save"
-    const val KEY_KEEP_WAKEUP_GESTURES_IN_POWER_SAVE = "keep_wakeup_gestures_in_power_save"
-
     /**
      * Automatic power-save control. SystemUI watches battery events and requests the native
      * Security Center changePowerMode protocol used by the control-center tile. See
@@ -1243,48 +748,24 @@ object Preferences {
      * Both switches and the threshold apply live through the runtime settings group
      * `systemui.power_save`; the SystemUI battery monitor is registered regardless of them.
      */
-    const val KEY_BATTERY_AUTO_POWER_SAVE_ENABLED = "battery_auto_power_save_enabled"
-    const val KEY_BATTERY_AUTO_POWER_SAVE_THRESHOLD = "battery_auto_power_save_threshold"
-    const val KEY_EXIT_POWER_SAVE_WHEN_CHARGING = "exit_power_save_when_charging"
-
-    const val DEFAULT_BATTERY_AUTO_POWER_SAVE_THRESHOLD = BatteryAutoPowerSavePolicy.DEFAULT_THRESHOLD
-    const val MIN_BATTERY_AUTO_POWER_SAVE_THRESHOLD = BatteryAutoPowerSavePolicy.MIN_THRESHOLD
-    const val MAX_BATTERY_AUTO_POWER_SAVE_THRESHOLD = BatteryAutoPowerSavePolicy.MAX_THRESHOLD
-
     /**
      * Removes the recents "clean up background apps" button. The button is a Dart widget inside
      * MiuiHome's Flutter AOT snapshot, so the module suppresses the overlay insertion through the
      * native payload rather than through an ART hook. It is read when `com.miui.home` loads the
      * module, which is a separate process: changing it takes effect after the launcher restarts.
      */
-    const val KEY_HIDE_RECENTS_CLEAR_BUTTON = "hide_recents_clear_button"
-
     /** Native gesture-line choices and XiaoAI input routing. */
-    const val KEY_XIAOAI_GESTURE_OPTIONS = "xiaoai_gesture_options"
-    fun xiaoaiGestureOptions(): Boolean = getBoolean(KEY_XIAOAI_GESTURE_OPTIONS, false)
+    fun xiaoaiGestureOptions(): Boolean = getBoolean(PlatformSettingsKeys.KEY_XIAOAI_GESTURE_OPTIONS, false)
 
     /** Native same-span Android AppWidget stack eligibility. */
-    const val KEY_ANDROID_WIDGET_STACK = "android_widget_stack"
-
     /** Live stacked preview in the final small-icon cell of native large folders. */
-    const val KEY_FOLDER_STACK_PREVIEW = "folder_stack_preview"
-
     /** Live opt-in feedback for user-driven horizontal recent-task card changes. */
-    const val KEY_RECENTS_CARD_HAPTIC = "recents_card_haptic"
-
     /**
      * Number of application columns in an opened MiuiHome folder. Three preserves the launcher's
      * native behavior; four and five are applied by the native Dart AOT rule after a launcher
      * restart. This does not affect the small folder preview on the desktop.
      */
-    const val KEY_OPENED_FOLDER_COLUMNS = "opened_folder_columns"
-    const val DEFAULT_OPENED_FOLDER_COLUMNS = 3
-    const val MIN_OPENED_FOLDER_COLUMNS = 3
-    const val MAX_OPENED_FOLDER_COLUMNS = 5
-
     /** Allow ordinary AppWidget providers through the OS4 native drag eligibility gate. */
-    const val KEY_ALLOW_ANDROID_WIDGETS_TO_ASSISTANT = "allow_android_widgets_to_assistant"
-
     /**
      * 长按底部手势指示器启动圈定即搜. The launcher's own long-press terminal is replaced by the
      * native payload so the gesture starts Circle to Search instead of Xiaomi's route, which
@@ -1293,62 +774,59 @@ object Preferences {
      * so changing it takes effect after a launcher restart. It is independent of
      * [KEY_POWER_BUTTON_ACTION]: either entry point may be on.
      */
-    const val KEY_CONTEXTUAL_SEARCH_LONG_PRESS = "contextual_search_long_press"
-    const val KEY_CONTEXTUAL_SEARCH_HAPTICS = "contextual_search_haptics"
-
-    fun unlockMoreVisualPerception(): Boolean = getBoolean(KEY_UNLOCK_MORE_VISUAL_PERCEPTION, false)
-    fun unlockMoreAonGestures(): Boolean = getBoolean(KEY_UNLOCK_MORE_AON_GESTURES, false)
-    fun unlockAdaptiveRefreshPro(): Boolean = getBoolean(KEY_UNLOCK_ADAPTIVE_REFRESH_PRO, false)
+    fun unlockMoreVisualPerception(): Boolean = getBoolean(PlatformSettingsKeys.KEY_UNLOCK_MORE_VISUAL_PERCEPTION, false)
+    fun unlockMoreAonGestures(): Boolean = getBoolean(PlatformSettingsKeys.KEY_UNLOCK_MORE_AON_GESTURES, false)
+    fun unlockAdaptiveRefreshPro(): Boolean = getBoolean(PlatformSettingsKeys.KEY_UNLOCK_ADAPTIVE_REFRESH_PRO, false)
 
     // The removed master is retained only to interpret legacy snapshots. Each new individual
     // edit atomically flattens the effective selection and permanently opens that legacy gate.
     private fun powerSaveFeatureEnabled(key: String): Boolean =
-        getBoolean(KEY_POWER_SAVE_OVERRIDE_MASTER, false) && getBoolean(key, false)
+        getBoolean(PlatformSettingsKeys.KEY_POWER_SAVE_OVERRIDE_MASTER, false) && getBoolean(key, false)
 
-    fun keepRefreshRateInPowerSave(): Boolean = powerSaveFeatureEnabled(KEY_KEEP_REFRESH_RATE_IN_POWER_SAVE)
-    fun keepHapticFeedbackInPowerSave(): Boolean = powerSaveFeatureEnabled(KEY_KEEP_HAPTIC_FEEDBACK_IN_POWER_SAVE)
-    fun keepSystemSoundsInPowerSave(): Boolean = powerSaveFeatureEnabled(KEY_KEEP_SYSTEM_SOUNDS_IN_POWER_SAVE)
-    fun keepWakeupGesturesInPowerSave(): Boolean = powerSaveFeatureEnabled(KEY_KEEP_WAKEUP_GESTURES_IN_POWER_SAVE)
+    fun keepRefreshRateInPowerSave(): Boolean = powerSaveFeatureEnabled(PlatformSettingsKeys.KEY_KEEP_REFRESH_RATE_IN_POWER_SAVE)
+    fun keepHapticFeedbackInPowerSave(): Boolean = powerSaveFeatureEnabled(PlatformSettingsKeys.KEY_KEEP_HAPTIC_FEEDBACK_IN_POWER_SAVE)
+    fun keepSystemSoundsInPowerSave(): Boolean = powerSaveFeatureEnabled(PlatformSettingsKeys.KEY_KEEP_SYSTEM_SOUNDS_IN_POWER_SAVE)
+    fun keepWakeupGesturesInPowerSave(): Boolean = powerSaveFeatureEnabled(PlatformSettingsKeys.KEY_KEEP_WAKEUP_GESTURES_IN_POWER_SAVE)
 
     /** Whether the module enables power save below [batteryAutoPowerSaveThreshold]. */
-    fun batteryAutoPowerSaveEnabled(): Boolean = getBoolean(KEY_BATTERY_AUTO_POWER_SAVE_ENABLED, false)
+    fun batteryAutoPowerSaveEnabled(): Boolean = getBoolean(PlatformSettingsKeys.KEY_BATTERY_AUTO_POWER_SAVE_ENABLED, false)
 
     /** Whether a new charger connection requests one native power-save exit. */
-    fun exitPowerSaveWhenCharging(): Boolean = getBoolean(KEY_EXIT_POWER_SAVE_WHEN_CHARGING, false)
+    fun exitPowerSaveWhenCharging(): Boolean = getBoolean(PlatformSettingsKeys.KEY_EXIT_POWER_SAVE_WHEN_CHARGING, false)
 
     /** The low-battery threshold in percent, bounded to the slider's band. */
     fun batteryAutoPowerSaveThreshold(): Int = getInt(
-        KEY_BATTERY_AUTO_POWER_SAVE_THRESHOLD,
-        DEFAULT_BATTERY_AUTO_POWER_SAVE_THRESHOLD,
-    ).coerceIn(MIN_BATTERY_AUTO_POWER_SAVE_THRESHOLD, MAX_BATTERY_AUTO_POWER_SAVE_THRESHOLD)
+        PlatformSettingsKeys.KEY_BATTERY_AUTO_POWER_SAVE_THRESHOLD,
+        PlatformSettingsKeys.DEFAULT_BATTERY_AUTO_POWER_SAVE_THRESHOLD,
+    ).coerceIn(PlatformSettingsKeys.MIN_BATTERY_AUTO_POWER_SAVE_THRESHOLD, PlatformSettingsKeys.MAX_BATTERY_AUTO_POWER_SAVE_THRESHOLD)
 
     /** Preserve the effective legacy selection when editing one independent feature. */
     fun setPowerSaveFeature(key: String, enabled: Boolean) {
         val keys = listOf(
-            KEY_KEEP_REFRESH_RATE_IN_POWER_SAVE, KEY_KEEP_HAPTIC_FEEDBACK_IN_POWER_SAVE,
-            KEY_KEEP_SYSTEM_SOUNDS_IN_POWER_SAVE, KEY_KEEP_WAKEUP_GESTURES_IN_POWER_SAVE,
+            PlatformSettingsKeys.KEY_KEEP_REFRESH_RATE_IN_POWER_SAVE, PlatformSettingsKeys.KEY_KEEP_HAPTIC_FEEDBACK_IN_POWER_SAVE,
+            PlatformSettingsKeys.KEY_KEEP_SYSTEM_SOUNDS_IN_POWER_SAVE, PlatformSettingsKeys.KEY_KEEP_WAKEUP_GESTURES_IN_POWER_SAVE,
         )
         require(key in keys)
         val values = PowerSaveOverrideSelection.edit(
-            getBoolean(KEY_POWER_SAVE_OVERRIDE_MASTER, false),
+            getBoolean(PlatformSettingsKeys.KEY_POWER_SAVE_OVERRIDE_MASTER, false),
             keys.associateWith { getBoolean(it, false) }, key, enabled,
         )
-        (keys + KEY_POWER_SAVE_OVERRIDE_MASTER).forEach(::memoInvalidate)
+        (keys + PlatformSettingsKeys.KEY_POWER_SAVE_OVERRIDE_MASTER).forEach(::memoInvalidate)
         write {
-            putBoolean(KEY_POWER_SAVE_OVERRIDE_MASTER, true)
+            putBoolean(PlatformSettingsKeys.KEY_POWER_SAVE_OVERRIDE_MASTER, true)
             values.forEach { (featureKey, value) -> putBoolean(featureKey, value) }
         }
     }
 
-    fun androidWidgetStack(): Boolean = getBoolean(KEY_ANDROID_WIDGET_STACK, false)
-    fun folderStackPreview(): Boolean = getBoolean(KEY_FOLDER_STACK_PREVIEW, false)
+    fun androidWidgetStack(): Boolean = getBoolean(PlatformSettingsKeys.KEY_ANDROID_WIDGET_STACK, false)
+    fun folderStackPreview(): Boolean = getBoolean(PlatformSettingsKeys.KEY_FOLDER_STACK_PREVIEW, false)
 
-    fun recentsCardHaptic(): Boolean = getBoolean(KEY_RECENTS_CARD_HAPTIC, false)
+    fun recentsCardHaptic(): Boolean = getBoolean(PlatformSettingsKeys.KEY_RECENTS_CARD_HAPTIC, false)
 
-    fun hideRecentsClearButton(): Boolean = getBoolean(KEY_HIDE_RECENTS_CLEAR_BUTTON, false)
+    fun hideRecentsClearButton(): Boolean = getBoolean(PlatformSettingsKeys.KEY_HIDE_RECENTS_CLEAR_BUTTON, false)
 
     /** Whether MIUI's theme DRM rights verification is bypassed for local/third-party themes. */
-    fun allowThirdPartyTheme(): Boolean = getBoolean(KEY_ALLOW_THIRD_PARTY_THEME, false)
+    fun allowThirdPartyTheme(): Boolean = getBoolean(PlatformSettingsKeys.KEY_ALLOW_THIRD_PARTY_THEME, false)
 
     /**
      * Whether the module-rendered cellular type stays visible while Wi-Fi carries the data
@@ -1361,29 +839,29 @@ object Preferences {
      * once the user touches the replacement switch.
      */
     fun cellularTypeKeepsOnWifi(): Boolean = when {
-        contains(KEY_ICON_CELLULAR_TYPE_KEEP_ON_WIFI) ->
-            getBoolean(KEY_ICON_CELLULAR_TYPE_KEEP_ON_WIFI, false)
-        contains(KEY_ICON_STACKED_TYPE_HIDE_WIFI) ->
-            !getBoolean(KEY_ICON_STACKED_TYPE_HIDE_WIFI, false)
+        contains(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_KEEP_ON_WIFI) ->
+            getBoolean(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_KEEP_ON_WIFI, false)
+        contains(IconSettingsKeys.KEY_ICON_STACKED_TYPE_HIDE_WIFI) ->
+            !getBoolean(IconSettingsKeys.KEY_ICON_STACKED_TYPE_HIDE_WIFI, false)
         else -> false
     }
 
-    fun allowAndroidWidgetsToAssistant(): Boolean = getBoolean(KEY_ALLOW_ANDROID_WIDGETS_TO_ASSISTANT, false)
+    fun allowAndroidWidgetsToAssistant(): Boolean = getBoolean(PlatformSettingsKeys.KEY_ALLOW_ANDROID_WIDGETS_TO_ASSISTANT, false)
 
-    fun contextualSearchLongPress(): Boolean = getBoolean(KEY_CONTEXTUAL_SEARCH_LONG_PRESS, false)
+    fun contextualSearchLongPress(): Boolean = getBoolean(PlatformSettingsKeys.KEY_CONTEXTUAL_SEARCH_LONG_PRESS, false)
 
     fun openedFolderColumns(): Int = getInt(
-        KEY_OPENED_FOLDER_COLUMNS,
-        DEFAULT_OPENED_FOLDER_COLUMNS
-    ).coerceIn(MIN_OPENED_FOLDER_COLUMNS, MAX_OPENED_FOLDER_COLUMNS)
+        PlatformSettingsKeys.KEY_OPENED_FOLDER_COLUMNS,
+        PlatformSettingsKeys.DEFAULT_OPENED_FOLDER_COLUMNS
+    ).coerceIn(PlatformSettingsKeys.MIN_OPENED_FOLDER_COLUMNS, PlatformSettingsKeys.MAX_OPENED_FOLDER_COLUMNS)
 
-    fun notificationMoreSettings(): Boolean = getBoolean(KEY_NOTIFICATION_MORE_SETTINGS, false)
+    fun notificationMoreSettings(): Boolean = getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_MORE_SETTINGS, false)
 
-    fun notificationBadge(): Boolean = getBoolean(KEY_NOTIFICATION_BADGE, false)
+    fun notificationBadge(): Boolean = getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_BADGE, false)
 
-    fun notificationBlockFold(): Boolean = getBoolean(KEY_NOTIFICATION_BLOCK_FOLD, false)
+    fun notificationBlockFold(): Boolean = getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_BLOCK_FOLD, false)
 
-    fun freeformBlurTransition(): Boolean = getBoolean(KEY_FREEFORM_BLUR_TRANSITION, false)
+    fun freeformBlurTransition(): Boolean = getBoolean(PlatformSettingsKeys.KEY_FREEFORM_BLUR_TRANSITION, false)
 
     /**
      * 实况运镜 (MasterLive, camera mode id 231) unlock master; default off. While on, the
@@ -1395,8 +873,6 @@ object Preferences {
      * [KEY_CAMERA_MASTERLIVE_VIDEO_SIZE_PROBE]; the role-23→20 fallback is gated on its own
      * key. Turn off to restore the stock / guarded behaviour.
      */
-    const val KEY_CAMERA_MASTERLIVE_ENABLE = "camera_masterlive_enable"
-
     // --- Update system (module's own process only) ---
     // Only user-visible settings live here, so they travel with a settings backup exactly like the
     // rest of the configuration. Everything transient (last-attempt/last-success timestamps, the
@@ -1404,17 +880,9 @@ object Preferences {
     // in the separate app-local `hypertweak_update` file by `util/update/UpdateStateStore`, which is
     // what keeps that churn out of the user's backup.
     /** `UpdateChannel.wireValue` of the release line to follow. */
-    const val KEY_UPDATE_CHANNEL = "update_channel"
-
     /** `UpdateCheckInterval.index`: 0 = daily, 1 = weekly, 2 = monthly, 3 = never. */
-    const val KEY_UPDATE_CHECK_INTERVAL = "update_check_interval"
-
     /** `UpdateProxyMode.wireValue`; see [com.takekazex.hypertweak.util.update.UpdateNetworkPolicy]. */
-    const val KEY_UPDATE_PROXY_MODE = "update_proxy_mode"
-
     /** User-supplied `https://` proxy base; blank means "use the built-in preset". */
-    const val KEY_UPDATE_PROXY_URL = "update_proxy_url"
-
     private const val LEGACY_KEY_DEBUG_LOG = "debug_log"
     private const val KEY_DEBUG_LOG_PREFIX = "debug_log_p_"
     private const val KEY_LOG_SESSION = "debug_log_session"
@@ -1475,16 +943,16 @@ object Preferences {
             key == ScreenshotSettingsSnapshot.REVISION ||
             // Device-side properties are not portable configuration. Reset/restore does not
             // authorize root commands; the page always re-reads the actual device state.
-            key == KEY_WIFI_CNSS_DIAG_ENABLED ||
-            key == KEY_WIFI_TCPDUMP_ENABLED ||
+            key == PlatformSettingsKeys.KEY_WIFI_CNSS_DIAG_ENABLED ||
+            key == PlatformSettingsKeys.KEY_WIFI_TCPDUMP_ENABLED ||
             key == KEY_PREFS_EPOCH ||
-            key == KEY_NATIVE_RULE_REVISION ||
+            key == PlatformSettingsKeys.KEY_NATIVE_RULE_REVISION ||
             key == BackGestureSettingsSnapshot.REVISION ||
             key == KEY_PENDING_RESTART_BOOT_TOKEN ||
             key == KEY_DIRTY_TWEAK_KEYS ||
             key.startsWith(KEY_TWEAK_BASELINE_PREFIX) ||
             key == KEY_MANUAL_PENDING_RESTART_SCOPES ||
-            key == KEY_PENDING_RESTART_SCOPES ||
+            key == PlatformSettingsKeys.KEY_PENDING_RESTART_SCOPES ||
             key == KEY_FIRST_RUN_TOKEN ||
             // Obsolete per-device package snapshot from the former batch implementation.
             key == "notification_whitelist_bypass" ||
@@ -1524,10 +992,10 @@ object Preferences {
                 val committed = commitRemoteMutation(nativeReset, emptyMap<String, Any>()) {
                     clear()
                     putLong(KEY_PREFS_EPOCH, epoch)
-                    putLong(KEY_NATIVE_RULE_REVISION, nativeRevision)
+                    putLong(PlatformSettingsKeys.KEY_NATIVE_RULE_REVISION, nativeRevision)
                 }
                 if (!committed) return false
-                runCatching { localSourcePrefs?.edit(commit = true) { clear().putLong(KEY_PREFS_EPOCH, epoch).putLong(KEY_NATIVE_RULE_REVISION, nativeRevision) } }
+                runCatching { localSourcePrefs?.edit(commit = true) { clear().putLong(KEY_PREFS_EPOCH, epoch).putLong(PlatformSettingsKeys.KEY_NATIVE_RULE_REVISION, nativeRevision) } }
                 val cache = getLocalCache()
                 runCatching { cache?.edit(commit = true) { clear().putLong(KEY_PREFS_EPOCH, epoch) } }
                 return true
@@ -1569,7 +1037,7 @@ object Preferences {
             }.getOrDefault(INITIAL_EPOCH) + 1
             val nativeRevision = android.os.SystemClock.elapsedRealtimeNanos().coerceAtLeast(1)
             val nativeReset = requireNotNull(NativeRuleStateSnapshot.read {
-                restored + mapOf(KEY_NATIVE_RULE_REVISION to nativeRevision, KEY_PREFS_EPOCH to epoch)
+                restored + mapOf(PlatformSettingsKeys.KEY_NATIVE_RULE_REVISION to nativeRevision, KEY_PREFS_EPOCH to epoch)
             }) { "Invalid native settings in backup" }
             val currentKeys = buildSet {
                 runCatching { remotePrefs.all.keys }.getOrDefault(emptySet())
@@ -1586,7 +1054,7 @@ object Preferences {
                 currentKeys.forEach(::remove)
                 restored.forEach { (key, value) -> putSharedPreferenceValue(key, value) }
                 putLong(KEY_PREFS_EPOCH, epoch)
-                putLong(KEY_NATIVE_RULE_REVISION, nativeRevision)
+                putLong(PlatformSettingsKeys.KEY_NATIVE_RULE_REVISION, nativeRevision)
             }
             if (!committed) {
                 // The serialized transaction restores the captured map on rejection.
@@ -1599,7 +1067,7 @@ object Preferences {
                     currentKeys.forEach(::remove)
                     restored.forEach { (key, value) -> putSharedPreferenceValue(key, value) }
                     putLong(KEY_PREFS_EPOCH, epoch)
-                    putLong(KEY_NATIVE_RULE_REVISION, nativeRevision)
+                    putLong(PlatformSettingsKeys.KEY_NATIVE_RULE_REVISION, nativeRevision)
                 }
             }
             val cache = getLocalCache()
@@ -1700,7 +1168,7 @@ object Preferences {
     }
 
     internal fun nativeRuleSnapshot(): NativeRuleStateSnapshot? {
-        if (RuntimeSettingsStore.owns(KEY_NATIVE_RULE_REVISION)) return RuntimeSettingsStore.values()?.let { values -> NativeRuleStateSnapshot.read { values } }
+        if (RuntimeSettingsStore.owns(PlatformSettingsKeys.KEY_NATIVE_RULE_REVISION)) return RuntimeSettingsStore.values()?.let { values -> NativeRuleStateSnapshot.read { values } }
         if (!this::remotePrefs.isInitialized || isLocalOnly) return null
         return NativeRuleStateSnapshot.read { remotePrefs.all }
     }
@@ -1738,13 +1206,13 @@ object Preferences {
             if (!isInitialized) return
             val local = localSourcePrefs
             val revision = if (nativeChange) runCatching {
-                NativeSnapshotLedger.nextRevision(maxOf(remotePrefs.getLong(KEY_NATIVE_RULE_REVISION, 0),
-                    local?.getLong(KEY_NATIVE_RULE_REVISION, 0) ?: 0), android.os.SystemClock.elapsedRealtimeNanos())
-            }.onFailure { DebugLog.e("NativeRules", "native settings commit identity invalid", it) }.getOrNull() ?: return else 0
+                NativeSnapshotLedger.nextRevision(maxOf(remotePrefs.getLong(PlatformSettingsKeys.KEY_NATIVE_RULE_REVISION, 0),
+                    local?.getLong(PlatformSettingsKeys.KEY_NATIVE_RULE_REVISION, 0) ?: 0), android.os.SystemClock.elapsedRealtimeNanos())
+            }.onFailure { SettingsDiagnostics.e("NativeRules", "native settings commit identity invalid", it) }.getOrNull() ?: return else 0
             runCatching { synchronized(nativeMirrorLock) {
-                local?.edit { block(); if (nativeChange) putLong(KEY_NATIVE_RULE_REVISION, revision) }
+                local?.edit { block(); if (nativeChange) putLong(PlatformSettingsKeys.KEY_NATIVE_RULE_REVISION, revision) }
             } }
-                .onFailure { DebugLog.e("Preferences", "local settings write failed", it) }
+                .onFailure { SettingsDiagnostics.e("Preferences", "local settings write failed", it) }
             if (isLocalOnly || local === remotePrefs) return
             serializedWriter.execute {
                 // Synchronous commit: libxposed's RemotePreferences Editor.apply() is asynchronous on
@@ -1768,44 +1236,44 @@ object Preferences {
                     // Commit the entire native subset atomically, so a prior rejected editor's
                     // shadow values cannot hitchhike into this acknowledged transaction.
                     if (snapshot != null) {
-                        editor.putBoolean(KEY_HIDE_RECENTS_CLEAR_BUTTON, snapshot.hidden)
-                        editor.putInt(KEY_OPENED_FOLDER_COLUMNS, snapshot.columns)
-                        editor.putBoolean(KEY_CONTEXTUAL_SEARCH_LONG_PRESS, snapshot.contextualSearch)
-                        editor.putBoolean(KEY_ALLOW_ANDROID_WIDGETS_TO_ASSISTANT, snapshot.assistantWidgets)
-                        editor.putBoolean(KEY_RECENTS_CARD_HAPTIC, snapshot.recentsHaptic)
-                        editor.putBoolean(KEY_FOLDER_STACK_PREVIEW, snapshot.folderStack)
-                        editor.putBoolean(KEY_ANDROID_WIDGET_STACK, snapshot.widgetStack)
-                        editor.putBoolean(KEY_XIAOAI_GESTURE_OPTIONS, snapshot.xiaoaiOptions)
-                        editor.putLong(KEY_NATIVE_RULE_REVISION, snapshot.revision)
+                        editor.putBoolean(PlatformSettingsKeys.KEY_HIDE_RECENTS_CLEAR_BUTTON, snapshot.hidden)
+                        editor.putInt(PlatformSettingsKeys.KEY_OPENED_FOLDER_COLUMNS, snapshot.columns)
+                        editor.putBoolean(PlatformSettingsKeys.KEY_CONTEXTUAL_SEARCH_LONG_PRESS, snapshot.contextualSearch)
+                        editor.putBoolean(PlatformSettingsKeys.KEY_ALLOW_ANDROID_WIDGETS_TO_ASSISTANT, snapshot.assistantWidgets)
+                        editor.putBoolean(PlatformSettingsKeys.KEY_RECENTS_CARD_HAPTIC, snapshot.recentsHaptic)
+                        editor.putBoolean(PlatformSettingsKeys.KEY_FOLDER_STACK_PREVIEW, snapshot.folderStack)
+                        editor.putBoolean(PlatformSettingsKeys.KEY_ANDROID_WIDGET_STACK, snapshot.widgetStack)
+                        editor.putBoolean(PlatformSettingsKeys.KEY_XIAOAI_GESTURE_OPTIONS, snapshot.xiaoaiOptions)
+                        editor.putLong(PlatformSettingsKeys.KEY_NATIVE_RULE_REVISION, snapshot.revision)
                         editor.putLong(KEY_PREFS_EPOCH, snapshot.epoch)
                     }
                     val committed = editor.commit()
                     if (committed && changes.isNotEmpty() && runtime != null) RuntimeSettingsSignal.acknowledge(runtime)
                     if (!committed) {
-                        DebugLog.w("Preferences", "remote pref commit rejected by daemon (settings not synced)")
+                        SettingsDiagnostics.w("Preferences", "remote pref commit rejected by daemon (settings not synced)")
                     } else if (snapshot != null) {
                         // Do not overwrite newer app-local edits already queued behind this one.
                         synchronized(nativeMirrorLock) {
                             if (local != null && NativeRuleMutation.canMirror(snapshot,
                                     local.getLong(KEY_PREFS_EPOCH, INITIAL_EPOCH),
-                                    local.getLong(KEY_NATIVE_RULE_REVISION, 0))) {
+                                    local.getLong(PlatformSettingsKeys.KEY_NATIVE_RULE_REVISION, 0))) {
                                 local.edit {
-                                    putBoolean(KEY_HIDE_RECENTS_CLEAR_BUTTON, snapshot.hidden)
-                                    putInt(KEY_OPENED_FOLDER_COLUMNS, snapshot.columns)
-                                    putBoolean(KEY_CONTEXTUAL_SEARCH_LONG_PRESS, snapshot.contextualSearch)
-                                    putBoolean(KEY_ALLOW_ANDROID_WIDGETS_TO_ASSISTANT, snapshot.assistantWidgets)
-                                    putBoolean(KEY_RECENTS_CARD_HAPTIC, snapshot.recentsHaptic)
-                                    putBoolean(KEY_FOLDER_STACK_PREVIEW, snapshot.folderStack)
-                                    putBoolean(KEY_ANDROID_WIDGET_STACK, snapshot.widgetStack)
-                                    putBoolean(KEY_XIAOAI_GESTURE_OPTIONS, snapshot.xiaoaiOptions)
-                                    putLong(KEY_NATIVE_RULE_REVISION, snapshot.revision)
+                                    putBoolean(PlatformSettingsKeys.KEY_HIDE_RECENTS_CLEAR_BUTTON, snapshot.hidden)
+                                    putInt(PlatformSettingsKeys.KEY_OPENED_FOLDER_COLUMNS, snapshot.columns)
+                                    putBoolean(PlatformSettingsKeys.KEY_CONTEXTUAL_SEARCH_LONG_PRESS, snapshot.contextualSearch)
+                                    putBoolean(PlatformSettingsKeys.KEY_ALLOW_ANDROID_WIDGETS_TO_ASSISTANT, snapshot.assistantWidgets)
+                                    putBoolean(PlatformSettingsKeys.KEY_RECENTS_CARD_HAPTIC, snapshot.recentsHaptic)
+                                    putBoolean(PlatformSettingsKeys.KEY_FOLDER_STACK_PREVIEW, snapshot.folderStack)
+                                    putBoolean(PlatformSettingsKeys.KEY_ANDROID_WIDGET_STACK, snapshot.widgetStack)
+                                    putBoolean(PlatformSettingsKeys.KEY_XIAOAI_GESTURE_OPTIONS, snapshot.xiaoaiOptions)
+                                    putLong(PlatformSettingsKeys.KEY_NATIVE_RULE_REVISION, snapshot.revision)
                                     putLong(KEY_PREFS_EPOCH, snapshot.epoch)
                                 }
                             }
                         }
                     }
                 }.onFailure { t ->
-                    DebugLog.w("Preferences", "remote pref write failed; retrying on next write", t)
+                    SettingsDiagnostics.w("Preferences", "remote pref write failed; retrying on next write", t)
                 }
             }
         }
@@ -1825,25 +1293,25 @@ object Preferences {
                 previous.forEach { (key, value) -> if (value != null) editor.putSharedPreferenceValue(key, value) }
                 previousRuntime?.let { RuntimeSettingsSignal.write(editor, it) }
                 check(editor.commit()) { "settings mutation rollback rejected" }
-            }.onFailure { DebugLog.w("Preferences", "settings mutation rollback failed", it) }
+            }.onFailure { SettingsDiagnostics.w("Preferences", "settings mutation rollback failed", it) }
             return try {
                 val runtime = if (isLocalOnly) null else RuntimeSettingsSignal.prepareReplacement(replacement + nativeSnapshot.settingsValues())
                 val editor = remotePrefs.edit()
                 block(editor)
                 runtime?.let { RuntimeSettingsSignal.write(editor, it) }
                 editor.commit().also { committed ->
-                    if (!committed) { DebugLog.w("Preferences", "settings mutation commit rejected"); rollback() }
+                    if (!committed) { SettingsDiagnostics.w("Preferences", "settings mutation commit rejected"); rollback() }
                     else if (runtime != null) RuntimeSettingsSignal.acknowledge(runtime)
                 }
             } catch (error: Exception) {
-                DebugLog.e("Preferences", "settings mutation failed", error)
+                SettingsDiagnostics.e("Preferences", "settings mutation failed", error)
                 rollback()
                 false
             }
         }
         if (isLocalOnly || localSourcePrefs === remotePrefs) return commit()
         return runCatching { serializedWriter.submit<Boolean> { commit() }.get(5, TimeUnit.SECONDS) }
-            .onFailure { DebugLog.e("Preferences", "waiting for settings mutation failed", it) }.getOrDefault(false)
+            .onFailure { SettingsDiagnostics.e("Preferences", "waiting for settings mutation failed", it) }.getOrDefault(false)
     }
 
     private fun SharedPreferences.Editor.putSharedPreferenceValue(key: String, value: Any) {
@@ -1885,7 +1353,7 @@ object Preferences {
             )
         }
         val cache = result.onFailure {
-            DebugLog.w("Preferences", "host storage cache unavailable; using remote preferences", it)
+            SettingsDiagnostics.w("Preferences", "host storage cache unavailable; using remote preferences", it)
         }.getOrNull() ?: return false
         // Publish a complete, usable pair only. A provider's system context must not displace a
         // valid application cache, or prevent package-ready consumers from being registered.
@@ -1896,10 +1364,10 @@ object Preferences {
 
     /** Logging must never initialize storage, mirror settings, or log a backend failure. */
     internal fun logLevel(default: Int): Int {
-        (memoGet(KEY_LOG_LEVEL) as? Int)?.let { return it }
-        if (isInitialized) runCatching { remotePrefs.getInt(KEY_LOG_LEVEL, default) }
-            .getOrNull()?.let { memoPut(KEY_LOG_LEVEL, it); return it }
-        return runCatching { (localSourcePrefs ?: localCachePrefs)?.getInt(KEY_LOG_LEVEL, default) }
+        (memoGet(AppSettingsKeys.KEY_LOG_LEVEL) as? Int)?.let { return it }
+        if (isInitialized) runCatching { remotePrefs.getInt(AppSettingsKeys.KEY_LOG_LEVEL, default) }
+            .getOrNull()?.let { memoPut(AppSettingsKeys.KEY_LOG_LEVEL, it); return it }
+        return runCatching { (localSourcePrefs ?: localCachePrefs)?.getInt(AppSettingsKeys.KEY_LOG_LEVEL, default) }
             .getOrNull() ?: default
     }
 
@@ -1928,7 +1396,7 @@ object Preferences {
         if (remoteBackendUnavailable) return
         remoteBackendUnavailable = true
         memoClear()
-        DebugLog.w("Preferences", "remote preferences backend unavailable; falling back to local cache")
+        SettingsDiagnostics.w("Preferences", "remote preferences backend unavailable; falling back to local cache")
     }
 
     val isInitialized: Boolean
@@ -1985,7 +1453,7 @@ object Preferences {
     fun nativePickerEnabled(key: String): Boolean =
         com.takekazex.hypertweak.hook.rules.system.PickerReroutePolicy.enabled(
             if (contains(key)) getBoolean(key, false) else null,
-            getBoolean(KEY_NATIVE_PICKER, false)
+            getBoolean(PlatformSettingsKeys.KEY_NATIVE_PICKER, false)
         )
 
     /**
@@ -1997,20 +1465,20 @@ object Preferences {
         return if (contains(key)) {
             getBoolean(key, false)
         } else {
-            getBoolean(KEY_HIDE_FINGERPRINT, false)
+            getBoolean(SystemUiSettingsKeys.KEY_HIDE_FINGERPRINT, false)
         }
     }
 
     /** Reads the independent always-on-display fingerprint switch. */
     fun hideFingerprintAodEnabled(): Boolean =
-        getFingerprintHideScope(KEY_HIDE_FINGERPRINT_AOD)
+        getFingerprintHideScope(SystemUiSettingsKeys.KEY_HIDE_FINGERPRINT_AOD)
 
     /** Reads the independent interactive-lockscreen fingerprint switch. */
     fun hideFingerprintLockscreenEnabled(): Boolean =
-        getFingerprintHideScope(KEY_HIDE_FINGERPRINT_LOCKSCREEN)
+        getFingerprintHideScope(SystemUiSettingsKeys.KEY_HIDE_FINGERPRINT_LOCKSCREEN)
 
     fun hideFingerprintAppAuthEnabled(): Boolean =
-        getFingerprintHideScope(KEY_HIDE_FINGERPRINT_APP_AUTH)
+        getFingerprintHideScope(SystemUiSettingsKeys.KEY_HIDE_FINGERPRINT_APP_AUTH)
 
     fun getInt(key: String, default: Int = 0): Int {
         if (RuntimeSettingsStore.owns(key)) return (RuntimeSettingsStore.value(key) as? Int) ?: default
@@ -2060,18 +1528,18 @@ object Preferences {
         return value
     }
 
-    fun getNotificationHeaderTimeScale(): Float = getFloat(KEY_NOTIFICATION_HEADER_TIME_SCALE, 1f)
+    fun getNotificationHeaderTimeScale(): Float = getFloat(SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_TIME_SCALE, 1f)
 
     fun putBoolean(key: String, value: Boolean) {
         memoInvalidate(key)
-        write(nativeMutation = if (key == KEY_HIDE_RECENTS_CLEAR_BUTTON || key == KEY_CONTEXTUAL_SEARCH_LONG_PRESS || key == KEY_ALLOW_ANDROID_WIDGETS_TO_ASSISTANT || key == KEY_RECENTS_CARD_HAPTIC || key == KEY_FOLDER_STACK_PREVIEW || key == KEY_ANDROID_WIDGET_STACK || key == KEY_XIAOAI_GESTURE_OPTIONS) key to value else null,
+        write(nativeMutation = if (key == PlatformSettingsKeys.KEY_HIDE_RECENTS_CLEAR_BUTTON || key == PlatformSettingsKeys.KEY_CONTEXTUAL_SEARCH_LONG_PRESS || key == PlatformSettingsKeys.KEY_ALLOW_ANDROID_WIDGETS_TO_ASSISTANT || key == PlatformSettingsKeys.KEY_RECENTS_CARD_HAPTIC || key == PlatformSettingsKeys.KEY_FOLDER_STACK_PREVIEW || key == PlatformSettingsKeys.KEY_ANDROID_WIDGET_STACK || key == PlatformSettingsKeys.KEY_XIAOAI_GESTURE_OPTIONS) key to value else null,
             runtimeMutation = if (RuntimeSettingsSnapshot.owns(key)) key to value else null) { putBoolean(key, value) }
     }
 
     /** Publish a dropdown selection as one acknowledged snapshot, without intermediate styles. */
     fun putBackGestureAppearance(values: Map<String, Boolean>) {
-        val allowed = setOf(KEY_BACK_GESTURE_HYPEROS_INDICATOR, KEY_BACK_GESTURE_INDICATOR_BLUR,
-            KEY_BACK_GESTURE_HYPEROS_HAPTICS, KEY_BACK_GESTURE_HAPTICS_DISABLED)
+        val allowed = setOf(BackGestureKeys.KEY_BACK_GESTURE_HYPEROS_INDICATOR, BackGestureKeys.KEY_BACK_GESTURE_INDICATOR_BLUR,
+            BackGestureKeys.KEY_BACK_GESTURE_HYPEROS_HAPTICS, BackGestureKeys.KEY_BACK_GESTURE_HAPTICS_DISABLED)
         require(values.isNotEmpty() && values.keys.all { it in allowed })
         val changes = values.toMap()
         changes.keys.forEach(::memoInvalidate)
@@ -2082,7 +1550,7 @@ object Preferences {
 
     fun putInt(key: String, value: Int) {
         memoInvalidate(key)
-        write(nativeMutation = if (key == KEY_OPENED_FOLDER_COLUMNS) key to value else null,
+        write(nativeMutation = if (key == PlatformSettingsKeys.KEY_OPENED_FOLDER_COLUMNS) key to value else null,
             runtimeMutation = if (RuntimeSettingsSnapshot.owns(key)) key to value else null) { putInt(key, value) }
     }
 
@@ -2157,8 +1625,8 @@ object Preferences {
 
     /** Atomically commits the complete Dock configuration; only an acknowledgement updates the mirror. */
     fun commitDockBackground(value: String): Boolean {
-        if (com.takekazex.hypertweak.dock.DockConfig.decode(value) == null || !isInitialized) return false
-        val key = com.takekazex.hypertweak.dock.DockConfig.KEY
+        if (com.takekazex.hypertweak.settings.contract.DockConfig.decode(value) == null || !isInitialized) return false
+        val key = com.takekazex.hypertweak.settings.contract.DockConfig.KEY
         fun commit(): Boolean = synchronized(settingsMutationLock) {
             val previousRuntime = if (isLocalOnly) null else RuntimeSettingsSignal.lastAcknowledged()
             val previous = if (previousRuntime != null) previousRuntime.values[key] as? String else remotePrefs.getString(key, null)
@@ -2176,7 +1644,7 @@ object Preferences {
                     localSourcePrefs?.takeIf { it !== remotePrefs }?.edit(commit = true) { putString(key, value) }
                     if (runtime != null) RuntimeSettingsSignal.acknowledge(runtime)
                     memoInvalidate(key)
-                    DebugLog.i("DockBackground", "settings committed $value")
+                    SettingsDiagnostics.i("DockBackground", "settings committed $value")
                     true
                 }
             } catch (error: Exception) {
@@ -2185,14 +1653,14 @@ object Preferences {
                     if (previous == null) restore.remove(key) else restore.putString(key, previous)
                     previousRuntime?.let { RuntimeSettingsSignal.write(restore, it) }
                     check(restore.commit()) { "Dock settings rollback rejected" }
-                }.onFailure { DebugLog.w("DockBackground", "settings rollback failed", it) }
-                DebugLog.w("DockBackground", "settings commit failed", error)
+                }.onFailure { SettingsDiagnostics.w("DockBackground", "settings rollback failed", it) }
+                SettingsDiagnostics.w("DockBackground", "settings commit failed", error)
                 false
             }
         }
         return if (isLocalOnly || localSourcePrefs === remotePrefs) commit()
         else runCatching { serializedWriter.submit<Boolean> { commit() }.get() }
-            .onFailure { DebugLog.w("DockBackground", "settings acknowledgement failed", it) }.getOrDefault(false)
+            .onFailure { SettingsDiagnostics.w("DockBackground", "settings acknowledgement failed", it) }.getOrDefault(false)
     }
 
     /**
@@ -2215,7 +1683,7 @@ object Preferences {
                 val committed = editor.commit()
                 if (committed && runtime != null && RuntimeSettingsSnapshot.owns(key)) RuntimeSettingsSignal.acknowledge(runtime)
             }.onFailure { t ->
-                DebugLog.w("Preferences", "synchronous remote pref write failed", t)
+                SettingsDiagnostics.w("Preferences", "synchronous remote pref write failed", t)
             }
         }
         runCatching { task.get(3, TimeUnit.SECONDS) }
@@ -2227,7 +1695,7 @@ object Preferences {
     fun appendDebugLogs(processTag: String, lines: List<String>) {
         synchronized(logLock) {
             val local = localSourcePrefs ?: return
-            if (lines.isEmpty() || !getBoolean(KEY_RECORD_LOGS, true)) return
+            if (lines.isEmpty() || !getBoolean(PlatformSettingsKeys.KEY_RECORD_LOGS, true)) return
             val key = debugLogKeyFor(processTag)
             val old = local.getString(key, "").orEmpty()
             val appended = lines.joinToString("\n")

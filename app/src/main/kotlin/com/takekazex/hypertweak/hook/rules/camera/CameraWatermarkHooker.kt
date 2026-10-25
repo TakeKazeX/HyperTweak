@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.camera
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+
 import com.takekazex.hypertweak.hook.base.dex.DexOperandIndex
 import android.content.Context
 import android.content.res.AssetManager
@@ -51,7 +53,7 @@ object CameraWatermarkHooker : StaticHooker() {
         invoke.hook("wm_debug_flag") {
             after { param ->
                 runCatching {
-                    if (Preferences.getBoolean(Preferences.KEY_WM_CAMERA, false)) {
+                    if (Preferences.getBoolean(PlatformSettingsKeys.KEY_WM_CAMERA, false)) {
                         param.result = true
                     }
                 }.onFailure { t ->
@@ -121,7 +123,7 @@ object CameraWatermarkHooker : StaticHooker() {
         deoptimize(wrapper)
         wrapper.hook("wm_cloud_catalog_capabilities") {
             before { param ->
-                if (!Preferences.getBoolean(Preferences.KEY_WM_CAMERA, false)) return@before
+                if (!Preferences.getBoolean(PlatformSettingsKeys.KEY_WM_CAMERA, false)) return@before
                 param.args[2] = true
                 param.args[3] = true
             }
@@ -139,7 +141,7 @@ object CameraWatermarkHooker : StaticHooker() {
         method.hook("wm_filter_data") {
             before { param ->
                 runCatching {
-                    if (Preferences.getBoolean(Preferences.KEY_WM_CAMERA, false)) {
+                    if (Preferences.getBoolean(PlatformSettingsKeys.KEY_WM_CAMERA, false)) {
                         // For a Unit method, null is the short-circuit result used by EzHookTool.
                         param.result = null
                     }
@@ -165,7 +167,7 @@ object CameraWatermarkHooker : StaticHooker() {
         scan.hook("wm_leica_resource_hydration") {
             before { param ->
                 runCatching {
-                    if (!Preferences.getBoolean(Preferences.KEY_WM_CAMERA, false)) return@runCatching
+                    if (!Preferences.getBoolean(PlatformSettingsKeys.KEY_WM_CAMERA, false)) return@runCatching
                     val context = cameraContext(ctx.classLoader) ?: return@runCatching
                     val root = workingPath.invoke(param.thisObject) as? Path ?: return@runCatching
                     val copied = copyMissingLeicaAssets(context, root.toFile())
@@ -246,7 +248,7 @@ object CameraWatermarkHooker : StaticHooker() {
         deoptimize(xMethod)
         xMethod.hook("wm_device_logo") {
             after { param ->
-                if (!Preferences.getBoolean(Preferences.KEY_WM_CAMERA, false)) return@after
+                if (!Preferences.getBoolean(PlatformSettingsKeys.KEY_WM_CAMERA, false)) return@after
                 val logo = param.result as? String
                 if (logo.isNullOrEmpty()) {
                     // Custom brand honoured here too (shared resolution with the impersonation

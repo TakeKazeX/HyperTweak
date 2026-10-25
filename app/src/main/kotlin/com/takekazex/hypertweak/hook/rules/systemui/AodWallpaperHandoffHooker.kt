@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui
 
+import com.takekazex.hypertweak.settings.contract.AodSettingsKeys
+
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
@@ -49,7 +51,7 @@ object AodWallpaperHandoffHooker : StaticHooker() {
         deoptimize(update)
         sleep.hook {
             before {
-                if (!Preferences.getBoolean(Preferences.KEY_AOD_FULLSCREEN, false)) return@before
+                if (!Preferences.getBoolean(AodSettingsKeys.KEY_AOD_FULLSCREEN, false)) return@before
                 val stack = calls.get() ?: mutableListOf<SleepCall>().also(calls::set)
                 stack.add(SleepCall())
             }

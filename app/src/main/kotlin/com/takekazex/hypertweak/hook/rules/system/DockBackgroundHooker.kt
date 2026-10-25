@@ -17,8 +17,8 @@ import android.os.PowerManager
 import android.os.SystemClock
 import android.view.SurfaceControlViewHost
 import android.view.WindowManager
-import com.takekazex.hypertweak.dock.DockConfig
-import com.takekazex.hypertweak.dock.DockGeometry
+import com.takekazex.hypertweak.settings.contract.DockConfig
+import com.takekazex.hypertweak.settings.contract.DockGeometry
 import com.takekazex.hypertweak.dock.DockReflection
 import com.takekazex.hypertweak.dock.DockRecoveryPolicy
 import com.takekazex.hypertweak.dock.DockPresentationPolicy
@@ -119,13 +119,13 @@ object DockBackgroundHooker : StaticHooker() {
         offerChannel()
     }
     private data class Entry(val id: String, val parent: Any, val effect: Any, val key: String,
-        var materialKey: com.takekazex.hypertweak.dock.DockMaterialKey,
+        var materialKey: com.takekazex.hypertweak.settings.contract.DockMaterialKey,
         var materialRevision: Long = 0,
         val owner: IBinder = Binder(), var parcel: SurfaceControlViewHost.SurfacePackage? = null,
         var renderer: IBinder? = null, var death: IBinder.DeathRecipient? = null,
         var captureStarted: Boolean = false, var ready: Boolean = false, var probePending: Boolean = false, var attempts: Int = 0,
         var probeAllowed: Boolean = false, var applied: String? = null,
-        var bounds: com.takekazex.hypertweak.dock.DockBounds? = null, var frame: Rect = Rect(), var density: Float = 1f,
+        var bounds: com.takekazex.hypertweak.settings.contract.DockBounds? = null, var frame: Rect = Rect(), var density: Float = 1f,
         var surfaceVisible: Boolean = false, val lease: Long = 0L)
 
     override fun onHook() {
