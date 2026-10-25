@@ -3,7 +3,6 @@ package com.takekazex.hypertweak.ui.app
 import android.content.Context
 import androidx.compose.runtime.*
 import androidx.core.content.edit
-import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.settings.contract.AppSettingsKeys
 import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
@@ -223,16 +222,16 @@ internal class AppRestartTracker(context: Context, private val values: AppSettin
             // two surfaces become independent, so changing only one still requests a
             // restart (including when the value comes from the legacy aggregate key).
             when (key) {
-                SystemUiSettingsKeys.KEY_HIDE_FINGERPRINT_AOD -> Preferences.hideFingerprintAodEnabled()
-                else -> Preferences.hideFingerprintLockscreenEnabled()
+                SystemUiSettingsKeys.KEY_HIDE_FINGERPRINT_AOD -> values.storage.hideFingerprintAodEnabled()
+                else -> values.storage.hideFingerprintLockscreenEnabled()
             }
         } else if (localPrefs.contains(baselineKey)) {
             localPrefs.getBoolean(baselineKey, value)
         } else {
             when (key) {
-                SystemUiSettingsKeys.KEY_HIDE_FINGERPRINT_AOD -> Preferences.hideFingerprintAodEnabled()
-                SystemUiSettingsKeys.KEY_HIDE_FINGERPRINT_LOCKSCREEN -> Preferences.hideFingerprintLockscreenEnabled()
-                else -> Preferences.getBoolean(key, defaultValue)
+                SystemUiSettingsKeys.KEY_HIDE_FINGERPRINT_AOD -> values.storage.hideFingerprintAodEnabled()
+                SystemUiSettingsKeys.KEY_HIDE_FINGERPRINT_LOCKSCREEN -> values.storage.hideFingerprintLockscreenEnabled()
+                else -> values.storage.getBoolean(key, defaultValue)
             }
         }
         val nextDirtyKeys = if (value == baseline) {
@@ -271,7 +270,7 @@ internal class AppRestartTracker(context: Context, private val values: AppSettin
         val baseline = if (localPrefs.contains(baselineKey)) {
             localPrefs.getInt(baselineKey, value)
         } else {
-            Preferences.getInt(key, value)
+            values.storage.getInt(key, value)
         }
         val nextDirtyKeys = if (value == baseline) {
             dirtyTweakKeys - key

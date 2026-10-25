@@ -6,10 +6,10 @@ import com.takekazex.hypertweak.hook.rules.systemui.island.model.IslandSession
 import com.takekazex.hypertweak.util.DebugLog
 
 /** DUMP-triggered geometry sampling; never mutates session state. */
-internal class DiagnosticsCoordinator(private val runtime: IslandRuntime) {
+internal class DiagnosticsCoordinator(private val runtime: IslandSessionState) : DiagnosticsActions {
     private var diagnostics: IslandGeometryDiagnostics? = null
 
-    fun register(session: IslandSession) {
+    override fun register(session: IslandSession) {
         val window = runtime.host.windowOf(session.owner) as? View ?: return
         if (diagnostics != null) return
         diagnostics = IslandGeometryDiagnostics(window.context, runtime.main) {
@@ -37,7 +37,7 @@ internal class DiagnosticsCoordinator(private val runtime: IslandRuntime) {
         }
     }
 
-    fun retire() {
+    override fun retire() {
         diagnostics?.retire()
         diagnostics = null
     }

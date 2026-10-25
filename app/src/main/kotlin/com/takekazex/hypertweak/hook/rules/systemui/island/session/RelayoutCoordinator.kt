@@ -9,10 +9,10 @@ import com.takekazex.hypertweak.hook.rules.systemui.island.template.IslandRelayo
 import com.takekazex.hypertweak.util.DebugLog
 
 /** Pre-draw relayout: settle once with the new view tree, then publish on the host's path. */
-internal class RelayoutCoordinator(private val runtime: IslandRuntime) {
+internal class RelayoutCoordinator(private val runtime: IslandSessionState) : RelayoutActions {
     private val host get() = runtime.host
 
-    fun prepare(session: IslandSession) {
+    override fun prepare(session: IslandSession) {
         val tx = SchedulingTransaction(
             session,
             runtime.summaries(session),
@@ -30,7 +30,7 @@ internal class RelayoutCoordinator(private val runtime: IslandRuntime) {
         }
     }
 
-    fun publish(session: IslandSession) {
+    override fun publish(session: IslandSession) {
         val visible = runtime.summaries(session)
         val windowState = visible.firstOrNull()?.let(host::windowState)
         if (windowState == null) {
@@ -53,7 +53,7 @@ internal class RelayoutCoordinator(private val runtime: IslandRuntime) {
         DebugLog.i(TAG, "frame relayout published summaries=${visible.size}")
     }
 
-    fun request(session: IslandSession) {
+    override fun request(session: IslandSession) {
         if (runtime.retiring()) return
         val window = host.windowOf(session.owner) as? View ?: return
         runtime.diagnostics.register(session)

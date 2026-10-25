@@ -80,6 +80,11 @@ object LeftContainerHooker : StaticHooker() {
         override fun slotOf(view: View) = LeftContainerHooker.slotOf(view)
     })
     private val cloner = LeftIconCloner(this)
+    private val presentation = LeftPresentation(object : LeftPresentation.Host {
+        override val activeSlots get() = LeftContainerHooker.activeSlots
+        override fun cancelSlot(slot: String) = handover.cancelSlot(slot)
+        override fun slotOf(view: View) = LeftContainerHooker.slotOf(view)
+    }, cloner)
     override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
 
     @Volatile private var retiring = false
@@ -187,37 +192,6 @@ object LeftContainerHooker : StaticHooker() {
 
     /** Home DarkIconManager -> bookkeeping. Weak so stale managers vanish. */
     private val states = WeakHashMap<Any, LeftState>()
-
-    private class LeftState(
-        val leftHost: ViewGroup,
-        val clock: View,
-        val rightContainer: ViewGroup,
-        val manager: Any,
-        val isKeyguard: Boolean = false,
-        /**
-         * The status-bar view that owns this row's dependency object (`mDependence`), which is where
-         * the island and shade controllers hang. Not [leftHost]: that is a plain container.
-         */
-        val barRoot: View? = null
-    ) {
-        var leftContainer: LinearLayout? = null
-        /** slot -> clone view (our own, sized from the system view of the same slot). */
-        val clones = HashMap<String, View>()
-        /** Slots with a valid clone; only these may be hidden in the right cluster. */
-        var migratedSlots: Set<String> = emptySet()
-        /** Original keyguard clock/alarm placement, used to restore the host tree exactly. */
-        val anchorEntries = ArrayList<AnchorEntry>()
-        var anchorWrapper: LinearLayout? = null
-        var islandShowing: Boolean = false
-        var islandHandler: Any? = null
-    }
-
-    private data class AnchorEntry(
-        val view: View,
-        val parent: ViewGroup,
-        val index: Int,
-        val layoutParams: ViewGroup.LayoutParams?
-    )
 
     private fun masterEnabled(): Boolean = leftMode != IconTunerContract.LEFT_MODE_DISABLED
 
@@ -396,7 +370,7 @@ object LeftContainerHooker : StaticHooker() {
         onMainBlocking {
             handover.restoreHandover()
             shadeSwitchSettledToControlCenter = false
-            states.values.forEach(::teardownState)
+            states.values.forEach(presentation::teardownState)
             states.clear()
             ccRows.clear()
             resetReflectionCaches()
@@ -805,7 +779,7 @@ object LeftContainerHooker : StaticHooker() {
             val existing = states[manager]
             if (existing != null && existing.leftHost === leftFrame && existing.isKeyguard) return
             existing?.let {
-                teardownState(it)
+                presentation.teardownState(it)
                 states.remove(manager)
             }
             val state = LeftState(leftFrame, clock, right, manager, isKeyguard = true, barRoot = view)
@@ -829,7 +803,7 @@ object LeftContainerHooker : StaticHooker() {
         val manager = hierarchyField(view.javaClass, "mTintedIconManager")?.get(view) ?: return
         val state = synchronized(states) { states.remove(manager) } ?: return
         runOnMain {
-            teardownState(state)
+            presentation.teardownState(state)
             publishOwnedChange()
             // No clones left: hand the control-center copies back instead of leaving them parked.
             handover.applyHandoverGuarded(panelProgress)
@@ -841,7 +815,7 @@ object LeftContainerHooker : StaticHooker() {
         val manager = hierarchyField(view.javaClass, "mDarkIconManager")?.get(view) ?: return
         val state = synchronized(states) { states[manager] } ?: return
         runOnMain {
-            teardownState(state)
+            presentation.teardownState(state)
             publishOwnedChange()
             handover.applyHandoverGuarded(panelProgress)
         }
@@ -962,15 +936,15 @@ object LeftContainerHooker : StaticHooker() {
         synchronized(states) {
             states.values.forEach { state ->
                 if (shouldRender(state)) {
-                    syncClones(state)
+                    presentation.syncClones(state)
                 } else {
                     if (active && !state.isKeyguard && keyguardShowing()) {
                         state.leftContainer?.visibility = View.GONE
                     } else if (!active && state.leftHost.isShown) {
                         state.clones.values.forEach { cloner.animateCloneVisibility(it, false) }
-                        if (state.clones.values.none { cloner.isAnimating(it) }) teardownState(state)
+                        if (state.clones.values.none { cloner.isAnimating(it) }) presentation.teardownState(state)
                     } else {
-                        teardownState(state)
+                        presentation.teardownState(state)
                     }
                 }
             }
@@ -1046,99 +1020,6 @@ object LeftContainerHooker : StaticHooker() {
         reconcileAll()
     }
 
-    private fun ensureContainer(state: LeftState): LinearLayout? {
-        state.leftContainer?.let { return it }
-        if (state.isKeyguard) ensureKeyguardAnchorWrapper(state) ?: return null
-        val left = LinearLayout(state.leftHost.context)
-        left.orientation = LinearLayout.HORIZONTAL
-        // The container's OWN gravity aligns its children vertically. This must be
-        // CENTER_VERTICAL: LinearLayout defaults to TOP, which hugged the icon clones
-        // against the top of the full-height container — the "被抬高" (raised) look.
-        // (`layoutParams.gravity` below is only how the HOST positions this container,
-        // and is irrelevant because the container already fills the host height.)
-        left.gravity = android.view.Gravity.CENTER_VERTICAL
-        left.clipChildren = false
-        left.clipToPadding = false
-        left.layoutParams = LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.WRAP_CONTENT,
-            LinearLayout.LayoutParams.MATCH_PARENT
-        )
-        left.tag = CONTAINER_TAG
-        left.visibility = if (state.islandShowing) View.GONE else View.VISIBLE
-        val parent = if (state.isKeyguard) state.anchorWrapper else state.leftHost
-        val index = if (state.isKeyguard) {
-            parent?.childCount ?: return null
-        } else {
-            state.leftHost.indexOfChild(state.clock) + 1
-        }
-        parent?.addView(left, index)
-        state.leftContainer = left
-        DebugLog.i(TAG, "LeftContainer attached")
-        return left
-    }
-
-    /**
-     * The lockscreen's clock and alarm are FrameLayout children, not a horizontal status-bar
-     * container. Keep their original parent/index/layout params and wrap only those host views,
-     * then append the module clone container after them.
-     */
-    private fun ensureKeyguardAnchorWrapper(state: LeftState): LinearLayout? {
-        state.anchorWrapper?.let { return it }
-        val entries = state.anchorEntries
-        if (entries.isEmpty() || entries.any { it.view.parent !== it.parent }) return null
-        val parent = entries.first().parent
-        val insertAt = entries.minOf { it.index }.coerceIn(0, parent.childCount)
-        val wrapper = LinearLayout(parent.context).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = android.view.Gravity.CENTER_VERTICAL
-            layoutDirection = View.LAYOUT_DIRECTION_INHERIT
-            clipChildren = false
-            clipToPadding = false
-            tag = WRAPPER_TAG
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.MATCH_PARENT
-            )
-        }
-        entries.sortedBy { it.index }.forEach { entry ->
-            parent.removeView(entry.view)
-        }
-        parent.addView(wrapper, insertAt)
-        entries.sortedBy { it.index }.forEach { entry ->
-            wrapper.addView(entry.view, entry.layoutParams)
-        }
-        state.anchorWrapper = wrapper
-        return wrapper
-    }
-
-    private fun teardownState(state: LeftState) {
-        removeClones(state)
-        state.leftContainer?.let { left ->
-            runCatching { (left.parent as? ViewGroup)?.removeView(left) }
-            state.leftContainer = null
-        }
-        state.clones.clear()
-        state.migratedSlots = emptySet()
-        restoreKeyguardAnchors(state)
-    }
-
-    private fun restoreKeyguardAnchors(state: LeftState) {
-        val wrapper = state.anchorWrapper ?: return
-        val parent = state.anchorEntries.firstOrNull()?.parent ?: return
-        runCatching {
-            state.anchorEntries.forEach { entry ->
-                if (entry.view.parent === wrapper) wrapper.removeView(entry.view)
-            }
-            if (wrapper.parent === parent) parent.removeView(wrapper)
-            state.anchorEntries.sortedBy { it.index }.forEach { entry ->
-                if (entry.view.parent == null) {
-                    parent.addView(entry.view, entry.index.coerceIn(0, parent.childCount), entry.layoutParams)
-                }
-            }
-        }.onFailure { DebugLog.w(TAG, "failed to restore keyguard clock/alarm placement", it) }
-        state.anchorWrapper = null
-    }
-
     // ─── Right-cluster block list ────────────────────────────────────────────────
 
     /**
@@ -1169,104 +1050,12 @@ object LeftContainerHooker : StaticHooker() {
         }
         runCatching {
             synchronized(states) {
-                syncClones(state)
+                presentation.syncClones(state)
             }
             // A new clone needs its control-center copy parked before the next drag frame.
             handover.applyHandoverGuarded(panelProgress)
         }
             .onFailure { t -> DebugLog.w(TAG, "LeftContainer sync failed", t) }
-    }
-
-    /** Idempotent: sees the current right-cluster children and mirrors them into the left. */
-    private fun syncClones(state: LeftState) {
-        val right = state.rightContainer
-        val duoOwnsAirplane = SignalHandoverEvents.shade.ownsAirplane(right)
-        val slots = if (duoOwnsAirplane) activeSlots - "airplane" else activeSlots
-        // 1. Drop clones whose slot is no longer selected or has no live view on the right.
-        val it = state.clones.entries.iterator()
-        while (it.hasNext()) {
-            val (slot, clone) = it.next()
-            val child = rightChildForSlot(state, slot)
-            if (slot !in slots || child == null) {
-                if (slot == "airplane" && duoOwnsAirplane) {
-                    cloner.cancel(clone)
-                    handover.cancelSlot(slot)
-                } else {
-                    cloner.animateCloneVisibility(clone, false)
-                    if (cloner.isAnimating(clone)) continue
-                }
-                it.remove()
-                runCatching { (clone.parent as? ViewGroup)?.removeView(clone) }
-                cloner.forget(clone)
-                cloner.unregisterDarkReceiver(state.manager, clone)
-            }
-        }
-
-        // 2. Create / refresh clones in right-container order.
-        var targetIndex = 0
-        for (i in 0 until right.childCount) {
-            val child = right.getChildAt(i)
-            if (child == null) continue
-            val slot = slotOf(child) ?: continue
-            if (slot !in slots) continue
-            val existing = state.clones[slot]
-            val clone = existing ?: createClone(state, child, slot) ?: continue
-            if (!cloner.updateClone(clone, child)) {
-                state.clones.remove(slot)
-                runCatching { (clone.parent as? ViewGroup)?.removeView(clone) }
-                cloner.forget(clone)
-                cloner.unregisterDarkReceiver(state.manager, clone)
-                continue
-            }
-            if (existing == null) {
-                state.clones[slot] = clone
-                cloner.registerDarkReceiver(state.manager, clone)
-            }
-            val container = state.leftContainer ?: continue
-            if (container.indexOfChild(clone) != targetIndex) {
-                container.removeView(clone)
-                container.addView(clone, targetIndex.coerceAtMost(container.childCount))
-            }
-            targetIndex++
-        }
-        if (state.clones.isEmpty()) {
-            // Do not leave an empty marked container (or a keyguard anchor wrapper) behind while
-            // the source icon is still unavailable. The next host icon event can retry cleanly.
-            teardownState(state)
-            return
-        }
-        state.migratedSlots = state.clones.keys.toSet()
-        // Home is intentionally hidden while the keyguard owns the status bar. A normal unlock
-        // reaches this path with the same state and clones, so restore the container explicitly;
-        // otherwise the clones remain permanently GONE until SystemUI is recreated.
-        state.leftContainer?.let { left ->
-            left.visibility = if (state.islandShowing) View.GONE else View.VISIBLE
-        }
-    }
-
-    private fun createClone(state: LeftState, child: View, slot: String): View? {
-        val clone = cloner.createClone(state.leftHost.context, slot) ?: return null
-        val container = ensureContainer(state) ?: return null
-        container.addView(clone)
-        return clone
-    }
-
-    private fun rightChildForSlot(state: LeftState, slot: String): View? {
-        val right = state.rightContainer
-        for (i in 0 until right.childCount) {
-            val child = right.getChildAt(i)
-            if (slotOf(child) == slot) return child
-        }
-        return null
-    }
-
-    private fun removeClones(state: LeftState) {
-        state.clones.values.forEach { clone ->
-            runCatching { (clone.parent as? ViewGroup)?.removeView(clone) }
-            cloner.forget(clone)
-            cloner.unregisterDarkReceiver(state.manager, clone)
-        }
-        state.clones.clear()
     }
 
     // ─── Dark tint ───────────────────────────────────────────────────────────────
@@ -1308,6 +1097,4 @@ object LeftContainerHooker : StaticHooker() {
     private fun hierarchyField(clazz: Class<*>, name: String): Field? = HostAccess.field(clazz, name)
 
     /** Marker on our own left container so teardown never touches system views. */
-    private const val CONTAINER_TAG = "hypertweak_left_container"
-    private const val WRAPPER_TAG = "hypertweak_keyguard_left_wrapper"
 }

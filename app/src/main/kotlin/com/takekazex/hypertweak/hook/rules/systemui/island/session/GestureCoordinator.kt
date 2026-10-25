@@ -7,10 +7,10 @@ import com.takekazex.hypertweak.hook.rules.systemui.island.policy.SummaryIslandS
 import com.takekazex.hypertweak.util.DebugLog
 
 /** Window touch routing, click ownership and one-summary carousel gestures. */
-internal class GestureCoordinator(private val runtime: IslandRuntime) {
+internal class GestureCoordinator(private val runtime: IslandSessionState) : GestureActions {
     private val host get() = runtime.host
 
-    fun routeWindowTouch(session: IslandSession, touch: TouchInput) {
+    override fun routeWindowTouch(session: IslandSession, touch: TouchInput) {
         if (!runtime.enabled(session)) return
         if (touch.action == TouchInput.CANCEL) session.interaction.gesture.cancel()
         if (touch.action != TouchInput.DOWN) return
@@ -41,12 +41,12 @@ internal class GestureCoordinator(private val runtime: IslandRuntime) {
         }
     }
 
-    fun claimNativeClick(session: IslandSession, view: Any) {
+    override fun claimNativeClick(session: IslandSession, view: Any) {
         runtime.settlement.claimSmall(session, view)
     }
 
     /** Returns true when the native click result must be consumed. */
-    fun performClick(session: IslandSession): Boolean {
+    override fun performClick(session: IslandSession): Boolean {
         val clickKey = session.interaction.gesture.clickKey ?: return false
         if (!runtime.enabled(session) || session.scene.layout == null) return false
         val owner = session.owner
@@ -62,18 +62,18 @@ internal class GestureCoordinator(private val runtime: IslandRuntime) {
         return true
     }
 
-    fun shouldBlockCollapse(session: IslandSession, reason: String): Boolean {
+    override fun shouldBlockCollapse(session: IslandSession, reason: String): Boolean {
         if (!reason.startsWith("swipe")) return false
         if (!runtime.enabled(session) || session.scene.layout == null) return false
         val current = host.current(session.owner, IslandSlot.EXPANDED)?.let(runtime::key)
         return !session.interaction.gesture.mayCollapse(current)
     }
 
-    fun shouldCaptureSwipe(session: IslandSession): Boolean =
+    override fun shouldCaptureSwipe(session: IslandSession): Boolean =
         runtime.enabled(session) && session.scene.layout != null &&
             session.interaction.gesture.expandedKey != null
 
-    fun handleAppEvent(session: IslandSession, visible: List<Any>, event: Any): Boolean {
+    override fun handleAppEvent(session: IslandSession, visible: List<Any>, event: Any): Boolean {
         val reveal = when {
             host.isSwipeRight(event) -> true
             host.isSwipeLeft(event) -> false
@@ -100,7 +100,7 @@ internal class GestureCoordinator(private val runtime: IslandRuntime) {
         return true
     }
 
-    fun handleSwipe(session: IslandSession, x: Float, y: Float): Boolean {
+    override fun handleSwipe(session: IslandSession, x: Float, y: Float): Boolean {
         if (session.interaction.summaryTracking == null && (x != 0f || y != 0f)) {
             session.interaction.summaryTracking = kotlin.math.abs(x) > kotlin.math.abs(y)
         }
@@ -130,7 +130,7 @@ internal class GestureCoordinator(private val runtime: IslandRuntime) {
         return true
     }
 
-    fun resetSwipe(session: IslandSession): Boolean {
+    override fun resetSwipe(session: IslandSession): Boolean {
         if (session.interaction.summaryTracking != true) return false
         if (!runtime.summarySwipeEnabled(session) || session.interaction.gesture.expandedKey != null) {
             return false

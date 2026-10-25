@@ -23,10 +23,10 @@ import com.takekazex.hypertweak.util.DebugLog
  * Owns side-media admission and the lyric guard. Every failure here is soft: the native cover
  * and the scheduler's real task seats must remain untouched.
  */
-internal class SpectrumCoordinator(private val runtime: IslandRuntime) {
+internal class SpectrumCoordinator(private val runtime: IslandSessionState) : SpectrumActions {
     private val host get() = runtime.host
 
-    fun afterMeasure(
+    override fun afterMeasure(
         session: IslandSession,
         outcome: MeasurementOutcome,
         scene: IslandScene,
@@ -117,14 +117,14 @@ internal class SpectrumCoordinator(private val runtime: IslandRuntime) {
         )
     }
 
-    fun returningFrame(session: IslandSession, view: Any, x: Int): FullIslandFrame? {
+    override fun returningFrame(session: IslandSession, view: Any, x: Int): FullIslandFrame? {
         if (!returnEnabled(session) || view in runtime.summaries(session)) return null
         val geometry = session.spectrum.returnGeometry?.takeIf { it.key == runtime.key(view) } ?: return null
         return geometry.target(x, host.nativeSmallWidth(view))
     }
 
     /** Rebase a saved side plan against the native query's future main task, not today's BIG music. */
-    fun planReturn(session: IslandSession, view: Any, main: Any): MediaReturnTarget? {
+    override fun planReturn(session: IslandSession, view: Any, main: Any): MediaReturnTarget? {
         if (!returnEnabled(session)) return null
         val previous = session.spectrum.returnGeometry?.takeIf { it.key == host.key(view) } ?: return null
         val left = previous.seatLeft ?: return null
@@ -153,7 +153,7 @@ internal class SpectrumCoordinator(private val runtime: IslandRuntime) {
             .also { session.spectrum.returnTarget = it }
     }
 
-    fun rewriteReturnRect(session: IslandSession, view: Any, rect: HostRect): HostRect? {
+    override fun rewriteReturnRect(session: IslandSession, view: Any, rect: HostRect): HostRect? {
         if (!returnEnabled(session)) return null
         session.spectrum.returnTarget?.takeIf {
             it.key == host.key(view) && it.frame.x == rect.left && it.frame.width == rect.width
@@ -175,28 +175,28 @@ internal class SpectrumCoordinator(private val runtime: IslandRuntime) {
             host.orientationOf(session.owner) == IslandOrientation.LANDSCAPE
 
     /** Capture only targets valid for the current mode before choosing a native renderer. */
-    fun nativeReturnTarget(session: IslandSession, view: Any): MediaReturnTarget? =
+    override fun nativeReturnTarget(session: IslandSession, view: Any): MediaReturnTarget? =
         (runtime.renderingState.returnTarget().takeIf { runtime.renderingState.get() === view }
             ?: session.spectrum.returnTarget)?.takeIf {
             returnEnabled(session) && it.key == host.key(view)
         }
 
     /** A return target is only a render projection; scheduling keeps the actual host states. */
-    fun renderingReturnTarget(session: IslandSession, view: Any): MediaReturnTarget? =
+    override fun renderingReturnTarget(session: IslandSession, view: Any): MediaReturnTarget? =
         nativeReturnTarget(session, view)?.takeIf { runtime.renderingState.get() === view }
 
-    fun renderingReturnFrame(session: IslandSession, view: Any): FullIslandFrame? =
+    override fun renderingReturnFrame(session: IslandSession, view: Any): FullIslandFrame? =
         renderingReturnTarget(session, view)?.frame
 
-    fun hasReturnTarget(session: IslandSession, view: Any): Boolean =
+    override fun hasReturnTarget(session: IslandSession, view: Any): Boolean =
         nativeReturnTarget(session, view) != null
 
-    fun cancelReturn(session: IslandSession, view: Any) {
+    override fun cancelReturn(session: IslandSession, view: Any) {
         if (session.spectrum.returnTarget?.key == host.key(view)) session.spectrum.returnTarget = null
     }
 
     /** Let all synchronous real/fake close-end callbacks finish before retiring the pin. */
-    fun completeReturn(session: IslandSession, view: Any, completed: MediaReturnTarget?) {
+    override fun completeReturn(session: IslandSession, view: Any, completed: MediaReturnTarget?) {
         val target = completed?.takeIf { it.key == host.key(view) } ?: return
         runtime.main.post {
             if (session.spectrum.returnTarget !== target) return@post
@@ -219,7 +219,7 @@ internal class SpectrumCoordinator(private val runtime: IslandRuntime) {
                 session.spectrum.returnGeometry?.key == runtime.key(view))
 
     /** Keep the real and fake summary templates guarded through app-return, not the card. */
-    fun syncLyricGuard(session: IslandSession, candidate: Any? = null) {
+    override fun syncLyricGuard(session: IslandSession, candidate: Any?) {
         runtime.boundary.soft(session, IslandFeature.SPECTRUM, "synchronize side lyric guard") {
             syncLyricGuardInternal(session, candidate)
         }
@@ -247,7 +247,7 @@ internal class SpectrumCoordinator(private val runtime: IslandRuntime) {
         session.spectrum.lyricGuard?.applyNow()
     }
 
-    fun releaseLyricGuard(session: IslandSession, view: Any? = null) {
+    override fun releaseLyricGuard(session: IslandSession, view: Any?) {
         if (view != null && session.spectrum.lyricOwner !== view) return
         session.spectrum.lyricGuard?.release()
         session.spectrum.lyricGuard = null

@@ -10,10 +10,10 @@ import com.takekazex.hypertweak.hook.rules.systemui.island.policy.SummarySwipePo
 import com.takekazex.hypertweak.util.DebugLog
 
 /** Scheduler settlement, slot leasing, summary exchange and restoration. */
-internal class SettlementCoordinator(private val runtime: IslandRuntime) {
+internal class SettlementCoordinator(private val runtime: IslandSessionState) : SettlementActions {
     private val host get() = runtime.host
 
-    fun commitSwipe(session: IslandSession, before: List<Any>, change: SummaryIslandScheduler.Change) {
+    override fun commitSwipe(session: IslandSession, before: List<Any>, change: SummaryIslandScheduler.Change) {
         val queue = host.queue(session.owner)
         val pool = (before + queue).distinct()
         val after = change.visible.map { wanted -> pool.single { runtime.key(it) == wanted } }
@@ -43,7 +43,7 @@ internal class SettlementCoordinator(private val runtime: IslandRuntime) {
         host.setCurrent(handler, queue.firstOrNull())
     }
 
-    fun selectSummaries(session: IslandSession): List<Any> {
+    override fun selectSummaries(session: IslandSession): List<Any> {
         val owner = session.owner
         val queue = host.queue(owner)
         val handler = host.handler(owner, IslandSlot.HIDDEN)!!
@@ -81,7 +81,7 @@ internal class SettlementCoordinator(private val runtime: IslandRuntime) {
         return selected.extras.map(byKey::getValue)
     }
 
-    fun claimSmall(session: IslandSession, target: Any) {
+    override fun claimSmall(session: IslandSession, target: Any) {
         if (!runtime.enabled(session) || target !in session.slot.extras) return
         val handler = host.handler(session.owner, IslandSlot.SMALL) ?: return
         val previous = host.call(handler, "getCurrent") ?: return
@@ -90,7 +90,7 @@ internal class SettlementCoordinator(private val runtime: IslandRuntime) {
         host.updateTouchRegion(session.owner)
     }
 
-    fun returnToQueue(session: IslandSession) {
+    override fun returnToQueue(session: IslandSession) {
         val extras = session.slot.extras
         if (extras.isEmpty()) return
         extras.forEach { extra ->
@@ -102,7 +102,7 @@ internal class SettlementCoordinator(private val runtime: IslandRuntime) {
         host.handler(session.owner, IslandSlot.HIDDEN)?.let { host.setCurrent(it, queue.firstOrNull()) }
     }
 
-    fun settle(tx: SchedulingTransaction) {
+    override fun settle(tx: SchedulingTransaction) {
         tx.settled = true
         val session = tx.session
         runtime.diagnostics.register(session)
@@ -208,7 +208,7 @@ internal class SettlementCoordinator(private val runtime: IslandRuntime) {
         runtime.spectrum.syncLyricGuard(session)
     }
 
-    fun restore(session: IslandSession) {
+    override fun restore(session: IslandSession) {
         runtime.spectrum.releaseLyricGuard(session)
         session.spectrum.returnGeometry = null
         session.spectrum.returnTarget = null
@@ -246,7 +246,7 @@ internal class SettlementCoordinator(private val runtime: IslandRuntime) {
         host.updateTouchRegion(session.owner)
     }
 
-    fun swipeCapacity(session: IslandSession, visible: List<Any>): Int {
+    override fun swipeCapacity(session: IslandSession, visible: List<Any>): Int {
         val flags = runtime.flags(session)
         if (!flags.landscapeMore || session.scene.fullFrames.isEmpty()) return 3
         val next = runtime.queuedSummaries(session).firstOrNull { it !in visible }

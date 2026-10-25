@@ -10,10 +10,10 @@ import com.takekazex.hypertweak.hook.rules.systemui.island.model.MeasurementRend
 import com.takekazex.hypertweak.hook.rules.systemui.island.policy.layout.IslandLayoutPolicy
 
 /** Measurement pipeline: capture the native size, plan pure geometry, lease templates, project. */
-internal class MeasurementCoordinator(private val runtime: IslandRuntime) {
+internal class MeasurementCoordinator(private val runtime: IslandSessionState) : MeasurementActions {
     private val host get() = runtime.host
 
-    fun afterMeasure(view: Any, input: Any, result: Any, helper: Any): IslandResultGeometry? {
+    override fun afterMeasure(view: Any, input: Any, result: Any, helper: Any): IslandResultGeometry? {
         val session = runtime.sessionForView(view) ?: return null
         return runtime.boundary.core(session, IslandFeature.MEASUREMENT, "measure three islands") {
             runtime.spectrum.renderingReturnFrame(session, view)?.takeIf { it.full }?.let { frame ->

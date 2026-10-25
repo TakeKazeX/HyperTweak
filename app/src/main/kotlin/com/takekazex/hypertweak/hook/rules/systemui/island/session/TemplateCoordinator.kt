@@ -9,10 +9,10 @@ import com.takekazex.hypertweak.hook.rules.systemui.island.policy.layout.Templat
 import com.takekazex.hypertweak.util.DebugLog
 
 /** Area leasing, camera-seat release and configuration rebinds. */
-internal class TemplateCoordinator(private val runtime: IslandRuntime) {
+internal class TemplateCoordinator(private val runtime: IslandSessionState) : TemplateActions {
     private val host get() = runtime.host
 
-    fun acquire(session: IslandSession, request: TemplateWidthRequest) {
+    override fun acquire(session: IslandSession, request: TemplateWidthRequest) {
         val areas = host.templateAreas(request.view)
         if (areas.isEmpty()) return
         areas.forEach { pair ->
@@ -27,7 +27,7 @@ internal class TemplateCoordinator(private val runtime: IslandRuntime) {
         }
     }
 
-    fun releaseFullPosition(session: IslandSession, view: Any) {
+    override fun releaseFullPosition(session: IslandSession, view: Any) {
         if (runtime.alignedTemplate(session, view)) return
         runtime.spectrum.syncLyricGuard(session)
         val nativeCutout = runtime.nativeCutoutRead.run { host.fixedCutoutWidth(view) }
@@ -42,7 +42,7 @@ internal class TemplateCoordinator(private val runtime: IslandRuntime) {
         }
     }
 
-    fun templateBound(view: Any, binding: Any = view) {
+    override fun templateBound(view: Any, binding: Any) {
         if (runtime.retiring()) return
         if (!runtime.isMainThread()) {
             runtime.main.post { templateBound(view, binding) }

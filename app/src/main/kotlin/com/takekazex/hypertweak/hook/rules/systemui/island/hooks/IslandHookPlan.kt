@@ -1,21 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.island.hooks
 
 import android.view.MotionEvent
-import com.takekazex.hypertweak.hook.rules.systemui.island.host.NativeIslandAccess
-import com.takekazex.hypertweak.hook.rules.systemui.island.host.NativeIslandHost
-import com.takekazex.hypertweak.hook.rules.systemui.island.host.NativeMediaRenderContract
-import com.takekazex.hypertweak.hook.rules.systemui.island.host.NativeMusicSpectrum
-import com.takekazex.hypertweak.hook.rules.systemui.island.session.IslandRuntime
-
-internal class IslandHookContext(
-    val access: NativeIslandAccess,
-    val host: NativeIslandHost,
-    val runtime: IslandRuntime,
-    val registrar: IslandHookRegistrar,
-    val spectrum: NativeMusicSpectrum?,
-    val media: NativeMediaRenderContract?,
-    val refreshSettings: () -> Unit,
-)
 
 /** Resolve and validate every target before mutating, then install in one fixed order. */
 internal class IslandHookPlan(private val context: IslandHookContext) {

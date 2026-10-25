@@ -150,6 +150,15 @@ production assembly ABI test above. Host stubs do not prove device broadcast del
 
 For changes to the actual eventfd worker or loader callbacks, also compile `app/src/test/cpp/native_rule_runtime_test.cpp` together with `native_rule_runtime.cpp` using the installed Android NDK `clang++`, `--target=aarch64-linux-android35`, `-std=c++17`, `-static-libstdc++`, the NativeRules include directory and `-Wl,--wrap=dlopen -Wl,--wrap=dlclose`. With device verification requested, run the resulting executable in `/data/local/tmp` and remove it afterward. This Bionic regression simulates LSPosed synchronous callback re-entry, rejects stale/conflicting revisions, and checks completed-worker idleness and updates arriving during preparation. A host-only scheduling test does not exercise Bionic TLS/loader behavior.
 
+For Dart publication eventfd/fork or observer-remap retirement changes, run
+`python3 app/src/test/cpp/run_dart_state_worker_test.py --android-compiler <NDK-clang++>`
+when device verification is requested. It executes the production worker and retirement
+fence on Bionic: idle sleep, failed-publication retry without another wake, owner changes
+during drain, child fd closure/reset/restart, paired Overview fencing and rejection keeping
+the gate closed. The runner removes its device executable. Linux can run the same harness
+with ASan/UBSan by omitting the compiler; macOS lacks eventfd and requires the Android path.
+Keep the broadcast publisher/transport, native rule runtime and cache/remap regressions above.
+
 For folder Dart shim/register/stack changes, compile and execute `app/src/test/cpp/folder_columns_abi_test.cpp`, `folder_columns_abi_test.S` and the actual `folder_columns_hook.S` using the same Android NDK target and static runtime. This verifies the real assembly with synthetic Dart thread/static storage, including cache changes, native-default restoration, sentinels and receiver/argument/NZCV preservation. Host hook stubs cannot establish these ABI properties; actual folder open/close, Home return and preview acceptance remain manual.
 
 Combine selected tasks in one invocation where useful; do not separately repeat compilation already covered by a selected task. Preserve the requested build channel. Use `BUILD_CHANNEL=stable` only for stable-channel builds, not every release-variant check.

@@ -6,10 +6,6 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Picture
 import android.graphics.drawable.Drawable
-import android.net.ConnectivityManager
-import android.net.Network
-import android.net.NetworkCapabilities
-import android.net.wifi.WifiManager
 import android.os.Handler
 import android.os.Looper
 import android.telephony.SubscriptionManager
@@ -24,17 +20,13 @@ import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.hook.rules.aod.AodIconSettings
 import com.takekazex.hypertweak.hook.rules.systemui.icon.ControlCenterCarrierBlockHooker
-import com.takekazex.hypertweak.hook.rules.systemui.icon.HostFlowSubscriptions
-import com.takekazex.hypertweak.hook.rules.systemui.icon.HostIconBridge
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IconPositionHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IconSvgRenderer
-import com.takekazex.hypertweak.hook.rules.systemui.icon.IconSvgRepository
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IconTunerFlows
 import com.takekazex.hypertweak.hook.rules.systemui.icon.MobileSignalState
 import com.takekazex.hypertweak.hook.rules.systemui.icon.SignalHandoverEvents
 import com.takekazex.hypertweak.settings.contract.AodSettingsKeys
 import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
-import com.takekazex.hypertweak.settings.contract.SignalSvgStyle
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 import com.takekazex.hypertweak.util.DebugLog
 import com.takekazex.hypertweak.util.PlatformLevel
@@ -49,6 +41,7 @@ import kotlin.math.roundToInt
  * module View (its children must implement the host StatusIconDisplayable interface).
  */
 object DuoSignalHooker : StaticHooker() {
+    private val signalArtwork = DuoSignalArtwork()
     private val panelHandover = DuoPanelHandover(object : DuoPanelHandover.Host {
         override val panelStretchHeight get() = DuoSignalHooker.panelStretchHeight
         override val panelProgress get() = DuoSignalHooker.panelProgress
@@ -63,7 +56,7 @@ object DuoSignalHooker : StaticHooker() {
         override fun owns(binding: DuoBinding) = bindings[binding.battery] === binding
         override fun slotIndex(subId: Int) = slotIndices[subId]
         override fun destinationSignal(context: Context, level: Int): Picture? =
-            loadCellularSignalAssets(context)?.let { IconSvgRenderer.signalPicture(it.single, listOf(level)) }
+            signalArtwork.loadCellularSignalAssets(context)?.let { IconSvgRenderer.signalPicture(it.single, listOf(level)) }
     })
     private val aodController = DuoAodController(this, object : DuoAodController.Host {
         override val enabled get() = DuoSignalHooker.enabled
@@ -84,8 +77,14 @@ object DuoSignalHooker : StaticHooker() {
     private const val CONTAINER = "com.android.systemui.statusbar.views.MiuiStatusBatteryContainer"
     private const val WIFI_VM = "com.android.systemui.statusbar.pipeline.wifi.ui.viewmodel.WifiViewModel"
     private val main = Handler(Looper.getMainLooper())
+    // Only applicationContext is retained, for restoring the host flow after a reload.
+    @android.annotation.SuppressLint("StaticFieldLeak")
+    private val networkSource = DuoNetworkSource(object : DuoNetworkSource.Host {
+        override val enabled get() = DuoSignalHooker.enabled
+        override val epoch get() = DuoSignalHooker.epoch
+        override fun refresh() = DuoSignalHooker.refresh()
+    }, main)
     private val bindings = IdentityHashMap<View, DuoBinding>()
-    private val wifiSubscriptions = HostFlowSubscriptions()
     @Volatile private var enabled = false
     @Volatile private var standardEnabled = false
     @Volatile private var epoch = 0
@@ -100,11 +99,6 @@ object DuoSignalHooker : StaticHooker() {
     @Volatile private var small5GaEnabled = false
     private var mobile = MobileSignalState()
     private var slotIndices: Map<Int, Int> = emptyMap()
-    private var network = DuoNetwork()
-    private var connectivity: ConnectivityManager? = null
-    private var callback: ConnectivityManager.NetworkCallback? = null
-    private var currentNetwork: Network? = null
-    private var networkPending: Runnable? = null
     /** Live dozing read: `MiuiFullAodManager.isDozing`, resolved once from the running host. */
     private var batteryLayoutField: Field? = null
     private var statusIconsField: Field? = null
@@ -112,17 +106,6 @@ object DuoSignalHooker : StaticHooker() {
     private var visibilityMethod: Method? = null
     private var tintMethod: Method? = null
     private var darkMethod: Method? = null
-    private var wifiScope: Any? = null
-    private var wifiInteractor: Any? = null
-    private data class CellularSignalAssets(
-        val single: IconSvgRenderer.Document,
-        val stacked: IconSvgRenderer.Document
-    )
-    private var cellularSignalAssets: CellularSignalAssets? = null
-    private val aodCellularPictures = LinkedHashMap<List<Int>, Picture>()
-    // Only applicationContext is retained, for restoring the host flow after a reload.
-    @android.annotation.SuppressLint("StaticFieldLeak")
-    private var wifiContext: Context? = null
 
     private var dataFirst = false
 
@@ -349,23 +332,8 @@ object DuoSignalHooker : StaticHooker() {
         duoView.submit(
             content,
             Preferences.getBoolean(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_SMALL_5GA, false),
-            renderAodCellularSignal(context, content)
+            signalArtwork.renderAodCellularSignal(context, content)
         )
-    }
-
-    private fun renderAodCellularSignal(context: Context, content: DuoContent): Picture? {
-        if (content.airplaneMode || content.wifiLevel != null ||
-            !content.hasCellularSignal) return null
-        val levels = content.cellularSignalLevels.take(2)
-        if (levels.isEmpty()) return null
-        val key = levels
-        synchronized(aodCellularPictures) {
-            aodCellularPictures[key]?.let { return it }
-            val picture = renderCellularSignal(context, content) ?: return null
-            if (aodCellularPictures.size >= 32) aodCellularPictures.remove(aodCellularPictures.keys.first())
-            aodCellularPictures[key] = picture
-            return picture
-        }
     }
 
     /** Reuses the existing mobile reducer; collector-only mode never masks native mobile flows. */
@@ -379,34 +347,6 @@ object DuoSignalHooker : StaticHooker() {
         slotIndices = nextSlots
         mobile = next
         refresh()
-    }
-
-    private fun loadCellularSignalAssets(context: Context): CellularSignalAssets? {
-        cellularSignalAssets?.let { return it }
-        return runCatching {
-            val moduleContext = context.createPackageContext(
-                HostIconBridge.MODULE_PACKAGE,
-                Context.CONTEXT_IGNORE_SECURITY
-            )
-            val repository = IconSvgRepository(moduleContext)
-            CellularSignalAssets(
-                single = repository.loadSignalSingle(SignalSvgStyle.HYPEROS3).getOrThrow().document,
-                stacked = repository.loadSignalStacked(SignalSvgStyle.HYPEROS3).getOrThrow().document
-            ).also { cellularSignalAssets = it }
-        }.onFailure { DebugLog.w(TAG, "cellular signal artwork unavailable", it) }
-            .getOrNull()
-    }
-
-    private fun renderCellularSignal(context: Context, content: DuoContent): Picture? {
-        if (content.airplaneMode || content.wifiLevel != null ||
-            !content.hasCellularSignal) return null
-        val levels = content.cellularSignalLevels.take(2)
-        if (levels.isEmpty()) return null
-        val assets = loadCellularSignalAssets(context) ?: return null
-        return runCatching {
-            IconSvgRenderer.signalPicture(if (levels.size > 1) assets.stacked else assets.single, levels,
-                weight = Preferences.getFloat(IconSettingsKeys.KEY_ICON_STACKED_WEIGHT, 0f))
-        }.onFailure { DebugLog.w(TAG, "cellular signal vector recording failed", it) }.getOrNull()
     }
 
     private fun originalBatteryDrawable(binding: DuoBinding): Drawable? {
@@ -458,7 +398,7 @@ object DuoSignalHooker : StaticHooker() {
         if (surface == DuoSurface.UNSUPPORTED) return
         if (!standardEnabled && surface != DuoSurface.KEYGUARD) return
         val icons = statusIconsField?.get(parent) as? View ?: return
-        ensureConnectivity(battery.context)
+        networkSource.ensureConnectivity(battery.context)
         val binding = DuoBinding(battery, parent, icons, surface,
             if (surface == DuoSurface.KEYGUARD)
                 ancestor(battery, "com.android.systemui.statusbar.phone.MiuiKeyguardStatusBarView") else null,
@@ -576,7 +516,7 @@ object DuoSignalHooker : StaticHooker() {
                 read(battery, "mBatteryIconView")?.let { read(it, "mBatteryPerformanceModeColor") as? Int }
                 else null
             val freshContent = if (percent != null && charging != null && powerSave != null)
-                DuoPolicy.content(DuoBattery(percent, charging, powerSave, performanceColor), mobile, network, dataFirst) { subId ->
+                DuoPolicy.content(DuoBattery(percent, charging, powerSave, performanceColor), mobile, networkSource.network, dataFirst) { subId ->
                     slotIndices[subId] ?: -1
                 } else null
             val content = when {
@@ -642,7 +582,7 @@ object DuoSignalHooker : StaticHooker() {
             }
             binding.view.icon.hideSignalDots = binding.dotsInMotion || panelHandover.hideExpandedDots(binding)
             if (aod == null) binding.view.submit(content, small5GaEnabled,
-                renderCellularSignal(battery.context, content))
+                signalArtwork.renderCellularSignal(battery.context, content))
             binding.view.contentDescription = buildString {
                 append(battery.contentDescription?.toString().orEmpty())
                 if (content.airplaneMode) {
@@ -1014,74 +954,8 @@ object DuoSignalHooker : StaticHooker() {
             val scope = param.args.getOrNull(4) ?: return@after
             val context = param.args.getOrNull(1) as? Context ?: return@after
             val token = epoch
-            main.post { if (enabled && token == epoch) guarded { bindWifi(scope, interactor, context) } }
+            main.post { if (enabled && token == epoch) guarded { networkSource.bindWifi(scope, interactor, context) } }
         } } }
-    }
-
-    private fun bindWifi(scope: Any, interactor: Any, context: Context) {
-        if (wifiInteractor === interactor && wifiSubscriptions.isBound) return
-        wifiSubscriptions.clear()
-        wifiScope = scope; wifiInteractor = interactor; wifiContext = context.applicationContext
-        network = network.copy(wifiLevel = null, wifiDefault = null)
-        ensureConnectivity(context)
-        val token = epoch
-        wifiSubscriptions.collect(scope, read(interactor, "isDefault"), { enabled && token == epoch }) { value ->
-            network = network.copy(wifiDefault = value as? Boolean)
-            refresh()
-        }
-        val wifiMax = (context.getSystemService(WifiManager::class.java)?.maxSignalLevel ?: 4).coerceAtLeast(1)
-        wifiSubscriptions.collect(scope, read(interactor, "wifiNetwork"), { enabled && token == epoch }) { value ->
-            val level = if (value?.javaClass?.name?.endsWith("WifiNetworkModel\$Active") == true)
-                (read(value, "level") as? Int)?.takeIf { it in 0..wifiMax }?.let {
-                    (it * 4f / wifiMax).roundToInt().coerceIn(0, 4)
-                } else null
-            network = network.copy(wifiLevel = level)
-            refresh()
-        }
-    }
-
-    private fun ensureConnectivity(context: Context) {
-        if (callback != null) return
-        val manager = context.getSystemService(ConnectivityManager::class.java) ?: return
-        val token = epoch
-        val listener = object : ConnectivityManager.NetworkCallback() {
-            override fun onAvailable(value: Network) {
-                if (!enabled || token != epoch) return
-                currentNetwork = value
-                // Capabilities follow onAvailable. Keep the previous representation for this
-                // bounded handover instead of exposing the native cluster between callbacks.
-                networkPending?.let(main::removeCallbacks)
-                networkPending = Runnable {
-                    if (enabled && token == epoch && currentNetwork == value) {
-                        network = network.copy(transport = DuoTransport.UNKNOWN, validated = false)
-                        refresh()
-                    }
-                }.also { main.postDelayed(it, 200L) }
-            }
-            override fun onCapabilitiesChanged(value: Network, caps: NetworkCapabilities) {
-                if (!enabled || token != epoch || currentNetwork != value) return
-                networkPending?.let(main::removeCallbacks)
-                networkPending = null
-                network = network.copy(transport = when {
-                    caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) -> DuoTransport.WIFI
-                    caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) -> DuoTransport.CELLULAR
-                    caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN) -> DuoTransport.VPN
-                    else -> DuoTransport.OTHER
-                }, validated = caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED))
-                refresh()
-            }
-            override fun onLost(value: Network) {
-                if (!enabled || token != epoch || currentNetwork != value) return
-                networkPending?.let(main::removeCallbacks)
-                networkPending = null
-                currentNetwork = null
-                network = network.copy(transport = DuoTransport.NONE, validated = false)
-                refresh()
-            }
-        }
-        runCatching { manager.registerDefaultNetworkCallback(listener, main) }.onSuccess {
-            connectivity = manager; callback = listener
-        }.onFailure { DebugLog.w(TAG, "default network callback unavailable", it) }
     }
 
     private fun refresh() { bindings.values.toList().forEach { guarded { reconcile(it) } } }
@@ -1131,7 +1005,7 @@ object DuoSignalHooker : StaticHooker() {
 
     private fun <T> onMainBlocking(action: () -> T): T = HostAccess.onMain(action)
     override fun saveHotReloadState(): Any? = onMainBlocking {
-        listOf(wifiScope, wifiInteractor, wifiContext, bindings.keys.toList(),
+        listOf(networkSource.wifiScope, networkSource.wifiInteractor, networkSource.wifiContext, bindings.keys.toList(),
             panelProgress, panelVisible, panelStretchHeight, shadeSwitchSettledToControlCenter)
     }
     override fun restoreHotReloadState(state: Any?) {
@@ -1143,7 +1017,7 @@ object DuoSignalHooker : StaticHooker() {
             panelStretchHeight = saved.getOrNull(6) as? Float ?: 0f
             shadeSwitchSettledToControlCenter = saved.getOrNull(7) as? Boolean ?: false
             val scope = saved.getOrNull(0); val interactor = saved.getOrNull(1); val context = saved.getOrNull(2) as? Context
-            if (scope != null && interactor != null && context != null) bindWifi(scope, interactor, context)
+            if (scope != null && interactor != null && context != null) networkSource.bindWifi(scope, interactor, context)
             (saved.getOrNull(3) as? List<*>)?.filterIsInstance<View>()?.filter { it.isAttachedToWindow }?.forEach(::attach)
         } }
     }
@@ -1160,7 +1034,7 @@ object DuoSignalHooker : StaticHooker() {
     }
 
     internal fun recoverWifi(scope: Any, interactor: Any, context: Context) {
-        if (enabled) bindWifi(scope, interactor, context)
+        if (enabled) networkSource.bindWifi(scope, interactor, context)
     }
 
     override fun onPrepareHotReload() {
@@ -1170,18 +1044,12 @@ object DuoSignalHooker : StaticHooker() {
         // Finish native restoration before the lifecycle removes this generation's hooks.
         onMainBlocking {
             bindings.keys.toList().forEach(::detach)
-            callback?.let { listener -> runCatching { connectivity?.unregisterNetworkCallback(listener) } }
-            networkPending?.let(main::removeCallbacks)
-            networkPending = null
             aodController.retire()
             wifiTintResourceMethod = null
-            callback = null; connectivity = null; currentNetwork = null
-            wifiSubscriptions.clear()
-            wifiScope = null; wifiInteractor = null; wifiContext = null
             small5GaEnabled = false
-            cellularSignalAssets = null
+            signalArtwork.retire()
             slotIndices = emptyMap()
-            mobile = MobileSignalState(); network = DuoNetwork()
+            mobile = MobileSignalState(); networkSource.retire()
             panelProgress = 0f; panelVisible = false; panelStretchHeight = 0f
             shadeSwitchSuspended = false; shadeSwitchSettledToControlCenter = false
         }

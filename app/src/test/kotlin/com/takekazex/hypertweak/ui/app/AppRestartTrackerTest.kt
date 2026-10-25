@@ -42,7 +42,7 @@ class AppRestartTrackerTest {
     }
 
     @Test fun revertingAToggleClearsOnlyItsDirtyRestartRequest() {
-        val store = Store(); val tracker = AppRestartTracker(store, AppSettingsState())
+        val store = Store(); val tracker = AppRestartTracker(store, AppSettingsState(MemoryAppSettings()))
         val key = SystemUiSettingsKeys.KEY_HIDE_LOCKSCREEN_STATUS_BAR
         store.values["tweak_baseline_$key"] = false
         tracker.markTweaked(key, true)
@@ -54,7 +54,7 @@ class AppRestartTrackerTest {
     }
 
     @Test fun partialRestartKeepsManualRequestsAndAdvancesTheClearedBaseline() {
-        val store = Store(); val settings = AppSettingsState()
+        val store = Store(); val settings = AppSettingsState(MemoryAppSettings())
         val tracker = AppRestartTracker(store, settings)
         val key = SystemUiSettingsKeys.KEY_HIDE_LOCKSCREEN_STATUS_BAR
         store.values["tweak_baseline_$key"] = false
@@ -71,7 +71,7 @@ class AppRestartTrackerTest {
     }
 
     @Test fun selectorRestartWritesAnIntBaselineThatCanBeReadOnTheNextEdit() {
-        val store = Store(); val settings = AppSettingsState()
+        val store = Store(); val settings = AppSettingsState(MemoryAppSettings())
         val tracker = AppRestartTracker(store, settings)
         val key = SystemUiSettingsKeys.KEY_LOCKSCREEN_FINGERPRINT_AVOID
         store.values["tweak_baseline_$key"] = 1
@@ -89,7 +89,7 @@ class AppRestartTrackerTest {
         store.values["pending_restart_boot_token"] = "previous-boot"
         store.values["manual_pending_restart_scopes"] = setOf("systemui")
         store.values["user_setting"] = "keep"
-        val tracker = AppRestartTracker(store, AppSettingsState())
+        val tracker = AppRestartTracker(store, AppSettingsState(MemoryAppSettings()))
         assertTrue(tracker.pendingRestartScopes.isEmpty())
         tracker.requestRestartScopes(RestartScopeSelection(systemUi = true))
         assertTrue(store.values.containsKey(PlatformSettingsKeys.KEY_PENDING_RESTART_SCOPES))

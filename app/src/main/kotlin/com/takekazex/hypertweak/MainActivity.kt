@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak
 
+import com.takekazex.hypertweak.app.PreferencesAppSettings
 import android.content.ComponentName
 import android.content.pm.PackageManager
 import android.os.Bundle
@@ -58,7 +59,7 @@ class MainActivity : ComponentActivity() {
         // queries the package manager and touches the filesystem.
         updateManager = UpdateManager(this)
 
-        setContent { AppContent(this, updateManager, ::isModuleActive) }
+        setContent { AppContent(this, updateManager, ::isModuleActive, PreferencesAppSettings) }
     }
 
     override fun onResume() {
