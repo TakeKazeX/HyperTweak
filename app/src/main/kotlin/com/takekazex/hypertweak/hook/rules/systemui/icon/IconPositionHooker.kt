@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
 import com.takekazex.hypertweak.hook.rules.systemui.icon.carrier.CarrierMask
 import com.takekazex.hypertweak.hook.rules.systemui.icon.carrier.CarrierTypeMotion
 import com.takekazex.hypertweak.hook.rules.systemui.icon.carrier.ControlCenterCarrierBlockHooker
@@ -35,6 +36,15 @@ import androidx.core.view.isGone
  * reorders the existing `mSlots` ArrayList and adds empty Slot records for enabled module slots.
  */
 object IconPositionHooker : StaticHooker() {
+    init {
+        hostRecovery(HostRecoveryPhase.SLOT_ORDER, icons = true) {
+            it.controller?.let { controller -> recoverSlotOrder(controller, it.context) }
+        }
+        hostRecovery(HostRecoveryPhase.CONTAINERS, icons = true) {
+            recoverExistingContainers(it.views)
+        }
+    }
+
     override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
 
     private const val TAG = "IconTuner"

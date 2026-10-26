@@ -34,7 +34,7 @@ object VolumeKeyStepsHooker : StaticHooker() {
     private data class HardwareKeyFrame(val context: HardwareKeyContext?)
 
     private val hardwareKeyFrames = ThreadLocal<ArrayDeque<HardwareKeyFrame>?>()
-    private val hardwareStepRemainders = HashMap<HardwareStepRemainderKey, Int>()
+    private val hardwareStepRemainders = generationResource(HashMap<HardwareStepRemainderKey, Int>()) { it.clear() }
     private val loggedFirstAppliedStep = AtomicBoolean(false)
 
     @Volatile
@@ -137,7 +137,6 @@ object VolumeKeyStepsHooker : StaticHooker() {
     @Synchronized
     override fun onPrepareHotReload() {
         hooksReady = false
-        hardwareStepRemainders.clear()
         loggedFirstAppliedStep.set(false)
     }
 

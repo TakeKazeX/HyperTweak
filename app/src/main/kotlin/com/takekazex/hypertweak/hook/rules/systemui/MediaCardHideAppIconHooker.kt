@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui
 
+import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 
 import android.view.View
@@ -34,6 +35,12 @@ import androidx.core.view.isGone
  * Existing holders are recovered after replacement; retirement restores native visibility.
  */
 object MediaCardHideAppIconHooker : StaticHooker() {
+    init {
+        hostRecovery(HostRecoveryPhase.WINDOWS) {
+            recoverExistingViews(it.views)
+        }
+    }
+
     override val hotReloadMode = HotReloadMode.RECREATE
 
     private const val TAG = "MediaCardHideAppIcon"
@@ -46,11 +53,9 @@ object MediaCardHideAppIconHooker : StaticHooker() {
     private const val ISLAND_HOLDER =
         "com.android.systemui.statusbar.notification.mediaisland.MiuiIslandMediaViewHolder"
 
-    @Volatile
-    private var shadeAppIconField: Field? = null
+    private var shadeAppIconField: Field? by generationState { null }
 
-    @Volatile
-    private var islandAppIconField: Field? = null
+    private var islandAppIconField: Field? by generationState { null }
 
     private val originals = WeakHashMap<View, Int>()
     /** Every media app-icon overlay the hooks have seen, for a settings pass that re-applies. */
@@ -122,8 +127,6 @@ object MediaCardHideAppIconHooker : StaticHooker() {
             originals.clear()
             knownViews.clear()
         }
-        shadeAppIconField = null
-        islandAppIconField = null
     }
 
     // ─── Shade card ───────────────────────────────────────────────────────────

@@ -76,44 +76,29 @@ object AospVolumeExtrasHooker : StaticHooker() {
     @Volatile
     private var enabled = false
 
-    private var controllerStateField: Field? = null
-    private var viewModelField: Field? = null
-    private var touchableBoundsViewsField: Field? = null
-    private var stateStatesField: Field? = null
-    private var stateActiveStreamField: Field? = null
-    private var stateZenModeField: Field? = null
-    private var streamLevelField: Field? = null
-    private var streamLevelMinField: Field? = null
-    private var streamLevelMaxField: Field? = null
-    private var miuiSetZenModeOn: Method? = null
-    private var notificationSetZenMode: Method? = null
+    private var controllerStateField: Field? by generationState { null }
+    private var viewModelField: Field? by generationState { null }
+    private var touchableBoundsViewsField: Field? by generationState { null }
+    private var stateStatesField: Field? by generationState { null }
+    private var stateActiveStreamField: Field? by generationState { null }
+    private var stateZenModeField: Field? by generationState { null }
+    private var streamLevelField: Field? by generationState { null }
+    private var streamLevelMinField: Field? by generationState { null }
+    private var streamLevelMaxField: Field? by generationState { null }
+    private var miuiSetZenModeOn: Method? by generationState { null }
+    private var notificationSetZenMode: Method? by generationState { null }
 
-    private val overlays = CopyOnWriteArrayList<WeakReference<VolumeExtras>>()
+    private val overlays = generationResource(CopyOnWriteArrayList<WeakReference<VolumeExtras>>()) { it.clear() }
 
     // The controller can dispatch the first State before the dialog shell is bound, i.e. before
     // the overlay exists. Buffer the latest value and replay it when the overlay is created so
     // the percentage shows a number on the very first open instead of a second volume change.
-    @Volatile
-    private var pendingValue: Int? = null
-    @Volatile
-    private var pendingDnd: Boolean = false
+    private var pendingValue: Int? by generationState { null }
+
+    private var pendingDnd: Boolean by generationState { false }
 
     override fun onPrepareHotReload() {
         enabled = false
-        overlays.clear()
-        pendingValue = null
-        pendingDnd = false
-        controllerStateField = null
-        viewModelField = null
-        touchableBoundsViewsField = null
-        stateStatesField = null
-        stateActiveStreamField = null
-        stateZenModeField = null
-        streamLevelField = null
-        streamLevelMinField = null
-        streamLevelMaxField = null
-        miuiSetZenModeOn = null
-        notificationSetZenMode = null
     }
 
     override fun onHook() {

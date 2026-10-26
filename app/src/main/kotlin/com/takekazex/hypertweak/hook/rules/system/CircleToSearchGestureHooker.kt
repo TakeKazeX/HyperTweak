@@ -73,8 +73,7 @@ object CircleToSearchGestureHooker : StaticHooker() {
     // system_server, where Preferences writes do not reliably persist. See SecureSettingStore.
     private const val BACKUP_NAV_LONG_PRESS = SecureSettingStore.NAV_LONG_PRESS
 
-    @Volatile
-    private var observerInstalled = false
+    private var observerInstalled by generationState { false }
 
     @Volatile
     private var settingObserver: ContentObserver? = null
@@ -98,7 +97,6 @@ object CircleToSearchGestureHooker : StaticHooker() {
                 .onFailure { DebugLog.w(SCOPE, "could not unregister the gesture observer", it) }
             settingObserver = null
         }
-        observerInstalled = false
     }
 
     /** Aligns the gesture-line action with the switch: applied while on, restored while off. */

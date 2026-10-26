@@ -40,18 +40,16 @@ class MediaPlayerDeviceIconHooker : DynamicHooker() {
             "miui.systemui.controlcenter.panel.main.media.MediaPlayerController\$MediaPlayerViewHolder"
     }
 
-    @Volatile
-    private var bindingField: Field? = null
+    private var bindingField: Field? by generationState { null }
 
-    @Volatile
-    private var getDeviceIcon: Method? = null
+    private var getDeviceIcon: Method? by generationState { null }
 
     /**
      * Living holders with the visibility the host asked for before the module hid the icon.
      * Restoring the host value (never an assumed VISIBLE) keeps a card whose detail is genuinely
      * unavailable unchanged when the switch is turned off.
      */
-    private val hiddenIcons = java.util.WeakHashMap<Any, HostIconState>()
+    private val hiddenIcons = generationResource(java.util.WeakHashMap<Any, HostIconState>()) { it.clear() }
 
     @Volatile private var retiring = false
 
@@ -132,8 +130,5 @@ class MediaPlayerDeviceIconHooker : DynamicHooker() {
 
     override fun onPrepareHotReload() {
         retiring = true
-        hiddenIcons.clear()
-        bindingField = null
-        getDeviceIcon = null
     }
 }

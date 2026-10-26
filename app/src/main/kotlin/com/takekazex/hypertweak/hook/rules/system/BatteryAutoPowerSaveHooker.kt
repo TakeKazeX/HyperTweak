@@ -30,8 +30,8 @@ object BatteryAutoPowerSaveHooker : StaticHooker() {
     // Holds the application context only, which lives as long as the injected SystemUI process, so
     // the static link is not a leak. Deliberately not a weak reference: a collected monitor would
     // silently stop watching the battery.
-    @SuppressLint("StaticFieldLeak")
-    private var monitor: BatteryMonitor? = null
+    @delegate:SuppressLint("StaticFieldLeak")
+    private var monitor: BatteryMonitor? by generationState { null }
 
     override fun onHook() {
         if (hookParam.packageName != PACKAGE) return
@@ -78,7 +78,6 @@ object BatteryAutoPowerSaveHooker : StaticHooker() {
     @Synchronized
     override fun onPrepareHotReload() {
         monitor?.close()
-        monitor = null
     }
 }
 

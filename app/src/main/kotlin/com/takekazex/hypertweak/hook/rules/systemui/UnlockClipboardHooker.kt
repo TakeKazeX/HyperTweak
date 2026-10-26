@@ -38,18 +38,15 @@ object UnlockClipboardHooker : StaticHooker() {
     @Volatile
     private var enabled = false
 
-    private var ctsTestPkgListField: Field? = null
-    private var originalCtsTestPkgList: List<*>? = null
-    private var primaryClipSourceMethod: Method? = null
+    private var ctsTestPkgListField: Field? by generationState { null }
+    private var originalCtsTestPkgList: List<*>? by generationState { null }
+    private var primaryClipSourceMethod: Method? by generationState { null }
 
     override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
 
     override fun onPrepareHotReload() {
         restoreOriginalList()
         enabled = false
-        ctsTestPkgListField = null
-        originalCtsTestPkgList = null
-        primaryClipSourceMethod = null
     }
 
     override fun onHook() {

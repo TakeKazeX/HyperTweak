@@ -2,6 +2,7 @@
 
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
 import com.takekazex.hypertweak.hook.rules.systemui.icon.carrier.ControlCenterCarrierBlockHooker
 import com.takekazex.hypertweak.presentation.icon.IconSvgRenderConfig
 import com.takekazex.hypertweak.presentation.icon.IconSvgRenderer
@@ -48,6 +49,12 @@ import org.luckypray.dexkit.result.MethodData
  */
 @SuppressLint("StaticFieldLeak")
 object StackedSignalHooker : StaticHooker() {
+    init {
+        hostRecovery(HostRecoveryPhase.ADAPTER, icons = true) {
+            it.adapter?.let(::recoverAdapter)
+        }
+    }
+
     private const val PANEL_CALLBACK_OWNER_MARKER =
         "com.android.systemui.controlcenter.shade.ControlCenterHeaderExpandController\$controlCenterCallback"
     override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
@@ -107,21 +114,20 @@ object StackedSignalHooker : StaticHooker() {
 
     private var renderStacked = false
     private val panelMotions = IdentityHashMap<Any, StackedPanelMotion>()
-    private var slotIndices: Map<Int, Int> = emptyMap()
-    private var publishedSignalRows: List<DuoSignalRow> = emptyList()
-    private var publishedSignalPicture: PublishedSignalPicture? = null
+    private var slotIndices: Map<Int, Int> by generationState { emptyMap() }
+    private var publishedSignalRows: List<DuoSignalRow> by generationState { emptyList() }
+    private var publishedSignalPicture: PublishedSignalPicture? by generationState { null }
     private data class SignalRenderKey(
         val levels: List<Int>,
         val config: IconSvgRenderConfig
     )
-    private var publishedSignalKey: SignalRenderKey? = null
-    private var publishedTypeBitmap: android.graphics.Bitmap? = null
+    private var publishedSignalKey: SignalRenderKey? by generationState { null }
+    private var publishedTypeBitmap: android.graphics.Bitmap? by generationState { null }
     private var publishedTypeSuppressed = false
-    private var pendingRender: Runnable? = null
+    private var pendingRender: Runnable? by generationState { null }
 
     /** Hide the whole module-owned stacked slot (signal + type) while WiFi is connected. */
-    @Volatile
-    private var hideMobileOnWifi = false
+    private var hideMobileOnWifi by generationState { false }
 
     @Volatile
     private var hostContext: Context? = null
@@ -129,8 +135,7 @@ object StackedSignalHooker : StaticHooker() {
     @Volatile
     private var svgRepository: IconSvgRepository? = null
 
-    @Volatile
-    private var iconBridge: HostIconBridge? = null
+    private var iconBridge: HostIconBridge? by generationState { null }
 
     /** Bounded retries cover the short gap between package-ready and Dagger component startup. */
 
@@ -148,8 +153,7 @@ object StackedSignalHooker : StaticHooker() {
     private val typeFade = BitmapAlphaFade(mainHandler)
 
     /** True once the type has faded out and given its box back, so a re-render keeps it collapsed. */
-    @Volatile
-    private var typeCollapsed = false
+    private var typeCollapsed by generationState { false }
 
     /** All mutable reducer state is consumed on the main looper. */
 
@@ -182,13 +186,10 @@ object StackedSignalHooker : StaticHooker() {
         enabled = false
         val retiredGeneration = assetLoads.advance()
         val retiringBridge = iconBridge
-        hideMobileOnWifi = false
+
         typeFade.cancel()
-        typeCollapsed = false
+
         pendingRender?.let(mainHandler::removeCallbacks)
-        pendingRender = null
-        publishedSignalKey = null
-        publishedTypeBitmap = null
 
         // A replacement generation may be prepared from a binder thread. StateFlow updates are
         // thread-safe; pass every exposed Pair through its original value before unregistering the
@@ -196,11 +197,9 @@ object StackedSignalHooker : StaticHooker() {
         if (renderStacked) MobileSignalVisibility.clearForHotReload()
         removeRetiringBridge(retiredGeneration, retiringBridge)
         source.retire()
-        slotIndices = emptyMap()
-        publishedSignalRows = emptyList()
-        publishedSignalPicture = null
+
         MobileTypeRenderer.clearCache()
-        iconBridge = null
+
         installed.set(false)
     }
 

@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.lockscreen
 
+import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 
 import com.takekazex.hypertweak.settings.contract.LockscreenChargingOptions
@@ -58,6 +59,18 @@ import java.util.concurrent.Executors
  * BottomIndicationLayout owns reversible layout and overflow independently of telemetry.
  */
 object LockscreenChargingDetailHooker : StaticHooker() {
+    init {
+        hostRecovery(HostRecoveryPhase.WINDOWS) {
+            it.component?.let { component -> HostAccess.read(component, "keyguardIndicationControllerProvider") }
+                ?.let { provider -> HostAccess.method(provider, "get")?.invoke(provider) }?.let { indication ->
+                    val refresh = HostAccess.method(indication, "updateDeviceEntryIndication", Boolean::class.javaPrimitiveType!!)
+                        ?: error("Missing native keyguard indication refresh")
+                    refresh.invoke(indication, false)
+                    HostAccess.read(indication, "mRotateTextViewController")?.let(::recoverController)
+                }
+        }
+    }
+
     override val hotReloadMode = HotReloadMode.RECREATE
 
     private const val TAG = "LockscreenChargeDetail"
@@ -104,8 +117,7 @@ object LockscreenChargingDetailHooker : StaticHooker() {
     private val layouts = WeakHashMap<TextView, BottomIndicationLayout>()
     private var recentController: WeakReference<Any?> = WeakReference(null)
 
-    @Volatile
-    private var reportedFirstAppend = false
+    private var reportedFirstAppend by generationState { false }
 
     private var interactive = false
     private var receiverContext: Context? = null
@@ -209,7 +221,7 @@ object LockscreenChargingDetailHooker : StaticHooker() {
             layouts.clear()
             recentController.clear()
         }
-        reportedFirstAppend = false
+
         resetTelemetry()
     }
 

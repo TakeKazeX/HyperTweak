@@ -127,13 +127,13 @@ object GlassMaterialHooker : StaticHooker() {
     private var glassTone = 1f
 
     /** The funnels are installed once per hook generation, whichever entry point runs first. */
-    @Volatile private var installed = false
+    private var installed by generationState { false }
 
     override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
 
     override fun onPrepareHotReload() {
         enabled = false
-        installed = false
+
         knownIds.clear()
         missedIds.clear()
     }

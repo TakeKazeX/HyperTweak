@@ -29,8 +29,7 @@ object GoogleAppRuntime : StaticHooker() {
     @Volatile
     private var sourceDir: String? = null
 
-    @Volatile
-    private var installationStarted = false
+    private var installationStarted by generationState { false }
 
     override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
 
@@ -173,6 +172,5 @@ object GoogleAppRuntime : StaticHooker() {
     override fun onPrepareHotReload() {
         // The old generation's targets remain available for replaceOldHandle() until the new
         // generation has consumed its old handles. Only reset the attach guard here.
-        installationStarted = false
     }
 }

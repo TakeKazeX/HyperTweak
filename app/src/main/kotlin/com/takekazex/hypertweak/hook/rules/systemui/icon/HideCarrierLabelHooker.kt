@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
 import com.takekazex.hypertweak.hook.rules.systemui.icon.carrier.CarrierBlockPolicy
 import com.takekazex.hypertweak.hook.rules.systemui.icon.carrier.ControlCenterCarrierBlockHooker
 import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
@@ -29,6 +30,12 @@ import androidx.core.view.isGone
  * SystemUI restart.
  */
 object HideCarrierLabelHooker : StaticHooker() {
+    init {
+        hostRecovery(HostRecoveryPhase.ICONS, icons = true) {
+            recoverExistingViews(it.views)
+        }
+    }
+
     override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
 
     private const val TAG = "IconTuner"
@@ -37,11 +44,11 @@ object HideCarrierLabelHooker : StaticHooker() {
     private const val CC_CALLBACK_CLASS =
         "com.android.systemui.controlcenter.shade.ControlCenterCarrierText\$mCarrierTextCallback\$1"
 
-    @Volatile private var hideOne = false
-    @Volatile private var hideTwo = false
-    @Volatile private var hideHd = false
-    @Volatile private var hideLsOne = false
-    @Volatile private var hideLsTwo = false
+    private var hideOne by generationState { false }
+    private var hideTwo by generationState { false }
+    private var hideHd by generationState { false }
+    private var hideLsOne by generationState { false }
+    private var hideLsTwo by generationState { false }
 
     private val hiddenViews = WeakHashMap<View, Int>()
     private fun hideView(view: View) {
@@ -63,11 +70,6 @@ object HideCarrierLabelHooker : StaticHooker() {
             hiddenViews.forEach { (view, visibility) -> if (view.isGone) view.visibility = visibility }
             hiddenViews.clear()
         }
-        hideOne = false
-        hideTwo = false
-        hideHd = false
-        hideLsOne = false
-        hideLsTwo = false
     }
 
     override fun onHook() {

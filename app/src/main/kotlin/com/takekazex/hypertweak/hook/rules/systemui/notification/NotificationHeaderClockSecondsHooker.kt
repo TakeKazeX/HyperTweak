@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.notification
 
+import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 
 import android.text.format.DateFormat
@@ -24,6 +25,12 @@ import java.util.WeakHashMap
  * while its view is attached.
  */
 object NotificationHeaderClockSecondsHooker : StaticHooker() {
+    init {
+        hostRecovery(HostRecoveryPhase.HEADER_DECORATIONS) {
+            recoverExistingViews(it.views)
+        }
+    }
+
     override val hotReloadMode = HotReloadMode.RECREATE
 
     private const val TAG = "NotificationClockSeconds"

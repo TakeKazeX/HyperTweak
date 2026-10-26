@@ -20,7 +20,7 @@ class ControlCenterSuperIslandHooker : DynamicHooker() {
     private val forcedControllers = WeakHashMap<Any, Boolean>()
     private val knownControllers = WeakHashMap<Any, Boolean>()
     @Volatile private var retiring = false
-    private var restore: ((Any) -> Unit)? = null
+    private var restore: ((Any) -> Unit)? by generationState { null }
 
     fun snapshotControllers(): List<Any> = synchronized(knownControllers) { knownControllers.keys.toList() }
 
@@ -156,7 +156,6 @@ class ControlCenterSuperIslandHooker : DynamicHooker() {
             main.post { try { cleanup.run() } finally { done.countDown() } }
             check(done.await(5, TimeUnit.SECONDS)) { "island visibility cleanup timed out" }
         }
-        restore = null
     }
 
     private companion object {

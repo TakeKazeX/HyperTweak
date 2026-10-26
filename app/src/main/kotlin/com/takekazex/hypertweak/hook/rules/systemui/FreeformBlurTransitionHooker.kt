@@ -109,14 +109,14 @@ object FreeformBlurTransitionHooker : StaticHooker() {
     @Volatile
     private var enabled = false
 
-    private var targets: Targets? = null
+    private var targets: Targets? by generationState { null }
 
     /** `getFc()` / `getCoverLayerContainer()` / `apply()` style lookups, resolved once per class. */
-    private val dynamicMethods = ConcurrentHashMap<String, Method>()
+    private val dynamicMethods = generationResource(ConcurrentHashMap<String, Method>()) { it.clear() }
 
     /** Resource-id verdicts, so the hot `Resources.getColor` path never resolves a name twice. */
-    private val knownBottomBoardIds = ConcurrentHashMap.newKeySet<Int>()
-    private val missedBottomBoardIds = ConcurrentHashMap.newKeySet<Int>()
+    private val knownBottomBoardIds = generationResource(ConcurrentHashMap.newKeySet<Int>()) { it.clear() }
+    private val missedBottomBoardIds = generationResource(ConcurrentHashMap.newKeySet<Int>()) { it.clear() }
 
     /** Everything group 3 needs, resolved once. Group 2 resolves its own shape-view members. */
     private class Targets(
@@ -155,10 +155,6 @@ object FreeformBlurTransitionHooker : StaticHooker() {
             nativeCapabilities.forEach { (field, original) -> StaticFieldWriter.setBoolean(field, original) }
             nativeCapabilities.clear()
         }
-        targets = null
-        dynamicMethods.clear()
-        knownBottomBoardIds.clear()
-        missedBottomBoardIds.clear()
     }
 
     override fun onHook() {

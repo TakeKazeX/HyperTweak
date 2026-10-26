@@ -28,20 +28,19 @@ object HideFingerprintIcon : StaticHooker() {
         val keyguardAuthen: Field?
     )
 
-    @Volatile
-    private var hideAodEnabled = false
-    @Volatile
-    private var hideLockscreenEnabled = false
-    @Volatile
-    private var hideAppAuthEnabled = false
+    private var hideAodEnabled by generationState { false }
 
-    private var iconDozingField: Field? = null
-    private var iconKeyguardAuthenField: Field? = null
-    private var setHighlightTransparentMethod: Method? = null
+    private var hideLockscreenEnabled by generationState { false }
+
+    private var hideAppAuthEnabled by generationState { false }
+
+    private var iconDozingField: Field? by generationState { null }
+    private var iconKeyguardAuthenField: Field? by generationState { null }
+    private var setHighlightTransparentMethod: Method? by generationState { null }
 
     /** The animation view is drawn on every frame, so cache the parent-state reflection lookup. */
-    private val animationStateFields = ConcurrentHashMap<Class<*>, StateFields>()
-    private val reportedClears = ConcurrentHashMap.newKeySet<Surface>()
+    private val animationStateFields = generationResource(ConcurrentHashMap<Class<*>, StateFields>()) { it.clear() }
+    private val reportedClears = generationResource(ConcurrentHashMap.newKeySet<Surface>()) { it.clear() }
 
     /**
      * Accepted-snapshot refresh. The draw hooks read these switches on every frame anyway; the
@@ -60,17 +59,6 @@ object HideFingerprintIcon : StaticHooker() {
         reportedClears.clear()
         DebugLog.i("HideFingerprint", "settings applied aod=" + aod + " lockscreen=" + lockscreen +
             " appAuth=" + appAuth + " installed=" + isHooked)
-    }
-
-    override fun onPrepareHotReload() {
-        iconDozingField = null
-        iconKeyguardAuthenField = null
-        setHighlightTransparentMethod = null
-        animationStateFields.clear()
-        reportedClears.clear()
-        hideAodEnabled = false
-        hideLockscreenEnabled = false
-        hideAppAuthEnabled = false
     }
 
     override fun onHook() {

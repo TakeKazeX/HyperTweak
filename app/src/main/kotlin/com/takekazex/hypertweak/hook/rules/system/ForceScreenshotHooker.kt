@@ -15,7 +15,7 @@ object ForceScreenshotHooker : StaticHooker() {
     @Volatile private var ready = false
     @Volatile private var failure: Throwable? = null
     private val displayCapture = ThreadActivation()
-    private var restoreNativeSurfaces: (() -> Boolean)? = null
+    private var restoreNativeSurfaces: (() -> Boolean)? by generationState { null }
     private val recovery by lazy {
         SystemServerStartupRetry(hookerName, action = { restoreNativeSurfaces?.invoke() ?: true })
     }
@@ -34,7 +34,6 @@ object ForceScreenshotHooker : StaticHooker() {
         enabled = false
         ready = false
         recovery.cancel()
-        restoreNativeSurfaces = null
     }
 
     override fun onHook() {

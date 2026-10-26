@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
 import com.takekazex.hypertweak.settings.contract.ControlCenterPrivacyPolicy
 
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
@@ -25,6 +26,12 @@ import java.util.concurrent.TimeUnit
 
 /** Control-center-only date policy and compact carrier/battery constraints. */
 object ControlCenterHeaderHooker : StaticHooker() {
+    init {
+        hostRecovery(HostRecoveryPhase.ICONS, icons = true) {
+            recoverExistingViews(it.views)
+        }
+    }
+
     override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
 
     private const val TAG = "IconTuner"
@@ -47,9 +54,9 @@ object ControlCenterHeaderHooker : StaticHooker() {
     private val compactPrivacy = WeakHashMap<ViewGroup, WeakReference<View>>()
     private val compactCarrierVisibility = WeakHashMap<ViewGroup, Int>()
 
-    @Volatile private var carrierLeft = false
-    @Volatile private var hideDate = false
-    @Volatile private var privacyEnabled = false
+    private var carrierLeft by generationState { false }
+    private var hideDate by generationState { false }
+    private var privacyEnabled by generationState { false }
     private var privacyCentered = true
     private var privacyOffset = ControlCenterPrivacyPolicy.DEFAULT_OFFSET
 
@@ -68,9 +75,6 @@ object ControlCenterHeaderHooker : StaticHooker() {
     }
 
     override fun onPrepareHotReload() {
-        carrierLeft = false
-        hideDate = false
-        privacyEnabled = false
         val restore = {
             dates.forEach { (date, state) ->
                 runCatching {

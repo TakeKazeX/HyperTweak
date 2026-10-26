@@ -42,9 +42,9 @@ object SystemUiBubbleNotificationWhitelistHooker : StaticHooker() {
     private const val CONTEXT_FIELD = "mContext"
     private const val SECURE_BUBBLE_APP_SETTINGS = "miui_bubble_app_settings"
 
-    private var currentApplicationMethod: Method? = null
-    @Volatile
-    private var secureStringForUserMethod: Method? = null
+    private var currentApplicationMethod: Method? by generationState { null }
+    private var secureStringForUserMethod: Method? by generationState { null }
+
     private val secureReadFailureLogged = AtomicBoolean(false)
 
     private enum class SecureAppState {
@@ -58,8 +58,6 @@ object SystemUiBubbleNotificationWhitelistHooker : StaticHooker() {
 
     override fun onPrepareHotReload() {
         secureReadFailureLogged.set(false)
-        secureStringForUserMethod = null
-        currentApplicationMethod = null
     }
 
     override fun onHook() {

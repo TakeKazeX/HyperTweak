@@ -43,11 +43,9 @@ object LockscreenKeepNotificationsHooker : StaticHooker() {
     private const val ENTRY_CLASS =
         "com.android.systemui.statusbar.notification.collection.NotificationEntry"
 
-    @Volatile
-    private var mSbnField: Field? = null
+    private var mSbnField: Field? by generationState { null }
 
-    @Volatile
-    private var canShowOnKeyguard: Method? = null
+    private var canShowOnKeyguard: Method? by generationState { null }
 
     override fun onHook() {
         mSbnField = null
@@ -92,11 +90,6 @@ object LockscreenKeepNotificationsHooker : StaticHooker() {
             }
         }
         DebugLog.d(TAG, "lockscreen keeps already-seen notifications")
-    }
-
-    override fun onPrepareHotReload() {
-        mSbnField = null
-        canShowOnKeyguard = null
     }
 
     private fun findField(cls: Class<*>, name: String): Field? {

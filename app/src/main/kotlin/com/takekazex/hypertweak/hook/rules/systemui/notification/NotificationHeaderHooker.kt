@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.notification
 
+import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
 import com.takekazex.hypertweak.settings.contract.NotificationHeaderModel
 import com.takekazex.hypertweak.settings.contract.NotificationHeaderMotionModel
 
@@ -29,6 +30,12 @@ import java.util.concurrent.TimeUnit
  * lockscreen reuse some resource ids, so every target is first captured from this exact parent.
  */
 object NotificationHeaderHooker : StaticHooker() {
+    init {
+        hostRecovery(HostRecoveryPhase.HEADERS) {
+            it.headers = recoverExistingHosts(it.component, it.views)
+        }
+    }
+
     override val hotReloadMode = HotReloadMode.RECREATE
 
     private const val TAG = "NotificationHeader"
@@ -66,10 +73,10 @@ object NotificationHeaderHooker : StaticHooker() {
     private val notificationTopPaddingRefreshDepth = ThreadLocal<Int>()
     private val notificationClockPositionDepth = ThreadLocal<Int>()
 
-    @Volatile private var hideCarrier = false
-    @Volatile private var hideTime = false
-    @Volatile private var hideDate = false
-    @Volatile private var dateAboveTime = false
+    private var hideCarrier by generationState { false }
+    private var hideTime by generationState { false }
+    private var hideDate by generationState { false }
+    private var dateAboveTime by generationState { false }
     @Volatile private var dateAlignment = NotificationHeaderModel.ALIGN_START
     @Volatile private var timeAlignment = NotificationHeaderModel.ALIGN_START
     @Volatile private var timeScale = NotificationHeaderModel.DEFAULT_TIME_SCALE
@@ -223,10 +230,7 @@ object NotificationHeaderHooker : StaticHooker() {
             main.post { try { restore() } finally { latch.countDown() } }
             check(latch.await(5, TimeUnit.SECONDS)) { "notification header cleanup timed out" }
         }
-        hideCarrier = false
-        hideTime = false
-        hideDate = false
-        dateAboveTime = false
+
         dateAlignment = NotificationHeaderModel.ALIGN_START
         timeAlignment = NotificationHeaderModel.ALIGN_START
         timeScale = NotificationHeaderModel.DEFAULT_TIME_SCALE

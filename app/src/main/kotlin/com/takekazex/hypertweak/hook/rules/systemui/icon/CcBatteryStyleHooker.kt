@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 
 import com.takekazex.hypertweak.hook.base.HostAccess
@@ -32,6 +33,12 @@ import java.lang.reflect.Field
  * percentage TextViews beside the three-in-one glyph; the retained battery remains `GONE` behind it.
  */
 object CcBatteryStyleHooker : StaticHooker() {
+    init {
+        hostRecovery(HostRecoveryPhase.ICONS, icons = true) {
+            recoverExistingViews(it.views)
+        }
+    }
+
     override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
 
     private const val TAG = "CcBatteryStyle"

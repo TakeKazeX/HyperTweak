@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
 import com.takekazex.hypertweak.settings.contract.NotificationIconLimit
 
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
@@ -19,6 +20,12 @@ import com.takekazex.hypertweak.util.logging.DebugLog
  * Bounds come from [NotificationIconLimit], which the settings row also uses.
  */
 object NotificationMaxNumberHooker : StaticHooker() {
+    init {
+        hostRecovery(HostRecoveryPhase.ICONS, icons = true) {
+            recoverExistingViews(it.views)
+        }
+    }
+
     override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
 
     private const val TAG = "IconTuner"

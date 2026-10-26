@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
 import com.takekazex.hypertweak.settings.contract.IconSlotPolicy
 
 import com.takekazex.hypertweak.settings.contract.IconSurface
@@ -23,6 +24,12 @@ import java.util.WeakHashMap
  * before adding module-owned decisions, which keeps hot reload and a second module fail-open.
  */
 object IconManagerHooker : StaticHooker() {
+    init {
+        hostRecovery(HostRecoveryPhase.MANAGERS, icons = true) {
+            recoverManagers(it.managers)
+        }
+    }
+
     override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
 
     private const val TAG = "IconTuner"

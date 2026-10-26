@@ -77,41 +77,26 @@ object AospVolumeHapticHooker : StaticHooker() {
     private var enabled = false
 
     // Cached reflection (hot path: every volume change).
-    private var hapticUtil: Any? = null
-    private var hapticUtilFailed = false
-    private var performHapticFeedback: Method? = null
-    private var providerInstance: Class<Any>? = null
-    private var callbacksInstance: Class<Any>? = null
-    private var fieldHasVibratedUpper: Field? = null
-    private var fieldHasVibratedLower: Field? = null
-    private var msdlPlayerClass: Class<Any>? = null
-    private var thresholdToken: Any? = null
-    private var dragContinuousToken: Any? = null
-    private var dragDiscreteToken: Any? = null
-    private var trackerClass: Class<Any>? = null
-    private var stateDragDragging: Any? = null
+    private var hapticUtil: Any? by generationState { null }
+    private var hapticUtilFailed by generationState { false }
+    private var performHapticFeedback: Method? by generationState { null }
+    private var providerInstance: Class<Any>? by generationState { null }
+    private var callbacksInstance: Class<Any>? by generationState { null }
+    private var fieldHasVibratedUpper: Field? by generationState { null }
+    private var fieldHasVibratedLower: Field? by generationState { null }
+    private var msdlPlayerClass: Class<Any>? by generationState { null }
+    private var thresholdToken: Any? by generationState { null }
+    private var dragContinuousToken: Any? by generationState { null }
+    private var dragDiscreteToken: Any? by generationState { null }
+    private var trackerClass: Class<Any>? by generationState { null }
+    private var stateDragDragging: Any? by generationState { null }
 
     // True while the volume slider is being dragged, so onProgress is left running (restoring the
     // MSDL drag feedback); it is only swallowed for the key-driven handle animation (the "嗡嗡嗡").
-    @Volatile
-    private var dragActive = false
+    private var dragActive by generationState { false }
 
     override fun onPrepareHotReload() {
         enabled = false
-        hapticUtil = null
-        hapticUtilFailed = false
-        performHapticFeedback = null
-        providerInstance = null
-        callbacksInstance = null
-        fieldHasVibratedUpper = null
-        fieldHasVibratedLower = null
-        msdlPlayerClass = null
-        thresholdToken = null
-        dragContinuousToken = null
-        dragDiscreteToken = null
-        trackerClass = null
-        stateDragDragging = null
-        dragActive = false
     }
 
     override fun onHook() {

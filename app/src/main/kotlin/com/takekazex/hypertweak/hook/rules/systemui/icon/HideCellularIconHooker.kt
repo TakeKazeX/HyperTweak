@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
 import com.takekazex.hypertweak.presentation.icon.MobileSignalEvent
 import com.takekazex.hypertweak.presentation.icon.MobileSignalState
 
@@ -28,6 +29,12 @@ import java.util.concurrent.atomic.AtomicLong
  * original getter whenever no live registration exists.
  */
 object HideCellularIconHooker : StaticHooker() {
+    init {
+        hostRecovery(HostRecoveryPhase.ADAPTER_POLICY, icons = true) {
+            it.adapter?.let(::recoverAdapter)
+        }
+    }
+
     override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
 
     private const val TAG = "IconTuner"
@@ -59,7 +66,7 @@ object HideCellularIconHooker : StaticHooker() {
     private var hideOnWifi = false
 
     private var state = MobileSignalState()
-    private var adapterReference: java.lang.ref.WeakReference<Any>? = null
+    private var adapterReference: java.lang.ref.WeakReference<Any>? by generationState { null }
 
     /**
      * Per-subscription WiFi availability, consumed on the main looper.
@@ -79,7 +86,7 @@ object HideCellularIconHooker : StaticHooker() {
     override fun onPrepareHotReload() {
         generation.incrementAndGet()
         enabled = false
-        adapterReference = null
+
         HostAccess.onMain {
             hideSimOne = false
             hideSimTwo = false

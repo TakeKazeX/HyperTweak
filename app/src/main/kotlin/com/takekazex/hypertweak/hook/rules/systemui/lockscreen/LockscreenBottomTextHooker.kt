@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.lockscreen
 
+import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
 import com.takekazex.hypertweak.hook.rules.systemui.NativeViewAttachmentReplay
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 
@@ -23,6 +24,12 @@ import com.takekazex.hypertweak.util.logging.DebugLog
  * card or per-app notification gate is touched.
  */
 object LockscreenBottomTextHooker : StaticHooker() {
+    init {
+        hostRecovery(HostRecoveryPhase.WINDOWS) {
+            recoverExistingViews(it.views)
+        }
+    }
+
     override val hotReloadMode = HotReloadMode.RECREATE
 
     private const val TAG = "LockscreenBottomText"
@@ -57,20 +64,15 @@ object LockscreenBottomTextHooker : StaticHooker() {
     @Volatile
     private var enabled = false
 
-    @Volatile
-    private var numStateClass: Class<*>? = null
+    private var numStateClass: Class<*>? by generationState { null }
 
-    @Volatile
-    private var zenViewId = 0
+    private var zenViewId by generationState { 0 }
 
-    @Volatile
-    private var notificationCountViewId = 0
+    private var notificationCountViewId by generationState { 0 }
 
-    @Volatile
-    private var dividingLineId = 0
+    private var dividingLineId by generationState { 0 }
 
-    @Volatile
-    private var compactIdsLogged = false
+    private var compactIdsLogged by generationState { false }
 
     internal fun recoverExistingViews(views: List<View>) {
         views.filter { it.javaClass.name == NUM_STATE_VIEW }.forEach { knownIndicationViews += it }
@@ -82,11 +84,6 @@ object LockscreenBottomTextHooker : StaticHooker() {
 
     override fun onPrepareHotReload() {
         enabled = false
-        numStateClass = null
-        zenViewId = 0
-        notificationCountViewId = 0
-        dividingLineId = 0
-        compactIdsLogged = false
     }
 
     /**

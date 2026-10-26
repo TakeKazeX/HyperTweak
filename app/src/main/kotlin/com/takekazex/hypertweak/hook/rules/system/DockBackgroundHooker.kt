@@ -58,7 +58,7 @@ object DockBackgroundHooker : StaticHooker() {
     private val offerVersion = AtomicLong()
     private var restoredMotion: Any? = null
     private var providerLease = 0L
-    private var frameDriver: DockFrameDriver? = null
+    private var frameDriver: DockFrameDriver? by generationState { null }
 
     private fun renderFrame() {
         if (stopped) return
@@ -545,7 +545,7 @@ object DockBackgroundHooker : StaticHooker() {
         epoch.incrementAndGet()
         setChannel(false)
         frameDriver?.close()
-        frameDriver = null
+
         receiver?.let { callback -> context?.let { runCatching { it.unregisterReceiver(callback) } } }
         displayListener?.let { listener -> runCatching { displays?.unregisterDisplayListener(listener) }
             .onFailure { DebugLog.w(TAG, "display observer cleanup failed", it) } }

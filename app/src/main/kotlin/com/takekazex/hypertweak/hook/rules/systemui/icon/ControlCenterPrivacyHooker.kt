@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
 import com.takekazex.hypertweak.settings.contract.ControlCenterPrivacyPolicy
 
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
@@ -44,6 +45,12 @@ import kotlin.math.roundToInt
 
 /** Restyles native privacy children. Native expansion/Folme remain the sole animation owner. */
 object ControlCenterPrivacyHooker : StaticHooker() {
+    init {
+        hostRecovery(HostRecoveryPhase.WINDOWS, icons = true) {
+            recoverExistingViews(it.views, it.component)
+        }
+    }
+
     override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
     private const val TAG = "CcPrivacy"
     private const val VIEW = "com.android.systemui.controlcenter.shade.MiuiPrivacyContainerView"

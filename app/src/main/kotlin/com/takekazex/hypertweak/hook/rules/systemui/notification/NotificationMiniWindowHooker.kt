@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.notification
 
+import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 
 import android.app.PendingIntent
@@ -18,6 +19,12 @@ import java.lang.reflect.Method
 
 /** Unlock the native whitelist, retaining PendingIntent, window-state and keyguard gates. */
 object NotificationMiniWindowHooker : StaticHooker() {
+    init {
+        hostRecovery(HostRecoveryPhase.WINDOWS) {
+            recoverExistingViews(it.views)
+        }
+    }
+
     override val hotReloadMode = HotReloadMode.RECREATE
     private const val TAG = "NotificationMiniWindow"
     private const val ROW = "com.android.systemui.statusbar.notification.row.ExpandableNotificationRowInjector"

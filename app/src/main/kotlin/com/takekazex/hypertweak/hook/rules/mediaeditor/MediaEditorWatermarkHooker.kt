@@ -78,7 +78,7 @@ object MediaEditorWatermarkHooker : StaticHooker() {
     )
 
     private val downloaded = AtomicBoolean(false)
-    private var resolved: ResolvedClasses? = null
+    private var resolved: ResolvedClasses? by generationState { null }
 
     /** Prepare optional watermark targets only while at least one category is enabled. */
     override val installPolicy: InstallPolicy = InstallPolicy.WHEN_ENABLED
@@ -112,7 +112,6 @@ object MediaEditorWatermarkHooker : StaticHooker() {
 
     override fun onPrepareHotReload() {
         downloaded.set(false)
-        resolved = null
     }
 
     // ─── Class resolution ──────────────────────────────────────────────────────

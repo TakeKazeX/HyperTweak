@@ -30,14 +30,9 @@ object AospSystemUiPluginBlockHooker : StaticHooker() {
     private const val GLOBAL_ACTIONS_PLUGIN = "miui.systemui.globalactions.GlobalActionsPlugin"
     private const val VOLUME_DIALOG_PLUGIN = "miui.systemui.volume.VolumeDialogPlugin"
 
-    @Volatile
-    private var blockedClasses: Set<String> = emptySet()
+    private var blockedClasses: Set<String> by generationState { emptySet() }
 
     override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
-
-    override fun onPrepareHotReload() {
-        blockedClasses = emptySet()
-    }
 
     override fun onHook() {
         blockedClasses = buildSet {

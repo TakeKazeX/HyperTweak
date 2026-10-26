@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
 import com.takekazex.hypertweak.settings.contract.IconSlotMode
 
 import com.takekazex.hypertweak.hook.base.HostAccess
@@ -16,25 +17,25 @@ import com.takekazex.hypertweak.util.logging.DebugLog
  * `MiuiHomePrivacyController` consumes that `privacy` item to select its normal show-dot branch.
  */
 object IgnoreSysIconSettingsHooker : StaticHooker() {
+    init {
+        hostRecovery(HostRecoveryPhase.SOURCES, icons = true) {
+            it.controller?.let(::recoverController); it.component?.let(::recoverNetworkSpeed)
+        }
+    }
+
     override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
 
     private const val TAG = "IconTuner"
     private const val OBSERVER_CLASS = "com.android.systemui.statusbar.policy.StatusBarIconObserver"
     private const val SPEED_CLASS = "com.android.systemui.statusbar.policy.NetworkSpeedController"
 
-    @Volatile
-    private var ignoreSysHide = false
+    private var ignoreSysHide by generationState { false }
 
-    @Volatile
-    private var hidePrivacy = false
+    private var hidePrivacy by generationState { false }
 
-    @Volatile
-    private var netSpeedShown = false
+    private var netSpeedShown by generationState { false }
 
     override fun onPrepareHotReload() {
-        ignoreSysHide = false
-        hidePrivacy = false
-        netSpeedShown = false
     }
 
     override fun onHook() {

@@ -1,159 +1,90 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
-import com.takekazex.hypertweak.hook.rules.systemui.icon.carrier.ControlCenterCarrierBlockHooker
-import com.takekazex.hypertweak.hook.rules.systemui.icon.left.LeftContainerHooker
-import com.takekazex.hypertweak.hook.base.HostAccess
-import com.takekazex.hypertweak.hook.rules.systemui.gesturebar.HideBottomBarHooker
-import com.takekazex.hypertweak.hook.rules.systemui.notification.NotificationHeaderHooker
-import com.takekazex.hypertweak.hook.rules.systemui.notification.NotificationHeaderWeatherHooker
-import com.takekazex.hypertweak.hook.rules.systemui.notification.NotificationHeaderClockSecondsHooker
-import com.takekazex.hypertweak.hook.rules.systemui.MediaCardHideAppIconHooker
-import com.takekazex.hypertweak.hook.rules.systemui.MediaCardHideDeviceSwitchHooker
-import com.takekazex.hypertweak.hook.rules.systemui.lockscreen.LockscreenDateHooker
-import com.takekazex.hypertweak.hook.rules.systemui.notification.NotificationContentHotReloadRecovery
-import com.takekazex.hypertweak.hook.rules.systemui.lockscreen.HideLockscreenStatusBarHooker
-import com.takekazex.hypertweak.hook.rules.systemui.lockscreen.LockscreenBottomTextHooker
-import com.takekazex.hypertweak.hook.rules.systemui.lockscreen.LockscreenChargingDetailHooker
-import com.takekazex.hypertweak.hook.rules.systemui.notification.NotificationMiniWindowHooker
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
 import android.view.View
 import android.view.ViewGroup
 import android.view.inspector.WindowInspector
-import com.takekazex.hypertweak.hook.rules.systemui.icon.duo.DuoSignalHooker
+import com.takekazex.hypertweak.hook.base.BaseHooker
+import com.takekazex.hypertweak.hook.base.HostScope
+import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
 import com.takekazex.hypertweak.util.logging.DebugLog
 
-/** Recover already-inflated hosts after all replacement hooks and saved snapshots are installed. */
+/** Discovers host surfaces once; installed owners supply recovery at dependency barriers. */
 internal object StatusIconHotReloadRecovery {
     private val main = Handler(Looper.getMainLooper())
-
     @Volatile private var active = true
     fun cancel() { active = false; main.removeCallbacksAndMessages(null) }
 
-    fun schedule(context: Context) {
+    fun schedule(context: Context, hooks: Collection<BaseHooker>) {
         active = true
-        main.post { if (active) recover(context) }
+        enqueue(context, hooks, false)
     }
 
-    fun scheduleIcons(context: Context) {
-        main.post { if (active) recover(context, iconsOnly = true) }
+    fun scheduleIcons(context: Context, hooks: Collection<BaseHooker>) = enqueue(context, hooks, true)
+
+    private fun enqueue(context: Context, hooks: Collection<BaseHooker>, iconsOnly: Boolean) {
+        val owners = hooks.toList()
+        main.post { if (active) recover(context, owners, iconsOnly) }
     }
 
-    private fun recover(context: Context, iconsOnly: Boolean = false) {
+    private fun recover(context: Context, hooks: List<BaseHooker>, iconsOnly: Boolean) {
         runCatching {
             val app = context.applicationContext ?: context
             val component = read(app, "mSysUIComponent")
                 ?: read(app, "mInitializer")?.let { invoke(it, "getSysUIComponent") }
-            fun recoverFeature(name: String, action: () -> Unit) {
-                runCatching(action).onFailure { DebugLog.w("IconTuner", "hot reload recovery failed: $name", it) }
+            val scope = HostScope(app, component, windowViews())
+            fun dispatch(phase: HostRecoveryPhase) {
+                scope.phase = phase
+                hooks.forEach { it.recoverHostSurfaces(scope, iconsOnly) }
             }
-            // Header restoration must not depend on native status-icon group availability.
-            val existingViews = windowViews()
-            if (!iconsOnly) {
-                recoverFeature("gesture bar") { HideBottomBarHooker.recoverExistingViews(existingViews, component) }
-                recoverFeature("notification header") {
-                    val headers = NotificationHeaderHooker.recoverExistingHosts(component, existingViews)
-                    val headerViews = ArrayList<View>()
-                    headers.forEach { collectViews(it, headerViews) }
-                    NotificationHeaderClockSecondsHooker.recoverExistingViews((existingViews + headerViews).distinct())
-                    NotificationHeaderWeatherHooker.recoverExistingHeaders(headers)
-                }
-                recoverFeature("notification icon threshold") { com.takekazex.hypertweak.hook.rules.systemui.StatusBarHideSilentHooker.recoverExistingHosts(component) }
-                recoverFeature("notification mini window") { NotificationMiniWindowHooker.recoverExistingViews(existingViews) }
-                recoverFeature("notification content") { NotificationContentHotReloadRecovery.recover(existingViews) }
-                recoverFeature("media app icon") { MediaCardHideAppIconHooker.recoverExistingViews(existingViews) }
-                recoverFeature("media output switch") { MediaCardHideDeviceSwitchHooker.recoverExistingViews(existingViews) }
-                recoverFeature("lockscreen date") { LockscreenDateHooker.recoverExistingViews(existingViews) }
-                recoverFeature("lockscreen status bar") {
-                    HideLockscreenStatusBarHooker.recoverStateController(component)
-                    HideLockscreenStatusBarHooker.recoverExistingViews(existingViews)
-                }
-                recoverFeature("lockscreen compact labels") { LockscreenBottomTextHooker.recoverExistingViews(existingViews) }
-                recoverFeature("lockscreen indications") {
-                    component?.let { provider(it, "keyguardIndicationControllerProvider") }?.let { indication ->
-                        // Rebuild native messages from current battery, biometric and transient state.
-                        val refresh = HostAccess.method(indication, "updateDeviceEntryIndication", Boolean::class.javaPrimitiveType!!)
-                            ?: error("Missing native keyguard indication refresh")
-                        refresh.invoke(indication, false)
-                        read(indication, "mRotateTextViewController")?.let(LockscreenChargingDetailHooker::recoverController)
-                    }
-                }
+            dispatch(HostRecoveryPhase.WINDOWS)
+            dispatch(HostRecoveryPhase.CONTENT)
+            dispatch(HostRecoveryPhase.HEADERS)
+            val headerViews = ArrayList<View>()
+            scope.headers.forEach { collectViews(it, headerViews) }
+            scope.views = (scope.views + headerViews).distinct()
+            dispatch(HostRecoveryPhase.HEADER_DECORATIONS)
+            scope.controller = component?.let { provider(it, "statusBarIconControllerImplProvider") }
+            scope.managers = scope.controller?.let { (read(it, "mIconGroups") as? List<*>).orEmpty().filterNotNull().toList() }.orEmpty()
+            dispatch(HostRecoveryPhase.SOURCES)
+            val services = read(app, "mServices")?.let { invoke(it, "get") ?: it }
+            val entries = when (services) {
+                is Array<*> -> services.asList()
+                is Iterable<*> -> services.toList()
+                else -> emptyList()
             }
-            recoverFeature("privacy header") { ControlCenterPrivacyHooker.recoverExistingViews(existingViews, component) }
-            val controller = component?.let { provider(it, "statusBarIconControllerImplProvider") }
-                ?: error("Missing existing SystemUI icon controller")
-            val managers = (read(controller, "mIconGroups") as? List<*>).orEmpty().filterNotNull().toList()
-            check(managers.isNotEmpty()) { "No existing icon managers" }
-            recoverFeature("observer") { IgnoreSysIconSettingsHooker.recoverController(controller) }
-            // The controller above requires a non-null component, so this branch always runs.
-            run {
-                recoverFeature("operator config") { CellularTypeIconHooker.recoverOperatorConfig(component) }
-                recoverFeature("Wi-Fi source") { WifiIconHooker.recoverViewModel(component) }
-                recoverFeature("network speed") { IgnoreSysIconSettingsHooker.recoverNetworkSpeed(component) }
-                recoverFeature("region sampling") { RegionSamplingHooker.recover(component) }
-            }
-            // Getters must expose current per-SIM flows BEFORE fresh binders collect them.
-            recoverFeature("SIM visibility") {
-                val services = read(app, "mServices")?.let { invoke(it, "get") ?: it }
-                val entries = when (services) {
-                    is Array<*> -> services.asList()
-                    is Iterable<*> -> services.toList()
-                    else -> emptyList()
+            val adapterClass = "com.android.systemui.statusbar.pipeline.mobile.ui.MobileUiAdapter"
+            scope.adapter = entries.firstOrNull { it?.javaClass?.name == adapterClass }
+                ?: component?.let { host ->
+                    sequenceOf("getStartables", "getPerUserStartables").mapNotNull { name ->
+                        val startables = invoke(host, name) as? Map<*, *> ?: return@mapNotNull null
+                        val provider = startables.entries.firstOrNull { (key, _) -> (key as? Class<*>)?.name == adapterClass }?.value
+                            ?: return@mapNotNull null
+                        invoke(provider, "get")?.takeIf { it.javaClass.name == adapterClass }
+                    }.firstOrNull()
                 }
-                val adapterClass = "com.android.systemui.statusbar.pipeline.mobile.ui.MobileUiAdapter"
-                val adapter = entries.firstOrNull { it?.javaClass?.name == adapterClass }
-                    ?: component.let { host ->
-                        sequenceOf("getStartables", "getPerUserStartables").mapNotNull { name ->
-                            val startables = invoke(host, name) as? Map<*, *> ?: return@mapNotNull null
-                            val provider = startables.entries.firstOrNull { (key, _) ->
-                                (key as? Class<*>)?.name == adapterClass
-                            }?.value ?: return@mapNotNull null
-                            invoke(provider, "get")?.takeIf { it.javaClass.name == adapterClass }
-                        }.firstOrNull()
-                    }
-                if (adapter != null) {
-                    HideCellularIconHooker.recoverAdapter(adapter)
-                    StackedSignalHooker.recoverAdapter(adapter)
-                }
-            }
-            // The native lifecycle disposes old binders/dark receivers and creates fresh views
-            // against the new slot indices. Holders, subscription VMs and manager identity survive.
-            rebuildIconGroups(controller, managers, app)
-            val roots = WindowInspector.getGlobalWindowViews()
-            val views = windowViews()
-            val expansion = component.let { provider(it, "controlCenterExpandControllerDelegateProvider") }
-            val progress = expansion?.let { read(it, "expansionState") }
-                ?.let(IconTunerFlows::readFlowValue) as? Float
-            val visible = expansion?.let { read(it, "visibleState") }
-                ?.let(IconTunerFlows::readFlowValue) as? Boolean
-            val stretch = expansion?.let { read(it, "stretchHeightState") }
-                ?.let(IconTunerFlows::readFlowValue) as? Float
-            recoverFeature("manager") { IconManagerHooker.recoverManagers(managers) }
-            recoverFeature("containers") { IconPositionHooker.recoverExistingContainers(views) }
-            recoverFeature("left") { LeftContainerHooker.recoverExistingViews(views, progress, visible) }
-            recoverFeature("carrier") { ControlCenterCarrierBlockHooker.recoverExistingViews(app, views, progress, visible) }
-            recoverFeature("carrier visibility") { HideCarrierLabelHooker.recoverExistingViews(views) }
-            recoverFeature("battery style") { CcBatteryStyleHooker.recoverExistingViews(views) }
-            recoverFeature("notification count") { NotificationMaxNumberHooker.recoverExistingViews(views) }
-            recoverFeature("header") { ControlCenterHeaderHooker.recoverExistingViews(views) }
-            recoverFeature("Duo") { DuoSignalHooker.recoverExistingViews(views, progress, visible, stretch) }
-            // Same as above: the controller lookup already proved the component is present.
-            run {
-                val scope = provider(component, "bgApplicationScopeProvider")
-                val interactor = provider(component, "wifiInteractorImplProvider")
-                if (scope != null && interactor != null) {
-                    recoverFeature("carrier Wi-Fi") { ControlCenterCarrierBlockHooker.recoverWifi(scope, interactor, app) }
-                    recoverFeature("Duo Wi-Fi") { DuoSignalHooker.recoverWifi(scope, interactor, app) }
-                }
-            }
-            DebugLog.i("IconTuner", "hot reload rebound roots=${roots.size} managers=${managers.size} progress=$progress visible=$visible")
-            // The rebound line above cannot tell a rendered left icon from one that was found but
-            // suppressed (keyguard gate, detached host, no right-side source). Keep one INFO line
-            // per recovery so a "moved but invisible" report is diagnosable from a log export
-            // without a rebuilt module.
-            LeftContainerHooker.logStateSummary("recovery")
-        }.onFailure { DebugLog.w("IconTuner", "hot reload host discovery failed", it) }
+            dispatch(HostRecoveryPhase.ADAPTER_POLICY)
+            dispatch(HostRecoveryPhase.ADAPTER)
+            val controller = scope.controller ?: error("Missing existing SystemUI icon controller")
+            check(scope.managers.isNotEmpty()) { "No existing icon managers" }
+            rebuildIconGroups(controller, scope.managers) { dispatch(HostRecoveryPhase.SLOT_ORDER) }
+            scope.views = windowViews()
+            val expansion = component?.let { provider(it, "controlCenterExpandControllerDelegateProvider") }
+            scope.progress = expansion?.let { read(it, "expansionState") }?.let(IconTunerFlows::readFlowValue) as? Float
+            scope.visible = expansion?.let { read(it, "visibleState") }?.let(IconTunerFlows::readFlowValue) as? Boolean
+            scope.stretch = expansion?.let { read(it, "stretchHeightState") }?.let(IconTunerFlows::readFlowValue) as? Float
+            dispatch(HostRecoveryPhase.MANAGERS)
+            dispatch(HostRecoveryPhase.CONTAINERS)
+            dispatch(HostRecoveryPhase.PRESENTATION)
+            dispatch(HostRecoveryPhase.ICONS)
+            dispatch(HostRecoveryPhase.HANDOVER)
+            scope.coroutineScope = component?.let { provider(it, "bgApplicationScopeProvider") }
+            scope.wifiInteractor = component?.let { provider(it, "wifiInteractorImplProvider") }
+            dispatch(HostRecoveryPhase.NETWORK)
+            DebugLog.i("HostRecovery", "hot reload rebound owners=${hooks.size} views=${scope.views.size} managers=${scope.managers.size} progress=${scope.progress} visible=${scope.visible}")
+        }.onFailure { DebugLog.w("HostRecovery", "hot reload host discovery failed", it) }
     }
 
     private fun windowViews(): List<View> = ArrayList<View>().also { views ->
@@ -165,7 +96,7 @@ internal object StatusIconHotReloadRecovery {
         if (view is ViewGroup) for (index in 0 until view.childCount) collectViews(view.getChildAt(index), views)
     }
 
-    private fun rebuildIconGroups(controller: Any, managers: List<Any>, context: Context) {
+    private fun rebuildIconGroups(controller: Any, managers: List<Any>, applyOrder: () -> Unit) {
         val remove = controller.javaClass.methods.singleOrNull {
             it.name == "removeIconGroup" && it.parameterCount == 1
         }?.apply { isAccessible = true } ?: error("Missing native removeIconGroup")
@@ -181,7 +112,7 @@ internal object StatusIconHotReloadRecovery {
             groups = managers,
             attached = { it in (read(controller, "mIconGroups") as? List<*>).orEmpty() },
             detach = { remove.invoke(controller, it) },
-            applyOrder = { IconPositionHooker.recoverSlotOrder(controller, context) },
+            applyOrder = applyOrder,
             restoreOrder = { slots.clear(); slots.addAll(original) },
             attach = { add.invoke(controller, it) }
         )

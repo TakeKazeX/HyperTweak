@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.notification
 
+import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 
 import android.graphics.Typeface
@@ -16,6 +17,12 @@ import java.util.WeakHashMap
 
 /** Restores the framework notification typefaces after MIUI's notification bindings run. */
 object NotificationFontWeightHooker : StaticHooker() {
+    init {
+        hostRecovery(HostRecoveryPhase.WINDOWS) {
+            it.views.forEach(::recoverHybrid)
+        }
+    }
+
     override val hotReloadMode = HotReloadMode.RECREATE
 
     private const val TAG = "NotificationFontWeight"

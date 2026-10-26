@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.lockscreen
 
+import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 
 import android.view.View
@@ -19,6 +20,12 @@ import androidx.core.view.isGone
 
 /** Hide dates in keyguard clocks throughout lockscreen/full-AOD transitions, excluding previews. */
 object LockscreenDateHooker : StaticHooker() {
+    init {
+        hostRecovery(HostRecoveryPhase.WINDOWS) {
+            recoverExistingViews(it.views)
+        }
+    }
+
     override val hotReloadMode = HotReloadMode.RECREATE
     private val bindings = WeakHashMap<View, Binding>()
     @Volatile private var enabled = false

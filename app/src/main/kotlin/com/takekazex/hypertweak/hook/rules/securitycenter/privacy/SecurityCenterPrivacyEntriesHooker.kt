@@ -52,18 +52,14 @@ object SecurityCenterPrivacyEntriesHooker : StaticHooker() {
     private const val FRONT_ASSISTANT_ACTION_URI =
         "#Intent;action=$FRONT_ASSISTANT_ACTION;end"
 
-    @Volatile private var supportedAntiPeepingModes: Set<Int> = emptySet()
+    private var supportedAntiPeepingModes: Set<Int> by generationState { emptySet() }
     /** False until the semantic profile says which native anti-peeping gates exist. */
-    @Volatile private var antiPeepingSupportKnown: Boolean = false
+    private var antiPeepingSupportKnown: Boolean by generationState { false }
 
     /**
      * A new generation must re-learn support: the profile is re-resolved after an APK update and
      * the previous answer may no longer describe this build.
      */
-    override fun onPrepareHotReload() {
-        supportedAntiPeepingModes = emptySet()
-        antiPeepingSupportKnown = false
-    }
 
     private val beautyManageUiGateActive = ThreadActivation()
 

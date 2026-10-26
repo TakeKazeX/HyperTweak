@@ -66,13 +66,12 @@ object LbeClipboardToastHooker : StaticHooker() {
     @Volatile
     private var enabled = false
 
-    private var contextField: Field? = null
+    private var contextField: Field? by generationState { null }
 
     override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
 
     override fun onPrepareHotReload() {
         enabled = false
-        contextField = null
     }
 
     override fun onHook() {

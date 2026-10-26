@@ -28,11 +28,10 @@ object VideoRingbackHooker : StaticHooker() {
     private const val MANAGER_CLASS = "com.android.phone.FiveGManager"
 
     private val enforcementApplied = AtomicBoolean(false)
-    private var setCrbtDisable: Method? = null
+    private var setCrbtDisable: Method? by generationState { null }
 
     override fun onPrepareHotReload() {
         enforcementApplied.set(false)
-        setCrbtDisable = null
     }
 
     override fun onHook() {

@@ -490,7 +490,7 @@ class HookEntry : XposedModule() {
         if (!isSystemServer && processName == "com.android.systemui") {
             val context = restoredState.packages.firstOrNull { it.packageName == processName }?.appContext
             if (context != null) {
-                com.takekazex.hypertweak.hook.rules.systemui.icon.StatusIconHotReloadRecovery.schedule(context)
+                com.takekazex.hypertweak.hook.rules.systemui.icon.StatusIconHotReloadRecovery.schedule(context, rootHookers)
             } else {
                 DebugLog.w("HookEntry", "SystemUI hot reload recovery missing application context")
             }
@@ -571,7 +571,7 @@ class HookEntry : XposedModule() {
         com.takekazex.hypertweak.hook.base.HotReloadHostRecovery.run(
             rootHookers.toList(), states, { it.hookerName },
             { hooker, state -> hooker.restoreHotReloadState(state) },
-            { it.recoverHotReloadHosts() },
+            { it.recoverGenerationHosts() },
             { hooker, error -> DebugLog.e("HookEntry", "failed to restore/recover ${hooker.hookerName}", error) }
         )
     }

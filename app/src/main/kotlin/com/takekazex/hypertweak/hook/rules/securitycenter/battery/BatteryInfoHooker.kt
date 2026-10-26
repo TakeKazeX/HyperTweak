@@ -30,7 +30,7 @@ object BatteryInfoHooker : StaticHooker() {
     const val PACKAGE = BatteryInfoChannel.PACKAGE
     override val hotReloadMode = HotReloadMode.RECREATE
 
-    private var publisher: Publisher? = null
+    private var publisher: Publisher? by generationState { null }
 
     override fun onHook() {
         // HookEntry calls onPackageReady once Application.attach supplies the context. No startup
@@ -64,7 +64,6 @@ object BatteryInfoHooker : StaticHooker() {
     @Synchronized
     override fun onPrepareHotReload() {
         publisher?.close()
-        publisher = null
     }
 
     private class Publisher(private val context: Context) {

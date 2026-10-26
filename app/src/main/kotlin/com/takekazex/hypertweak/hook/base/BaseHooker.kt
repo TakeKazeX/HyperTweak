@@ -48,6 +48,41 @@ sealed class BaseHooker {
     private val hookHandles = CopyOnWriteArraySet<XposedInterface.HookHandle>()
     private val childHookers = CopyOnWriteArraySet<BaseHooker>()
     private val dexPreparations = DexPreparationOwner()
+    private val generationStates = GenerationStateOwner()
+    private val hostRecoveries = CopyOnWriteArraySet<HostSurfaceRecovery>()
+
+    /** Declare transient state once; retirement resets it even when custom cleanup fails. */
+    protected fun <T> generationState(initial: () -> T): GenerationState<T> =
+        generationStates.state(initial)
+
+    /** Cache identity and synchronization monitors survive until all host cleanup has finished. */
+    protected fun <T> generationResource(value: T, reset: (T) -> Unit): T =
+        generationStates.resource(value, reset)
+
+    /** Recovery belongs to the installed owner, so absent/plugin-only hookers cannot participate. */
+    protected fun hostRecovery(
+        phase: HostRecoveryPhase,
+        icons: Boolean = false,
+        recover: (HostScope) -> Unit
+    ) {
+        hostRecoveries += object : HostSurfaceRecovery {
+            override val phase = phase
+            override val icons = icons
+            override fun recover(scope: HostScope) = recover.invoke(scope)
+        }
+    }
+
+    internal fun recoverHostSurfaces(scope: HostScope, iconsOnly: Boolean) {
+        hostRecoveries.filter { it.phase == scope.phase && (!iconsOnly || it.icons) }.forEach { recovery ->
+            // Slot mutation must escape to the native transaction so its rollback can run.
+            if (scope.phase == HostRecoveryPhase.SLOT_ORDER) recovery.recover(scope)
+            else runCatching { recovery.recover(scope) }.onFailure {
+                runCatching { DebugLog.w("HostRecovery", "$hookerName phase=${scope.phase}", it) }
+            }
+        }
+        childHookers.forEach { it.recoverHostSurfaces(scope, iconsOnly) }
+    }
+
     private val trackedInstances = CopyOnWriteArraySet<HookInstances>()
 
     private var replacementHandles: HotReloadHandleStore? = null
@@ -170,6 +205,18 @@ sealed class BaseHooker {
     /** Recover living hosts even when the previous APK had no state for this feature. */
     open fun recoverHotReloadHosts() {}
 
+    /** Process-local recovery also reaches plugin children, including children without old state. */
+    internal fun recoverGenerationHosts() {
+        val failures = mutableListOf<Throwable>()
+        runCatching { recoverHotReloadHosts() }.onFailure(failures::add)
+        childHookers.forEach { child ->
+            runCatching { child.recoverGenerationHosts() }.onFailure(failures::add)
+        }
+        if (failures.isNotEmpty()) throw failures.first().apply {
+            failures.drop(1).forEach(::addSuppressed)
+        }
+    }
+
     protected val dexCacheDirectory: java.io.File?
         get() = DexRuntime.cacheDirectory(hookParam.appInfo)
 
@@ -262,14 +309,15 @@ sealed class BaseHooker {
             runCatching { child.prepareForHotReload() }
                 .onFailure { t ->
                     failures += t
-                    DebugLog.w("BaseHooker", "failed to prepare child ${child.hookerName} for hot reload", t)
+                    runCatching { DebugLog.w("BaseHooker", "failed to prepare child ${child.hookerName} for hot reload", t) }
                 }
         }
         runCatching { onPrepareHotReload() }
             .onFailure { t ->
                 failures += t
-                DebugLog.w("BaseHooker", "failed to prepare $hookerName for hot reload", t)
+                runCatching { DebugLog.w("BaseHooker", "failed to prepare $hookerName for hot reload", t) }
             }
+        runCatching { generationStates.reset() }.onFailure(failures::add)
         trackedInstances.forEach(HookInstances::clear)
         if (failures.isNotEmpty()) {
             val primary = failures.first()

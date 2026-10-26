@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon.left
 
+import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IconManagerHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IconTunerFlows
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IconTunerOptions
@@ -67,6 +68,12 @@ import java.util.WeakHashMap
  * generation retires; framework view references and panel progress rebind the replacement.
  */
 object LeftContainerHooker : StaticHooker() {
+    init {
+        hostRecovery(HostRecoveryPhase.PRESENTATION, icons = true) {
+            recoverExistingViews(it.views, it.progress, it.visible); logStateSummary("recovery")
+        }
+    }
+
     private val handover = LeftHandoverController(object : LeftHandoverController.Host {
         override val retiring get() = LeftContainerHooker.retiring
         override val active get() = LeftContainerHooker.active

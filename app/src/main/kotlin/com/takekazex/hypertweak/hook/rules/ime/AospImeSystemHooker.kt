@@ -43,8 +43,8 @@ object AospImeSystemHooker : StaticHooker() {
         "sendOnNavButtonFlagsChangedLocked"
     )
 
-    private var immsContextField: Field? = null
-    private var imeDrawsNavBarField: Field? = null
+    private var immsContextField: Field? by generationState { null }
+    private var imeDrawsNavBarField: Field? by generationState { null }
 
     /**
      * `getInputMethodNavButtonFlagsLocked` runs on every IME attach, and reading
@@ -54,10 +54,9 @@ object AospImeSystemHooker : StaticHooker() {
      * requires a reboot, so a settings change arriving via the observer is strictly better
      * than the previous per-call read).
      */
-    @Volatile
-    private var cachedGestureNav = false
-    @Volatile
-    private var cachedCurrentIme: String? = null
+    private var cachedGestureNav by generationState { false }
+
+    private var cachedCurrentIme: String? by generationState { null }
 
     private val imeSettingsLock = Any()
     private var imeSettingsAttached = false
@@ -67,8 +66,6 @@ object AospImeSystemHooker : StaticHooker() {
     override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
 
     override fun onPrepareHotReload() {
-        immsContextField = null
-        imeDrawsNavBarField = null
         synchronized(imeSettingsLock) {
             val observer = imeSettingsObserver ?: return@synchronized
             imeSettingsObserver = null
@@ -77,8 +74,6 @@ object AospImeSystemHooker : StaticHooker() {
             runCatching { imeSettingsResolver?.unregisterContentObserver(observer) }
             imeSettingsResolver = null
         }
-        cachedGestureNav = false
-        cachedCurrentIme = null
     }
 
     override fun onHook() {

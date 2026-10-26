@@ -57,9 +57,9 @@ object GestureBarTransitionHooker : StaticHooker() {
     }
 
     // display -> [native transition, display, navigation token, app task, detach deferred]
-    private val sessions = java.util.concurrent.ConcurrentHashMap<Int, Array<Any>>()
+    private val sessions = generationResource(java.util.concurrent.ConcurrentHashMap<Int, Array<Any>>()) { it.clear() }
     private val detachRequest = ThreadLocal<Boolean>()
-    private var transitionContract: TransitionContract? = null
+    private var transitionContract: TransitionContract? by generationState { null }
     private val recovery by lazy { SystemServerStartupRetry(TAG, action = ::releaseDisabledSessions) }
 
     private fun settings() = GestureBarTransitionSettings(attachEnabled(),
@@ -76,9 +76,7 @@ object GestureBarTransitionHooker : StaticHooker() {
     override fun recoverHotReloadHosts() = refreshSettings()
     override fun onPrepareHotReload() {
         recovery.cancel()
-        sessions.clear()
         detachRequest.remove()
-        transitionContract = null
     }
     fun refreshSettings() = recovery.schedule()
 

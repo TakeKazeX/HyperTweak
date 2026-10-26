@@ -132,7 +132,7 @@ internal class SystemUiSettingsHost(
             ControlCenterCarrierBlockHooker.onPackageReady(context)
             LeftContainerHooker.onPackageReady(context)
             LeftContainerHooker.requestReconcile()
-            com.takekazex.hypertweak.hook.rules.systemui.icon.StatusIconHotReloadRecovery.scheduleIcons(context)
+            com.takekazex.hypertweak.hook.rules.systemui.icon.StatusIconHotReloadRecovery.scheduleIcons(context, liveHookers())
             return true
         }
         ManagedHookReload.run(
@@ -144,7 +144,7 @@ internal class SystemUiSettingsHost(
                 // The icon snapshot is only re-read on events now, so a committed settings change
                 // must reconcile explicitly instead of waiting for a periodic timer.
                 LeftContainerHooker.requestReconcile()
-                com.takekazex.hypertweak.hook.rules.systemui.icon.StatusIconHotReloadRecovery.scheduleIcons(context)
+                com.takekazex.hypertweak.hook.rules.systemui.icon.StatusIconHotReloadRecovery.scheduleIcons(context, liveHookers())
             }
         )
         DebugLog.i("IconTuner", "live icon settings attached hooks=${hooks.size}; native host recovery queued")

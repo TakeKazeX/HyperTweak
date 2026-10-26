@@ -24,19 +24,14 @@ import android.graphics.Path
 
 object SettingsHooker : StaticHooker() {
     private const val HEADER_ID = 10777L
-    private val headerFieldCache = ConcurrentHashMap<Class<*>, Map<String, Field>>()
-    private val headerConstructorCache = ConcurrentHashMap<Class<*>, Constructor<*>?>()
-    private val iconBitmapCache = ConcurrentHashMap<Long, Bitmap>()
+    private val headerFieldCache = generationResource(ConcurrentHashMap<Class<*>, Map<String, Field>>()) { it.clear() }
+    private val headerConstructorCache = generationResource(ConcurrentHashMap<Class<*>, Constructor<*>?>()) { it.clear() }
+    private val iconBitmapCache = generationResource(ConcurrentHashMap<Long, Bitmap>()) { it.clear() }
 
     /** `header_icon_size` dimen id, resolved once per process instead of per header bind. */
-    @Volatile
-    private var headerIconSizeResId = 0
+    private var headerIconSizeResId by generationState { 0 }
 
     override fun onPrepareHotReload() {
-        headerFieldCache.clear()
-        headerConstructorCache.clear()
-        iconBitmapCache.clear()
-        headerIconSizeResId = 0
     }
 
     override fun onHook() {

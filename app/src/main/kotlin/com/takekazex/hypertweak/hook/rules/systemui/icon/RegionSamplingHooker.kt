@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import com.takekazex.hypertweak.hook.base.HostAccess
@@ -31,6 +32,12 @@ import java.io.File
  * cold flow once to refresh the already-running helper.
  */
 object RegionSamplingHooker : StaticHooker() {
+    init {
+        hostRecovery(HostRecoveryPhase.SOURCES, icons = true) {
+            it.component?.let(::recover)
+        }
+    }
+
     override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
 
     private const val TAG = "IconTuner"
@@ -38,13 +45,12 @@ object RegionSamplingHooker : StaticHooker() {
     private const val TRANSFORM_OWNER_MARKER =
         "com.miui.systemui.statusbar.core.StatusBarRegionSamplingInteractor\$regionSampling"
 
-    private var replay: HostFlowCollector.Handle? = null
+    private var replay: HostFlowCollector.Handle? by generationState { null }
     @Volatile private var retiring = false
 
     override fun onPrepareHotReload() {
         retiring = true
         replay?.cancel()
-        replay = null
     }
 
     internal fun recover(component: Any) {

@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui
 
+import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
 import com.takekazex.hypertweak.hook.rules.systemui.notification.NotificationIconFilterContract
 import com.takekazex.hypertweak.hook.rules.systemui.notification.NotificationModelCopy
 import com.takekazex.hypertweak.settings.contract.NotificationIconPolicy
@@ -20,6 +21,12 @@ import java.lang.reflect.Method
  * Channel settings, notification sound, AOD and shelf policies remain host-owned.
  */
 object StatusBarHideSilentHooker : StaticHooker() {
+    init {
+        hostRecovery(HostRecoveryPhase.WINDOWS) {
+            recoverExistingHosts(it.component)
+        }
+    }
+
     override val hotReloadMode = HotReloadMode.RECREATE
 
     private const val TAG = "HideSilent"
@@ -30,18 +37,17 @@ object StatusBarHideSilentHooker : StaticHooker() {
     @Volatile private var threshold = -1
     @Volatile private var ready = false
     @Volatile private var retired = false
-    private var copier: NotificationModelCopy? = null
+    private var copier: NotificationModelCopy? by generationState { null }
     private var builderField: Field? = null
     private var schedule: Method? = null
     private val calls = ThreadLocal.withInitial { java.util.ArrayDeque<Pair<Any, Boolean>>() }
 
-
     @Volatile
     private var enabled = false
 
-    private var rankingField: Field? = null
-    private var getImportance: Method? = null
-    private var isSilentField: Field? = null
+    private var rankingField: Field? by generationState { null }
+    private var getImportance: Method? by generationState { null }
+    private var isSilentField: Field? by generationState { null }
 
     override fun onPrepareHotReload() {
         retired = true
@@ -49,10 +55,6 @@ object StatusBarHideSilentHooker : StaticHooker() {
         ready = false
         main.removeCallbacksAndMessages(null)
         calls.remove()
-        copier = null
-        rankingField = null
-        getImportance = null
-        isSilentField = null
     }
 
     override fun onHook() {
@@ -138,7 +140,6 @@ object StatusBarHideSilentHooker : StaticHooker() {
             DebugLog.hookRegistered(TAG, "native status-bar threshold predicate")
         })
     }
-
 
     fun refreshSettings() {
         Preferences.invalidateRuntimeReadCache()

@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui
 
+import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 
 import android.view.View
@@ -37,6 +38,12 @@ import java.util.concurrent.atomic.AtomicBoolean
  * The switch gates hook installation; hot reload restores and rebinds existing native switch views.
  */
 object MediaCardHideDeviceSwitchHooker : StaticHooker() {
+    init {
+        hostRecovery(HostRecoveryPhase.WINDOWS) {
+            recoverExistingViews(it.views)
+        }
+    }
+
     override val hotReloadMode = HotReloadMode.RECREATE
 
     private const val TAG = "MediaCardHideDeviceSwitch"
@@ -61,40 +68,29 @@ object MediaCardHideDeviceSwitchHooker : StaticHooker() {
         "media_seamless_image"
     )
 
-    @Volatile
-    private var shadeHolderField: Field? = null
+    private var shadeHolderField: Field? by generationState { null }
 
-    @Volatile
-    private var shadeSeamlessField: Field? = null
+    private var shadeSeamlessField: Field? by generationState { null }
 
-    @Volatile
-    private var islandSeamlessField: Field? = null
+    private var islandSeamlessField: Field? by generationState { null }
 
-    @Volatile
-    private var islandSeamlessButtonField: Field? = null
+    private var islandSeamlessButtonField: Field? by generationState { null }
 
-    @Volatile
-    private var islandSeamlessIconField: Field? = null
+    private var islandSeamlessIconField: Field? by generationState { null }
 
-    @Volatile
-    private var shadeSeamlessButtonField: Field? = null
+    private var shadeSeamlessButtonField: Field? by generationState { null }
 
-    @Volatile
-    private var shadeSeamlessIconField: Field? = null
+    private var shadeSeamlessIconField: Field? by generationState { null }
 
-    @Volatile
-    private var aospHolderField: Field? = null
+    private var aospHolderField: Field? by generationState { null }
 
-    @Volatile
-    private var aospSeamlessField: Field? = null
+    private var aospSeamlessField: Field? by generationState { null }
 
-    @Volatile
-    private var aospSeamlessButtonField: Field? = null
+    private var aospSeamlessButtonField: Field? by generationState { null }
 
-    @Volatile
-    private var aospSeamlessIconField: Field? = null
+    private var aospSeamlessIconField: Field? by generationState { null }
 
-    private val mediaSwitchVisibilityIds = java.util.concurrent.ConcurrentHashMap<android.content.res.Resources, IntArray>()
+    private val mediaSwitchVisibilityIds = generationResource(java.util.concurrent.ConcurrentHashMap<android.content.res.Resources, IntArray>()) { it.clear() }
 
     private val visibilityGuardLogged = AtomicBoolean(false)
 
@@ -171,18 +167,7 @@ object MediaCardHideDeviceSwitchHooker : StaticHooker() {
             originals.clear()
             knownViews.clear()
         }
-        shadeHolderField = null
-        shadeSeamlessField = null
-        islandSeamlessField = null
-        shadeSeamlessButtonField = null
-        shadeSeamlessIconField = null
-        islandSeamlessButtonField = null
-        islandSeamlessIconField = null
-        aospHolderField = null
-        aospSeamlessField = null
-        aospSeamlessButtonField = null
-        aospSeamlessIconField = null
-        mediaSwitchVisibilityIds.clear()
+
         visibilityGuardLogged.set(false)
     }
 

@@ -110,8 +110,7 @@ object DefaultAssistantHooker : StaticHooker() {
         val voiceService: ComponentName?
     )
 
-    @Volatile
-    private var observerInstalled = false
+    private var observerInstalled by generationState { false }
 
     @Volatile
     private var settingObserver: android.database.ContentObserver? = null
@@ -138,7 +137,6 @@ object DefaultAssistantHooker : StaticHooker() {
                 .onFailure { DebugLog.w(SCOPE, "could not unregister the assistant observer", it) }
             settingObserver = null
         }
-        observerInstalled = false
     }
 
     /**

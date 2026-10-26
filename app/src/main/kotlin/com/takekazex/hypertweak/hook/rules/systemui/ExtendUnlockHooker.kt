@@ -64,22 +64,20 @@ object ExtendUnlockHooker : StaticHooker() {
     @Volatile
     private var enabled = false
 
-    private val trustCache = ConcurrentHashMap<Int, CachedTrust>()
+    private val trustCache = generationResource(ConcurrentHashMap<Int, CachedTrust>()) { it.clear() }
 
-    private var contextField: Field? = null
-    private var isSimPinSecureMethod: Method? = null
-    private var isUnlockingWithBiometricAllowedMethod: Method? = null
+    private var contextField: Field? by generationState { null }
+    private var isSimPinSecureMethod: Method? by generationState { null }
+    private var isUnlockingWithBiometricAllowedMethod: Method? by generationState { null }
 
     /** `KeyguardUpdateMonitor.getUserTrustIsManaged(int)` — false when no agent manages trust. */
-    @Volatile
-    private var getUserTrustIsManagedMethod: Method? = null
+    private var getUserTrustIsManagedMethod: Method? by generationState { null }
 
-    private var isDeviceSecureMethod: Method? = null
-    private var isDeviceLockedMethod: Method? = null
+    private var isDeviceSecureMethod: Method? by generationState { null }
+    private var isDeviceLockedMethod: Method? by generationState { null }
 
     /** `KeyguardManager.isKeyguardLocked()` — gates the override on the keyguard being on screen. */
-    @Volatile
-    private var isKeyguardLockedMethod: Method? = null
+    private var isKeyguardLockedMethod: Method? by generationState { null }
 
     override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
 
@@ -124,14 +122,6 @@ object ExtendUnlockHooker : StaticHooker() {
 
     override fun onPrepareHotReload() {
         enabled = false
-        trustCache.clear()
-        contextField = null
-        isSimPinSecureMethod = null
-        isUnlockingWithBiometricAllowedMethod = null
-        getUserTrustIsManagedMethod = null
-        isDeviceSecureMethod = null
-        isDeviceLockedMethod = null
-        isKeyguardLockedMethod = null
     }
 
     override fun onHook() {

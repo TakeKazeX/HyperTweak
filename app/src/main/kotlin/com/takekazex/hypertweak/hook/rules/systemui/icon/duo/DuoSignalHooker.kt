@@ -1,6 +1,7 @@
 @file:Suppress("StaticFieldLeak")
 package com.takekazex.hypertweak.hook.rules.systemui.icon.duo
 
+import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
 import com.takekazex.hypertweak.presentation.icon.duo.NativeWifiDrawable
 
 import com.takekazex.hypertweak.presentation.icon.duo.DuoBattery
@@ -51,6 +52,15 @@ import kotlin.math.roundToInt
  * module View (its children must implement the host StatusIconDisplayable interface).
  */
 object DuoSignalHooker : StaticHooker() {
+    init {
+        hostRecovery(HostRecoveryPhase.HANDOVER, icons = true) {
+            recoverExistingViews(it.views, it.progress, it.visible, it.stretch)
+        }
+        hostRecovery(HostRecoveryPhase.NETWORK, icons = true) {
+            if (it.coroutineScope != null && it.wifiInteractor != null) recoverWifi(it.coroutineScope!!, it.wifiInteractor!!, it.context)
+        }
+    }
+
     private val signalArtwork = DuoSignalArtwork()
     private val panelHandover = DuoPanelHandover(object : DuoPanelHandover.Host {
         override val panelStretchHeight get() = DuoSignalHooker.panelStretchHeight

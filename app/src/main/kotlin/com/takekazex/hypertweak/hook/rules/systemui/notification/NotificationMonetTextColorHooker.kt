@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.notification
 
+import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 
 import android.content.Context
@@ -23,6 +24,12 @@ import java.util.WeakHashMap
 
 /** Neutralize native notification text at palette and final content/color binding boundaries. */
 object NotificationMonetTextColorHooker : StaticHooker() {
+    init {
+        hostRecovery(HostRecoveryPhase.CONTENT) {
+            NotificationContentHotReloadRecovery.recover(it.views)
+        }
+    }
+
     override val hotReloadMode = HotReloadMode.RECREATE
     private const val TAG = "NotificationMonetTextColor"
     private const val COLORS = "android.app.Notification\$Colors"
@@ -32,10 +39,10 @@ object NotificationMonetTextColorHooker : StaticHooker() {
 
     @Volatile private var retiring = false
     private var textColorField: Field? = null
-    private var binderField: Field? = null
-    private var darkContextMethod: Method? = null
-    private var fixContextMethod: Method? = null
-    private var materialLogCount = 0
+    private var binderField: Field? by generationState { null }
+    private var darkContextMethod: Method? by generationState { null }
+    private var fixContextMethod: Method? by generationState { null }
+    private var materialLogCount by generationState { 0 }
     private data class TextOverride(val original: ColorStateList, val color: Int)
     private data class PaletteOverride(val original: Int, val color: Int)
     private val texts = WeakHashMap<TextView, TextOverride>() // Native view callbacks run on main.
@@ -47,7 +54,7 @@ object NotificationMonetTextColorHooker : StaticHooker() {
     private data class FieldKey(val type: Class<*>, val name: String)
     private val fields = HashMap<FieldKey, Field?>()
     private val getters = HashMap<FieldKey, Method?>()
-    private val resourceIds = WeakHashMap<Resources, List<Int>>()
+    private val resourceIds = generationResource(WeakHashMap<Resources, List<Int>>()) { it.clear() }
 
     // Keep host objects, not old theme-derived colors. Replay through the same eligibility path.
     override fun saveHotReloadState(): Any = HostAccess.onMain {
@@ -104,11 +111,6 @@ object NotificationMonetTextColorHooker : StaticHooker() {
         }
         synchronized(fields) { fields.clear() }
         synchronized(getters) { getters.clear() }
-        resourceIds.clear()
-        binderField = null
-        darkContextMethod = null
-        fixContextMethod = null
-        materialLogCount = 0
     }
 
     /**

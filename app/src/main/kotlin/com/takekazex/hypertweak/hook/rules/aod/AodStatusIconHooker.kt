@@ -67,12 +67,12 @@ class AodStatusIconHooker : DynamicHooker() {
     }
 
     private val main = Handler(Looper.getMainLooper())
-    private val bindings = IdentityHashMap<View, Binding>()
-    private var signalObserver: AodSignalObserver? = null
+    private val bindings = generationResource(IdentityHashMap<View, Binding>()) { it.clear() }
+    private var signalObserver: AodSignalObserver? by generationState { null }
     /** Invalidates queued refreshes of a retired generation or a newer settings snapshot. */
     @Volatile private var revision = 0L
     /** Living AOD containers (the view whose row gate owns the battery widget). */
-    private val containers = java.util.WeakHashMap<View, Boolean>()
+    private val containers = generationResource(java.util.WeakHashMap<View, Boolean>()) { it.clear() }
 
     private data class NativeChild(
         val view: View,
@@ -106,10 +106,7 @@ class AodStatusIconHooker : DynamicHooker() {
         revision++ // separates this generation's queued refreshes from the next one
         synchronized(live) { live.remove(this) }
         bindings.values.toList().forEach { binding -> runCatching { restore(binding) } }
-        bindings.clear()
-        containers.clear()
         signalObserver?.stop()
-        signalObserver = null
     }
 
     override fun onHook() {

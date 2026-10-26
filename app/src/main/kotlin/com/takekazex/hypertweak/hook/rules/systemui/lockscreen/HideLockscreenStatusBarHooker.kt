@@ -2,6 +2,7 @@
 
 package com.takekazex.hypertweak.hook.rules.systemui.lockscreen
 
+import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 
 import com.takekazex.hypertweak.hook.base.HostAccess
@@ -28,6 +29,12 @@ import com.takekazex.hypertweak.hook.rules.systemui.icon.IconHostPorts
  * host that changed visibility or alpha while the row was hidden keeps that change.
  */
 object HideLockscreenStatusBarHooker : StaticHooker() {
+    init {
+        hostRecovery(HostRecoveryPhase.WINDOWS) {
+            recoverStateController(it.component); recoverExistingViews(it.views)
+        }
+    }
+
     override val hotReloadMode = HotReloadMode.RECREATE
 
     @Volatile

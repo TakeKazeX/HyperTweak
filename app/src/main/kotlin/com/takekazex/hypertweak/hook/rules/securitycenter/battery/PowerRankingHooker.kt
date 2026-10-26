@@ -41,11 +41,10 @@ object PowerRankingHooker : StaticHooker() {
     private const val BATTERY_DATA = "com.miui.powercenter.legacypowerrank.BatteryData"
     private const val LABEL_HELPER = "com.miui.powercenter.legacypowerrank.a"
 
-    @Volatile
-    private var fallbackBuilder: FallbackBuilder? = null
+    private var fallbackBuilder: FallbackBuilder? by generationState { null }
 
     override fun onPrepareHotReload() {
-        fallbackBuilder = null
+
     }
 
     /** Only prepare this optional display feature while enabled. */

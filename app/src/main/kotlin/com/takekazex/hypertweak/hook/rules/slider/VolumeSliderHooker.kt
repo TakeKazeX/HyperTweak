@@ -27,58 +27,36 @@ class VolumeSliderHooker(
     /** Owns the collapsed badge capsule's material/style; cleared with the hooker on hot reload. */
     private val badgeStyler = VolumeBadgeStyler(TAG)
 
-
-    @Volatile
-    private var isVolumeViewHooked = false
+    private var isVolumeViewHooked by generationState { false }
 
     // Cached field refs for VolumePanelViewController hooks (hot path: every volume state update)
-    private var cachedVpcFieldsLoaded = false
-    private var vpcField_mState: java.lang.reflect.Field? = null
-    private var vpcField_mExpanded: java.lang.reflect.Field? = null
-    private var vpcField_mActiveStream: java.lang.reflect.Field? = null
-    private var vpcField_mSuperVolume: java.lang.reflect.Field? = null
-    private var vpcField_mSuperVolumeBg: java.lang.reflect.Field? = null
-    private var vpcField_mVolumeView: java.lang.reflect.Field? = null
-    private var vpcField_isControlCenterPanel: java.lang.reflect.Field? = null
-    private var vpcField_mColumns: java.lang.reflect.Field? = null
+    private var cachedVpcFieldsLoaded by generationState { false }
+    private var vpcField_mState: java.lang.reflect.Field? by generationState { null }
+    private var vpcField_mExpanded: java.lang.reflect.Field? by generationState { null }
+    private var vpcField_mActiveStream: java.lang.reflect.Field? by generationState { null }
+    private var vpcField_mSuperVolume: java.lang.reflect.Field? by generationState { null }
+    private var vpcField_mSuperVolumeBg: java.lang.reflect.Field? by generationState { null }
+    private var vpcField_mVolumeView: java.lang.reflect.Field? by generationState { null }
+    private var vpcField_isControlCenterPanel: java.lang.reflect.Field? by generationState { null }
+    private var vpcField_mColumns: java.lang.reflect.Field? by generationState { null }
 
     // Cached field refs for stream state
-    private var cachedStreamStateFieldsLoaded = false
-    private var ssField_states: java.lang.reflect.Field? = null
-    private var ssField_level: java.lang.reflect.Field? = null
-    private var ssField_levelMin: java.lang.reflect.Field? = null
-    private var ssField_levelMax: java.lang.reflect.Field? = null
-    private var ssMethod_get: java.lang.reflect.Method? = null
+    private var cachedStreamStateFieldsLoaded by generationState { false }
+    private var ssField_states: java.lang.reflect.Field? by generationState { null }
+    private var ssField_level: java.lang.reflect.Field? by generationState { null }
+    private var ssField_levelMin: java.lang.reflect.Field? by generationState { null }
+    private var ssField_levelMax: java.lang.reflect.Field? by generationState { null }
+    private var ssMethod_get: java.lang.reflect.Method? by generationState { null }
 
     // Cached field refs for VolumeColumn
-    private var cachedVolumeColumnField: java.lang.reflect.Field? = null
-    private var cachedColumnStreamField: java.lang.reflect.Field? = null
-    private var cachedColumnStreamGetter: java.lang.reflect.Method? = null
+    private var cachedVolumeColumnField: java.lang.reflect.Field? by generationState { null }
+    private var cachedColumnStreamField: java.lang.reflect.Field? by generationState { null }
+    private var cachedColumnStreamGetter: java.lang.reflect.Method? by generationState { null }
 
     // Cache textView → stream mapping to avoid expensive column search in updateSuperVolumeText
-    private val textViewToStreamCache = java.util.WeakHashMap<TextView, Int>()
+    private val textViewToStreamCache = generationResource(java.util.WeakHashMap<TextView, Int>()) { it.clear() }
 
     override fun onPrepareHotReload() {
-        isVolumeViewHooked = false
-        cachedVpcFieldsLoaded = false
-        vpcField_mState = null
-        vpcField_mExpanded = null
-        vpcField_mActiveStream = null
-        vpcField_mSuperVolume = null
-        vpcField_mSuperVolumeBg = null
-        vpcField_mVolumeView = null
-        vpcField_isControlCenterPanel = null
-        vpcField_mColumns = null
-        cachedStreamStateFieldsLoaded = false
-        ssField_states = null
-        ssField_level = null
-        ssField_levelMin = null
-        ssField_levelMax = null
-        ssMethod_get = null
-        cachedVolumeColumnField = null
-        cachedColumnStreamField = null
-        cachedColumnStreamGetter = null
-        textViewToStreamCache.clear()
         badgeStyler.clear()
     }
 

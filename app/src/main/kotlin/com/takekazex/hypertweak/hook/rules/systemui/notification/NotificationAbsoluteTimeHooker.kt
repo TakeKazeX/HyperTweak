@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.notification
 
+import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 
 import android.icu.text.RelativeDateTimeFormatter
@@ -24,6 +25,12 @@ import java.util.WeakHashMap
 
 /** Only native notification headers enroll framework DateTimeViews; MIUI/custom bodies are untouched. */
 object NotificationAbsoluteTimeHooker : StaticHooker() {
+    init {
+        hostRecovery(HostRecoveryPhase.WINDOWS) {
+            it.views.forEach(::recoverExistingView)
+        }
+    }
+
     override val hotReloadMode = HotReloadMode.RECREATE
     private const val TAG = "NotificationAbsoluteTime"
     private const val HEADER = "com.android.systemui.statusbar.notification.row.wrapper.NotificationHeaderViewWrapper"

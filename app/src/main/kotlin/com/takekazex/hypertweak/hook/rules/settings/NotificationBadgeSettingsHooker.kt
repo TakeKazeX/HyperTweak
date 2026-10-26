@@ -59,11 +59,9 @@ object NotificationBadgeSettingsHooker : StaticHooker() {
     private var listenerInterface: Class<*>? = null
 
     /** The preference captured just before `removeDefaultPrefs` detaches it. */
-    @Volatile
-    private var capturedPref: Any? = null
+    private var capturedPref: Any? by generationState { null }
 
     override fun onPrepareHotReload() {
-        capturedPref = null
     }
 
     override fun onHook() {

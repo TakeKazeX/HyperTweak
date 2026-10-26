@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
 import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
 
 import com.takekazex.hypertweak.hook.base.HostAccess
@@ -33,6 +34,12 @@ import kotlin.math.roundToInt
  * the host's `wifi_group` view.
  */
 object WifiIconHooker : StaticHooker() {
+    init {
+        hostRecovery(HostRecoveryPhase.SOURCES, icons = true) {
+            it.component?.let(::recoverViewModel)
+        }
+    }
+
     override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
 
     private const val TAG = "IconTuner"
@@ -50,15 +57,15 @@ object WifiIconHooker : StaticHooker() {
     private val fieldCache = ConcurrentHashMap<Pair<Class<*>, String>, Field>()
     private val fieldMisses = ConcurrentHashMap.newKeySet<Pair<Class<*>, String>>()
 
-    @Volatile private var hideActivity = false
-    @Volatile private var hideType = false
-    @Volatile private var hideUnavailable = false
-    @Volatile private var standardMode = 0
+    private var hideActivity by generationState { false }
+    private var hideType by generationState { false }
+    private var hideUnavailable by generationState { false }
+    private var standardMode by generationState { 0 }
     @Volatile private var standardMap = WifiStandardPolicy.DEFAULT_MAP
-    @Volatile private var paddingEnabled = false
-    @Volatile private var paddingStart = 0f
-    @Volatile private var paddingEnd = 0f
-    @Volatile private var activityRight = false
+    private var paddingEnabled by generationState { false }
+    private var paddingStart by generationState { 0f }
+    private var paddingEnd by generationState { 0f }
+    private var activityRight by generationState { false }
     private var restoredDirection: Any? = null
     private val standardGravity = WeakHashMap<TextView, Int>()
     private val directionHandles = ArrayList<HostFlowCollector.Handle>()
@@ -85,15 +92,8 @@ object WifiIconHooker : StaticHooker() {
             directionHandles.clear()
             restoredDirection = null
         }
-        hideActivity = false
-        hideType = false
-        hideUnavailable = false
-        standardMode = 0
+
         standardMap = WifiStandardPolicy.DEFAULT_MAP
-        paddingEnabled = false
-        paddingStart = 0f
-        paddingEnd = 0f
-        activityRight = false
     }
 
     override fun onHook() {

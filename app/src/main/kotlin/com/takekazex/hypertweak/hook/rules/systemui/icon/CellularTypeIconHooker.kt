@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
 import com.takekazex.hypertweak.settings.contract.MobileTypeLabelStyle
 
 import com.takekazex.hypertweak.settings.contract.SmallMobileTypeLabel
@@ -34,6 +35,12 @@ import kotlin.math.ceil
  * own 5GA suffix formatting.
  */
 object CellularTypeIconHooker : StaticHooker() {
+    init {
+        hostRecovery(HostRecoveryPhase.SOURCES, icons = true) {
+            it.component?.let(::recoverOperatorConfig)
+        }
+    }
+
     override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
 
     private const val TAG = "IconTuner"
@@ -42,12 +49,12 @@ object CellularTypeIconHooker : StaticHooker() {
     private const val DRAWABLE_CLASS = "com.miui.systemui.statusbar.views.MobileTypeDrawable"
     private const val BINDER_CLASS = "com.android.systemui.statusbar.pipeline.mobile.ui.binder.MiuiMobileIconBinder"
 
-    @Volatile private var forceSingle = false
-    @Volatile private var swapSingle = false
+    private var forceSingle by generationState { false }
+    private var swapSingle by generationState { false }
     @Volatile private var customType = ""
-    @Volatile private var useCustom = false
-    @Volatile private var small5GaEnabled = false
-    @Volatile private var mobileTypeSingleViewId = 0
+    private var useCustom by generationState { false }
+    private var small5GaEnabled by generationState { false }
+    private var mobileTypeSingleViewId by generationState { 0 }
 
     private val modifiedDrawables = Collections.synchronizedMap(WeakHashMap<Any, Boolean>())
 
@@ -73,12 +80,8 @@ object CellularTypeIconHooker : StaticHooker() {
     )
 
     override fun onPrepareHotReload() {
-        forceSingle = false
-        swapSingle = false
         customType = ""
-        useCustom = false
-        small5GaEnabled = false
-        mobileTypeSingleViewId = 0
+
         HostAccess.onMain {
             val drawables = synchronized(modifiedDrawables) {
                 modifiedDrawables.keys.toList().also { modifiedDrawables.clear() }

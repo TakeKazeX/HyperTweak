@@ -24,12 +24,7 @@ class BrightnessSliderHooker(
         val fromLeft: Int, val fromTop: Int, val fromWidth: Int, val fromHeight: Int,
         val toLeft: Int, val toTop: Int, val toWidth: Int, val toHeight: Int
     )
-    private val animatorBounds = java.util.WeakHashMap<Any, AnimatorBounds>()
-
-    override fun onPrepareHotReload() {
-        animatorBounds.clear()
-    }
-
+    private val animatorBounds = generationResource(java.util.WeakHashMap<Any, AnimatorBounds>()) { it.clear() }
 
     // Cached fields for BrightnessPanelAnimator (frameCallback hot path)
     private var animatorSizeField: java.lang.reflect.Field? = null

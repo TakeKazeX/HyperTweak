@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.notification
 
+import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
 import com.takekazex.hypertweak.settings.contract.NotificationHeaderModel
 
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
@@ -27,6 +28,12 @@ import java.util.concurrent.TimeUnit
 
 /** Appends Xiaomi Weather provider data to the date in the OS4 notification header. */
 object NotificationHeaderWeatherHooker : StaticHooker() {
+    init {
+        hostRecovery(HostRecoveryPhase.HEADER_DECORATIONS) {
+            recoverExistingHeaders(it.headers)
+        }
+    }
+
     override val hotReloadMode = HotReloadMode.RECREATE
 
     private const val TAG = "NotificationHeaderWeather"
@@ -56,7 +63,7 @@ object NotificationHeaderWeatherHooker : StaticHooker() {
     private val dateLayouts = WeakHashMap<TextView, DateLayoutState>()
     private val stateLock = Any()
 
-    @Volatile private var showRegion = false
+    private var showRegion by generationState { false }
     @Volatile private var weatherType = NotificationHeaderModel.WEATHER_CONDITION
     @Volatile private var weatherSnapshot: NotificationHeaderModel.WeatherSnapshot? = null
     @Volatile private var lastSuccessElapsed = Long.MIN_VALUE
@@ -133,7 +140,7 @@ object NotificationHeaderWeatherHooker : StaticHooker() {
             main.post { try { restore() } finally { latch.countDown() } }
             check(latch.await(5, TimeUnit.SECONDS)) { "weather header cleanup timed out" }
         }
-        showRegion = false
+
         weatherType = NotificationHeaderModel.WEATHER_CONDITION
     }
 

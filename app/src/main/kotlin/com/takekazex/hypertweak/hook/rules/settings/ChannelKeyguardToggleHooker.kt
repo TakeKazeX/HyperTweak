@@ -53,8 +53,7 @@ object ChannelKeyguardToggleHooker : StaticHooker() {
     private var allowKeyguardField: Field? = null
     private var listenerInterface: Class<*>? = null
 
-    @Volatile
-    private var capturedPref: Any? = null
+    private var capturedPref: Any? by generationState { null }
 
     override fun onHook() {
         if (!Preferences.getBoolean(SystemUiSettingsKeys.KEY_LOCKSCREEN_ALL_NOTIFICATIONS, false)) {
@@ -127,10 +126,6 @@ object ChannelKeyguardToggleHooker : StaticHooker() {
             }
         }
         DebugLog.d(TAG, "per-channel 锁屏通知 toggle revealed")
-    }
-
-    override fun onPrepareHotReload() {
-        capturedPref = null
     }
 
     /** Bind a Proxy[OnPreferenceChangeListener] that writes the channel keyguard key on toggle. */

@@ -37,14 +37,13 @@ object PasskeyHooker : StaticHooker() {
     override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
 
     private const val TAG = "HyperPasskey"
-    private var fIsInternationalBuildBoolean: Field? = null
+    private var fIsInternationalBuildBoolean: Field? by generationState { null }
 
     private val INTL_LOCK = ReentrantLock(true)
     private val DEPTH = ThreadLocal.withInitial { 0 }
     private val PREV_VALUE = ThreadLocal<Boolean>()
 
     override fun onPrepareHotReload() {
-        fIsInternationalBuildBoolean = null
         DEPTH.remove()
         PREV_VALUE.remove()
     }

@@ -2,6 +2,7 @@
 
 package com.takekazex.hypertweak.hook.rules.systemui.icon.carrier
 
+import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
 import com.takekazex.hypertweak.hook.rules.systemui.icon.ControlCenterHeaderHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.FrameUpdateGate
 import com.takekazex.hypertweak.hook.rules.systemui.icon.HostFlowSubscriptions
@@ -53,6 +54,15 @@ import org.luckypray.dexkit.query.enums.StringMatchType
  */
 @SuppressLint("StaticFieldLeak")
 object ControlCenterCarrierBlockHooker : StaticHooker() {
+    init {
+        hostRecovery(HostRecoveryPhase.PRESENTATION, icons = true) {
+            recoverExistingViews(it.context, it.views, it.progress, it.visible)
+        }
+        hostRecovery(HostRecoveryPhase.NETWORK, icons = true) {
+            if (it.coroutineScope != null && it.wifiInteractor != null) recoverWifi(it.coroutineScope!!, it.wifiInteractor!!, it.context)
+        }
+    }
+
     override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
 
     private const val TAG = "IconTuner"
@@ -118,9 +128,9 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
     @Volatile private var enabled = false
     @Volatile private var showNonDataType = false
     @Volatile private var keepTypeOnWifi = false
-    @Volatile private var shadeSwitching = false
-    @Volatile private var hostShadeSwitching = false
-    @Volatile private var shadeSwitchProgress = 0f
+    private var shadeSwitching by generationState { false }
+    private var hostShadeSwitching by generationState { false }
+    private var shadeSwitchProgress by generationState { 0f }
 
     internal fun isShadeSwitching(): Boolean = shadeSwitching
     private var networkOnFirstRow = false
@@ -133,17 +143,17 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
     private var subscriptionListener: SubscriptionManager.OnSubscriptionsChangedListener? = null
     private var simNames: Map<Int, String> = emptyMap()
     @Volatile private var svgRepository: IconSvgRepository? = null
-    @Volatile private var artwork: CarrierArtwork? = null
+    private var artwork: CarrierArtwork? by generationState { null }
     @Volatile private var artGeneration = Long.MIN_VALUE
     @Volatile private var artInFlight = Long.MIN_VALUE
 
     private val knownLayouts = WeakHashMap<ViewGroup, Boolean>()
-    private var recoveryTask: Runnable? = null
+    private var recoveryTask: Runnable? by generationState { null }
     private var recoveryAttempt = 0
     private var lastRecoveryEvidence: CarrierRecoveryEvidence? = null
 
-    private var wifiScope: Any? = null
-    private var wifiInteractor: Any? = null
+    private var wifiScope: Any? by generationState { null }
+    private var wifiInteractor: Any? by generationState { null }
 
     private var carrierLayoutId = 0
     private var fakeStatusBarId = 0
@@ -160,7 +170,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
 
     /** All mutable view state is consumed on the main looper. */
     private var mobileState = MobileSignalState()
-    private var wifiLevel: Int? = null
+    private var wifiLevel: Int? by generationState { null }
     private var progress = 0f
     private var panelVisible = false
 
@@ -339,16 +349,11 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         val token = generation.incrementAndGet()
         enabled = false
         main.removeCallbacksAndMessages(null)
-        recoveryTask = null
+
         assetExecutor.shutdownNow()
-        shadeSwitching = false
-        hostShadeSwitching = false
-        shadeSwitchProgress = 0f
+
         wifiSubscriptions.clear()
-        wifiScope = null
-        wifiInteractor = null
-        wifiLevel = null
-        artwork = null
+
         synchronized(artLock) {
             artGeneration = Long.MIN_VALUE
             artInFlight = Long.MIN_VALUE

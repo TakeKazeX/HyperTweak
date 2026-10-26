@@ -29,35 +29,25 @@ object CellularIconHooker : StaticHooker() {
     private const val TAG = "IconTuner"
     private const val VM_CLASS = "com.android.systemui.statusbar.pipeline.mobile.ui.viewmodel.MiuiCellularIconVM"
 
-    @Volatile
-    private var hideActivity = false
-    @Volatile
-    private var hideType = false
-    @Volatile
-    private var hideRoamGlobal = false
-    @Volatile
-    private var hideRoam = false
-    @Volatile
-    private var hideSmallRoam = false
-    @Volatile
-    private var hideVoWifi = false
-    @Volatile
-    private var hideVolte = false
-    @Volatile
-    private var hideVolteNoService = false
-    @Volatile
-    private var hideSpeechHd = false
+    private var hideActivity by generationState { false }
+
+    private var hideType by generationState { false }
+
+    private var hideRoamGlobal by generationState { false }
+
+    private var hideRoam by generationState { false }
+
+    private var hideSmallRoam by generationState { false }
+
+    private var hideVoWifi by generationState { false }
+
+    private var hideVolte by generationState { false }
+
+    private var hideVolteNoService by generationState { false }
+
+    private var hideSpeechHd by generationState { false }
 
     override fun onPrepareHotReload() {
-        hideActivity = false
-        hideType = false
-        hideRoamGlobal = false
-        hideRoam = false
-        hideSmallRoam = false
-        hideVoWifi = false
-        hideVolte = false
-        hideVolteNoService = false
-        hideSpeechHd = false
     }
 
     override fun onHook() {

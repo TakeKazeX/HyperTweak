@@ -56,41 +56,41 @@ object AospImeHooker : StaticHooker() {
     private const val NAV_BAR_SHADOW_DP = 4
 
     /** Padding a view had before the rounded-corner listener started adjusting it. */
-    private val basePaddings = WeakHashMap<View, IntArray>()
+    private val basePaddings = generationResource(WeakHashMap<View, IntArray>()) { it.clear() }
 
     private var insetsView: WeakReference<View>? = null
 
     /** MIUI can side-load its dex more than once; attach the child hooker per ClassLoader. */
-    private val hookedDexLoaders = Collections.newSetFromMap(WeakHashMap<ClassLoader, Boolean>())
+    private val hookedDexLoaders = generationResource(Collections.newSetFromMap(WeakHashMap<ClassLoader, Boolean>())) { it.clear() }
 
-    private var imeSupportMethod: Method? = null
-    private var imeSupportResolved = false
+    private var imeSupportMethod: Method? by generationState { null }
+    private var imeSupportResolved by generationState { false }
 
     /** The injector singleton is process-stable; resolve `getInstance()` once instead of per call. */
-    private var imeInjectorInstance: Any? = null
-    private var imeInjectorResolved = false
+    private var imeInjectorInstance: Any? by generationState { null }
+    private var imeInjectorResolved by generationState { false }
 
-    private var navBarServiceField: Field? = null
-    private var navBarHorizontalField: Field? = null
-    private var deadZoneSizeMinField: Field? = null
-    private var navBarFrameClass: Class<*>? = null
+    private var navBarServiceField: Field? by generationState { null }
+    private var navBarHorizontalField: Field? by generationState { null }
+    private var deadZoneSizeMinField: Field? by generationState { null }
+    private var navBarFrameClass: Class<*>? by generationState { null }
 
     /** Resolved controller class (`NavigationBarController` or the .15 `$Impl` shape). */
-    private var navBarControllerClass: Class<*>? = null
+    private var navBarControllerClass: Class<*>? by generationState { null }
 
     /** The live controller instance, captured by the caption-height hook; source of `mService`. */
-    private var navBarControllerInstance: Any? = null
+    private var navBarControllerInstance: Any? by generationState { null }
 
     /** The framework dimen the caption bar is sized from, cached per density (IMS processes
      *  survive configuration changes, so a bare value cache would go stale on density change). */
-    private var captionBarHeightPxCache: Pair<Int, Int>? = null
+    private var captionBarHeightPxCache: Pair<Int, Int>? by generationState { null }
 
     /** `KeyButtonView.setCode(int)`; used to take the bar's back button off the key pipeline. */
-    private var backButtonCodeMethod: Method? = null
-    private var navBackIdCached: Int = -1
+    private var backButtonCodeMethod: Method? by generationState { null }
+    private var navBackIdCached: Int by generationState { -1 }
 
     /** Back buttons already rewired for dismiss-only semantics (dedupes repeat inflations). */
-    private val wiredBackViews = WeakHashMap<View, Boolean>()
+    private val wiredBackViews = generationResource(WeakHashMap<View, Boolean>()) { it.clear() }
 
     override val hotReloadMode = HotReloadMode.RECREATE
 
@@ -100,22 +100,6 @@ object AospImeHooker : StaticHooker() {
             runCatching { view.setOnApplyWindowInsetsListener(null) }
             basePaddings.remove(view)
         }
-        basePaddings.clear()
-        hookedDexLoaders.clear()
-        imeSupportMethod = null
-        imeSupportResolved = false
-        imeInjectorInstance = null
-        imeInjectorResolved = false
-        navBarServiceField = null
-        navBarHorizontalField = null
-        deadZoneSizeMinField = null
-        navBarFrameClass = null
-        navBarControllerClass = null
-        navBarControllerInstance = null
-        captionBarHeightPxCache = null
-        backButtonCodeMethod = null
-        navBackIdCached = -1
-        wiredBackViews.clear()
     }
 
     /**

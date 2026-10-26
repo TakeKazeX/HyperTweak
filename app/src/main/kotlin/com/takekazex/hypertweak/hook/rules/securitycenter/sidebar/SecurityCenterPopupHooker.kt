@@ -32,7 +32,7 @@ object SecurityCenterPopupHooker : DynamicHooker() {
     private const val TAG = "SecurityCenterPopups"
     private val main = Handler(Looper.getMainLooper())
     @Volatile private var retired = false
-    private var targets: Targets? = null
+    private var targets: Targets? by generationState { null }
     private data class Targets(val methods: Map<String, Method>, val singleton: Field,
                                val launchView: Field, val dolbyText: Int, val callers: List<Method>)
 
@@ -142,6 +142,5 @@ object SecurityCenterPopupHooker : DynamicHooker() {
     override fun onPrepareHotReload() {
         retired = true
         main.removeCallbacksAndMessages(null)
-        targets = null
     }
 }

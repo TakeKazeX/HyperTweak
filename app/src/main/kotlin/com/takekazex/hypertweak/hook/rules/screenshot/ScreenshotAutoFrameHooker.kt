@@ -1,6 +1,5 @@
 package com.takekazex.hypertweak.hook.rules.screenshot
 
-
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 import com.takekazex.hypertweak.hook.base.dex.DexFeature
 import android.annotation.SuppressLint
@@ -32,7 +31,7 @@ object ScreenshotAutoFrameHooker : StaticHooker() {
     private val transformations = WeakHashMap<Any, Transformation>()
     private val saveSources = ThreadLocal<ArrayDeque<Source>>()
     @Volatile private var retired = false
-    private var frameAccess: NativeScreenshotFrameAccess? = null
+    private var frameAccess: NativeScreenshotFrameAccess? by generationState { null }
     override fun saveHotReloadState(): Any? = Preferences.saveScreenshotSettings()
     override fun restoreHotReloadState(state: Any?) { Preferences.restoreScreenshotSettings(state) }
 
@@ -424,7 +423,7 @@ object ScreenshotAutoFrameHooker : StaticHooker() {
     @Synchronized override fun onPrepareHotReload() {
         retired = true
         frameAccess?.close()
-        frameAccess = null
+
         synchronized(previews) { previews.clear() }
         synchronized(sources) { sources.clear() }
         synchronized(enrolled) { enrolled.clear() }

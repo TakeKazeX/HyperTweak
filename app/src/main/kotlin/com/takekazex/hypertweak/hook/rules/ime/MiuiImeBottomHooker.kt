@@ -35,18 +35,14 @@ object MiuiImeBottomHooker : StaticHooker() {
     override val hotReloadMode = HotReloadMode.RECREATE
 
     /** Resolved once at hook time; `getSupportIme` fires on every switcher list request. */
-    private var sBottomViewHelperField: Field? = null
-    private val mImmFieldCache = ConcurrentHashMap<Class<*>, Field?>()
+    private var sBottomViewHelperField: Field? by generationState { null }
+    private val mImmFieldCache = generationResource(ConcurrentHashMap<Class<*>, Field?>()) { it.clear() }
 
     /** Process-wide `InputMethodManager` fallback when the bottom-view helper is not ready. */
-    private var immSingleton: InputMethodManager? = null
-    private var immSingletonResolved = false
+    private var immSingleton: InputMethodManager? by generationState { null }
+    private var immSingletonResolved by generationState { false }
 
     override fun onPrepareHotReload() {
-        sBottomViewHelperField = null
-        mImmFieldCache.clear()
-        immSingleton = null
-        immSingletonResolved = false
     }
 
     override fun onHook() {

@@ -2,6 +2,7 @@
 
 package com.takekazex.hypertweak.hook.rules.systemui.gesturebar
 
+import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
@@ -50,6 +51,12 @@ import java.util.concurrent.atomic.AtomicBoolean
  * 3. the display deadline, which fails open so a lost event cannot leave the bar hidden.
  */
 object HideBottomBarHooker : StaticHooker() {
+    init {
+        hostRecovery(HostRecoveryPhase.WINDOWS) {
+            recoverExistingViews(it.views, it.component)
+        }
+    }
+
     override val hotReloadMode = HotReloadMode.RECREATE
 
     private val navigationHandleClassNames = listOf(
@@ -61,12 +68,12 @@ object HideBottomBarHooker : StaticHooker() {
         "com.android.wm.shell.multitasking.miuimultiwinswitch.miuiwindowdecor.decoration.MiuiDecorationBottomView"
 
     private val hooksApplied = AtomicBoolean(false)
-    @Volatile private var hideGestureBarEnabled = false
-    @Volatile private var raiseLayoutEnabled = false
-    @Volatile private var hideInRecentsEnabled = false
-    @Volatile private var hideInLauncherEnabled = false
-    @Volatile private var attachTransitionEnabled = false
-    @Volatile private var followGenerationActive = false
+    private var hideGestureBarEnabled by generationState { false }
+    private var raiseLayoutEnabled by generationState { false }
+    private var hideInRecentsEnabled by generationState { false }
+    private var hideInLauncherEnabled by generationState { false }
+    private var attachTransitionEnabled by generationState { false }
+    private var followGenerationActive by generationState { false }
 
     private val state = GestureBarState()
     private val handleViews = instanceTracker()
@@ -91,8 +98,8 @@ object HideBottomBarHooker : StaticHooker() {
         applyCurrent = presentation::applyCurrentState, refreshHome = home::refreshLauncherHome,
         animate = presentation::animateHandles, hide = presentation::fadeImmediately)
 
-    @Volatile private var navBarHeightAndroidResId = 0
-    @Volatile private var navBarHeightSystemUiResId = 0
+    private var navBarHeightAndroidResId by generationState { 0 }
+    private var navBarHeightSystemUiResId by generationState { 0 }
 
     /** Whether any feature of this hooker is on, so the draw hooks can skip work when idle. */
     private val anyEnabled: Boolean
@@ -161,7 +168,6 @@ object HideBottomBarHooker : StaticHooker() {
     }
 
     override fun onPrepareHotReload() {
-        followGenerationActive = false
         deadlines.cancelAllDeadlines()
         // Only our handle alpha animation is owned here; the WM surface remains native.
         synchronized(presentation.hostAlphas) { presentation.hostAlphas.keys.toList() }.forEach { view ->
@@ -169,19 +175,15 @@ object HideBottomBarHooker : StaticHooker() {
         }
         AospBackSystemUiHooker.setOverviewVisibilityListener(null)
         hooksApplied.set(false)
-        hideGestureBarEnabled = false
-        raiseLayoutEnabled = false
-        hideInRecentsEnabled = false
-        hideInLauncherEnabled = false
+
         home.retire()
-        attachTransitionEnabled = false
+
         state.clear()
         presentation.hostAlphas.clear()
         presentation.fadingDisplays.clear()
         presentation.selfDrivenAlpha.clear()
         presentation.ownAlphaWrite.remove()
-        navBarHeightAndroidResId = 0
-        navBarHeightSystemUiResId = 0
+
         handleViews.clear()
         navigationBars.clear()
         hostContext.clear()

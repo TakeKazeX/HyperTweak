@@ -28,7 +28,7 @@ internal object ManagedHookReload {
             restore = { (_, next), state -> next.restoreHotReloadState(state) },
             recover = {
                 val failures = replacements.mapNotNull { (_, next) ->
-                    runCatching { next.recoverHotReloadHosts() }.exceptionOrNull()
+                    runCatching { next.recoverGenerationHosts() }.exceptionOrNull()
                 }.toMutableList()
                 runCatching(recover).onFailure(failures::add)
                 if (failures.isNotEmpty()) throw failures.first().apply {
