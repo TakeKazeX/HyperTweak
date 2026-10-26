@@ -7,7 +7,7 @@ import com.takekazex.hypertweak.hook.rules.systemui.island.model.SchedulingTrans
 import com.takekazex.hypertweak.hook.rules.systemui.island.policy.IslandPresentation
 import com.takekazex.hypertweak.hook.rules.systemui.island.policy.SummaryIslandScheduler
 import com.takekazex.hypertweak.hook.rules.systemui.island.policy.SummarySwipePolicy
-import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.util.logging.DebugLog
 
 /** Scheduler settlement, slot leasing, summary exchange and restoration. */
 internal class SettlementCoordinator(private val runtime: IslandSessionState) : SettlementActions {

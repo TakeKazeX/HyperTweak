@@ -11,8 +11,8 @@ import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.hook.base.dex.DexOperandIndex
 import com.takekazex.hypertweak.settings.contract.CameraSettingsKeys
-import com.takekazex.hypertweak.util.DebugLog
-import com.takekazex.hypertweak.util.StaticFieldWriter
+import com.takekazex.hypertweak.util.logging.DebugLog
+import com.takekazex.hypertweak.util.platform.StaticFieldWriter
 import java.lang.reflect.Field
 import java.lang.reflect.Method
 import java.lang.reflect.Modifier

@@ -5,7 +5,7 @@ import com.takekazex.hypertweak.settings.contract.IconSlotMode
 import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
-import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.util.logging.DebugLog
 
 /**
  * Ignores Xiaomi's status-bar hide-list source without overriding IconManager's own block result.

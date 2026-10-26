@@ -6,7 +6,7 @@ import com.takekazex.hypertweak.hook.rules.systemui.island.model.IslandFeature
 import com.takekazex.hypertweak.hook.rules.systemui.island.model.IslandSession
 import com.takekazex.hypertweak.hook.rules.systemui.island.model.TemplateWidthRequest
 import com.takekazex.hypertweak.hook.rules.systemui.island.policy.layout.TemplateSeatMode
-import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.util.logging.DebugLog
 
 /** Area leasing, camera-seat release and configuration rebinds. */
 internal class TemplateCoordinator(private val runtime: IslandSessionState) : TemplateActions {

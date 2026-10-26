@@ -7,7 +7,7 @@ import android.net.Uri
 import android.os.Bundle
 import android.os.Process
 import android.os.SystemClock
-import com.takekazex.hypertweak.util.BatteryInfoChannel
+import com.takekazex.hypertweak.util.device.BatteryInfoChannel
 
 /**
  * Holds the latest battery-info snapshot pushed by the privileged hooker(s).

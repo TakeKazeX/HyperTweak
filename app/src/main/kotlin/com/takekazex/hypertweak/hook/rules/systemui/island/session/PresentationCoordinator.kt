@@ -3,7 +3,7 @@ package com.takekazex.hypertweak.hook.rules.systemui.island.session
 import android.view.View
 import com.takekazex.hypertweak.hook.rules.systemui.island.host.IslandSlot
 import com.takekazex.hypertweak.hook.rules.systemui.island.model.IslandFeature
-import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.util.logging.DebugLog
 import com.takekazex.hypertweak.hook.rules.systemui.island.model.IslandSession
 import com.takekazex.hypertweak.hook.rules.systemui.island.model.TemplateWidthRequest
 import com.takekazex.hypertweak.hook.rules.systemui.island.policy.layout.TemplateSeatMode

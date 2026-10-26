@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.bootstrap
 
+import com.takekazex.hypertweak.hook.rules.systemui.icon.carrier.ControlCenterCarrierBlockHooker
+import com.takekazex.hypertweak.hook.rules.systemui.icon.left.LeftContainerHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.*
 
 /** Composition is lazy: wiring capabilities never constructs a host owner before attachment. */

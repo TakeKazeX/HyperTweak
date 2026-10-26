@@ -2,7 +2,7 @@ package com.takekazex.hypertweak.hook.rules.systemui.island.hooks
 
 import android.view.View
 import com.takekazex.hypertweak.hook.rules.systemui.island.template.IslandTemplateCutout
-import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.util.logging.DebugLog
 import io.github.libxposed.api.XposedInterface
 
 /** Suppresses native `setTo` while an explicit relayout publication is in progress. */

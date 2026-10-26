@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.securitycenter
 
+import com.takekazex.hypertweak.hook.rules.securitycenter.battery.MoreBatteryInfoCache
 import com.takekazex.hypertweak.hook.base.dex.MethodDescriptorCodec
 import com.takekazex.hypertweak.hook.rules.aicr.AicrDefaultBrowserCache
 import org.junit.Assert.assertNull

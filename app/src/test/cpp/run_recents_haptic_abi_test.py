@@ -12,7 +12,7 @@ from unicorn.arm64_const import *
 parser = argparse.ArgumentParser()
 parser.add_argument('compiler')
 args = parser.parse_args()
-source = Path(__file__).resolve().parents[2] / 'main/cpp/NativeRules/recents_haptic_hook.S'
+source = Path(__file__).resolve().parents[2] / 'main/cpp/NativeRules/rules/recents_haptic_hook.S'
 with tempfile.TemporaryDirectory(prefix='ht-recents-abi-') as tmp:
     root = Path(tmp)
     stub = root / 'stub.S'

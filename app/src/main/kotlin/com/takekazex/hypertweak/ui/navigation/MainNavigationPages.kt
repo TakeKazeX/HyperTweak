@@ -3,7 +3,7 @@ package com.takekazex.hypertweak.ui.navigation
 import androidx.compose.animation.*
 import androidx.compose.runtime.*
 import com.takekazex.hypertweak.ui.page.Route
-import com.takekazex.hypertweak.ui.page.MainPagerScreen
+import com.takekazex.hypertweak.ui.page.home.MainPagerScreen
 import top.yukonga.miuix.kmp.nav.core.*
 
 internal fun NavEntryBuilder.mainPages(settings: NavigationSettings, navController: NavController, mainPagerState: com.takekazex.hypertweak.ui.liquid.MainPagerState) {

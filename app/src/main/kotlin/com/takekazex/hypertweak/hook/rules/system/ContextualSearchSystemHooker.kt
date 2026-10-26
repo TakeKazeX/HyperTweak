@@ -9,10 +9,10 @@ import android.os.Binder
 import android.os.IBinder
 import android.os.SystemClock
 import com.takekazex.hypertweak.hook.Preferences
-import com.takekazex.hypertweak.hook.SettingsTransport
+import com.takekazex.hypertweak.hook.runtime.settings.SettingsTransport
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
-import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.util.logging.DebugLog
 import io.github.libxposed.api.XposedInterface
 
 /** Restricts the contextual-search compatibility bridge to the SystemUI and provider calls. */

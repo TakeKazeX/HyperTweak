@@ -37,7 +37,7 @@ import com.takekazex.hypertweak.BuildConfig;
 import com.takekazex.hypertweak.hook.rules.backgesture.NativeHookStatusProtocol;
 import io.github.libxposed.api.XposedInterface;
 import com.takekazex.hypertweak.hook.Preferences;
-import com.takekazex.hypertweak.util.DebugLog;
+import com.takekazex.hypertweak.util.logging.DebugLog;
 
 public abstract class HookRuntimeCore {
     protected abstract void invalidateOpenTransitionSnapshot(

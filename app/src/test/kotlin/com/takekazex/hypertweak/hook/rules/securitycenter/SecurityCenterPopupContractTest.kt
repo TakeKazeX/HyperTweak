@@ -1,9 +1,12 @@
 package com.takekazex.hypertweak.hook.rules.securitycenter
 
+import com.takekazex.hypertweak.hook.rules.securitycenter.sidebar.SecurityCenterDockHost
+import com.takekazex.hypertweak.hook.rules.securitycenter.sidebar.SecurityCenterPopupResolver
+import com.takekazex.hypertweak.hook.rules.securitycenter.sidebar.SidebarPopupPolicy
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
-import com.takekazex.hypertweak.hook.RuntimeSettingsLedger
-import com.takekazex.hypertweak.hook.RuntimeSettingsSnapshot
+import com.takekazex.hypertweak.hook.runtime.settings.RuntimeSettingsLedger
+import com.takekazex.hypertweak.hook.runtime.settings.RuntimeSettingsSnapshot
 import com.takekazex.hypertweak.hook.base.RuntimeSettingsGroups
 import com.takekazex.hypertweak.hook.base.dex.DexOperandIndex
 import org.junit.Assert.*

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Run the production structural resolver against mapped launcher ELF fixtures."""
 import os
+from native_test_paths import native_include_flags
 import pathlib
 import platform
 import subprocess
@@ -36,8 +37,8 @@ def main():
         executable = directory / 'launcher_profile_target_test'
         subprocess.run([
             'clang++', '-std=c++17', '-O2', '-Wall', '-Wextra', '-Werror',
-            *includes, '-I', str(NATIVE), str(pathlib.Path(__file__).with_name('launcher_profile_target_test.cpp')),
-            str(NATIVE / 'runtime_profile_resolver.cpp'), '-o', str(executable),
+            *includes, *native_include_flags(NATIVE), str(pathlib.Path(__file__).with_name('launcher_profile_target_test.cpp')),
+            str(NATIVE / 'resolver/runtime_profile_resolver.cpp'), '-o', str(executable),
         ], check=True)
         for fixture in sys.argv[1:]:
             subprocess.run([str(executable), str(pathlib.Path(fixture).resolve())], check=True)

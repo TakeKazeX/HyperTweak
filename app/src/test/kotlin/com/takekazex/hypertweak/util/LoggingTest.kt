@@ -1,5 +1,9 @@
 package com.takekazex.hypertweak.util
 
+import com.takekazex.hypertweak.util.logging.LogCodec
+import com.takekazex.hypertweak.util.logging.LogRecord
+import com.takekazex.hypertweak.util.logging.LogRepeatLimiter
+import com.takekazex.hypertweak.util.logging.LsposedLogParser
 import org.junit.Assert.*
 import org.junit.Test
 

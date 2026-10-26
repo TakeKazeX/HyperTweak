@@ -5,8 +5,8 @@ import com.takekazex.hypertweak.settings.contract.AodSettingsKeys
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
-import com.takekazex.hypertweak.util.DebugLog
-import com.takekazex.hypertweak.util.PlatformLevel
+import com.takekazex.hypertweak.util.logging.DebugLog
+import com.takekazex.hypertweak.util.platform.PlatformLevel
 import java.lang.reflect.Field
 
 /** Keeps a visible lockscreen's wallpaper scale for the native lockscreen-to-full-AOD animation. */

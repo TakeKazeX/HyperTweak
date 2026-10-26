@@ -9,7 +9,7 @@ import com.takekazex.hypertweak.hook.base.BaseHooker
 import com.takekazex.hypertweak.hook.base.HookComponent
 import com.takekazex.hypertweak.hook.base.dex.DexOperandIndex
 import com.takekazex.hypertweak.settings.contract.CameraSettingsKeys
-import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.reflect.Field
 import java.lang.reflect.Method
 import java.lang.reflect.Modifier

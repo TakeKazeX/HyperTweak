@@ -6,7 +6,7 @@ import com.takekazex.hypertweak.hook.base.dex.DexContractMembers
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 import com.takekazex.hypertweak.hook.base.dex.MethodDescriptorCodec
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
-import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.util.logging.DebugLog
 import java.io.File
 import java.lang.reflect.Constructor
 import java.lang.reflect.Method

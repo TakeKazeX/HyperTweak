@@ -18,7 +18,7 @@ import android.widget.TextView
 import androidx.core.view.isVisible
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
-import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.util.logging.DebugLog
 import kotlin.math.ceil
 import kotlin.math.roundToInt
 

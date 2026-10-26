@@ -11,7 +11,7 @@ import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.DynamicHooker
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.rules.systemui.island.template.IslandLayoutInvalidation
-import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.util.logging.DebugLog
 import java.io.File
 import java.lang.reflect.Field
 import java.util.WeakHashMap

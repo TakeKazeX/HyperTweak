@@ -12,7 +12,11 @@
 #   payload's verdict. Build it with the host compiler:
 #
 #     clang++ -std=c++17 -O2 -Wall -Wextra -Werror -o /tmp/dart_probe \
-#       dart_probe.cpp dart_image.cpp dart_targets.cpp
+#       -I resolver -I rules tools/dart_probe.cpp resolver/dart_image.cpp \
+#       resolver/dart_targets.cpp
+#
+#   dart_targets.cpp includes the per-feature *_target.inc files from rules/, so the
+#   rules/ include directory is required in addition to resolver/.
 #
 #   Usage:
 #     dart_probe <libapp.so>                      # resolve + report every site
@@ -45,49 +49,55 @@ set(HYPERTWEAK_NATIVE_TARGET hypertweak_native)
 set(HYPERTWEAK_NATIVE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/main/cpp/NativeRules")
 
 add_library(${HYPERTWEAK_NATIVE_TARGET} SHARED
-    "${HYPERTWEAK_NATIVE_DIR}/logging.cpp"
-    "${HYPERTWEAK_NATIVE_DIR}/dart_image.cpp"
-    "${HYPERTWEAK_NATIVE_DIR}/dart_targets.cpp"
-    "${HYPERTWEAK_NATIVE_DIR}/dock_frame_rule.cpp"
-    "${HYPERTWEAK_NATIVE_DIR}/dock_frame_hook.S"
-    "${HYPERTWEAK_NATIVE_DIR}/dart_rule_support.cpp"
-    "${HYPERTWEAK_NATIVE_DIR}/dart_resolution_cache.cpp"
-    "${HYPERTWEAK_NATIVE_DIR}/native_store.cpp"
-    "${HYPERTWEAK_NATIVE_DIR}/native_rule_runtime.cpp"
-    "${HYPERTWEAK_NATIVE_DIR}/lsposed_hook_backend.cpp"
-    "${HYPERTWEAK_NATIVE_DIR}/runtime_profile_resolver.cpp"
-    "${HYPERTWEAK_NATIVE_DIR}/dart_runtime_resolver.cpp"
+    "${HYPERTWEAK_NATIVE_DIR}/support/logging.cpp"
+    "${HYPERTWEAK_NATIVE_DIR}/resolver/dart_image.cpp"
+    "${HYPERTWEAK_NATIVE_DIR}/resolver/dart_targets.cpp"
+    "${HYPERTWEAK_NATIVE_DIR}/rules/dock_frame_rule.cpp"
+    "${HYPERTWEAK_NATIVE_DIR}/rules/dock_frame_hook.S"
+    "${HYPERTWEAK_NATIVE_DIR}/runtime/dart_rule_support.cpp"
+    "${HYPERTWEAK_NATIVE_DIR}/runtime/dart_resolution_cache.cpp"
+    "${HYPERTWEAK_NATIVE_DIR}/runtime/native_store.cpp"
+    "${HYPERTWEAK_NATIVE_DIR}/runtime/native_rule_runtime.cpp"
+    "${HYPERTWEAK_NATIVE_DIR}/support/lsposed_hook_backend.cpp"
+    "${HYPERTWEAK_NATIVE_DIR}/resolver/runtime_profile_resolver.cpp"
+    "${HYPERTWEAK_NATIVE_DIR}/resolver/dart_runtime_resolver.cpp"
     "${HYPERTWEAK_NATIVE_DIR}/miui_home_native_hook.cpp"
-    "${HYPERTWEAK_NATIVE_DIR}/dart_state_publisher.cpp"
-    "${HYPERTWEAK_NATIVE_DIR}/dart_state_worker.cpp"
-    "${HYPERTWEAK_NATIVE_DIR}/dart_observer_retirement.cpp"
-    "${HYPERTWEAK_NATIVE_DIR}/broadcast_transport.cpp"
-    "${HYPERTWEAK_NATIVE_DIR}/launcher_process_identity.cpp"
-    "${HYPERTWEAK_NATIVE_DIR}/dart_mapped_image.cpp"
-    "${HYPERTWEAK_NATIVE_DIR}/native_config.cpp"
-    "${HYPERTWEAK_NATIVE_DIR}/assistant_widget_rule.cpp"
-    "${HYPERTWEAK_NATIVE_DIR}/assistant_widget_hook.S"
-    "${HYPERTWEAK_NATIVE_DIR}/xiaoai_gesture_rule.cpp"
-    "${HYPERTWEAK_NATIVE_DIR}/xiaoai_gesture_hook.S"
-    "${HYPERTWEAK_NATIVE_DIR}/recents_haptic_rule.cpp"
-    "${HYPERTWEAK_NATIVE_DIR}/recents_haptic_hook.S"
-    "${HYPERTWEAK_NATIVE_DIR}/widget_stack_rule.cpp"
-    "${HYPERTWEAK_NATIVE_DIR}/widget_stack_hook.S"
-    "${HYPERTWEAK_NATIVE_DIR}/folder_stack_rule.cpp"
-    "${HYPERTWEAK_NATIVE_DIR}/folder_stack_hook.S"
-    "${HYPERTWEAK_NATIVE_DIR}/clear_button_rule.cpp"
-    "${HYPERTWEAK_NATIVE_DIR}/clear_button_hook.S"
-    "${HYPERTWEAK_NATIVE_DIR}/folder_columns_rule.cpp"
-    "${HYPERTWEAK_NATIVE_DIR}/folder_columns_hook.S"
-    "${HYPERTWEAK_NATIVE_DIR}/broadcast_options_tail_hook.S"
-    "${HYPERTWEAK_NATIVE_DIR}/broadcast_send_capture_hook.S"
-    "${HYPERTWEAK_NATIVE_DIR}/dart_state_hooks.S"
-    "${HYPERTWEAK_NATIVE_DIR}/input_monitor_pilfer_hook.S"
-    "${HYPERTWEAK_NATIVE_DIR}/jni_bridge.cpp"
+    "${HYPERTWEAK_NATIVE_DIR}/runtime/dart_state_publisher.cpp"
+    "${HYPERTWEAK_NATIVE_DIR}/runtime/dart_state_worker.cpp"
+    "${HYPERTWEAK_NATIVE_DIR}/runtime/dart_observer_retirement.cpp"
+    "${HYPERTWEAK_NATIVE_DIR}/transport/broadcast_transport.cpp"
+    "${HYPERTWEAK_NATIVE_DIR}/runtime/launcher_process_identity.cpp"
+    "${HYPERTWEAK_NATIVE_DIR}/runtime/dart_mapped_image.cpp"
+    "${HYPERTWEAK_NATIVE_DIR}/runtime/native_config.cpp"
+    "${HYPERTWEAK_NATIVE_DIR}/rules/assistant_widget_rule.cpp"
+    "${HYPERTWEAK_NATIVE_DIR}/rules/assistant_widget_hook.S"
+    "${HYPERTWEAK_NATIVE_DIR}/rules/xiaoai_gesture_rule.cpp"
+    "${HYPERTWEAK_NATIVE_DIR}/rules/xiaoai_gesture_hook.S"
+    "${HYPERTWEAK_NATIVE_DIR}/rules/recents_haptic_rule.cpp"
+    "${HYPERTWEAK_NATIVE_DIR}/rules/recents_haptic_hook.S"
+    "${HYPERTWEAK_NATIVE_DIR}/rules/widget_stack_rule.cpp"
+    "${HYPERTWEAK_NATIVE_DIR}/rules/widget_stack_hook.S"
+    "${HYPERTWEAK_NATIVE_DIR}/rules/folder_stack_rule.cpp"
+    "${HYPERTWEAK_NATIVE_DIR}/rules/folder_stack_hook.S"
+    "${HYPERTWEAK_NATIVE_DIR}/rules/clear_button_rule.cpp"
+    "${HYPERTWEAK_NATIVE_DIR}/rules/clear_button_hook.S"
+    "${HYPERTWEAK_NATIVE_DIR}/rules/folder_columns_rule.cpp"
+    "${HYPERTWEAK_NATIVE_DIR}/rules/folder_columns_hook.S"
+    "${HYPERTWEAK_NATIVE_DIR}/transport/broadcast_options_tail_hook.S"
+    "${HYPERTWEAK_NATIVE_DIR}/transport/broadcast_send_capture_hook.S"
+    "${HYPERTWEAK_NATIVE_DIR}/runtime/dart_state_hooks.S"
+    "${HYPERTWEAK_NATIVE_DIR}/runtime/input_monitor_pilfer_hook.S"
+    "${HYPERTWEAK_NATIVE_DIR}/bridge/jni_bridge.cpp"
 )
 
 target_include_directories(${HYPERTWEAK_NATIVE_TARGET} PRIVATE
     "${HYPERTWEAK_NATIVE_DIR}"
+    "${HYPERTWEAK_NATIVE_DIR}/bridge"
+    "${HYPERTWEAK_NATIVE_DIR}/resolver"
+    "${HYPERTWEAK_NATIVE_DIR}/rules"
+    "${HYPERTWEAK_NATIVE_DIR}/runtime"
+    "${HYPERTWEAK_NATIVE_DIR}/support"
+    "${HYPERTWEAK_NATIVE_DIR}/transport"
 )
 
 target_compile_features(${HYPERTWEAK_NATIVE_TARGET} PRIVATE cxx_std_17)

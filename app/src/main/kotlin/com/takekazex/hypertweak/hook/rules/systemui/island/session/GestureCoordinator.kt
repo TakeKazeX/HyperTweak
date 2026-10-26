@@ -4,7 +4,7 @@ import com.takekazex.hypertweak.hook.rules.systemui.island.host.IslandSlot
 import com.takekazex.hypertweak.hook.rules.systemui.island.host.TouchInput
 import com.takekazex.hypertweak.hook.rules.systemui.island.model.IslandSession
 import com.takekazex.hypertweak.hook.rules.systemui.island.policy.SummaryIslandScheduler
-import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.util.logging.DebugLog
 
 /** Window touch routing, click ownership and one-summary carousel gestures. */
 internal class GestureCoordinator(private val runtime: IslandSessionState) : GestureActions {

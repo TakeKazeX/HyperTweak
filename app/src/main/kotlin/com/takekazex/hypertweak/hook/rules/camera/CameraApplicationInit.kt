@@ -5,7 +5,7 @@ import android.os.Handler
 import android.os.Looper
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 import com.takekazex.hypertweak.hook.base.BaseHooker
-import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.reflect.Method
 import java.lang.reflect.Modifier
 import java.util.WeakHashMap

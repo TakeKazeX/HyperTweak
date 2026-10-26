@@ -1,7 +1,7 @@
 package com.takekazex.hypertweak.ui.effect
 
 import androidx.compose.ui.graphics.Color
-import com.takekazex.hypertweak.ui.page.navigationItemTint
+import com.takekazex.hypertweak.ui.page.home.navigationItemTint
 import org.junit.Assert.assertEquals
 import org.junit.Test
 

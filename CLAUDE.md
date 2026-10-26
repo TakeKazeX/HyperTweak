@@ -9,6 +9,7 @@ Use `build.gradle.kts` and `app/build.gradle.kts` for current plugins, SDKs, Jav
 
 ## Source map
 Kotlin sources: `app/src/main/kotlin/com/takekazex/hypertweak/`.
+- Directory ownership: UI pages are grouped under `ui/page/<feature>/`, shared dialogs under `ui/components/dialog/`; `Route.kt` remains in `ui/page/` for stable navigation identity. Utilities are grouped under `util/{logging,restart,scope,device,platform,diagnostics,update}/`. Hook support lives in `hook/preferences/`, `hook/runtime/{settings,reload}/`, `hook/nativebridge/`, and `hook/logging/`; `HookEntry`, `Preferences`, `NativeRules`, receiver and service entry names remain stable. SystemUI gesturebar/notification/controlcenter/lockscreen, icon carrier/left and SecurityCenter battery/sidebar/privacy each keep their feature family together.
 - `hook/`: process entry and feature hooks; `hook/base/`: shared resolution and lifecycle infrastructure.
 - `hook/bootstrap/`: explicit package/system-server installation plans and process-side settings participants. `HookEntry` retains DEX-session, loader, handle and generation ownership; participant coverage is validated before dispatcher registration.
 - `settings/contract/`: storage-independent domain keys/defaults, shared lockscreen options, Dock configuration, icon slot/control policies, signal artwork style and screenshot snapshot parsing. Callers use domain `*Keys` directly; `Preferences` remains the runtime read/write boundary without duplicate constant aliases. Storage diagnostics use `SettingsDiagnostics`, bound by `DebugLog` at process bootstrap, with a non-recursive platform fallback.
@@ -31,7 +32,7 @@ Kotlin sources: `app/src/main/kotlin/com/takekazex/hypertweak/`.
 - Camera profile access is shared through `CameraConfigAccess`; `CameraMasterLiveHooks` owns the donor/effect/focal/probe feature family. `MediaEditorWatermarkResolver` discovers/validates `WatermarkContract` targets before its parent installs them. `ImeRaiseController` owns keyboard padding/caption injection state and upgrade restoration.
 - JVM tests: `app/src/test/`. Scope metadata: `app/src/main/resources/META-INF/xposed/scope.list`; also inspect `app/src/main/res/values/arrays.xml` when changing scope presentation or checking release parity.
 
-Features → Purification & optimization (`Route.Purification`, `ui/page/PurificationPage.kt`)
+Features → Purification & optimization (`Route.Purification`, `ui/page/platform/PurificationPage.kt`)
 contains the Copy Direct default-browser switch plus the MiTrust / GuardProvider / MiLink /
 video-ringback switches with their original MainActivity callbacks. Copy Direct resolves the
 system default browser and its PackageManager application label for each new cue batch; the
@@ -58,7 +59,7 @@ sunset/custom-time changes while the display is on. A structural services.jar co
 full-digest cache drive the shared preparation/lifecycle; runtime settings also release an
 already pending switch under the native service lock. Disabling restores native scheduling.
 Its wireless diagnostics section uses app-side bounded root commands
-(`util/WirelessDiagnostics.kt`), verified vendor properties and fresh service/usage reads;
+(`util/diagnostics/WirelessDiagnostics.kt`), verified vendor properties and fresh service/usage reads;
 there is no injected-process destination or boot-time replay. The two Preferences values are
 verified device mirrors, excluded from portable backups. Module reset/restore does not alter
 these device-persistent properties; entering the page reads actual state, including after upgrades.
@@ -109,7 +110,7 @@ coordinate mapping when crediting another compiled library.
 
 ## Logging
 
-`util/DebugLog.kt` owns severity, bounded dispatch and counted repeat suppression. `bootstrap/ProcessLogging` injects a live level reader through `LogBackend`; only the module Application receives the existing AppLogStore sink. Cold/hot hook entry binds a level reader without a persistence capability. Retirement flushes before dropping the binding; the logger never imports Preferences. `LogRecord`/`LogCodec` is the shared wire format; errors retain stack traces and expected preference/process skips use DEBUG. Detailed hook registration, target resolution and high-frequency rendering diagnostics belong at DEBUG; INFO describes meaningful runtime state changes. Do not classify severity from words inside a message, and do not silently swallow failures at shared resolver, persistence or system-callback boundaries.
+`util/logging/DebugLog.kt` owns severity, bounded dispatch and counted repeat suppression. `bootstrap/ProcessLogging` injects a live level reader through `LogBackend`; only the module Application receives the existing AppLogStore sink. Cold/hot hook entry binds a level reader without a persistence capability. Retirement flushes before dropping the binding; the logger never imports Preferences. `LogRecord`/`LogCodec` is the shared wire format; errors retain stack traces and expected preference/process skips use DEBUG. Detailed hook registration, target resolution and high-frequency rendering diagnostics belong at DEBUG; INFO describes meaningful runtime state changes. Do not classify severity from words inside a message, and do not silently swallow failures at shared resolver, persistence or system-callback boundaries.
 
 App records are stored by the existing AppLogStore; LogRepository receives its read-only snapshot capability from ProcessLogging and never imports Preferences; injected processes forward to the LSPosed logger, without attempting to write hook-side remote preferences. App log buffers/session/process selections and obsolete per-process log thresholds are local-only at every typed getter/setter, including synchronous strings. Only module Application initialization grants access to this store; injected host caches are never log destinations. On application service binding, the serialized writer removes historical app-log keys from the daemon without clearing shared recording/log-level controls, setting revisions or local app records. A rejected cleanup retains its deletion keys independently of the mutable remote shadow, reports failure, and retries on the next binding. Reset/restore and rollback cannot reintroduce those keys remotely. `LogRepository` merges app records with `LsposedLogReader` records selected by exact module identity. The log page refreshes on entry/service rebinding or an explicit tap, displays source/process/PID, and exports the same snapshot. Reading LSPosed files requires root permission granted to HyperTweak; denial, missing files, timeout and read failure remain visible while app logs are still available. Reads are limited to the four newest active module log files, 2 MiB per file and 2,000 module entries. It does not modify framework files or collect other modules into the snapshot. A single global log level applies to the app and every injected process. Session rotation/clearing only clears app records. The diagnostic provider uses the same repository and retains its own/root/shell caller restriction.
 
@@ -184,6 +185,8 @@ and `docs/HOT_RELOAD_TEST_CHECKLIST.md` for the complete test inventory.
 
 ## Task references
 
+Native files under `app/src/main/cpp/NativeRules/` are grouped into `resolver/`, `runtime/`, `transport/`, `rules/`, `bridge/`, `support/` and `tools/`; the entry TU and export map stay at the root. Native standalone runners use `app/src/test/cpp/native_test_paths.py` for explicit cross-domain include directories. Source contents and exported ABI are preserved by directory migration.
+
 Native AOT identity: `_kDartSnapshotBuildId` points to the 32-byte GNU note (16-byte header followed by the 16-byte ID), not the ID alone. The upstream Dart resolver validates this note and the mapped executable ranges before feature code reads the target.
 
 Dart feature targets are resolved **structurally**, not from a per-build table: `dart_image.cpp` (ELF validation, AArch64 decoding, instruction-kind classification, masked patterns) plus `dart_targets.cpp` (one spec per site, tiered evidence) re-derive each address from instruction shape and call-graph relationships, so a launcher update does not need a new table row. `dart_rule_support.cpp` is the Android-only bridge that turns a spec into runtime addresses for a rule; the two rules carry no build id and no RVA. Any site that is not uniquely resolvable is rejected rather than guessed.
@@ -194,7 +197,8 @@ Authoring a new hook:
 - Declare a `TargetSpec` in `dart_targets.cpp` and a rule that consumes it. Nothing in `miui_home_native_hook.cpp` changes.
 - A byte pattern is only usable when it is both **stable across builds and unique**. Verify both: many Dart prologues/epilogues are stock shared code, and a masked pattern is strictly more general than the bytes it masks. A site whose stable prefix is short, or whose match count is large, needs structural evidence instead.
 - Use the host probe to develop and regression-test offline; it shares `dart_image.cpp`/`dart_targets.cpp` with the payload, so its verdict is the payload's verdict:
-  `clang++ -std=c++17 -O2 -Wall -Wextra -Werror -o /tmp/dart_probe dart_probe.cpp dart_image.cpp dart_targets.cpp`
+  `clang++ -std=c++17 -O2 -Wall -Wextra -Werror -I resolver -I rules -o /tmp/dart_probe tools/dart_probe.cpp resolver/dart_image.cpp resolver/dart_targets.cpp`
+  (run from `app/src/main/cpp/NativeRules`; `rules/` supplies the `*_target.inc` files that `dart_targets.cpp` includes)
   then `dart_probe <libapp.so>` (resolve + report), `--expect site=0xADDR` (assert a known RVA), `--mutate 0xADDR` (fail-closed negative control), `--classes 0xADDR` (dump the instruction-class sequence used for structural specs).
 - `dart_runtime_resolver.cpp` stays byte-identical to upstream. `runtime_profile_resolver.cpp` retains the upstream structural algorithms with the fixed-address side-handler fallback removed; the launcher entry path never consults a per-build profile table.
 - New launcher artifacts and AOT research: [launcher research manual](docs/LAUNCHER_UNPACK_RESEARCH_MANUAL.md). Native target discovery, settings, lifecycle and ABI work: [native hook implementation manual](docs/NATIVE_HOOK_IMPLEMENTATION_MANUAL.md). Never add version/build-ID/RVA target tables.

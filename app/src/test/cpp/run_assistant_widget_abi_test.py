@@ -25,7 +25,7 @@ with tempfile.TemporaryDirectory(prefix='ht-widget-abi-') as directory:
     (path / 'globals.S').write_text(definitions)
     binary = path / 'shim.so'
     subprocess.run([args.compiler, '--target=aarch64-linux-android35', '-shared', '-nostdlib',
-                    '-Wl,--no-undefined', str(native / 'assistant_widget_hook.S'),
+                    '-Wl,--no-undefined', str(native / 'rules/assistant_widget_hook.S'),
                     str(path / 'globals.S'), '-o', str(binary)], check=True)
     with binary.open('rb') as stream:
         elf = ELFFile(stream)

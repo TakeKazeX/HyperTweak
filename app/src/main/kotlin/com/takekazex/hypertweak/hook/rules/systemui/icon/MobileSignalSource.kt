@@ -10,7 +10,7 @@ import android.os.Looper
 import com.takekazex.hypertweak.hook.base.BaseHooker
 import com.takekazex.hypertweak.hook.base.HookComponent
 import com.takekazex.hypertweak.hook.base.HostAccess
-import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.ref.WeakReference
 import java.util.IdentityHashMap
 import java.util.concurrent.CopyOnWriteArrayList

@@ -7,7 +7,7 @@ import android.view.View
 import android.widget.ImageView
 import com.takekazex.hypertweak.hook.rules.systemui.island.host.IslandSlot
 import com.takekazex.hypertweak.hook.rules.systemui.island.host.NativeMediaCoverContract
-import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.util.logging.DebugLog
 import io.github.libxposed.api.XposedInterface
 import java.util.IdentityHashMap
 

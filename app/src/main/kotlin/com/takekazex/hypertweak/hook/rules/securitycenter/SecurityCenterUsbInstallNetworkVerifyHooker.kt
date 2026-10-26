@@ -10,7 +10,7 @@ import com.takekazex.hypertweak.hook.base.dex.DexFeature
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 import com.takekazex.hypertweak.hook.base.dex.MethodDescriptorCodec
 import com.takekazex.hypertweak.hook.base.dex.DexOperandIndex
-import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.util.logging.DebugLog
 import org.luckypray.dexkit.DexKitBridge
 import org.luckypray.dexkit.query.enums.StringMatchType
 import org.luckypray.dexkit.result.MethodData

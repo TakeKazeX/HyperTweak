@@ -12,7 +12,7 @@ import com.takekazex.hypertweak.hook.rules.systemui.island.model.MusicDemandDime
 import com.takekazex.hypertweak.hook.rules.systemui.island.model.NativeMeasureResult
 import com.takekazex.hypertweak.hook.rules.systemui.island.model.SafeInsets
 import com.takekazex.hypertweak.hook.rules.systemui.island.policy.layout.IslandContentSize
-import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.reflect.InvocationTargetException
 
 /** Adapter from the narrow coordinator ports to the pre-resolved native registry. */

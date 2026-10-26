@@ -1,6 +1,6 @@
 package com.takekazex.hypertweak.hook.base
 
-import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.util.logging.DebugLog
 import io.github.libxposed.api.XposedInterface
 import io.github.libxposed.api.XposedModule
 import io.github.lingqiqi5211.ezhooktool.core.findAllConstructors

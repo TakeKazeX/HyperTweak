@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui
 
+import com.takekazex.hypertweak.hook.rules.systemui.notification.NotificationIconFilterContract
 import com.takekazex.hypertweak.hook.base.dex.DexOperandIndex
 import org.junit.Assert.*
 import org.junit.Assume.assumeTrue

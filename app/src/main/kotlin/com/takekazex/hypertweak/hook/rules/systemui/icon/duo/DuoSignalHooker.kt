@@ -29,7 +29,7 @@ import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.hook.rules.aod.AodIconSettings
-import com.takekazex.hypertweak.hook.rules.systemui.icon.ControlCenterCarrierBlockHooker
+import com.takekazex.hypertweak.hook.rules.systemui.icon.carrier.ControlCenterCarrierBlockHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IconPositionHooker
 import com.takekazex.hypertweak.presentation.icon.IconSvgRenderer
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IconTunerFlows
@@ -38,8 +38,8 @@ import com.takekazex.hypertweak.hook.rules.systemui.icon.SignalHandoverEvents
 import com.takekazex.hypertweak.settings.contract.AodSettingsKeys
 import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
-import com.takekazex.hypertweak.util.DebugLog
-import com.takekazex.hypertweak.util.PlatformLevel
+import com.takekazex.hypertweak.util.logging.DebugLog
+import com.takekazex.hypertweak.util.platform.PlatformLevel
 import java.lang.reflect.Field
 import java.lang.reflect.Method
 import java.util.IdentityHashMap
@@ -889,7 +889,7 @@ object DuoSignalHooker : StaticHooker() {
         // its next pass would restore that list and trigger another layout every frame.
         if (binding.airplaneMasked == masked) return
         binding.airplaneMasked = masked
-        com.takekazex.hypertweak.hook.rules.systemui.icon.LeftContainerHooker.onDuoOwnershipChanged()
+        com.takekazex.hypertweak.hook.rules.systemui.icon.left.LeftContainerHooker.onDuoOwnershipChanged()
     }
 
     @Suppress("UNCHECKED_CAST")

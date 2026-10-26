@@ -19,7 +19,7 @@ import androidx.core.graphics.createBitmap
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.DynamicHooker
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
-import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.util.logging.DebugLog
 import java.util.WeakHashMap
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit

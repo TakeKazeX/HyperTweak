@@ -17,8 +17,8 @@ import java.lang.reflect.Executable
 import org.luckypray.dexkit.query.enums.StringMatchType
 import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IconTunerFlows
-import com.takekazex.hypertweak.util.DebugLog
-import com.takekazex.hypertweak.util.StaticFieldWriter
+import com.takekazex.hypertweak.util.logging.DebugLog
+import com.takekazex.hypertweak.util.platform.StaticFieldWriter
 import io.github.lingqiqi5211.ezhooktool.xposed.EzXposed
 import java.lang.reflect.Field
 import java.util.WeakHashMap

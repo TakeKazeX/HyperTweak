@@ -11,7 +11,7 @@ import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.hook.base.dex.DexFeature
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 import com.takekazex.hypertweak.hook.base.dex.DexOperandIndex
-import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.util.logging.DebugLog
 
 private object ScreenshotClipboardFeature : DexFeature {
     override val id = "screenshot.clipboard"

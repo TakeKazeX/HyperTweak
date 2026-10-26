@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook
 
+import com.takekazex.hypertweak.hook.runtime.reload.HotReloadBatch
+import com.takekazex.hypertweak.hook.runtime.settings.RuntimeSettingsSignal
 import com.takekazex.hypertweak.settings.contract.HotReloadOutcome
 import com.takekazex.hypertweak.settings.contract.HotReloadTargetReport
 import com.takekazex.hypertweak.settings.contract.HotReloadReport
@@ -10,7 +12,7 @@ import com.takekazex.hypertweak.settings.contract.ModuleServicePort
 import com.takekazex.hypertweak.settings.contract.ModuleServiceInfo
 
 import android.os.Bundle
-import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.util.logging.DebugLog
 import io.github.libxposed.service.HookedTarget
 import io.github.libxposed.service.HotReloadResult
 import io.github.libxposed.service.XposedService

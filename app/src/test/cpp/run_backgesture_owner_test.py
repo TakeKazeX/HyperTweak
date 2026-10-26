@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Run the production load boundary with and without an upstream gesture owner."""
+from native_test_paths import native_include_flags
 from pathlib import Path
 import subprocess
 import tempfile
@@ -93,5 +94,5 @@ with tempfile.TemporaryDirectory(prefix="ht-gesture-owner-") as temp:
     cpp, binary = Path(temp) / "test.cpp", Path(temp) / "test"
     cpp.write_text(preamble + body + tests)
     subprocess.run(["clang++", "-std=c++17", "-Wall", "-Wextra", "-Werror",
-                    "-fsanitize=address,undefined", "-I", str(native), str(cpp), "-o", str(binary)], check=True)
+                    "-fsanitize=address,undefined", *native_include_flags(native), str(cpp), "-o", str(binary)], check=True)
     subprocess.run([str(binary)], check=True)

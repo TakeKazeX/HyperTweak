@@ -3,7 +3,7 @@ package com.takekazex.hypertweak.ui.navigation
 import androidx.compose.animation.*
 import androidx.compose.runtime.*
 import com.takekazex.hypertweak.settings.contract.HotReloadReport
-import com.takekazex.hypertweak.util.RestartScopeSelection
+import com.takekazex.hypertweak.util.restart.RestartScopeSelection
 import com.takekazex.hypertweak.util.update.UpdateManager
 import top.yukonga.miuix.kmp.nav.core.*
 import top.yukonga.miuix.kmp.basic.SnackbarHostState

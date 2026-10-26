@@ -4,7 +4,7 @@ import android.app.WallpaperManager;
 import android.content.BroadcastReceiver;
 import android.content.Intent;
 import android.content.IntentFilter;
-import com.takekazex.hypertweak.util.DebugLog;
+import com.takekazex.hypertweak.util.logging.DebugLog;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import android.annotation.SuppressLint;

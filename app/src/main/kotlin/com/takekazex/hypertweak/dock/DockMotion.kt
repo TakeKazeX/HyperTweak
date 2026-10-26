@@ -167,17 +167,17 @@ internal class DockFrameChannel(private val restored: Any? = null, private val c
                     val frame = if (decoded.sourceEpoch == 0L) decoded.copy(sourceEpoch = -packet.port.toLong()) else decoded
                     if (!ledger.offer(frame)) continue
                     if (producer != frame.sourceEpoch) {
-                        if (producer != 0L) com.takekazex.hypertweak.util.DebugLog.i("DockMotion", "native producer changed; motion state rebound")
+                        if (producer != 0L) com.takekazex.hypertweak.util.logging.DebugLog.i("DockMotion", "native producer changed; motion state rebound")
                         producer = frame.sourceEpoch
                         observed.fill(false)
                     }
                     if (!observed[frame.kind]) {
                         observed[frame.kind] = true
-                        com.takekazex.hypertweak.util.DebugLog.i("DockMotion", "native source active: ${arrayOf("hotseat", "legacy-screen", "editing", "controller-scale", "controller-alpha", "controller-set", "hotseat-tick", "hotseat-empty", "unlock-transform")[frame.kind]}")
+                        com.takekazex.hypertweak.util.logging.DebugLog.i("DockMotion", "native source active: ${arrayOf("hotseat", "legacy-screen", "editing", "controller-scale", "controller-alpha", "controller-set", "hotseat-tick", "hotseat-empty", "unlock-transform")[frame.kind]}")
                     }
                     changed(frame)
                 } catch (error: Exception) {
-                    if (!socket.isClosed) com.takekazex.hypertweak.util.DebugLog.w("DockMotion", "frame channel failed", error)
+                    if (!socket.isClosed) com.takekazex.hypertweak.util.logging.DebugLog.w("DockMotion", "frame channel failed", error)
                     break
                 }
             }

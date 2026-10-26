@@ -4,7 +4,7 @@ import android.content.ContextWrapper
 import android.content.SharedPreferences
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
-import com.takekazex.hypertweak.util.RestartScopeSelection
+import com.takekazex.hypertweak.util.restart.RestartScopeSelection
 import java.lang.reflect.Proxy
 import org.junit.Assert.*
 import org.junit.Test

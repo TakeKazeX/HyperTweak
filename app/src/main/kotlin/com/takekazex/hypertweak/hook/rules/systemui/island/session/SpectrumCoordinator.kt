@@ -17,7 +17,7 @@ import com.takekazex.hypertweak.hook.rules.systemui.island.policy.layout.IslandC
 import com.takekazex.hypertweak.hook.rules.systemui.island.policy.spectrum.SmallIslandSpectrum
 import com.takekazex.hypertweak.hook.rules.systemui.island.policy.spectrum.SpectrumAdmissionPolicy
 import com.takekazex.hypertweak.hook.rules.systemui.island.spectrum.IslandLyricGuard
-import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.util.logging.DebugLog
 
 /**
  * Owns side-media admission and the lyric guard. Every failure here is soft: the native cover

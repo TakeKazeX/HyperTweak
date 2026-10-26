@@ -3,7 +3,7 @@ package com.takekazex.hypertweak.hook.rules.camera
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 
 import android.content.pm.ApplicationInfo
-import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.util.logging.DebugLog
 import org.luckypray.dexkit.DexKitBridge
 import org.luckypray.dexkit.query.enums.StringMatchType
 import java.io.File

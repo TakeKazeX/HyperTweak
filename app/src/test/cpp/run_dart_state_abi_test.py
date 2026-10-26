@@ -15,7 +15,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("compiler")
     args = parser.parse_args()
-    source = pathlib.Path(__file__).resolve().parents[2] / "main/cpp/NativeRules/dart_state_hooks.S"
+    source = pathlib.Path(__file__).resolve().parents[2] / "main/cpp/NativeRules/runtime/dart_state_hooks.S"
     with tempfile.TemporaryDirectory(prefix="ht-dart-state-abi-") as folder:
         folder = pathlib.Path(folder)
         # All external symbols are actual observer storage; no production branch is stubbed.

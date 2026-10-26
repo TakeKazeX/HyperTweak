@@ -7,8 +7,8 @@ import android.os.Build
 import com.takekazex.hypertweak.hook.base.BaseHooker
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.hook.rules.backgesture.hooks.core.HookRuntimeCore
-import com.takekazex.hypertweak.util.DebugLog
-import com.takekazex.hypertweak.util.UpstreamBackGesture
+import com.takekazex.hypertweak.util.logging.DebugLog
+import com.takekazex.hypertweak.util.platform.UpstreamBackGesture
 import io.github.libxposed.api.XposedInterface
 import java.lang.reflect.Method
 

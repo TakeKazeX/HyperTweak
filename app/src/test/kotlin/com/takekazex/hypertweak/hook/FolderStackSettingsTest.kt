@@ -1,5 +1,8 @@
 package com.takekazex.hypertweak.hook
 
+import com.takekazex.hypertweak.hook.nativebridge.NativeRuleMutation
+import com.takekazex.hypertweak.hook.nativebridge.NativeRuleStateSnapshot
+import com.takekazex.hypertweak.hook.nativebridge.NativeSnapshotLedger
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import org.junit.Assert.*

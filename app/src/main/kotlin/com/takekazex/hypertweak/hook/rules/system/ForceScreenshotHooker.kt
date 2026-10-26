@@ -5,7 +5,7 @@ import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.hook.base.ThreadActivation
-import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.reflect.Modifier
 
 /** System-server screenshot policy. SKIP_SCREENSHOT and protected buffers are independent. */

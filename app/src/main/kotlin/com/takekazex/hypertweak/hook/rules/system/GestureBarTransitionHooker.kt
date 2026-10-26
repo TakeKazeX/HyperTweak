@@ -11,7 +11,7 @@ import android.window.TransitionInfo
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
-import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.util.logging.DebugLog
 
 /**
  * Keeps the gesture bar attached to the app while the recents transition is playing

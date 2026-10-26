@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import com.takekazex.hypertweak.hook.rules.systemui.icon.carrier.CarrierMask
 import com.takekazex.hypertweak.settings.contract.IconSlotPolicy
 
 import com.takekazex.hypertweak.settings.contract.IconTunerContract
@@ -12,7 +13,7 @@ import com.takekazex.hypertweak.settings.contract.IconSurface
 
 import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
 
-import com.takekazex.hypertweak.ui.page.IconSlotCatalog
+import com.takekazex.hypertweak.ui.page.systemui.icon.IconSlotCatalog
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue

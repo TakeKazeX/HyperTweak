@@ -4,11 +4,11 @@ import com.takekazex.hypertweak.settings.contract.ModuleServicePort
 import com.takekazex.hypertweak.settings.contract.NativeUpgradePort
 import com.takekazex.hypertweak.settings.contract.NativeRulePublisher
 
-import com.takekazex.hypertweak.util.RestartUtils
-import com.takekazex.hypertweak.util.ShortcutUtils
-import com.takekazex.hypertweak.util.WirelessDiagnostics
-import com.takekazex.hypertweak.util.ScopeManager
-import com.takekazex.hypertweak.util.ScopePromptStore
+import com.takekazex.hypertweak.util.restart.RestartUtils
+import com.takekazex.hypertweak.util.platform.ShortcutUtils
+import com.takekazex.hypertweak.util.diagnostics.WirelessDiagnostics
+import com.takekazex.hypertweak.util.scope.ScopeManager
+import com.takekazex.hypertweak.util.scope.ScopePromptStore
 
 internal interface AppServicePorts {
     val restarts: RestartUtils

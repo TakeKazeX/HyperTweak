@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Exercise the production eventfd worker and remap fence on host or Android/Bionic."""
+from native_test_paths import native_include_flags
 import argparse
 from pathlib import Path
 import subprocess
@@ -16,7 +17,7 @@ native = tests.parents[1] / 'main/cpp/NativeRules'
 with tempfile.TemporaryDirectory(prefix='hypertweak-state-worker-') as tmp:
     binary = Path(tmp) / 'dart-state-worker-test'
     flags = ['--target=aarch64-linux-android35', '-static-libstdc++'] if args.android_compiler else ['-fsanitize=address,undefined', '-fno-omit-frame-pointer']
-    subprocess.run([str(args.android_compiler or 'clang++'), '-std=c++17', '-O1', '-g', '-Wall', '-Wextra', '-Werror', '-pthread', *flags, '-I', str(native), str(tests / 'dart_state_worker_test.cpp'), str(native / 'dart_state_worker.cpp'), str(native / 'dart_observer_retirement.cpp'), '-o', str(binary)], check=True)
+    subprocess.run([str(args.android_compiler or 'clang++'), '-std=c++17', '-O1', '-g', '-Wall', '-Wextra', '-Werror', '-pthread', *flags, *native_include_flags(native), str(tests / 'dart_state_worker_test.cpp'), str(native / 'runtime/dart_state_worker.cpp'), str(native / 'runtime/dart_observer_retirement.cpp'), '-o', str(binary)], check=True)
     if args.android_compiler:
         remote = '/data/local/tmp/hypertweak-dart-state-worker-test'
         try:

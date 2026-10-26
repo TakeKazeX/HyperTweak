@@ -1,7 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.system
 
 import com.takekazex.hypertweak.hook.base.StaticHooker
-import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.reflect.Modifier
 
 /** Stable framework lifecycle boundary; no ROM version, phase number or obfuscated member table. */

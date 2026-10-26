@@ -1,6 +1,6 @@
 package com.takekazex.hypertweak.hook.base
 
-import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.util.logging.DebugLog
 
 /** Small fail-open boundary for code running inside another process. */
 object HookFailurePolicy {

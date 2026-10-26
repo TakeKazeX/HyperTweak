@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Compile with dart_image.cpp/dart_targets.cpp and ASan/UBSan; pass verified libapp.so.
-#include "../../main/cpp/NativeRules/folder_stack_rule.cpp"
+#include "../../main/cpp/NativeRules/rules/folder_stack_rule.cpp"
 #include <assert.h>
 #include "dart_resolution_cache.h"
 #include <fstream>

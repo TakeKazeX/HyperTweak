@@ -1,0 +1,263 @@
+package com.takekazex.hypertweak.ui.page.systemui.controlcenter
+
+import com.takekazex.hypertweak.ui.components.dialog.IntValueDialog
+import com.takekazex.hypertweak.ui.components.dialog.LocalRestartScopeHandled
+import com.takekazex.hypertweak.ui.components.dialog.LocalRestartScopeRequest
+import com.takekazex.hypertweak.ui.components.dialog.restartInProgress
+import com.takekazex.hypertweak.ui.app.LocalAppServices
+import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
+
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
+import com.takekazex.hypertweak.R
+import com.takekazex.hypertweak.ui.app.LocalAppSettingsStore
+import com.takekazex.hypertweak.util.restart.RestartScopeSelection
+import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.IconButton
+import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
+import com.takekazex.hypertweak.ui.effect.AppScaffold as Scaffold
+import top.yukonga.miuix.kmp.basic.Slider
+import top.yukonga.miuix.kmp.basic.SliderDefaults
+import top.yukonga.miuix.kmp.basic.SmallTitle
+import top.yukonga.miuix.kmp.basic.Text
+import com.takekazex.hypertweak.ui.effect.AppTopAppBar as TopAppBar
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.Back
+import top.yukonga.miuix.kmp.preference.ArrowPreference
+import top.yukonga.miuix.kmp.preference.SwitchPreference
+import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.utils.overScrollVertical
+
+/**
+ * Control Center corner-radius overrides (Settings → Experimental → 控制中心圆角).
+ *
+ * State is kept locally like [ChargingDetailPage] and written straight into [AppSettingsStore]; the
+ * [com.takekazex.hypertweak.hook.rules.slider.ControlCenterCornerHooker] re-reads these Float keys at
+ * hook time. The master switch installs the hooks, so it needs a SystemUI restart — every value row
+ * marks the restart row pending, exactly like the slider-percentage feature.
+ *
+ * Each row mirrors the interface-scale interaction from [AppearancePage]: tapping the row expands an
+ * inline continuous slider AND opens a numeric value dialog ([CornerRadiusDialog]) for precise
+ * entry. The slider runs 0..100 dp continuously with no key-point snapping, so any millimetre
+ * precision is reachable; 0 dp means "follow system". Rows are shown in a fixed order.
+ */
+@Composable
+fun ControlCenterCornerPage(onBack: () -> Unit) {
+    val services = LocalAppServices.current
+    val settingsStore = LocalAppSettingsStore.current
+    val scrollBehavior = MiuixScrollBehavior()
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val coroutineScope = androidx.compose.runtime.rememberCoroutineScope()
+    val requestRestartScopes = LocalRestartScopeRequest.current
+    val handleRestartedScopes = LocalRestartScopeHandled.current
+
+    var enabled by remember {
+        mutableStateOf(settingsStore.getBoolean(SystemUiSettingsKeys.KEY_CC_CORNER_ENABLED, false))
+    }
+
+    // Saveable so a pending restart prompt survives navigating away.
+    var restartPending by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+
+    // All corner radius items with their preference keys, in the fixed display order.
+    val items = remember {
+        listOf(
+            CornerItem(R.string.tweaks_cc_corner_slider_title, R.string.tweaks_cc_corner_slider_summary, SystemUiSettingsKeys.KEY_CC_CORNER_SLIDER),
+            CornerItem(R.string.tweaks_cc_corner_tile_title, R.string.tweaks_cc_corner_tile_summary, SystemUiSettingsKeys.KEY_CC_CORNER_TILE),
+            CornerItem(R.string.tweaks_cc_corner_card_title, R.string.tweaks_cc_corner_card_summary, SystemUiSettingsKeys.KEY_CC_CORNER_CARD),
+            CornerItem(R.string.tweaks_cc_corner_device_title, R.string.tweaks_cc_corner_device_summary, SystemUiSettingsKeys.KEY_CC_CORNER_DEVICE),
+            CornerItem(R.string.tweaks_cc_corner_media_title, R.string.tweaks_cc_corner_media_summary, SystemUiSettingsKeys.KEY_CC_CORNER_MEDIA)
+        )
+    }
+
+    // Item values stored in a map keyed by preference key.
+    val itemValues = remember {
+        mutableMapOf<String, Float>().apply {
+            items.forEach { item ->
+                this[item.key] = settingsStore.getFloat(item.key, 0f)
+            }
+        }
+    }
+
+    Scaffold(topBar = {
+        TopAppBar(
+            title = stringResource(R.string.tweaks_cc_corner_enabled_title),
+            scrollBehavior = scrollBehavior,
+            navigationIcon = {
+                IconButton(onClick = onBack) {
+                    Icon(MiuixIcons.Back, stringResource(R.string.charging_back))
+                }
+            }
+        )
+    }) { padding ->
+        Column(
+            Modifier.fillMaxSize()
+                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
+                .overScrollVertical()
+                .nestedScroll(scrollBehavior.nestedScrollConnection)
+                .verticalScroll(rememberScrollState())
+        ) {
+            Spacer(Modifier.height(padding.calculateTopPadding() + 8.dp))
+
+            SmallTitle(stringResource(R.string.tweaks_cc_corner_enabled_title))
+            Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+                Column(Modifier.fillMaxWidth()) {
+                    SwitchPreference(
+                        checked = enabled,
+                        onCheckedChange = { checked ->
+                            enabled = checked
+                            restartPending = true
+                            requestRestartScopes(RestartScopeSelection(systemUi = true))
+                            settingsStore.putBoolean(SystemUiSettingsKeys.KEY_CC_CORNER_ENABLED, checked)
+                        },
+                        title = stringResource(R.string.tweaks_cc_corner_enabled_title),
+                        summary = stringResource(R.string.tweaks_cc_corner_enabled_summary)
+                    )
+                    if (restartPending) {
+                        ArrowPreference(
+                            title = stringResource(R.string.charging_restart_title),
+                            summary = stringResource(R.string.charging_restart_summary),
+                            enabled = !restartInProgress(com.takekazex.hypertweak.util.restart.RestartScopeSelection(systemUi = true)),
+                            onClick = {
+                                // Push the prefs through to the daemon before SystemUI comes
+                                // back — its onHook reads them at plugin load time.
+                                settingsStore.flush()
+                                services.restarts.restartScope(
+                                    context = context,
+                                    coroutineScope = coroutineScope,
+                                    selection = com.takekazex.hypertweak.util.restart.RestartScopeSelection(systemUi = true),
+                                    onCompleted = { completed ->
+                                        handleRestartedScopes(completed)
+                                        if (completed.systemUi) restartPending = false
+                                    },
+                                )
+                            }
+                        )
+                    }
+                }
+            }
+
+            items.forEach { item ->
+                CornerRadiusRow(
+                    title = stringResource(item.titleRes),
+                    summary = stringResource(item.summaryRes),
+                    value = itemValues[item.key] ?: 0f,
+                    onValueChange = { newValue ->
+                        itemValues[item.key] = newValue
+                        settingsStore.putFloat(item.key, newValue)
+                        restartPending = true
+                        requestRestartScopes(RestartScopeSelection(systemUi = true))
+                    }
+                )
+            }
+
+            Spacer(Modifier.height(padding.calculateBottomPadding() + 16.dp))
+        }
+    }
+}
+
+/**
+ * One corner-radius group: an expandable row whose inline Slider runs continuously over 0..100 dp
+ * (no key-point snapping) and whose tap also opens a numeric [CornerRadiusDialog]. 0 = follow
+ * system.
+ */
+@Composable
+private fun CornerRadiusRow(
+    title: String,
+    summary: String,
+    value: Float,
+    onValueChange: (Float) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+    ArrowPreference(
+        title = title,
+        summary = summary,
+        endActions = {
+            Text(
+                text = cornerRadiusText(value),
+                color = MiuixTheme.colorScheme.onSurfaceVariantActions
+            )
+        },
+        onClick = { expanded = !expanded },
+        holdDownState = expanded,
+        bottomAction = {
+            Slider(
+                value = value.coerceIn(0f, MAX_CORNER_RADIUS_DP),
+                onValueChange = onValueChange,
+                onValueChangeFinished = { },
+                valueRange = 0f..MAX_CORNER_RADIUS_DP,
+                hapticEffect = SliderDefaults.SliderHapticEffect.Step
+            )
+        }
+    )
+    // Tapping the row opens the numeric dialog at the same time the inline slider expands,
+    // mirroring the interface-scale row in AppearancePage.
+    CornerRadiusDialog(
+        show = expanded,
+        onDismissRequest = { expanded = false },
+        current = { value },
+        onValueChange = onValueChange
+    )
+}
+
+@Composable
+private fun cornerRadiusText(value: Float): String {
+    return if (value <= 0f) {
+        stringResource(R.string.tweaks_cc_corner_follow_system)
+    } else {
+        "${value.toInt()}${stringResource(R.string.tweaks_cc_corner_unit)}"
+    }
+}
+
+/** Numeric value dialog for one corner-radius row, mirroring [ScaleDialog]. */
+@Composable
+private fun CornerRadiusDialog(
+    show: Boolean,
+    onDismissRequest: () -> Unit,
+    current: () -> Float,
+    onValueChange: (Float) -> Unit
+) {
+    IntValueDialog(
+        show = show,
+        title = stringResource(R.string.tweaks_cc_corner_dialog_title),
+        summary = stringResource(R.string.tweaks_cc_corner_dialog_summary),
+        suffix = stringResource(R.string.tweaks_cc_corner_unit),
+        range = 0..MAX_CORNER_RADIUS_DP.toInt(),
+        currentValue = { current().toInt() },
+        // Empty field means 0 dp = follow system, so a blank value commits 0 rather than the
+        // current radius.
+        emptyValue = 0,
+        onValueConfirmed = { onValueChange(it.toFloat()) },
+        onDismissRequest = onDismissRequest
+    )
+}
+
+private const val MAX_CORNER_RADIUS_DP = 100f
+
+private data class CornerItem(
+    val titleRes: Int,
+    val summaryRes: Int,
+    val key: String
+)

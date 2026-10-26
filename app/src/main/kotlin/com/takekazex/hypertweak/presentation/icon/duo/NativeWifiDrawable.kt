@@ -36,7 +36,7 @@ internal class NativeWifiDrawable(
                     alpha = 255
                 }
             }.onFailure {
-                com.takekazex.hypertweak.util.DebugLog.w("DuoSignal", "native Wi-Fi artwork unavailable", it)
+                com.takekazex.hypertweak.util.logging.DebugLog.w("DuoSignal", "native Wi-Fi artwork unavailable", it)
             }.getOrNull()
             appliedColor = null
             appliedAlpha = -1

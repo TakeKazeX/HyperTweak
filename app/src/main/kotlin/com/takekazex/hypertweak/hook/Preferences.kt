@@ -6,6 +6,16 @@
 
 package com.takekazex.hypertweak.hook
 
+import com.takekazex.hypertweak.hook.logging.AppLogStore
+import com.takekazex.hypertweak.hook.nativebridge.NativeRuleStateSnapshot
+import com.takekazex.hypertweak.hook.preferences.RuntimeSettingsPreferences
+import com.takekazex.hypertweak.hook.preferences.SettingsBackupManager
+import com.takekazex.hypertweak.hook.preferences.SettingsMutationWriter
+import com.takekazex.hypertweak.hook.runtime.settings.BackGestureSettingsLedger
+import com.takekazex.hypertweak.hook.runtime.settings.BackGestureSettingsSnapshot
+import com.takekazex.hypertweak.hook.runtime.settings.RuntimeSettingsReadCache
+import com.takekazex.hypertweak.hook.runtime.settings.RuntimeSettingsSnapshot
+import com.takekazex.hypertweak.hook.runtime.settings.RuntimeSettingsStore
 import com.takekazex.hypertweak.settings.contract.CameraLegendaryMomentMode
 
 import android.content.Context
@@ -45,7 +55,7 @@ object Preferences {
     })
 
     private val liveBackSettings = BackGestureSettingsLedger()
-    fun backGestureEnabled(): Boolean = !com.takekazex.hypertweak.util.UpstreamBackGesture.installed &&
+    fun backGestureEnabled(): Boolean = !com.takekazex.hypertweak.util.platform.UpstreamBackGesture.installed &&
         backGestureBoolean(BackGestureKeys.KEY_BACK_GESTURE_ENABLED, false)
     fun backGestureBoolean(key: String, defaultValue: Boolean): Boolean =
         if (RuntimeSettingsStore.owns(key)) getBoolean(key, defaultValue) else liveBackSettings.latest()?.value(key) ?: runCatching {

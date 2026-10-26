@@ -1,6 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
-import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.reflect.Field
 
 /**

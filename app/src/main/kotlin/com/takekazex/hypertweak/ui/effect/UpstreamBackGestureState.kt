@@ -9,7 +9,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.currentStateAsState
-import com.takekazex.hypertweak.util.UpstreamBackGesture
+import com.takekazex.hypertweak.util.platform.UpstreamBackGesture
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 

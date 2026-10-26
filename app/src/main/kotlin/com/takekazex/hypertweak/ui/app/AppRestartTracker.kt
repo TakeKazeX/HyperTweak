@@ -7,8 +7,8 @@ import com.takekazex.hypertweak.settings.contract.AppSettingsKeys
 import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
-import com.takekazex.hypertweak.util.RestartScopeSelection
-import com.takekazex.hypertweak.util.ScopeManager
+import com.takekazex.hypertweak.util.restart.RestartScopeSelection
+import com.takekazex.hypertweak.util.scope.ScopeManager
 
 private val TWEAK_RESTART_SCOPES = mapOf(
     IconSettingsKeys.KEY_ICON_DUO_ENABLED to RestartScopeSelection(systemUi = true),

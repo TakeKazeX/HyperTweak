@@ -13,7 +13,7 @@ import com.takekazex.hypertweak.hook.rules.systemui.island.policy.IslandModePoli
 import com.takekazex.hypertweak.hook.rules.systemui.island.policy.IslandPresentation
 import com.takekazex.hypertweak.hook.rules.systemui.island.policy.IslandRenderScope
 import com.takekazex.hypertweak.hook.rules.systemui.island.policy.IslandTemplatePublication
-import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.util.logging.DebugLog
 
 /**
  * One generation of shared session state and projections. Coordinators consume capability

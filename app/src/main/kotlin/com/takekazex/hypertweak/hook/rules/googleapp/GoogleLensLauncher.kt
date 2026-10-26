@@ -6,7 +6,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.UserHandle
 import androidx.core.net.toUri
-import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.util.logging.DebugLog
 
 /**
  * Starts Google Lens (Google 智能镜头) for the long-press-power-button action.

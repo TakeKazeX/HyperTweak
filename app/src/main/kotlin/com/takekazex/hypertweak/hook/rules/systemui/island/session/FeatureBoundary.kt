@@ -2,7 +2,7 @@ package com.takekazex.hypertweak.hook.rules.systemui.island.session
 
 import com.takekazex.hypertweak.hook.rules.systemui.island.model.IslandFeature
 import com.takekazex.hypertweak.hook.rules.systemui.island.model.IslandSession
-import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.util.logging.DebugLog
 
 /**
  * Feature-scoped failure boundary. Core failures mark the session failed and restore native

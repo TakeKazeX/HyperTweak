@@ -7,8 +7,8 @@ import android.content.Intent
 import android.content.IntentFilter
 import androidx.core.content.ContextCompat
 import com.takekazex.hypertweak.hook.base.StaticHooker
-import com.takekazex.hypertweak.util.DebugLog
-import com.takekazex.hypertweak.util.ProxyLaunchProtocol
+import com.takekazex.hypertweak.util.logging.DebugLog
+import com.takekazex.hypertweak.util.platform.ProxyLaunchProtocol
 
 /**
  * Starts activities that are not exported to third-party apps, from inside SystemUI.

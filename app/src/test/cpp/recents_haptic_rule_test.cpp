@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Compile with dart_image.cpp/dart_targets.cpp and ASan/UBSan; pass verified libapp.so.
-#include "../../main/cpp/NativeRules/recents_haptic_rule.cpp"
+#include "../../main/cpp/NativeRules/rules/recents_haptic_rule.cpp"
 #include <assert.h>
 #include <fstream>
 #include <vector>

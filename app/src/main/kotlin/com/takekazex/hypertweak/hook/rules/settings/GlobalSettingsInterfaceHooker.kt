@@ -4,8 +4,8 @@ import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.StaticHooker
-import com.takekazex.hypertweak.util.DebugLog
-import com.takekazex.hypertweak.util.StaticFieldWriter
+import com.takekazex.hypertweak.util.logging.DebugLog
+import com.takekazex.hypertweak.util.platform.StaticFieldWriter
 import java.lang.reflect.Modifier
 
 /** Enables the stock international Settings branches inside com.android.settings only. */

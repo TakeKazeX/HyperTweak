@@ -8,7 +8,7 @@ import com.takekazex.hypertweak.hook.base.CompatibleMethodResolver
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
-import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.util.logging.DebugLog
 
 /**
  * Restores the AOSP power menu and volume panel by hiding MIUI's replacements from SystemUI's

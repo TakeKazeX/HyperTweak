@@ -1,18 +1,20 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import com.takekazex.hypertweak.hook.rules.systemui.icon.carrier.ControlCenterCarrierBlockHooker
+import com.takekazex.hypertweak.hook.rules.systemui.icon.left.LeftContainerHooker
 import com.takekazex.hypertweak.hook.base.HostAccess
-import com.takekazex.hypertweak.hook.rules.systemui.HideBottomBarHooker
-import com.takekazex.hypertweak.hook.rules.systemui.NotificationHeaderHooker
-import com.takekazex.hypertweak.hook.rules.systemui.NotificationHeaderWeatherHooker
-import com.takekazex.hypertweak.hook.rules.systemui.NotificationHeaderClockSecondsHooker
+import com.takekazex.hypertweak.hook.rules.systemui.gesturebar.HideBottomBarHooker
+import com.takekazex.hypertweak.hook.rules.systemui.notification.NotificationHeaderHooker
+import com.takekazex.hypertweak.hook.rules.systemui.notification.NotificationHeaderWeatherHooker
+import com.takekazex.hypertweak.hook.rules.systemui.notification.NotificationHeaderClockSecondsHooker
 import com.takekazex.hypertweak.hook.rules.systemui.MediaCardHideAppIconHooker
 import com.takekazex.hypertweak.hook.rules.systemui.MediaCardHideDeviceSwitchHooker
-import com.takekazex.hypertweak.hook.rules.systemui.LockscreenDateHooker
-import com.takekazex.hypertweak.hook.rules.systemui.NotificationContentHotReloadRecovery
-import com.takekazex.hypertweak.hook.rules.systemui.HideLockscreenStatusBarHooker
-import com.takekazex.hypertweak.hook.rules.systemui.LockscreenBottomTextHooker
-import com.takekazex.hypertweak.hook.rules.systemui.LockscreenChargingDetailHooker
-import com.takekazex.hypertweak.hook.rules.systemui.NotificationMiniWindowHooker
+import com.takekazex.hypertweak.hook.rules.systemui.lockscreen.LockscreenDateHooker
+import com.takekazex.hypertweak.hook.rules.systemui.notification.NotificationContentHotReloadRecovery
+import com.takekazex.hypertweak.hook.rules.systemui.lockscreen.HideLockscreenStatusBarHooker
+import com.takekazex.hypertweak.hook.rules.systemui.lockscreen.LockscreenBottomTextHooker
+import com.takekazex.hypertweak.hook.rules.systemui.lockscreen.LockscreenChargingDetailHooker
+import com.takekazex.hypertweak.hook.rules.systemui.notification.NotificationMiniWindowHooker
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
@@ -20,7 +22,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.inspector.WindowInspector
 import com.takekazex.hypertweak.hook.rules.systemui.icon.duo.DuoSignalHooker
-import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.util.logging.DebugLog
 
 /** Recover already-inflated hosts after all replacement hooks and saved snapshots are installed. */
 internal object StatusIconHotReloadRecovery {

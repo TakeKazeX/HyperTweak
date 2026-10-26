@@ -14,7 +14,7 @@ import androidx.core.graphics.withClip
 import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.StaticHooker
-import com.takekazex.hypertweak.util.ResourceLookup
+import com.takekazex.hypertweak.util.platform.ResourceLookup
 import org.luckypray.dexkit.query.enums.StringMatchType
 import java.lang.reflect.Constructor
 import java.lang.reflect.Field

@@ -18,7 +18,7 @@ import com.takekazex.hypertweak.hook.rules.systemui.island.model.IslandFeature
 import com.takekazex.hypertweak.hook.rules.systemui.island.session.IslandRuntime
 import com.takekazex.hypertweak.hook.rules.systemui.island.template.IslandTemplateCutout
 import com.takekazex.hypertweak.hook.rules.systemui.island.template.IslandCameraSeat
-import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.util.logging.DebugLog
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 

@@ -64,7 +64,7 @@ internal class DuoPanelMotion(context: Context, private val airplaneOnly: Boolea
                 frameReady = false
                 restoreTarget()
                 host?.postInvalidateOnAnimation()
-                com.takekazex.hypertweak.util.DebugLog.w("DuoSignal", "network transition drawing failed", error)
+                com.takekazex.hypertweak.util.logging.DebugLog.w("DuoSignal", "network transition drawing failed", error)
             } finally { canvas.restoreToCount(count) }
         }
         override fun setAlpha(alpha: Int) = Unit

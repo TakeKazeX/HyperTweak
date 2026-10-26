@@ -7,9 +7,9 @@ import android.net.Uri
 import android.os.Bundle
 import android.os.Binder
 import android.os.Process
-import com.takekazex.hypertweak.util.LogRepository
-import com.takekazex.hypertweak.util.DebugLog
-import com.takekazex.hypertweak.util.LogDumpChannel
+import com.takekazex.hypertweak.util.logging.LogRepository
+import com.takekazex.hypertweak.util.logging.DebugLog
+import com.takekazex.hypertweak.util.logging.LogDumpChannel
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date

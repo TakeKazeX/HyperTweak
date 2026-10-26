@@ -20,11 +20,11 @@ import android.view.ViewGroup
 import androidx.core.view.isVisible
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HostAccess
-import com.takekazex.hypertweak.hook.rules.systemui.icon.ControlCenterCarrierBlockHooker
+import com.takekazex.hypertweak.hook.rules.systemui.icon.carrier.ControlCenterCarrierBlockHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.ControlCenterHeaderHooker
 import com.takekazex.hypertweak.presentation.icon.MobileSignalState
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
-import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.util.logging.DebugLog
 
 /** Owns proxy transforms, signal overlays and network/airplane handover leases. */
 internal class DuoPanelHandover(private val host: Host) {

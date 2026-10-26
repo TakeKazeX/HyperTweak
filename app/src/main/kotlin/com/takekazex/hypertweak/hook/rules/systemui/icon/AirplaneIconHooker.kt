@@ -7,7 +7,7 @@ import android.view.View
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
-import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.util.logging.DebugLog
 
 /** Mirrors the native airplane slot, including host views cloned into the left container. */
 object AirplaneIconHooker : StaticHooker() {

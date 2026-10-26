@@ -6,7 +6,7 @@ import android.media.MediaActionSound
 import android.net.Uri
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.StaticHooker
-import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.util.logging.DebugLog
 import java.io.File
 
 /** Keeps the HyperOS screenshot sound when the lockscreen status bar is hidden. */

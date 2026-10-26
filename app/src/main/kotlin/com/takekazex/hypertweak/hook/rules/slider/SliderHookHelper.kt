@@ -6,7 +6,7 @@ import android.view.View
 import android.widget.SeekBar
 import android.widget.TextView
 import androidx.core.graphics.toColorInt
-import com.takekazex.hypertweak.util.ResourceLookup
+import com.takekazex.hypertweak.util.platform.ResourceLookup
 import java.util.WeakHashMap
 
 // ─── Package-Level View Extensions ─────────────────────────────────────────

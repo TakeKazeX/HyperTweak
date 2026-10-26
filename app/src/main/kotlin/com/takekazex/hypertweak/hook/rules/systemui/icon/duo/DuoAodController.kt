@@ -14,7 +14,7 @@ import com.takekazex.hypertweak.hook.rules.aod.AodIconSettings
 import com.takekazex.hypertweak.hook.rules.systemui.AODHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IconPositionHooker
 import com.takekazex.hypertweak.settings.contract.AodSettingsKeys
-import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.reflect.Field
 import java.lang.reflect.Method
 

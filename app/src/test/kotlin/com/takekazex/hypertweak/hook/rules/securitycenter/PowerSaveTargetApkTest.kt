@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.securitycenter
 
+import com.takekazex.hypertweak.hook.rules.securitycenter.battery.PowerSaveTransitionContract
 import java.io.File
 import org.jf.dexlib2.DexFileFactory
 import org.jf.dexlib2.Opcodes

@@ -2,7 +2,7 @@ package com.takekazex.hypertweak.dock
 
 import android.os.Handler
 import android.view.Choreographer
-import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.util.logging.DebugLog
 import java.util.concurrent.atomic.AtomicBoolean
 
 /** One owner-thread reconciliation per vsync, regardless of how many native events arrive. */

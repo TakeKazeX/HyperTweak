@@ -1,5 +1,14 @@
 package com.takekazex.hypertweak.hook
 
+import com.takekazex.hypertweak.hook.bootstrap.SecurityHostRecovery
+import com.takekazex.hypertweak.hook.bootstrap.SystemUiSettingsHost
+import com.takekazex.hypertweak.hook.nativebridge.NativeRuleStatePublisher
+import com.takekazex.hypertweak.hook.preferences.RuntimeSettingsPreferences
+import com.takekazex.hypertweak.hook.runtime.reload.HotReloadPackageState
+import com.takekazex.hypertweak.hook.runtime.reload.HotReloadPluginState
+import com.takekazex.hypertweak.hook.runtime.reload.HotReloadState
+import com.takekazex.hypertweak.hook.runtime.reload.HotReloadTargetState
+import com.takekazex.hypertweak.hook.runtime.settings.RuntimeSettingsStore
 import android.content.Context
 import android.content.SharedPreferences
 import android.content.pm.ApplicationInfo
@@ -18,21 +27,21 @@ import com.takekazex.hypertweak.hook.rules.gms.QuickSharePhenotypeHooker
 import com.takekazex.hypertweak.hook.rules.googleapp.GoogleAppProcessPolicy
 import com.takekazex.hypertweak.hook.rules.googleapp.GoogleAppRuntime
 import com.takekazex.hypertweak.hook.rules.module.RestartBroadcastHooker
-import com.takekazex.hypertweak.hook.rules.securitycenter.BatteryInfoHooker
+import com.takekazex.hypertweak.hook.rules.securitycenter.battery.BatteryInfoHooker
 import com.takekazex.hypertweak.hook.rules.system.BatteryAutoPowerSaveHooker
 import com.takekazex.hypertweak.hook.rules.systemui.AODHooker
 import com.takekazex.hypertweak.hook.rules.systemui.ExtendUnlockHooker
-import com.takekazex.hypertweak.hook.rules.systemui.HideBottomBarHooker
-import com.takekazex.hypertweak.hook.rules.systemui.HideLockscreenStatusBarHooker
+import com.takekazex.hypertweak.hook.rules.systemui.gesturebar.HideBottomBarHooker
+import com.takekazex.hypertweak.hook.rules.systemui.lockscreen.HideLockscreenStatusBarHooker
 import com.takekazex.hypertweak.hook.rules.systemui.ProxyLaunchHooker
 import com.takekazex.hypertweak.hook.rules.systemui.SystemUIPluginHooker
-import com.takekazex.hypertweak.hook.rules.systemui.icon.ControlCenterCarrierBlockHooker
-import com.takekazex.hypertweak.hook.rules.systemui.icon.LeftContainerHooker
+import com.takekazex.hypertweak.hook.rules.systemui.icon.carrier.ControlCenterCarrierBlockHooker
+import com.takekazex.hypertweak.hook.rules.systemui.icon.left.LeftContainerHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.StackedSignalHooker
 import com.takekazex.hypertweak.settings.contract.AppSettingsKeys
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 import com.takekazex.hypertweak.hook.bootstrap.ProcessLogging
-import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.util.logging.DebugLog
 import io.github.libxposed.api.XposedModule
 import io.github.libxposed.api.XposedModuleInterface
 import io.github.lingqiqi5211.ezhooktool.core.EzReflect
@@ -130,7 +139,7 @@ class HookEntry : XposedModule() {
     }
     private fun attachRuntimeSettingsContext(context: Context) {
         if (isSystemServer || processName == "com.android.systemui") {
-            com.takekazex.hypertweak.util.UpstreamBackGesture.refresh(context)
+            com.takekazex.hypertweak.util.platform.UpstreamBackGesture.refresh(context)
         }
         if (!generationRetired && RuntimeSettingsGroups.forProcess(processName, isSystemServer).isNotEmpty()) runtimeSettingsReceiver.attach(context)
     }

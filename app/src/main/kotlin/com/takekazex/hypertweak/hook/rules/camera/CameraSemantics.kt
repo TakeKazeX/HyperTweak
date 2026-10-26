@@ -1,7 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.camera
 
 import com.takekazex.hypertweak.hook.base.dex.DexOperandIndex
-import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.util.logging.DebugLog
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 import org.jf.dexlib2.iface.reference.MethodReference
 import java.lang.reflect.Method

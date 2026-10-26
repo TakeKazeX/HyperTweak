@@ -5,7 +5,7 @@ import com.takekazex.hypertweak.settings.contract.CameraSettingsKeys
 import com.takekazex.hypertweak.hook.base.dex.DexOperandIndex
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.StaticHooker
-import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.util.logging.DebugLog
 
 /**
  * Suppresses only the host's device-config mismatch exit when the user enabled compatibility.

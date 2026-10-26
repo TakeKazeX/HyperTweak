@@ -11,7 +11,7 @@ import android.net.wifi.WifiManager
 import android.os.Handler
 import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.hook.rules.systemui.icon.HostFlowSubscriptions
-import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.util.logging.DebugLog
 import kotlin.math.roundToInt
 
 /** Network callbacks and flow replay have one generation owner and one retirement path. */

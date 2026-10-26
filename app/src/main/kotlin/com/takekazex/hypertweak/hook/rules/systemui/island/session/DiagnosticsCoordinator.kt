@@ -3,7 +3,7 @@ package com.takekazex.hypertweak.hook.rules.systemui.island.session
 import android.view.View
 import com.takekazex.hypertweak.hook.rules.systemui.island.diagnostics.IslandGeometryDiagnostics
 import com.takekazex.hypertweak.hook.rules.systemui.island.model.IslandSession
-import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.util.logging.DebugLog
 
 /** DUMP-triggered geometry sampling; never mutates session state. */
 internal class DiagnosticsCoordinator(private val runtime: IslandSessionState) : DiagnosticsActions {

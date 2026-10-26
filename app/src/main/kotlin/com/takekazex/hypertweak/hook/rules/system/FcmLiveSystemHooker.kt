@@ -9,7 +9,7 @@ import android.content.pm.ResolveInfo
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.hook.base.CollectionOverrides
-import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.util.logging.DebugLog
 
 /**
  * Remove HyperOS restrictions on Google Cloud Messaging (FCM/GCM).

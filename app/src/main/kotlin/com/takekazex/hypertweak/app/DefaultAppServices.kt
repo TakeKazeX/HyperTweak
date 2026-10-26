@@ -2,15 +2,15 @@ package com.takekazex.hypertweak.app
 
 import android.content.Context
 import com.takekazex.hypertweak.hook.XposedServiceManager
-import com.takekazex.hypertweak.hook.NativeUpgradeManager
-import com.takekazex.hypertweak.hook.NativeRuleConfig
+import com.takekazex.hypertweak.hook.nativebridge.NativeUpgradeManager
+import com.takekazex.hypertweak.hook.nativebridge.NativeRuleConfig
 import com.takekazex.hypertweak.settings.contract.*
-import com.takekazex.hypertweak.util.RestartUtils
-import com.takekazex.hypertweak.util.ShortcutUtils
-import com.takekazex.hypertweak.util.WirelessDiagnostics
-import com.takekazex.hypertweak.util.PlatformLevel
-import com.takekazex.hypertweak.util.ScopeManager
-import com.takekazex.hypertweak.util.ScopePromptStore
+import com.takekazex.hypertweak.util.restart.RestartUtils
+import com.takekazex.hypertweak.util.platform.ShortcutUtils
+import com.takekazex.hypertweak.util.diagnostics.WirelessDiagnostics
+import com.takekazex.hypertweak.util.platform.PlatformLevel
+import com.takekazex.hypertweak.util.scope.ScopeManager
+import com.takekazex.hypertweak.util.scope.ScopePromptStore
 import io.github.libxposed.service.XposedService
 
 /** App-process composition only; runtime managers remain the owners of their existing state. */

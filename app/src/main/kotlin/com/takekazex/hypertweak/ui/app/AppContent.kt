@@ -24,13 +24,13 @@ import com.takekazex.hypertweak.ui.effect.AppBlurMode
 import com.takekazex.hypertweak.ui.effect.LocalAppBlurMode
 import com.takekazex.hypertweak.ui.navigation.HyperTweakNavContainer
 import com.takekazex.hypertweak.ui.navigation.NavigationSettings
-import com.takekazex.hypertweak.ui.page.LocalRestartScopeHandled
-import com.takekazex.hypertweak.ui.page.LocalRestartScopeRequest
-import com.takekazex.hypertweak.ui.page.UpdateAvailablePrompt
+import com.takekazex.hypertweak.ui.components.dialog.LocalRestartScopeHandled
+import com.takekazex.hypertweak.ui.components.dialog.LocalRestartScopeRequest
+import com.takekazex.hypertweak.ui.page.update.UpdateAvailablePrompt
 import com.takekazex.hypertweak.ui.theme.MiuixSpec2025Adapter
 import com.takekazex.hypertweak.ui.theme.isEffectivelyDark
 import com.takekazex.hypertweak.ui.theme.rememberDeviceAccentColor
-import com.takekazex.hypertweak.util.LocaleHelper
+import com.takekazex.hypertweak.util.platform.LocaleHelper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext

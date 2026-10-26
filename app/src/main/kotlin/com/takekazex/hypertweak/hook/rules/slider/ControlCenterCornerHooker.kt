@@ -160,7 +160,7 @@ class ControlCenterCornerHooker(
     /** Each slider holder's own outline radius before the module replaced it. */
     private val outlineBaselines = java.util.WeakHashMap<Any, Float>()
 
-    private typealias CornerOverride = com.takekazex.hypertweak.hook.rules.systemui.CornerOverrideRecord
+    private typealias CornerOverride = com.takekazex.hypertweak.hook.rules.systemui.controlcenter.CornerOverrideRecord
 
     private val radiusMethodCache = ConcurrentHashMap<String, Method?>()
     private val sliderRadiusMethodCache = ConcurrentHashMap<String, Method?>()
@@ -222,7 +222,7 @@ class ControlCenterCornerHooker(
      * module changes the surface; a non-positive radius means "no override" and restores it.
      */
     private fun overrideRadius(view: View, radius: Float) {
-        if (!com.takekazex.hypertweak.hook.rules.systemui.CornerOverridePolicy.applies(true, radius)) {
+        if (!com.takekazex.hypertweak.hook.rules.systemui.controlcenter.CornerOverridePolicy.applies(true, radius)) {
             releaseRadius(view)
             return
         }
@@ -397,7 +397,7 @@ class ControlCenterCornerHooker(
      * request must be passed through, never replaced by a square corner.
      */
     private fun liveRadius(key: String): Float =
-        if (com.takekazex.hypertweak.hook.rules.systemui.CornerOverridePolicy.applies(cornerEnabled, radiusPx(key)))
+        if (com.takekazex.hypertweak.hook.rules.systemui.controlcenter.CornerOverridePolicy.applies(cornerEnabled, radiusPx(key)))
             radiusPx(key) else 0f
 
     // ─── 1. ToggleSliderViewHolder ───────────────────────────────────────────────────────

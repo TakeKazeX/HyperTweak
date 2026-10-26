@@ -2,7 +2,7 @@ package com.takekazex.hypertweak.hook.rules.system
 
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.StaticHooker
-import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.util.logging.DebugLog
 
 /**
  * Opens the system_server-side gate for the 自适应刷新率Pro (Mimotion PWM) mode.

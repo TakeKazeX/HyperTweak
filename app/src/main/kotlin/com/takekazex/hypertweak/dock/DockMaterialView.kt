@@ -32,7 +32,7 @@ internal class DockMaterialView(context: Context) : FrameLayout(context) {
             if (right - left != oldRight - oldLeft || bottom - top != oldBottom - oldTop) pending?.let { spec ->
                 runCatching { apply(spec.config, spec.dark, spec.radius, spec.scale, spec.crossWindow) }
                     .onFailure {
-                        com.takekazex.hypertweak.util.DebugLog.w("DockMaterial", "measured material configuration failed", it)
+                        com.takekazex.hypertweak.util.logging.DebugLog.w("DockMaterial", "measured material configuration failed", it)
                         post { onMaterialState(false) }
                     }
             }
@@ -137,7 +137,7 @@ internal class DockMaterialView(context: Context) : FrameLayout(context) {
                     DockReflection.field(this, "mNeedPassWindowBlur").setBoolean(this, false)
                 }
             } else DockReflection.call(this, "setPassWindowBlurEnabled", false)
-        }.onFailure { com.takekazex.hypertweak.util.DebugLog.w("DockMaterial", "native capture cleanup failed", it) }
+        }.onFailure { com.takekazex.hypertweak.util.logging.DebugLog.w("DockMaterial", "native capture cleanup failed", it) }
         ownCaptureBridge = false
         capture = false
         configured = false

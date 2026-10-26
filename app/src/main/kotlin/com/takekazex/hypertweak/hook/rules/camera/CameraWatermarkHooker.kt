@@ -7,7 +7,7 @@ import android.content.Context
 import android.content.res.AssetManager
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.StaticHooker
-import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.util.logging.DebugLog
 import java.io.File
 import java.io.FileOutputStream
 import java.lang.reflect.Modifier

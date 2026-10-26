@@ -7,7 +7,7 @@ from unicorn.arm64_const import *
 parser=argparse.ArgumentParser(description=__doc__)
 parser.add_argument('compiler')
 args=parser.parse_args()
-source=pathlib.Path(__file__).resolve().parents[2]/'main/cpp/NativeRules/dock_frame_hook.S'
+source=pathlib.Path(__file__).resolve().parents[2]/'main/cpp/NativeRules/rules/dock_frame_hook.S'
 with tempfile.TemporaryDirectory(prefix='ht-dock-abi-') as tmp:
     tmp=pathlib.Path(tmp)
     globals=tmp/'globals.S'

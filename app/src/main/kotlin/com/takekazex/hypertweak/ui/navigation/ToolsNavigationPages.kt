@@ -3,19 +3,19 @@ package com.takekazex.hypertweak.ui.navigation
 import androidx.compose.animation.*
 import androidx.compose.runtime.*
 import com.takekazex.hypertweak.ui.page.Route
-import com.takekazex.hypertweak.ui.page.AboutPage
-import com.takekazex.hypertweak.ui.page.CreditsPage
-import com.takekazex.hypertweak.ui.page.HiddenFeaturesPage
-import com.takekazex.hypertweak.ui.page.AppShortcutsPage
-import com.takekazex.hypertweak.ui.page.DebugPage
-import com.takekazex.hypertweak.ui.page.DeveloperSettingsPage
-import com.takekazex.hypertweak.ui.page.BatteryInfoPage
-import com.takekazex.hypertweak.ui.page.DeviceInfoPage
-import com.takekazex.hypertweak.ui.page.LogsPage
-import com.takekazex.hypertweak.ui.page.AppearancePage
-import com.takekazex.hypertweak.ui.page.ScopePromptsPage
-import com.takekazex.hypertweak.ui.page.BackupRestorePage
-import com.takekazex.hypertweak.ui.page.UpdatePage
+import com.takekazex.hypertweak.ui.page.app.AboutPage
+import com.takekazex.hypertweak.ui.page.app.CreditsPage
+import com.takekazex.hypertweak.ui.page.platform.HiddenFeaturesPage
+import com.takekazex.hypertweak.ui.page.app.AppShortcutsPage
+import com.takekazex.hypertweak.ui.page.diagnostics.DebugPage
+import com.takekazex.hypertweak.ui.page.diagnostics.DeveloperSettingsPage
+import com.takekazex.hypertweak.ui.page.diagnostics.BatteryInfoPage
+import com.takekazex.hypertweak.ui.page.diagnostics.DeviceInfoPage
+import com.takekazex.hypertweak.ui.page.diagnostics.LogsPage
+import com.takekazex.hypertweak.ui.page.app.AppearancePage
+import com.takekazex.hypertweak.ui.page.app.ScopePromptsPage
+import com.takekazex.hypertweak.ui.page.app.BackupRestorePage
+import com.takekazex.hypertweak.ui.page.update.UpdatePage
 import top.yukonga.miuix.kmp.nav.core.*
 
 internal fun NavEntryBuilder.toolsPages(settings: NavigationSettings, navController: NavController) {

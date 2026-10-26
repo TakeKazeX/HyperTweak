@@ -26,8 +26,8 @@ import com.takekazex.hypertweak.presentation.icon.duo.DuoBattery
 import com.takekazex.hypertweak.presentation.icon.duo.DuoContent
 import com.takekazex.hypertweak.presentation.icon.duo.DuoPolicy
 import com.takekazex.hypertweak.hook.rules.systemui.icon.duo.DuoSignalHooker
-import com.takekazex.hypertweak.util.DebugLog
-import com.takekazex.hypertweak.util.PlatformLevel
+import com.takekazex.hypertweak.util.logging.DebugLog
+import com.takekazex.hypertweak.util.platform.PlatformLevel
 import java.lang.reflect.Field
 import java.lang.reflect.Method
 import java.text.NumberFormat

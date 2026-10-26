@@ -19,7 +19,7 @@ with tempfile.TemporaryDirectory(prefix='ht-widget-stack-abi-') as directory:
         f'.global hypertweak_widget_stack_{n}\n.hidden hypertweak_widget_stack_{n}\nhypertweak_widget_stack_{n}: .zero 8' for n in names))
     binary = root / 'shim.so'
     subprocess.run([a.compiler, '--target=aarch64-linux-android35', '-shared', '-nostdlib', '-Wl,--no-undefined',
-                    str(native / 'widget_stack_hook.S'), str(root / 'data.S'), '-o', str(binary)], check=True)
+                    str(native / 'rules/widget_stack_hook.S'), str(root / 'data.S'), '-o', str(binary)], check=True)
     with binary.open('rb') as f:
         elf = ELFFile(f)
         segments = [(s['p_vaddr'], s['p_memsz'], s.data()) for s in elf.iter_segments() if s['p_type'] == 'PT_LOAD']

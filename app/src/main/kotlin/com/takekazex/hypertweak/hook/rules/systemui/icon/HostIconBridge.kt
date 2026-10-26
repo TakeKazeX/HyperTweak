@@ -4,7 +4,7 @@ import android.graphics.Bitmap
 import android.graphics.drawable.Icon
 import android.os.Looper
 import android.os.UserHandle
-import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.reflect.Constructor
 import java.lang.reflect.Field
 import java.lang.reflect.Method

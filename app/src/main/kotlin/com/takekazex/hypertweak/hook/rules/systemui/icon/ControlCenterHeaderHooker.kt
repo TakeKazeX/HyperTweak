@@ -16,7 +16,7 @@ import android.widget.LinearLayout
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
-import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.ref.WeakReference
 import java.lang.reflect.Field
 import java.util.WeakHashMap

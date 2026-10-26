@@ -5,7 +5,7 @@ import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
-import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.util.logging.DebugLog
 
 /**
  * Status-bar cellular icon visibility, ported from Hyper Helper's `CellularIcon` hooker

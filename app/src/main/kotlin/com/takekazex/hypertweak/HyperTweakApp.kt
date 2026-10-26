@@ -4,11 +4,11 @@ import com.takekazex.hypertweak.settings.contract.AppSettingsKeys
 
 import android.app.Application
 import android.content.Context
-import com.takekazex.hypertweak.hook.NativeRuleConfig
+import com.takekazex.hypertweak.hook.nativebridge.NativeRuleConfig
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.XposedServiceManager
 import com.takekazex.hypertweak.hook.bootstrap.ProcessLogging
-import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.util.logging.DebugLog
 
 class HyperTweakApp : Application() {
     override fun onCreate() {
@@ -16,8 +16,8 @@ class HyperTweakApp : Application() {
 
         ProcessLogging.bind(app = true)
         DebugLog.setProcessTag("app")
-        com.takekazex.hypertweak.hook.RuntimeSettingsSignal.attach(this)
-        com.takekazex.hypertweak.hook.NativeUpgradeManager.restore(this)
+        com.takekazex.hypertweak.hook.runtime.settings.RuntimeSettingsSignal.attach(this)
+        com.takekazex.hypertweak.hook.nativebridge.NativeUpgradeManager.restore(this)
         // Init connection to LSPosed preferences as early as possible
         XposedServiceManager.init()
 

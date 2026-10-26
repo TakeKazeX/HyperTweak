@@ -3,7 +3,7 @@ package com.takekazex.hypertweak.hook.rules.settings
 import android.content.Context
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.StaticHooker
-import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.util.logging.DebugLog
 
 /**
  * Experimental: links the orphaned AON gesture pages (左右挥手 / 隔空暂停或播放) into the 隔空手势

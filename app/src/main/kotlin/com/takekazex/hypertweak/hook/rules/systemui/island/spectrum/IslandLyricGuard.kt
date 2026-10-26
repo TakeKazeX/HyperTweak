@@ -3,7 +3,7 @@ package com.takekazex.hypertweak.hook.rules.systemui.island.spectrum
 import android.view.View
 import android.view.ViewGroup
 import android.view.ViewTreeObserver
-import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.util.logging.DebugLog
 import java.util.LinkedHashMap
 import androidx.core.view.isVisible
 import androidx.core.view.isGone

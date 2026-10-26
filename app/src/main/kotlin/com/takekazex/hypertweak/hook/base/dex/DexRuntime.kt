@@ -1,7 +1,7 @@
 package com.takekazex.hypertweak.hook.base.dex
 
 import com.takekazex.hypertweak.hook.base.DexKitManager
-import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.util.logging.DebugLog
 import org.luckypray.dexkit.DexKitBridge
 import java.io.File
 import android.os.Process

@@ -6,7 +6,7 @@ import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.DynamicHooker
 import com.takekazex.hypertweak.hook.base.HotReloadMode
-import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.util.logging.DebugLog
 
 /**
  * Removes the media Super Island dropdown whitelist in the MIUI SystemUI plugin.

@@ -11,7 +11,7 @@ import androidx.core.graphics.toColorInt
 import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.ACTIVE_BLUE_COLOR
 import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.getSliderTextColor
 import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.putTag
-import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.reflect.Method
 
 /**

@@ -6,7 +6,7 @@ import com.takekazex.hypertweak.hook.rules.systemui.island.model.IslandFeature
 import com.takekazex.hypertweak.hook.rules.systemui.island.model.IslandSession
 import com.takekazex.hypertweak.hook.rules.systemui.island.model.SchedulingTransaction
 import com.takekazex.hypertweak.hook.rules.systemui.island.template.IslandRelayoutDriver
-import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.util.logging.DebugLog
 
 /** Pre-draw relayout: settle once with the new view tree, then publish on the host's path. */
 internal class RelayoutCoordinator(private val runtime: IslandSessionState) : RelayoutActions {

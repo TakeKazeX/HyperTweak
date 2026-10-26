@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook
 
+import com.takekazex.hypertweak.hook.logging.AppLogStore
 import android.content.SharedPreferences
 import com.takekazex.hypertweak.settings.contract.AppSettingsKeys
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys

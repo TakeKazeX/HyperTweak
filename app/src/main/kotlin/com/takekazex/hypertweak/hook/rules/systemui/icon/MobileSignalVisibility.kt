@@ -1,7 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
 import com.takekazex.hypertweak.hook.base.BaseHooker
-import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.reflect.Method
 import java.util.WeakHashMap
 

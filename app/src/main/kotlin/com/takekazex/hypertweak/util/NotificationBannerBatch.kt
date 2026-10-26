@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.util
 
+import com.takekazex.hypertweak.util.platform.NativeRootCommand
 import android.content.Context
 import android.os.Process
 import kotlinx.coroutines.Dispatchers

@@ -2,7 +2,7 @@ package com.takekazex.hypertweak.hook.rules.systemui.icon
 
 import android.os.Handler
 import android.os.Looper
-import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.reflect.Method
 import java.lang.reflect.Modifier
 import java.util.concurrent.atomic.AtomicBoolean

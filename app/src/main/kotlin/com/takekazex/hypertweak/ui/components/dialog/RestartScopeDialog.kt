@@ -1,0 +1,268 @@
+package com.takekazex.hypertweak.ui.components.dialog
+
+import com.takekazex.hypertweak.ui.app.LocalAppServices
+import android.content.Context
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
+import androidx.core.graphics.drawable.toBitmap
+import com.takekazex.hypertweak.R
+import com.takekazex.hypertweak.util.restart.RestartHistory
+import com.takekazex.hypertweak.util.restart.RestartScopeSelection
+import com.takekazex.hypertweak.util.scope.ScopeManager
+import com.takekazex.hypertweak.util.restart.smartRestartScopeOrder
+import top.yukonga.miuix.kmp.basic.ButtonDefaults
+import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.CardDefaults
+import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.TextButton
+import top.yukonga.miuix.kmp.layout.DialogDefaults
+import top.yukonga.miuix.kmp.basic.VerticalDivider
+import androidx.compose.ui.Alignment
+import androidx.compose.runtime.saveable.rememberSaveable
+import top.yukonga.miuix.kmp.preference.CheckboxPreference
+import top.yukonga.miuix.kmp.preference.CheckboxLocation
+import top.yukonga.miuix.kmp.theme.MiuixTheme
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+
+private fun fallbackAppName(context: Context, packageName: String): String = when (packageName) {
+    RestartScopeSelection.PACKAGE_SYSTEM_UI -> context.getString(R.string.restart_scope_system_ui)
+    RestartScopeSelection.PACKAGE_MIUI_HOME -> context.getString(R.string.restart_scope_miui_home)
+    RestartScopeSelection.PACKAGE_SETTINGS -> context.getString(R.string.restart_scope_settings)
+    RestartScopeSelection.PACKAGE_AOD -> context.getString(R.string.restart_scope_aod)
+    RestartScopeSelection.PACKAGE_SECURITY_CENTER -> context.getString(R.string.restart_scope_security)
+    RestartScopeSelection.PACKAGE_SECURITY_CORE -> context.getString(R.string.restart_scope_security)
+    RestartScopeSelection.PACKAGE_SCANNER -> context.getString(R.string.restart_scope_scanner)
+    RestartScopeSelection.PACKAGE_MILINK -> context.getString(R.string.restart_scope_milink)
+    RestartScopeSelection.PACKAGE_TRUST_SERVICE -> context.getString(R.string.restart_scope_mitrust)
+    RestartScopeSelection.PACKAGE_GUARD_PROVIDER -> context.getString(R.string.restart_scope_guard_provider)
+    RestartScopeSelection.PACKAGE_THEME_MANAGER -> context.getString(R.string.restart_scope_theme_manager)
+    RestartScopeSelection.PACKAGE_BLUETOOTH -> context.getString(R.string.restart_scope_bluetooth)
+    RestartScopeSelection.PACKAGE_POWERKEEPER -> context.getString(R.string.restart_scope_powerkeeper)
+    RestartScopeSelection.PACKAGE_GMS -> context.getString(R.string.restart_scope_gms)
+    RestartScopeSelection.PACKAGE_XMSF -> context.getString(R.string.restart_scope_xmsf)
+    RestartScopeSelection.PACKAGE_DOWNLOADS -> context.getString(R.string.restart_scope_downloads)
+    RestartScopeSelection.PACKAGE_PHONE -> context.getString(R.string.restart_scope_phone)
+    RestartScopeSelection.PACKAGE_XIAOMI_PHONE -> context.getString(R.string.restart_scope_hyperphone)
+    RestartScopeSelection.PACKAGE_AICR -> context.getString(R.string.restart_scope_aicr)
+    else -> packageName
+}
+
+@Composable
+fun RestartScopeDialog(
+    show: Boolean,
+    initialSelection: RestartScopeSelection,
+    onDismissRequest: () -> Unit,
+    onConfirm: (RestartScopeSelection) -> Unit
+) {
+    val services = LocalAppServices.current
+    val runningPackages by services.restarts.runningPackages.collectAsState()
+    val context = LocalContext.current
+    val service by services.module.connection.collectAsState()
+    val fallbackScope = remember(context) { services.scopes.declaredRestartableScope(context) }
+
+    // The service scope is the source of truth. The declared list is only a first-frame fallback
+    // while the service binds, so newly added targets (AON, camera, editor, assistant, Google, ...)
+    // appear without another app release or a hardcoded dialog update.
+    val scopedPackages by produceState(initialValue = fallbackScope, show, service) {
+        if (show) {
+            value = services.scopes.restartableScope(context) ?: fallbackScope
+        }
+    }
+    val candidatePackages = remember(scopedPackages, initialSelection) {
+        scopedPackages + initialSelection.toPackageSet()
+    }
+    val automaticallySelectedPackages = remember(initialSelection) {
+        initialSelection.toPackageSet()
+    }
+    val scopeApps by produceState<List<String>?>(
+        initialValue = null,
+        candidatePackages,
+        automaticallySelectedPackages,
+        show
+    ) {
+        if (!show) return@produceState
+        value = null
+        value = withContext(Dispatchers.IO) {
+            val baseOrder = candidatePackages.sorted()
+            smartRestartScopeOrder(
+                packages = baseOrder,
+                restartCounts = RestartHistory.counts(context, baseOrder),
+                automaticallySelectedPackages = automaticallySelectedPackages
+            )
+        }
+    }
+
+    var selectedPackages by rememberSaveable(show, initialSelection) {
+        mutableStateOf(initialSelection.toPackageSet())
+    }
+
+    // Follow Miuix's WideWindowDialog example: a native window with a wider landscape
+    // container, list on the left and actions on the right. Lazy lists cannot use intrinsic size.
+    val windowSize = LocalWindowInfo.current.containerDpSize
+    val isLandscape = windowSize.width > windowSize.height
+    val listHeight = if (isLandscape) windowSize.height * 0.45f else windowSize.height * 0.5f
+    val scopeList: @Composable (Modifier) -> Unit = { modifier ->
+        Card(modifier) {
+            LazyColumn(Modifier.fillMaxWidth().heightIn(max = listHeight)) {
+                if (!initialSelection.isEmpty()) {
+                    item(key = "detected_changes") {
+                        Card(
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                            colors = CardDefaults.defaultColors(
+                                color = MiuixTheme.colorScheme.primaryContainer,
+                                contentColor = MiuixTheme.colorScheme.onPrimaryContainer,
+                            ),
+                            insideMargin = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+                        ) {
+                            Text(
+                                text = stringResource(R.string.restart_detected_tweaks_note),
+                                color = MiuixTheme.colorScheme.onPrimaryContainer,
+                                fontSize = 13.sp,
+                                lineHeight = 18.sp,
+                            )
+                        }
+                    }
+                }
+                val packages = scopeApps
+                if (packages == null || packages.isEmpty()) {
+                    item(key = "scope_status") {
+                        Text(
+                            text = stringResource(
+                                if (packages == null) R.string.restart_scope_loading else R.string.restart_scope_no_apps,
+                            ),
+                            modifier = Modifier.padding(16.dp),
+                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                        )
+                    }
+                } else {
+                    items(packages, key = { it }) { pkg ->
+                        AppRestartPreference(
+                            packageName = pkg,
+                            checked = pkg in selectedPackages,
+                            onCheckedChange = { checked ->
+                                selectedPackages = if (checked) selectedPackages + pkg else selectedPackages - pkg
+                            },
+                        )
+                    }
+                }
+            }
+        }
+    }
+    val cancelButton: @Composable (Modifier) -> Unit = { modifier ->
+        TextButton(
+            text = stringResource(R.string.restart_cancel),
+            onClick = onDismissRequest,
+            modifier = modifier.heightIn(min = 48.dp),
+        )
+    }
+    val confirmButton: @Composable (Modifier) -> Unit = { modifier ->
+        TextButton(
+            text = stringResource(R.string.restart_button),
+            onClick = {
+                onConfirm(RestartScopeSelection.fromPackageSet(selectedPackages))
+                onDismissRequest()
+            },
+            modifier = modifier.heightIn(min = 48.dp),
+            enabled = selectedPackages.isNotEmpty() && selectedPackages.none { it in runningPackages },
+            colors = ButtonDefaults.textButtonColorsPrimary(),
+        )
+    }
+
+    AppWindowDialog(
+        show = show,
+        title = stringResource(R.string.restart_scoped_apps_title),
+        maxWidth = if (isLandscape) 560.dp else DialogDefaults.MaxWidth,
+        onDismissRequest = onDismissRequest,
+    ) {
+        if (isLandscape) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                scopeList(Modifier.weight(1f))
+                VerticalDivider(Modifier.height(listHeight).padding(horizontal = 20.dp))
+                Column(Modifier.width(140.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    confirmButton(Modifier.fillMaxWidth())
+                    cancelButton(Modifier.fillMaxWidth())
+                }
+            }
+        } else {
+            Column(Modifier.fillMaxWidth()) {
+                scopeList(Modifier.fillMaxWidth().weight(1f, fill = false))
+                Spacer(Modifier.height(16.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+                    cancelButton(Modifier.weight(1f))
+                    confirmButton(Modifier.weight(1f))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun AppRestartPreference(
+    packageName: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+
+    // Label and icon are both PackageManager binder calls, and the icon additionally rasterizes a
+    // bitmap; resolve them off the main thread. Seed the label with the offline fallback so the row
+    // renders its correct name immediately, then fill in the resolved label and icon once ready.
+    val appName by produceState(initialValue = fallbackAppName(context, packageName), context, packageName) {
+        value = withContext(Dispatchers.IO) {
+            runCatching {
+                val pm = context.packageManager
+                pm.getApplicationLabel(pm.getApplicationInfo(packageName, 0)).toString()
+            }.getOrDefault(fallbackAppName(context, packageName))
+        }
+    }
+
+    val appIcon by produceState<ImageBitmap?>(initialValue = null, packageName) {
+        value = withContext(Dispatchers.IO) {
+            runCatching {
+                context.packageManager.getApplicationIcon(packageName).toBitmap(100, 100).asImageBitmap()
+            }.getOrElse {
+                runCatching {
+                    ContextCompat.getDrawable(context, com.takekazex.hypertweak.R.mipmap.ic_launcher)
+                        ?.toBitmap(100, 100)?.asImageBitmap()
+                }.getOrNull()
+            }
+        }
+    }
+
+    CheckboxPreference(
+        modifier = modifier,
+        title = appName,
+        summary = packageName,
+        checked = checked,
+        onCheckedChange = onCheckedChange,
+        checkboxLocation = CheckboxLocation.End,
+        startAction = {
+            val icon = appIcon
+            if (icon != null) {
+                Image(
+                    bitmap = icon,
+                    contentDescription = null,
+                    modifier = Modifier.size(40.dp)
+                )
+            } else {
+                Box(
+                    modifier = Modifier.size(40.dp)
+                )
+            }
+        }
+    )
+}

@@ -19,6 +19,9 @@ Run tasks with `./gradlew`. For Kotlin-only compilation use `:app:compileDebugKo
 Architecture changes also run `python3 .github/scripts/check_architecture.py` and
 `python3 -m unittest discover -s .github/scripts -p 'test_*.py'`. The guard covers
 Kotlin/Java imports and fully qualified source references, not reflection or runtime wiring.
+Standalone native compiler commands must include the NativeRules root plus its `bridge`,
+`resolver`, `rules`, `runtime`, `support` and `transport` subdirectories; Python runners
+share these explicit flags via `app/src/test/cpp/native_test_paths.py`.
 Portable native ownership/IPC/transport checks run through
 `python3 app/src/test/cpp/run_portable_native_tests.py` (ASan/UBSan, no target artifacts).
 Linux CI adds `--include-linux-worker` for eventfd/fork/remap tests. On macOS use
@@ -90,7 +93,8 @@ Actual recent-task exit and next-gesture behavior remain manual device acceptanc
 
 For recent-task card haptics, compile `recents_haptic_policy_test.cpp` and
 `recents_haptic_rule_test.cpp` (the latter links `dart_image.cpp` and
-`dart_targets.cpp`) with the NativeRules include directory and ASan/UBSan. Pass
+`dart_targets.cpp`) with the explicit NativeRules include directories from the rule above and
+ASan/UBSan. Pass
 an externally stored, verified `libapp.so` to the rule test. It exercises the
 production resolver/decoder, duplicate and corrupt targets, dynamic CIDs,
 notification samples, disable/re-enable and patch ownership/remap handling.
@@ -170,7 +174,7 @@ entry for the same production tests. Run the existing status-query, GOT-chain, o
 IPC harnesses when changing their integration. State-observer changes also need the
 production assembly ABI test above. Host stubs do not prove device broadcast delivery.
 
-For changes to the actual eventfd worker or loader callbacks, also compile `app/src/test/cpp/native_rule_runtime_test.cpp` together with `native_rule_runtime.cpp` using the installed Android NDK `clang++`, `--target=aarch64-linux-android35`, `-std=c++17`, `-static-libstdc++`, the NativeRules include directory and `-Wl,--wrap=dlopen -Wl,--wrap=dlclose`. With device verification requested, run the resulting executable in `/data/local/tmp` and remove it afterward. This Bionic regression simulates LSPosed synchronous callback re-entry, rejects stale/conflicting revisions, and checks completed-worker idleness and updates arriving during preparation. A host-only scheduling test does not exercise Bionic TLS/loader behavior.
+For changes to the actual eventfd worker or loader callbacks, also compile `app/src/test/cpp/native_rule_runtime_test.cpp` together with `native_rule_runtime.cpp` using the installed Android NDK `clang++`, `--target=aarch64-linux-android35`, `-std=c++17`, `-static-libstdc++`, the explicit NativeRules include directories from the rule above and `-Wl,--wrap=dlopen -Wl,--wrap=dlclose`. With device verification requested, run the resulting executable in `/data/local/tmp` and remove it afterward. This Bionic regression simulates LSPosed synchronous callback re-entry, rejects stale/conflicting revisions, and checks completed-worker idleness and updates arriving during preparation. A host-only scheduling test does not exercise Bionic TLS/loader behavior.
 
 For Dart publication eventfd/fork or observer-remap retirement changes, run
 `python3 app/src/test/cpp/run_dart_state_worker_test.py --android-compiler <NDK-clang++>`

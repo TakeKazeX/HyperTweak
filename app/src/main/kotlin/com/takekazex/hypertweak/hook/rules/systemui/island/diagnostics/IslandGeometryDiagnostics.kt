@@ -10,7 +10,7 @@ import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
-import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.util.logging.DebugLog
 
 /** Explicit, DUMP-permission protected, read-only geometry sampling; never records text. */
 internal class IslandGeometryDiagnostics(context: Context, main: Handler, dump: () -> Unit) {

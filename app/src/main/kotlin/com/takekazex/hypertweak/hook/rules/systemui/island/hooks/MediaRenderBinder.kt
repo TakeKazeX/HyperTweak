@@ -3,7 +3,7 @@ package com.takekazex.hypertweak.hook.rules.systemui.island.hooks
 import android.graphics.Rect
 import com.takekazex.hypertweak.hook.rules.systemui.island.host.HostRect
 import com.takekazex.hypertweak.hook.rules.systemui.island.model.IslandFeature
-import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.util.logging.DebugLog
 import io.github.libxposed.api.XposedInterface
 import java.lang.reflect.InvocationTargetException
 

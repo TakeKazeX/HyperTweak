@@ -3,20 +3,20 @@ package com.takekazex.hypertweak.ui.navigation
 import androidx.compose.animation.*
 import androidx.compose.runtime.*
 import com.takekazex.hypertweak.ui.page.Route
-import com.takekazex.hypertweak.ui.page.AospRestorePage
-import com.takekazex.hypertweak.ui.page.SecurityCenterPage
-import com.takekazex.hypertweak.ui.page.AospImePage
-import com.takekazex.hypertweak.ui.page.GlassTunerPage
-import com.takekazex.hypertweak.ui.page.PurificationPage
-import com.takekazex.hypertweak.ui.page.GoogleServicesPage
-import com.takekazex.hypertweak.ui.page.ExperimentalFeaturesPage
-import com.takekazex.hypertweak.ui.page.PowerSavePage
-import com.takekazex.hypertweak.ui.page.CameraWatermarkUnlockPage
-import com.takekazex.hypertweak.ui.page.ChargingDetailPage
-import com.takekazex.hypertweak.ui.page.LockscreenBottomTextPage
-import com.takekazex.hypertweak.ui.page.ControlCenterCornerPage
-import com.takekazex.hypertweak.ui.page.ControlCenterResizePage
-import com.takekazex.hypertweak.ui.page.DownloadManagerPage
+import com.takekazex.hypertweak.ui.page.platform.AospRestorePage
+import com.takekazex.hypertweak.ui.page.securitycenter.SecurityCenterPage
+import com.takekazex.hypertweak.ui.page.platform.AospImePage
+import com.takekazex.hypertweak.ui.page.glass.GlassTunerPage
+import com.takekazex.hypertweak.ui.page.platform.PurificationPage
+import com.takekazex.hypertweak.ui.page.platform.GoogleServicesPage
+import com.takekazex.hypertweak.ui.page.platform.ExperimentalFeaturesPage
+import com.takekazex.hypertweak.ui.page.securitycenter.PowerSavePage
+import com.takekazex.hypertweak.ui.page.camera.CameraWatermarkUnlockPage
+import com.takekazex.hypertweak.ui.page.systemui.lockscreen.ChargingDetailPage
+import com.takekazex.hypertweak.ui.page.systemui.lockscreen.LockscreenBottomTextPage
+import com.takekazex.hypertweak.ui.page.systemui.controlcenter.ControlCenterCornerPage
+import com.takekazex.hypertweak.ui.page.systemui.controlcenter.ControlCenterResizePage
+import com.takekazex.hypertweak.ui.page.downloads.DownloadManagerPage
 import top.yukonga.miuix.kmp.nav.core.*
 
 internal fun NavEntryBuilder.featuresPages(settings: NavigationSettings, navController: NavController) {
@@ -41,7 +41,7 @@ internal fun NavEntryBuilder.featuresPages(settings: NavigationSettings, navCont
             )
         }
         entry<Route.Screenshot> {
-            com.takekazex.hypertweak.ui.page.ScreenshotPage(onBack = { navController.pop() })
+            com.takekazex.hypertweak.ui.page.screenshot.ScreenshotPage(onBack = { navController.pop() })
         }
         entry<Route.DownloadManager> {
             DownloadManagerPage(
@@ -112,13 +112,13 @@ internal fun NavEntryBuilder.featuresPages(settings: NavigationSettings, navCont
             )
         }
         entry<Route.SystemLauncher> {
-            com.takekazex.hypertweak.ui.page.SystemLauncherPage(
+            com.takekazex.hypertweak.ui.page.launcher.SystemLauncherPage(
                 onBack = { navController.pop() },
                 onNavigateToDockBackground = { navController.navigateTo(Route.DockBackground) }
             )
         }
         entry<Route.DockBackground> {
-            com.takekazex.hypertweak.ui.page.DockBackgroundPage(
+            com.takekazex.hypertweak.ui.page.glass.DockBackgroundPage(
                 onBack = { navController.pop() }
             )
         }

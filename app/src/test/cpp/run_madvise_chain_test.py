@@ -5,7 +5,7 @@ import subprocess
 import tempfile
 
 native = Path(__file__).resolve().parents[2] / "main/cpp/NativeRules"
-source = (native / "lsposed_hook_backend.cpp").read_text()
+source = (native / "support/lsposed_hook_backend.cpp").read_text()
 body = source[source.index("bool AddProtectedPage("):source.index("bool RangeInImage(")]
 preamble = r'''
 #include <cassert>

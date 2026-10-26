@@ -1,5 +1,8 @@
 package com.takekazex.hypertweak.hook
 
+import com.takekazex.hypertweak.hook.nativebridge.NativeRuleStateSnapshot
+import com.takekazex.hypertweak.hook.runtime.settings.RuntimeSettingsLedger
+import com.takekazex.hypertweak.hook.runtime.settings.RuntimeSettingsSnapshot
 import com.takekazex.hypertweak.settings.contract.ScreenshotSettingsKeys
 
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
@@ -137,7 +140,7 @@ class RuntimeSettingsRoutingTest {
         assertNull(RuntimeSettingsSnapshot.read(1, mapOf(displayKey to 1), group))
         assertTrue(Groups.SECURITY_DOCK in Groups.forProcess("com.miui.securitycenter:ui"))
         assertEquals("com.miui.securitycenter", Groups.target("com.miui.securitycenter:ui"))
-        assertEquals("com.miui.securitycenter:ui", com.takekazex.hypertweak.hook.rules.securitycenter.SecurityCenterDockHost.PROCESS)
+        assertEquals("com.miui.securitycenter:ui", com.takekazex.hypertweak.hook.rules.securitycenter.sidebar.SecurityCenterDockHost.PROCESS)
         assertFalse(Groups.SECURITY_DOCK in Groups.forProcess("com.miui.home"))
         assertTrue(Groups.subset("com.miui.guardprovider", mapOf(enabledKey to true, limitKey to 15)).isEmpty())
         for (invalid in listOf(-1, 16, "8", 8L)) {

@@ -1,0 +1,166 @@
+package com.takekazex.hypertweak.ui.page.app
+
+import android.content.Context
+import androidx.compose.animation.*
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
+import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
+import com.takekazex.hypertweak.ui.effect.AppScaffold as Scaffold
+import top.yukonga.miuix.kmp.basic.SmallTitle
+import com.takekazex.hypertweak.ui.effect.AppTopAppBar as TopAppBar
+import top.yukonga.miuix.kmp.preference.ArrowPreference
+import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
+import top.yukonga.miuix.kmp.preference.SwitchPreference
+import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.utils.overScrollVertical
+import com.takekazex.hypertweak.BuildConfig
+import com.takekazex.hypertweak.R
+import androidx.compose.ui.res.stringResource
+import top.yukonga.miuix.kmp.blur.LayerBackdrop
+
+@Composable
+fun SettingsScreenContent(
+    padding: PaddingValues,
+    showInSettings: Boolean,
+    onShowInSettingsChange: (Boolean) -> Unit,
+    hideLauncherIcon: Boolean,
+    onHideLauncherIconChange: (Boolean) -> Unit,
+    onNavigateToScopePrompts: () -> Unit,
+    onNavigateToBackupRestore: () -> Unit,
+    onNavigateToExperimentalFeatures: () -> Unit,
+    themeSummary: String,
+    onNavigateToAppearance: () -> Unit,
+    allowLandscape: Boolean,
+    onAllowLandscapeChange: (Boolean) -> Unit,
+    onNavigateToAbout: () -> Unit,
+    onNavigateToAppShortcuts: () -> Unit,
+    backdrop: LayerBackdrop,
+    appLanguage: Int,
+    onAppLanguageChange: (Int) -> Unit
+) {
+    val context = LocalContext.current
+    val topAppBarScrollBehavior = MiuixScrollBehavior()
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = stringResource(R.string.settings_settings),
+                color = Color.Transparent,
+                scrollBehavior = topAppBarScrollBehavior
+            )
+        }
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
+                .overScrollVertical()
+                .nestedScroll(topAppBarScrollBehavior.nestedScrollConnection)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(0.dp)
+        ) {
+            Spacer(modifier = Modifier.height(innerPadding.calculateTopPadding()))
+            Spacer(modifier = Modifier.height(8.dp))
+
+            SmallTitle(text = stringResource(R.string.settings_appearance))
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)
+            ) {
+                ArrowPreference(
+                    title = stringResource(R.string.settings_appearance),
+                    summary = themeSummary,
+                    onClick = onNavigateToAppearance
+                )
+            }
+
+            // Module Preferences
+            SmallTitle(text = stringResource(R.string.settings_module_preferences))
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)
+            ) {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    SwitchPreference(
+                        checked = showInSettings,
+                        onCheckedChange = onShowInSettingsChange,
+                        title = stringResource(R.string.settings_show_entry_in_system_settings),
+                        summary = stringResource(R.string.settings_show_entry_in_system_settings_summary)
+                    )
+
+                    SwitchPreference(
+                        checked = hideLauncherIcon,
+                        onCheckedChange = onHideLauncherIconChange,
+                        title = stringResource(R.string.settings_hide_desktop_icon),
+                        summary = stringResource(R.string.settings_hide_desktop_icon_summary)
+                    )
+
+                    AnimatedVisibility(
+                        visible = !hideLauncherIcon,
+                        enter = expandVertically() + fadeIn(),
+                        exit = shrinkVertically() + fadeOut()
+                    ) {
+                        ArrowPreference(
+                            title = stringResource(R.string.settings_app_shortcuts),
+                            summary = stringResource(R.string.settings_app_shortcuts_summary),
+                            onClick = onNavigateToAppShortcuts
+                        )
+                    }
+
+                    SwitchPreference(
+                        checked = allowLandscape,
+                        onCheckedChange = onAllowLandscapeChange,
+                        title = stringResource(R.string.settings_allow_landscape),
+                        summary = stringResource(R.string.settings_allow_landscape_summary)
+                    )
+
+                    OverlayDropdownPreference(
+                        title = stringResource(id = R.string.pref_language_title),
+                        items = listOf(
+                            stringResource(id = R.string.pref_language_device_default),
+                            stringResource(id = R.string.pref_language_zh_cn),
+                            stringResource(id = R.string.pref_language_en)
+                        ),
+                        selectedIndex = appLanguage,
+                        onSelectedIndexChange = onAppLanguageChange
+                    )
+                }
+            }
+
+            // Other: the less frequent destinations. Debug lives inside About; the experimental
+            // switches moved to their own second-level page so this tab stays short.
+            SmallTitle(text = stringResource(R.string.settings_other))
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)
+            ) {
+                ArrowPreference(
+                    title = stringResource(R.string.settings_experimental),
+                    summary = stringResource(R.string.settings_experimental_subtitle),
+                    onClick = onNavigateToExperimentalFeatures
+                )
+                ArrowPreference(
+                    title = stringResource(R.string.settings_scope_prompts),
+                    summary = stringResource(R.string.settings_scope_prompts_summary),
+                    onClick = onNavigateToScopePrompts
+                )
+                ArrowPreference(
+                    title = stringResource(R.string.settings_backup_restore),
+                    summary = stringResource(R.string.settings_backup_restore_summary),
+                    onClick = onNavigateToBackupRestore
+                )
+                ArrowPreference(
+                    title = stringResource(R.string.settings_about),
+                    summary = stringResource(R.string.settings_about_summary, BuildConfig.VERSION_NAME),
+                    onClick = onNavigateToAbout
+                )
+            }
+
+            Spacer(modifier = Modifier.height(padding.calculateBottomPadding() + 16.dp))
+        }
+    }
+}

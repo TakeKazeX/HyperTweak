@@ -19,7 +19,7 @@ import android.view.Display
 import android.view.SurfaceControlViewHost
 import android.view.WindowManager
 import android.widget.FrameLayout
-import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.util.logging.DebugLog
 import java.util.concurrent.FutureTask
 import java.util.concurrent.TimeUnit
 import androidx.core.net.toUri

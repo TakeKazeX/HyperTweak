@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.ui.page
 
+import com.takekazex.hypertweak.ui.page.systemui.icon.IconSlotCatalog
+import com.takekazex.hypertweak.ui.page.systemui.icon.LEFT_TOGGLE_ROWS
 import com.takekazex.hypertweak.settings.contract.IconTunerContract
 
 import org.junit.Assert.assertEquals

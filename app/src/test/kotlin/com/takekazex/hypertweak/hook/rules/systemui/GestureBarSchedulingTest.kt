@@ -1,5 +1,10 @@
 package com.takekazex.hypertweak.hook.rules.systemui
 
+import com.takekazex.hypertweak.hook.rules.systemui.gesturebar.GestureBarDeadlines
+import com.takekazex.hypertweak.hook.rules.systemui.gesturebar.GestureBarHomeProbe
+import com.takekazex.hypertweak.hook.rules.systemui.gesturebar.GestureBarScheduler
+import com.takekazex.hypertweak.hook.rules.systemui.gesturebar.GestureBarState
+import com.takekazex.hypertweak.hook.rules.systemui.gesturebar.LauncherHomeProbe
 import org.junit.Assert.*
 import org.junit.Test
 

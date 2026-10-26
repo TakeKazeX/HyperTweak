@@ -1,6 +1,6 @@
 package com.takekazex.hypertweak.hook.base.dex
 
-import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.util.logging.DebugLog
 import java.io.File
 import java.util.Properties
 import com.takekazex.hypertweak.hook.base.DexKitCacheIdentity

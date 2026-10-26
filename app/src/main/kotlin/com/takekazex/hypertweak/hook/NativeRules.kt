@@ -1,6 +1,6 @@
 package com.takekazex.hypertweak.hook
 
-import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.util.logging.DebugLog
 
 /**
  * Access to the native payload LSPosed injects alongside the module's dex.

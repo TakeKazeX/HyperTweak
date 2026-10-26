@@ -1,5 +1,11 @@
 package com.takekazex.hypertweak.hook.rules.securitycenter
 
+import com.takekazex.hypertweak.hook.rules.securitycenter.sidebar.DockEditCapacity
+import com.takekazex.hypertweak.hook.rules.securitycenter.sidebar.DockItemKind
+import com.takekazex.hypertweak.hook.rules.securitycenter.sidebar.DockPredictionBudget
+import com.takekazex.hypertweak.hook.rules.securitycenter.sidebar.SecurityCenterDockHost
+import com.takekazex.hypertweak.hook.rules.securitycenter.sidebar.SecurityCenterDockResolver
+import com.takekazex.hypertweak.hook.rules.securitycenter.sidebar.SecurityCenterDockSettings
 import com.takekazex.hypertweak.hook.base.dex.DexOperandIndex
 import org.junit.Assert.*
 import org.junit.Assume.assumeTrue

@@ -9,7 +9,7 @@ import android.provider.Settings
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
-import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.util.logging.DebugLog
 
 /**
  * Makes the launcher's gesture-bar long press reach Circle to Search instead of XiaoAI.

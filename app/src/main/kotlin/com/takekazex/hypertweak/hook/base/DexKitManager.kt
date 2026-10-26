@@ -1,6 +1,6 @@
 package com.takekazex.hypertweak.hook.base
 
-import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.util.logging.DebugLog
 import org.luckypray.dexkit.DexKitBridge
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock

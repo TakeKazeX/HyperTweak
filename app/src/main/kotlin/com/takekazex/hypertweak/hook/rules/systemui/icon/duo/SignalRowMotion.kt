@@ -82,7 +82,7 @@ internal class SignalRowMotion {
                 failed = true
                 ready = false
                 restoreTarget()
-                com.takekazex.hypertweak.util.DebugLog.w("DuoSignal", "SIM row handoff failed", error)
+                com.takekazex.hypertweak.util.logging.DebugLog.w("DuoSignal", "SIM row handoff failed", error)
             } finally { canvas.restoreToCount(count) }
         }
         override fun setAlpha(alpha: Int) = Unit

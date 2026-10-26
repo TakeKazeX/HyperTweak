@@ -8,7 +8,7 @@ import android.graphics.drawable.Drawable
 import android.view.View
 import android.widget.ImageView
 import com.takekazex.hypertweak.hook.rules.systemui.icon.duo.HostBatteryDrawable
-import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.util.logging.DebugLog
 
 /** Draws the stock AOD battery inside Duo, including before the source View's first layout. */
 internal class AodBatteryGlyphDrawable(private val source: View) : Drawable() {

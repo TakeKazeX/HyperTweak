@@ -2,7 +2,7 @@ package com.takekazex.hypertweak.hook.rules.system
 
 import android.os.Handler
 import android.os.Looper
-import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.util.logging.DebugLog
 import java.util.concurrent.ConcurrentHashMap
 
 internal interface RecoveryScheduler {

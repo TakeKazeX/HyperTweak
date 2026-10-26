@@ -12,7 +12,7 @@ from unicorn.arm64_const import *
 parser=argparse.ArgumentParser()
 parser.add_argument('compiler')
 args=parser.parse_args()
-source=Path(__file__).resolve().parents[2]/'main/cpp/NativeRules/folder_stack_hook.S'
+source=Path(__file__).resolve().parents[2]/'main/cpp/NativeRules/rules/folder_stack_hook.S'
 with tempfile.TemporaryDirectory(prefix='ht-folder-stack-abi-') as tmp:
     root=Path(tmp)
     stub=root/'stub.S'

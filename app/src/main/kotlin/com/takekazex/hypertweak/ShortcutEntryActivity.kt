@@ -2,7 +2,7 @@ package com.takekazex.hypertweak
 
 import android.app.Activity
 import android.os.Bundle
-import com.takekazex.hypertweak.util.LsposedManagerLauncher
+import com.takekazex.hypertweak.util.platform.LsposedManagerLauncher
 
 /** Dynamic shortcuts have an independent platform entry; no Compose shell is constructed. */
 class ShortcutEntryActivity : Activity() {

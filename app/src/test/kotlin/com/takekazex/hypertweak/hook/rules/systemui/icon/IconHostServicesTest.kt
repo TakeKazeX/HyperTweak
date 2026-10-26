@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import com.takekazex.hypertweak.hook.rules.systemui.icon.carrier.CarrierMask
 import org.junit.Assert.*
 import org.junit.Test
 

@@ -534,7 +534,7 @@ public abstract class SystemUiHookRuntime extends SystemUiAnimationRuntime {
         java.util.function.Consumer<Boolean> listener = overviewVisibilityListener;
         if (listener == null) return;
         try {
-            listener.accept(com.takekazex.hypertweak.util.UpstreamBackGesture.INSTANCE.getInstalled()
+            listener.accept(com.takekazex.hypertweak.util.platform.UpstreamBackGesture.INSTANCE.getInstalled()
                     ? upstreamOverviewState.visible() : miuiLauncherDartStateOwnerEpoch > 0L
                     ? Boolean.valueOf(miuiOverviewVisible) : null);
         } catch (Throwable throwable) {
@@ -1179,7 +1179,7 @@ public abstract class SystemUiHookRuntime extends SystemUiAnimationRuntime {
     @SuppressWarnings("deprecation") // Bundle.get preserves strict wire types before primitive reads.
     protected synchronized void observeUpstreamOverview(Context context, int uid,
                                                        String sender, Intent intent) {
-        if (!com.takekazex.hypertweak.util.UpstreamBackGesture.INSTANCE.getInstalled()
+        if (!com.takekazex.hypertweak.util.platform.UpstreamBackGesture.INSTANCE.getInstalled()
                 || !isTrustedMiuiHomeBroadcastSender(context, uid, sender)) return;
         Bundle extras = intent.getExtras();
         if (extras == null) return;

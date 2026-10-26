@@ -11,7 +11,7 @@ import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 import com.takekazex.hypertweak.settings.contract.AppSettingsKeys
 
 
-import com.takekazex.hypertweak.hook.BackGestureSettingsSnapshot
+import com.takekazex.hypertweak.hook.runtime.settings.BackGestureSettingsSnapshot
 import com.takekazex.hypertweak.settings.contract.SystemUiLiveSettings
 import com.takekazex.hypertweak.settings.contract.IconSettingsPreferencePolicy
 import com.takekazex.hypertweak.settings.contract.DockConfig

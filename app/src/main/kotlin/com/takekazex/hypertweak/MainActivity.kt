@@ -34,7 +34,7 @@ class MainActivity : ComponentActivity() {
         val shortcutTarget = intent?.getStringExtra("shortcut_target")
         if (shortcutTarget == "lsposed") {
             // Compatibility for already pinned shortcuts from previous APKs.
-            com.takekazex.hypertweak.util.LsposedManagerLauncher.open()
+            com.takekazex.hypertweak.util.platform.LsposedManagerLauncher.open()
             finish()
             return
         }

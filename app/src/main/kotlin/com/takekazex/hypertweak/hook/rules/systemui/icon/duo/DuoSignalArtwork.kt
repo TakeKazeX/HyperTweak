@@ -10,7 +10,7 @@ import com.takekazex.hypertweak.presentation.icon.IconSvgRenderer
 import com.takekazex.hypertweak.presentation.icon.IconSvgRepository
 import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
 import com.takekazex.hypertweak.settings.contract.SignalSvgStyle
-import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.util.logging.DebugLog
 
 /** Signal documents and bounded AOD recordings; no host views or hook handles. */
 internal class DuoSignalArtwork {

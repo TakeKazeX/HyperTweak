@@ -8,10 +8,10 @@ import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
-import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.util.logging.DebugLog
 import io.github.lingqiqi5211.ezhooktool.xposed.dsl.HookFactory
 import com.takekazex.hypertweak.hook.base.HostAccess
-import com.takekazex.hypertweak.util.StaticFieldWriter
+import com.takekazex.hypertweak.util.platform.StaticFieldWriter
 import java.util.WeakHashMap
 import java.lang.reflect.Field
 import java.lang.reflect.Method

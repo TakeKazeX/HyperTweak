@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import com.takekazex.hypertweak.hook.rules.systemui.icon.carrier.CarrierMask
 import android.view.ViewGroup
 
 /** Cross-feature host capabilities, wired by the SystemUI composition root before attachment. */

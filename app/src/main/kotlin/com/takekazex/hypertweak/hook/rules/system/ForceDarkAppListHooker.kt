@@ -8,7 +8,7 @@ import android.content.pm.ApplicationInfo
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
-import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.util.logging.DebugLog
 
 /** Exposes third-party applications in HyperOS's per-app force-dark list. */
 object ForceDarkAppListHooker : StaticHooker() {

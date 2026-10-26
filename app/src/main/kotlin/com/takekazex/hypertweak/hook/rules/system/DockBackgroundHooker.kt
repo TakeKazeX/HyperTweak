@@ -24,10 +24,10 @@ import com.takekazex.hypertweak.dock.DockRecoveryPolicy
 import com.takekazex.hypertweak.dock.DockPresentationPolicy
 import com.takekazex.hypertweak.dock.DockFrameChannel
 import com.takekazex.hypertweak.dock.DockFrameDriver
-import com.takekazex.hypertweak.hook.SettingsTransport
+import com.takekazex.hypertweak.hook.runtime.settings.SettingsTransport
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.StaticHooker
-import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.ref.WeakReference
 import java.util.UUID
 import java.util.WeakHashMap
@@ -129,7 +129,7 @@ object DockBackgroundHooker : StaticHooker() {
         var surfaceVisible: Boolean = false, val lease: Long = 0L)
 
     override fun onHook() {
-        if (!com.takekazex.hypertweak.util.PlatformLevel.isOs4) return
+        if (!com.takekazex.hypertweak.util.platform.PlatformLevel.isOs4) return
         val clazz = "com.android.server.wm.WindowState".toClassOrNull() ?: return
         val prepareMethod = clazz.declaredMethods.singleOrNull { it.name == "prepareSurfaces" && it.parameterCount == 0 && it.returnType == Void.TYPE }
             ?: error("WMS prepare boundary unavailable")

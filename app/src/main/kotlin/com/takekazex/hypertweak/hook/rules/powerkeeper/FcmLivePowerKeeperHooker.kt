@@ -5,7 +5,7 @@ import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 import android.os.Bundle
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.StaticHooker
-import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.util.logging.DebugLog
 
 /**
  * Remove power restrictions on GMS in com.miui.powerkeeper.

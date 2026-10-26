@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui
 
+import com.takekazex.hypertweak.hook.rules.systemui.notification.NotificationIconFilterContract
+import com.takekazex.hypertweak.hook.rules.systemui.notification.NotificationModelCopy
 import com.takekazex.hypertweak.settings.contract.NotificationIconPolicy
 
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
@@ -9,7 +11,7 @@ import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
-import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.util.logging.DebugLog
 import com.takekazex.hypertweak.hook.base.dex.DexFeature
 import java.lang.reflect.Field
 import java.lang.reflect.Method

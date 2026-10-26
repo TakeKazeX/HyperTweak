@@ -3,16 +3,16 @@ package com.takekazex.hypertweak.ui.navigation
 import androidx.compose.animation.*
 import androidx.compose.runtime.*
 import com.takekazex.hypertweak.ui.page.Route
-import com.takekazex.hypertweak.ui.page.AodIconsPage
-import com.takekazex.hypertweak.ui.page.SystemUIPage
-import com.takekazex.hypertweak.ui.page.NotificationPage
-import com.takekazex.hypertweak.ui.page.MediaCardPage
-import com.takekazex.hypertweak.ui.page.NotificationHeaderPage
-import com.takekazex.hypertweak.ui.page.PrivacyIndicatorPage
-import com.takekazex.hypertweak.ui.page.IconTunerPage
-import com.takekazex.hypertweak.ui.page.IconOrderPage
-import com.takekazex.hypertweak.ui.page.ControlCenterIconRowsPage
-import com.takekazex.hypertweak.ui.page.SuperIslandPage
+import com.takekazex.hypertweak.ui.page.systemui.AodIconsPage
+import com.takekazex.hypertweak.ui.page.systemui.SystemUIPage
+import com.takekazex.hypertweak.ui.page.systemui.notification.NotificationPage
+import com.takekazex.hypertweak.ui.page.systemui.notification.MediaCardPage
+import com.takekazex.hypertweak.ui.page.systemui.notification.NotificationHeaderPage
+import com.takekazex.hypertweak.ui.page.systemui.controlcenter.PrivacyIndicatorPage
+import com.takekazex.hypertweak.ui.page.systemui.icon.IconTunerPage
+import com.takekazex.hypertweak.ui.page.systemui.icon.IconOrderPage
+import com.takekazex.hypertweak.ui.page.systemui.controlcenter.ControlCenterIconRowsPage
+import com.takekazex.hypertweak.ui.page.systemui.SuperIslandPage
 import top.yukonga.miuix.kmp.nav.core.*
 
 internal fun NavEntryBuilder.systemPages(settings: NavigationSettings, navController: NavController) {

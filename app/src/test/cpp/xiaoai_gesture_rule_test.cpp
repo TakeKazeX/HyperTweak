@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Exercise the production callback against live, compressed-pointer-shaped fixtures.
-#include "../../main/cpp/NativeRules/xiaoai_gesture_rule.cpp"
+#include "../../main/cpp/NativeRules/rules/xiaoai_gesture_rule.cpp"
 #include <assert.h>
 #include <stdlib.h>
 #include <stdio.h>

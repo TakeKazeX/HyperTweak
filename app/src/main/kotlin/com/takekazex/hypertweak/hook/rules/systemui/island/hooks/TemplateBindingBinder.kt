@@ -1,6 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.island.hooks
 
-import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.util.logging.DebugLog
 
 /** Native template ownership: rebinding invalidates our frames and must not be animated over. */
 internal object TemplateBindingBinder {

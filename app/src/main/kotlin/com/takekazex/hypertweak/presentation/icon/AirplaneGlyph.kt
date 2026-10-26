@@ -2,7 +2,7 @@ package com.takekazex.hypertweak.presentation.icon
 
 import android.content.Context
 import android.graphics.drawable.Drawable
-import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.util.logging.DebugLog
 
 /** Shared host-resource artwork for live status icons and settings previews. */
 object AirplaneGlyph {

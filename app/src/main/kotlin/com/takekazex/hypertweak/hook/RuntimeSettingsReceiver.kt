@@ -1,12 +1,15 @@
 package com.takekazex.hypertweak.hook
 
+import com.takekazex.hypertweak.hook.runtime.settings.RuntimeSettingsProtocol
+import com.takekazex.hypertweak.hook.runtime.settings.RuntimeSettingsStore
+import com.takekazex.hypertweak.hook.runtime.settings.SettingsTransport
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.os.Handler
 import android.os.Looper
-import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.util.logging.DebugLog
 
 /** Process-owned settings transport, independent of native-rule publication and feature hooks. */
 internal class RuntimeSettingsReceiver(private val changed: (Set<String>, Set<String>) -> Unit) {

@@ -4,7 +4,7 @@ import com.takekazex.hypertweak.settings.contract.CameraSettingsKeys
 
 import android.os.Build
 import com.takekazex.hypertweak.hook.Preferences
-import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.util.logging.DebugLog
 
 /**
  * Shared watermark brand/model resolution used by both `CameraImpersonationHooker` (keep-model

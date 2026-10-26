@@ -5,7 +5,7 @@ import com.takekazex.hypertweak.hook.rules.systemui.island.host.IslandSlot
 import com.takekazex.hypertweak.hook.rules.systemui.island.model.IslandFeature
 import com.takekazex.hypertweak.hook.rules.systemui.island.model.SchedulingTransaction
 import com.takekazex.hypertweak.hook.rules.systemui.island.policy.IslandExpansionOwnership
-import com.takekazex.hypertweak.util.DebugLog
+import com.takekazex.hypertweak.util.logging.DebugLog
 import io.github.libxposed.api.XposedInterface
 
 /** Host scheduling transaction: slot return, original event, settlement and restoration. */

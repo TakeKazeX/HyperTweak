@@ -7,8 +7,8 @@ import android.content.IntentFilter
 import android.os.Process
 import androidx.core.content.ContextCompat
 import com.takekazex.hypertweak.hook.base.StaticHooker
-import com.takekazex.hypertweak.util.DebugLog
-import com.takekazex.hypertweak.util.RestartProtocol
+import com.takekazex.hypertweak.util.logging.DebugLog
+import com.takekazex.hypertweak.util.restart.RestartProtocol
 import java.util.concurrent.ConcurrentHashMap
 
 object RestartBroadcastHooker : StaticHooker() {
