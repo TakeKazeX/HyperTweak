@@ -71,6 +71,12 @@ internal object RuntimeSettingsDefinitions {
     /** Live floating-notification whitelist switch. */
     const val NOTIFICATION_WHITELIST = "systemui.notification_whitelist"
     const val FREEFORM_BLUR = "systemui.freeform_blur"
+    const val GOOGLE_APP = "google.omni"
+    const val GOOGLE_SETTINGS = "settings.google_services"
+    const val GMS_RESTRICTIONS = "system.gms_restrictions"
+    const val QUICK_SHARE = "gms.quick_share"
+    const val PASSKEY = "google.passkey"
+    const val FCM = "google.fcm"
     const val REVISION = "runtime_settings_revision"
     private val islandKeys = setOf(
         PlatformSettingsKeys.KEY_REMOVE_ISLAND_PLACEHOLDER, PlatformSettingsKeys.KEY_THREE_ISLANDS, PlatformSettingsKeys.KEY_LANDSCAPE_FULL_ISLANDS,
@@ -118,7 +124,13 @@ internal object RuntimeSettingsDefinitions {
     private val aospSecurityKeys = setOf(
         PlatformSettingsKeys.KEY_AOSP_APP_INFO_ENTRY, PlatformSettingsKeys.KEY_AOSP_APP_MANAGER_ENTRY,
     )
-    val strictBooleanKeys = aospUiKeys + aospSecurityKeys + setOf(
+    private val googleKeys = setOf(
+        PlatformSettingsKeys.KEY_ASK_ABOUT_SCREEN, PlatformSettingsKeys.KEY_FULL_SCREEN_TRANSLATE,
+        PlatformSettingsKeys.KEY_SHOW_GOOGLE_SERVICES_IN_SETTINGS, PlatformSettingsKeys.KEY_REMOVE_GMS_RESTRICTION,
+        PlatformSettingsKeys.KEY_QUICK_SHARE_ENABLED, PlatformSettingsKeys.KEY_UNLOCK_PASSKEY,
+        PlatformSettingsKeys.KEY_FCM_LIVE_ENABLED,
+    )
+    val strictBooleanKeys = googleKeys + aospUiKeys + aospSecurityKeys + setOf(
         PlatformSettingsKeys.KEY_AOSP_PACKAGE_INSTALLER,
         PlatformSettingsKeys.KEY_NATIVE_PICKER, PlatformSettingsKeys.KEY_NATIVE_PHOTO_PICKER, PlatformSettingsKeys.KEY_NATIVE_FILE_PICKER,
         PlatformSettingsKeys.KEY_SETTINGS_ONDEVICE_MODEL_ENTRY,
@@ -144,6 +156,16 @@ internal object RuntimeSettingsDefinitions {
     data class Group(val targets: Set<String>, val owns: (String) -> Boolean)
     private val systemUi = setOf("com.android.systemui")
     val groups = linkedMapOf(
+        GOOGLE_APP to Group(setOf("com.google.android.googlequicksearchbox")) {
+            it == PlatformSettingsKeys.KEY_ASK_ABOUT_SCREEN || it == PlatformSettingsKeys.KEY_FULL_SCREEN_TRANSLATE
+        },
+        GOOGLE_SETTINGS to Group(setOf("com.android.settings")) { it == PlatformSettingsKeys.KEY_SHOW_GOOGLE_SERVICES_IN_SETTINGS },
+        GMS_RESTRICTIONS to Group(setOf("android")) { it == PlatformSettingsKeys.KEY_REMOVE_GMS_RESTRICTION },
+        QUICK_SHARE to Group(setOf("com.google.android.gms")) { it == PlatformSettingsKeys.KEY_QUICK_SHARE_ENABLED },
+        PASSKEY to Group(setOf("android", "com.android.settings", "com.miui.securitycenter", "com.xiaomi.scanner")) {
+            it == PlatformSettingsKeys.KEY_UNLOCK_PASSKEY
+        },
+        FCM to Group(setOf("android", "com.miui.powerkeeper")) { it == PlatformSettingsKeys.KEY_FCM_LIVE_ENABLED },
         ICONS to Group(systemUi) { it != "prefs_epoch" && it !in islandKeys && IconSettingsPreferencePolicy.affectsIcons(it) },
         ISLANDS to Group(systemUi) { it in islandKeys },
         // Both AOD hosts: SystemUI's keyguard battery row and the AOD plugin (hosted by SystemUI

@@ -99,51 +99,60 @@ object QuickSharePhenotypeHooker : StaticHooker() {
      */
     private var enabledCache by generationState { false }
 
-    override fun onPrepareHotReload() {
-        hooksInstalled.set(false)
+    private var appContext: Context? by generationState { null }
+    private var work: com.takekazex.hypertweak.hook.base.LatestSettingsWork<Boolean>? by generationState { null }
+    private var worker: java.util.concurrent.ExecutorService? by generationState { null }
+    init { generationCleanup { retireWork() } }
+
+    private fun retireWork() {
+        // A started SQLite commit finishes before the next generation can publish its override.
+        work?.retire()
+        worker?.shutdownNow()
+        work = null
+        worker = null
+        appContext = null
     }
+
+    override fun onPrepareHotReload() = retireWork()
 
     override fun onHook() {
-        if (hookParam.packageName != GMS_PACKAGE) return
-        enabledCache = settingQuickShareEnabled
-        if (enabledCache) installGateHooks()
-        else DebugLog.hookSkippedDebug(TAG, "Quick Share gates", "disabled")
+        prepareGateHooks()
     }
 
-    /** Called from HookEntry once the GMS app context exists (every GMS process). */
-    fun onPackageReady(context: Context) {
-        // Only the main GMS process writes the DB and sends the broadcast; other GMS processes
-        // would only contend on the same SQLite file. Falls back to running if not attached yet.
-        // Secondary processes also need the enabled gate, but disabled generations need no
-        // DexKit mapping/class materialization. Main-process override removal still runs.
-        enabledCache = settingQuickShareEnabled
-        if (enabledCache) installGateHooks()
-        val isMain = runCatching { hookParam.isMainProcess }.getOrDefault(true)
-        if (!isMain) return
+    private var gatePreparationStarted by generationState { false }
 
-        // Preferences is initialized by the caller before this point.
+    private fun prepareGateHooks() {
+        if (!settingQuickShareEnabled || hooksInstalled.get() || gatePreparationStarted) return
+        gatePreparationStarted = true
+        prepareDexTargets(name = "gms.quick_share", resolve = { resolveGateTargets() },
+            install = { installGateHooks(it) })
+    }
+
+    /** Only the main GMS process commits the CE database; every process keeps live gate hooks. */
+    fun onPackageReady(context: Context) {
+        appContext = context.applicationContext ?: context
+        refreshSettings()
+    }
+
+    fun refreshSettings(): Boolean {
         enabledCache = settingQuickShareEnabled
-        val enabled = enabledCache
-        val appContext = context.applicationContext ?: context
-        Thread {
-            try {
-                runOnce(appContext, enabled, forceBroadcast = false)
-            } catch (t: Throwable) {
-                // The CE database can be temporarily unavailable (early boot before first
-                // unlock, or a transient write lock). Retry once; each later GMS start retries.
-                DebugLog.w(TAG, "phenotype override failed, retrying in 30s", t)
-                try {
-                    Thread.sleep(30_000)
-                } catch (_: InterruptedException) {
-                    return@Thread
-                }
-                runCatching { runOnce(appContext, enabled, forceBroadcast = true) }
-                    .onFailure { DebugLog.e(TAG, "phenotype override retry failed", it) }
+        prepareGateHooks()
+        val gatesReady = !enabledCache || hooksInstalled.get()
+        if (!runCatching { hookParam.isMainProcess }.getOrDefault(false)) return gatesReady
+        val context = appContext ?: return false
+        val task = work ?: run {
+            val executor = java.util.concurrent.Executors.newSingleThreadExecutor { job ->
+                Thread(job, "HyperTweak-Phenotype").apply { isDaemon = true }
             }
-        }.apply {
-            name = "HyperTweak-Phenotype"
-            isDaemon = true
-        }.start()
+            worker = executor
+            com.takekazex.hypertweak.hook.base.LatestSettingsWork<Boolean>(
+                execute = { job -> executor.execute(job) },
+                apply = { enabled -> runOnce(context, enabled, forceBroadcast = true) },
+                failure = { DebugLog.w(TAG, "phenotype commit failed; dispatcher will retry", it) },
+            ).also { work = it }
+        }
+        val committed = task.request(enabledCache)
+        return gatesReady && committed
     }
 
     private fun quickShareEnabled(): Boolean {
@@ -153,19 +162,13 @@ object QuickSharePhenotypeHooker : StaticHooker() {
         return enabledCache
     }
 
-    private fun installGateHooks() {
-        if (!hooksInstalled.compareAndSet(false, true)) return
+    private fun resolveGateTargets(): GateTargets? {
+        val apkPath = hookParam.appInfo?.sourceDir ?: return null
+        return resolveGateTargets(apkPath)
+    }
 
-        val apkPath = hookParam.appInfo?.sourceDir ?: run {
-            hooksInstalled.set(false)
-            DebugLog.hookSkipped(TAG, "Quick Share gate", "GMS source APK unavailable")
-            return
-        }
-        val targets = resolveGateTargets(apkPath) ?: run {
-            hooksInstalled.set(false)
-            DebugLog.hookSkipped(TAG, "Quick Share gate", "unique DexKit initializer not found")
-            return
-        }
+    private fun installGateHooks(targets: GateTargets) {
+        if (!hooksInstalled.compareAndSet(false, true)) return
 
         // The class name is a stable GMS API anchor. DexKit resolves its Context -> boolean gate
         // by prototype; method names are not carried across GMS releases.
@@ -179,7 +182,7 @@ object QuickSharePhenotypeHooker : StaticHooker() {
                 }
             }
             DebugLog.d(TAG, "ModuleInitializer gate hooked via DexKit: ${eMethod.toGenericString()}")
-        }.onFailure { DebugLog.e(TAG, "ModuleInitializer gate hook failed", it) }
+        }.onFailure { hooksInstalled.set(false); throw it }
 
         // Best-effort layer: the CN device-type classifier (opens discovery and the account
         // metadata path). A missing or ambiguous marker skips this optional path.
@@ -289,8 +292,7 @@ object QuickSharePhenotypeHooker : StaticHooker() {
                 putExtra("flag", FLAG_NAME)
             }
         }
-        runCatching { context.sendBroadcast(intent) }
-            .onFailure { DebugLog.e(TAG, "FLAG_OVERRIDE broadcast failed", it) }
+        context.sendBroadcast(intent)
         DebugLog.d(TAG, "FLAG_OVERRIDE broadcast sent (commit=$commit)")
     }
 
@@ -301,8 +303,7 @@ object QuickSharePhenotypeHooker : StaticHooker() {
         val dbFile = context.getDatabasePath(PHENOTYPE_DB)
         if (!dbFile.exists()) {
             // GMS creates the database lazily; the next GMS start retries.
-            DebugLog.d(TAG, "${dbFile.name} not created yet; skipping")
-            return false
+            error("${dbFile.name} not created yet; retry after unlock")
         }
         val openParams = SQLiteDatabase.OpenParams.Builder()
             .setOpenFlags(SQLiteDatabase.OPEN_READWRITE)

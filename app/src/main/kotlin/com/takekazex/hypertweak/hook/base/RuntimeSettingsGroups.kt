@@ -45,6 +45,12 @@ internal object RuntimeSettingsGroups {
     const val NOTIFICATION_MINI_WINDOW = RuntimeSettingsDefinitions.NOTIFICATION_MINI_WINDOW
     const val NOTIFICATION_WHITELIST = RuntimeSettingsDefinitions.NOTIFICATION_WHITELIST
     const val FREEFORM_BLUR = RuntimeSettingsDefinitions.FREEFORM_BLUR
+    const val GOOGLE_APP = RuntimeSettingsDefinitions.GOOGLE_APP
+    const val GOOGLE_SETTINGS = RuntimeSettingsDefinitions.GOOGLE_SETTINGS
+    const val GMS_RESTRICTIONS = RuntimeSettingsDefinitions.GMS_RESTRICTIONS
+    const val QUICK_SHARE = RuntimeSettingsDefinitions.QUICK_SHARE
+    const val PASSKEY = RuntimeSettingsDefinitions.PASSKEY
+    const val FCM = RuntimeSettingsDefinitions.FCM
     const val REVISION = RuntimeSettingsDefinitions.REVISION
     private val groups get() = RuntimeSettingsDefinitions.groups
     val backKeys get() = RuntimeSettingsDefinitions.backKeys
@@ -58,6 +64,9 @@ internal object RuntimeSettingsGroups {
             // (its PowerSaveOverrideHooker and PowerRankingHooker only ever saw boot values).
             base in setOf("com.miui.securitycenter", "com.miui.securitycenter.remote",
                 "com.miui.securitycenter.cache", "com.miui.securitycenter.power") -> "com.miui.securitycenter"
+            base in setOf("com.google.android.gms.persistent", "com.google.android.gms.unstable",
+                "com.google.android.gms.ui", "com.google.android.gms.learning", "com.google.android.gms.feedback",
+                "com.google.android.gms.remapping1", "com.google.android.gms.room") -> "com.google.android.gms"
             else -> base
         }
     }

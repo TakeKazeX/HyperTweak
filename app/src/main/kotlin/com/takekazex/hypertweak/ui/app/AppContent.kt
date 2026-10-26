@@ -76,16 +76,9 @@ internal fun AppContent(
             }
 
             val moduleActive = rememberModuleActivation(settings, restarts, serviceConnected, isModuleActive)
-            /**
-             * Quick Share on CN GMS works through a phenotype override that only GMS's own
-             * process can write. GMS is a declared required scope, so the toggle only flips the
-             * preference and marks the tweak dirty: the standard Home restart button then
-             * restarts Google Play services, and the hooker writes the `sharing_supports_latchsky`
-             * row (or removes it) at package-ready.
-             */
+            /** The committed settings dispatcher reconciles GMS's own phenotype override. */
             fun handleQuickShareChange(checked: Boolean) {
                 quickShareEnabled = checked
-                markTweaked(PlatformSettingsKeys.KEY_QUICK_SHARE_ENABLED, checked)
                 settings.storage.putBoolean(PlatformSettingsKeys.KEY_QUICK_SHARE_ENABLED, checked)
             }
 
@@ -124,14 +117,12 @@ internal fun AppContent(
             /** The toggle only changes the preference; scope membership is managed separately. */
             fun handleFullScreenTranslateChange(checked: Boolean) {
                 fullScreenTranslate = checked
-                markTweaked(PlatformSettingsKeys.KEY_FULL_SCREEN_TRANSLATE, checked)
                 settings.storage.putBoolean(PlatformSettingsKeys.KEY_FULL_SCREEN_TRANSLATE, checked)
             }
 
             /** The toggle only changes the preference; scope membership is managed separately. */
             fun handleAskAboutScreenChange(checked: Boolean) {
                 askAboutScreen = checked
-                markTweaked(PlatformSettingsKeys.KEY_ASK_ABOUT_SCREEN, checked)
                 settings.storage.putBoolean(PlatformSettingsKeys.KEY_ASK_ABOUT_SCREEN, checked)
             }
 
@@ -288,7 +279,6 @@ internal fun AppContent(
                         },
                         showGoogleServicesInSettings = showGoogleServicesInSettings,
                         onShowGoogleServicesInSettingsChange = { checked ->
-                            markTweaked(PlatformSettingsKeys.KEY_SHOW_GOOGLE_SERVICES_IN_SETTINGS, checked)
                             showGoogleServicesInSettings = checked
                             settings.storage.putBoolean(
                                 PlatformSettingsKeys.KEY_SHOW_GOOGLE_SERVICES_IN_SETTINGS,
@@ -303,13 +293,11 @@ internal fun AppContent(
                     },
                     unlockPasskey = unlockPasskey,
                     onUnlockPasskeyChange = { checked ->
-                        markTweaked(PlatformSettingsKeys.KEY_UNLOCK_PASSKEY, checked)
                         unlockPasskey = checked
                         settings.storage.putBoolean(PlatformSettingsKeys.KEY_UNLOCK_PASSKEY, checked)
                     },
                     fcmLiveEnabled = fcmLiveEnabled,
                     onFcmLiveEnabledChange = { checked ->
-                        markTweaked(PlatformSettingsKeys.KEY_FCM_LIVE_ENABLED, checked)
                         fcmLiveEnabled = checked
                         settings.storage.putBoolean(PlatformSettingsKeys.KEY_FCM_LIVE_ENABLED, checked)
                     },

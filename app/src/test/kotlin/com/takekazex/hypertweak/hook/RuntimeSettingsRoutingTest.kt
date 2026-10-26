@@ -275,7 +275,7 @@ class RuntimeSettingsRoutingTest {
         }
         listOf("com.miui.securitycenter.remote", "com.miui.securitycenter.cache", "com.miui.securitycenter.power")
             .forEach { assertEquals(Groups.forTarget("com.miui.securitycenter"), Groups.forProcess("$it:worker")) }
-        assertTrue(Groups.forProcess("com.google.android.gms.unstable").isEmpty())
+        assertEquals(setOf(Groups.QUICK_SHARE), Groups.forProcess("com.google.android.gms.unstable"))
         assertTrue(Groups.forProcess("android.process.media").isEmpty())
         assertTrue(Groups.forProcess("com.milink.unregistered:worker").isEmpty())
     }
@@ -283,7 +283,8 @@ class RuntimeSettingsRoutingTest {
     @Test fun everyExistingLiveRouteHasExplicitConsumersIncludingScreenshotEditorAndSystemServer() {
         assertEquals(setOf(Groups.SCREENSHOT), Groups.forProcess("com.miui.screenshot"))
         assertEquals(Groups.forProcess("com.miui.screenshot"), Groups.forProcess("com.miui.screenshot:photo_editor"))
-        assertEquals(setOf(Groups.BACK, Groups.DOCK, Groups.VOLUME, Groups.GESTURE_BAR, Groups.FORCE_SCREENSHOT, Groups.DARK_MODE, Groups.NATIVE_PHOTO_PICKER, Groups.NATIVE_FILE_PICKER, Groups.AOSP_INSTALLER),
+        assertEquals(setOf(Groups.BACK, Groups.DOCK, Groups.VOLUME, Groups.GESTURE_BAR, Groups.FORCE_SCREENSHOT, Groups.DARK_MODE, Groups.NATIVE_PHOTO_PICKER, Groups.NATIVE_FILE_PICKER, Groups.AOSP_INSTALLER,
+            Groups.GMS_RESTRICTIONS, Groups.PASSKEY, Groups.FCM),
             Groups.forProcess("system_server", true))
         assertEquals(setOf(Groups.XMSF), Groups.forProcess("com.xiaomi.xmsf:push"))
         assertTrue(Groups.forProcess("com.miui.home").contains(Groups.NATIVE))

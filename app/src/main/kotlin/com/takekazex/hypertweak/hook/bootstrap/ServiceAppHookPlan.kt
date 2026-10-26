@@ -52,8 +52,8 @@ internal object ServiceAppHookPlan {
                 hook { FcmLivePowerKeeperHooker }
             }
             "com.google.android.gms" -> {
-                // Only the phenotype DB write runs in GMS (see QuickSharePhenotypeHooker);
-                // GMS is added to the scope dynamically when the Quick Share switch is on.
+                // GMS is a declared scope. Every executing process gets live gates; only the
+                // main process reconciles phenotype overrides through the shared dispatcher.
                 hook { QuickSharePhenotypeHooker }
             }
             "com.google.android.googlequicksearchbox" -> {

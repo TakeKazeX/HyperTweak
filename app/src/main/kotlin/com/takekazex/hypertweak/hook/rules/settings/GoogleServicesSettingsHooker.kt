@@ -4,6 +4,8 @@ import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import android.content.Intent
+import android.app.Activity
+import java.lang.reflect.Method
 import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
@@ -36,16 +38,19 @@ object GoogleServicesSettingsHooker : StaticHooker() {
     private const val ADD_GOOGLE_HEADERS = "AddGoogleSettingsHeaders"
     private const val GOOGLE_SETTINGS_PACKAGE = "com.google.android.gms"
 
-    override fun onHook() {
-        if (!settingShowGoogleServicesInSettings) {
-            DebugLog.hookSkippedDebug(TAG, "Settings home Google services entry", "disabled")
-            return
-        }
+    private var rebuild: Method? by generationState { null }
+    private var hostClass: Class<*>? by generationState { null }
+    private var retired = false
+    init { generationCleanup { retired = true } }
 
+    override fun onHook() {
         val clazz = SETTINGS_CLASS.toClassOrNull() ?: run {
             DebugLog.hookSkipped(TAG, SETTINGS_CLASS, "class not found")
             return
         }
+        retired = false
+        hostClass = clazz
+        rebuild = HostAccess.requireDeclaredMethod(clazz, "updateHeader", accessible = true)
         val updateHeaderList = clazz.declaredMethods.firstOrNull {
                 it.name == UPDATE_HEADER_LIST &&
                 it.parameterTypes.size == 1 &&
@@ -67,8 +72,7 @@ object GoogleServicesSettingsHooker : StaticHooker() {
         updateHeaderList.hook("settings_google_services_home_reveal") {
             after { param ->
                 HookFailurePolicy.open(TAG, "$UPDATE_HEADER_LIST.after", Unit) {
-                    if (!settingShowGoogleServicesInSettings
-                    ) {
+                    if (retired || !settingShowGoogleServicesInSettings) {
                         return@open
                     }
                     @Suppress("UNCHECKED_CAST") // Host header list passed into the hooked method.
@@ -79,6 +83,28 @@ object GoogleServicesSettingsHooker : StaticHooker() {
             }
         }
         DebugLog.i(TAG, "Settings home Google services header reveal armed")
+    }
+
+    fun refreshSettings(): Boolean = HostAccess.onMain {
+        val owner = hostClass ?: return@onMain false
+        val method = rebuild ?: return@onMain false
+        HookFailurePolicy.open(TAG, "rebuild living Settings headers", false) {
+            val threadClass = Class.forName("android.app.ActivityThread")
+            val thread = HostAccess.requirePublicMethod(threadClass, "currentActivityThread", accessible = false).invoke(null)
+            val records = thread?.let { HostAccess.read(it, "mActivities") } as? Map<*, *>
+            records?.values?.filterNotNull()?.forEach { record ->
+                val activity = HostAccess.read(record, "activity") as? Activity ?: return@forEach
+                if (owner.isInstance(activity) && !activity.isDestroyed) method.invoke(activity)
+            }
+            true
+        }
+    }
+
+    override fun recoverHotReloadHosts() { refreshSettings() }
+
+    override fun onPrepareHotReload() {
+        retired = true
+        refreshSettings()
     }
 
     private fun containsGoogleSettingsHeader(headers: List<Any?>): Boolean {

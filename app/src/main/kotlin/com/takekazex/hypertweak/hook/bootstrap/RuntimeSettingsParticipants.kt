@@ -52,6 +52,25 @@ internal object RuntimeSettingsParticipants {
     fun install(dispatcher: SettingsReloadDispatcher, processName: String, isSystemServer: Boolean, actions: Actions) {
         val registry = SettingsParticipantRegistry(RuntimeSettingsGroups.forProcess(processName, isSystemServer))
         fun registerForProcess(id: String, apply: (Set<String>) -> Boolean) = registry.register(id, apply)
+        registerForProcess(RuntimeSettingsGroups.GOOGLE_APP) { _ ->
+            com.takekazex.hypertweak.hook.rules.googleapp.GoogleAppRuntime.refreshSettings()
+        }
+        registerForProcess(RuntimeSettingsGroups.GOOGLE_SETTINGS) { _ ->
+            com.takekazex.hypertweak.hook.rules.settings.GoogleServicesSettingsHooker.refreshSettings()
+        }
+        registerForProcess(RuntimeSettingsGroups.GMS_RESTRICTIONS) { _ ->
+            com.takekazex.hypertweak.hook.rules.system.SystemConfigHooker.refreshSettings()
+        }
+        registerForProcess(RuntimeSettingsGroups.QUICK_SHARE) { _ ->
+            com.takekazex.hypertweak.hook.rules.gms.QuickSharePhenotypeHooker.refreshSettings()
+        }
+        registerForProcess(RuntimeSettingsGroups.PASSKEY) { _ ->
+            com.takekazex.hypertweak.hook.rules.system.PasskeyHooker.refreshSettings()
+        }
+        registerForProcess(RuntimeSettingsGroups.FCM) { _ ->
+            if (isSystemServer) com.takekazex.hypertweak.hook.rules.system.FcmLiveSystemHooker.refreshSettings()
+            else com.takekazex.hypertweak.hook.rules.powerkeeper.FcmLivePowerKeeperHooker.refreshSettings()
+        }
         registerForProcess(RuntimeSettingsGroups.ICONS) { keys ->
             actions.icons(keys)
         }
@@ -215,7 +234,8 @@ internal object RuntimeSettingsParticipants {
             }
         }
         registry.install { id, apply ->
-            if (id == RuntimeSettingsGroups.SECURITY_DOCK || id == RuntimeSettingsGroups.DARK_MODE)
+            if (id == RuntimeSettingsGroups.SECURITY_DOCK || id == RuntimeSettingsGroups.DARK_MODE ||
+                id == RuntimeSettingsGroups.QUICK_SHARE)
                 dispatcher.registerWithRetryBudget(id, 120, apply)
             else dispatcher.register(id, apply)
         }

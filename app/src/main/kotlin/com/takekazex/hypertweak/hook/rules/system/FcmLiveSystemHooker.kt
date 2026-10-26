@@ -34,14 +34,32 @@ object FcmLiveSystemHooker : StaticHooker() {
     private const val GMS_PACKAGE_NAME = "com.google.android.gms"
     private const val GMS_PERSISTENT_PROCESS_NAME = "com.google.android.gms.persistent"
 
+    @Volatile private var retired = false
+    private var listBlack: java.lang.reflect.Field? by generationState { null }
+    private var listWhite: java.lang.reflect.Field? by generationState { null }
+    private val memberships = com.takekazex.hypertweak.hook.base.CollectionMembershipOverride(GMS_PACKAGE_NAME)
+    init { generationCleanup { retired = true; memberships.restore() } }
+
+    fun refreshSettings(): Boolean {
+        if (retired || !settingFcmLiveEnabled) memberships.restore()
+        else {
+            @Suppress("UNCHECKED_CAST")
+            listBlack?.takeIf { java.lang.reflect.Modifier.isStatic(it.modifiers) }?.let {
+                memberships.apply(it.get(null) as? MutableCollection<String>, false)
+            }
+            listWhite?.takeIf { java.lang.reflect.Modifier.isStatic(it.modifiers) }?.let {
+                addGmsToWhiteListInPlace(it.get(null))
+            }
+        }
+        return true
+    }
+
+    override fun onPrepareHotReload() { retired = true; memberships.restore() }
+
     private var loggedImmutableWhiteList by generationState { false }
 
-    override fun onInit() {
-        if (!settingFcmLiveEnabled) {
-            DebugLog.d(hookerName, "FCM Live disabled by user preference")
-            return
-        }
-
+    override fun onHook() {
+        retired = false
         hookGreezeManagerService()
         hookDomesticPolicyManager()
         hookListAppsManager()
@@ -50,6 +68,7 @@ object FcmLiveSystemHooker : StaticHooker() {
         hookAwareResourceControl()
         hookActivityManagerService()
         hookBroadcastSkipPolicy()
+        refreshSettings()
     }
 
     private fun hookGreezeManagerService() {
@@ -70,6 +89,7 @@ object FcmLiveSystemHooker : StaticHooker() {
 
             isAllowBroadcastMethod.hook {
                 before { param ->
+                    if (retired || !settingFcmLiveEnabled) return@before
                     val callerPkgName = param.args[1] as? String
                     val calleeUid = param.args[2] as? Int
                     val action = param.args[4] as? String
@@ -105,6 +125,7 @@ object FcmLiveSystemHooker : StaticHooker() {
                 String::class.java, accessible = false)
             deferBroadcastForMiuiMethod.hook {
                 before { param ->
+                    if (retired || !settingFcmLiveEnabled) return@before
                     val action = param.args[0] as? String
                     if (action in CN_DEFER_BROADCAST) {
                         param.result = false
@@ -121,16 +142,9 @@ object FcmLiveSystemHooker : StaticHooker() {
 
             triggerGMSLimitActionMethod.hook {
                 before { param ->
-                    runCatching {
-                        if (param.args.isNotEmpty()) {
-                            param.args[0] = false
-                        } else {
-                            val mGmsLimitEnabledField = HostAccess.requireDeclaredField(clazz, "mGmsLimitEnabled", accessible = true)
-                            mGmsLimitEnabledField.setBoolean(param.thisObject, false)
-                        }
-                    }.onFailure { t ->
-                        DebugLog.w(hookerName, "Failed to disable GMS limit action", t)
-                    }
+                    // This entry point performs only the GMS limit action. Suppress the action,
+                    // preserving mGmsLimitEnabled for the next native update after disable.
+                    if (!retired && settingFcmLiveEnabled) param.result = null
                 }
             }
 
@@ -147,6 +161,7 @@ object FcmLiveSystemHooker : StaticHooker() {
 
             deferBroadcastMethod.hook {
                 before { param ->
+                    if (retired || !settingFcmLiveEnabled) return@before
                     val action = param.args.firstOrNull() as? String
                     if (action in CN_DEFER_BROADCAST) param.result = false
                 }
@@ -179,14 +194,17 @@ object FcmLiveSystemHooker : StaticHooker() {
                     }.getOrNull()
             }
 
+            listBlack = systemBlackListField
+            listWhite = useDataWhiteListField
             // Hook all constructors to remove GMS from the blacklist and seed it into the whitelist.
             clazz.declaredConstructors.forEach { constructor ->
                 constructor.hook {
                     after { param ->
+                        if (retired || !settingFcmLiveEnabled) return@after
                         runCatching {
                             @Suppress("UNCHECKED_CAST")
                             val blackList = systemBlackListField.get(param.thisObject) as? MutableList<String>
-                            blackList?.remove(GMS_PACKAGE_NAME)
+                            memberships.apply(blackList, false)
                         }
                         // Seed GMS into the static whitelist once, in place, so the platform's own
                         // add/removeAll mutations are preserved.
@@ -202,6 +220,7 @@ object FcmLiveSystemHooker : StaticHooker() {
                 val isInWhiteListMethod = HostAccess.requireDeclaredMethod(clazz, "isInWhiteList", String::class.java, accessible = false)
                 isInWhiteListMethod.hook {
                     before { param ->
+                        if (retired || !settingFcmLiveEnabled) return@before
                         // USE_DATA_WHITE_LIST is a process-wide static Set. Mutate it in place instead
                         // of allocating a replacement and reassigning the field: the old reference
                         // swap discarded the platform's concurrent add/removeAll updates and
@@ -216,7 +235,7 @@ object FcmLiveSystemHooker : StaticHooker() {
                         runCatching {
                             @Suppress("UNCHECKED_CAST")
                             val blackList = systemBlackListField.get(param.thisObject) as? MutableList<String>
-                            blackList?.remove(GMS_PACKAGE_NAME)
+                            memberships.apply(blackList, false)
                         }
                     }
                 }
@@ -235,14 +254,14 @@ object FcmLiveSystemHooker : StaticHooker() {
      */
     @Suppress("UNCHECKED_CAST")
     private fun addGmsToWhiteListInPlace(current: Any?) {
-        val whiteList = current as? MutableCollection<Any?>
+        val whiteList = current as? MutableCollection<String>
         if (whiteList == null) {
             logImmutableWhiteListOnce(null)
             return
         }
         if (whiteList.contains(GMS_PACKAGE_NAME)) return
         try {
-            whiteList.add(GMS_PACKAGE_NAME)
+            memberships.apply(whiteList, true)
         } catch (t: UnsupportedOperationException) {
             // The static is an unmodifiable view; leave it as-is rather than swapping the reference.
             logImmutableWhiteListOnce(t)
@@ -272,6 +291,7 @@ object FcmLiveSystemHooker : StaticHooker() {
 
             checkMethod.hook {
                 before { param ->
+                    if (retired || !settingFcmLiveEnabled) return@before
                     // Reflection on a system_server callback: isolate it so a field-shape change
                     // can never take down the broadcast queue.
                     val callerPackage = runCatching {
@@ -300,6 +320,7 @@ object FcmLiveSystemHooker : StaticHooker() {
 
             getWhiteListMethod.hook {
                 after { param ->
+                    if (retired || !settingFcmLiveEnabled) return@after
                     val flags = param.args[0] as? Int
                     if (flags != null && (flags and 1) != 0) {
                         @Suppress("UNCHECKED_CAST")
@@ -320,24 +341,14 @@ object FcmLiveSystemHooker : StaticHooker() {
     private fun hookAwareResourceControl() {
         runCatching {
             val clazz = "com.miui.server.greeze.power.AwareResourceControl".toClassOrNull() ?: return@runCatching
-            val mNoNetworkBlackUidsField = HostAccess.requireDeclaredField(clazz, "mNoNetworkBlackUids", accessible = true)
-
-            clazz.declaredConstructors.forEach { constructor ->
-                constructor.hook {
-                    after { param ->
-                        runCatching {
-                            @Suppress("UNCHECKED_CAST")
-                            val blackUids = mNoNetworkBlackUidsField.get(param.thisObject) as? MutableList<String>
-                            blackUids?.remove(GMS_PACKAGE_NAME)
-                        }
-                    }
+            val method = HostAccess.requireDeclaredMethod(clazz, "isNetworkDisableAble", String::class.java, accessible = false)
+            deoptimize(method)
+            method.hook {
+                before { param ->
+                    if (!retired && settingFcmLiveEnabled && param.args.firstOrNull() == GMS_PACKAGE_NAME) param.result = false
                 }
             }
-
-            DebugLog.i(hookerName, "AwareResourceControl hooks registered")
-        }.onFailure { t ->
-            DebugLog.e(hookerName, "Failed to hook AwareResourceControl", t)
-        }
+        }.onFailure { DebugLog.e(hookerName, "Failed to hook AwareResourceControl", it) }
     }
 
     private fun hookBroadcastSkipPolicy() {
@@ -375,6 +386,7 @@ object FcmLiveSystemHooker : StaticHooker() {
                 val method = HostAccess.requireDeclaredMethod(policyClass, methodName, recordClass, Any::class.java, accessible = false)
                 method.hook {
                     before { param ->
+                        if (retired || !settingFcmLiveEnabled) return@before
                         if (isGmsC2dm(param.args.firstOrNull())) {
                             param.result = null
                         }
@@ -413,6 +425,7 @@ object FcmLiveSystemHooker : StaticHooker() {
                 Boolean::class.javaPrimitiveType, Boolean::class.javaPrimitiveType, Int::class.javaPrimitiveType, accessible = false)
             method.hook {
                 before { param ->
+                    if (retired || !settingFcmLiveEnabled) return@before
                     runCatching {
                         handleBroadcastIntent(param.args, param.thisObject, 2, getRecordMethod, infoField, mContextField)
                     }.onFailure { t ->

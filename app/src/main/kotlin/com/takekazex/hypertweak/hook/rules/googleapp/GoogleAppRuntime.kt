@@ -14,8 +14,8 @@ import java.util.concurrent.ConcurrentHashMap
  *
  * This is the Kotlin equivalent of upstream `GoogleAppRuntime`: Live Translate and Lensient Ask
  * Screen remain separate feature implementations, but they share resolution ownership and the
- * hot-reload replacement boundary. Preferences are intentionally read by each callback, so a
- * transient remote-preferences outage cannot make a feature permanently miss its first attach.
+ * hot-reload replacement boundary. Callbacks read accepted hookSetting snapshots; the shared
+ * settings dispatcher refreshes living model state without reinstalling or scanning on main.
  */
 object GoogleAppRuntime : StaticHooker() {
     const val PACKAGE = "com.google.android.googlequicksearchbox"
@@ -27,6 +27,8 @@ object GoogleAppRuntime : StaticHooker() {
     private val preReplacedIds = generationResource(ConcurrentHashMap.newKeySet<String>()) { it.clear() }
 
     private var sourceDir: String? by generationState { null }
+
+    private var omniPublished by generationState { false }
 
     private var installationStarted by generationState { false }
 
@@ -102,8 +104,15 @@ object GoogleAppRuntime : StaticHooker() {
             install = { actions ->
                 actions.forEach { action -> runCatching(action)
                     .onFailure { DebugLog.e(TAG, "OMNI hook publication failed", it) } }
-                DebugLog.i(TAG, "OMNI hooks published lensResolved=$lensResolved")
+                omniPublished = true
+                refreshSettings()
+                DebugLog.i(TAG, "OMNI preparation finished lensResolved=$lensResolved askScreenResolved=${GoogleAppAskAboutScreenHooker.hasResolvedTargets()}")
             })
+    }
+
+    fun refreshSettings(): Boolean {
+        if (!installationStarted || !omniPublished) return false
+        return GoogleAppAskAboutScreenHooker.refreshSettings()
     }
 
     /** Recover the Google App base APK path for a hot-reload callback without a PackageLoaded param. */

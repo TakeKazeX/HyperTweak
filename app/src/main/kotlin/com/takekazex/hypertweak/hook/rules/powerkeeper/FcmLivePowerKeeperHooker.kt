@@ -4,6 +4,8 @@ import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import android.os.Bundle
+import java.lang.reflect.Method
+import java.util.WeakHashMap
 import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.StaticHooker
@@ -22,12 +24,30 @@ object FcmLivePowerKeeperHooker : StaticHooker() {
 
     private const val GMS_PACKAGE_NAME = "com.google.android.gms"
 
-    override fun onInit() {
-        if (!settingFcmLiveEnabled) {
-            DebugLog.d(hookerName, "FCM Live disabled by user preference")
-            return
-        }
+    @Volatile private var retired = false
+    init { generationCleanup { retired = true; refreshSettings() } }
+    private val networkRequests = generationMainResource(WeakHashMap<Any, Boolean>()) { it.clear() }
+    private var networkUpdate: Method? by generationState { null }
 
+    override fun onPrepareHotReload() {
+        retired = true
+        refreshSettings()
+    }
+
+    fun refreshSettings(): Boolean = HostAccess.onMain {
+        val method = networkUpdate ?: return@onMain true
+        var applied = true
+        synchronized(networkRequests) { networkRequests.entries.map { it.key to it.value } }.forEach { (observer, requested) ->
+            runCatching { method.invoke(observer, requested) }.onFailure {
+                applied = false
+                DebugLog.w(hookerName, "network policy refresh failed", it)
+            }
+        }
+        applied
+    }
+
+    override fun onHook() {
+        retired = false
         hookGmsObserver()
         hookGlobalFeatureConfigureHelper()
     }
@@ -47,6 +67,7 @@ object FcmLivePowerKeeperHooker : StaticHooker() {
                     String::class.java, accessible = false)
                 method.hook {
                     before { param ->
+                        if (retired || !settingFcmLiveEnabled) return@before
                         param.args[2] = "ACCEPT"
                     }
                 }
@@ -65,9 +86,12 @@ object FcmLivePowerKeeperHooker : StaticHooker() {
             val method = HostAccess.requireDeclaredMethod(gmsObserverClass,
                 "updateFrameworkGmsNetStatus",
                 Boolean::class.javaPrimitiveType, accessible = false)
+            networkUpdate = method
             method.hook {
                 before { param ->
-                    param.args[0] = false
+                    val requested = param.args.firstOrNull() as? Boolean ?: return@before
+                    synchronized(networkRequests) { networkRequests[param.thisObject] = requested }
+                    if (!retired && settingFcmLiveEnabled) param.args[0] = false
                 }
             }
         }
@@ -83,6 +107,7 @@ object FcmLivePowerKeeperHooker : StaticHooker() {
                 val method = HostAccess.requireDeclaredMethod(gmsObserverClass, methodName, Boolean::class.javaPrimitiveType, accessible = false)
                 method.hook {
                     before { param ->
+                        if (retired || !settingFcmLiveEnabled) return@before
                         param.args[0] = false
                     }
                 }
@@ -108,11 +133,10 @@ object FcmLivePowerKeeperHooker : StaticHooker() {
 
             getDozeWhiteListAppsMethod.hook {
                 after { param ->
-                    @Suppress("UNCHECKED_CAST")
-                    val whiteList = param.result as? MutableList<String>
-                    if (whiteList != null && !whiteList.contains(GMS_PACKAGE_NAME)) {
-                        whiteList.add(GMS_PACKAGE_NAME)
-                    }
+                    if (retired || !settingFcmLiveEnabled) return@after
+                    param.result = com.takekazex.hypertweak.hook.base.CollectionOverrides.stringList(
+                        param.result as? Collection<*>, GMS_PACKAGE_NAME
+                    )
                 }
             }
 

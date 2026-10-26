@@ -7,7 +7,9 @@ import com.takekazex.hypertweak.hook.base.dex.DexContractMembers
 import android.content.Context
 import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
-import com.takekazex.hypertweak.hook.base.BooleanArgumentOverride
+import com.takekazex.hypertweak.hook.base.BooleanFieldOverrides
+import com.takekazex.hypertweak.hook.base.dex.DexRuntime
+import com.takekazex.hypertweak.hook.base.dex.MethodDescriptorCodec
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
@@ -28,28 +30,13 @@ import java.util.concurrent.atomic.AtomicBoolean
  * **Lensient searchbox** — the OMNI overlay's AI search box (`:googleapp` process). This is a
  * different surface from the live-translate bottom-bar button ([GoogleAppLiveTranslateHooker]).
  *
- * Resolution is marker-driven (ported from upstream `382c75e`). Nothing is bound by version number,
- * obfuscated member name, constructor parameter count or argument index. Instead the whole bridge
- * is recovered from field ownership and call relationships hanging off two string markers that R8
- * cannot rename:
- *
- * 1. **Thumbnail owner** — the unique 1-arg `boolean` method using `vidcip` is Google's screen
- *    thumbnail retention gate. It also *owns* the coordinator class, which is what makes step 5
- *    below unambiguous.
- * 2. **Hint marker** — the unique 1-arg method using `updateAimCsbHintText should not be called
- *    when enableAimCsbHintText is false.` is the callback that drives the native AIM hint.
- * 3. **Model + hint field** — the marker invokes a 0-arg accessor returning a reference type;
- *    the marker also reads a `boolean` field declared by that accessor's owner.
- * 4. **Gate** — that field's 0-arg `void` reader invokes a 0-arg `boolean` method whose body is a
- *    single call. That single call is the path's eligibility test.
- * 5. **OMNI entrypoint** — the eligibility test must resolve to Google's own entrypoint check:
- *    a 0-arg `boolean` method that reads exactly one enum-constant field and invokes exactly one
- *    method returning that same enum type, where the constant is literally named `OMNI`. This
- *    binds us to Google's own notion of "this is the OMNI overlay" instead of guessing.
- * 6. **Ownership** — the gate must use exactly two fields (a cached `boolean` and the entrypoint
- *    owner), the gate's class must be reachable from the thumbnail method's declaring class, the
- *    reader must hold the model reference, and the hint field must have exactly one constructor
- *    writer (the model constructor).
+ * Resolution starts at the semantic screen-thumbnail retention contract (`vidcip` + prototype).
+ * It follows that host's coordinator fields, a cached-boolean/OMNI eligibility decision, and the
+ * native model's field readers/writers. A candidate hint flag must be constructor-owned, read by
+ * the coordinator consumer, and connected to a native TextView hint renderer and model accessor.
+ * Helper extraction does not change this graph: traversal stays within each reader/model's owners
+ * and terminates at native rendering. Diagnostic log strings, versions, obfuscated names and a
+ * fixed helper depth never select a target. Missing or ambiguous graphs fail closed.
  *
  * Each installed decision only ever flips **a successful `false`** to `true`, and the eligibility
  * flip additionally requires Google's own entrypoint check to report OMNI.
@@ -61,10 +48,10 @@ import java.util.concurrent.atomic.AtomicBoolean
  *
  * The feature is fail-closed: ambiguous, missing or unreadable AIM matches install no eligibility
  * or hint bridge; the independent thumbnail retention hook follows upstream's safe fallback.
- * The coordinator constructor and every capability caller are deoptimized so ART cannot AOT-inline
- * the read past the hooked method. The Google app is a declared required Xposed scope, so the
- * switch flips the preference and queues the app in the Home restart dialog; when disabled, every
- * callback preserves Google's original result.
+ * Native model/coordinator field assignments are proven with the shared operand index. Original
+ * values are captured before reversible OMNI overrides, and field readers are deoptimized. The
+ * shared committed-settings dispatcher refreshes living native peers; disable and retirement
+ * restore native values. Google owns rendering on its next bind/overlay invocation.
  *
  * The hook deliberately does **not** forge a thumbnail, spoof Build identity, bypass consent, or
  * manufacture a capture/token path, and it never writes Google's hint text — it only unblocks the
@@ -84,32 +71,32 @@ object GoogleAppAskAboutScreenHooker : StaticHooker() {
     /** Screen-thumbnail retention gate; anchors the whole chain. */
     private const val THUMBNAIL_MARKER = "vidcip"
 
-    /** Native AIM hint callback; the commit message guard survives R8 renaming. */
-    private const val HINT_MARKER =
-        "updateAimCsbHintText should not be called when enableAimCsbHintText is false."
-
     private const val HOOK_THUMBNAIL = "google_lens_screen_thumbnail_retention"
     private const val HOOK_ELIGIBILITY = "google_lens_aim_eligibility_bridge"
     private const val HOOK_HINT = "google_lens_aim_hint_bridge"
+    private const val HOOK_COORDINATOR = "google_lens_aim_coordinator_state"
     private const val HOOK_CAPABILITY = "google_lens_aim_screen_capability_bridge"
     private val HOOK_IDS = setOf(
         HOOK_THUMBNAIL,
         HOOK_ELIGIBILITY,
         HOOK_HINT,
-        HOOK_CAPABILITY
+        HOOK_COORDINATOR
     )
+
+    private val models = BooleanFieldOverrides()
+    private val coordinators = BooleanFieldOverrides()
+    @Volatile private var retired = false
+    init { generationCleanup { retired = true; models.restore(); coordinators.restore(); models.clear(); coordinators.clear() } }
 
     private var enabledCache by generationState { false }
 
     private var targets: Targets? by generationState { null }
 
-    private val capabilityOverrideLogged = generationResource(AtomicBoolean()) { it.set(false) }
     private val eligibilityOverrideLogged = generationResource(AtomicBoolean()) { it.set(false) }
-    private val hintOverrideLogged = generationResource(AtomicBoolean()) { it.set(false) }
     private val thumbnailOverrideLogged = generationResource(AtomicBoolean()) { it.set(false) }
 
     private fun featureEnabled(): Boolean {
-        enabledCache = settingAskAboutScreen
+        enabledCache = !retired && settingAskAboutScreen
         return enabledCache
     }
 
@@ -123,7 +110,7 @@ object GoogleAppAskAboutScreenHooker : StaticHooker() {
     private data class Prepared(val thumbnail: Method, val deoptimizations: List<Executable>, val full: Targets?)
     internal fun prepareInstall(apk: String, existingHookIds: Set<String>): () -> Unit {
         if (existingHookIds.containsAll(HOOK_IDS)) return {}
-        val prepared = resolveDexContract("googleapp.ask_screen", apk,
+        val prepared = resolveDexContract("googleapp.ask_screen", apk, schema = 4,
             compute = compute@ { bridge ->
                 val thumbnail = resolveThumbnail(bridge) ?: return@compute null
                 val full = resolveTargets(bridge, thumbnail)
@@ -135,7 +122,10 @@ object GoogleAppAskAboutScreenHooker : StaticHooker() {
                     "eligibility" to full?.eligibility, "model" to full?.modelConstructor,
                     "hint" to full?.hint, "coordinator" to full?.modelCoordinator, "entryOwner" to full?.entryOwner,
                     "entry" to full?.entry, "capability" to full?.capability,
-                    "indices" to full?.aimBooleanParameterIndices?.joinToString(","))
+                    "indices" to full?.aimBooleanParameterIndices?.joinToString(","),
+                    "aimFields" to full?.aimFields, "peer" to full?.peer,
+                    "cached" to full?.cached, "coordinatorConstructor" to full?.coordinatorConstructor,
+                    "viewFragment" to full?.viewFragment)
             },
             decode = { members ->
                 val thumbnail = members.method("thumbnail")
@@ -153,7 +143,18 @@ object GoogleAppAskAboutScreenHooker : StaticHooker() {
                     capability?.also { require(!Modifier.isStatic(it.modifiers) && it.parameterCount == 0 && it.returnType == Boolean::class.javaPrimitiveType) }
                     val indices = findAimBooleanParameterIndices(constructor.parameterTypes)
                     require(indices.joinToString(",") == members.text("indices"))
-                    Targets(thumbnail, eligibility, constructor, hint, coordinator, entryOwner, entry, capability, indices, deoptimizations)
+                    val fields = members.text("aimFields").lineSequence().filter(String::isNotEmpty).map {
+                        requireNotNull(MethodDescriptorCodec.field(it, classLoader))
+                    }.toList()
+                    require(fields.size == indices.size && fields.all { it.declaringClass == constructor.declaringClass && it.type == Boolean::class.javaPrimitiveType })
+                    val peer = members.field("peer")
+                    require(peer.type == constructor.declaringClass)
+                    val cached = members.field("cached")
+                    val coordinatorConstructor = members.constructor("coordinatorConstructor")
+                    require(cached.type == Boolean::class.javaPrimitiveType && cached.declaringClass == coordinator.type)
+                    require(coordinatorConstructor.declaringClass == coordinator.type)
+                    Targets(thumbnail, eligibility, constructor, hint, coordinator, entryOwner, entry, capability, indices, deoptimizations,
+                        fields, peer, cached, coordinatorConstructor, members.method("viewFragment"))
                 }
                 Prepared(thumbnail, deoptimizations, full)
             },
@@ -163,11 +164,13 @@ object GoogleAppAskAboutScreenHooker : StaticHooker() {
             prepared.deoptimizations.forEach(::deoptimize)
             installThumbnail(prepared.thumbnail, existingHookIds)
             DebugLog.w(TAG, "Lensient AIM bridge unresolved; retained thumbnail only")
-        }) else ({ targets = resolved; install(resolved, existingHookIds) })
+        }) else ({ retired = false; targets = resolved; install(resolved, existingHookIds); refreshSettings() })
     }
 
     /** Replacement callbacks used before the new generation starts resolving DexKit. */
     internal fun replacement(id: String): XposedInterface.Hooker? {
+        // Old source-level overrides populated permanent host caches; retain only an inert handle.
+        if (id == HOOK_CAPABILITY) return XposedInterface.Hooker { chain -> chain.proceed() }
         if (id == HOOK_THUMBNAIL) {
             return XposedInterface.Hooker { chain -> retainThumbnail(chain) }
         }
@@ -182,22 +185,16 @@ object GoogleAppAskAboutScreenHooker : StaticHooker() {
             HOOK_HINT -> XposedInterface.Hooker { chain ->
                 enableNativeHint(chain, previousTargets)
             }
-            HOOK_CAPABILITY -> XposedInterface.Hooker { chain -> overrideCapability(chain) }
+            HOOK_COORDINATOR -> XposedInterface.Hooker { chain -> captureCoordinator(chain, previousTargets) }
             else -> null
         }
     }
 
     private fun install(t: Targets, existingHookIds: Set<String>) {
-        // The coordinator caches the server capability while its constructor runs. Hook the
-        // original source as well as the later bridge: otherwise a model created after the hook
-        // still snapshots Google's false result into a final field before the bridge is reached.
         t.deoptimizations.forEach(::deoptimize)
-
-        t.capability?.let { capability ->
-            if (existingHookIds.contains(HOOK_CAPABILITY)) return@let
-            capability.isAccessible = true
-            capability.hook(HOOK_CAPABILITY) {
-                intercept { chain -> overrideCapability(chain) }
+        if (!existingHookIds.contains(HOOK_COORDINATOR)) {
+            t.coordinatorConstructor.hook(HOOK_COORDINATOR) {
+                intercept { chain -> captureCoordinator(chain, t) }
             }
         }
 
@@ -250,13 +247,11 @@ object GoogleAppAskAboutScreenHooker : StaticHooker() {
         DebugLog.i(TAG, "HOOK_OK Lensient thumbnail retention=$target")
     }
 
-    private fun overrideCapability(chain: XposedInterface.Chain): Any? {
+    private fun captureCoordinator(chain: XposedInterface.Chain, target: Targets): Any? {
         val result = chain.proceed()
-        if (featureEnabled() && result == false) {
-            if (capabilityOverrideLogged.compareAndSet(false, true)) {
-                DebugLog.i(TAG, "runtime opened cached Lensient screen capability")
-            }
-            return true
+        HookFailurePolicy.open(TAG, "capture native capability", Unit) {
+            coordinators.capture(chain.thisObject, listOf(target.cached))
+            coordinators.apply { featureEnabled() && target.isOmni(it) }
         }
         return result
     }
@@ -287,31 +282,63 @@ object GoogleAppAskAboutScreenHooker : StaticHooker() {
         enableNativeHint(chain, targets)
 
     private fun enableNativeHint(chain: XposedInterface.Chain, target: Targets?): Any? {
-        val replacements = if (target != null && target.modelConstructor == chain.executable && featureEnabled()) {
-            HookFailurePolicy.open(TAG, "constructor boolean argument contract", null as Array<Any?>?) {
-                BooleanArgumentOverride.copy(target.modelConstructor.parameterTypes, chain.args,
-                    target.aimBooleanParameterIndices).also {
-                    if (it == null) DebugLog.w(TAG, "AIM constructor argument contract changed; preserving native arguments")
-                }
-            }
-        } else null
-        // Proceed exactly once and let the host's own constructor exception propagate normally.
-        val result = if (replacements != null) chain.proceed(replacements) else chain.proceed()
-        if (target == null || target.modelConstructor != chain.executable || !featureEnabled()) {
-            return result
-        }
-        HookFailurePolicy.open(TAG, "hint", Unit) {
-            val model = chain.thisObject
-            if (target.isOmni(target.modelCoordinator.get(model)) &&
-                target.hint.getBoolean(model) == false
-            ) {
-                target.hint.setBoolean(model, true)
-                if (hintOverrideLogged.compareAndSet(false, true)) {
-                    DebugLog.i(TAG, "runtime enabled native OMNI Ask Screen hint")
-                }
-            }
+        // Run native construction unchanged, then overlay only proven boolean assignments.
+        val result = chain.proceed()
+        if (target == null || target.modelConstructor != chain.executable) return result
+        HookFailurePolicy.open(TAG, "capture AIM model", Unit) {
+            models.capture(chain.thisObject, target.aimFields)
+            target.modelCoordinator.get(chain.thisObject)?.let { coordinators.capture(it, listOf(target.cached)) }
+            applyModels(target)
         }
         return result
+    }
+
+    private fun applyModels(target: Targets) {
+        coordinators.apply { featureEnabled() && target.isOmni(it) }
+        models.apply { model -> featureEnabled() && target.isOmni(target.modelCoordinator.get(model)) }
+    }
+
+    internal fun hasResolvedTargets(): Boolean = targets != null
+
+    fun refreshSettings(): Boolean = HostAccess.onMain {
+        val target = targets ?: return@onMain false
+        HookFailurePolicy.open(TAG, "refresh AIM models", false) {
+            // Native view→fragment tags survive module replacement and require no unobfuscated
+            // FragmentManager accessor. Recover attached peers even without saved feature state.
+            val activityThread = Class.forName("android.app.ActivityThread")
+            val thread = HostAccess.requirePublicMethod(activityThread, "currentActivityThread", accessible = false).invoke(null)
+            val records = thread?.let { HostAccess.read(it, "mActivities") } as? Map<*, *>
+            records?.values?.filterNotNull()?.forEach { record ->
+                val activity = HostAccess.read(record, "activity") as? android.app.Activity ?: return@forEach
+                if (activity.isDestroyed) return@forEach
+                val root = activity.window?.peekDecorView() ?: return@forEach
+                val views = java.util.ArrayDeque<android.view.View>().apply { add(root) }
+                while (views.isNotEmpty()) {
+                    val view = views.removeFirst()
+                    val fragment = target.viewFragment.invoke(null, view)
+                    if (fragment != null && target.peer.declaringClass.isInstance(fragment)) {
+                        target.peer.get(fragment)?.let { model ->
+                            models.capture(model, target.aimFields)
+                            target.modelCoordinator.get(model)?.let { coordinators.capture(it, listOf(target.cached)) }
+                        }
+                    }
+                    if (view is android.view.ViewGroup) {
+                        for (child in 0 until view.childCount) views.add(view.getChildAt(child))
+                    }
+                }
+            }
+            applyModels(target)
+            // Existing pixels are owned by Google's view/flow lifecycle: the next native bind or
+            // reopening the overlay renders the new model; never replay its search-submission API.
+            true
+        }
+    }
+
+    override fun recoverHotReloadHosts() { refreshSettings() }
+    override fun onPrepareHotReload() = HostAccess.onMain {
+        retired = true
+        models.restore()
+        coordinators.restore()
     }
 
     private fun retainThumbnail(chain: XposedInterface.Chain): Any? {
@@ -365,11 +392,7 @@ object GoogleAppAskAboutScreenHooker : StaticHooker() {
         return ThumbnailTarget(thumbnail, thumbnailData)
     }
 
-    /**
-     * Recovers the whole Ask Screen bridge from the `vidcip` thumbnail owner and the native hint
-     * marker. Every step must be unique; any ambiguity returns null while the independent
-     * thumbnail hook remains eligible for installation.
-     */
+    /** Recover the unique native ownership graph from the thumbnail host; diagnostics are not anchors. */
     private fun resolveTargets(
         bridge: DexKitBridge,
         thumbnailTarget: ThumbnailTarget
@@ -377,137 +400,42 @@ object GoogleAppAskAboutScreenHooker : StaticHooker() {
         val thumbnail = thumbnailTarget.method
         val thumbnailData = thumbnailTarget.data
 
-        val markers = bridge.findMethod {
-            matcher {
-                paramCount(1)
-                usingEqStrings(HINT_MARKER)
-            }
-        }
-        if (markers.size != 1) {
-            DebugLog.w(TAG, "hint marker matches=${markers.size}")
+        val apk = hookParam.appInfo?.sourceDir ?: return null
+        val index = DexRuntime.operands(apk, hookParam.appInfo)
+        fun method(descriptor: String) = index.definition(descriptor)
+        val graphs = AskScreenGraphContract.resolve(index, thumbnailData.descriptor,
+            callers = { reference ->
+                bridge.getMethodData(MethodDescriptorCodec.descriptor(reference))?.callers.orEmpty()
+                    .mapNotNull { method(it.descriptor) }
+            },
+            uses = { reference ->
+                val data = bridge.getFieldData(MethodDescriptorCodec.descriptor(reference))
+                AskScreenGraphContract.FieldUses(
+                    data?.readers.orEmpty().mapNotNull { method(it.descriptor) },
+                    data?.writers.orEmpty().mapNotNull { method(it.descriptor) },
+                )
+            },
+            isOmniEntry = { reference ->
+                bridge.getMethodData(MethodDescriptorCodec.descriptor(reference))?.let(::isOmniEntryTest) == true
+            },
+        )
+        // Ambiguity is rejected before materializing any alternative. No diagnostic-string or
+        // version-dependent chain is allowed to rescue a missing/changed ownership graph.
+        if (graphs.size != 1) {
+            DebugLog.w(TAG, "Ask Screen ownership graph matches=${graphs.size}")
             return null
         }
-        val marker = markers.single()
-
-        var accessors = 0
-        var hints = 0
-        var readers = 0
-        var gates = 0
-        var omniTests = 0
-        val matches = LinkedHashMap<String, Targets>()
-
-        for (accessor in marker.invokes) {
-            if (accessor.paramCount != 0) continue
-            val accessorReturnType = runCatching {
-                accessor.getReturnTypeInstance(classLoader)
-            }.getOrNull() ?: continue
-            if (accessorReturnType.isPrimitive || accessorReturnType == Void.TYPE) continue
-            accessors++
-            for (use in marker.usingFields) {
-                val hint = use.field
-                if (hint.declaredClassName != accessor.declaredClassName ||
-                    hint.typeName != "boolean"
-                ) {
-                    continue
-                }
-                hints++
-                for (reader in hint.readers) {
-                    if (reader.declaredClassName != hint.declaredClassName ||
-                        reader.paramCount != 0 || reader.returnTypeName != "void"
-                    ) {
-                        continue
-                    }
-                    readers++
-                    for (gate in reader.invokes) {
-                        if (!gate.isMethod || gate.paramCount != 0 ||
-                            gate.returnTypeName != "boolean" || gate.invokes.size != 1
-                        ) {
-                            continue
-                        }
-                        gates++
-                        val entry = gate.invokes[0]
-                        if (!isOmniEntryTest(entry)) continue
-                        omniTests++
-
-                        // The gate must use exactly two fields: a cached boolean and the
-                        // entrypoint owner. More than one of either is ambiguous.
-                        var cached: FieldData? = null
-                        var entryOwner: FieldData? = null
-                        var gateAmbiguous = false
-                        for (gateUse in gate.usingFields) {
-                            val field = gateUse.field
-                            if (field.declaredClassName != gate.declaredClassName) continue
-                            if (field.typeName == "boolean") {
-                                if (cached != null) {
-                                    gateAmbiguous = true
-                                    break
-                                }
-                                cached = field
-                            } else if (field.typeName == entry.declaredClassName) {
-                                if (entryOwner != null) {
-                                    gateAmbiguous = true
-                                    break
-                                }
-                                entryOwner = field
-                            }
-                        }
-                        if (gateAmbiguous || cached == null || entryOwner == null ||
-                            gate.usingFields.size != 2
-                        ) {
-                            continue
-                        }
-
-                        // The coordinator is whatever the thumbnail owner holds a field of.
-                        val coordinator = runCatching { gate.getClassInstance(classLoader) }
-                            .getOrNull() ?: continue
-                        var sharedWithThumbnail = false
-                        for (declared in thumbnail.declaringClass.declaredFields) {
-                            if (!Modifier.isStatic(declared.modifiers) &&
-                                declared.type == coordinator
-                            ) {
-                                sharedWithThumbnail = true
-                            }
-                        }
-                        if (!sharedWithThumbnail) continue
-
-                        // The reader holds the model reference, binding the hint to that model.
-                        var modelOwner: FieldData? = null
-                        var modelOwnerAmbiguous = false
-                        for (readerUse in reader.usingFields) {
-                            val field = readerUse.field
-                            if (field.declaredClassName == hint.declaredClassName &&
-                                field.typeName == gate.declaredClassName
-                            ) {
-                                if (modelOwner != null) {
-                                    modelOwnerAmbiguous = true
-                                    break
-                                }
-                                modelOwner = field
-                            }
-                        }
-                        if (modelOwnerAmbiguous || modelOwner == null) continue
-
-                        val constructors = hint.writers.filter {
-                            it.isConstructor && it.declaredClassName == hint.declaredClassName
-                        }
-                        if (constructors.size != 1) continue
-
-                        val targets = buildTargets(
-                            thumbnail, thumbnailData, gate, constructors.single(),
-                            hint, cached, modelOwner, entryOwner, entry
-                        ) ?: continue
-                        matches[gate.descriptor + hint.descriptor + modelOwner.descriptor] = targets
-                    }
-                }
-            }
-        }
-
-        DebugLog.i(
-            TAG,
-            "resolver: accessors=$accessors, hints=$hints, readers=$readers" +
-                ", gates=$gates, omniTests=$omniTests, targets=${matches.size}"
-        )
-        return matches.values.singleOrNull()
+        val graph = graphs.single()
+        val gate = bridge.getMethodData(graph.eligibility) ?: return null
+        val constructor = bridge.getMethodData(graph.constructor) ?: return null
+        val hint = bridge.getFieldData(graph.hint) ?: return null
+        val cached = bridge.getFieldData(graph.cached) ?: return null
+        val modelOwner = bridge.getFieldData(graph.modelCoordinator) ?: return null
+        val entryOwner = bridge.getFieldData(graph.entryOwner) ?: return null
+        val entry = bridge.getMethodData(graph.entry) ?: return null
+        val target = buildTargets(bridge, thumbnail, thumbnailData, gate, constructor, hint, cached, modelOwner, entryOwner, entry)
+        DebugLog.i(TAG, "Ask Screen ownership graph unique, materialized=${target != null}")
+        return target
     }
 
     /**
@@ -536,6 +464,7 @@ object GoogleAppAskAboutScreenHooker : StaticHooker() {
 
     /** Materializes the resolved bridge, rejecting any static member (see upstream's guards). */
     private fun buildTargets(
+        bridge: DexKitBridge,
         thumbnail: Method,
         thumbnailData: MethodData,
         gate: MethodData,
@@ -560,10 +489,12 @@ object GoogleAppAskAboutScreenHooker : StaticHooker() {
         val coordinatorConstructorData = cached.writers.singleOrNull {
             it.isConstructor && it.declaredClassName == gate.declaredClassName
         }
-        val capabilityData = coordinatorConstructorData?.invokes?.filter {
+        val coordinatorConstructor = coordinatorConstructorData?.getConstructorInstance(classLoader) ?: return null
+        val cachedField = cached.getFieldInstance(classLoader).apply { isAccessible = true }
+        val capabilityData = coordinatorConstructorData.invokes.filter {
             it.isMethod && it.paramCount == 0 && it.returnTypeName == "boolean" &&
                 it.declaredClassName != gate.declaredClassName
-        }?.singleOrNull()
+        }.singleOrNull()
         val capability = capabilityData?.let {
             runCatching { it.getMethodInstance(classLoader) }.getOrNull()
         }
@@ -595,12 +526,27 @@ object GoogleAppAskAboutScreenHooker : StaticHooker() {
         modelCoordinator.isAccessible = true
         entryOwnerField.isAccessible = true
         entryMethod.isAccessible = true
+        val apk = hookParam.appInfo?.sourceDir ?: return null
+        val descriptors = AskScreenModelContract.fields(DexRuntime.operands(apk, hookParam.appInfo),
+            MethodDescriptorCodec.descriptor(modelConstructor), aimBooleanParameterIndices.toSet()) ?: return null
+        val aimFields = descriptors.map { MethodDescriptorCodec.field(it, classLoader) ?: return null }
+        if (hintField !in aimFields) return null
+        val peers = modelConstructor.parameterTypes.filterNot { it.isPrimitive }.flatMap { type ->
+            type.declaredFields.filter { !Modifier.isStatic(it.modifiers) && it.type == modelConstructor.declaringClass }
+        }.distinct()
+        val peer = peers.singleOrNull()?.apply { isAccessible = true } ?: return null
+        val childManager = HostAccess.requirePublicMethod(peer.declaringClass, "getChildFragmentManager", accessible = false)
+        val viewFragmentDescriptor = AskScreenGraphContract.fragmentLookup(DexRuntime.operands(apk, hookParam.appInfo),
+            MethodDescriptorCodec.typeDescriptor(childManager.returnType), MethodDescriptorCodec.typeDescriptor(childManager.declaringClass)) ?: return null
+        val viewFragment = MethodDescriptorCodec.method(viewFragmentDescriptor, classLoader) ?: return null
         return Targets(
             thumbnail, eligibility, modelConstructor,
             hintField, modelCoordinator, entryOwnerField, entryMethod,
             capability, aimBooleanParameterIndices,
             listOfNotNull(thumbnailData, gate, constructorData, coordinatorConstructorData, capabilityData)
-                .flatMap(::executablesWithCallers).distinct()
+                .flatMap(::executablesWithCallers).plus(aimFields.flatMap { field ->
+                    bridge.getFieldData(field)?.readers.orEmpty().flatMap(::executablesWithCallers)
+                }).plus(cached.readers.flatMap(::executablesWithCallers)).distinct(), aimFields, peer, cachedField, coordinatorConstructor, viewFragment
         )
     }
 
@@ -659,7 +605,12 @@ object GoogleAppAskAboutScreenHooker : StaticHooker() {
         val entry: Method,
         val capability: Method?,
         val aimBooleanParameterIndices: IntArray,
-        val deoptimizations: List<Executable>
+        val deoptimizations: List<Executable>,
+        val aimFields: List<Field>,
+        val peer: Field,
+        val cached: Field,
+        val coordinatorConstructor: Constructor<*>,
+        val viewFragment: Method,
     ) {
         /** True only when Google's own entrypoint check reports the OMNI overlay. */
         fun isOmni(coordinator: Any?): Boolean {

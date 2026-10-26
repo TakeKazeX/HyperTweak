@@ -38,6 +38,30 @@ object PasskeyHooker : StaticHooker() {
     // Published on settings acceptance; hook callbacks perform no storage reads.
     private val settingUnlockPasskey by hookSetting(false) { Preferences.getBoolean(PlatformSettingsKeys.KEY_UNLOCK_PASSKEY, false) }
 
+    @Volatile private var retired = false
+    private val featureEnabled get() = !retired && settingUnlockPasskey
+    private class BoundRow(preference: Any, holder: Any) {
+        val preference = java.lang.ref.WeakReference(preference)
+        val holder = java.lang.ref.WeakReference(holder)
+    }
+    private val rows = generationMainResource(ArrayList<BoundRow>()) { it.clear() }
+    private var bindMethod: Method? by generationState { null }
+
+    fun refreshSettings(): Boolean = HostAccess.onMain {
+        val method = bindMethod ?: return@onMain true
+        rows.removeAll { it.preference.get() == null || it.holder.get() == null }
+        var applied = true
+        rows.toList().forEach { row ->
+            val preference = row.preference.get() ?: return@forEach
+            val holder = row.holder.get() ?: return@forEach
+            runCatching { method.invoke(preference, holder) }.onFailure {
+                applied = false
+                DebugLog.w(TAG, "credential row rebind failed", it)
+            }
+        }
+        applied
+    }
+
     private const val TAG = "HyperPasskey"
     private var fIsInternationalBuildBoolean: Field? by generationState { null }
 
@@ -46,11 +70,14 @@ object PasskeyHooker : StaticHooker() {
     private val PREV_VALUE = ThreadLocal<Boolean>()
 
     override fun onPrepareHotReload() {
+        retired = true
+        refreshSettings()
         DEPTH.remove()
         PREV_VALUE.remove()
     }
 
     override fun onHook() {
+        retired = false
         val packageName = hookParam.packageName
 
         if (packageName == "system") {
@@ -122,7 +149,7 @@ object PasskeyHooker : StaticHooker() {
         constructorRequestSession?.hook {
             after { param ->
                 HookFailurePolicy.open(TAG, "RequestSession#hybridService", Unit) {
-                    if (settingUnlockPasskey) {
+                    if (featureEnabled) {
                         fHybridService.set(param.thisObject, "com.google.android.gms/.auth.api.credentials.credman.service.RemoteService")
                     }
                 }
@@ -143,7 +170,7 @@ object PasskeyHooker : StaticHooker() {
 
         mGetOemOverrideComponentName?.hook {
             intercept { chain ->
-                if (!settingUnlockPasskey) {
+                if (!featureEnabled) {
                     return@intercept chain.proceed()
                 }
                 val args = chain.args
@@ -272,6 +299,7 @@ object PasskeyHooker : StaticHooker() {
             parameterTypes(Context::class.java, CharSequence::class.java, CharSequence::class.java, Int::class.javaPrimitiveType!!)
         }?.hook {
             intercept { chain ->
+                if (!featureEnabled) return@intercept chain.proceed()
                 val args = chain.args
                 val context = args.getOrNull(0) as? Context
                 val packageName = args.getOrNull(1)?.toString()
@@ -337,13 +365,18 @@ object PasskeyHooker : StaticHooker() {
         val combiPreferenceClass =
             "com.android.settings.applications.credentials.CredentialManagerPreferenceController\$CombiPreference".toClassOrNull() ?: return
         val preferenceViewHolderClass = "androidx.preference.PreferenceViewHolder".toClassOrNull() ?: return
-        combiPreferenceClass.findMethodOrNull {
+        val bind = combiPreferenceClass.findMethodOrNull {
             name("onBindViewHolder")
             parameterTypes(preferenceViewHolderClass)
-        }?.hook {
+        } ?: return
+        bindMethod = bind
+        bind.hook {
             after { param ->
                 HookFailurePolicy.open(TAG, "CombiPreference#onBindViewHolder switch wiring", Unit) {
-                    wireCombiPreferenceSwitch(param.thisObject, param.args.getOrNull(0))
+                    val holder = param.args.getOrNull(0) ?: return@open
+                    rows.removeAll { it.preference.get() == null || it.holder.get() == null || it.holder.get() === holder }
+                    rows += BoundRow(param.thisObject, holder)
+                    if (featureEnabled) wireCombiPreferenceSwitch(param.thisObject, holder)
                 }
             }
         }
@@ -553,7 +586,7 @@ object PasskeyHooker : StaticHooker() {
             deoptimize(method)
             method.hook {
                 intercept { chain ->
-                    if (settingUnlockPasskey) {
+                    if (featureEnabled) {
                         null
                     } else {
                         chain.proceed()
@@ -575,7 +608,7 @@ object PasskeyHooker : StaticHooker() {
                 val aMethod = HostAccess.requireDeclaredMethod(iClass, "getAppPackageName", accessible = false)
                 aMethod.hook {
                     intercept { chain ->
-                        if (settingUnlockPasskey) {
+                        if (featureEnabled) {
                             ""
                         } else {
                             chain.proceed()
@@ -610,7 +643,7 @@ object PasskeyHooker : StaticHooker() {
     }
 
     private fun handleIsInternationalBuild(chain: Any): Any? {
-        if (fIsInternationalBuildBoolean == null || !settingUnlockPasskey) {
+        if (fIsInternationalBuildBoolean == null || !featureEnabled) {
             return proceedChain(chain)
         }
         INTL_LOCK.lock()

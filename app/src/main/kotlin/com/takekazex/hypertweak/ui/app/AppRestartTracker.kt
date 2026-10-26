@@ -62,18 +62,12 @@ private val TWEAK_RESTART_SCOPES = mapOf(
     SystemUiSettingsKeys.KEY_LOCKSCREEN_ALL_NOTIFICATIONS to RestartScopeSelection(systemUi = true),
     SystemUiSettingsKeys.KEY_LOCKSCREEN_KEEP_NOTIFICATIONS to RestartScopeSelection(systemUi = true),
     PlatformSettingsKeys.KEY_SHOW_IN_SETTINGS to RestartScopeSelection(settings = true),
-    PlatformSettingsKeys.KEY_SHOW_GOOGLE_SERVICES_IN_SETTINGS to RestartScopeSelection(settings = true),
     PlatformSettingsKeys.KEY_SETTINGS_GLOBAL_INTERFACE to RestartScopeSelection(settings = true),
     PlatformSettingsKeys.KEY_DISABLE_VIDEO_RINGBACK to RestartScopeSelection(
         additionalPackages = setOf(
             RestartScopeSelection.PACKAGE_PHONE,
             RestartScopeSelection.PACKAGE_XIAOMI_PHONE
         )
-    ),
-    PlatformSettingsKeys.KEY_UNLOCK_PASSKEY to RestartScopeSelection(
-        settings = true,
-        securityCenter = true,
-        scanner = true
     ),
     PlatformSettingsKeys.KEY_DISABLE_SPATIAL_AUDIO to RestartScopeSelection(
         settings = true,
@@ -85,7 +79,6 @@ private val TWEAK_RESTART_SCOPES = mapOf(
         milink = true,
         bluetooth = true
     ),
-    PlatformSettingsKeys.KEY_FCM_LIVE_ENABLED to RestartScopeSelection(powerkeeper = true),
     PlatformSettingsKeys.KEY_LBE_CLIPBOARD_TOAST to RestartScopeSelection(
         // Both packages ship the vendor clipboard-read overlay; Security Center is the one that
         // actually builds the one the user sees, so both processes must reload the hook.
@@ -99,17 +92,6 @@ private val TWEAK_RESTART_SCOPES = mapOf(
         additionalPackages = setOf(RestartScopeSelection.PACKAGE_GUARD_PROVIDER)
     ),
     PlatformSettingsKeys.KEY_MILINK_BLOCK_HPPLAY_FILES to RestartScopeSelection(milink = true),
-    // The Quick Share phenotype override lives in Google Play services; GMS is a declared
-    // required scope entry, so the toggle flows through the standard Home restart button.
-    PlatformSettingsKeys.KEY_QUICK_SHARE_ENABLED to RestartScopeSelection(gms = true),
-    // Google-side feature toggles restart the Google app only after the user confirms the
-    // standard Home restart dialog.
-    PlatformSettingsKeys.KEY_FULL_SCREEN_TRANSLATE to RestartScopeSelection(
-        additionalPackages = setOf(RestartScopeSelection.PACKAGE_GOOGLE_APP)
-    ),
-    PlatformSettingsKeys.KEY_ASK_ABOUT_SCREEN to RestartScopeSelection(
-        additionalPackages = setOf(RestartScopeSelection.PACKAGE_GOOGLE_APP)
-    ),
     // The theme rights-check hook installs into the Theme Manager process. The framework-side
     // re-validation hook lives in system_server, which the app cannot restart; the Home page's
     // hot reload (or a reboot) is what applies that half.
