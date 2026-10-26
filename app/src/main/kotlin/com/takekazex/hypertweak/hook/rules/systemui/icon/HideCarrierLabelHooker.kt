@@ -8,8 +8,8 @@ import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
 import com.takekazex.hypertweak.hook.base.HostAccess
 import android.view.View
 import android.view.ViewGroup
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.reflect.Field
@@ -30,13 +30,22 @@ import androidx.core.view.isGone
  * SystemUI restart.
  */
 object HideCarrierLabelHooker : StaticHooker() {
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingIconHideCarrierOne by hookSetting(false) { Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_CARRIER_ONE, false) }
+    private val settingIconHideCarrierTwo by hookSetting(false) { Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_CARRIER_TWO, false) }
+    private val settingIconHideCarrierHd by hookSetting(false) { Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_CARRIER_HD, false) }
+    private val settingIconHideLsCarrierOne by hookSetting(false) {
+        Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_LS_CARRIER_ONE, false)
+    }
+    private val settingIconHideLsCarrierTwo by hookSetting(false) {
+        Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_LS_CARRIER_TWO, false)
+    }
+
     init {
         hostRecovery(HostRecoveryPhase.ICONS, icons = true) {
             recoverExistingViews(it.views)
         }
     }
-
-    override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
 
     private const val TAG = "IconTuner"
     private const val LAYOUT_CLASS = "com.android.systemui.controlcenter.shade.MiuiCarrierTextLayout"
@@ -50,20 +59,20 @@ object HideCarrierLabelHooker : StaticHooker() {
     private var hideLsOne by generationState { false }
     private var hideLsTwo by generationState { false }
 
-    private val hiddenViews = WeakHashMap<View, Int>()
+    private val hiddenViews = generationMainResource(WeakHashMap<View, Int>()) { it.clear() }
     private fun hideView(view: View) {
         if (!hiddenViews.containsKey(view) || view.visibility != View.GONE) hiddenViews[view] = view.visibility
         view.visibility = View.GONE
     }
 
     // Reflection cache.
-    private var leftTextField: Field? = null
-    private var rightTextField: Field? = null
-    private var keyguardLayoutField: Field? = null
-    private var carrierTextViewField: Field? = null
-    private var hdTextField: Field? = null
-    private var plusTextField: Field? = null
-    private var callbackOwnerField: Field? = null
+    private var leftTextField: Field? by generationState { null }
+    private var rightTextField: Field? by generationState { null }
+    private var keyguardLayoutField: Field? by generationState { null }
+    private var carrierTextViewField: Field? by generationState { null }
+    private var hdTextField: Field? by generationState { null }
+    private var plusTextField: Field? by generationState { null }
+    private var callbackOwnerField: Field? by generationState { null }
 
     override fun onPrepareHotReload() {
         HostAccess.onMain {
@@ -73,11 +82,11 @@ object HideCarrierLabelHooker : StaticHooker() {
     }
 
     override fun onHook() {
-        hideOne = Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_CARRIER_ONE, false)
-        hideTwo = Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_CARRIER_TWO, false)
-        hideHd = Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_CARRIER_HD, false)
-        hideLsOne = Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_LS_CARRIER_ONE, false)
-        hideLsTwo = Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_LS_CARRIER_TWO, false)
+        hideOne = settingIconHideCarrierOne
+        hideTwo = settingIconHideCarrierTwo
+        hideHd = settingIconHideCarrierHd
+        hideLsOne = settingIconHideLsCarrierOne
+        hideLsTwo = settingIconHideLsCarrierTwo
         if (!hideOne && !hideTwo && !hideHd && !hideLsOne && !hideLsTwo) {
             DebugLog.hookSkippedDebug(TAG, "HideCarrierLabel", "disabled")
             return

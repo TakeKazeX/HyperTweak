@@ -3,9 +3,9 @@ package com.takekazex.hypertweak.hook.rules.systemui.lockscreen
 import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.reflect.Field
@@ -36,7 +36,10 @@ import java.lang.reflect.Method
  * time. The master switch gates hook installation and needs a SystemUI restart.
  */
 object LockscreenKeepNotificationsHooker : StaticHooker() {
-    override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingLockscreenKeepNotifications by hookSetting(false) {
+        Preferences.getBoolean(SystemUiSettingsKeys.KEY_LOCKSCREEN_KEEP_NOTIFICATIONS, false)
+    }
 
     private const val TAG = "LockscreenKeepNotifications"
     private const val FILTER_CONTROLLER =
@@ -51,7 +54,7 @@ object LockscreenKeepNotificationsHooker : StaticHooker() {
     override fun onHook() {
         mSbnField = null
         canShowOnKeyguard = null
-        if (!Preferences.getBoolean(SystemUiSettingsKeys.KEY_LOCKSCREEN_KEEP_NOTIFICATIONS, false)) {
+        if (!settingLockscreenKeepNotifications) {
             DebugLog.hookSkippedDebug(TAG, "lockscreen keep notifications", "disabled")
             return
         }

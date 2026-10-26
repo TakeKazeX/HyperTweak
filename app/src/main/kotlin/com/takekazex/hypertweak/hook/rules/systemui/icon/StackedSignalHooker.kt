@@ -17,9 +17,9 @@ import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import android.telephony.SubscriptionManager
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HostAccess
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 import com.takekazex.hypertweak.presentation.icon.duo.DuoSignalRow
@@ -49,6 +49,25 @@ import org.luckypray.dexkit.result.MethodData
  */
 @SuppressLint("StaticFieldLeak")
 object StackedSignalHooker : StaticHooker() {
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingIconMobileRowStyle by hookSetting(0) { Preferences.getInt(IconSettingsKeys.KEY_ICON_MOBILE_ROW_STYLE, 0) }
+    private val settingIconStackedEnabled by hookSetting(false) { Preferences.getBoolean(IconSettingsKeys.KEY_ICON_STACKED_ENABLED, false) }
+    private val settingIconHideMobileOnWifi by hookSetting(false) {
+        Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_MOBILE_ON_WIFI, false)
+    }
+    private val settingIconStackedSignalStyle by hookSetting(0) { Preferences.iconStackedSignalStyle() }
+    private val settingIconStackedWeight by hookSetting(0f) { Preferences.getFloat(IconSettingsKeys.KEY_ICON_STACKED_WEIGHT, 0f) }
+    private val settingIconStackedTypeHideDisconnect by hookSetting(false) {
+        Preferences.getBoolean(IconSettingsKeys.KEY_ICON_STACKED_TYPE_HIDE_DISCONNECT, false)
+    }
+    private val settingCellularTypeKeepsOnWifi by hookSetting(false) { Preferences.cellularTypeKeepsOnWifi() }
+    private val settingIconStackedTypeRoaming by hookSetting(false) {
+        Preferences.getBoolean(IconSettingsKeys.KEY_ICON_STACKED_TYPE_ROAMING, false)
+    }
+    private val settingIconCellularTypeSmall5ga by hookSetting(false) {
+        Preferences.getBoolean(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_SMALL_5GA, false)
+    }
+
     init {
         hostRecovery(HostRecoveryPhase.ADAPTER, icons = true) {
             it.adapter?.let(::recoverAdapter)
@@ -57,7 +76,6 @@ object StackedSignalHooker : StaticHooker() {
 
     private const val PANEL_CALLBACK_OWNER_MARKER =
         "com.android.systemui.controlcenter.shade.ControlCenterHeaderExpandController\$controlCenterCallback"
-    override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
 
     private const val TAG = "IconTuner"
     private const val SLOT_STACKED = "stacked_mobile_icon"
@@ -85,7 +103,7 @@ object StackedSignalHooker : StaticHooker() {
     }
     private val generation = AtomicLong(0L)
     private val assetLoads = SignalAssetLoadState<SignalAssets>(generation, ASSET_LOAD_RETRY_BACKOFF_MS)
-    private val installed = AtomicBoolean(false)
+    private val installed = generationResource(AtomicBoolean(false)) { it.set(false) }
     private val source = MobileSignalSource(
         this, generation, { enabled }, { renderStacked }, { hostContext },
         onAdapterReady = { controller, bindingGeneration ->
@@ -109,11 +127,10 @@ object StackedSignalHooker : StaticHooker() {
         scheduleRender = ::scheduleRender
     )
 
-    @Volatile
-    private var enabled = false
+    private var enabled by generationState { false }
 
-    private var renderStacked = false
-    private val panelMotions = IdentityHashMap<Any, StackedPanelMotion>()
+    private var renderStacked by generationState { false }
+    private val panelMotions = generationMainResource(IdentityHashMap<Any, StackedPanelMotion>()) { it.clear() }
     private var slotIndices: Map<Int, Int> by generationState { emptyMap() }
     private var publishedSignalRows: List<DuoSignalRow> by generationState { emptyList() }
     private var publishedSignalPicture: PublishedSignalPicture? by generationState { null }
@@ -123,27 +140,23 @@ object StackedSignalHooker : StaticHooker() {
     )
     private var publishedSignalKey: SignalRenderKey? by generationState { null }
     private var publishedTypeBitmap: android.graphics.Bitmap? by generationState { null }
-    private var publishedTypeSuppressed = false
+    private var publishedTypeSuppressed by generationState { false }
     private var pendingRender: Runnable? by generationState { null }
 
     /** Hide the whole module-owned stacked slot (signal + type) while WiFi is connected. */
     private var hideMobileOnWifi by generationState { false }
 
-    @Volatile
-    private var hostContext: Context? = null
+    private var hostContext: Context? by generationState { null }
 
-    @Volatile
-    private var svgRepository: IconSvgRepository? = null
+    private var svgRepository: IconSvgRepository? by generationState { null }
 
     private var iconBridge: HostIconBridge? by generationState { null }
 
     /** Bounded retries cover the short gap between package-ready and Dagger component startup. */
 
-    @Volatile
-    private var options = IconTunerOptions.snapshot()
+    private var options by generationState { IconTunerOptions.snapshot() }
 
-    @Volatile
-    private var typeConfig = MobileTypeConfig()
+    private var typeConfig by generationState { MobileTypeConfig() }
 
     /**
      * Alpha crossfade for the module-owned type slot. A Wi-Fi hand-off must not collapse the slot:
@@ -183,7 +196,6 @@ object StackedSignalHooker : StaticHooker() {
     }
 
     override fun onPrepareHotReload() {
-        enabled = false
         val retiredGeneration = assetLoads.advance()
         val retiringBridge = iconBridge
 
@@ -208,14 +220,14 @@ object StackedSignalHooker : StaticHooker() {
     internal val mobilePipelineConnected get() = source.mobilePipelineConnected
     internal fun recoverAdapter(adapter: Any) = source.recoverAdapter(adapter)
 
-    private var dataFirst = false
+    private var dataFirst by generationState { false }
 
     override fun onHook() {
-        dataFirst = Preferences.getInt(IconSettingsKeys.KEY_ICON_MOBILE_ROW_STYLE, 0) == 1
+        dataFirst = settingIconMobileRowStyle == 1
         IconTunerFlows.init(classLoader)
         options = IconTunerOptions.snapshot()
-        renderStacked = Preferences.getBoolean(IconSettingsKeys.KEY_ICON_STACKED_ENABLED, false)
-        hideMobileOnWifi = Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_MOBILE_ON_WIFI, false)
+        renderStacked = settingIconStackedEnabled
+        hideMobileOnWifi = settingIconHideMobileOnWifi
         enabled = renderStacked || SignalHandoverEvents.shade.requiresMobileState() ||
             ControlCenterCarrierBlockHooker.requiresMobileState
         typeConfig = readTypeConfig()
@@ -226,7 +238,7 @@ object StackedSignalHooker : StaticHooker() {
         if (!installed.compareAndSet(false, true)) return
         // Invalidate any cleanup runnable posted by the retiring generation before it can touch a
         // holder published by this generation.
-        assetLoads.advance(SignalSvgStyle.fromStored(Preferences.iconStackedSignalStyle()))
+        assetLoads.advance(SignalSvgStyle.fromStored(settingIconStackedSignalStyle))
         if (renderStacked && !MobileSignalVisibility.installGetter(this)) {
             DebugLog.hookSkipped(TAG, "MiuiMobileIconVMImpl#isVisible", "getter bridge unavailable")
             return
@@ -481,7 +493,7 @@ object StackedSignalHooker : StaticHooker() {
         publishedSignalPicture = if (replacementVisible) PublishedSignalPicture(IconSvgRenderer.signalPicture(
             if (renderRows.size > 1) assets.stacked.document else assets.single.document,
             renderRows.map { it.level }, SIGNAL_ALPHA_BG, SIGNAL_ALPHA_ERROR,
-            weight = Preferences.getFloat(IconSettingsKeys.KEY_ICON_STACKED_WEIGHT, 0f)),
+            weight = settingIconStackedWeight),
             assets.style.stackedSplitFraction) else null
         renderTypeSlot(state, bridge)
         if (panelMotions.isNotEmpty()) {
@@ -634,19 +646,10 @@ object StackedSignalHooker : StaticHooker() {
      * [MobileTypeConfig]'s built-in default because the settings page no longer exposes it.
      */
     private fun readTypeConfig(): MobileTypeConfig = MobileTypeConfig(
-        hideWhenDisconnected = Preferences.getBoolean(
-            IconSettingsKeys.KEY_ICON_STACKED_TYPE_HIDE_DISCONNECT,
-            false
-        ),
-        hideWhenWifiAvailable = !Preferences.cellularTypeKeepsOnWifi(),
-        showRoamingPrefix = Preferences.getBoolean(
-            IconSettingsKeys.KEY_ICON_STACKED_TYPE_ROAMING,
-            false
-        ),
-        small5GaEnabled = Preferences.getBoolean(
-            IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_SMALL_5GA,
-            false
-        )
+        hideWhenDisconnected = settingIconStackedTypeHideDisconnect,
+        hideWhenWifiAvailable = !settingCellularTypeKeepsOnWifi,
+        showRoamingPrefix = settingIconStackedTypeRoaming,
+        small5GaEnabled = settingIconCellularTypeSmall5ga
     ).safe()
 
     private fun renderConfig(): IconSvgRenderConfig {
@@ -662,7 +665,7 @@ object StackedSignalHooker : StaticHooker() {
             paddingEndPx = SIGNAL_PADDING_END_PX,
             densityDpi = context?.resources?.displayMetrics?.densityDpi ?: 0,
             fontScale = context?.resources?.configuration?.fontScale ?: 1f,
-            signalWeight = Preferences.getFloat(IconSettingsKeys.KEY_ICON_STACKED_WEIGHT, 0f),
+            signalWeight = settingIconStackedWeight,
             configVersion = 3
         )
     }

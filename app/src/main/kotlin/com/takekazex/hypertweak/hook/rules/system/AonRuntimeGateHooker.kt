@@ -2,6 +2,7 @@ package com.takekazex.hypertweak.hook.rules.system
 
 import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.hook.base.StaticHooker
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.util.logging.DebugLog
 
@@ -25,6 +26,9 @@ import com.takekazex.hypertweak.util.logging.DebugLog
  * boot of system_server (both controllers read the resource once during their construction).
  */
 object AonRuntimeGateHooker : StaticHooker() {
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingUnlockMoreVisualPerception by hookSetting(false) { Preferences.unlockMoreVisualPerception() }
+
     private const val TAG = "AonRuntimeGate"
 
     /** config_aon_anti_burn_available (0x110500a0). */
@@ -49,7 +53,7 @@ object AonRuntimeGateHooker : StaticHooker() {
             if (id !in visualPerceptionIds) return@after
             if (param.result == true) return@after
             runCatching {
-                if (Preferences.unlockMoreVisualPerception()) {
+                if (settingUnlockMoreVisualPerception) {
                     param.result = true
                 }
             }.onFailure { t ->

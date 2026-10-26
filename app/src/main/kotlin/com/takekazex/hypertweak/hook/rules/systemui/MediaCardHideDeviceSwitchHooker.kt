@@ -5,9 +5,9 @@ import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 
 import android.view.View
 import android.view.ViewGroup
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.util.logging.DebugLog
@@ -38,13 +38,16 @@ import java.util.concurrent.atomic.AtomicBoolean
  * The switch gates hook installation; hot reload restores and rebinds existing native switch views.
  */
 object MediaCardHideDeviceSwitchHooker : StaticHooker() {
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingMediaCardHideDeviceSwitch by hookSetting(false) {
+        Preferences.getBoolean(SystemUiSettingsKeys.KEY_MEDIA_CARD_HIDE_DEVICE_SWITCH, false)
+    }
+
     init {
         hostRecovery(HostRecoveryPhase.WINDOWS) {
             recoverExistingViews(it.views)
         }
     }
-
-    override val hotReloadMode = HotReloadMode.RECREATE
 
     private const val TAG = "MediaCardHideDeviceSwitch"
     private const val SHADE_VC =
@@ -92,11 +95,11 @@ object MediaCardHideDeviceSwitchHooker : StaticHooker() {
 
     private val mediaSwitchVisibilityIds = generationResource(java.util.concurrent.ConcurrentHashMap<android.content.res.Resources, IntArray>()) { it.clear() }
 
-    private val visibilityGuardLogged = AtomicBoolean(false)
+    private val visibilityGuardLogged = generationResource(AtomicBoolean(false)) { it.set(false) }
 
-    @Volatile private var enabled = false
-    private var applyingVisibility = false
-    private val originals = WeakHashMap<View, Int>()
+    private var enabled by generationState { false }
+    private var applyingVisibility by generationState { false }
+    private val originals = generationMainResource(WeakHashMap<View, Int>()) { it.clear() }
     /** Every transfer/device chip the hooks have seen, for a settings pass that re-applies. */
     private val knownViews: MutableSet<View> =
         java.util.Collections.newSetFromMap(WeakHashMap<View, Boolean>())
@@ -119,7 +122,7 @@ object MediaCardHideDeviceSwitchHooker : StaticHooker() {
      * restores the visibility the host last requested when disabled.
      */
     fun refreshSettings() {
-        val next = Preferences.getBoolean(SystemUiSettingsKeys.KEY_MEDIA_CARD_HIDE_DEVICE_SWITCH, false)
+        val next = settingMediaCardHideDeviceSwitch
         val changed = next != enabled
         enabled = next
         HostAccess.onMain {
@@ -150,7 +153,7 @@ object MediaCardHideDeviceSwitchHooker : StaticHooker() {
         aospSeamlessIconField = null
         mediaSwitchVisibilityIds.clear()
         visibilityGuardLogged.set(false)
-        enabled = Preferences.getBoolean(SystemUiSettingsKeys.KEY_MEDIA_CARD_HIDE_DEVICE_SWITCH, false)
+        enabled = settingMediaCardHideDeviceSwitch
         installVisibilityGuard()
         installShadeHook()
         installIslandHook()
@@ -159,7 +162,6 @@ object MediaCardHideDeviceSwitchHooker : StaticHooker() {
     }
 
     override fun onPrepareHotReload() {
-        enabled = false
         HostAccess.onMain {
             applyingVisibility = true
             try { originals.forEach { (view, visibility) -> view.visibility = visibility } }

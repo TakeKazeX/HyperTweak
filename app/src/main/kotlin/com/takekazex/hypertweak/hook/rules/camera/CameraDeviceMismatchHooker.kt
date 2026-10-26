@@ -3,6 +3,7 @@ package com.takekazex.hypertweak.hook.rules.camera
 import com.takekazex.hypertweak.settings.contract.CameraSettingsKeys
 
 import com.takekazex.hypertweak.hook.base.dex.DexOperandIndex
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
@@ -23,6 +24,11 @@ import com.takekazex.hypertweak.util.logging.DebugLog
  * config type, both of which DexKit answers directly. See [CameraHostProfile.resolveGateFacade].
  */
 object CameraDeviceMismatchHooker : StaticHooker() {
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingCameraIgnoreDeviceMismatch by hookSetting(false) {
+        Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_IGNORE_DEVICE_MISMATCH, false)
+    }
+
     private const val TAG = "CamDeviceMismatch"
     private const val PACKAGE = "com.android.camera"
 
@@ -38,7 +44,7 @@ object CameraDeviceMismatchHooker : StaticHooker() {
         gate.hook("cam_device_mismatch_gate") {
             after { param ->
                 runCatching {
-                    if ((Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_IGNORE_DEVICE_MISMATCH, false) ||
+                    if ((settingCameraIgnoreDeviceMismatch ||
                             CameraLegendaryProfileState.selectedProfileApplied()) &&
                         param.result == true
                     ) {

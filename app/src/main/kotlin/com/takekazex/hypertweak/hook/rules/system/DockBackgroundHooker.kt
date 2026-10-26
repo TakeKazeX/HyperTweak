@@ -25,6 +25,7 @@ import com.takekazex.hypertweak.dock.DockPresentationPolicy
 import com.takekazex.hypertweak.dock.DockFrameChannel
 import com.takekazex.hypertweak.dock.DockFrameDriver
 import com.takekazex.hypertweak.hook.runtime.settings.SettingsTransport
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
@@ -38,26 +39,32 @@ import androidx.core.net.toUri
 /** WMS owns only our child layer. The wallpaper/material renderer belongs to the module app. */
 @SuppressLint("StaticFieldLeak") // Holds only system_server's process context, cleared on retirement.
 object DockBackgroundHooker : StaticHooker() {
+    init { generationCleanup { worker.shutdown() } }
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingKey by hookSetting(DockConfig().encode()) { Preferences.getString(DockConfig.KEY, DockConfig().encode()) }
+
     private const val TAG = "DockBackground"
     private val uri = "content://com.takekazex.hypertweak.dock".toUri()
     private val epoch = AtomicLong()
-    @Volatile private var stopped = true
+    @Volatile
+    private var stopped = true
+    init { generationCleanup { stopped = true } }
     private var worker = Executors.newSingleThreadExecutor { Thread(it, "HT-DockIPC").apply { isDaemon = true } }
-    private var service: Any? = null
-    private var context: Context? = null
-    private var handler: Handler? = null
-    private var wmLock: Any = Any()
+    private var service: Any? by generationState { null }
+    private var context: Context? by generationState { null }
+    private var handler: Handler? by generationState { null }
+    private var wmLock: Any by generationState { Any() }
     private val entries = WeakHashMap<Any, Entry>() // WMS global lock only.
     private val observed = WeakHashMap<Any, DockRecoveryPolicy>()
-    private var receiver: BroadcastReceiver? = null
-    private var displays: DisplayManager? = null
-    private var displayListener: DisplayManager.DisplayListener? = null
-    private var configSnapshot = DockConfig()
-    private var frameChannel: DockFrameChannel? = null
+    private var receiver: BroadcastReceiver? by generationState { null }
+    private var displays: DisplayManager? by generationState { null }
+    private var displayListener: DisplayManager.DisplayListener? by generationState { null }
+    private var configSnapshot by generationState { DockConfig() }
+    private var frameChannel: DockFrameChannel? by generationState { null }
     private val channelEpoch = AtomicLong()
     private val offerVersion = AtomicLong()
-    private var restoredMotion: Any? = null
-    private var providerLease = 0L
+    private var restoredMotion: Any? by generationState { null }
+    private var providerLease by generationState { 0L }
     private var frameDriver: DockFrameDriver? by generationState { null }
 
     private fun renderFrame() {
@@ -136,7 +143,7 @@ object DockBackgroundHooker : StaticHooker() {
         val remove = clazz.declaredMethods.singleOrNull { it.name == "removeImmediately" && it.parameterCount == 0 && it.returnType == Void.TYPE }
             ?: error("WMS remove boundary unavailable")
         stopped = false
-        configSnapshot = DockConfig.decode(Preferences.getString(DockConfig.KEY, DockConfig().encode())) ?: DockConfig()
+        configSnapshot = DockConfig.decode(settingKey) ?: DockConfig()
         providerLease = SystemClock.elapsedRealtimeNanos()
         epoch.incrementAndGet()
         if (worker.isShutdown) worker = Executors.newSingleThreadExecutor { Thread(it, "HT-DockIPC").apply { isDaemon = true } }
@@ -503,7 +510,7 @@ object DockBackgroundHooker : StaticHooker() {
     fun refreshSettings(): Boolean {
         if (stopped) return false
         val resultHandler = handler ?: return false
-        val config = DockConfig.decode(Preferences.getString(DockConfig.KEY, DockConfig().encode()))
+        val config = DockConfig.decode(settingKey)
             ?: error("invalid committed Dock configuration")
         val generation = epoch.get()
         resultHandler.post {

@@ -105,4 +105,31 @@ class GenerationStateTest {
         } finally { pool.shutdownNow() }
     }
 
+    @Test fun `resource and terminal fallbacks run when ordered feature cleanup fails`() {
+        var retired = false
+        var closed = false
+        val owner = object : StaticHooker() {
+            init {
+                generationCleanup { retired = true }
+                generationCleanup { closed = true }
+            }
+            override fun onPrepareHotReload() { error("restoration failed") }
+        }
+        assertThrows(IllegalStateException::class.java) { owner.prepareForHotReload() }
+        assertTrue(retired)
+        assertTrue(closed)
+    }
+
+    @Test fun `required installation metadata cannot leak into a replacement generation`() {
+        val state = GenerationStateOwner()
+        var target: String by state.requiredState()
+        assertThrows(UninitializedPropertyAccessException::class.java) { target }
+        target = "old-loader contract"
+        assertEquals("old-loader contract", target)
+        state.reset()
+        assertThrows(UninitializedPropertyAccessException::class.java) { target }
+        target = "new-loader contract"
+        assertEquals("new-loader contract", target)
+    }
+
 }

@@ -8,7 +8,6 @@ import android.os.Looper
 import android.provider.Settings
 import com.takekazex.hypertweak.hook.base.CompatibleMethodResolver
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.reflect.Field
@@ -60,11 +59,9 @@ object AospImeSystemHooker : StaticHooker() {
     private var cachedCurrentIme: String? by generationState { null }
 
     private val imeSettingsLock = Any()
-    private var imeSettingsAttached = false
-    private var imeSettingsObserver: ContentObserver? = null
-    private var imeSettingsResolver: android.content.ContentResolver? = null
-
-    override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
+    private var imeSettingsAttached by generationState { false }
+    private var imeSettingsObserver: ContentObserver? by generationState { null }
+    private var imeSettingsResolver: android.content.ContentResolver? by generationState { null }
 
     override fun onPrepareHotReload() {
         synchronized(imeSettingsLock) {

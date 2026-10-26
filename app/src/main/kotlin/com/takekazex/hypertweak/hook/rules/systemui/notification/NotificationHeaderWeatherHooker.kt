@@ -12,9 +12,9 @@ import android.text.TextUtils
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.util.logging.DebugLog
@@ -28,13 +28,22 @@ import java.util.concurrent.TimeUnit
 
 /** Appends Xiaomi Weather provider data to the date in the OS4 notification header. */
 object NotificationHeaderWeatherHooker : StaticHooker() {
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingNotificationHeaderWeatherEnabled by hookSetting(false) {
+        Preferences.getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_WEATHER_ENABLED, false)
+    }
+    private val settingNotificationHeaderWeatherRegion by hookSetting(false) {
+        Preferences.getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_WEATHER_REGION, false)
+    }
+    private val settingNotificationHeaderWeatherType by hookSetting(NotificationHeaderModel.WEATHER_CONDITION) {
+        Preferences.getInt(SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_WEATHER_TYPE, NotificationHeaderModel.WEATHER_CONDITION)
+    }
+
     init {
         hostRecovery(HostRecoveryPhase.HEADER_DECORATIONS) {
             recoverExistingHeaders(it.headers)
         }
     }
-
-    override val hotReloadMode = HotReloadMode.RECREATE
 
     private const val TAG = "NotificationHeaderWeather"
     private const val HEADER_CLASS = "com.android.systemui.qs.MiuiNotificationHeaderView"
@@ -57,25 +66,27 @@ object NotificationHeaderWeatherHooker : StaticHooker() {
     )
 
     private val main = Handler(Looper.getMainLooper())
-    private val headers = WeakHashMap<ViewGroup, HeaderState>()
-    private val baseTexts = WeakHashMap<TextView, String>()
-    private val dateLayouts = WeakHashMap<TextView, DateLayoutState>()
+    private val headers = generationMainResource(WeakHashMap<ViewGroup, HeaderState>()) { it.clear() }
+    private val baseTexts = generationMainResource(WeakHashMap<TextView, String>()) { it.clear() }
+    private val dateLayouts = generationMainResource(WeakHashMap<TextView, DateLayoutState>()) { it.clear() }
     private val stateLock = Any()
 
     private var showRegion by generationState { false }
-    @Volatile private var weatherType = NotificationHeaderModel.WEATHER_CONDITION
-    @Volatile private var weatherSnapshot: NotificationHeaderModel.WeatherSnapshot? = null
-    @Volatile private var lastSuccessElapsed = Long.MIN_VALUE
-    @Volatile private var lastAttemptElapsed = Long.MIN_VALUE
-    @Volatile private var fetchInFlight = false
+    private var weatherType by generationState { NotificationHeaderModel.WEATHER_CONDITION }
+    private var weatherSnapshot: NotificationHeaderModel.WeatherSnapshot? by generationState { null }
+    private var lastSuccessElapsed by generationState { Long.MIN_VALUE }
+    private var lastAttemptElapsed by generationState { Long.MIN_VALUE }
+    private var fetchInFlight by generationState { false }
 
-    private var fetcher: Any? = null
-    private var fetchMethod: Method? = null
-    private var callbackProxy: Any? = null
-    private var updateTimeMethod: Method? = null
+    private var fetcher: Any? by generationState { null }
+    private var fetchMethod: Method? by generationState { null }
+    private var callbackProxy: Any? by generationState { null }
+    private var updateTimeMethod: Method? by generationState { null }
 
-    @Volatile private var enabled = false
-    @Volatile private var retiring = false
+    private var enabled by generationState { false }
+    @Volatile
+    private var retiring = false
+    init { generationCleanup { retiring = true } }
 
     override fun saveHotReloadState(): Any = HostAccess.onMain {
         val weather = weatherSnapshot
@@ -106,7 +117,6 @@ object NotificationHeaderWeatherHooker : StaticHooker() {
 
     override fun onPrepareHotReload() {
         retiring = true
-        enabled = false
         main.removeCallbacksAndMessages(null)
         val restore = {
             runCatching { fetcher?.javaClass?.methods?.firstOrNull {
@@ -150,13 +160,10 @@ object NotificationHeaderWeatherHooker : StaticHooker() {
      * installed for the process generation, exactly like a fresh install, so this needs no restart.
      */
     fun refreshSettings() {
-        val nextEnabled = Preferences.getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_WEATHER_ENABLED, false)
-        val nextRegion = Preferences.getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_WEATHER_REGION, false)
+        val nextEnabled = settingNotificationHeaderWeatherEnabled
+        val nextRegion = settingNotificationHeaderWeatherRegion
         val nextType = NotificationHeaderModel.normalizeWeatherType(
-            Preferences.getInt(
-                SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_WEATHER_TYPE,
-                NotificationHeaderModel.WEATHER_CONDITION
-            )
+            settingNotificationHeaderWeatherType
         )
         val changed = nextEnabled != enabled || nextRegion != showRegion || nextType != weatherType
         if (!changed) return
@@ -199,13 +206,10 @@ object NotificationHeaderWeatherHooker : StaticHooker() {
 
     override fun onHook() {
         retiring = false
-        enabled = Preferences.getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_WEATHER_ENABLED, false)
-        showRegion = Preferences.getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_WEATHER_REGION, false)
+        enabled = settingNotificationHeaderWeatherEnabled
+        showRegion = settingNotificationHeaderWeatherRegion
         weatherType = NotificationHeaderModel.normalizeWeatherType(
-            Preferences.getInt(
-                SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_WEATHER_TYPE,
-                NotificationHeaderModel.WEATHER_CONDITION
-            )
+            settingNotificationHeaderWeatherType
         )
         // Install for the generation even while disabled: an accepted change reaches the living
         // header through refreshSettings instead of requiring a SystemUI restart.

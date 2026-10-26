@@ -7,8 +7,8 @@ import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import android.view.View
 import android.view.ViewGroup
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 
@@ -20,23 +20,28 @@ import com.takekazex.hypertweak.util.logging.DebugLog
  * Bounds come from [NotificationIconLimit], which the settings row also uses.
  */
 object NotificationMaxNumberHooker : StaticHooker() {
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingStatusbarNotificationMax by hookSetting(false) {
+        Preferences.getBoolean(PlatformSettingsKeys.KEY_STATUSBAR_NOTIFICATION_MAX, false)
+    }
+    private val settingStatusbarNotificationIconMax by hookSetting(NotificationIconLimit.DEFAULT) {
+        Preferences.getInt(PlatformSettingsKeys.KEY_STATUSBAR_NOTIFICATION_ICON_MAX, NotificationIconLimit.DEFAULT)
+    }
+
     init {
         hostRecovery(HostRecoveryPhase.ICONS, icons = true) {
             recoverExistingViews(it.views)
         }
     }
 
-    override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
-
     private const val TAG = "IconTuner"
     private const val TRANSFORM_CLASS =
         "com.android.systemui.statusbar.policy.NotificationIconObserver\$maxIconFlow\$1"
 
-    @Volatile private var enabled = false
-    @Volatile private var maximum = NotificationIconLimit.DEFAULT
+    private var enabled by generationState { false }
+    private var maximum by generationState { NotificationIconLimit.DEFAULT }
 
     override fun onPrepareHotReload() {
-        enabled = false
         maximum = NotificationIconLimit.DEFAULT
     }
 
@@ -59,12 +64,9 @@ object NotificationMaxNumberHooker : StaticHooker() {
     }
 
     override fun onHook() {
-        enabled = Preferences.getBoolean(PlatformSettingsKeys.KEY_STATUSBAR_NOTIFICATION_MAX, false)
+        enabled = settingStatusbarNotificationMax
         maximum = NotificationIconLimit.clamp(
-            Preferences.getInt(
-                PlatformSettingsKeys.KEY_STATUSBAR_NOTIFICATION_ICON_MAX,
-                NotificationIconLimit.DEFAULT
-            )
+            settingStatusbarNotificationIconMax
         )
         if (!enabled) {
             DebugLog.hookSkippedDebug(TAG, "NotificationMaxNumber", "disabled")

@@ -5,13 +5,14 @@ package com.takekazex.hypertweak.hook.rules.systemui.lockscreen
 import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 
+import com.takekazex.hypertweak.hook.base.ViewVisibilityRouter
 import com.takekazex.hypertweak.hook.base.HostAccess
 import java.util.WeakHashMap
 import android.content.Context
 import android.view.View
 import android.view.ViewGroup
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 import android.view.inspector.WindowInspector
@@ -29,29 +30,32 @@ import com.takekazex.hypertweak.hook.rules.systemui.icon.IconHostPorts
  * host that changed visibility or alpha while the row was hidden keeps that change.
  */
 object HideLockscreenStatusBarHooker : StaticHooker() {
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingHideLockscreenStatusBar by hookSetting(false) {
+        Preferences.getBoolean(SystemUiSettingsKeys.KEY_HIDE_LOCKSCREEN_STATUS_BAR, false)
+    }
+
     init {
         hostRecovery(HostRecoveryPhase.WINDOWS) {
             recoverStateController(it.component); recoverExistingViews(it.views)
         }
     }
 
-    override val hotReloadMode = HotReloadMode.RECREATE
-
-    @Volatile
-    private var enabled = false
-    private var keyguardStatusBarClass: Class<*>? = null
+    private var enabled by generationState { false }
+    private var keyguardStatusBarClass: Class<*>? by generationState { null }
 
     /** The host's own request per hidden view; see [LockscreenStatusBarIntent]. */
-    private val intents = WeakHashMap<View, LockscreenStatusBarIntent>()
-    private var applying = false
+    private val intents = generationMainResource(WeakHashMap<View, LockscreenStatusBarIntent>()) { it.clear() }
+    private var applying by generationState { false }
 
     /** Living keyguard status bars, remembered from construction even before they are attached. */
     private val knownViews: MutableSet<View> =
         java.util.Collections.newSetFromMap(WeakHashMap<View, Boolean>())
 
     private var retiring = false
-    private var stateController: Any? = null
-    private val attachListeners = WeakHashMap<View, View.OnAttachStateChangeListener>()
+    init { generationCleanup { retiring = true } }
+    private var stateController: Any? by generationState { null }
+    private val attachListeners = generationMainResource(WeakHashMap<View, View.OnAttachStateChangeListener>()) { it.clear() }
 
     /** Null until the host controller is recovered; consumers may use their platform fallback. */
     internal fun keyguardShowing(): Boolean? = stateController?.let {
@@ -100,7 +104,7 @@ object HideLockscreenStatusBarHooker : StaticHooker() {
      * intent first, so the interceptors cannot keep the view hidden by replaying the module value.
      */
     fun refreshSettings() {
-        val next = Preferences.getBoolean(SystemUiSettingsKeys.KEY_HIDE_LOCKSCREEN_STATUS_BAR, false)
+        val next = settingHideLockscreenStatusBar
         val changed = next != enabled
         enabled = next
         HostAccess.onMain {
@@ -134,7 +138,7 @@ object HideLockscreenStatusBarHooker : StaticHooker() {
 
     override fun onHook() {
         retiring = false
-        enabled = Preferences.getBoolean(SystemUiSettingsKeys.KEY_HIDE_LOCKSCREEN_STATUS_BAR, false)
+        enabled = settingHideLockscreenStatusBar
         // The host emits actual showing/occlusion changes here, including insecure lock screens.
         val stateClass = "com.android.systemui.statusbar.policy.KeyguardStateControllerImpl".toClassOrNull()
         stateClass?.declaredMethods?.singleOrNull {
@@ -193,35 +197,20 @@ object HideLockscreenStatusBarHooker : StaticHooker() {
 
         // The intercepted argument is the host's request. It updates the native intent for that
         // dimension only; the module's own hidden value is never written back into the baseline.
-        runCatching {
-            HostAccess.requirePublicMethod(View::class.java, "setVisibility", Int::class.javaPrimitiveType, accessible = false).hook {
-                before { param ->
-                    if (!shouldHide(param.thisObject)) return@before
-                    val view = param.thisObject as? View ?: return@before
-                    val requested = param.args[0] as? Int ?: return@before
-                    val previous = intents.getOrPut(view) { LockscreenStatusBarIntent(view.visibility, view.alpha) }
-                    intents[view] = previous.withVisibility(requested)
-                    param.args[0] = View.INVISIBLE
-                }
+        ViewVisibilityRouter.visibility(this, targetClass, before = { view, requested ->
+            if (!shouldHide(view)) null else {
+                val previous = intents.getOrPut(view) { LockscreenStatusBarIntent(view.visibility, view.alpha) }
+                intents[view] = previous.withVisibility(requested)
+                View.INVISIBLE
             }
-        }.onFailure {
-            DebugLog.hookFailed("HideLockscreenStatusBar", "View#setVisibility(Int)", it)
-        }
-
-        runCatching {
-            HostAccess.requirePublicMethod(View::class.java, "setAlpha", Float::class.javaPrimitiveType, accessible = false).hook {
-                before { param ->
-                    if (!shouldHide(param.thisObject)) return@before
-                    val view = param.thisObject as? View ?: return@before
-                    val requested = param.args[0] as? Float ?: return@before
-                    val previous = intents.getOrPut(view) { LockscreenStatusBarIntent(view.visibility, view.alpha) }
-                    intents[view] = previous.withAlpha(requested)
-                    param.args[0] = 0f
-                }
+        })
+        ViewVisibilityRouter.alpha(this, targetClass, before = { view, requested ->
+            if (!shouldHide(view)) null else {
+                val previous = intents.getOrPut(view) { LockscreenStatusBarIntent(view.visibility, view.alpha) }
+                intents[view] = previous.withAlpha(requested)
+                0f
             }
-        }.onFailure {
-            DebugLog.hookFailed("HideLockscreenStatusBar", "View#setAlpha(Float)", it)
-        }
+        })
 
         if (enabled) HostAccess.onMain { knownViews.filter { it.isAttachedToWindow }.forEach(::hide) }
     }

@@ -17,8 +17,8 @@ import android.os.Looper
 import android.os.SystemClock
 import android.util.SparseArray
 import android.view.View
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.hook.rules.backgesture.AospBackSystemUiHooker
 import com.takekazex.hypertweak.hook.base.HostAccess
@@ -52,13 +52,26 @@ import java.util.concurrent.atomic.AtomicBoolean
  * 3. the display deadline, which fails open so a lost event cannot leave the bar hidden.
  */
 object HideBottomBarHooker : StaticHooker() {
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingHideGestureBar by hookSetting(false) { Preferences.getBoolean(PlatformSettingsKeys.KEY_HIDE_GESTURE_BAR, false) }
+    private val settingGestureBarRaiseLayout by hookSetting(false) {
+        Preferences.getBoolean(SystemUiSettingsKeys.KEY_GESTURE_BAR_RAISE_LAYOUT, false)
+    }
+    private val settingHideGestureBarRecents by hookSetting(false) {
+        Preferences.getBoolean(PlatformSettingsKeys.KEY_HIDE_GESTURE_BAR_RECENTS, false)
+    }
+    private val settingHideGestureBarLauncher by hookSetting(false) {
+        Preferences.getBoolean(PlatformSettingsKeys.KEY_HIDE_GESTURE_BAR_LAUNCHER, false)
+    }
+    private val settingGestureBarAttachTransition by hookSetting(false) {
+        Preferences.getBoolean(SystemUiSettingsKeys.KEY_GESTURE_BAR_ATTACH_TRANSITION, false)
+    }
+
     init {
         hostRecovery(HostRecoveryPhase.WINDOWS) {
             recoverExistingViews(it.views, it.component)
         }
     }
-
-    override val hotReloadMode = HotReloadMode.RECREATE
 
     private val navigationHandleClassNames = listOf(
         "com.android.systemui.navigationbar.gestural.NavigationHandle",
@@ -68,7 +81,7 @@ object HideBottomBarHooker : StaticHooker() {
     private const val DECORATION_VIEW =
         "com.android.wm.shell.multitasking.miuimultiwinswitch.miuiwindowdecor.decoration.MiuiDecorationBottomView"
 
-    private val hooksApplied = AtomicBoolean(false)
+    private val hooksApplied = generationResource(AtomicBoolean(false)) { it.set(false) }
     private var hideGestureBarEnabled by generationState { false }
     private var raiseLayoutEnabled by generationState { false }
     private var hideInRecentsEnabled by generationState { false }
@@ -86,7 +99,7 @@ object HideBottomBarHooker : StaticHooker() {
     private val followHandler by lazy { Handler(Looper.getMainLooper()) }
     private val deadlines: GestureBarDeadlines = GestureBarDeadlines(state, { followHandler }) { events.onDeadline(it) }
 
-    private var hostContext = WeakReference<Context>(null)
+    private var hostContext by generationState { WeakReference<Context>(null) }
 
     private val home: GestureBarHomeProbe = GestureBarHomeProbe(
         context = { hostContext.get() }, handler = { followHandler },
@@ -319,11 +332,11 @@ object HideBottomBarHooker : StaticHooker() {
     }
 
     private fun loadSettings() {
-        hideGestureBarEnabled = Preferences.getBoolean(PlatformSettingsKeys.KEY_HIDE_GESTURE_BAR, false)
-        raiseLayoutEnabled = Preferences.getBoolean(SystemUiSettingsKeys.KEY_GESTURE_BAR_RAISE_LAYOUT, false)
-        hideInRecentsEnabled = Preferences.getBoolean(PlatformSettingsKeys.KEY_HIDE_GESTURE_BAR_RECENTS, false)
-        hideInLauncherEnabled = Preferences.getBoolean(PlatformSettingsKeys.KEY_HIDE_GESTURE_BAR_LAUNCHER, false)
-        attachTransitionEnabled = Preferences.getBoolean(SystemUiSettingsKeys.KEY_GESTURE_BAR_ATTACH_TRANSITION, false)
+        hideGestureBarEnabled = settingHideGestureBar
+        raiseLayoutEnabled = settingGestureBarRaiseLayout
+        hideInRecentsEnabled = settingHideGestureBarRecents
+        hideInLauncherEnabled = settingHideGestureBarLauncher
+        attachTransitionEnabled = settingGestureBarAttachTransition
     }
 
     // ── Evidence → state ─────────────────────────────────────────────────────────

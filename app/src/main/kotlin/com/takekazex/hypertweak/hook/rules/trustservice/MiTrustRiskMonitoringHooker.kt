@@ -5,9 +5,9 @@ import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 import com.takekazex.hypertweak.hook.base.dex.DexContractMembers
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 import org.luckypray.dexkit.query.enums.StringMatchType
@@ -21,7 +21,10 @@ import org.luckypray.dexkit.query.enums.StringMatchType
  * untouched.
  */
 object MiTrustRiskMonitoringHooker : StaticHooker() {
-    override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingMitrustDisableRiskMonitoring by hookSetting(false) {
+        Preferences.getBoolean(PlatformSettingsKeys.KEY_MITRUST_DISABLE_RISK_MONITORING, false)
+    }
 
     private const val TAG = "MiTrustRiskMonitoring"
     private const val PACKAGE = "com.xiaomi.trustservice"
@@ -30,7 +33,7 @@ object MiTrustRiskMonitoringHooker : StaticHooker() {
 
     override fun onHook() {
         if (hookParam.packageName != PACKAGE) return
-        if (!Preferences.getBoolean(PlatformSettingsKeys.KEY_MITRUST_DISABLE_RISK_MONITORING, false)) {
+        if (!settingMitrustDisableRiskMonitoring) {
             DebugLog.hookSkippedDebug(TAG, "MiTrustService MRM gate", "disabled")
             return
         }

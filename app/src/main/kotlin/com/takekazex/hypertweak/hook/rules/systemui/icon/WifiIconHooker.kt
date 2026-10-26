@@ -16,8 +16,8 @@ import java.util.WeakHashMap
 import android.os.Handler
 import android.os.Looper
 import java.lang.ref.WeakReference
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 import org.luckypray.dexkit.query.enums.StringMatchType
@@ -33,13 +33,34 @@ import kotlin.math.roundToInt
  * the host's `wifi_group` view.
  */
 object WifiIconHooker : StaticHooker() {
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingIconHideWifiActivity by hookSetting(false) {
+        Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_WIFI_ACTIVITY, false)
+    }
+    private val settingIconHideWifiType by hookSetting(false) { Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_WIFI_TYPE, false) }
+    private val settingIconHideWifiUnavailable by hookSetting(false) {
+        Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_WIFI_UNAVAILABLE, false)
+    }
+    private val settingIconWifiStandardMode by hookSetting(0) { Preferences.getInt(IconSettingsKeys.KEY_ICON_WIFI_STANDARD_MODE, 0) }
+    private val settingIconWifiStandardMap by hookSetting("4,5,6,7,8") {
+        Preferences.getString(IconSettingsKeys.KEY_ICON_WIFI_STANDARD_MAP, "4,5,6,7,8")
+    }
+    private val settingIconWifiPadding by hookSetting(false) { Preferences.getBoolean(IconSettingsKeys.KEY_ICON_WIFI_PADDING, false) }
+    private val settingIconWifiPaddingStartVal by hookSetting(0f) {
+        Preferences.getFloat(IconSettingsKeys.KEY_ICON_WIFI_PADDING_START_VAL, 0f)
+    }
+    private val settingIconWifiPaddingEndVal by hookSetting(0f) {
+        Preferences.getFloat(IconSettingsKeys.KEY_ICON_WIFI_PADDING_END_VAL, 0f)
+    }
+    private val settingIconWifiActivityRight by hookSetting(false) {
+        Preferences.getBoolean(IconSettingsKeys.KEY_ICON_WIFI_ACTIVITY_RIGHT, false)
+    }
+
     init {
         hostRecovery(HostRecoveryPhase.SOURCES, icons = true) {
             it.component?.let(::recoverViewModel)
         }
     }
-
-    override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
 
     private const val TAG = "IconTuner"
     private const val WIFI_ICON_CLASS = "com.android.systemui.statusbar.pipeline.wifi.ui.model.WifiIcon"
@@ -56,19 +77,21 @@ object WifiIconHooker : StaticHooker() {
     private var hideType by generationState { false }
     private var hideUnavailable by generationState { false }
     private var standardMode by generationState { 0 }
-    @Volatile private var standardMap = WifiStandardPolicy.DEFAULT_MAP
+    private var standardMap by generationState { WifiStandardPolicy.DEFAULT_MAP }
     private var paddingEnabled by generationState { false }
     private var paddingStart by generationState { 0f }
     private var paddingEnd by generationState { 0f }
     private var activityRight by generationState { false }
-    private var restoredDirection: Any? = null
-    private val standardGravity = WeakHashMap<TextView, Int>()
-    private val directionHandles = ArrayList<HostFlowCollector.Handle>()
-    @Volatile private var directionEpoch = 0L
-    private var directionAttempt = 0L
+    private var restoredDirection: Any? by generationState { null }
+    private val standardGravity = generationMainResource(WeakHashMap<TextView, Int>()) { it.clear() }
+    private val directionHandles = generationMainResource(ArrayList<HostFlowCollector.Handle>()) { it.clear() }
+    @Volatile
+    private var directionEpoch = 0L
+    private var directionAttempt by generationState { 0L }
     private val recoveryHandler = Handler(Looper.getMainLooper())
-    private var recoveryTask: Runnable? = null
+    private var recoveryTask: Runnable? by generationState { null }
     private var retired = false
+    init { generationCleanup { retired = true } }
 
     override fun onPrepareHotReload() {
         HostAccess.onMain {
@@ -94,21 +117,21 @@ object WifiIconHooker : StaticHooker() {
     override fun onHook() {
         retired = false
         IconTunerFlows.init(classLoader)
-        hideActivity = Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_WIFI_ACTIVITY, false)
-        hideType = Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_WIFI_TYPE, false)
-        hideUnavailable = Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_WIFI_UNAVAILABLE, false)
-        standardMode = Preferences.getInt(IconSettingsKeys.KEY_ICON_WIFI_STANDARD_MODE, 0).coerceIn(0, 3)
+        hideActivity = settingIconHideWifiActivity
+        hideType = settingIconHideWifiType
+        hideUnavailable = settingIconHideWifiUnavailable
+        standardMode = settingIconWifiStandardMode.coerceIn(0, 3)
         standardMap = WifiStandardPolicy.parseMap(
-            Preferences.getString(IconSettingsKeys.KEY_ICON_WIFI_STANDARD_MAP, "4,5,6,7,8")
+            settingIconWifiStandardMap
         )
-        paddingEnabled = Preferences.getBoolean(IconSettingsKeys.KEY_ICON_WIFI_PADDING, false)
+        paddingEnabled = settingIconWifiPadding
         paddingStart = safeFloat(
-            Preferences.getFloat(IconSettingsKeys.KEY_ICON_WIFI_PADDING_START_VAL, 0f)
+            settingIconWifiPaddingStartVal
         )
         paddingEnd = safeFloat(
-            Preferences.getFloat(IconSettingsKeys.KEY_ICON_WIFI_PADDING_END_VAL, 0f)
+            settingIconWifiPaddingEndVal
         )
-        activityRight = Preferences.getBoolean(IconSettingsKeys.KEY_ICON_WIFI_ACTIVITY_RIGHT, false)
+        activityRight = settingIconWifiActivityRight
         hookActivityDirection()
         hookAccessoryLayout()
         if (!hideActivity && !hideType && !hideUnavailable && standardMode == 0 &&

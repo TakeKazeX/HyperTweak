@@ -11,9 +11,9 @@ import android.os.Looper
 import android.view.View
 import android.view.ViewGroup
 import android.view.inspector.WindowInspector
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.reflect.Field
@@ -21,25 +21,31 @@ import java.lang.reflect.Method
 
 /** Unlock the native whitelist, retaining PendingIntent, window-state and keyguard gates. */
 object NotificationMiniWindowHooker : StaticHooker() {
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingNotificationMiniWindow by hookSetting(false) {
+        Preferences.getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_MINI_WINDOW, false)
+    }
+
     init {
         hostRecovery(HostRecoveryPhase.WINDOWS) {
             recoverExistingViews(it.views)
         }
     }
 
-    override val hotReloadMode = HotReloadMode.RECREATE
     private const val TAG = "NotificationMiniWindow"
     private const val ROW = "com.android.systemui.statusbar.notification.row.ExpandableNotificationRowInjector"
     private const val MANAGER = "com.android.systemui.statusbar.notification.policy.AppMiniWindowManagerImpl"
     private val managers = instanceTracker()
     private val main by lazy { Handler(Looper.getMainLooper()) }
-    private var settingsField: Field? = null
-    private var whitelistFields = emptyList<Field>()
-    private var injectorField: Field? = null
-    private var updateBar: Method? = null
-    private var updateTip: Method? = null
-    @Volatile private var enabled = false
-    @Volatile private var retired = false
+    private var settingsField: Field? by generationState { null }
+    private var whitelistFields by generationState { emptyList<Field>() }
+    private var injectorField: Field? by generationState { null }
+    private var updateBar: Method? by generationState { null }
+    private var updateTip: Method? by generationState { null }
+    private var enabled by generationState { false }
+    @Volatile
+    private var retired = false
+    init { generationCleanup { retired = true } }
 
     override fun onHook() {
         if (!isMainProcess) return
@@ -62,7 +68,7 @@ object NotificationMiniWindowHooker : StaticHooker() {
                 ?: error("Missing native row injector field")
             updateBar = HostAccess.requireDeclaredMethod(row, "updateMiniWindowBar", accessible = true)
             updateTip = HostAccess.requireDeclaredMethod(row, "updateFreeformTipView", accessible = true)
-            enabled = Preferences.getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_MINI_WINDOW, false)
+            enabled = settingNotificationMiniWindow
             // Both verified callers write canSlide, then use native bar/touch handling. Avoid
             // already-inlined gate bodies after attaching to a living SystemUI process.
             deoptimize(updateBar!!)
@@ -92,7 +98,7 @@ object NotificationMiniWindowHooker : StaticHooker() {
 
     fun refreshSettings() {
         Preferences.invalidateRuntimeReadCache()
-        enabled = Preferences.getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_MINI_WINDOW, false)
+        enabled = settingNotificationMiniWindow
         main.post {
             if (!retired) boundary("refresh existing rows") {
                 val views = ArrayList<View>()
@@ -123,7 +129,6 @@ object NotificationMiniWindowHooker : StaticHooker() {
 
     override fun onPrepareHotReload() {
         retired = true
-        enabled = false
         main.removeCallbacksAndMessages(null)
         // Never leave a retired module's List/callback in the host, and never overwrite newer
         // cloud data that replaced our wrapper. Replacement recovery enrolls existing rows.

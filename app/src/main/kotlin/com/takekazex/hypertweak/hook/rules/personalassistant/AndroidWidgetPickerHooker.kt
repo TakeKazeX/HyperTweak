@@ -14,6 +14,7 @@ import android.content.Intent
 import android.os.Process
 import android.view.View
 import android.widget.Toast
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
@@ -38,14 +39,20 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 /** Existing PA classic-widget entry -> native provider chooser -> PA AppWidgetHost. */
 object AndroidWidgetPickerHooker : StaticHooker() {
+    init { generationCleanup { worker.cancel() } }
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingAllowAndroidWidgetsToAssistant by hookSetting(false) { Preferences.allowAndroidWidgetsToAssistant() }
+
     private const val TAG = "PAAndroidWidgets"
     private var worker = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    @Volatile private var retired = false
-    private val loading = AtomicBoolean(false)
-    private var dialog = WeakReference<Dialog>(null)
-    private lateinit var entryContract: EntryContract
-    @Volatile private var contract: Contract? = null
-    private var apkPath: String = ""
+    @Volatile
+    private var retired = false
+    init { generationCleanup { retired = true } }
+    private val loading = generationResource(AtomicBoolean(false)) { it.set(false) }
+    private var dialog by generationState { WeakReference<Dialog>(null) }
+    private var entryContract: EntryContract by generationRequiredState()
+    private var contract: Contract? by generationState { null }
+    private var apkPath: String by generationState { "" }
 
     private data class EntryContract(
         val appCatalog: AppCatalog?, val mainCatalog: MainCatalog?, val navigator: Method, val source: Method,
@@ -139,7 +146,7 @@ object AndroidWidgetPickerHooker : StaticHooker() {
         DebugLog.i(TAG, "native picker attached footer=${resolved.footerCreated.toGenericString()} app=${resolved.appCatalog != null} main=${resolved.mainCatalog != null} navigator=${resolved.navigator.toGenericString()}")
     }
 
-    private fun enabled() = !retired && Preferences.allowAndroidWidgetsToAssistant()
+    private fun enabled() = !retired && settingAllowAndroidWidgetsToAssistant
     private fun fromAssistant(activity: Activity) = runCatching {
         entryContract.source.invoke(activity) == 1
     }.getOrDefault(false)

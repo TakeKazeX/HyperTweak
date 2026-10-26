@@ -11,8 +11,8 @@ import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 
 import android.content.res.Resources
 import android.view.View
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 import io.github.lingqiqi5211.ezhooktool.xposed.common.HookParam
@@ -48,6 +48,22 @@ import java.util.concurrent.ConcurrentHashMap
  * hook-install time, so changes require a SystemUI restart; the GlassTunerPage offers one.
  */
 object GlassMaterialHooker : StaticHooker() {
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingGlassTunerEnabled by hookSetting(false) { Preferences.getBoolean(SystemUiSettingsKeys.KEY_GLASS_TUNER_ENABLED, false) }
+    private val settingGlassTunerBlendAlpha by hookSetting(1f) {
+        Preferences.getFloat(SystemUiSettingsKeys.KEY_GLASS_TUNER_BLEND_ALPHA, 1f)
+    }
+    private val settingGlassTunerBlendLightness by hookSetting(1f) {
+        Preferences.getFloat(SystemUiSettingsKeys.KEY_GLASS_TUNER_BLEND_LIGHTNESS, 1f)
+    }
+    private val settingGlassTunerRadiusScale by hookSetting(1f) {
+        Preferences.getFloat(SystemUiSettingsKeys.KEY_GLASS_TUNER_RADIUS_SCALE, 1f)
+    }
+    private val settingGlassTunerGlassOpacity by hookSetting(1f) {
+        Preferences.getFloat(SystemUiSettingsKeys.KEY_GLASS_TUNER_GLASS_OPACITY, 1f)
+    }
+    private val settingGlassTunerGlassTone by hookSetting(1f) { Preferences.getFloat(SystemUiSettingsKeys.KEY_GLASS_TUNER_GLASS_TONE, 1f) }
+
     private const val TAG = "GlassMaterial"
 
     /** Blend color arrays ([color, blendMode, ...] pairs) behind the two material modes. */
@@ -114,26 +130,17 @@ object GlassMaterialHooker : StaticHooker() {
 
     // Re-read by an accepted settings change (refreshSettings); the hooks stay installed for the
     // process generation and read these copies on every resource/View funnel.
-    @Volatile
-    private var enabled = false
-    @Volatile
-    private var blendAlpha = 1f
-    @Volatile
-    private var blendLightness = 1f
-    @Volatile
-    private var radiusScale = 1f
-    @Volatile
-    private var glassOpacity = 1f
-    @Volatile
-    private var glassTone = 1f
+    private var enabled by generationState { false }
+    private var blendAlpha by generationState { 1f }
+    private var blendLightness by generationState { 1f }
+    private var radiusScale by generationState { 1f }
+    private var glassOpacity by generationState { 1f }
+    private var glassTone by generationState { 1f }
 
     /** The funnels are installed once per hook generation, whichever entry point runs first. */
     private var installed by generationState { false }
 
-    override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
-
     override fun onPrepareHotReload() {
-        enabled = false
 
         knownIds.clear()
         missedIds.clear()
@@ -146,12 +153,12 @@ object GlassMaterialHooker : StaticHooker() {
      */
     fun refreshSettings() {
         val wasEnabled = enabled
-        enabled = Preferences.getBoolean(SystemUiSettingsKeys.KEY_GLASS_TUNER_ENABLED, false)
-        blendAlpha = Preferences.getFloat(SystemUiSettingsKeys.KEY_GLASS_TUNER_BLEND_ALPHA, 1f)
-        blendLightness = Preferences.getFloat(SystemUiSettingsKeys.KEY_GLASS_TUNER_BLEND_LIGHTNESS, 1f)
-        radiusScale = Preferences.getFloat(SystemUiSettingsKeys.KEY_GLASS_TUNER_RADIUS_SCALE, 1f)
-        glassOpacity = Preferences.getFloat(SystemUiSettingsKeys.KEY_GLASS_TUNER_GLASS_OPACITY, 1f)
-        glassTone = Preferences.getFloat(SystemUiSettingsKeys.KEY_GLASS_TUNER_GLASS_TONE, 1f)
+        enabled = settingGlassTunerEnabled
+        blendAlpha = settingGlassTunerBlendAlpha
+        blendLightness = settingGlassTunerBlendLightness
+        radiusScale = settingGlassTunerRadiusScale
+        glassOpacity = settingGlassTunerGlassOpacity
+        glassTone = settingGlassTunerGlassTone
         if (wasEnabled != enabled || !enabled) {
             if (enabled) installFunnels()
             // Let the host rebuild the current surfaces with the new tokens.
@@ -163,12 +170,12 @@ object GlassMaterialHooker : StaticHooker() {
     }
 
     override fun onHook() {
-        enabled = Preferences.getBoolean(SystemUiSettingsKeys.KEY_GLASS_TUNER_ENABLED, false)
-        blendAlpha = Preferences.getFloat(SystemUiSettingsKeys.KEY_GLASS_TUNER_BLEND_ALPHA, 1f)
-        blendLightness = Preferences.getFloat(SystemUiSettingsKeys.KEY_GLASS_TUNER_BLEND_LIGHTNESS, 1f)
-        radiusScale = Preferences.getFloat(SystemUiSettingsKeys.KEY_GLASS_TUNER_RADIUS_SCALE, 1f)
-        glassOpacity = Preferences.getFloat(SystemUiSettingsKeys.KEY_GLASS_TUNER_GLASS_OPACITY, 1f)
-        glassTone = Preferences.getFloat(SystemUiSettingsKeys.KEY_GLASS_TUNER_GLASS_TONE, 1f)
+        enabled = settingGlassTunerEnabled
+        blendAlpha = settingGlassTunerBlendAlpha
+        blendLightness = settingGlassTunerBlendLightness
+        radiusScale = settingGlassTunerRadiusScale
+        glassOpacity = settingGlassTunerGlassOpacity
+        glassTone = settingGlassTunerGlassTone
         installFunnels()
     }
 
@@ -275,8 +282,8 @@ object GlassMaterialHooker : StaticHooker() {
      * so SystemUI's own ids are almost always resolved first — a rare wrong hit only scales one
      * unrelated array, never crashes.
      */
-    private val knownIds = ConcurrentHashMap<Int, Kind>()
-    private val missedIds = ConcurrentHashMap.newKeySet<Int>()
+    private val knownIds = generationResource(ConcurrentHashMap<Int, Kind>()) { it.clear() }
+    private val missedIds = generationResource(ConcurrentHashMap.newKeySet<Int>()) { it.clear() }
 
     private fun kindOf(resources: Resources, id: Int): Kind? {
         if (id == 0) return null

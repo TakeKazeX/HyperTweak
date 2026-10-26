@@ -3,9 +3,9 @@ package com.takekazex.hypertweak.hook.rules.systemui.lockscreen
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 
 import android.content.Context
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 
@@ -38,7 +38,10 @@ import com.takekazex.hypertweak.util.logging.DebugLog
  * The master switch gates hook installation and needs a SystemUI restart.
  */
 object LockscreenAllNotificationsHooker : StaticHooker() {
-    override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingLockscreenAllNotifications by hookSetting(false) {
+        Preferences.getBoolean(SystemUiSettingsKeys.KEY_LOCKSCREEN_ALL_NOTIFICATIONS, false)
+    }
 
     private const val TAG = "LockscreenAllNotifications"
     private const val SETTINGS_MANAGER =
@@ -47,7 +50,7 @@ object LockscreenAllNotificationsHooker : StaticHooker() {
     private const val PACKAGE_KEY_SUFFIX = "_keyguard"
 
     override fun onHook() {
-        if (!Preferences.getBoolean(SystemUiSettingsKeys.KEY_LOCKSCREEN_ALL_NOTIFICATIONS, false)) {
+        if (!settingLockscreenAllNotifications) {
             DebugLog.hookSkippedDebug(TAG, "lockscreen notification gate", "disabled")
             return
         }

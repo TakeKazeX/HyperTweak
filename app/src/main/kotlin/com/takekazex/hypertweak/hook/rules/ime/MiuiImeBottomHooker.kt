@@ -9,7 +9,6 @@ import android.view.ViewGroup
 import android.view.inputmethod.InputMethodManager
 import com.takekazex.hypertweak.hook.base.CompatibleMethodResolver
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.reflect.Field
@@ -33,15 +32,12 @@ object MiuiImeBottomHooker : StaticHooker() {
     private const val BOTTOM_MANAGER = "com.miui.inputmethod.InputMethodBottomManager"
     private const val INPUT_METHOD_SERVICE = "android.inputmethodservice.InputMethodService"
 
-    override val hotReloadMode = HotReloadMode.RECREATE
-
     /** Resolved once at hook time; `getSupportIme` fires on every switcher list request. */
     private var sBottomViewHelperField: Field? by generationState { null }
 
     /** Process-wide `InputMethodManager` fallback when the bottom-view helper is not ready. */
     private var immSingleton: InputMethodManager? by generationState { null }
     private var immSingletonResolved by generationState { false }
-
 
     override fun onHook() {
         val bottomManager = BOTTOM_MANAGER.toClassOrNull() ?: run {

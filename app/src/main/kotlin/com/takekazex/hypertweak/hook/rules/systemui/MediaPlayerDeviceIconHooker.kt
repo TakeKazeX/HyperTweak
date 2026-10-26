@@ -4,10 +4,10 @@ import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 
 import android.view.View
 import androidx.core.view.isGone
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.DynamicHooker
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.reflect.Field
 import java.lang.reflect.Method
@@ -32,7 +32,10 @@ import java.lang.reflect.Method
  * SystemUI restart.
  */
 class MediaPlayerDeviceIconHooker : DynamicHooker() {
-    override val hotReloadMode = HotReloadMode.RECREATE
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingMediaCardHideDeviceSwitch by hookSetting(false) {
+        Preferences.getBoolean(SystemUiSettingsKeys.KEY_MEDIA_CARD_HIDE_DEVICE_SWITCH, false)
+    }
 
     private companion object {
         const val TAG = "MediaPlayerDeviceIcon"
@@ -111,7 +114,7 @@ class MediaPlayerDeviceIconHooker : DynamicHooker() {
     }
 
     private fun isEnabled(): Boolean =
-        Preferences.getBoolean(SystemUiSettingsKeys.KEY_MEDIA_CARD_HIDE_DEVICE_SWITCH, false)
+        settingMediaCardHideDeviceSwitch
 
     private fun hideIcon(holder: Any, icon: View) {
         val known = hiddenIcons[holder]

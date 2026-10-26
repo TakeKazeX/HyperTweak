@@ -6,8 +6,8 @@ import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 import org.luckypray.dexkit.query.enums.MatchType
@@ -43,15 +43,17 @@ import java.io.File
  * uniqueness, so a changed Flow input order does not silently rewrite unrelated values.
  */
 object KeyguardFingerprintAvoidHooker : StaticHooker() {
-    override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingLockscreenFingerprintAvoid by hookSetting(PlatformSettingsKeys.LOCKSCREEN_FINGERPRINT_AVOID_DEFAULT) {
+        Preferences.getInt(SystemUiSettingsKeys.KEY_LOCKSCREEN_FINGERPRINT_AVOID, PlatformSettingsKeys.LOCKSCREEN_FINGERPRINT_AVOID_DEFAULT)
+    }
 
     private const val TAG = "KeyguardFingerprintAvoid"
     private const val DEX_CACHE_KEY = "keyguardNsslLockYTransform"
     private const val DEX_OWNER_MARKER =
         "com.android.keyguard.panel.KeyguardPanelViewController\$nsslLockYPosition_delegate\$lambda"
 
-    @Volatile
-    private var mode = PlatformSettingsKeys.LOCKSCREEN_FINGERPRINT_AVOID_DEFAULT
+    private var mode by generationState { PlatformSettingsKeys.LOCKSCREEN_FINGERPRINT_AVOID_DEFAULT }
 
     override fun onPrepareHotReload() {
         mode = PlatformSettingsKeys.LOCKSCREEN_FINGERPRINT_AVOID_DEFAULT
@@ -63,18 +65,12 @@ object KeyguardFingerprintAvoidHooker : StaticHooker() {
      * inputs untouched in the default mode is the disable path.
      */
     fun refreshSettings() {
-        mode = Preferences.getInt(
-            SystemUiSettingsKeys.KEY_LOCKSCREEN_FINGERPRINT_AVOID,
-            PlatformSettingsKeys.LOCKSCREEN_FINGERPRINT_AVOID_DEFAULT
-        )
+        mode = settingLockscreenFingerprintAvoid
         DebugLog.i(TAG, "settings applied mode=$mode")
     }
 
     override fun onHook() {
-        mode = Preferences.getInt(
-            SystemUiSettingsKeys.KEY_LOCKSCREEN_FINGERPRINT_AVOID,
-            PlatformSettingsKeys.LOCKSCREEN_FINGERPRINT_AVOID_DEFAULT
-        )
+        mode = settingLockscreenFingerprintAvoid
         // Installed for the generation regardless of the mode: the body reads [mode] at run time,
         // so the first non-default choice applies to the living lock screen.
 

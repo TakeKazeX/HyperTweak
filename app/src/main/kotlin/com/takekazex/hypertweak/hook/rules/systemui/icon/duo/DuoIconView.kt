@@ -16,17 +16,23 @@ import android.view.View
 import android.view.animation.LinearInterpolator
 import android.widget.TextView
 import androidx.core.view.isVisible
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
 import com.takekazex.hypertweak.util.logging.DebugLog
 import kotlin.math.ceil
 import kotlin.math.roundToInt
 
+// Published on settings acceptance; hook callbacks perform no storage reads.
+private val settingIconMirrorAirplane by hookSetting(false) { Preferences.getBoolean(IconSettingsKeys.KEY_ICON_MIRROR_AIRPLANE, false) }
+
+internal fun prepareDuoIconViewSettings() { settingIconMirrorAirplane }
+
 /** Draws Duo content and percentage text without owning host hooks. */
 internal class DuoIconView(context: Context) : View(context) {
     val icon = DuoDrawable(context).also {
         it.callback = this
-        it.mirrorAirplane = Preferences.getBoolean(IconSettingsKeys.KEY_ICON_MIRROR_AIRPLANE, false)
+        it.mirrorAirplane = settingIconMirrorAirplane
     }
     var drawFailed: ((Throwable) -> Unit)? = null
     private var reportedDrawFailure = false

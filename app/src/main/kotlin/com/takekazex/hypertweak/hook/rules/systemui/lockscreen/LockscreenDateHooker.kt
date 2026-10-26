@@ -7,8 +7,8 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.ViewTreeObserver
 import android.widget.TextView
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.util.logging.DebugLog
@@ -20,20 +20,24 @@ import androidx.core.view.isGone
 
 /** Hide dates in keyguard clocks throughout lockscreen/full-AOD transitions, excluding previews. */
 object LockscreenDateHooker : StaticHooker() {
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingHideLockscreenDate by hookSetting(false) {
+        Preferences.getBoolean(SystemUiSettingsKeys.KEY_HIDE_LOCKSCREEN_DATE, false)
+    }
+
     init {
         hostRecovery(HostRecoveryPhase.WINDOWS) {
             recoverExistingViews(it.views)
         }
     }
 
-    override val hotReloadMode = HotReloadMode.RECREATE
-    private val bindings = WeakHashMap<View, Binding>()
-    @Volatile private var enabled = false
+    private val bindings = generationMainResource(WeakHashMap<View, Binding>()) { it.clear() }
+    private var enabled by generationState { false }
 
-    private var bindExisting: ((ViewGroup) -> Unit)? = null
-    private var bind: ((ViewGroup) -> Unit)? = null
+    private var bindExisting: ((ViewGroup) -> Unit)? by generationState { null }
+    private var bind: ((ViewGroup) -> Unit)? by generationState { null }
     /** Every living clock root; weak because the host owns the views. */
-    private val roots = java.util.WeakHashMap<ViewGroup, Boolean>()
+    private val roots = generationMainResource(java.util.WeakHashMap<ViewGroup, Boolean>()) { it.clear() }
 
     override fun saveHotReloadState(): Any = HostAccess.onMain { bindings.keys.toList() }
     override fun restoreHotReloadState(state: Any?) {
@@ -48,7 +52,6 @@ object LockscreenDateHooker : StaticHooker() {
     }
 
     override fun onPrepareHotReload() {
-        enabled = false
         HostAccess.onMain {
             bindings.values.toList().forEach { it.dispose() }
             bindings.clear()
@@ -64,7 +67,7 @@ object LockscreenDateHooker : StaticHooker() {
      * suppressed date and stops observing until the switch is on again.
      */
     fun refreshSettings() {
-        val next = Preferences.getBoolean(SystemUiSettingsKeys.KEY_HIDE_LOCKSCREEN_DATE, false)
+        val next = settingHideLockscreenDate
         val changed = next != enabled
         enabled = next
         HostAccess.onMain {
@@ -81,7 +84,7 @@ object LockscreenDateHooker : StaticHooker() {
 
     override fun onHook() {
         if (!isMainProcess) return
-        enabled = Preferences.getBoolean(SystemUiSettingsKeys.KEY_HIDE_LOCKSCREEN_DATE, false)
+        enabled = settingHideLockscreenDate
         // The contract is resolved and the host hook installed regardless of the switch: an
         // accepted change reaches the living clock through [refreshSettings], and a generation
         // that starts disabled still needs [bind] and the root registry for the first enable.
@@ -124,7 +127,7 @@ object LockscreenDateHooker : StaticHooker() {
             // that starts disabled still classifies the living clock on its next attach.
             bindExisting = bind@{ root ->
                 if (root.isAttachedToWindow) roots[root] = true
-                enabled = Preferences.getBoolean(SystemUiSettingsKeys.KEY_HIDE_LOCKSCREEN_DATE, false)
+                enabled = settingHideLockscreenDate
                 bind?.invoke(root)
             }
             val attach = HostAccess.requireDeclaredMethod(container, "onAttachedToWindow", accessible = false)

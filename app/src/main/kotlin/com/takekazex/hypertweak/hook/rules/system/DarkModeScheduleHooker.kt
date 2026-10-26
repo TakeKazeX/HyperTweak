@@ -3,6 +3,7 @@ package com.takekazex.hypertweak.hook.rules.system
 import com.takekazex.hypertweak.hook.base.cachedDeclaredMethod
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.InstallPolicy
@@ -50,12 +51,17 @@ private data class DarkModeScheduleAccess(
 
 /** Keeps the native schedule, alarms, configuration delivery and vendor dark-mode mirror intact. */
 object DarkModeScheduleHooker : StaticHooker() {
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingDarkModeImmediateSchedule by hookSetting(false) {
+        Preferences.getBoolean(PlatformSettingsKeys.KEY_DARK_MODE_IMMEDIATE_SCHEDULE, false)
+    }
+
     private const val TAG = "DarkModeSchedule"
     private const val SERVICES = "/system/framework/services.jar"
     override val installPolicy = InstallPolicy.WHEN_ENABLED
-    @Volatile private var enabled = false
-    @Volatile private var access: DarkModeScheduleAccess? = null
-    override fun isFeatureEnabled() = Preferences.getBoolean(PlatformSettingsKeys.KEY_DARK_MODE_IMMEDIATE_SCHEDULE, false)
+    private var enabled by generationState { false }
+    private var access: DarkModeScheduleAccess? by generationState { null }
+    override fun isFeatureEnabled() = settingDarkModeImmediateSchedule
 
     fun refreshSettings(): Boolean {
         Preferences.invalidateRuntimeReadCache()

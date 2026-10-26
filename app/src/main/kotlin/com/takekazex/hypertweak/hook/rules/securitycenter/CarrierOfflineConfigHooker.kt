@@ -3,6 +3,7 @@ package com.takekazex.hypertweak.hook.rules.securitycenter
 import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.DynamicHooker
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
@@ -104,6 +105,7 @@ object CarrierOfflineConfigHooker : DynamicHooker() {
     }
 
     private fun install(targets: CarrierOfflineTargets, key: String) {
+        val enabled by hookSetting(false) { Preferences.getBoolean(key, false) }
         val method = targets.getter
         targets.callers.forEach { caller ->
             runCatching { deoptimize(caller) }
@@ -115,7 +117,7 @@ object CarrierOfflineConfigHooker : DynamicHooker() {
             method.hook("carrier_offline_${MethodDescriptorCodec.descriptor(method)}") {
                 before { param ->
                     HookFailurePolicy.open(TAG, "${method.name}.before", Unit) {
-                        if (Preferences.getBoolean(key, false)) param.result = false
+                        if (enabled) param.result = false
                     }
                 }
             }

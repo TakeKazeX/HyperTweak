@@ -5,6 +5,7 @@ import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 
 import android.util.Log
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.DynamicHooker
 import com.takekazex.hypertweak.hook.base.CompatibleMethodResolver
@@ -15,6 +16,10 @@ class SpatialAudioHooker(
     private val pluginContext: android.content.Context? = null,
     private val pluginApkPath: String = ""
 ) : DynamicHooker() {
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingDisableSpatialAudio by hookSetting(false) {
+        Preferences.getBoolean(PlatformSettingsKeys.KEY_DISABLE_SPATIAL_AUDIO, false)
+    }
 
     override fun onHook() {
         Log.d("HyperTweak", "SpatialAudioHooker: onHook() called, pluginApkPath=$pluginApkPath")
@@ -128,5 +133,5 @@ class SpatialAudioHooker(
     }
 
     private fun disableSpatialEnabled() =
-        Preferences.getBoolean(PlatformSettingsKeys.KEY_DISABLE_SPATIAL_AUDIO, false)
+        settingDisableSpatialAudio
 }

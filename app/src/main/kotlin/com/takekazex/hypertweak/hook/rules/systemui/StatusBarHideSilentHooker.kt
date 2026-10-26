@@ -13,9 +13,9 @@ import com.takekazex.hypertweak.settings.contract.NotificationIconPolicy
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 import com.takekazex.hypertweak.hook.base.dex.DexFeature
@@ -26,29 +26,34 @@ import java.lang.reflect.Method
  * Channel settings, notification sound, AOD and shelf policies remain host-owned.
  */
 object StatusBarHideSilentHooker : StaticHooker() {
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingNotificationMoreSettings by hookSetting(false) { Preferences.notificationMoreSettings() }
+    private val settingNotificationIconFilterMode by hookSetting(0) {
+        Preferences.getInt(SystemUiSettingsKeys.KEY_NOTIFICATION_ICON_FILTER_MODE, 0)
+    }
+
     init {
         hostRecovery(HostRecoveryPhase.WINDOWS) {
             recoverExistingHosts(it.component)
         }
     }
 
-    override val hotReloadMode = HotReloadMode.RECREATE
-
     private const val TAG = "HideSilent"
     private const val BUILDER =
         "com.android.systemui.statusbar.notification.domain.interactor.ActiveNotificationsStoreBuilder"
     private val main by lazy { android.os.Handler(android.os.Looper.getMainLooper()) }
     private val pipelines = instanceTracker()
-    @Volatile private var threshold = -1
-    @Volatile private var ready = false
-    @Volatile private var retired = false
+    private var threshold by generationState { -1 }
+    private var ready by generationState { false }
+    @Volatile
+    private var retired = false
+    init { generationCleanup { retired = true } }
     private var copier: NotificationModelCopy? by generationState { null }
-    private var builderField: Field? = null
-    private var schedule: Method? = null
+    private var builderField: Field? by generationState { null }
+    private var schedule: Method? by generationState { null }
     private val calls = ThreadLocal.withInitial { java.util.ArrayDeque<Pair<Any, Boolean>>() }
 
-    @Volatile
-    private var enabled = false
+    private var enabled by generationState { false }
 
     private var rankingField: Field? by generationState { null }
     private var getImportance: Method? by generationState { null }
@@ -56,8 +61,6 @@ object StatusBarHideSilentHooker : StaticHooker() {
 
     override fun onPrepareHotReload() {
         retired = true
-        enabled = false
-        ready = false
         main.removeCallbacksAndMessages(null)
         calls.remove()
     }
@@ -65,8 +68,8 @@ object StatusBarHideSilentHooker : StaticHooker() {
     override fun onHook() {
         if (!isMainProcess) return
         retired = false
-        enabled = Preferences.notificationMoreSettings()
-        threshold = NotificationIconPolicy.threshold(Preferences.getInt(SystemUiSettingsKeys.KEY_NOTIFICATION_ICON_FILTER_MODE, 0))
+        enabled = settingNotificationMoreSettings
+        threshold = NotificationIconPolicy.threshold(settingNotificationIconFilterMode)
         val builderClass = BUILDER.toClassOrNull() ?: run {
             DebugLog.hookSkipped(TAG, BUILDER, "class not found")
             return
@@ -148,8 +151,8 @@ object StatusBarHideSilentHooker : StaticHooker() {
 
     fun refreshSettings() {
         Preferences.invalidateRuntimeReadCache()
-        enabled = Preferences.notificationMoreSettings()
-        threshold = NotificationIconPolicy.threshold(Preferences.getInt(SystemUiSettingsKeys.KEY_NOTIFICATION_ICON_FILTER_MODE, 0))
+        enabled = settingNotificationMoreSettings
+        threshold = NotificationIconPolicy.threshold(settingNotificationIconFilterMode)
         main.post { if (!retired) requestRebuild() }
     }
 

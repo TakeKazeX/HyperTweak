@@ -5,6 +5,7 @@ import android.graphics.Canvas
 import android.graphics.PorterDuff
 import android.view.View
 import android.view.ViewParent
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
@@ -12,6 +13,13 @@ import org.luckypray.dexkit.query.enums.StringMatchType
 import java.lang.reflect.Field
 import java.lang.reflect.Method
 import java.util.concurrent.ConcurrentHashMap
+
+// Published on settings acceptance; hook callbacks perform no storage reads.
+private val settingHideFingerprintAodEnabled by hookSetting(false) { Preferences.hideFingerprintAodEnabled() }
+private val settingHideFingerprintLockscreenEnabled by hookSetting(false) { Preferences.hideFingerprintLockscreenEnabled() }
+private val settingHideFingerprintAppAuthEnabled by hookSetting(false) { Preferences.hideFingerprintAppAuthEnabled() }
+
+internal fun prepareHideFingerprintIconSettings() { settingHideFingerprintAodEnabled }
 
 /**
  * Hides only the fingerprint visuals. The GXZW view remains present so the touch window and the
@@ -50,9 +58,9 @@ object HideFingerprintIcon : StaticHooker() {
      * fresh install, without recreating the hooked methods.
      */
     fun refreshSettings() {
-        val aod = Preferences.hideFingerprintAodEnabled()
-        val lockscreen = Preferences.hideFingerprintLockscreenEnabled()
-        val appAuth = Preferences.hideFingerprintAppAuthEnabled()
+        val aod = settingHideFingerprintAodEnabled
+        val lockscreen = settingHideFingerprintLockscreenEnabled
+        val appAuth = settingHideFingerprintAppAuthEnabled
         if (aod == hideAodEnabled && lockscreen == hideLockscreenEnabled && appAuth == hideAppAuthEnabled) return
         hideAodEnabled = aod
         hideLockscreenEnabled = lockscreen
@@ -63,9 +71,10 @@ object HideFingerprintIcon : StaticHooker() {
     }
 
     override fun onHook() {
-        hideAodEnabled = Preferences.hideFingerprintAodEnabled()
-        hideLockscreenEnabled = Preferences.hideFingerprintLockscreenEnabled()
-        hideAppAuthEnabled = Preferences.hideFingerprintAppAuthEnabled()
+        prepareHideFingerprintIconSettings()
+        hideAodEnabled = settingHideFingerprintAodEnabled
+        hideLockscreenEnabled = settingHideFingerprintLockscreenEnabled
+        hideAppAuthEnabled = settingHideFingerprintAppAuthEnabled
         // The hooks install even with every surface off (RuntimeSettingsGroups.KEYGUARD owns these
         // keys): the three switches are read per draw, and an accepted change reaches this cached
         // copy through refreshSettings. Skipping the install here would make the first enable in a

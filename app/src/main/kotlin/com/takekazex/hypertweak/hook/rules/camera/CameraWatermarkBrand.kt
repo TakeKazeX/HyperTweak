@@ -4,8 +4,16 @@ import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.CameraSettingsKeys
 
 import android.os.Build
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.util.logging.DebugLog
+
+// Published on settings acceptance; hook callbacks perform no storage reads.
+private val settingCameraWmCustom by hookSetting(false) { Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_WM_CUSTOM, false) }
+private val settingCameraWmCustomBrand by hookSetting("") { Preferences.getString(CameraSettingsKeys.KEY_CAMERA_WM_CUSTOM_BRAND, "") }
+private val settingCameraWmCustomModel by hookSetting("") { Preferences.getString(CameraSettingsKeys.KEY_CAMERA_WM_CUSTOM_MODEL, "") }
+
+internal fun prepareCameraWatermarkBrandSettings() { settingCameraWmCustom }
 
 /**
  * Shared watermark brand/model resolution used by both `CameraImpersonationHooker` (keep-model
@@ -40,16 +48,16 @@ object CameraWatermarkBrand {
      * (`KEY_CAMERA_WM_CUSTOM`) is on and the value is non-blank.
      */
     fun customBrand(): String =
-        if (Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_WM_CUSTOM, false)) {
-            Preferences.getString(CameraSettingsKeys.KEY_CAMERA_WM_CUSTOM_BRAND, "").trim()
+        if (settingCameraWmCustom) {
+            settingCameraWmCustomBrand.trim()
         } else {
             ""
         }
 
     /** Custom model override; only honoured when `KEY_CAMERA_WM_CUSTOM` is on. */
     fun customModel(): String =
-        if (Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_WM_CUSTOM, false)) {
-            Preferences.getString(CameraSettingsKeys.KEY_CAMERA_WM_CUSTOM_MODEL, "").trim()
+        if (settingCameraWmCustom) {
+            settingCameraWmCustomModel.trim()
         } else {
             ""
         }

@@ -5,6 +5,7 @@ import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 
 import android.content.Context
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.InstallPolicy
 import com.takekazex.hypertweak.hook.base.StaticHooker
@@ -35,6 +36,14 @@ import org.json.JSONObject
  * no obfuscated class or method name is carried between Smart Assistant releases.
  */
 object ModelSpoofHooker : StaticHooker() {
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingPaModelSpoof by hookSetting(false) { Preferences.getBoolean(PlatformSettingsKeys.KEY_PA_MODEL_SPOOF, false) }
+    private val settingPaModelSpoofModel by hookSetting(PlatformSettingsKeys.DEFAULT_PA_MODEL_SPOOF_MODEL) {
+        Preferences.getString(PlatformSettingsKeys.KEY_PA_MODEL_SPOOF_MODEL, PlatformSettingsKeys.DEFAULT_PA_MODEL_SPOOF_MODEL)
+    }
+    private val settingPaModelSpoofDevice by hookSetting(PlatformSettingsKeys.DEFAULT_PA_MODEL_SPOOF_DEVICE) {
+        Preferences.getString(PlatformSettingsKeys.KEY_PA_MODEL_SPOOF_DEVICE, PlatformSettingsKeys.DEFAULT_PA_MODEL_SPOOF_DEVICE)
+    }
 
     private const val TAG = "ModelSpoof"
     private const val MODEL_KEY = "phoneModel"
@@ -44,7 +53,7 @@ object ModelSpoofHooker : StaticHooker() {
     override val installPolicy: InstallPolicy = InstallPolicy.WHEN_ENABLED
 
     override fun isFeatureEnabled(): Boolean =
-        Preferences.getBoolean(PlatformSettingsKeys.KEY_PA_MODEL_SPOOF, false)
+        settingPaModelSpoof
 
     override fun onHook() {
         if (!isFeatureEnabled()) {
@@ -64,16 +73,10 @@ object ModelSpoofHooker : StaticHooker() {
         deoptimize(method)
         method.hook {
             after { param ->
-                if (!Preferences.getBoolean(PlatformSettingsKeys.KEY_PA_MODEL_SPOOF, false)) return@after
+                if (!settingPaModelSpoof) return@after
                 val json = param.result as? JSONObject ?: return@after
-                val model = Preferences.getString(
-                    PlatformSettingsKeys.KEY_PA_MODEL_SPOOF_MODEL,
-                    PlatformSettingsKeys.DEFAULT_PA_MODEL_SPOOF_MODEL
-                )
-                val device = Preferences.getString(
-                    PlatformSettingsKeys.KEY_PA_MODEL_SPOOF_DEVICE,
-                    PlatformSettingsKeys.DEFAULT_PA_MODEL_SPOOF_DEVICE
-                )
+                val model = settingPaModelSpoofModel
+                val device = settingPaModelSpoofDevice
                 if (model.isNotBlank()) json.put(MODEL_KEY, model)
                 if (device.isNotBlank()) json.put(DEVICE_KEY, device)
             }

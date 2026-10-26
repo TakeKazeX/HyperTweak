@@ -8,10 +8,10 @@ import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.os.UserHandle
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.CompatibleMethodResolver
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 import io.github.lingqiqi5211.ezhooktool.core.callMethodOrNull
@@ -28,6 +28,9 @@ import java.util.Locale
  * the recorded baseline (`cache/securitycenter-2627ffd76e9d8f79`).
  */
 object AospAppInfoEntryHooker : StaticHooker() {
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingAospAppInfoEntry by hookSetting(false) { Preferences.getBoolean(PlatformSettingsKeys.KEY_AOSP_APP_INFO_ENTRY, false) }
+
     private const val TAG = "AospAppInfoEntry"
 
     private const val DETAILS_FRAGMENT = "com.miui.appmanager.fragment.ApplicationsDetailsFragment"
@@ -49,10 +52,8 @@ object AospAppInfoEntryHooker : StaticHooker() {
         "androidx.preference.Preference"
     )
 
-    override val hotReloadMode = HotReloadMode.RECREATE
-
     override fun onHook() {
-        if (!Preferences.getBoolean(PlatformSettingsKeys.KEY_AOSP_APP_INFO_ENTRY, false)) {
+        if (!settingAospAppInfoEntry) {
             DebugLog.hookSkippedDebug(TAG, "app details page", "disabled")
             return
         }

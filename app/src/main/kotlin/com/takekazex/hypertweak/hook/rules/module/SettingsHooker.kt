@@ -13,6 +13,7 @@ import android.widget.ImageView
 import androidx.core.graphics.createBitmap
 import androidx.core.graphics.withClip
 import com.takekazex.hypertweak.R
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.platform.ResourceLookup
@@ -24,6 +25,9 @@ import android.graphics.Bitmap
 import android.graphics.Path
 
 object SettingsHooker : StaticHooker() {
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingShowInSettings by hookSetting(false) { Preferences.getBoolean(PlatformSettingsKeys.KEY_SHOW_IN_SETTINGS, false) }
+
     private const val HEADER_ID = 10777L
     private val headerFieldCache = generationResource(ConcurrentHashMap<Class<*>, Map<String, Field>>()) { it.clear() }
     private val headerConstructorCache = generationResource(ConcurrentHashMap<Class<*>, Constructor<*>?>()) { it.clear() }
@@ -31,7 +35,6 @@ object SettingsHooker : StaticHooker() {
 
     /** `header_icon_size` dimen id, resolved once per process instead of per header bind. */
     private var headerIconSizeResId by generationState { 0 }
-
 
     override fun onHook() {
         val clzMiuiSettings = resolveAppClass(
@@ -72,7 +75,7 @@ object SettingsHooker : StaticHooker() {
                 val list = param.args[0] as? MutableList<Any?> ?: return@after
                 val activity = param.thisObject as? Activity ?: return@after
 
-                val showInSettings = Preferences.getBoolean(PlatformSettingsKeys.KEY_SHOW_IN_SETTINGS, false)
+                val showInSettings = settingShowInSettings
                 if (!showInSettings) {
                     runCatching {
                         val iterator = list.iterator()

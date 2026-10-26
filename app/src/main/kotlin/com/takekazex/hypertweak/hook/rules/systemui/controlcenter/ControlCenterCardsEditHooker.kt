@@ -7,10 +7,10 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import android.view.View
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.CompatibleMethodResolver
 import com.takekazex.hypertweak.hook.base.DynamicHooker
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import java.lang.reflect.Field
 
 /**
@@ -78,7 +78,12 @@ import java.lang.reflect.Field
  * the WiFi/cellular cards reorders their specs through [SystemUiSettingsKeys.KEY_CC_TOP_CARD_ORDER].
  */
 class ControlCenterCardsEditHooker : DynamicHooker() {
-    override val hotReloadMode = HotReloadMode.RECREATE
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingCcResizeEnabled by hookSetting(false) { Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_RESIZE_ENABLED, false) }
+    private val settingCcEditEnabled by hookSetting(false) { Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_EDIT_ENABLED, false) }
+    private val settingCcMainContentOrder by hookSetting("") { Preferences.getString(SystemUiSettingsKeys.KEY_CC_MAIN_CONTENT_ORDER, "") }
+    private val settingCcTopCardOrder by hookSetting("") { Preferences.getString(SystemUiSettingsKeys.KEY_CC_TOP_CARD_ORDER, "") }
+
     private val editor = ControlCenterEditorAccess { it.toClassOrNull() }
 
     private companion object {
@@ -194,7 +199,7 @@ class ControlCenterCardsEditHooker : DynamicHooker() {
         span.hook {
             before { param ->
                 if (!enabled()) return@before
-                if (Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_RESIZE_ENABLED, false)) {
+                if (settingCcResizeEnabled) {
                     return@before
                 }
                 runCatching {
@@ -242,7 +247,7 @@ class ControlCenterCardsEditHooker : DynamicHooker() {
     }.getOrNull()
 
     private fun enabled(): Boolean =
-        Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_EDIT_ENABLED, false)
+        settingCcEditEnabled
 
     // ─── Edit-mode visibility ──────────────────────────────────────────────────
 
@@ -504,11 +509,11 @@ class ControlCenterCardsEditHooker : DynamicHooker() {
     }
 
     private fun storedContentOrder(): List<String> =
-        (committedContentOrder ?: Preferences.getString(SystemUiSettingsKeys.KEY_CC_MAIN_CONTENT_ORDER, ""))
+        (committedContentOrder ?: settingCcMainContentOrder)
             .split(',').map { it.trim().lowercase() }.filter { it.isNotEmpty() }
 
     private fun storedCardOrder(): List<String> =
-        (committedCardOrder ?: Preferences.getString(SystemUiSettingsKeys.KEY_CC_TOP_CARD_ORDER, ""))
+        (committedCardOrder ?: settingCcTopCardOrder)
             .split(',').map { it.trim().lowercase() }.filter { it.isNotEmpty() }
 
     // ─── Cross-content drag ────────────────────────────────────────────────────

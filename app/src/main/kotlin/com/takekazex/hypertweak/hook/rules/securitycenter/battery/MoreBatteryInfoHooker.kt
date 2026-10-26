@@ -16,10 +16,10 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Message
 import android.text.format.DateFormat
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.CompatibleMethodResolver
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.InstallPolicy
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
@@ -42,7 +42,10 @@ import java.util.Locale
  */
 @SuppressLint("StaticFieldLeak")
 object MoreBatteryInfoHooker : StaticHooker() {
-    override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingSecurityCenterMoreBatteryInfo by hookSetting(false) {
+        Preferences.getBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_MORE_BATTERY_INFO, false)
+    }
 
     private const val TAG = "MoreBatteryInfo"
     private const val PACKAGE = "com.miui.securitycenter"
@@ -103,14 +106,14 @@ object MoreBatteryInfoHooker : StaticHooker() {
         "/sys/class/power_supply/bms/cycle_count"
     )
 
-    private var batteryInfoCategory: Any? = null
-    private var currentTemperaturePreference: Any? = null
-    private var cycleCountPreference: Any? = null
-    private var productionDatePreference: Any? = null
-    private var firstUseDatePreference: Any? = null
-    private var designCapacityPreference: Any? = null
-    private var fullCapacityPreference: Any? = null
-    private var batteryContext: Context? = null
+    private var batteryInfoCategory: Any? by generationState { null }
+    private var currentTemperaturePreference: Any? by generationState { null }
+    private var cycleCountPreference: Any? by generationState { null }
+    private var productionDatePreference: Any? by generationState { null }
+    private var firstUseDatePreference: Any? by generationState { null }
+    private var designCapacityPreference: Any? by generationState { null }
+    private var fullCapacityPreference: Any? by generationState { null }
+    private var batteryContext: Context? by generationState { null }
 
     override fun onPrepareHotReload() {
         clearCapturedPreferences()
@@ -120,11 +123,11 @@ object MoreBatteryInfoHooker : StaticHooker() {
     override val installPolicy: InstallPolicy = InstallPolicy.WHEN_ENABLED
 
     override fun isFeatureEnabled(): Boolean =
-        Preferences.getBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_MORE_BATTERY_INFO, false)
+        settingSecurityCenterMoreBatteryInfo
 
     override fun onHook() {
         if (hookParam.packageName != PACKAGE) return
-        if (!Preferences.getBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_MORE_BATTERY_INFO, false)) {
+        if (!settingSecurityCenterMoreBatteryInfo) {
             DebugLog.hookSkippedDebug(TAG, "more battery-protection information", "disabled")
             return
         }
@@ -137,7 +140,7 @@ object MoreBatteryInfoHooker : StaticHooker() {
         hookChargeProtectHandler()
     }
 
-    private var readMethods = BatteryReadMethods()
+    private var readMethods by generationState { BatteryReadMethods() }
 
     private fun hookPreferenceRemoval() {
         val groupClass = "androidx.preference.PreferenceGroup".toClassOrNull() ?: run {

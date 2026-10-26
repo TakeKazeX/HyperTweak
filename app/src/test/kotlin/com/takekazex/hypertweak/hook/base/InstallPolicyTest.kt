@@ -151,18 +151,51 @@ class InstallPolicyTest {
 
         assertEquals("a deliberate skip must not be retried", 1, hookCalls)
     }
-    @Test fun `a feature refresh cannot undo explicit module disablement`() {
+    @Test fun `a feature refresh cannot undo parent disablement`() {
         val hooker = Gated(initial = true)
         hooker.updateParentState(true)
-        hooker.updateSelfState(false)
+        hooker.updateParentState(false)
         hooker.enabled = false
         hooker.refreshFeatureState()
         hooker.enabled = true
         hooker.refreshFeatureState()
         assertEquals(1, hooker.hookCalls)
         assertEquals(1, hooker.unhookCalls)
-        hooker.updateSelfState(true)
+        hooker.updateParentState(true)
         assertEquals(2, hooker.hookCalls)
+    }
+
+    @Test fun `retirement recomputes gated state in the next generation`() {
+        val hooker = Gated(initial = true)
+        hooker.updateParentState(true)
+        hooker.enabled = false
+        hooker.refreshFeatureState()
+        hooker.prepareForHotReload()
+        hooker.resetAfterHotReloadPrepared()
+        hooker.enabled = true
+        hooker.updateParentState(true)
+        assertEquals(2, hooker.hookCalls)
+        assertTrue(hooker.isHooked)
+    }
+
+    @Test fun `a route-only hooker is installed once and unsubscribes on disable`() {
+        var closed = 0
+        var installs = 0
+        val hooker = object : DynamicHooker() {
+            override fun onHook() {
+                installs++
+                ownSubscription(AutoCloseable { closed++ })
+            }
+        }
+        hooker.updateParentState(true)
+        hooker.retryHookIfNeeded()
+        assertEquals(1, installs)
+        hooker.updateParentState(false)
+        assertEquals(1, closed)
+        hooker.updateParentState(true)
+        assertEquals(2, installs)
+        hooker.prepareForHotReload()
+        assertEquals(2, closed)
     }
 
 }

@@ -8,9 +8,9 @@ import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 import android.graphics.drawable.GradientDrawable
 import android.util.Log
 import android.view.View
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.DynamicHooker
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import org.luckypray.dexkit.query.enums.StringMatchType
 import java.lang.reflect.Method
 
@@ -62,7 +62,8 @@ class ControlCenterCornerHooker(
     private val pluginContext: android.content.Context? = null,
     private val pluginApkPath: String = ""
 ) : DynamicHooker() {
-    override val hotReloadMode = HotReloadMode.RECREATE
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingCcCornerEnabled by hookSetting(false) { Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_CORNER_ENABLED, false) }
 
     private companion object {
         const val TILE_CLASS = "miui.systemui.controlcenter.qs.tileview.QSTileItemIconView"
@@ -284,8 +285,12 @@ class ControlCenterCornerHooker(
      * `getDimensionPixelSize`, so a raw dp passed through unchanged renders ~1/density
      * of the intended radius on high-density devices — the "no visible effect" report.
      */
+    private val cornerRadii by hookSetting(emptyMap<String, Float>()) {
+        listOf(SystemUiSettingsKeys.KEY_CC_CORNER_CARD, SystemUiSettingsKeys.KEY_CC_CORNER_DEVICE, SystemUiSettingsKeys.KEY_CC_CORNER_MEDIA, SystemUiSettingsKeys.KEY_CC_CORNER_SLIDER, SystemUiSettingsKeys.KEY_CC_CORNER_TILE).associateWith { Preferences.getFloat(it, 0f) }
+    }
+
     private fun radiusPx(key: String): Float {
-        val dp = Preferences.getFloat(key, 0f)
+        val dp = cornerRadii[key] ?: 0f
         if (dp <= 0f) return 0f
         val density = pluginContext?.resources?.displayMetrics?.density ?: 1f
         return dp * density
@@ -297,7 +302,7 @@ class ControlCenterCornerHooker(
      * a coefficient change no longer needs a new plugin session or a SystemUI restart.
      */
     fun refreshSettings() {
-        val next = Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_CORNER_ENABLED, false)
+        val next = settingCcCornerEnabled
         val changed = next != cornerEnabled
         cornerEnabled = next
         if (!changed) {
@@ -341,7 +346,7 @@ class ControlCenterCornerHooker(
     }
 
     override fun onHook() {
-        cornerEnabled = Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_CORNER_ENABLED, false)
+        cornerEnabled = settingCcCornerEnabled
 
         // Every hook reads the radius through this resolver at the moment it draws, so the
         // installed set never depends on the values that were committed at install time.

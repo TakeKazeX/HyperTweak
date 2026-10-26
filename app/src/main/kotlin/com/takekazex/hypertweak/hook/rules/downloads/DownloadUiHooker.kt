@@ -21,8 +21,8 @@ import android.view.ViewGroup
 import android.view.Window
 import android.widget.ImageView
 import android.widget.TextView
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 import org.luckypray.dexkit.query.matchers.MethodMatcher
@@ -35,7 +35,14 @@ import kotlin.math.roundToInt
 
 /** Hooks the Download Manager UI features that live next to the provider-side .xlDownload hook. */
 object DownloadUiHooker : StaticHooker() {
-    override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingDownloadAlwaysShowFullLink by hookSetting(false) {
+        Preferences.getBoolean(PlatformSettingsKeys.KEY_DOWNLOAD_ALWAYS_SHOW_FULL_LINK, false)
+    }
+    private val settingDownloadHideXl by hookSetting(false) { Preferences.getBoolean(PlatformSettingsKeys.KEY_DOWNLOAD_HIDE_XL, false) }
+    private val settingDownloadAddNewButton by hookSetting(false) {
+        Preferences.getBoolean(PlatformSettingsKeys.KEY_DOWNLOAD_ADD_NEW_BUTTON, false)
+    }
 
     private const val TAG = "DownloadUi"
     private const val HOME_CACHE_KEY = "download_ui_home_fragment"
@@ -54,15 +61,9 @@ object DownloadUiHooker : StaticHooker() {
     private val newDownloadContainerMarker = Any()
 
     override fun onHook() {
-        val alwaysShowLink = Preferences.getBoolean(
-            PlatformSettingsKeys.KEY_DOWNLOAD_ALWAYS_SHOW_FULL_LINK,
-            false
-        )
-        val hideXl = Preferences.getBoolean(PlatformSettingsKeys.KEY_DOWNLOAD_HIDE_XL, false)
-        val addNewButton = Preferences.getBoolean(
-            PlatformSettingsKeys.KEY_DOWNLOAD_ADD_NEW_BUTTON,
-            false
-        )
+        val alwaysShowLink = settingDownloadAlwaysShowFullLink
+        val hideXl = settingDownloadHideXl
+        val addNewButton = settingDownloadAddNewButton
 
         var installed = 0
         if (alwaysShowLink) installed += installAlwaysShowFullLink()

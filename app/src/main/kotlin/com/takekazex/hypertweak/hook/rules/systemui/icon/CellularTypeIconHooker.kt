@@ -18,8 +18,8 @@ import android.text.style.RelativeSizeSpan
 import android.util.SparseArray
 import android.view.ViewGroup
 import android.widget.TextView
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.reflect.Field
@@ -35,13 +35,28 @@ import kotlin.math.ceil
  * own 5GA suffix formatting.
  */
 object CellularTypeIconHooker : StaticHooker() {
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingIconCellularTypeSingle by hookSetting(false) {
+        Preferences.getBoolean(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_SINGLE, false)
+    }
+    private val settingIconCellularTypeSingleSwap by hookSetting(false) {
+        Preferences.getBoolean(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_SINGLE_SWAP, false)
+    }
+    private val settingIconCellularTypeCustom by hookSetting(false) {
+        Preferences.getBoolean(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_CUSTOM, false)
+    }
+    private val settingIconCellularTypeCustomVal by hookSetting("") {
+        Preferences.getString(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_CUSTOM_VAL, "")
+    }
+    private val settingIconCellularTypeSmall5ga by hookSetting(false) {
+        Preferences.getBoolean(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_SMALL_5GA, false)
+    }
+
     init {
         hostRecovery(HostRecoveryPhase.SOURCES, icons = true) {
             it.component?.let(::recoverOperatorConfig)
         }
     }
-
-    override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
 
     private const val TAG = "IconTuner"
     private const val POLICY_CLASS = "com.android.systemui.MiuiOperatorCustomizedPolicy"
@@ -51,12 +66,12 @@ object CellularTypeIconHooker : StaticHooker() {
 
     private var forceSingle by generationState { false }
     private var swapSingle by generationState { false }
-    @Volatile private var customType = ""
+    private var customType by generationState { "" }
     private var useCustom by generationState { false }
     private var small5GaEnabled by generationState { false }
     private var mobileTypeSingleViewId by generationState { 0 }
 
-    private val modifiedDrawables = Collections.synchronizedMap(WeakHashMap<Any, Boolean>())
+    private val modifiedDrawables = generationMainResource(Collections.synchronizedMap(WeakHashMap<Any, Boolean>())) { it.clear() }
 
     private val nativeDrawStates = ThreadLocal.withInitial {
         IdentityHashMap<Any, NativeDrawState>()
@@ -80,7 +95,6 @@ object CellularTypeIconHooker : StaticHooker() {
     )
 
     override fun onPrepareHotReload() {
-        customType = ""
 
         HostAccess.onMain {
             val drawables = synchronized(modifiedDrawables) {
@@ -93,14 +107,11 @@ object CellularTypeIconHooker : StaticHooker() {
     }
 
     override fun onHook() {
-        forceSingle = Preferences.getBoolean(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_SINGLE, false)
-        swapSingle = Preferences.getBoolean(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_SINGLE_SWAP, false)
-        useCustom = Preferences.getBoolean(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_CUSTOM, false)
-        customType = Preferences.getString(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_CUSTOM_VAL, "").trim()
-        small5GaEnabled = Preferences.getBoolean(
-            IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_SMALL_5GA,
-            false
-        )
+        forceSingle = settingIconCellularTypeSingle
+        swapSingle = settingIconCellularTypeSingleSwap
+        useCustom = settingIconCellularTypeCustom
+        customType = settingIconCellularTypeCustomVal.trim()
+        small5GaEnabled = settingIconCellularTypeSmall5ga
 
         val configEnabled = forceSingle || useCustom
         val binderEnabled = swapSingle

@@ -5,9 +5,9 @@ import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 
 import android.app.NotificationChannel
 import android.content.Context
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.reflect.Field
@@ -34,7 +34,10 @@ import java.lang.reflect.Proxy
  * Settings APK 里、不在模块类路径，因此全部按名字反射解析；监听器用 `Proxy` 实现宿主接口。
  */
 object ChannelKeyguardToggleHooker : StaticHooker() {
-    override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingLockscreenAllNotifications by hookSetting(false) {
+        Preferences.getBoolean(SystemUiSettingsKeys.KEY_LOCKSCREEN_ALL_NOTIFICATIONS, false)
+    }
 
     private const val TAG = "ChannelKeyguard"
     private const val CHANNEL_SETTINGS =
@@ -45,19 +48,19 @@ object ChannelKeyguardToggleHooker : StaticHooker() {
     private const val LISTENER_IFACE =
         "androidx.preference.Preference\$OnPreferenceChangeListener"
 
-    private var findPreference: Method? = null
-    private var setPrefVisible: Method? = null
-    private var getContext: Method? = null
-    private var setShowKeyguard: Method? = null
-    private var pkgField: Field? = null
-    private var channelField: Field? = null
-    private var allowKeyguardField: Field? = null
-    private var listenerInterface: Class<*>? = null
+    private var findPreference: Method? by generationState { null }
+    private var setPrefVisible: Method? by generationState { null }
+    private var getContext: Method? by generationState { null }
+    private var setShowKeyguard: Method? by generationState { null }
+    private var pkgField: Field? by generationState { null }
+    private var channelField: Field? by generationState { null }
+    private var allowKeyguardField: Field? by generationState { null }
+    private var listenerInterface: Class<*>? by generationState { null }
 
     private var capturedPref: Any? by generationState { null }
 
     override fun onHook() {
-        if (!Preferences.getBoolean(SystemUiSettingsKeys.KEY_LOCKSCREEN_ALL_NOTIFICATIONS, false)) {
+        if (!settingLockscreenAllNotifications) {
             DebugLog.hookSkippedDebug(TAG, "per-channel keyguard toggle", "disabled")
             return
         }

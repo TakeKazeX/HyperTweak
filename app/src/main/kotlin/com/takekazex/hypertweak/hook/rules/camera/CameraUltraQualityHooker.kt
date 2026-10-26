@@ -3,12 +3,21 @@ package com.takekazex.hypertweak.hook.rules.camera
 import com.takekazex.hypertweak.settings.contract.CameraSettingsKeys
 
 import com.takekazex.hypertweak.hook.base.dex.DexOperandIndex
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.reflect.Modifier
 
 object CameraUltraQualityHooker : StaticHooker() {
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingCameraUltraHdQuality by hookSetting(false) {
+        Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_ULTRA_HD_QUALITY, false)
+    }
+    private val settingCameraSelfieSettings by hookSetting(false) {
+        Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_SELFIE_SETTINGS, false)
+    }
+
     private const val TAG = "CamUltraQuality"
     private const val PACKAGE = "com.android.camera"
     private val hostProfile by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
@@ -56,9 +65,8 @@ object CameraUltraQualityHooker : StaticHooker() {
     }
 
 
-
     private fun cameraUltraHdQuality(): Boolean =
-        Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_ULTRA_HD_QUALITY, false)
+        settingCameraUltraHdQuality
 
     private fun hookSelfieMirrorPreference() {
         val clazz = CameraFeatureResolver.selfieSettings(
@@ -79,7 +87,7 @@ object CameraUltraQualityHooker : StaticHooker() {
         deoptimize(method)
         method.hook("cam_selfie_mirror_preference") {
             before { param ->
-                if (!Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_SELFIE_SETTINGS, false)) return@before
+                if (!settingCameraSelfieSettings) return@before
                 runCatching {
                     val group = groupField.get(param.thisObject) ?: return@runCatching
                     add.invoke(param.thisObject, group, "pref_front_mirror_boolean_key", true, ids[0], ids[1])
@@ -112,7 +120,7 @@ object CameraUltraQualityHooker : StaticHooker() {
         deoptimize(method)
         method.hook("cam_remove_common_selfie_mirror") {
             after { param ->
-                if (!Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_SELFIE_SETTINGS, false)) return@after
+                if (!settingCameraSelfieSettings) return@after
                 runCatching {
                     val group = groupField.get(param.thisObject) ?: return@runCatching
                     val pref = find.invoke(group, "pref_front_mirror_boolean_key")
@@ -134,7 +142,7 @@ object CameraUltraQualityHooker : StaticHooker() {
             deoptimize(gate)
             gate.hook("cam_selfie_$key") {
                 after { param ->
-                    if (Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_SELFIE_SETTINGS, false)) param.result = true
+                    if (settingCameraSelfieSettings) param.result = true
                 }
             }
         }

@@ -9,9 +9,9 @@ import android.view.View
 import android.view.accessibility.AccessibilityNodeInfo
 import android.widget.TextView
 import androidx.core.view.isGone
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.util.logging.DebugLog
@@ -25,26 +25,32 @@ import java.util.WeakHashMap
 
 /** Only native notification headers enroll framework DateTimeViews; MIUI/custom bodies are untouched. */
 object NotificationAbsoluteTimeHooker : StaticHooker() {
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingNotificationAbsoluteTime by hookSetting(false) {
+        Preferences.getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_ABSOLUTE_TIME, false)
+    }
+
     init {
         hostRecovery(HostRecoveryPhase.WINDOWS) {
             it.views.forEach(::recoverExistingView)
         }
     }
 
-    override val hotReloadMode = HotReloadMode.RECREATE
     private const val TAG = "NotificationAbsoluteTime"
     private const val HEADER = "com.android.systemui.statusbar.notification.row.wrapper.NotificationHeaderViewWrapper"
     private const val WRAPPER = "com.android.systemui.statusbar.notification.row.wrapper.NotificationViewWrapper"
-    private val views = WeakHashMap<TextView, Boolean>()
-    private val callbacks = WeakHashMap<TextView, Runnable>()
-    private var timeField: Field? = null
-    private var relativeField: Field? = null
-    private var nextUpdateField: Field? = null
-    private var wrapperViewField: Field? = null
-    private var updateMethod: Method? = null
-    private var nowTextId = 0
-    private var timeId = 0
-    @Volatile private var retiring = false
+    private val views = generationMainResource(WeakHashMap<TextView, Boolean>()) { it.clear() }
+    private val callbacks = generationMainResource(WeakHashMap<TextView, Runnable>()) { it.clear() }
+    private var timeField: Field? by generationState { null }
+    private var relativeField: Field? by generationState { null }
+    private var nextUpdateField: Field? by generationState { null }
+    private var wrapperViewField: Field? by generationState { null }
+    private var updateMethod: Method? by generationState { null }
+    private var nowTextId by generationState { 0 }
+    private var timeId by generationState { 0 }
+    @Volatile
+    private var retiring = false
+    init { generationCleanup { retiring = true } }
 
     private val attachListener = object : View.OnAttachStateChangeListener {
         override fun onViewAttachedToWindow(view: View) = boundary("attach") {
@@ -94,7 +100,7 @@ object NotificationAbsoluteTimeHooker : StaticHooker() {
                     after { param -> boundary("accessibility") {
                         val view = param.thisObject as? TextView ?: return@boundary
                         if (!retiring && views.containsKey(view) && relativeField?.getBoolean(view) == true &&
-                            Preferences.getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_ABSOLUTE_TIME, false)) {
+                            settingNotificationAbsoluteTime) {
                             (param.args.firstOrNull() as? AccessibilityNodeInfo)?.text = view.text
                         }
                     } }
@@ -127,7 +133,7 @@ object NotificationAbsoluteTimeHooker : StaticHooker() {
 
     private fun render(view: TextView) {
         cancel(view)
-        if (retiring || !Preferences.getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_ABSOLUTE_TIME, false) ||
+        if (retiring || !settingNotificationAbsoluteTime ||
             relativeField?.getBoolean(view) != true || view.isGone) return
         val time = timeField?.getLong(view) ?: return
         val now = System.currentTimeMillis()
@@ -186,7 +192,7 @@ object NotificationAbsoluteTimeHooker : StaticHooker() {
     }
 
     private fun isEnabled(): Boolean = !retiring &&
-        Preferences.getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_ABSOLUTE_TIME, false)
+        settingNotificationAbsoluteTime
 
     override fun saveHotReloadState(): Any = HostAccess.onMain { views.keys.toList() }
 

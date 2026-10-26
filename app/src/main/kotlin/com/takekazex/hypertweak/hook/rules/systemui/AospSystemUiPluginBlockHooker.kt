@@ -3,10 +3,10 @@ package com.takekazex.hypertweak.hook.rules.systemui
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import android.content.ComponentName
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.CompatibleMethodResolver
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 
@@ -24,6 +24,10 @@ import com.takekazex.hypertweak.util.logging.DebugLog
  * [SystemUIPluginHooker] depends on — keeps loading.
  */
 object AospSystemUiPluginBlockHooker : StaticHooker() {
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingAospPowerMenu by hookSetting(false) { Preferences.getBoolean(PlatformSettingsKeys.KEY_AOSP_POWER_MENU, false) }
+    private val settingAospVolumePanel by hookSetting(false) { Preferences.getBoolean(PlatformSettingsKeys.KEY_AOSP_VOLUME_PANEL, false) }
+
     private const val TAG = "AospSystemUiPlugin"
 
     private const val PLUGIN_ACTION_MANAGER = "com.android.systemui.shared.plugins.PluginActionManager"
@@ -32,12 +36,10 @@ object AospSystemUiPluginBlockHooker : StaticHooker() {
 
     private var blockedClasses: Set<String> by generationState { emptySet() }
 
-    override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
-
     override fun onHook() {
         blockedClasses = buildSet {
-            if (Preferences.getBoolean(PlatformSettingsKeys.KEY_AOSP_POWER_MENU, false)) add(GLOBAL_ACTIONS_PLUGIN)
-            if (Preferences.getBoolean(PlatformSettingsKeys.KEY_AOSP_VOLUME_PANEL, false)) add(VOLUME_DIALOG_PLUGIN)
+            if (settingAospPowerMenu) add(GLOBAL_ACTIONS_PLUGIN)
+            if (settingAospVolumePanel) add(VOLUME_DIALOG_PLUGIN)
         }
         if (blockedClasses.isEmpty()) {
             DebugLog.hookSkippedDebug(TAG, "MIUI SystemUI plugins", "disabled")

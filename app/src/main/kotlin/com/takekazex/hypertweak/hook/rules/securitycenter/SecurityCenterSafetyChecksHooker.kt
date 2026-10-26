@@ -2,6 +2,7 @@ package com.takekazex.hypertweak.hook.rules.securitycenter
 
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.DynamicHooker
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
@@ -231,6 +232,7 @@ object SecurityCenterSafetyChecksHooker : DynamicHooker() {
     }
 
     private fun installDynamicFalse(target: GateTarget?, preferenceKey: String): Int {
+        val enabled by hookSetting(false) { Preferences.getBoolean(preferenceKey, false) }
         target ?: return 0
         return runCatching {
             target.callers.forEach(::deoptimize)
@@ -240,7 +242,7 @@ object SecurityCenterSafetyChecksHooker : DynamicHooker() {
             method.hook("security_checks_${MethodDescriptorCodec.descriptor(method)}") {
                 before { param ->
                     HookFailurePolicy.open(TAG, "${method.name}.before", Unit) {
-                        if (Preferences.getBoolean(preferenceKey, false)) param.result = false
+                        if (enabled) param.result = false
                     }
                 }
             }

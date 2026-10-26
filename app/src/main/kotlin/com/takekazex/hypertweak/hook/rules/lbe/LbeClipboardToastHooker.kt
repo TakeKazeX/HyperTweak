@@ -7,9 +7,9 @@ import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 import android.content.Context
 import android.view.View
 import android.widget.Toast
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 import org.luckypray.dexkit.query.enums.StringMatchType
@@ -40,6 +40,9 @@ import java.lang.reflect.Method
  * prototype. Nothing here throws out of the hook; a resolution miss leaves the stock overlay alone.
  */
 object LbeClipboardToastHooker : StaticHooker() {
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingLbeClipboardToast by hookSetting(false) { Preferences.getBoolean(PlatformSettingsKeys.KEY_LBE_CLIPBOARD_TOAST, false) }
+
     private const val TAG = "LbeClipboardToast"
     private const val SECURITY_CENTER_PACKAGE = "com.miui.securitycenter"
 
@@ -63,19 +66,16 @@ object LbeClipboardToastHooker : StaticHooker() {
     private const val CLIPBOARD_TOAST_TYPE = 1
     private const val TOAST_TEXT_RES_NAME = "overlay_read_clip_toast"
 
-    @Volatile
-    private var enabled = false
+    private var enabled by generationState { false }
 
     private var contextField: Field? by generationState { null }
-
-    override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
 
     override fun onPrepareHotReload() {
         enabled = false
     }
 
     override fun onHook() {
-        enabled = Preferences.getBoolean(PlatformSettingsKeys.KEY_LBE_CLIPBOARD_TOAST, false)
+        enabled = settingLbeClipboardToast
         if (!enabled) {
             DebugLog.hookSkippedDebug(TAG, hookParam.packageName, "clipboard Toast disabled")
             return

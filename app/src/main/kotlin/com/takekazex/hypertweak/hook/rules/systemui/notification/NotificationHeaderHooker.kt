@@ -12,8 +12,8 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.WindowInsets
 import android.widget.TextView
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.util.logging.DebugLog
@@ -29,13 +29,32 @@ import java.util.concurrent.TimeUnit
  * lockscreen reuse some resource ids, so every target is first captured from this exact parent.
  */
 object NotificationHeaderHooker : StaticHooker() {
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingNotificationHeaderHideCarrier by hookSetting(false) {
+        Preferences.getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_HIDE_CARRIER, false)
+    }
+    private val settingNotificationHeaderHideTime by hookSetting(false) {
+        Preferences.getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_HIDE_TIME, false)
+    }
+    private val settingNotificationHeaderHideDate by hookSetting(false) {
+        Preferences.getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_HIDE_DATE, false)
+    }
+    private val settingNotificationHeaderDateAboveTime by hookSetting(false) {
+        Preferences.getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_DATE_ABOVE_TIME, false)
+    }
+    private val settingNotificationHeaderDateAlignment by hookSetting(NotificationHeaderModel.ALIGN_START) {
+        Preferences.getInt(SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_DATE_ALIGNMENT, NotificationHeaderModel.ALIGN_START)
+    }
+    private val settingNotificationHeaderTimeAlignment by hookSetting(NotificationHeaderModel.ALIGN_START) {
+        Preferences.getInt(SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_TIME_ALIGNMENT, NotificationHeaderModel.ALIGN_START)
+    }
+    private val settingGetNotificationHeaderTimeScale by hookSetting(1f) { Preferences.getNotificationHeaderTimeScale() }
+
     init {
         hostRecovery(HostRecoveryPhase.HEADERS) {
             it.headers = recoverExistingHosts(it.component, it.views)
         }
     }
-
-    override val hotReloadMode = HotReloadMode.RECREATE
 
     private const val TAG = "NotificationHeader"
     private const val HEADER_CLASS = "com.android.systemui.qs.MiuiNotificationHeaderView"
@@ -64,9 +83,9 @@ object NotificationHeaderHooker : StaticHooker() {
         hostUsesVerticalMode = clockSizing::isVerticalMode,
         hostUsesLandscapeMode = clockSizing::isLandscapeMode
     ) { stage, error -> DebugLog.w(TAG, "$stage failed", error) }
-    private val shadeHeaderHeightAnimators = WeakHashMap<Any, Boolean>()
-    private val notificationTopPaddingControllers = WeakHashMap<Any, Boolean>()
-    private val resettingHeaders = IdentityHashMap<ViewGroup, Int>()
+    private val shadeHeaderHeightAnimators = generationMainResource(WeakHashMap<Any, Boolean>()) { it.clear() }
+    private val notificationTopPaddingControllers = generationMainResource(WeakHashMap<Any, Boolean>()) { it.clear() }
+    private val resettingHeaders = generationMainResource(IdentityHashMap<ViewGroup, Int>()) { it.clear() }
     private val notificationTopPaddingRefreshDepth = ThreadLocal<Int>()
     private val notificationClockPositionDepth = ThreadLocal<Int>()
 
@@ -74,11 +93,11 @@ object NotificationHeaderHooker : StaticHooker() {
     private var hideTime by generationState { false }
     private var hideDate by generationState { false }
     private var dateAboveTime by generationState { false }
-    @Volatile private var dateAlignment = NotificationHeaderModel.ALIGN_START
-    @Volatile private var timeAlignment = NotificationHeaderModel.ALIGN_START
-    @Volatile private var timeScale = NotificationHeaderModel.DEFAULT_TIME_SCALE
-    @Volatile private var restoring = false
-    private var generatedCallbacks: NotificationHeaderCallbacks.GeneratedCallbacks? = null
+    private var dateAlignment by generationState { NotificationHeaderModel.ALIGN_START }
+    private var timeAlignment by generationState { NotificationHeaderModel.ALIGN_START }
+    private var timeScale by generationState { NotificationHeaderModel.DEFAULT_TIME_SCALE }
+    private var restoring by generationState { false }
+    private var generatedCallbacks: NotificationHeaderCallbacks.GeneratedCallbacks? by generationState { null }
 
     override fun saveHotReloadState(): Any = HostAccess.onMain {
         listOf(layoutController.roots(), clockSizing.controllerSizes.keys.toList(),
@@ -145,17 +164,17 @@ object NotificationHeaderHooker : StaticHooker() {
      */
     fun refreshSettings() {
         val previousWork = hasHeaderWork()
-        hideCarrier = Preferences.getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_HIDE_CARRIER, false)
-        hideTime = Preferences.getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_HIDE_TIME, false)
-        hideDate = Preferences.getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_HIDE_DATE, false)
-        dateAboveTime = Preferences.getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_DATE_ABOVE_TIME, false)
+        hideCarrier = settingNotificationHeaderHideCarrier
+        hideTime = settingNotificationHeaderHideTime
+        hideDate = settingNotificationHeaderHideDate
+        dateAboveTime = settingNotificationHeaderDateAboveTime
         dateAlignment = NotificationHeaderModel.normalizeAlignment(
-            Preferences.getInt(SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_DATE_ALIGNMENT, NotificationHeaderModel.ALIGN_START)
+            settingNotificationHeaderDateAlignment
         )
         timeAlignment = NotificationHeaderModel.normalizeAlignment(
-            Preferences.getInt(SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_TIME_ALIGNMENT, NotificationHeaderModel.ALIGN_START)
+            settingNotificationHeaderTimeAlignment
         )
-        timeScale = NotificationHeaderModel.normalizeTimeScale(Preferences.getNotificationHeaderTimeScale())
+        timeScale = NotificationHeaderModel.normalizeTimeScale(settingGetNotificationHeaderTimeScale)
         layoutController.configure(
             NotificationHeaderLayoutController.Options(
                 hideCarrier = hideCarrier,
@@ -233,27 +252,18 @@ object NotificationHeaderHooker : StaticHooker() {
 
     override fun onHook() {
         restoring = false
-        hideCarrier = Preferences.getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_HIDE_CARRIER, false)
-        hideTime = Preferences.getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_HIDE_TIME, false)
-        hideDate = Preferences.getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_HIDE_DATE, false)
-        dateAboveTime = Preferences.getBoolean(
-            SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_DATE_ABOVE_TIME,
-            false
-        )
+        hideCarrier = settingNotificationHeaderHideCarrier
+        hideTime = settingNotificationHeaderHideTime
+        hideDate = settingNotificationHeaderHideDate
+        dateAboveTime = settingNotificationHeaderDateAboveTime
         dateAlignment = NotificationHeaderModel.normalizeAlignment(
-            Preferences.getInt(
-                SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_DATE_ALIGNMENT,
-                NotificationHeaderModel.ALIGN_START
-            )
+            settingNotificationHeaderDateAlignment
         )
         timeAlignment = NotificationHeaderModel.normalizeAlignment(
-            Preferences.getInt(
-                SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_TIME_ALIGNMENT,
-                NotificationHeaderModel.ALIGN_START
-            )
+            settingNotificationHeaderTimeAlignment
         )
         timeScale = NotificationHeaderModel.normalizeTimeScale(
-            Preferences.getNotificationHeaderTimeScale()
+            settingGetNotificationHeaderTimeScale
         )
         layoutController.configure(
             NotificationHeaderLayoutController.Options(

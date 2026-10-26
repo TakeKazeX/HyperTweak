@@ -4,7 +4,6 @@ import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
 import com.takekazex.hypertweak.settings.contract.IconSlotMode
 
 import com.takekazex.hypertweak.hook.base.HostAccess
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 
@@ -23,8 +22,6 @@ object IgnoreSysIconSettingsHooker : StaticHooker() {
         }
     }
 
-    override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
-
     private const val TAG = "IconTuner"
     private const val OBSERVER_CLASS = "com.android.systemui.statusbar.policy.StatusBarIconObserver"
     private const val SPEED_CLASS = "com.android.systemui.statusbar.policy.NetworkSpeedController"
@@ -34,7 +31,6 @@ object IgnoreSysIconSettingsHooker : StaticHooker() {
     private var hidePrivacy by generationState { false }
 
     private var netSpeedShown by generationState { false }
-
 
     override fun onHook() {
         IconTunerFlows.init(classLoader)

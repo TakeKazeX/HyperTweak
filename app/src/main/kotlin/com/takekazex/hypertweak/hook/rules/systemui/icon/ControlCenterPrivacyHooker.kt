@@ -32,8 +32,8 @@ import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.ref.WeakReference
@@ -45,43 +45,65 @@ import kotlin.math.roundToInt
 
 /** Restyles native privacy children. Native expansion/Folme remain the sole animation owner. */
 object ControlCenterPrivacyHooker : StaticHooker() {
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingCcPrivacyEnabled by hookSetting(false) { Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_PRIVACY_ENABLED, false) }
+    private val settingCcPrivacyCenter by hookSetting(true) { Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_PRIVACY_CENTER, true) }
+    private val settingCcPrivacyBackground by hookSetting(false) {
+        Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_PRIVACY_BACKGROUND, false)
+    }
+    private val settingCcPrivacyColored by hookSetting(true) { Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_PRIVACY_COLORED, true) }
+    private val settingCcPrivacyNames by hookSetting(true) { Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_PRIVACY_NAMES, true) }
+    private val settingCcPrivacyAllApps by hookSetting(true) { Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_PRIVACY_ALL_APPS, true) }
+    private val settingCcPrivacyArrow by hookSetting(true) { Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_PRIVACY_ARROW, true) }
+    private val settingCcPrivacyDot by hookSetting(false) { Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_PRIVACY_DOT, false) }
+    private val settingCcPrivacyIconSize by hookSetting(ControlCenterPrivacyPolicy.DEFAULT_ICON_SIZE) {
+        Preferences.getInt(SystemUiSettingsKeys.KEY_CC_PRIVACY_ICON_SIZE, ControlCenterPrivacyPolicy.DEFAULT_ICON_SIZE)
+    }
+    private val settingCcPrivacyTextSize by hookSetting(ControlCenterPrivacyPolicy.DEFAULT_TEXT_SIZE) {
+        Preferences.getInt(SystemUiSettingsKeys.KEY_CC_PRIVACY_TEXT_SIZE, ControlCenterPrivacyPolicy.DEFAULT_TEXT_SIZE)
+    }
+    private val settingCcPrivacyOffset by hookSetting(ControlCenterPrivacyPolicy.DEFAULT_OFFSET) {
+        Preferences.getInt(SystemUiSettingsKeys.KEY_CC_PRIVACY_OFFSET, ControlCenterPrivacyPolicy.DEFAULT_OFFSET)
+    }
+
     init {
         hostRecovery(HostRecoveryPhase.WINDOWS, icons = true) {
             recoverExistingViews(it.views, it.component)
         }
     }
 
-    override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
     private const val TAG = "CcPrivacy"
     private const val VIEW = "com.android.systemui.controlcenter.shade.MiuiPrivacyContainerView"
     private const val HEADER = "com.android.systemui.controlcenter.shade.ControlCenterHeaderController"
     private const val CONTROLLER = "com.android.systemui.statusbar.privacy.MiuiPrivacyControllerImpl"
     private val main = Handler(Looper.getMainLooper())
-    private val constructors = HashMap<Class<*>, Constructor<*>>()
-    private val bindings = WeakHashMap<ViewGroup, Binding>()
-    private val headers = WeakHashMap<Any, Boolean>()
-    private val layoutStates = WeakHashMap<View, ViewGroup.LayoutParams>()
+    private val constructors = generationMainResource(HashMap<Class<*>, Constructor<*>>()) { it.clear() }
+    private val bindings = generationMainResource(WeakHashMap<ViewGroup, Binding>()) { it.clear() }
+    private val headers = generationMainResource(WeakHashMap<Any, Boolean>()) { it.clear() }
+    private val layoutStates = generationMainResource(WeakHashMap<View, ViewGroup.LayoutParams>()) { it.clear() }
     private val labels = LruCache<String, String>(64)
-    private var privacyController: WeakReference<Any>? = null
-    @Volatile private var enabled = false
-    @Volatile private var retiring = false
-    private var center = true
-    private var background = false
-    private var colored = true
-    private var names = true
-    private var allApps = true
-    private var arrow = true
-    private var dot = false
-    private var iconSize = ControlCenterPrivacyPolicy.DEFAULT_ICON_SIZE
-    private var textSize = ControlCenterPrivacyPolicy.DEFAULT_TEXT_SIZE
-    private var offset = ControlCenterPrivacyPolicy.DEFAULT_OFFSET
-    private var dependencyGet: Method? = null
-    private var dependency: Any? = null
-    private var dependencyClass: Class<*>? = null
-    private var controllerClass: Class<*>? = null
-    private var expiryAt = 0L
-    private var primaryPackage: String? = null
-    private val projectionHistory = LinkedHashMap<Pair<Int, String>, ControlCenterPrivacyPolicy.App>()
+    private var privacyController: WeakReference<Any>? by generationState { null }
+    private var enabled by generationState { false }
+    @Volatile
+    private var retiring = false
+    init { generationCleanup { retiring = true } }
+    private var center by generationState { true }
+    private var background by generationState { false }
+    private var colored by generationState { true }
+    private var names by generationState { true }
+    private var allApps by generationState { true }
+    private var arrow by generationState { true }
+    private var dot by generationState { false }
+    private var iconSize by generationState { ControlCenterPrivacyPolicy.DEFAULT_ICON_SIZE }
+    private var textSize by generationState { ControlCenterPrivacyPolicy.DEFAULT_TEXT_SIZE }
+    private var offset by generationState { ControlCenterPrivacyPolicy.DEFAULT_OFFSET }
+    private var dependencyGet: Method? by generationState { null }
+    private var dependency: Any? by generationState { null }
+    private var dependencyClass: Class<*>? by generationState { null }
+    private var controllerClass: Class<*>? by generationState { null }
+    private var expiryAt by generationState { 0L }
+    private var primaryPackage: String? by generationState { null }
+    private val projectionHistory = generationMainResource(LinkedHashMap<Pair<Int, String>, ControlCenterPrivacyPolicy.App>()) { it.clear() }
     private val expiryTask = Runnable {
         expiryAt = 0
         if (enabled && !retiring) guarded { bindings.values.toList().forEach(::updatePresentation) }
@@ -124,19 +146,19 @@ object ControlCenterPrivacyHooker : StaticHooker() {
     }
 
     override fun onHook() {
-        enabled = isMainProcess && Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_PRIVACY_ENABLED, false)
+        enabled = isMainProcess && settingCcPrivacyEnabled
         retiring = false
         if (!enabled) return
-        center = Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_PRIVACY_CENTER, true)
-        background = Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_PRIVACY_BACKGROUND, false)
-        colored = Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_PRIVACY_COLORED, true)
-        names = Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_PRIVACY_NAMES, true)
-        allApps = Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_PRIVACY_ALL_APPS, true)
-        arrow = Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_PRIVACY_ARROW, true)
-        dot = Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_PRIVACY_DOT, false)
-        iconSize = Preferences.getInt(SystemUiSettingsKeys.KEY_CC_PRIVACY_ICON_SIZE, ControlCenterPrivacyPolicy.DEFAULT_ICON_SIZE).coerceIn(16, 32)
-        textSize = Preferences.getInt(SystemUiSettingsKeys.KEY_CC_PRIVACY_TEXT_SIZE, ControlCenterPrivacyPolicy.DEFAULT_TEXT_SIZE).coerceIn(9, 20)
-        offset = Preferences.getInt(SystemUiSettingsKeys.KEY_CC_PRIVACY_OFFSET, ControlCenterPrivacyPolicy.DEFAULT_OFFSET).coerceIn(-16, 24)
+        center = settingCcPrivacyCenter
+        background = settingCcPrivacyBackground
+        colored = settingCcPrivacyColored
+        names = settingCcPrivacyNames
+        allApps = settingCcPrivacyAllApps
+        arrow = settingCcPrivacyArrow
+        dot = settingCcPrivacyDot
+        iconSize = settingCcPrivacyIconSize.coerceIn(16, 32)
+        textSize = settingCcPrivacyTextSize.coerceIn(9, 20)
+        offset = settingCcPrivacyOffset.coerceIn(-16, 24)
         val viewClass = VIEW.toClassOrNull() ?: return
         controllerClass = CONTROLLER.toClassOrNull() ?: return
         val headerClass = HEADER.toClassOrNull() ?: return
@@ -664,7 +686,6 @@ object ControlCenterPrivacyHooker : StaticHooker() {
 
     override fun onPrepareHotReload() {
         retiring = true
-        enabled = false
         HostAccess.onMain {
             bindings.values.toList().forEach { binding ->
                 binding.root.get()?.removeOnLayoutChangeListener(binding.listener)

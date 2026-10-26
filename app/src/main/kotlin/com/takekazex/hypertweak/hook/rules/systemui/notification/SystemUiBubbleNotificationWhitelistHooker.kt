@@ -8,10 +8,10 @@ import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 import android.content.Context
 import android.content.ContentResolver
 import android.provider.Settings
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.CompatibleMethodResolver
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.ref.WeakReference
@@ -30,6 +30,11 @@ import java.util.concurrent.atomic.AtomicBoolean
  * switch is enabled or absent, while retaining the active-bubble and per-app-off requirements.
  */
 object SystemUiBubbleNotificationWhitelistHooker : StaticHooker() {
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingSecurityCenterBubbleNotificationUnlock by hookSetting(false) {
+        Preferences.getBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_BUBBLE_NOTIFICATION_UNLOCK, false)
+    }
+
     private const val TAG = "SystemUiBubbleWhitelist"
 
     private const val BUBBLE_SETTINGS =
@@ -48,7 +53,7 @@ object SystemUiBubbleNotificationWhitelistHooker : StaticHooker() {
     private var currentApplicationMethod: Method? by generationState { null }
     private var secureStringForUserMethod: Method? by generationState { null }
 
-    private val secureReadFailureLogged = AtomicBoolean(false)
+    private val secureReadFailureLogged = generationResource(AtomicBoolean(false)) { it.set(false) }
 
     private enum class SecureAppState {
         ABSENT,
@@ -57,17 +62,12 @@ object SystemUiBubbleNotificationWhitelistHooker : StaticHooker() {
         UNAVAILABLE
     }
 
-    override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
-
     override fun onPrepareHotReload() {
         secureReadFailureLogged.set(false)
     }
 
     override fun onHook() {
-        if (!Preferences.getBoolean(
-                PlatformSettingsKeys.KEY_SECURITY_CENTER_BUBBLE_NOTIFICATION_UNLOCK,
-                false
-            )
+        if (!settingSecurityCenterBubbleNotificationUnlock
         ) {
             DebugLog.hookSkippedDebug(TAG, "SystemUI bubble notification whitelist", "disabled")
             return
@@ -122,10 +122,7 @@ object SystemUiBubbleNotificationWhitelistHooker : StaticHooker() {
             isAppEnabled.hook {
                 after { param ->
                     HookFailurePolicy.open(TAG, "isAppEnableBubbleNotification", Unit) {
-                        if (!Preferences.getBoolean(
-                                PlatformSettingsKeys.KEY_SECURITY_CENTER_BUBBLE_NOTIFICATION_UNLOCK,
-                                false
-                            )
+                        if (!settingSecurityCenterBubbleNotificationUnlock
                         ) {
                             return@open
                         }

@@ -15,8 +15,8 @@ import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.widget.LinearLayout
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.ref.WeakReference
@@ -27,13 +27,21 @@ import java.util.concurrent.TimeUnit
 
 /** Control-center-only date policy and compact carrier/battery constraints. */
 object ControlCenterHeaderHooker : StaticHooker() {
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingCcHideDate by hookSetting(false) { Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_HIDE_DATE, false) }
+    private val settingCcCarrierTwoLine by hookSetting(false) { Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_CARRIER_TWO_LINE, false) }
+    private val settingCcCarrierLeft by hookSetting(false) { Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_CARRIER_LEFT, false) }
+    private val settingCcPrivacyEnabled by hookSetting(false) { Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_PRIVACY_ENABLED, false) }
+    private val settingCcPrivacyCenter by hookSetting(true) { Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_PRIVACY_CENTER, true) }
+    private val settingCcPrivacyOffset by hookSetting(ControlCenterPrivacyPolicy.DEFAULT_OFFSET) {
+        Preferences.getInt(SystemUiSettingsKeys.KEY_CC_PRIVACY_OFFSET, ControlCenterPrivacyPolicy.DEFAULT_OFFSET)
+    }
+
     init {
         hostRecovery(HostRecoveryPhase.ICONS, icons = true) {
             recoverExistingViews(it.views)
         }
     }
-
-    override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
 
     private const val TAG = "IconTuner"
     private const val CONTROLLER_CLASS =
@@ -43,27 +51,27 @@ object ControlCenterHeaderHooker : StaticHooker() {
     private const val PARENT_ID = 0
     private const val UNSET = -1
     private val main = Handler(Looper.getMainLooper())
-    private val dates = WeakHashMap<View, DateState>()
-    private val layouts = WeakHashMap<View, LayoutState>()
+    private val dates = generationMainResource(WeakHashMap<View, DateState>()) { it.clear() }
+    private val layouts = generationMainResource(WeakHashMap<View, LayoutState>()) { it.clear() }
     private class ResourceIds(resources: Resources) {
         val configuration = Configuration(resources.configuration)
         val values = HashMap<String, Int>()
     }
-    private val resourceIds = WeakHashMap<Resources, ResourceIds>()
-    private val compactHeaders = WeakHashMap<ViewGroup, WeakSiblings<View>>()
-    private val compactPrivacy = WeakHashMap<ViewGroup, WeakReference<View>>()
-    private val compactCarrierVisibility = WeakHashMap<ViewGroup, Int>()
+    private val resourceIds = generationMainResource(WeakHashMap<Resources, ResourceIds>()) { it.clear() }
+    private val compactHeaders = generationMainResource(WeakHashMap<ViewGroup, WeakSiblings<View>>()) { it.clear() }
+    private val compactPrivacy = generationMainResource(WeakHashMap<ViewGroup, WeakReference<View>>()) { it.clear() }
+    private val compactCarrierVisibility = generationMainResource(WeakHashMap<ViewGroup, Int>()) { it.clear() }
 
     private var carrierLeft by generationState { false }
     private var hideDate by generationState { false }
     private var privacyEnabled by generationState { false }
-    private var privacyCentered = true
-    private var privacyOffset = ControlCenterPrivacyPolicy.DEFAULT_OFFSET
+    private var privacyCentered by generationState { true }
+    private var privacyOffset by generationState { ControlCenterPrivacyPolicy.DEFAULT_OFFSET }
 
     /** Configured visibility is retained across rotation. */
     fun twoLineConfigured(): Boolean =
-        Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_HIDE_DATE, false) &&
-            Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_CARRIER_TWO_LINE, false)
+        settingCcHideDate &&
+            settingCcCarrierTwoLine
 
     fun secondRowStatusIconsEnabled(context: Context): Boolean =
         twoLineConfigured() && supportsCompactLayout(context)
@@ -100,14 +108,13 @@ object ControlCenterHeaderHooker : StaticHooker() {
     }
 
     override fun onHook() {
-        carrierLeft = Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_CARRIER_LEFT, false)
-        hideDate = Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_HIDE_DATE, false)
+        carrierLeft = settingCcCarrierLeft
+        hideDate = settingCcHideDate
         // Read the same placement policy before carrier recovery runs. This does not depend on
         // whether the replacement privacy hook has already attached or recovered its old views.
-        privacyEnabled = Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_PRIVACY_ENABLED, false)
-        privacyCentered = Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_PRIVACY_CENTER, true)
-        privacyOffset = Preferences.getInt(SystemUiSettingsKeys.KEY_CC_PRIVACY_OFFSET,
-            ControlCenterPrivacyPolicy.DEFAULT_OFFSET).coerceIn(-16, 24)
+        privacyEnabled = settingCcPrivacyEnabled
+        privacyCentered = settingCcPrivacyCenter
+        privacyOffset = settingCcPrivacyOffset.coerceIn(-16, 24)
         if (!carrierLeft && !hideDate) return
         val controller = CONTROLLER_CLASS.toClassOrNull() ?: return
         // Lifecycle hooks also cover compiled callers that inline the small visibility helpers.

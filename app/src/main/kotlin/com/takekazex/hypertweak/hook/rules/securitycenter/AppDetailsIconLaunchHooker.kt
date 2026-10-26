@@ -11,6 +11,7 @@ import android.os.Process
 import android.os.UserHandle
 import android.view.View
 import android.widget.ImageView
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.DynamicHooker
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
@@ -20,15 +21,21 @@ import java.util.WeakHashMap
 
 /** The host title has no stock click listener. Only its icon gains a launcher action. */
 object AppDetailsIconLaunchHooker : DynamicHooker() {
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingAppDetailsIconLaunch by hookSetting(false) {
+        Preferences.getBoolean(AppSettingsKeys.KEY_APP_DETAILS_ICON_LAUNCH, false)
+    }
+
     private const val TAG = "AppDetailsIconLaunch"
     private const val PACKAGE = "com.miui.securitycenter"
     private const val TITLE = "com.miui.appmanager.widget.AppDetailTitlePreference"
     private const val DETAILS = "com.miui.appmanager.ApplicationsDetailsActivity"
     private data class Original(val clickable: Boolean, val focusable: Int)
-    private val icons = WeakHashMap<ImageView, Original>()
+    private val icons = generationMainResource(WeakHashMap<ImageView, Original>()) { it.clear() }
     private val userHandle by lazy { HostAccess.requirePublicMethod(UserHandle::class.java, "of", Int::class.javaPrimitiveType, accessible = false) }
     private var retired = false
-    private var ready = false
+    init { generationCleanup { retired = true } }
+    private var ready by generationState { false }
 
     override fun onHook() {
         if (hookParam.processName != PACKAGE) return
@@ -80,7 +87,7 @@ object AppDetailsIconLaunchHooker : DynamicHooker() {
         val id = root.resources.getIdentifier("app_manager_details_appicon", "id", PACKAGE)
         if (id == 0) return
         val icon = root.findViewById<View>(id) as? ImageView ?: return
-        val enabled = Preferences.getBoolean(AppSettingsKeys.KEY_APP_DETAILS_ICON_LAUNCH, false)
+        val enabled = settingAppDetailsIconLaunch
         if (!enabled) {
             restore(icon)
             return
@@ -91,7 +98,7 @@ object AppDetailsIconLaunchHooker : DynamicHooker() {
         if (icon !in icons) icons[icon] = Original(icon.isClickable, icon.focusable)
         icon.setOnClickListener {
             HookFailurePolicy.open(TAG, "launch application", Unit) {
-                if (retired || !Preferences.getBoolean(AppSettingsKeys.KEY_APP_DETAILS_ICON_LAUNCH, false)) return@open
+                if (retired || !settingAppDetailsIconLaunch) return@open
                 // Re-resolve at click time: an app can be disabled/uninstalled while this page lives.
                 val current = launchTarget(host) ?: return@open
                 host.getSystemService(LauncherApps::class.java)

@@ -13,9 +13,9 @@ import android.service.notification.StatusBarNotification
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.util.logging.DebugLog
@@ -26,32 +26,38 @@ import java.util.WeakHashMap
 
 /** Neutralize native notification text at palette and final content/color binding boundaries. */
 object NotificationMonetTextColorHooker : StaticHooker() {
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingNotificationMonetTextColor by hookSetting(false) {
+        Preferences.getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_MONET_TEXT_COLOR, false)
+    }
+
     init {
         hostRecovery(HostRecoveryPhase.CONTENT) {
             NotificationContentHotReloadRecovery.recover(it.views)
         }
     }
 
-    override val hotReloadMode = HotReloadMode.RECREATE
     private const val TAG = "NotificationMonetTextColor"
     private const val COLORS = "android.app.Notification\$Colors"
     private const val ROW = "com.android.systemui.statusbar.notification.row."
     private const val WRAPPER = ROW + "wrapper."
     private const val HYBRID = ROW + "HybridNotificationView"
 
-    @Volatile private var retiring = false
-    private var textColorField: Field? = null
+    @Volatile
+    private var retiring = false
+    init { generationCleanup { retiring = true } }
+    private var textColorField: Field? by generationState { null }
     private var binderField: Field? by generationState { null }
     private var darkContextMethod: Method? by generationState { null }
     private var fixContextMethod: Method? by generationState { null }
     private var materialLogCount by generationState { 0 }
     private data class TextOverride(val original: ColorStateList, val color: Int)
     private data class PaletteOverride(val original: Int, val color: Int)
-    private val texts = WeakHashMap<TextView, TextOverride>() // Native view callbacks run on main.
-    private val hybrids = WeakHashMap<View, Boolean>()
-    private val wrappers = WeakHashMap<Any, WeakReference<View>>()
-    private val palettes = WeakHashMap<Any, PaletteOverride>()
-    private val rowEffects = WeakHashMap<View, Any>()
+    private val texts = generationMainResource(WeakHashMap<TextView, TextOverride>()) { it.clear() } // Native view callbacks run on main.
+    private val hybrids = generationMainResource(WeakHashMap<View, Boolean>()) { it.clear() }
+    private val wrappers = generationMainResource(WeakHashMap<Any, WeakReference<View>>()) { it.clear() }
+    private val palettes = generationMainResource(WeakHashMap<Any, PaletteOverride>()) { it.clear() }
+    private val rowEffects = generationMainResource(WeakHashMap<View, Any>()) { it.clear() }
     private val paletteLock = Any()
     private val resourceIds = generationResource(WeakHashMap<Resources, List<Int>>()) { it.clear() }
 
@@ -482,5 +488,5 @@ object NotificationMonetTextColorHooker : StaticHooker() {
     private fun isNight(context: Context): Boolean = context.resources.configuration.uiMode and
         Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
     private fun isEnabled(): Boolean = !retiring &&
-        Preferences.getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_MONET_TEXT_COLOR, false)
+        settingNotificationMonetTextColor
 }

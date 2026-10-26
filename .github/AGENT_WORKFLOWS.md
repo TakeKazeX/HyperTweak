@@ -16,7 +16,8 @@ Read only the section needed for the current task. These workflows supplement [A
 
 Run tasks with `./gradlew`. For Kotlin-only compilation use `:app:compileDebugKotlin`; include `:app:compileDebugJavaWithJavac` when Java is affected, or use `:app:assembleDebug` when a complete debug artifact is needed. Filter JVM tests with `:app:testDebugUnitTest --tests '<test-class-or-pattern>'` when the affected behavior is isolated.
 
-Architecture changes also run `python3 .github/scripts/check_architecture.py` and
+Architecture changes also run `python3 .github/scripts/check_architecture.py`,
+`python3 .github/scripts/check_hook_callbacks.py`, and
 `python3 -m unittest discover -s .github/scripts -p 'test_*.py'`. The guard covers
 Kotlin/Java imports and fully qualified source references, not reflection or runtime wiring.
 Standalone native compiler commands must include the NativeRules root plus its `bridge`,

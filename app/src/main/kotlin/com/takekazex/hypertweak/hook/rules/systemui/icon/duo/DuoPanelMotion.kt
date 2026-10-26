@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon.duo
 
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.presentation.icon.duo.NativeWifiDrawable
 
 import com.takekazex.hypertweak.presentation.icon.duo.DuoContent
@@ -18,6 +19,13 @@ import android.view.ViewGroup
 import kotlin.math.abs
 import kotlin.math.min
 
+// Published on settings acceptance; hook callbacks perform no storage reads.
+private val settingIconMirrorAirplane by hookSetting(false) {
+    com.takekazex.hypertweak.hook.Preferences.getBoolean(IconSettingsKeys.KEY_ICON_MIRROR_AIRPLANE, false)
+}
+
+internal fun prepareDuoPanelMotionSettings() { settingIconMirrorAirplane }
+
 /** An owned overlay, with no added children in host StatusIconDisplayable containers. */
 internal class DuoPanelMotion(context: Context, private val airplaneOnly: Boolean = false) {
     private var host: ViewGroup? = null
@@ -28,8 +36,7 @@ internal class DuoPanelMotion(context: Context, private val airplaneOnly: Boolea
     private val location = IntArray(2)
     private val glyph = DuoDrawable(context).apply {
         networkOnly = true
-        mirrorAirplane = com.takekazex.hypertweak.hook.Preferences.getBoolean(
-            IconSettingsKeys.KEY_ICON_MIRROR_AIRPLANE, false)
+        mirrorAirplane = settingIconMirrorAirplane
     }
     private var x = 0f
     private var y = 0f

@@ -2,9 +2,9 @@ package com.takekazex.hypertweak.hook.rules.settings
 
 import com.takekazex.hypertweak.hook.base.HostAccess
 import android.app.NotificationChannel
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.reflect.Field
@@ -36,7 +36,8 @@ import java.lang.reflect.Proxy
  * control. `setting_badge` is likewise owned by `NotificationBadgeSettingsHooker`.
  */
 object NotificationMoreSettingsHooker : StaticHooker() {
-    override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingNotificationMoreSettings by hookSetting(false) { Preferences.notificationMoreSettings() }
 
     private const val TAG = "NotifMoreSettings"
     private const val BASE = "com.android.settings.notification.BaseNotificationSettings"
@@ -54,26 +55,25 @@ object NotificationMoreSettingsHooker : StaticHooker() {
         "com.android.settings.notification.app.ChannelNotificationSettings"
     )
 
-    private var importanceField: Field? = null
-    private var backupImportanceField: Field? = null
-    private var backendField: Field? = null
-    private var pkgField: Field? = null
-    private var uidField: Field? = null
-    private var channelField: Field? = null
-    private var findSpinnerIndexOfValue: Method? = null
-    private var setValueIndex: Method? = null
-    private var setListener: Method? = null
-    private var updateChannelMethod: Method? = null
-    private var getKeyMethod: Method? = null
-    private var lockFieldsMethod: Method? = null
-    private var listenerInterface: Class<*>? = null
+    private var importanceField: Field? by generationState { null }
+    private var backupImportanceField: Field? by generationState { null }
+    private var backendField: Field? by generationState { null }
+    private var pkgField: Field? by generationState { null }
+    private var uidField: Field? by generationState { null }
+    private var channelField: Field? by generationState { null }
+    private var findSpinnerIndexOfValue: Method? by generationState { null }
+    private var setValueIndex: Method? by generationState { null }
+    private var setListener: Method? by generationState { null }
+    private var updateChannelMethod: Method? by generationState { null }
+    private var getKeyMethod: Method? by generationState { null }
+    private var lockFieldsMethod: Method? by generationState { null }
+    private var listenerInterface: Class<*>? by generationState { null }
 
     /** The preference captured just before `removeDefaultPrefs` detaches it. */
     private var capturedPref: Any? by generationState { null }
 
-
     override fun onHook() {
-        if (!Preferences.notificationMoreSettings()) {
+        if (!settingNotificationMoreSettings) {
             DebugLog.hookSkippedDebug(TAG, "channel importance dropdown", "disabled")
             return
         }

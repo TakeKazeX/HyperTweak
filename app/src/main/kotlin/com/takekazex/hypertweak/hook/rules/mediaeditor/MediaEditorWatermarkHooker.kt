@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.mediaeditor
 
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.InstallPolicy
 import com.takekazex.hypertweak.hook.base.StaticHooker
@@ -58,6 +59,11 @@ import java.util.concurrent.atomic.AtomicBoolean
  * to be restarted so the hooks are installed.
  */
 object MediaEditorWatermarkHooker : StaticHooker() {
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingWmUnlockMaster by hookSetting(false) { Preferences.getBoolean(PlatformSettingsKeys.KEY_WM_UNLOCK_MASTER, false) }
+    private val settingWmLcc by hookSetting(false) { Preferences.getBoolean(PlatformSettingsKeys.KEY_WM_LCC, false) }
+    private val settingWmDownloadAll by hookSetting(false) { Preferences.getBoolean(PlatformSettingsKeys.KEY_WM_DOWNLOAD_ALL, false) }
+
     private const val TAG = "WmUnlock"
     private const val PACKAGE = "com.miui.mediaeditor"
 
@@ -77,15 +83,15 @@ object MediaEditorWatermarkHooker : StaticHooker() {
         PlatformSettingsKeys.KEY_WM_CAMERA,
     )
 
-    private val downloaded = AtomicBoolean(false)
+    private val watermarkEnabled by hookSetting(emptyMap<String, Boolean>()) { WATERMARK_KEYS.associateWith { Preferences.getBoolean(it, false) } }
+
+    private val downloaded = generationResource(AtomicBoolean(false)) { it.set(false) }
     private var resolved: ResolvedClasses? by generationState { null }
 
     /** Prepare optional watermark targets only while at least one category is enabled. */
     override val installPolicy: InstallPolicy = InstallPolicy.WHEN_ENABLED
 
-    override fun isFeatureEnabled(): Boolean = WATERMARK_KEYS.any {
-        Preferences.getBoolean(it, false)
-    }
+    override fun isFeatureEnabled(): Boolean = watermarkEnabled.values.any { it }
 
     override fun onHook() {
         if (hookParam.packageName != PACKAGE) return
@@ -133,7 +139,7 @@ object MediaEditorWatermarkHooker : StaticHooker() {
         // 3. Downloaded-resource filter: force the debug property read to true when resolvable.
         c.tb0VBInvoke?.hook("wm_debug_filter") {
             after { param ->
-                if (Preferences.getBoolean(PlatformSettingsKeys.KEY_WM_UNLOCK_MASTER, false)) {
+                if (settingWmUnlockMaster) {
                     param.result = true
                 }
             }
@@ -192,7 +198,7 @@ object MediaEditorWatermarkHooker : StaticHooker() {
 
         ctor.hook {
             after { param ->
-                if (!Preferences.getBoolean(PlatformSettingsKeys.KEY_WM_UNLOCK_MASTER, false)) return@after
+                if (!settingWmUnlockMaster) return@after
                 val args = param.args
                 try {
                     @Suppress("UNCHECKED_CAST")
@@ -208,7 +214,7 @@ object MediaEditorWatermarkHooker : StaticHooker() {
                     @Suppress("UNCHECKED_CAST")
                     val displayApps = args[displayAppIdx] as? MutableList<String>
 
-                    if (Preferences.getBoolean(PlatformSettingsKeys.KEY_WM_LCC, false)) {
+                    if (settingWmLcc) {
                         // Both LCC watermark sets (CN and global) regardless of mod_device.
                         supportDevices?.let { list ->
                             for (i in list.indices) {
@@ -269,7 +275,7 @@ object MediaEditorWatermarkHooker : StaticHooker() {
         deoptimize(constructor)
         constructor.hook("wm_cloud_data_v3") {
             after { param ->
-                if (!Preferences.getBoolean(PlatformSettingsKeys.KEY_WM_UNLOCK_MASTER, false)) return@after
+                if (!settingWmUnlockMaster) return@after
                 try {
                     val target = param.thisObject
                     val args = param.args
@@ -293,7 +299,7 @@ object MediaEditorWatermarkHooker : StaticHooker() {
                     // Keep the native device lists; per-category gate hooks decide whether a
                     // device-group tag is visible. Only the LCC tags are remapped, matching the
                     // legacy build's explicit LCC switch.
-                    if (Preferences.getBoolean(PlatformSettingsKeys.KEY_WM_LCC, false)) {
+                    if (settingWmLcc) {
                         rewriteStringList(fieldFor(13), target) { tag ->
                             if (tag in LCC_DEVICE_TAGS) "*" else tag
                         }
@@ -386,7 +392,7 @@ object MediaEditorWatermarkHooker : StaticHooker() {
         deoptimize(modern.menuBuilder)
         modern.menuBuilder.hook("wm_cloud_menu_download") {
             after { param ->
-                if (!Preferences.getBoolean(PlatformSettingsKeys.KEY_WM_DOWNLOAD_ALL, false)) return@after
+                if (!settingWmDownloadAll) return@after
                 if (!downloaded.compareAndSet(false, true)) return@after
                 val map = param.result as? Map<*, *> ?: return@after
                 val proxy = runCatching {
@@ -439,7 +445,7 @@ object MediaEditorWatermarkHooker : StaticHooker() {
 
         vyILoad.hook("wm_bulk_download") {
             after { param ->
-                if (!Preferences.getBoolean(PlatformSettingsKeys.KEY_WM_DOWNLOAD_ALL, false)) return@after
+                if (!settingWmDownloadAll) return@after
                 if (!downloaded.compareAndSet(false, true)) return@after
                 val map = param.result as? Map<*, *> ?: return@after
                 val proxy = try {
@@ -480,7 +486,7 @@ object MediaEditorWatermarkHooker : StaticHooker() {
     // ─── Preference helpers ────────────────────────────────────────────────────
 
     private fun masterAnd(key: String): Boolean {
-        return Preferences.getBoolean(PlatformSettingsKeys.KEY_WM_UNLOCK_MASTER, false) &&
-            Preferences.getBoolean(key, false)
+        return settingWmUnlockMaster &&
+            (watermarkEnabled[key] == true)
     }
 }

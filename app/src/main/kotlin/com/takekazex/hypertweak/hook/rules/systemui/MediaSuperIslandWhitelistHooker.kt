@@ -2,10 +2,10 @@ package com.takekazex.hypertweak.hook.rules.systemui
 
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.DynamicHooker
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.util.logging.DebugLog
 
 /**
@@ -21,7 +21,10 @@ import com.takekazex.hypertweak.util.logging.DebugLog
  * plugin's original whitelist result without requiring another process restart.
  */
 class MediaSuperIslandWhitelistHooker : DynamicHooker() {
-    override val hotReloadMode = HotReloadMode.RECREATE
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingMediaSuperIslandUnlockWhitelist by hookSetting(false) {
+        Preferences.getBoolean(PlatformSettingsKeys.KEY_MEDIA_SUPER_ISLAND_UNLOCK_WHITELIST, false)
+    }
 
     private companion object {
         const val TAG = "MediaSuperIslandWhitelist"
@@ -51,10 +54,7 @@ class MediaSuperIslandWhitelistHooker : DynamicHooker() {
         mediaIslandSupportMiniWindow.hook {
             before { param ->
                 HookFailurePolicy.open(TAG, "$SETTINGS_MANAGER#mediaIslandSupportMiniWindow", Unit) {
-                    if (Preferences.getBoolean(
-                            PlatformSettingsKeys.KEY_MEDIA_SUPER_ISLAND_UNLOCK_WHITELIST,
-                            false
-                        )
+                    if (settingMediaSuperIslandUnlockWhitelist
                     ) {
                         param.result = true
                     }

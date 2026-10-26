@@ -5,9 +5,9 @@ import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 
 import android.view.View
 import android.view.ViewGroup
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.util.logging.DebugLog
@@ -35,13 +35,16 @@ import androidx.core.view.isGone
  * Existing holders are recovered after replacement; retirement restores native visibility.
  */
 object MediaCardHideAppIconHooker : StaticHooker() {
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingMediaCardHideAppIcon by hookSetting(false) {
+        Preferences.getBoolean(SystemUiSettingsKeys.KEY_MEDIA_CARD_HIDE_APP_ICON, false)
+    }
+
     init {
         hostRecovery(HostRecoveryPhase.WINDOWS) {
             recoverExistingViews(it.views)
         }
     }
-
-    override val hotReloadMode = HotReloadMode.RECREATE
 
     private const val TAG = "MediaCardHideAppIcon"
     private const val SHADE_VC =
@@ -57,11 +60,11 @@ object MediaCardHideAppIconHooker : StaticHooker() {
 
     private var islandAppIconField: Field? by generationState { null }
 
-    private val originals = WeakHashMap<View, Int>()
+    private val originals = generationMainResource(WeakHashMap<View, Int>()) { it.clear() }
     /** Every media app-icon overlay the hooks have seen, for a settings pass that re-applies. */
     private val knownViews: MutableSet<View> =
         java.util.Collections.newSetFromMap(WeakHashMap<View, Boolean>())
-    @Volatile private var enabled = false
+    private var enabled by generationState { false }
 
     override fun saveHotReloadState(): Any = HostAccess.onMain { originals.keys.toList() }
     override fun restoreHotReloadState(state: Any?) {
@@ -98,7 +101,7 @@ object MediaCardHideAppIconHooker : StaticHooker() {
      * disabling restores the original visibility of every icon this module hid.
      */
     fun refreshSettings() {
-        val next = Preferences.getBoolean(SystemUiSettingsKeys.KEY_MEDIA_CARD_HIDE_APP_ICON, false)
+        val next = settingMediaCardHideAppIcon
         val changed = next != enabled
         enabled = next
         HostAccess.onMain {
@@ -115,13 +118,12 @@ object MediaCardHideAppIconHooker : StaticHooker() {
     override fun onHook() {
         shadeAppIconField = null
         islandAppIconField = null
-        enabled = Preferences.getBoolean(SystemUiSettingsKeys.KEY_MEDIA_CARD_HIDE_APP_ICON, false)
+        enabled = settingMediaCardHideAppIcon
         installShadeHook()
         installIslandHook()
     }
 
     override fun onPrepareHotReload() {
-        enabled = false
         HostAccess.onMain {
             originals.forEach { (view, visibility) -> view.visibility = visibility }
             originals.clear()

@@ -5,11 +5,11 @@ import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 import android.os.Bundle
 import android.content.Intent
 import android.content.Context
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.ThreadActivation
 import com.takekazex.hypertweak.hook.base.CompatibleMethodResolver
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 import io.github.lingqiqi5211.ezhooktool.core.callMethodOrNull
@@ -19,7 +19,19 @@ import java.lang.reflect.Modifier
 
 /** Keeps the native Security Center privacy and camera entries in their original preference pages. */
 object SecurityCenterPrivacyEntriesHooker : StaticHooker() {
-    override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingSecurityCenterPrivacyCallEntry by hookSetting(false) {
+        Preferences.getBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_PRIVACY_CALL_ENTRY, false)
+    }
+    private val settingSecurityCenterAntiPeepingMode by hookSetting(PlatformSettingsKeys.SECURITY_CENTER_ANTI_PEEPING_SYSTEM_DEFAULT) {
+        Preferences.getInt(PlatformSettingsKeys.KEY_SECURITY_CENTER_ANTI_PEEPING_MODE, PlatformSettingsKeys.SECURITY_CENTER_ANTI_PEEPING_SYSTEM_DEFAULT)
+    }
+    private val settingSecurityCenterFrontCameraAssistantEntry by hookSetting(false) {
+        Preferences.getBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_FRONT_CAMERA_ASSISTANT_ENTRY, false)
+    }
+    private val settingSecurityCenterCallPrivacyCameraEntry by hookSetting(false) {
+        Preferences.getBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_CALL_PRIVACY_CAMERA_ENTRY, false)
+    }
 
     private const val TAG = "SecurityCenterPrivacyEntries"
     private const val PACKAGE = "com.miui.securitycenter"
@@ -173,28 +185,16 @@ object SecurityCenterPrivacyEntriesHooker : StaticHooker() {
             isFrontCameraAssistantEnabled() ||
             isCallPrivacyCameraEnabled()
 
-    private fun isPrivacyCallEnabled(): Boolean = Preferences.getBoolean(
-        PlatformSettingsKeys.KEY_SECURITY_CENTER_PRIVACY_CALL_ENTRY,
-        false
-    )
+    private fun isPrivacyCallEnabled(): Boolean = settingSecurityCenterPrivacyCallEntry
 
-    private fun antiPeepingMode(): Int = Preferences.getInt(
-        PlatformSettingsKeys.KEY_SECURITY_CENTER_ANTI_PEEPING_MODE,
-        PlatformSettingsKeys.SECURITY_CENTER_ANTI_PEEPING_SYSTEM_DEFAULT
-    ).coerceIn(
+    private fun antiPeepingMode(): Int = settingSecurityCenterAntiPeepingMode.coerceIn(
         PlatformSettingsKeys.SECURITY_CENTER_ANTI_PEEPING_SYSTEM_DEFAULT,
         PlatformSettingsKeys.SECURITY_CENTER_ANTI_PEEPING_V2
     )
 
-    private fun isFrontCameraAssistantEnabled(): Boolean = Preferences.getBoolean(
-        PlatformSettingsKeys.KEY_SECURITY_CENTER_FRONT_CAMERA_ASSISTANT_ENTRY,
-        false
-    )
+    private fun isFrontCameraAssistantEnabled(): Boolean = settingSecurityCenterFrontCameraAssistantEntry
 
-    private fun isCallPrivacyCameraEnabled(): Boolean = Preferences.getBoolean(
-        PlatformSettingsKeys.KEY_SECURITY_CENTER_CALL_PRIVACY_CAMERA_ENTRY,
-        false
-    )
+    private fun isCallPrivacyCameraEnabled(): Boolean = settingSecurityCenterCallPrivacyCameraEntry
 
     private fun hookPreferenceVisibility() {
         val preferenceClass = "androidx.preference.Preference".toClassOrNull() ?: run {

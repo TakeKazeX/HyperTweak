@@ -38,6 +38,7 @@ class ThreeIslandHooker(
     private val pendingOwners = instanceTracker()
 
     override fun onHook() {
+        com.takekazex.hypertweak.hook.rules.systemui.island.prepareIslandPreferencesSettings()
         if (retiring) return
         observeInstances("miui.systemui.dynamicisland.event.DynamicIslandEventCoordinator", pendingOwners)
         prepareDexTargets(

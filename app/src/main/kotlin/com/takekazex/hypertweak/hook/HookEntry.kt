@@ -15,7 +15,6 @@ import android.content.pm.ApplicationInfo
 import com.takekazex.hypertweak.hook.base.BaseHooker
 import com.takekazex.hypertweak.hook.base.DexKitManager
 import com.takekazex.hypertweak.hook.base.HotReloadHandleStore
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.ModuleContext
 import com.takekazex.hypertweak.hook.base.RuntimeSettingsGroups
 import com.takekazex.hypertweak.hook.base.SettingsReloadDispatcher
@@ -146,9 +145,16 @@ class HookEntry : XposedModule() {
 
     @Volatile private var runtimePreferencesSource: SharedPreferences? = null
     @Volatile private var remoteSettingsReady = false
+    // Legacy keys outside the committed registry still arrive through the daemon listener.
+    // Coalesce remove/put notifications so a callback never polls an incomplete backend rewrite.
+    private val callbackSnapshotRefresh = Runnable {
+        if (!generationRetired) com.takekazex.hypertweak.hook.runtime.settings.HookSettingsSnapshots.refresh()
+    }
     private val runtimePreferencesListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
         if (!generationRetired) {
             Preferences.invalidateRuntimeReadCache()
+            settingsHandler.removeCallbacks(callbackSnapshotRefresh)
+            settingsHandler.postDelayed(callbackSnapshotRefresh, 150L)
             // The daemon rewrites complete subsets (remove + put), and may report null or
             // unchanged keys. Only the acknowledged snapshot diff owns feature recreation.
             if (key == null || key == RuntimeSettingsGroups.REVISION || RuntimeSettingsGroups.owns(key))
@@ -157,6 +163,7 @@ class HookEntry : XposedModule() {
     }
 
     private fun detachRuntimePreferencesListener() {
+        settingsHandler.removeCallbacks(callbackSnapshotRefresh)
         runtimePreferencesSource?.let { source ->
             runCatching { source.unregisterOnSharedPreferenceChangeListener(runtimePreferencesListener) }
         }
@@ -164,7 +171,7 @@ class HookEntry : XposedModule() {
     }
 
     private fun bindRuntimePreferencesListener(source: SharedPreferences) {
-        if (RuntimeSettingsGroups.forProcess(processName, isSystemServer).isEmpty() || runtimePreferencesSource === source) return
+        if (runtimePreferencesSource === source) return
         detachRuntimePreferencesListener()
         runCatching {
             source.registerOnSharedPreferenceChangeListener(runtimePreferencesListener)
@@ -296,7 +303,7 @@ class HookEntry : XposedModule() {
         if (skipGoogleProcess) return true
         DebugLog.d(
             "HookEntry",
-            "hot reloading old generation process=$processName packages=${packageStates.size} roots=${rootHookers.size} modes=${hotReloadModeSummary()}"
+            "hot reloading old generation process=$processName packages=${packageStates.size} roots=${rootHookers.size}"
         )
         if (com.takekazex.hypertweak.hook.base.dex.DexRuntime.isResolving) {
             DebugLog.w(
@@ -682,16 +689,6 @@ class HookEntry : XposedModule() {
         // Readiness signal for the keyguard status bar discovery fallback; the hooker never treats
         // the context as a View.
         HideLockscreenStatusBarHooker.onApplicationContextReady(context)
-    }
-
-    private fun hotReloadModeSummary(): String {
-        return HotReloadMode.entries.joinToString(prefix = "{", postfix = "}") { mode ->
-            val names = rootHookers
-                .filter { it.hotReloadMode == mode }
-                .map { it.hookerName }
-                .sorted()
-            "${mode.name}=$names"
-        }
     }
 
     private fun onRestoredPackageReady(

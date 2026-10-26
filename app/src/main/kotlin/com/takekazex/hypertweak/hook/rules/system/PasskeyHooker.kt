@@ -12,8 +12,8 @@ import android.provider.Settings
 import android.view.View
 import android.widget.CompoundButton
 import androidx.core.net.toUri
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.dex.DexFeature
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 import com.takekazex.hypertweak.hook.base.dex.MethodDescriptorCodec
@@ -35,7 +35,8 @@ internal object PasskeySecurityCenterFeature : DexFeature {
 }
 
 object PasskeyHooker : StaticHooker() {
-    override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingUnlockPasskey by hookSetting(false) { Preferences.getBoolean(PlatformSettingsKeys.KEY_UNLOCK_PASSKEY, false) }
 
     private const val TAG = "HyperPasskey"
     private var fIsInternationalBuildBoolean: Field? by generationState { null }
@@ -121,7 +122,7 @@ object PasskeyHooker : StaticHooker() {
         constructorRequestSession?.hook {
             after { param ->
                 HookFailurePolicy.open(TAG, "RequestSession#hybridService", Unit) {
-                    if (Preferences.getBoolean(PlatformSettingsKeys.KEY_UNLOCK_PASSKEY, false)) {
+                    if (settingUnlockPasskey) {
                         fHybridService.set(param.thisObject, "com.google.android.gms/.auth.api.credentials.credman.service.RemoteService")
                     }
                 }
@@ -142,7 +143,7 @@ object PasskeyHooker : StaticHooker() {
 
         mGetOemOverrideComponentName?.hook {
             intercept { chain ->
-                if (!Preferences.getBoolean(PlatformSettingsKeys.KEY_UNLOCK_PASSKEY, false)) {
+                if (!settingUnlockPasskey) {
                     return@intercept chain.proceed()
                 }
                 val args = chain.args
@@ -552,7 +553,7 @@ object PasskeyHooker : StaticHooker() {
             deoptimize(method)
             method.hook {
                 intercept { chain ->
-                    if (Preferences.getBoolean(PlatformSettingsKeys.KEY_UNLOCK_PASSKEY, false)) {
+                    if (settingUnlockPasskey) {
                         null
                     } else {
                         chain.proceed()
@@ -574,7 +575,7 @@ object PasskeyHooker : StaticHooker() {
                 val aMethod = HostAccess.requireDeclaredMethod(iClass, "getAppPackageName", accessible = false)
                 aMethod.hook {
                     intercept { chain ->
-                        if (Preferences.getBoolean(PlatformSettingsKeys.KEY_UNLOCK_PASSKEY, false)) {
+                        if (settingUnlockPasskey) {
                             ""
                         } else {
                             chain.proceed()
@@ -586,8 +587,7 @@ object PasskeyHooker : StaticHooker() {
     }
 
     /** Cached reflective `proceed()` handle; the chain type is a fixed framework class. */
-    @Volatile
-    private var chainMethod: Method? = null
+    private var chainMethod: Method? by generationState { null }
 
     /**
      * Invoke `chain.proceed()` without re-resolving the Method on every interception (this runs in
@@ -610,7 +610,7 @@ object PasskeyHooker : StaticHooker() {
     }
 
     private fun handleIsInternationalBuild(chain: Any): Any? {
-        if (fIsInternationalBuildBoolean == null || !Preferences.getBoolean(PlatformSettingsKeys.KEY_UNLOCK_PASSKEY, false)) {
+        if (fIsInternationalBuildBoolean == null || !settingUnlockPasskey) {
             return proceedChain(chain)
         }
         INTL_LOCK.lock()

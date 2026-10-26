@@ -19,8 +19,8 @@ import org.luckypray.dexkit.query.enums.StringMatchType
 object AicrBrowserWhitelistHooker : StaticHooker() {
     private const val KEY = "settings.copy_text_jump_app.jump_url"
     private const val MARKER = "renderAppList: shown="
-    private val models = ConcurrentHashMap<Class<*>, java.lang.reflect.Constructor<*>>()
-    private val preferenceMethods = ConcurrentHashMap<Class<*>, Method>()
+    private val models = generationResource(ConcurrentHashMap<Class<*>, java.lang.reflect.Constructor<*>>()) { it.clear() }
+    private val preferenceMethods = generationResource(ConcurrentHashMap<Class<*>, Method>()) { it.clear() }
     private data class Targets(val render: Method, val model: Class<*>)
     private object Feature : DexFeature { override val id = "aicr.browser_whitelist"; override val schema = 1 }
 

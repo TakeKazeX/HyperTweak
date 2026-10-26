@@ -4,8 +4,8 @@ import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import com.takekazex.hypertweak.hook.base.dex.DexContractMembers
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 import io.github.libxposed.api.XposedInterface
@@ -29,7 +29,11 @@ import java.lang.reflect.Modifier
  * live, so disabling the feature restores Google's original decisions.
  */
 object GoogleAppLiveTranslateHooker : StaticHooker() {
-    override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingFullScreenTranslate by hookSetting(false) {
+        Preferences.getBoolean(PlatformSettingsKeys.KEY_FULL_SCREEN_TRANSLATE, false)
+    }
+
 
     const val PACKAGE = "com.google.android.googlequicksearchbox"
 
@@ -58,11 +62,10 @@ object GoogleAppLiveTranslateHooker : StaticHooker() {
         val capability: Method
     )
 
-    @Volatile
-    private var enabledCache = false
+    private var enabledCache by generationState { false }
 
     private fun featureEnabled(): Boolean {
-        enabledCache = Preferences.getBoolean(PlatformSettingsKeys.KEY_FULL_SCREEN_TRANSLATE, false)
+        enabledCache = settingFullScreenTranslate
         return enabledCache
     }
 

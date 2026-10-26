@@ -10,10 +10,10 @@ import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 import android.content.Context
 import android.content.pm.ApplicationInfo
 import android.os.Process
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.CompatibleMethodResolver
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.reflect.Constructor
@@ -28,6 +28,11 @@ import java.lang.reflect.Method
  * persist their individual switch states.
  */
 object SecurityCoreBubbleAppListHooker : StaticHooker() {
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingSecurityCenterBubbleNotificationUnlock by hookSetting(false) {
+        Preferences.getBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_BUBBLE_NOTIFICATION_UNLOCK, false)
+    }
+
     private const val TAG = "SecurityCoreBubbleAppList"
 
     private const val BUBBLES_SETTINGS =
@@ -37,13 +42,8 @@ object SecurityCoreBubbleAppListHooker : StaticHooker() {
     private const val BUBBLE_MANAGE_ACTIVITY =
         "com.miui.freeform.settings.bubble.BubbleAppManageActivity"
 
-    override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
-
     override fun onHook() {
-        if (!Preferences.getBoolean(
-                PlatformSettingsKeys.KEY_SECURITY_CENTER_BUBBLE_NOTIFICATION_UNLOCK,
-                false
-            )
+        if (!settingSecurityCenterBubbleNotificationUnlock
         ) {
             DebugLog.hookSkippedDebug(TAG, "SecurityCore bubble app list", "disabled")
             return

@@ -1,6 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.settings
 
 import com.takekazex.hypertweak.hook.base.StaticHooker
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.reflect.Modifier
@@ -16,6 +17,10 @@ import java.lang.reflect.Modifier
  * only effective when the device actually supports the mode.
  */
 object VisualPerceptionSettingsHooker : StaticHooker() {
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingUnlockMoreVisualPerception by hookSetting(false) { Preferences.unlockMoreVisualPerception() }
+    private val settingUnlockMoreAonGestures by hookSetting(false) { Preferences.unlockMoreAonGestures() }
+
     private const val TAG = "VisualPerception"
     private const val CLASS = "com.android.settings.MiuiUtils"
 
@@ -42,8 +47,8 @@ object VisualPerceptionSettingsHooker : StaticHooker() {
         }.forEach { method ->
             deoptimize(method)
             method.hook("visual_perception_${method.name}") { after { param ->
-                val unlockVisual = Preferences.unlockMoreVisualPerception()
-                val unlockGestures = Preferences.unlockMoreAonGestures()
+                val unlockVisual = settingUnlockMoreVisualPerception
+                val unlockGestures = settingUnlockMoreAonGestures
                 if ((method.name in visualPerceptionGates && unlockVisual) ||
                     (method.name in aonGestureGates && (unlockGestures || unlockVisual))
                 ) {

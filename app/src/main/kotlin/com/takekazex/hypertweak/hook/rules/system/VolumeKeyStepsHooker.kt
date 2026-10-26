@@ -5,8 +5,8 @@ import com.takekazex.hypertweak.settings.contract.VolumeKeyStepPolicy
 
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.reflect.Field
@@ -16,8 +16,15 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 /** Changes only AudioService adjustments marked as volume-key input. */
 object VolumeKeyStepsHooker : StaticHooker() {
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingVolumeKeyStepCount by hookSetting(PlatformSettingsKeys.DEFAULT_VOLUME_KEY_STEP_COUNT) {
+        Preferences.getInt(PlatformSettingsKeys.KEY_VOLUME_KEY_STEP_COUNT, PlatformSettingsKeys.DEFAULT_VOLUME_KEY_STEP_COUNT)
+    }
+    private val settingVolumeKeyStepScope by hookSetting(PlatformSettingsKeys.VOLUME_KEY_SCOPE_MEDIA_ONLY) {
+        Preferences.getInt(PlatformSettingsKeys.KEY_VOLUME_KEY_STEP_SCOPE, PlatformSettingsKeys.VOLUME_KEY_SCOPE_MEDIA_ONLY)
+    }
+
     override val hookerName = "VolumeKeySteps"
-    override val hotReloadMode = HotReloadMode.RECREATE
 
     private const val TAG = "VolumeKeySteps"
     private const val AUDIO_SERVICE = "com.android.server.audio.AudioService"
@@ -36,21 +43,19 @@ object VolumeKeyStepsHooker : StaticHooker() {
 
     private val hardwareKeyFrames = ThreadLocal<ArrayDeque<HardwareKeyFrame>?>()
     private val hardwareStepRemainders = generationResource(HashMap<HardwareStepRemainderKey, Int>()) { it.clear() }
-    private val loggedFirstAppliedStep = AtomicBoolean(false)
+    private val loggedFirstAppliedStep = generationResource(AtomicBoolean(false)) { it.set(false) }
 
-    @Volatile
-    private var hooksReady = false
+    private var hooksReady by generationState { false }
 
-    @Volatile
-    private var activeConfiguration = VolumeKeyStepPolicy.configuration(
+    private var activeConfiguration by generationState { VolumeKeyStepPolicy.configuration(
         PlatformSettingsKeys.DEFAULT_VOLUME_KEY_STEP_COUNT,
         PlatformSettingsKeys.VOLUME_KEY_SCOPE_MEDIA_ONLY
-    )
+    ) }
 
-    private lateinit var streamTypeField: Field
-    private lateinit var indexMaxField: Field
-    private lateinit var indexMinField: Field
-    private lateinit var getIndexMethod: Method
+    private var streamTypeField: Field by generationRequiredState()
+    private var indexMaxField: Field by generationRequiredState()
+    private var indexMinField: Field by generationRequiredState()
+    private var getIndexMethod: Method by generationRequiredState()
 
     override fun onHook() {
         val serviceClass = loadClass(AUDIO_SERVICE) ?: return
@@ -122,8 +127,8 @@ object VolumeKeyStepsHooker : StaticHooker() {
     @Synchronized
     fun refreshConfiguration() {
         val configuration = VolumeKeyStepPolicy.configuration(
-            Preferences.getInt(PlatformSettingsKeys.KEY_VOLUME_KEY_STEP_COUNT, PlatformSettingsKeys.DEFAULT_VOLUME_KEY_STEP_COUNT),
-            Preferences.getInt(PlatformSettingsKeys.KEY_VOLUME_KEY_STEP_SCOPE, PlatformSettingsKeys.VOLUME_KEY_SCOPE_MEDIA_ONLY)
+            settingVolumeKeyStepCount,
+            settingVolumeKeyStepScope
         )
         if (configuration != activeConfiguration) {
             synchronized(hardwareStepRemainders) {
@@ -137,7 +142,6 @@ object VolumeKeyStepsHooker : StaticHooker() {
 
     @Synchronized
     override fun onPrepareHotReload() {
-        hooksReady = false
         loggedFirstAppliedStep.set(false)
     }
 

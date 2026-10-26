@@ -9,6 +9,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
 import android.widget.TextView
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.DynamicHooker
 import com.takekazex.hypertweak.hook.base.dex.DexFeature
@@ -30,16 +31,26 @@ internal data class SidebarPopupPolicy(val dolby: Boolean = false, val game: Boo
 
 /** Stable show hooks consume acknowledged settings, including already queued publication. */
 object SecurityCenterPopupHooker : DynamicHooker() {
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingSecurityCenterHideDolbyPopup by hookSetting(false) {
+        Preferences.getBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_HIDE_DOLBY_POPUP, false)
+    }
+    private val settingSecurityCenterHideGamePopup by hookSetting(false) {
+        Preferences.getBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_HIDE_GAME_POPUP, false)
+    }
+
     private const val TAG = "SecurityCenterPopups"
     private val main = Handler(Looper.getMainLooper())
-    @Volatile private var retired = false
+    @Volatile
+    private var retired = false
+    init { generationCleanup { retired = true } }
     private var targets: Targets? by generationState { null }
     private data class Targets(val methods: Map<String, Method>, val singleton: Field,
                                val launchView: Field, val dolbyText: Int, val callers: List<Method>)
 
     private fun policy() = SidebarPopupPolicy(
-        Preferences.getBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_HIDE_DOLBY_POPUP, false),
-        Preferences.getBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_HIDE_GAME_POPUP, false),
+        settingSecurityCenterHideDolbyPopup,
+        settingSecurityCenterHideGamePopup,
     )
 
     override fun onHook() {

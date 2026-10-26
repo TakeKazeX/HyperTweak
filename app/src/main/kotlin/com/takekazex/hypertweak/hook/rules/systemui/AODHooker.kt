@@ -10,8 +10,8 @@ import android.database.ContentObserver
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 import java.lang.reflect.Executable
@@ -28,31 +28,34 @@ import io.github.libxposed.api.XposedInterface
 
 /** Unlocks capability; the native full_screen_aod_on and wallpaper policy still own activation. */
 object AODHooker : StaticHooker() {
-    override val hotReloadMode = HotReloadMode.RECREATE
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingAodFullscreen by hookSetting(false) { Preferences.getBoolean(AodSettingsKeys.KEY_AOD_FULLSCREEN, false) }
+
     private const val FEATURE = "support_aod_fullscreen"
     private const val CONFIG = "com.miui.utils.configs.MiuiConfigs"
     private const val MANAGER = "com.android.keyguard.fullaod.MiuiFullAodManager"
     private val main = Handler(Looper.getMainLooper())
-    @Volatile private var enabled = false
-    @Volatile private var nativeSupport = false
+    private var enabled by generationState { false }
+    private var nativeSupport by generationState { false }
     private val capabilities = linkedSetOf<Field>()
-    private val managers = WeakHashMap<Any, Boolean>()
-    private val activities = WeakHashMap<Activity, Boolean>()
-    private var observerContext: Context? = null
-    private var observer: ContentObserver? = null
-    @Volatile private var primaryManager: Any? = null
-    private var refreshingPolicy = false
+    private val managers = generationMainResource(WeakHashMap<Any, Boolean>()) { it.clear() }
+    private val activities = generationMainResource(WeakHashMap<Activity, Boolean>()) { it.clear() }
+    private var observerContext: Context? by generationState { null }
+    private var observer: ContentObserver? by generationState { null }
+    private var primaryManager: Any? by generationState { null }
+    private var refreshingPolicy by generationState { false }
     private var generation = 0
-    private var cacheChangedAtAttach = false
-    private val dozeCallbacks = mutableListOf<Array<Any>>()
-    private var dozeCallbackTypes: Map<String, Class<*>> = emptyMap()
+    private var cacheChangedAtAttach by generationState { false }
+    private val dozeCallbacks = generationMainResource(mutableListOf<Array<Any>>()) { it.clear() }
+    private var dozeCallbackTypes: Map<String, Class<*>> by generationState { emptyMap() }
     private data class PreparedTargets(val callers: List<Executable>, val callbacks: Map<String, Class<*>>)
 
     fun isFullscreenSupported(): Boolean = nativeSupport || enabled
 
     override fun onHook() {
+        com.takekazex.hypertweak.hook.rules.aod.prepareAodIconSettingsSettings()
         generation++
-        enabled = Preferences.getBoolean(AodSettingsKeys.KEY_AOD_FULLSCREEN, false)
+        enabled = settingAodFullscreen
         val parser = "miui.util.FeatureParser".toClassOrNull() ?: return
         val get = HostAccess.requireDeclaredMethod(parser, "getBoolean", String::class.java, Boolean::class.javaPrimitiveType, accessible = false)
         // API-102 can attach this generation before the old generation's hook is removed.
@@ -134,7 +137,7 @@ object AODHooker : StaticHooker() {
 
     /** A capability update must update native caches and the already constructed manager too. */
     fun refreshSettings() = HostAccess.onMain {
-        val next = Preferences.getBoolean(AodSettingsKeys.KEY_AOD_FULLSCREEN, false)
+        val next = settingAodFullscreen
         val changed = next != enabled
         enabled = next
         capabilities.forEach { StaticFieldWriter.setBoolean(it, isFullscreenSupported()) }
@@ -392,16 +395,12 @@ object AODHooker : StaticHooker() {
     override fun onPrepareHotReload() = HostAccess.onMain {
         generation++
         main.removeCallbacksAndMessages(null)
-        enabled = false
         releaseDozeCallbacks()
         dozeCallbackTypes = emptyMap()
         observer?.let { observerContext?.contentResolver?.unregisterContentObserver(it) }
-        observer = null
-        observerContext = null
         capabilities.forEach { StaticFieldWriter.setBoolean(it, nativeSupport) }
         managers.keys.toList().forEach { applyManager(it) }
         managers.clear()
-        primaryManager = null
         capabilities.clear()
         activities.clear()
         cacheChangedAtAttach = false

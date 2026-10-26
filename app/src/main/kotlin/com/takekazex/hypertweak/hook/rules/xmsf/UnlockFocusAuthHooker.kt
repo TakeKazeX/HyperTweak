@@ -3,9 +3,9 @@ package com.takekazex.hypertweak.hook.rules.xmsf
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import android.os.Bundle
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.reflect.Field
@@ -40,7 +40,10 @@ import java.lang.reflect.Modifier
  * methods are deoptimized so ART cannot AOT-inline the error dispatch past the hook.
  */
 object UnlockFocusAuthHooker : StaticHooker() {
-    override val hotReloadMode = HotReloadMode.RECREATE
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingXmsfUnlockFocusAuth by hookSetting(false) {
+        Preferences.getBoolean(PlatformSettingsKeys.KEY_XMSF_UNLOCK_FOCUS_AUTH, false)
+    }
 
     private const val TAG = "UnlockFocusAuth"
     private const val AUTH_SESSION = "com.xiaomi.xms.auth.AuthSession"
@@ -64,7 +67,7 @@ object UnlockFocusAuthHooker : StaticHooker() {
         targets.errorDispatch.hook {
             before { param ->
                 HookFailurePolicy.open(TAG, "AuthSession error dispatch", Unit) {
-                    if (!Preferences.getBoolean(PlatformSettingsKeys.KEY_XMSF_UNLOCK_FOCUS_AUTH, false)) {
+                    if (!settingXmsfUnlockFocusAuth) {
                         return@open
                     }
                     val error = param.args[0] ?: return@open

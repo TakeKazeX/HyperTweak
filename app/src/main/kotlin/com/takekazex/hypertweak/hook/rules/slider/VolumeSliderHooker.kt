@@ -5,7 +5,6 @@ import android.util.Log
 import android.view.View
 import android.widget.TextView
 import com.takekazex.hypertweak.hook.base.DynamicHooker
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.applyTopTextStyle
 import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.calcVolumePercent
 import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.calcVolumePercentFromSliderValue
@@ -23,7 +22,6 @@ private const val TAG = "VolumeSlider"
 class VolumeSliderHooker(
     private val parent: SliderSession
 ) : DynamicHooker() {
-    override val hotReloadMode = HotReloadMode.RECREATE
 
     /** Owns the collapsed badge capsule's material/style; cleared with the hooker on hot reload. */
     private val badgeStyler = VolumeBadgeStyler(TAG)

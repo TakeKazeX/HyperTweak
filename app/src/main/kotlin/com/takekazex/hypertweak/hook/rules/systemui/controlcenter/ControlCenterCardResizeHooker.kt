@@ -9,10 +9,10 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.view.ViewGroup.LayoutParams
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.CompatibleMethodResolver
 import com.takekazex.hypertweak.hook.base.DynamicHooker
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import java.lang.reflect.Field
 import java.lang.reflect.Modifier
 import java.util.WeakHashMap
@@ -55,7 +55,14 @@ import java.util.WeakHashMap
  * install at plugin load, so the master switch still needs one restart to turn on.
  */
 class ControlCenterCardResizeHooker : DynamicHooker() {
-    override val hotReloadMode = HotReloadMode.RECREATE
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingCcResizeEnabled by hookSetting(false) { Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_RESIZE_ENABLED, false) }
+    private val settingCcCardSizes by hookSetting("") { Preferences.getString(SystemUiSettingsKeys.KEY_CC_CARD_SIZES, "") }
+    private val settingCcTileCardSpecs by hookSetting("") { Preferences.getString(SystemUiSettingsKeys.KEY_CC_TILE_CARD_SPECS, "") }
+    private val settingCcSizeMedia by hookSetting("") { Preferences.getString(SystemUiSettingsKeys.KEY_CC_SIZE_MEDIA, "") }
+    private val settingCcSizeBrightness by hookSetting("") { Preferences.getString(SystemUiSettingsKeys.KEY_CC_SIZE_BRIGHTNESS, "") }
+    private val settingCcSizeVolume by hookSetting("") { Preferences.getString(SystemUiSettingsKeys.KEY_CC_SIZE_VOLUME, "") }
+    private val settingCcSizeDevice by hookSetting("") { Preferences.getString(SystemUiSettingsKeys.KEY_CC_SIZE_DEVICE, "") }
 
     private companion object {
         const val TAG = "HyperTweak"
@@ -134,7 +141,7 @@ class ControlCenterCardResizeHooker : DynamicHooker() {
     private var refreshAdapter: java.lang.reflect.Method? = null
 
     private fun enabled(): Boolean =
-        Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_RESIZE_ENABLED, false)
+        settingCcResizeEnabled
 
     // ─── Size parsing ──────────────────────────────────────────────────────────
 
@@ -151,7 +158,7 @@ class ControlCenterCardResizeHooker : DynamicHooker() {
 
     /** Reads the per-card map into spec → (cols, rows). */
     private fun cardSizes(): Map<String, Pair<Int, Int>> {
-        val raw = Preferences.getString(SystemUiSettingsKeys.KEY_CC_CARD_SIZES, "")
+        val raw = settingCcCardSizes
         if (raw.isBlank()) return emptyMap()
         return raw.split(',').mapNotNull { entry ->
             val idx = entry.indexOf('=')
@@ -163,7 +170,7 @@ class ControlCenterCardResizeHooker : DynamicHooker() {
     }
 
     private fun tileCardSpecs(): Set<String> =
-        Preferences.getString(SystemUiSettingsKeys.KEY_CC_TILE_CARD_SPECS, "")
+        settingCcTileCardSpecs
             .split(',').map { it.trim().lowercase() }.filter { it.isNotEmpty() }.toSet()
 
     // ─── Spans ─────────────────────────────────────────────────────────────────
@@ -225,7 +232,7 @@ class ControlCenterCardResizeHooker : DynamicHooker() {
                 before { param ->
                     if (!enabled()) return@before
                     runCatching {
-                        val cols = parseSize(Preferences.getString(key, ""))?.first ?: 0
+                        val cols = parseSize(configuredSize(key))?.first ?: 0
                         if (cols > 0) param.result = cols
                     }
                 }
@@ -405,7 +412,7 @@ class ControlCenterCardResizeHooker : DynamicHooker() {
                         "devicecenter" -> changed =
                             applyConfiguredRows(itemView, lp, SystemUiSettingsKeys.KEY_CC_SIZE_DEVICE)
                         "media" -> {
-                            val size = parseSize(Preferences.getString(SystemUiSettingsKeys.KEY_CC_SIZE_MEDIA, ""))
+                            val size = parseSize(settingCcSizeMedia)
                             if (size != null) {
                                 // The XML root is a fixed-width square; a custom span must widen
                                 // with the grid or the view stays narrow inside its cell.
@@ -438,8 +445,16 @@ class ControlCenterCardResizeHooker : DynamicHooker() {
     }
 
     /** Stamps the configured `CxR` height onto [lp]; returns true when it changed. */
+    private fun configuredSize(key: String): String = when (key) {
+        SystemUiSettingsKeys.KEY_CC_SIZE_BRIGHTNESS -> settingCcSizeBrightness
+        SystemUiSettingsKeys.KEY_CC_SIZE_VOLUME -> settingCcSizeVolume
+        SystemUiSettingsKeys.KEY_CC_SIZE_DEVICE -> settingCcSizeDevice
+        SystemUiSettingsKeys.KEY_CC_SIZE_MEDIA -> settingCcSizeMedia
+        else -> ""
+    }
+
     private fun applyConfiguredRows(view: View, lp: LayoutParams, key: String): Boolean {
-        val rows = parseSize(Preferences.getString(key, ""))?.second ?: 0
+        val rows = parseSize(configuredSize(key))?.second ?: 0
         if (rows > 0) {
             stampedViews[view] = true
             return setLpHeight(lp, rowHeight(view.resources, rows))
@@ -554,12 +569,12 @@ class ControlCenterCardResizeHooker : DynamicHooker() {
     }
 
     private fun configSignature(): String = listOf(
-        Preferences.getString(SystemUiSettingsKeys.KEY_CC_CARD_SIZES, ""),
-        Preferences.getString(SystemUiSettingsKeys.KEY_CC_SIZE_MEDIA, ""),
-        Preferences.getString(SystemUiSettingsKeys.KEY_CC_SIZE_BRIGHTNESS, ""),
-        Preferences.getString(SystemUiSettingsKeys.KEY_CC_SIZE_VOLUME, ""),
-        Preferences.getString(SystemUiSettingsKeys.KEY_CC_SIZE_DEVICE, ""),
-        Preferences.getString(SystemUiSettingsKeys.KEY_CC_TILE_CARD_SPECS, "")
+        settingCcCardSizes,
+        settingCcSizeMedia,
+        settingCcSizeBrightness,
+        settingCcSizeVolume,
+        settingCcSizeDevice,
+        settingCcTileCardSpecs
     ).joinToString("|")
 
     // ─── Helpers ───────────────────────────────────────────────────────────────

@@ -9,8 +9,8 @@ import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 import android.graphics.Rect
 import android.os.Handler
 import android.os.Looper
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 import org.luckypray.dexkit.query.enums.MatchType
@@ -32,13 +32,16 @@ import java.io.File
  * cold flow once to refresh the already-running helper.
  */
 object RegionSamplingHooker : StaticHooker() {
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingStatusbarRegionSampling by hookSetting(0) {
+        Preferences.getInt(PlatformSettingsKeys.KEY_STATUSBAR_REGION_SAMPLING, 0)
+    }
+
     init {
         hostRecovery(HostRecoveryPhase.SOURCES, icons = true) {
             it.component?.let(::recover)
         }
     }
-
-    override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
 
     private const val TAG = "IconTuner"
     private const val TRANSFORM_CACHE_KEY = "statusBarRegionSamplingTransform"
@@ -46,7 +49,9 @@ object RegionSamplingHooker : StaticHooker() {
         "com.miui.systemui.statusbar.core.StatusBarRegionSamplingInteractor\$regionSampling"
 
     private var replay: HostFlowCollector.Handle? by generationState { null }
-    @Volatile private var retiring = false
+    @Volatile
+    private var retiring = false
+    init { generationCleanup { retiring = true } }
 
     override fun onPrepareHotReload() {
         retiring = true
@@ -78,7 +83,7 @@ object RegionSamplingHooker : StaticHooker() {
 
     override fun onHook() {
         retiring = false
-        val mode = Preferences.getInt(PlatformSettingsKeys.KEY_STATUSBAR_REGION_SAMPLING, 0)
+        val mode = settingStatusbarRegionSampling
         if (mode !in 1..2) {
             DebugLog.hookSkippedDebug(TAG, "RegionSampling", "mode $mode not active")
             return

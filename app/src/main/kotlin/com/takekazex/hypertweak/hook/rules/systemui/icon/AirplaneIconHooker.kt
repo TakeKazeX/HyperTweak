@@ -5,17 +5,18 @@ import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
 
 import android.graphics.Canvas
 import android.view.View
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 
 /** Mirrors the native airplane slot, including host views cloned into the left container. */
 object AirplaneIconHooker : StaticHooker() {
-    override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingIconMirrorAirplane by hookSetting(false) { Preferences.getBoolean(IconSettingsKeys.KEY_ICON_MIRROR_AIRPLANE, false) }
 
     override fun onHook() {
-        if (!Preferences.getBoolean(IconSettingsKeys.KEY_ICON_MIRROR_AIRPLANE, false)) return
+        if (!settingIconMirrorAirplane) return
         val type = "com.android.systemui.statusbar.StatusBarIconView".toClassOrNull() ?: return
         val slot = runCatching { HostAccess.requireDeclaredField(type, "mSlot", accessible = true) }
             .getOrNull() ?: return

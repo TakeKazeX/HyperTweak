@@ -11,8 +11,8 @@ import android.os.Bundle
 import android.os.Looper
 import android.os.SystemClock
 import androidx.core.content.ContextCompat
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.device.BatteryInfoChannel
 import com.takekazex.hypertweak.util.logging.DebugLog
@@ -27,9 +27,11 @@ import java.util.concurrent.TimeoutException
 
 /** Privileged, on-demand battery reads in Security Center's main application process. */
 object BatteryInfoHooker : StaticHooker() {
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingLanguage by hookSetting(0) { Preferences.getInt(AppSettingsKeys.KEY_LANGUAGE, 0) }
+
     private const val TAG = "BatteryInfoHooker"
     const val PACKAGE = BatteryInfoChannel.PACKAGE
-    override val hotReloadMode = HotReloadMode.RECREATE
 
     private var publisher: Publisher? by generationState { null }
 
@@ -137,7 +139,7 @@ object BatteryInfoHooker : StaticHooker() {
             val sampledAt = Bundle()
             val validUntil = Bundle()
             val bundle = Bundle()
-            val zh = when (Preferences.getInt(AppSettingsKeys.KEY_LANGUAGE, 0)) {
+            val zh = when (settingLanguage) {
                 1 -> true
                 2 -> false
                 else -> Locale.getDefault().language == "zh"

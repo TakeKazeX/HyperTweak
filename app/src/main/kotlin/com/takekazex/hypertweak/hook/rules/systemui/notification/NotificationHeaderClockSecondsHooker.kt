@@ -6,9 +6,9 @@ import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 import android.text.format.DateFormat
 import android.view.View
 import android.widget.TextView
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.util.logging.DebugLog
@@ -25,13 +25,16 @@ import java.util.WeakHashMap
  * while its view is attached.
  */
 object NotificationHeaderClockSecondsHooker : StaticHooker() {
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingNotificationHeaderClockSeconds by hookSetting(false) {
+        Preferences.getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_CLOCK_SECONDS, false)
+    }
+
     init {
         hostRecovery(HostRecoveryPhase.HEADER_DECORATIONS) {
             recoverExistingViews(it.views)
         }
     }
-
-    override val hotReloadMode = HotReloadMode.RECREATE
 
     private const val TAG = "NotificationClockSeconds"
     private const val CLOCK_CLASS = "com.android.systemui.statusbar.views.MiuiClock"
@@ -46,32 +49,29 @@ object NotificationHeaderClockSecondsHooker : StaticHooker() {
         NOTIFICATION_HEADER
     }
 
-    private val tickCallbacks = WeakHashMap<View, Runnable>()
-    private val expiryCallbacks = WeakHashMap<View, Runnable>()
-    private val expiryTokens = WeakHashMap<View, Long>()
-    private val longPressInstalled = WeakHashMap<View, Boolean>()
-    private val temporaryOverrides = WeakHashMap<View, Boolean>()
-    private val restoringStock = WeakHashMap<View, Boolean>()
+    private val tickCallbacks = generationMainResource(WeakHashMap<View, Runnable>()) { it.clear() }
+    private val expiryCallbacks = generationMainResource(WeakHashMap<View, Runnable>()) { it.clear() }
+    private val expiryTokens = generationMainResource(WeakHashMap<View, Long>()) { it.clear() }
+    private val longPressInstalled = generationMainResource(WeakHashMap<View, Boolean>()) { it.clear() }
+    private val temporaryOverrides = generationMainResource(WeakHashMap<View, Boolean>()) { it.clear() }
+    private val restoringStock = generationMainResource(WeakHashMap<View, Boolean>()) { it.clear() }
     private val callbacksLock = Any()
 
-    @Volatile
-    private var persistentHeaderEnabled = false
+    private var persistentHeaderEnabled by generationState { false }
 
-    @Volatile
-    private var clockClass: Class<*>? = null
+    private var clockClass: Class<*>? by generationState { null }
 
-    @Volatile
-    private var headerClockClass: Class<*>? = null
+    private var headerClockClass: Class<*>? by generationState { null }
 
-    @Volatile
-    private var updateTimeMethod: Method? = null
+    private var updateTimeMethod: Method? by generationState { null }
 
-    @Volatile
-    private var statusBarClockId = 0
+    private var statusBarClockId by generationState { 0 }
 
     private var nextExpiryToken = 0L
 
-    @Volatile private var retiring = false
+    @Volatile
+    private var retiring = false
+    init { generationCleanup { retiring = true } }
 
     internal fun recoverExistingViews(views: List<View>) {
         if (retiring) return
@@ -87,7 +87,7 @@ object NotificationHeaderClockSecondsHooker : StaticHooker() {
      * disabling stops the tick and restores the stock clock on the existing header views.
      */
     fun refreshSettings() {
-        val next = Preferences.getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_CLOCK_SECONDS, false)
+        val next = settingNotificationHeaderClockSeconds
         val changed = next != persistentHeaderEnabled
         persistentHeaderEnabled = next
         HostAccess.onMain {
@@ -136,10 +136,7 @@ object NotificationHeaderClockSecondsHooker : StaticHooker() {
 
     override fun onHook() {
         retiring = false
-        persistentHeaderEnabled = Preferences.getBoolean(
-            SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_CLOCK_SECONDS,
-            false
-        )
+        persistentHeaderEnabled = settingNotificationHeaderClockSeconds
 
         val resolvedClockClass = CLOCK_CLASS.toClassOrNull() ?: run {
             DebugLog.hookSkipped(TAG, CLOCK_CLASS, "class not found")

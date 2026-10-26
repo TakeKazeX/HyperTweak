@@ -7,9 +7,9 @@ import android.graphics.Typeface
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.util.logging.DebugLog
@@ -17,13 +17,16 @@ import java.util.WeakHashMap
 
 /** Restores the framework notification typefaces after MIUI's notification bindings run. */
 object NotificationFontWeightHooker : StaticHooker() {
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingNotificationFontWeight by hookSetting(false) {
+        Preferences.getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_FONT_WEIGHT, false)
+    }
+
     init {
         hostRecovery(HostRecoveryPhase.WINDOWS) {
             it.views.forEach(::recoverHybrid)
         }
     }
-
-    override val hotReloadMode = HotReloadMode.RECREATE
 
     private const val TAG = "NotificationFontWeight"
     private const val HYBRID_VIEW_CLASS =
@@ -46,9 +49,11 @@ object NotificationFontWeightHooker : StaticHooker() {
     private val bodyTypeface = Typeface.create(baseTypeface, BODY_WEIGHT, false)
     private val actionTypeface = Typeface.create(baseTypeface, ACTION_WEIGHT, false)
 
-    @Volatile private var retiring = false
-    private val originals = WeakHashMap<TextView, Typeface?>()
-    private val applied = WeakHashMap<TextView, Int>()
+    @Volatile
+    private var retiring = false
+    init { generationCleanup { retiring = true } }
+    private val originals = generationMainResource(WeakHashMap<TextView, Typeface?>()) { it.clear() }
+    private val applied = generationMainResource(WeakHashMap<TextView, Int>()) { it.clear() }
     /**
      * Native owners (hybrid views and template wrappers) this module has styled. Their text views
      * are replaced on every rebind, so the owner is the only stable handle for re-applying or
@@ -259,5 +264,5 @@ object NotificationFontWeightHooker : StaticHooker() {
     }
 
     private fun isEnabled(): Boolean =
-        !retiring && Preferences.getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_FONT_WEIGHT, false)
+        !retiring && settingNotificationFontWeight
 }

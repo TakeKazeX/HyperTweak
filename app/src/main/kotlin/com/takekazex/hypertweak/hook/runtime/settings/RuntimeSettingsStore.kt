@@ -14,11 +14,15 @@ internal object RuntimeSettingsStore {
     fun owns(key: String): Boolean = ledger.owns(key) && (target?.let { RuntimeSettingsGroups.owns(it, key) } ?: true)
     fun value(key: String): Any? = ledger.value(key)
     fun accept(next: RuntimeSettingsSnapshot): Boolean = ledger.accept(next).also {
-        if (it) RuntimeSettingsReadCache.memo.clear()
+        if (it) {
+            RuntimeSettingsReadCache.memo.clear()
+            HookSettingsSnapshots.refresh()
+        }
     }
     fun save(): Array<Any>? = ledger.save()
     fun restore(saved: Any?) {
         ledger.restore(saved)
         RuntimeSettingsReadCache.memo.clear()
+        HookSettingsSnapshots.refresh()
     }
 }

@@ -46,6 +46,7 @@ internal object SystemUiHookPlan {
         when (packageName) {
             "com.android.systemui" -> {
                 hook { RestartBroadcastHooker }
+                hook { com.takekazex.hypertweak.hook.base.ViewVisibilityRouter }
                 hook { AODHooker }
                 hook { AodWallpaperHandoffHooker }
                 hook { HideFingerprintIcon }

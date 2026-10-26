@@ -17,11 +17,15 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.core.view.isVisible
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
 import java.lang.reflect.Field
 import kotlin.math.roundToInt
+
+private val hideCarrierOne by hookSetting(false) { Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_CARRIER_ONE, false) }
+private val hideCarrierTwo by hookSetting(false) { Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_CARRIER_TWO, false) }
 
 /** Owns carrier row construction, styling, sizing and exact native presentation restoration. */
 internal class CarrierPresentation(private val host: Host, private val rowRenderer: CarrierRowRenderer) {
@@ -152,8 +156,7 @@ internal class CarrierPresentation(private val host: Host, private val rowRender
             parts.rowState.restore(parts.row)
             parts.textState.restore(parts.carrierText)
             parts.carrierText.text = parts.nativeCarrierText
-            if (Preferences.getBoolean(if (parts.slot == 0) IconSettingsKeys.KEY_ICON_HIDE_CARRIER_ONE
-                    else IconSettingsKeys.KEY_ICON_HIDE_CARRIER_TWO, false)) parts.carrierText.visibility = View.GONE
+            if ((if (parts.slot == 0) hideCarrierOne else hideCarrierTwo)) parts.carrierText.visibility = View.GONE
             parts.row.gravity = parts.gravity
             parts.row.isBaselineAligned = parts.baselineAligned
             parts.row.contentDescription = parts.contentDescription

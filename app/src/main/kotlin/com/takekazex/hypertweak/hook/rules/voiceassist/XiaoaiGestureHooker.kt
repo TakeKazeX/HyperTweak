@@ -4,6 +4,7 @@ import com.takekazex.hypertweak.hook.base.HostAccess
 import android.app.Service
 import android.content.Intent
 import android.provider.Settings
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.StaticHooker
@@ -20,10 +21,15 @@ private object XiaoaiGestureFeature : DexFeature {
 
 /** Let XiaoAI's normal keyboard/recording flows handle the three added native choices. */
 object XiaoaiGestureHooker : StaticHooker() {
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingXiaoaiGestureOptions by hookSetting(false) { Preferences.xiaoaiGestureOptions() }
+
     private const val TAG = "XiaoaiGesture"
     private const val FUNCTION = "voice_assist_function_key"
     private const val START_FROM = "voice_assist_start_from_key"
-    @Volatile private var retired = false
+    @Volatile
+    private var retired = false
+    init { generationCleanup { retired = true } }
     private data class Access(val keyboard: Method, val consumer: Method)
 
     override fun onHook() {
@@ -53,7 +59,7 @@ object XiaoaiGestureHooker : StaticHooker() {
         start.hook("xiaoai_long_press_text") {
             before { param ->
                 HookFailurePolicy.open(TAG, "route native text input", Unit) {
-                    if (retired || !Preferences.xiaoaiGestureOptions()) return@open
+                    if (retired || !settingXiaoaiGestureOptions) return@open
                     val intent = param.args.getOrNull(0) as? Intent ?: return@open
                     val host = param.thisObject as? Service ?: return@open
                     if (intent.action != Intent.ACTION_ASSIST) return@open
@@ -73,7 +79,7 @@ object XiaoaiGestureHooker : StaticHooker() {
         access.keyboard.hook("xiaoai_double_click_voice") {
             after { param ->
                 HookFailurePolicy.open(TAG, "route native voice input", Unit) {
-                    if (retired || !Preferences.xiaoaiGestureOptions()) return@open
+                    if (retired || !settingXiaoaiGestureOptions) return@open
                     val intent = param.args.getOrNull(0) as? Intent ?: return@open
                     if (intent.action != Intent.ACTION_ASSIST) return@open
                     val trigger = intent.getStringExtra("triggerType")

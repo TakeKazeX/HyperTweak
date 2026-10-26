@@ -5,6 +5,7 @@ import android.os.Build
 import android.util.Size
 import android.util.SparseArray
 import androidx.core.util.isNotEmpty
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.BaseHooker
 import com.takekazex.hypertweak.hook.base.HookComponent
@@ -17,6 +18,25 @@ import java.lang.reflect.Modifier
 import java.util.ArrayDeque
 import java.util.IdentityHashMap
 import java.util.concurrent.atomic.AtomicReference
+
+// Published on settings acceptance; hook callbacks perform no storage reads.
+private val settingCameraMasterliveEnable by hookSetting(false) {
+    Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_MASTERLIVE_ENABLE, false)
+}
+private val settingCameraMasterliveTeleFallback by hookSetting(false) {
+    Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_MASTERLIVE_TELE_FALLBACK, false)
+}
+private val settingCameraMasterliveVideoSizeProbe by hookSetting(false) {
+    Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_MASTERLIVE_VIDEO_SIZE_PROBE, false)
+}
+private val settingCameraMasterliveRedCarpet by hookSetting(false) {
+    Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_MASTERLIVE_RED_CARPET, false)
+}
+private val settingCameraMasterliveFullFocal by hookSetting(false) {
+    Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_MASTERLIVE_FULL_FOCAL, false)
+}
+
+internal fun prepareCameraMasterLiveHooksSettings() { settingCameraMasterliveEnable }
 
 /** Owns MasterLive donors, readiness, compatibility gates and effect-table state. */
 internal class CameraMasterLiveHooks(owner: BaseHooker, private val config: CameraConfigAccess, private val legendaryMomentUnlock: () -> Boolean) : HookComponent(owner) {
@@ -669,21 +689,21 @@ internal class CameraMasterLiveHooks(owner: BaseHooker, private val config: Came
     }
 
     fun masterliveEnabled(): Boolean =
-        Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_MASTERLIVE_ENABLE, false)
+        settingCameraMasterliveEnable
 
     private fun masterliveTeleFallback(): Boolean =
-        Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_MASTERLIVE_TELE_FALLBACK, false)
+        settingCameraMasterliveTeleFallback
 
     private fun videoSizeProbeEnabled(): Boolean =
-        Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_MASTERLIVE_VIDEO_SIZE_PROBE, false)
+        settingCameraMasterliveVideoSizeProbe
 
     private val redCarpetCaptureReady = java.util.concurrent.atomic.AtomicBoolean(
         !CameraMasterLiveRedCarpet.needsSlowMotionFallback(Build.DEVICE, Build.HARDWARE),
     )
 
     private fun redCarpetEnabled(): Boolean = redCarpetCaptureReady.get() &&
-        Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_MASTERLIVE_RED_CARPET, false)
+        settingCameraMasterliveRedCarpet
 
     private fun fullFocalEnabled(): Boolean =
-        Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_MASTERLIVE_FULL_FOCAL, false)
+        settingCameraMasterliveFullFocal
 }

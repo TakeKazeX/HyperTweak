@@ -531,6 +531,7 @@ object Preferences {
         // Also run when local storage arrives after an early service binding. No marker is
         // needed: an empty key set is a no-op, and rejected cleanups retry on the next bind.
         cleanRemoteAppLogs()
+        com.takekazex.hypertweak.hook.runtime.settings.HookSettingsSnapshots.refresh()
     }
 
     private fun cleanRemoteAppLogs() {

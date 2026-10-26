@@ -8,8 +8,8 @@ import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
 
 import com.takekazex.hypertweak.hook.base.HostAccess
 import android.telephony.SubscriptionManager
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.reflect.Field
@@ -29,13 +29,23 @@ import java.util.concurrent.atomic.AtomicLong
  * original getter whenever no live registration exists.
  */
 object HideCellularIconHooker : StaticHooker() {
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingIconStackedEnabled by hookSetting(false) { Preferences.getBoolean(IconSettingsKeys.KEY_ICON_STACKED_ENABLED, false) }
+    private val settingIconHideNonDefaultSim by hookSetting(false) {
+        Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_NON_DEFAULT_SIM, false)
+    }
+    private val settingIconHideSimAuto by hookSetting(false) { Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_SIM_AUTO, false) }
+    private val settingIconHideSimOne by hookSetting(false) { Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_SIM_ONE, false) }
+    private val settingIconHideSimTwo by hookSetting(false) { Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_SIM_TWO, false) }
+    private val settingIconHideMobileOnWifi by hookSetting(false) {
+        Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_MOBILE_ON_WIFI, false)
+    }
+
     init {
         hostRecovery(HostRecoveryPhase.ADAPTER_POLICY, icons = true) {
             it.adapter?.let(::recoverAdapter)
         }
     }
-
-    override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
 
     private const val TAG = "IconTuner"
     private const val ADAPTER_CLASS =
@@ -43,29 +53,24 @@ object HideCellularIconHooker : StaticHooker() {
     private const val ICONS_VM_CLASS =
         "com.android.systemui.statusbar.pipeline.mobile.ui.viewmodel.MobileIconsViewModel"
 
-    private val installed = AtomicBoolean(false)
-    private val adapterFlowInstalled = AtomicBoolean(false)
+    private val installed = generationResource(AtomicBoolean(false)) { it.set(false) }
+    private val adapterFlowInstalled = generationResource(AtomicBoolean(false)) { it.set(false) }
     private val generation = AtomicLong(0L)
-    private val flowHandles = CopyOnWriteArrayList<HostFlowCollector.Handle>()
-    private val bindings = LinkedHashMap<Int, Binding>()
-    private val pendingBindings = IdentityHashMap<Any, Boolean>()
+    private val flowHandles = generationMainResource(CopyOnWriteArrayList<HostFlowCollector.Handle>()) { it.clear() }
+    private val bindings = generationMainResource(LinkedHashMap<Int, Binding>()) { it.clear() }
+    private val pendingBindings = generationMainResource(IdentityHashMap<Any, Boolean>()) { it.clear() }
 
-    @Volatile
-    private var enabled = false
+    private var enabled by generationState { false }
 
-    @Volatile
-    private var hideSimOne = false
+    private var hideSimOne by generationState { false }
 
-    @Volatile
-    private var hideSimTwo = false
+    private var hideSimTwo by generationState { false }
 
-    @Volatile
-    private var hideNonDefault = false
+    private var hideNonDefault by generationState { false }
 
-    @Volatile
-    private var hideOnWifi = false
+    private var hideOnWifi by generationState { false }
 
-    private var state = MobileSignalState()
+    private var state by generationState { MobileSignalState() }
     private var adapterReference: java.lang.ref.WeakReference<Any>? by generationState { null }
 
     /**
@@ -75,7 +80,7 @@ object HideCellularIconHooker : StaticHooker() {
      * the subscription ids; a reducer event for an unknown subId is discarded, so a boot-time WiFi
      * connection would otherwise never be applied. [applyMask] reads this map directly.
      */
-    private val wifiBySub = LinkedHashMap<Int, Boolean>()
+    private val wifiBySub = generationMainResource(LinkedHashMap<Int, Boolean>()) { it.clear() }
 
     private data class Binding(
         val viewModel: Any,
@@ -85,7 +90,6 @@ object HideCellularIconHooker : StaticHooker() {
 
     override fun onPrepareHotReload() {
         generation.incrementAndGet()
-        enabled = false
 
         HostAccess.onMain {
             hideSimOne = false
@@ -131,14 +135,11 @@ object HideCellularIconHooker : StaticHooker() {
 
     override fun onHook() {
         IconTunerFlows.init(classLoader)
-        val stackedEnabled = Preferences.getBoolean(IconSettingsKeys.KEY_ICON_STACKED_ENABLED, false)
-        hideNonDefault = Preferences.getBoolean(
-            IconSettingsKeys.KEY_ICON_HIDE_NON_DEFAULT_SIM,
-            false
-        ) || Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_SIM_AUTO, false)
-        hideSimOne = Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_SIM_ONE, false)
-        hideSimTwo = Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_SIM_TWO, false)
-        hideOnWifi = Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_MOBILE_ON_WIFI, false)
+        val stackedEnabled = settingIconStackedEnabled
+        hideNonDefault = settingIconHideNonDefaultSim || settingIconHideSimAuto
+        hideSimOne = settingIconHideSimOne
+        hideSimTwo = settingIconHideSimTwo
+        hideOnWifi = settingIconHideMobileOnWifi
         if (stackedEnabled ||
             (!hideNonDefault && !hideSimOne && !hideSimTwo && !hideOnWifi)
         ) {

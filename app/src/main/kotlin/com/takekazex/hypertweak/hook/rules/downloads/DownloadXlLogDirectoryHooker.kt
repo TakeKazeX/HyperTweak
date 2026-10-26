@@ -5,6 +5,7 @@ package com.takekazex.hypertweak.hook.rules.downloads
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import android.content.Context
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
@@ -21,6 +22,11 @@ import java.lang.reflect.Modifier
  * recreate `.xlDownload` either.
  */
 object DownloadXlLogDirectoryHooker : StaticHooker() {
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingBlockDownloadXlLogDir by hookSetting(false) {
+        Preferences.getBoolean(PlatformSettingsKeys.KEY_BLOCK_DOWNLOAD_XL_LOG_DIR, false)
+    }
+
     private const val TAG = "DownloadXlLogDirectory"
     private const val XL_CONFIG = "com.android.providers.downloads.config.XLConfig"
     private const val FILE_UTIL = "com.android.providers.downloads.util.FileUtil"
@@ -31,7 +37,7 @@ object DownloadXlLogDirectoryHooker : StaticHooker() {
     )
 
     override fun onHook() {
-        if (!Preferences.getBoolean(PlatformSettingsKeys.KEY_BLOCK_DOWNLOAD_XL_LOG_DIR, false)) {
+        if (!settingBlockDownloadXlLogDir) {
             return
         }
 
@@ -117,8 +123,7 @@ object DownloadXlLogDirectoryHooker : StaticHooker() {
         }
     }
 
-    @Volatile
-    private var logged = false
+    private var logged by generationState { false }
 
     private fun logBlockedOnce(boundary: String, path: String) {
         if (!logged) {

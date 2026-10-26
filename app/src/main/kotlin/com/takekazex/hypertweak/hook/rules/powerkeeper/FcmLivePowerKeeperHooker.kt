@@ -4,6 +4,7 @@ import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import android.os.Bundle
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
@@ -14,12 +15,15 @@ import com.takekazex.hypertweak.util.logging.DebugLog
  * https://github.com/howard20181/HyperOS_FCM_Live
  */
 object FcmLivePowerKeeperHooker : StaticHooker() {
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingFcmLiveEnabled by hookSetting(false) { Preferences.getBoolean(PlatformSettingsKeys.KEY_FCM_LIVE_ENABLED, false) }
+
     override val hookerName = "FcmLivePowerKeeper"
 
     private const val GMS_PACKAGE_NAME = "com.google.android.gms"
 
     override fun onInit() {
-        if (!Preferences.getBoolean(PlatformSettingsKeys.KEY_FCM_LIVE_ENABLED, false)) {
+        if (!settingFcmLiveEnabled) {
             DebugLog.d(hookerName, "FCM Live disabled by user preference")
             return
         }

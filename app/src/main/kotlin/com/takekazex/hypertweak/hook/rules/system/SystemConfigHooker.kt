@@ -4,14 +4,17 @@ import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import android.util.Log
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import java.lang.reflect.Method
 import java.util.concurrent.atomic.AtomicBoolean
 
 object SystemConfigHooker : StaticHooker() {
-    override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingRemoveGmsRestriction by hookSetting(false) {
+        Preferences.getBoolean(PlatformSettingsKeys.KEY_REMOVE_GMS_RESTRICTION, false)
+    }
 
     private const val TAG = "HyperTweak"
     private val GMS_FEATURES = arrayOf(
@@ -20,9 +23,8 @@ object SystemConfigHooker : StaticHooker() {
     )
 
     // Resolved once from the SystemConfig class; the actual map mutation runs a single time.
-    @Volatile
-    private var removeFeatureMethod: Method? = null
-    private val featuresRemoved = AtomicBoolean(false)
+    private var removeFeatureMethod: Method? by generationState { null }
+    private val featuresRemoved = generationResource(AtomicBoolean(false)) { it.set(false) }
 
     override fun onHook() {
         val clzSystemConfig = "com.android.server.SystemConfig".toClassOrNull()
@@ -48,7 +50,7 @@ object SystemConfigHooker : StaticHooker() {
         // SystemConfig() singleton can be constructed at any point during early boot, so reading the
         // preference lazily inside the constructor callback risks seeing a not-yet-loaded value and
         // silently skipping the removal forever (the singleton never re-runs its constructor).
-        val removeGms = Preferences.getBoolean(PlatformSettingsKeys.KEY_REMOVE_GMS_RESTRICTION, false)
+        val removeGms = settingRemoveGmsRestriction
         if (removeGms) {
             // Constructor hook: fires only when SystemConfig() is constructed after this module's
             // hooks install. The singleton is built inside `synchronized (SystemConfig.class)` in

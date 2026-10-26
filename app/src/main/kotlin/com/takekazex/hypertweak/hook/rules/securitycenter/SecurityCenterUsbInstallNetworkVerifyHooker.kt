@@ -4,6 +4,7 @@ import com.takekazex.hypertweak.hook.base.cachedDeclaredField
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import android.app.Activity
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.DynamicHooker
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
@@ -50,6 +51,11 @@ private data class UsbInstallVerifyTargets(
 
 /** Skip only the online check before USB install; host account checks and input mode stay intact. */
 object SecurityCenterUsbInstallNetworkVerifyHooker : DynamicHooker() {
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingSecurityCenterBypassUsbInstallNetworkVerify by hookSetting(false) {
+        Preferences.getBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_BYPASS_USB_INSTALL_NETWORK_VERIFY, false)
+    }
+
     override fun onHook() {
         if (hookParam.packageName != PACKAGE || hookParam.processName != PACKAGE) return
         val apkPath = hookParam.appInfo?.sourceDir?.takeIf(String::isNotBlank) ?: run {
@@ -268,7 +274,7 @@ object SecurityCenterUsbInstallNetworkVerifyHooker : DynamicHooker() {
                 before { param ->
                     HookFailurePolicy.open(TAG, "skip online check", Unit) {
                         val activity = param.thisObject as? Activity ?: return@open
-                        if (!Preferences.getBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_BYPASS_USB_INSTALL_NETWORK_VERIFY, false)) return@open
+                        if (!settingSecurityCenterBypassUsbInstallNetworkVerify) return@open
                         val isInput = runCatching { targets.inputField.getBoolean(activity) }.getOrElse { error ->
                             DebugLog.w(TAG, "could not read resolved USB input-mode field", error)
                             return@open

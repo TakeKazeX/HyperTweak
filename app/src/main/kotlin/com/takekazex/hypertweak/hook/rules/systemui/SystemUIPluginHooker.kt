@@ -14,6 +14,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.pm.ApplicationInfo
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.runtime.reload.HotReloadPluginState
 import com.takekazex.hypertweak.hook.base.StaticHooker
@@ -29,6 +30,13 @@ import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.CompatibleMethodResolver
 
 object SystemUIPluginHooker : StaticHooker() {
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingCcEditEnabled by hookSetting(false) { Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_EDIT_ENABLED, false) }
+    private val settingCcResizeEnabled by hookSetting(false) { Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_RESIZE_ENABLED, false) }
+    private val settingMediaCardHideDeviceSwitch by hookSetting(false) {
+        Preferences.getBoolean(SystemUiSettingsKeys.KEY_MEDIA_CARD_HIDE_DEVICE_SWITCH, false)
+    }
+
     private data class PluginHookSession(
         val sliderPercentHooker: SliderPercentageHooker,
         val cornerHooker: ControlCenterCornerHooker,
@@ -117,9 +125,9 @@ object SystemUIPluginHooker : StaticHooker() {
 
     /** Attaches an optional sub-hooker the first time its switch is on; the switch alone skips it. */
     private fun ensureOptionalHookers(session: PluginHookSession) {
-        val edit = Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_EDIT_ENABLED, false)
-        val resize = Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_RESIZE_ENABLED, false)
-        val deviceIcon = Preferences.getBoolean(SystemUiSettingsKeys.KEY_MEDIA_CARD_HIDE_DEVICE_SWITCH, false)
+        val edit = settingCcEditEnabled
+        val resize = settingCcResizeEnabled
+        val deviceIcon = settingMediaCardHideDeviceSwitch
         val loader = session.classLoader
         if (edit && session.cardsEditHooker == null) {
             val hooker = ControlCenterCardsEditHooker()
@@ -357,13 +365,13 @@ object SystemUIPluginHooker : StaticHooker() {
                 mediaSuperIslandWhitelistHooker = mediaSuperIslandWhitelistHooker,
                 classLoader = state.classLoader
             ).also { session ->
-                if (Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_EDIT_ENABLED, false)) {
+                if (settingCcEditEnabled) {
                     session.cardsEditHooker = ControlCenterCardsEditHooker()
                 }
-                if (Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_RESIZE_ENABLED, false)) {
+                if (settingCcResizeEnabled) {
                     session.cardResizeHooker = ControlCenterCardResizeHooker()
                 }
-                if (Preferences.getBoolean(SystemUiSettingsKeys.KEY_MEDIA_CARD_HIDE_DEVICE_SWITCH, false)) {
+                if (settingMediaCardHideDeviceSwitch) {
                     session.mediaDeviceIconHooker = MediaPlayerDeviceIconHooker()
                 }
             }

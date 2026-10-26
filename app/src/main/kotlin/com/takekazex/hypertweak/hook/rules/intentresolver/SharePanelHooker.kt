@@ -5,6 +5,7 @@ import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 import android.app.Activity
 import android.view.View
 import android.view.ViewGroup
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.DynamicHooker
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
@@ -16,11 +17,18 @@ import java.util.WeakHashMap
 
 /** Bypass only the grouped-channel overflow gate; never mutate the user's native expansion flag. */
 object SharePanelHooker : DynamicHooker() {
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingSharePanelShowAll by hookSetting(false) {
+        Preferences.getBoolean(PlatformSettingsKeys.KEY_SHARE_PANEL_SHOW_ALL, false)
+    }
+
     private const val TAG = "SharePanel"
     private const val PACKAGE = "com.android.intentresolver"
-    private val grids = WeakHashMap<Any, Boolean>()
-    @Volatile private var retired = false
-    private var targets: Targets? = null
+    private val grids = generationMainResource(WeakHashMap<Any, Boolean>()) { it.clear() }
+    @Volatile
+    private var retired = false
+    init { generationCleanup { retired = true } }
+    private var targets: Targets? by generationState { null }
 
     private data class Targets(
         val gate: Method,
@@ -71,7 +79,7 @@ object SharePanelHooker : DynamicHooker() {
                     resolved.gridField.get(param.thisObject)?.let { grid ->
                         synchronized(grids) { grids[grid] = true }
                     }
-                    if (Preferences.getBoolean(PlatformSettingsKeys.KEY_SHARE_PANEL_SHOW_ALL, false)) param.result = false
+                    if (settingSharePanelShowAll) param.result = false
                 }
             }
         }

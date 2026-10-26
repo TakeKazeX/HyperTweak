@@ -2,6 +2,7 @@ package com.takekazex.hypertweak.hook.rules.system
 
 import com.takekazex.hypertweak.hook.base.HostAccess
 import android.content.Context
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
@@ -33,6 +34,9 @@ import java.lang.reflect.Field
  * engine actually emits left/right/double labels is hardware-dependent — see docs/FEATURE_DETAIL.md.
  */
 object AonGestureFeatureHooker : StaticHooker() {
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingUnlockMoreAonGestures by hookSetting(false) { Preferences.unlockMoreAonGestures() }
+
     private const val TAG = "AonGestureFeature"
     private const val CONTROLLER_CLASS = "com.android.server.tof.ContactlessGestureController"
     private const val AON_CONTROLLER_NAME = "com.android.server.tof.AONGestureController"
@@ -63,13 +67,13 @@ object AonGestureFeatureHooker : StaticHooker() {
         deoptimize(current)
         update.hook("aon_gesture_support_features") { after { param ->
             val host = param.thisObject
-            if (!isAonController(host) || !Preferences.unlockMoreAonGestures()) return@after
+            if (!isAonController(host) || !settingUnlockMoreAonGestures) return@after
             runCatching { restoreEnabledFeatures(host) }
                 .onFailure { t -> DebugLog.w(TAG, "failed to restore AON gesture features", t) }
         } }
         current.hook("aon_gesture_app_mask") { after { param ->
             val host = param.thisObject
-            if (!isAonController(host) || !Preferences.unlockMoreAonGestures()) return@after
+            if (!isAonController(host) || !settingUnlockMoreAonGestures) return@after
             runCatching {
                 val base = param.result as? Int ?: return@after
                 param.result = base or

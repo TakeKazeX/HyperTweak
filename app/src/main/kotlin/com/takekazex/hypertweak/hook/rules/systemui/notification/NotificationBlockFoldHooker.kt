@@ -1,8 +1,8 @@
 package com.takekazex.hypertweak.hook.rules.systemui.notification
 
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 
@@ -56,7 +56,8 @@ import com.takekazex.hypertweak.util.logging.DebugLog
  * change and `scheduleHistoryNotification` once per entry add/update.
  */
 object NotificationBlockFoldHooker : StaticHooker() {
-    override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingNotificationBlockFold by hookSetting(false) { Preferences.notificationBlockFold() }
 
     private const val TAG = "NotifBlockFold"
     private const val COORDINATOR =
@@ -64,15 +65,14 @@ object NotificationBlockFoldHooker : StaticHooker() {
     private const val NOTIFICATION_UTIL =
         "com.android.systemui.statusbar.notification.utils.NotificationUtil"
 
-    @Volatile
-    private var enabled = false
+    private var enabled by generationState { false }
 
     override fun onPrepareHotReload() {
         enabled = false
     }
 
     override fun onHook() {
-        enabled = Preferences.notificationBlockFold()
+        enabled = settingNotificationBlockFold
         if (!enabled) {
             DebugLog.hookSkippedDebug(TAG, "block notification fold", "disabled")
             return

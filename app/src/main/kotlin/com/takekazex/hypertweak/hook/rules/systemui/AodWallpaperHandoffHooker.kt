@@ -4,8 +4,8 @@ import com.takekazex.hypertweak.hook.base.HostAccess
 
 import com.takekazex.hypertweak.settings.contract.AodSettingsKeys
 
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 import com.takekazex.hypertweak.util.platform.PlatformLevel
@@ -13,7 +13,8 @@ import java.lang.reflect.Field
 
 /** Keeps a visible lockscreen's wallpaper scale for the native lockscreen-to-full-AOD animation. */
 object AodWallpaperHandoffHooker : StaticHooker() {
-    override val hotReloadMode = HotReloadMode.RECREATE
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingAodFullscreen by hookSetting(false) { Preferences.getBoolean(AodSettingsKeys.KEY_AOD_FULLSCREEN, false) }
 
     private const val TAG = "AodWallpaperHandoff"
     private const val SLEEP_CALLBACK = "com.android.systemui.keyguard.KeyguardService\$2"
@@ -21,10 +22,10 @@ object AodWallpaperHandoffHooker : StaticHooker() {
 
     private class SleepCall(var host: Any? = null)
     private val calls = ThreadLocal<MutableList<SleepCall>>()
-    private var fullAodField: Field? = null
-    private var screenOffAnimationField: Field? = null
-    private var keyguardShowingField: Field? = null
-    private var keyguardOccludedField: Field? = null
+    private var fullAodField: Field? by generationState { null }
+    private var screenOffAnimationField: Field? by generationState { null }
+    private var keyguardShowingField: Field? by generationState { null }
+    private var keyguardOccludedField: Field? by generationState { null }
 
     override fun onHook() {
         if (!PlatformLevel.isOs4 || !isMainProcess) return
@@ -53,7 +54,7 @@ object AodWallpaperHandoffHooker : StaticHooker() {
         deoptimize(update)
         sleep.hook {
             before {
-                if (!Preferences.getBoolean(AodSettingsKeys.KEY_AOD_FULLSCREEN, false)) return@before
+                if (!settingAodFullscreen) return@before
                 val stack = calls.get() ?: mutableListOf<SleepCall>().also(calls::set)
                 stack.add(SleepCall())
             }

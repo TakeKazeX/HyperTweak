@@ -7,14 +7,17 @@ import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import android.content.pm.ApplicationInfo
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 
 /** Exposes third-party applications in HyperOS's per-app force-dark list. */
 object ForceDarkAppListHooker : StaticHooker() {
-    override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingUnlockThirdPartyDarkMode by hookSetting(false) {
+        Preferences.getBoolean(PlatformSettingsKeys.KEY_UNLOCK_THIRD_PARTY_DARK_MODE, false)
+    }
 
     private const val TAG = "ForceDarkAppList"
     private const val CLASS_NAME = "com.android.server.ForceDarkAppListManager"
@@ -22,7 +25,7 @@ object ForceDarkAppListHooker : StaticHooker() {
     private const val LIST_METHOD_NAME = "getDarkModeAppList"
 
     override fun onHook() {
-        if (!Preferences.getBoolean(PlatformSettingsKeys.KEY_UNLOCK_THIRD_PARTY_DARK_MODE, false)) return
+        if (!settingUnlockThirdPartyDarkMode) return
         val managerClass = CLASS_NAME.toClassOrNull() ?: run {
             DebugLog.w(TAG, "ForceDarkAppListManager unavailable")
             return
@@ -37,7 +40,7 @@ object ForceDarkAppListHooker : StaticHooker() {
         }
         method.hook("force_dark_show_third_party") {
             after { param ->
-                if (Preferences.getBoolean(PlatformSettingsKeys.KEY_UNLOCK_THIRD_PARTY_DARK_MODE, false)) {
+                if (settingUnlockThirdPartyDarkMode) {
                     param.result = true
                 }
             }
@@ -50,7 +53,7 @@ object ForceDarkAppListHooker : StaticHooker() {
             after { param ->
                 // Keep the vendor SecurityManager-backed value as the source of truth. This hook is
                 // deliberately present at the service boundary so callers use the same state as Settings.
-                if (!Preferences.getBoolean(PlatformSettingsKeys.KEY_UNLOCK_THIRD_PARTY_DARK_MODE, false)) return@after
+                if (!settingUnlockThirdPartyDarkMode) return@after
                 param.result = param.result as? Boolean ?: false
             }
         }
@@ -59,7 +62,7 @@ object ForceDarkAppListHooker : StaticHooker() {
                 candidate.returnType == Boolean::class.javaPrimitiveType
         }?.apply { isAccessible = true }?.hook("force_dark_origin") {
             after { param ->
-                if (!Preferences.getBoolean(PlatformSettingsKeys.KEY_UNLOCK_THIRD_PARTY_DARK_MODE, false)) return@after
+                if (!settingUnlockThirdPartyDarkMode) return@after
                 val packageName = param.args.getOrNull(0) as? String ?: return@after
                 val pm = runCatching { HostAccess.requireDeclaredField(managerClass, "mPackageManager", accessible = true).get(param.thisObject) as? android.content.pm.PackageManager }.getOrNull()
                 val app = runCatching { pm?.getApplicationInfo(packageName, 0) }.getOrNull()

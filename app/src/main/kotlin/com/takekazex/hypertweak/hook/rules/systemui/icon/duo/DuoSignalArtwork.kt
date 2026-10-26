@@ -4,6 +4,7 @@ import com.takekazex.hypertweak.presentation.icon.duo.DuoContent
 
 import android.content.Context
 import android.graphics.Picture
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.rules.systemui.icon.HostIconBridge
 import com.takekazex.hypertweak.presentation.icon.IconSvgRenderer
@@ -11,6 +12,11 @@ import com.takekazex.hypertweak.presentation.icon.IconSvgRepository
 import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
 import com.takekazex.hypertweak.settings.contract.SignalSvgStyle
 import com.takekazex.hypertweak.util.logging.DebugLog
+
+// Published on settings acceptance; hook callbacks perform no storage reads.
+private val settingIconStackedWeight by hookSetting(0f) { Preferences.getFloat(IconSettingsKeys.KEY_ICON_STACKED_WEIGHT, 0f) }
+
+internal fun prepareDuoSignalArtworkSettings() { settingIconStackedWeight }
 
 /** Signal documents and bounded AOD recordings; no host views or hook handles. */
 internal class DuoSignalArtwork {
@@ -59,7 +65,7 @@ internal class DuoSignalArtwork {
         val assets = loadCellularSignalAssets(context) ?: return null
         return runCatching {
             IconSvgRenderer.signalPicture(if (levels.size > 1) assets.stacked else assets.single, levels,
-                weight = Preferences.getFloat(IconSettingsKeys.KEY_ICON_STACKED_WEIGHT, 0f))
+                weight = settingIconStackedWeight)
         }.onFailure { DebugLog.w(TAG, "cellular signal vector recording failed", it) }.getOrNull()
     }
     fun retire() { cellularSignalAssets = null; aodCellularPictures.clear() }

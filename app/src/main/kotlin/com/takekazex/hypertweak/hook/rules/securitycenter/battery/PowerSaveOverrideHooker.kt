@@ -6,7 +6,6 @@ import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 import android.content.ContentResolver
 import com.takekazex.hypertweak.hook.base.ThreadActivation
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.InstallPolicy
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
@@ -15,7 +14,6 @@ import org.luckypray.dexkit.query.enums.StringMatchType
 
 /** Preserve selected settings only inside the host's synchronous power-save entry transaction. */
 object PowerSaveOverrideHooker : StaticHooker() {
-    override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
 
     private const val TAG = "PowerSaveOverride"
     private const val PACKAGE = "com.miui.securitycenter"
@@ -29,6 +27,7 @@ object PowerSaveOverrideHooker : StaticHooker() {
     private val CONTENT_RESOLVER = ContentResolver::class.java
 
     override fun onHook() {
+        com.takekazex.hypertweak.hook.rules.securitycenter.battery.preparePowerSaveOverridePolicySettings()
         if (hookParam.packageName != PACKAGE) return
         if (!PowerSaveOverridePolicy.anyGroupEnabled()) {
             DebugLog.hookSkippedDebug(TAG, "power-save overrides", "all switches off")
@@ -124,7 +123,6 @@ object PowerSaveOverrideHooker : StaticHooker() {
         compute = PowerSaveOverrideCache::descriptors,
         decode = { stored, _ -> PowerSaveOverrideCache.decode(stored, classLoader) },
     )
-
 
     private fun intValueOf(value: Any?): Int? = when (value) {
         is Int -> value

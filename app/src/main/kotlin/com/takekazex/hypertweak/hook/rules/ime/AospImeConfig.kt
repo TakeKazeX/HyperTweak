@@ -3,7 +3,25 @@ package com.takekazex.hypertweak.hook.rules.ime
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 import com.takekazex.hypertweak.settings.contract.ImeLayout
 
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
+
+// Published on settings acceptance; hook callbacks perform no storage reads.
+private val settingAospImeEnabled by hookSetting(false) { Preferences.getBoolean(PlatformSettingsKeys.KEY_AOSP_IME_ENABLED, false) }
+private val settingAospImeMiuiImeList by hookSetting(false) { Preferences.getBoolean(PlatformSettingsKeys.KEY_AOSP_IME_MIUI_IME_LIST, false) }
+private val settingAospImeForceAll by hookSetting(false) { Preferences.getBoolean(PlatformSettingsKeys.KEY_AOSP_IME_FORCE_ALL, false) }
+private val settingAospImeRaiseStyle by hookSetting(ImeLayout.RAISE_STYLE_AOSP) {
+    Preferences.getInt(PlatformSettingsKeys.KEY_AOSP_IME_RAISE_STYLE, ImeLayout.RAISE_STYLE_AOSP)
+}
+private val settingAospImePackages by hookSetting(emptySet<String>()) { Preferences.getStringSet(PlatformSettingsKeys.KEY_AOSP_IME_PACKAGES) }
+private val settingAospImeNavBarStart by hookSetting(ImeLayout.BUTTON_HIDE_IME) {
+    Preferences.getString(PlatformSettingsKeys.KEY_AOSP_IME_NAV_BAR_START, ImeLayout.BUTTON_HIDE_IME)
+}
+private val settingAospImeNavBarEnd by hookSetting(ImeLayout.BUTTON_IME_SWITCHER) {
+    Preferences.getString(PlatformSettingsKeys.KEY_AOSP_IME_NAV_BAR_END, ImeLayout.BUTTON_IME_SWITCHER)
+}
+
+internal fun prepareAospImeConfigSettings() { settingAospImeEnabled }
 
 /**
  * Shared reads of the AOSP IME settings. Usable from any process, since it only touches
@@ -13,22 +31,22 @@ object AospImeConfig {
     /** `70AC` is an absolute 70dp width; the handle sits in its own centre group. */
     private const val SIDE_BUTTON_SPEC = "[70AC]"
 
-    fun isEnabled(): Boolean = Preferences.getBoolean(PlatformSettingsKeys.KEY_AOSP_IME_ENABLED, false)
+    fun isEnabled(): Boolean = settingAospImeEnabled
 
     /** Whether MIUI's keyboard switcher should list every enabled input method. */
-    fun showAllImeList(): Boolean = Preferences.getBoolean(PlatformSettingsKeys.KEY_AOSP_IME_MIUI_IME_LIST, false)
+    fun showAllImeList(): Boolean = settingAospImeMiuiImeList
 
     /**
      * Whether the AOSP bar is forced even on MIUI-customized keyboards (全面屏优化). Without this,
      * keyboards HyperOS recognizes as MIUI-customized keep their own bottom view.
      */
-    fun forceAospForAll(): Boolean = Preferences.getBoolean(PlatformSettingsKeys.KEY_AOSP_IME_FORCE_ALL, false)
+    fun forceAospForAll(): Boolean = settingAospImeForceAll
 
     fun raiseStyle(): Int =
-        Preferences.getInt(PlatformSettingsKeys.KEY_AOSP_IME_RAISE_STYLE, ImeLayout.RAISE_STYLE_AOSP)
+        settingAospImeRaiseStyle
 
     fun selectedPackages(): Set<String> =
-        Preferences.getStringSet(PlatformSettingsKeys.KEY_AOSP_IME_PACKAGES).mapNotNull(::normalize).toSet()
+        settingAospImePackages.mapNotNull(::normalize).toSet()
 
     /** Accepts either a package name or an `IInputMethod` id of the form `pkg/.Service`. */
     fun isSelectedIme(packageOrId: String?): Boolean {
@@ -47,10 +65,10 @@ object AospImeConfig {
     }
 
     fun navBarLayoutStart(): String =
-        ImeLayout.button(Preferences.getString(PlatformSettingsKeys.KEY_AOSP_IME_NAV_BAR_START, ImeLayout.BUTTON_HIDE_IME), ImeLayout.BUTTON_HIDE_IME)
+        ImeLayout.button(settingAospImeNavBarStart, ImeLayout.BUTTON_HIDE_IME)
 
     fun navBarLayoutEnd(): String =
-        ImeLayout.button(Preferences.getString(PlatformSettingsKeys.KEY_AOSP_IME_NAV_BAR_END, ImeLayout.BUTTON_IME_SWITCHER), ImeLayout.BUTTON_IME_SWITCHER)
+        ImeLayout.button(settingAospImeNavBarEnd, ImeLayout.BUTTON_IME_SWITCHER)
 
     fun navBarLayoutHandle(): String =
         "${navBarLayoutStart()}$SIDE_BUTTON_SPEC;${ImeLayout.BUTTON_HOME_HANDLE};${navBarLayoutEnd()}$SIDE_BUTTON_SPEC"

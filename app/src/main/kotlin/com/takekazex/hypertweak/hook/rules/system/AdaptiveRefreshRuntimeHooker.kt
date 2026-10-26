@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.system
 
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
@@ -23,6 +24,9 @@ import com.takekazex.hypertweak.util.logging.DebugLog
  * change is effective from the **next reboot** after the module switch is on.
  */
 object AdaptiveRefreshRuntimeHooker : StaticHooker() {
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingUnlockAdaptiveRefreshPro by hookSetting(false) { Preferences.unlockAdaptiveRefreshPro() }
+
     private const val TAG = "AdaptiveRefreshRuntime"
     private const val PROP_PWM_SWITCH = "ro.display.enable_pwm_switch"
 
@@ -44,7 +48,7 @@ object AdaptiveRefreshRuntimeHooker : StaticHooker() {
             if (key != PROP_PWM_SWITCH) return@after
             if (param.result == true) return@after
             runCatching {
-                if (Preferences.unlockAdaptiveRefreshPro()) {
+                if (settingUnlockAdaptiveRefreshPro) {
                     param.result = true
                 }
             }.onFailure { t ->

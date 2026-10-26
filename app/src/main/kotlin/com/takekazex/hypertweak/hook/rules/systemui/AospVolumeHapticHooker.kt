@@ -4,8 +4,8 @@ import com.takekazex.hypertweak.hook.base.cachedPublicField
 import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.reflect.Field
@@ -54,7 +54,11 @@ import java.lang.reflect.Method
  * SystemUI restart.
  */
 object AospVolumeHapticHooker : StaticHooker() {
-    override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingAospVolumePanel by hookSetting(false) { Preferences.getBoolean(PlatformSettingsKeys.KEY_AOSP_VOLUME_PANEL, false) }
+    private val settingAospVolumeHapticMiui by hookSetting(false) {
+        Preferences.getBoolean(PlatformSettingsKeys.KEY_AOSP_VOLUME_HAPTIC_MIUI, false)
+    }
 
     private const val TAG = "AospVolumeHaptic"
 
@@ -75,8 +79,7 @@ object AospVolumeHapticHooker : StaticHooker() {
     private const val TOKEN_DRAG_DISCRETE = "DRAG_INDICATOR_DISCRETE"
     private const val STATE_DRAG_HANDLE_DRAGGING = "DRAG_HANDLE_DRAGGING"
 
-    @Volatile
-    private var enabled = false
+    private var enabled by generationState { false }
 
     // Cached reflection (hot path: every volume change).
     private var hapticUtil: Any? by generationState { null }
@@ -102,8 +105,8 @@ object AospVolumeHapticHooker : StaticHooker() {
     }
 
     override fun onHook() {
-        if (!Preferences.getBoolean(PlatformSettingsKeys.KEY_AOSP_VOLUME_PANEL, false) ||
-            !Preferences.getBoolean(PlatformSettingsKeys.KEY_AOSP_VOLUME_HAPTIC_MIUI, false)
+        if (!settingAospVolumePanel ||
+            !settingAospVolumeHapticMiui
         ) {
             DebugLog.hookSkippedDebug(TAG, "AOSP volume haptic", "disabled")
             return

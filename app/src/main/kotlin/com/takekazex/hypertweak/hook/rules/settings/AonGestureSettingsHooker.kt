@@ -2,6 +2,7 @@ package com.takekazex.hypertweak.hook.rules.settings
 
 import com.takekazex.hypertweak.hook.base.HostAccess
 import android.content.Context
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
@@ -21,6 +22,9 @@ import com.takekazex.hypertweak.util.logging.DebugLog
  * Gate: 解锁更多隔空手势. Rows appear on the next `onResume` of the 隔空手势 page.
  */
 object AonGestureSettingsHooker : StaticHooker() {
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingUnlockMoreAonGestures by hookSetting(false) { Preferences.unlockMoreAonGestures() }
+
     private const val TAG = "AonGestureExtras"
     private const val CLASS = "com.android.settings.aon.gesture.AonGestureSettings"
 
@@ -53,7 +57,7 @@ object AonGestureSettingsHooker : StaticHooker() {
         } ?: return
         deoptimize(onResume)
         onResume.hook("aon_gesture_extras_rows") { after { param ->
-            if (!Preferences.unlockMoreAonGestures()) return@after
+            if (!settingUnlockMoreAonGestures) return@after
             val host = param.thisObject
             runCatching { ensureExtraRows(host) }
                 .onFailure { t -> DebugLog.w(TAG, "failed to add extra gesture rows", t) }

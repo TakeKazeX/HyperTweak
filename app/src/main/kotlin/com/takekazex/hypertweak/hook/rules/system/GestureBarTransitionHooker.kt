@@ -10,8 +10,8 @@ import android.content.res.Resources
 import android.os.IBinder
 import android.view.SurfaceControl
 import android.window.TransitionInfo
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 
@@ -46,8 +46,15 @@ import com.takekazex.hypertweak.util.logging.DebugLog
  * existing system_server; replacing only SystemUI cannot update that process.
  */
 object GestureBarTransitionHooker : StaticHooker() {
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingHideGestureBarRecents by hookSetting(false) {
+        Preferences.getBoolean(PlatformSettingsKeys.KEY_HIDE_GESTURE_BAR_RECENTS, false)
+    }
+    private val settingGestureBarAttachTransition by hookSetting(false) {
+        Preferences.getBoolean(SystemUiSettingsKeys.KEY_GESTURE_BAR_ATTACH_TRANSITION, false)
+    }
+
     override val hookerName = "GestureBarTransition"
-    override val hotReloadMode = HotReloadMode.RECREATE
 
     private const val TAG = "GestureBarTransition"
     private const val DISPLAY_POLICY = "com.android.server.wm.DisplayPolicy"
@@ -65,7 +72,7 @@ object GestureBarTransitionHooker : StaticHooker() {
     private val recovery by lazy { SystemServerStartupRetry(TAG, action = ::releaseDisabledSessions) }
 
     private fun settings() = GestureBarTransitionSettings(attachEnabled(),
-        Preferences.getBoolean(PlatformSettingsKeys.KEY_HIDE_GESTURE_BAR_RECENTS, false))
+        settingHideGestureBarRecents)
 
     override fun saveHotReloadState(): Any = sessions.toMap()
     override fun restoreHotReloadState(state: Any?) {
@@ -307,5 +314,5 @@ object GestureBarTransitionHooker : StaticHooker() {
 
     /** Read per transition; the platform's cached field is never made sticky. */
     private fun attachEnabled(): Boolean =
-        Preferences.getBoolean(SystemUiSettingsKeys.KEY_GESTURE_BAR_ATTACH_TRANSITION, false)
+        settingGestureBarAttachTransition
 }

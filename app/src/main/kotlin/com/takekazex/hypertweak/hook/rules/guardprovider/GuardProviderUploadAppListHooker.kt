@@ -5,9 +5,9 @@ import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 import com.takekazex.hypertweak.hook.base.dex.DexContractMembers
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 import org.luckypray.dexkit.query.enums.StringMatchType
@@ -25,7 +25,10 @@ import java.util.ArrayList
  * empty/failed-response handling and never logs the list itself.
  */
 object GuardProviderUploadAppListHooker : StaticHooker() {
-    override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingGuardProviderBlockUploadAppList by hookSetting(false) {
+        Preferences.getBoolean(PlatformSettingsKeys.KEY_GUARD_PROVIDER_BLOCK_UPLOAD_APP_LIST, false)
+    }
 
     private const val TAG = "GuardProviderUploadAppList"
     private const val PACKAGE = "com.miui.guardprovider"
@@ -36,7 +39,7 @@ object GuardProviderUploadAppListHooker : StaticHooker() {
 
     override fun onHook() {
         if (hookParam.packageName != PACKAGE) return
-        if (!Preferences.getBoolean(PlatformSettingsKeys.KEY_GUARD_PROVIDER_BLOCK_UPLOAD_APP_LIST, false)) {
+        if (!settingGuardProviderBlockUploadAppList) {
             DebugLog.hookSkippedDebug(TAG, "GuardProvider app-list upload", "disabled")
             return
         }

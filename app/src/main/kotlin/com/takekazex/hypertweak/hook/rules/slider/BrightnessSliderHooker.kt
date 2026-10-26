@@ -5,7 +5,6 @@ import android.util.Log
 import android.view.View
 import android.widget.TextView
 import com.takekazex.hypertweak.hook.base.DynamicHooker
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.applyTopTextStyle
 import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.findHolder
 import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.formatPercent
@@ -19,7 +18,6 @@ import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.updatePercent
 class BrightnessSliderHooker(
     private val parent: SliderSession
 ) : DynamicHooker() {
-    override val hotReloadMode = HotReloadMode.RECREATE
 
     private data class AnimatorBounds(
         val fromLeft: Int, val fromTop: Int, val fromWidth: Int, val fromHeight: Int,

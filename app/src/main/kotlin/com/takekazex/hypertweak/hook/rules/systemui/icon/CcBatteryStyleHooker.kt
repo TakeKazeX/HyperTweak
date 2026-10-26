@@ -7,8 +7,8 @@ import com.takekazex.hypertweak.hook.base.HostAccess
 import android.provider.Settings
 import android.view.View
 import java.util.WeakHashMap
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.reflect.Field
@@ -33,13 +33,19 @@ import java.lang.reflect.Field
  * percentage TextViews beside the three-in-one glyph; the retained battery remains `GONE` behind it.
  */
 object CcBatteryStyleHooker : StaticHooker() {
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingCcBatteryPercentOutside by hookSetting(false) {
+        Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_BATTERY_PERCENT_OUTSIDE, false)
+    }
+    private val settingCcBatteryPercentLeft by hookSetting(false) {
+        Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_BATTERY_PERCENT_LEFT, false)
+    }
+
     init {
         hostRecovery(HostRecoveryPhase.ICONS, icons = true) {
             recoverExistingViews(it.views)
         }
     }
-
-    override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
 
     private const val TAG = "CcBatteryStyle"
     private const val BATTERY = "com.android.systemui.statusbar.views.MiuiBatteryMeterView"
@@ -50,18 +56,19 @@ object CcBatteryStyleHooker : StaticHooker() {
     /** `MiuiBatteryMeterView.mBatteryStyle`: battery icon plus the outside percentage container. */
     private const val STYLE_ICON_AND_PERCENT = 3
 
-    @Volatile private var leadingPercent = false
+    private var leadingPercent by generationState { false }
     private var retiring = false
-    private val hostStyles = WeakHashMap<View, Int>()
-    private var tagField: Field? = null
-    private var iconField: Field? = null
-    private var percentField: Field? = null
+    init { generationCleanup { retiring = true } }
+    private val hostStyles = generationMainResource(WeakHashMap<View, Int>()) { it.clear() }
+    private var tagField: Field? by generationState { null }
+    private var iconField: Field? by generationState { null }
+    private var percentField: Field? by generationState { null }
 
     override fun onHook() {
         retiring = false
         if (!isMainProcess) return
-        val outside = Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_BATTERY_PERCENT_OUTSIDE, false)
-        leadingPercent = Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_BATTERY_PERCENT_LEFT, false)
+        val outside = settingCcBatteryPercentOutside
+        leadingPercent = settingCcBatteryPercentLeft
         if (!outside && !leadingPercent) return
         val battery = BATTERY.toClassOrNull() ?: run {
             DebugLog.hookSkipped(TAG, "control-center battery style", "host class not found")

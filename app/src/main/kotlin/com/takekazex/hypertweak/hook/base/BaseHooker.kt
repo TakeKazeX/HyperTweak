@@ -46,6 +46,16 @@ sealed class BaseHooker {
     lateinit var hookParam: ModuleContext
 
     private val hookHandles = CopyOnWriteArraySet<XposedInterface.HookHandle>()
+    private val subscriptions = CopyOnWriteArraySet<AutoCloseable>()
+
+    internal fun ownSubscription(subscription: AutoCloseable) { subscriptions += subscription }
+
+    private fun closeSubscriptions() {
+        val failures = subscriptions.mapNotNull { runCatching { it.close() }.exceptionOrNull() }
+        subscriptions.clear()
+        if (failures.isNotEmpty()) throw failures.first().apply { failures.drop(1).forEach(::addSuppressed) }
+    }
+
     private val childHookers = CopyOnWriteArraySet<BaseHooker>()
     private val dexPreparations = DexPreparationOwner()
     private val generationStates = GenerationStateOwner()
@@ -54,6 +64,13 @@ sealed class BaseHooker {
     /** Declare transient state once; retirement resets it even when custom cleanup fails. */
     protected fun <T> generationState(initial: () -> T): GenerationState<T> =
         generationStates.state(initial)
+
+    /** Required installation metadata is unavailable again after generation retirement. */
+    protected fun <T : Any> generationRequiredState(): kotlin.properties.ReadWriteProperty<Any?, T> =
+        generationStates.requiredState()
+
+    /** Idempotent resource/retirement fallback, also run when feature-specific restoration throws. */
+    protected fun generationCleanup(action: () -> Unit) = generationStates.cleanup(action)
 
     /** Cache identity and synchronization monitors survive until all host cleanup has finished. */
     protected fun <T : Any> generationResource(value: T, reset: (T) -> Unit): T =
@@ -91,13 +108,11 @@ sealed class BaseHooker {
 
     private var replacementHandles: HotReloadHandleStore? = null
 
-    val isHooked: Boolean
-        get() = hookHandles.isNotEmpty()
+    open val isHooked: Boolean
+        get() = hookHandles.isNotEmpty() || subscriptions.isNotEmpty()
 
     open val hookerName: String
         get() = this::class.java.simpleName
-
-    open val hotReloadMode: HotReloadMode = HotReloadMode.RECREATE
 
     /** How the user-facing switch decides whether this hooker is installed at all. */
     open val installPolicy: InstallPolicy = InstallPolicy.ALWAYS
@@ -105,12 +120,11 @@ sealed class BaseHooker {
     val isMainProcess: Boolean
         get() = hookParam.isMainProcess
 
-    private var isSelfEnabled: Boolean = true
     private var isParentEnabled: Boolean = false
-    private var isFeatureAllowed: Boolean = true
+    private var enabled: Boolean = false
 
     private val isEffectiveEnabled: Boolean
-        get() = isSelfEnabled && isParentEnabled && isFeatureAllowed
+        get() = enabled
 
     /**
      * Whether this hooker's own user-facing switch currently allows installation.
@@ -127,13 +141,6 @@ sealed class BaseHooker {
 
     private fun shouldInstall(): Boolean = !installsWhenEnabledOnly || isFeatureEnabled()
 
-    @Synchronized
-    fun updateSelfState(enabled: Boolean) {
-        val oldState = isEffectiveEnabled
-        isSelfEnabled = enabled
-        handleStateChange(oldState)
-    }
-
     /**
      * Re-reads [isFeatureEnabled] and installs or removes accordingly.
      *
@@ -144,7 +151,7 @@ sealed class BaseHooker {
     fun refreshFeatureState() {
         if (installPolicy == InstallPolicy.ALWAYS) return
         val oldState = isEffectiveEnabled
-        isFeatureAllowed = isFeatureEnabled()
+        enabled = isParentEnabled && shouldInstall()
         handleStateChange(oldState)
     }
 
@@ -152,7 +159,7 @@ sealed class BaseHooker {
     fun updateParentState(parentEnabled: Boolean) {
         val oldState = isEffectiveEnabled
         isParentEnabled = parentEnabled
-        isFeatureAllowed = shouldInstall()
+        enabled = parentEnabled && shouldInstall()
         handleStateChange(oldState)
     }
 
@@ -169,8 +176,12 @@ sealed class BaseHooker {
                 if (this is DynamicHooker || installsWhenEnabledOnly) {
                     cancelDexPreparations()
                     DebugLog.d("BaseHooker", "unhooking $hookerName")
-                    hookHandles.forEach { it.unhook() }
-                    hookHandles.clear()
+                    val failures = hookHandles.mapNotNull { runCatching { it.unhook() }.exceptionOrNull() }
+                    // Successful managed unhooks remove themselves; retain failed handles for retirement.
+                    runCatching { closeSubscriptions() }.exceptionOrNull()?.let { error ->
+                        DebugLog.w("BaseHooker", "subscription cleanup failed for $hookerName", error)
+                    }
+                    failures.forEach { DebugLog.w("BaseHooker", "unhook failed for $hookerName", it) }
                 }
             }
             childHookers.forEach { it.updateParentState(newState) }
@@ -181,8 +192,7 @@ sealed class BaseHooker {
      * Installs this hooker when it is enabled, wanted, and not already installed.
      *
      * Presence is derived from [isEffectiveEnabled], [shouldInstall] and [isHooked] on every call
-     * rather than remembered in a flag. An earlier version cached the decision in isSelfEnabled,
-     * which then compared equal on the transition that was supposed to install it.
+     * rather than remembered by an independent self-enable flag.
      */
     private fun installIfNeeded() {
         if (!isEffectiveEnabled || isHooked) return
@@ -321,6 +331,7 @@ sealed class BaseHooker {
                 failures += t
                 runCatching { DebugLog.w("BaseHooker", "failed to prepare $hookerName for hot reload", t) }
             }
+        runCatching { closeSubscriptions() }.onFailure(failures::add)
         runCatching { generationStates.reset() }.onFailure(failures::add)
         trackedInstances.forEach(HookInstances::clear)
         if (failures.isNotEmpty()) {
@@ -335,7 +346,7 @@ sealed class BaseHooker {
         childHookers.forEach { it.resetAfterHotReloadPrepared() }
         hookHandles.clear()
         childHookers.clear()
-        isSelfEnabled = true
+        enabled = false
         isParentEnabled = false
     }
 
@@ -694,10 +705,4 @@ abstract class DynamicHooker : BaseHooker()
 enum class InstallPolicy {
     ALWAYS,
     WHEN_ENABLED,
-}
-
-enum class HotReloadMode {
-    RECREATE,
-    RESTART_RECOMMENDED,
-    UNSUPPORTED
 }

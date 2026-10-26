@@ -4,7 +4,6 @@ import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 
 import android.content.Context
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 import io.github.libxposed.api.XposedInterface
@@ -25,14 +24,11 @@ object GoogleAppRuntime : StaticHooker() {
     private const val RETIRED_CAPABILITY = "google_lens_aim_screen_capability"
     private const val RETIRED_DIAGNOSTIC_PREFIX = "google_lens_diagnostic_"
 
-    private val preReplacedIds = ConcurrentHashMap.newKeySet<String>()
+    private val preReplacedIds = generationResource(ConcurrentHashMap.newKeySet<String>()) { it.clear() }
 
-    @Volatile
-    private var sourceDir: String? = null
+    private var sourceDir: String? by generationState { null }
 
     private var installationStarted by generationState { false }
-
-    override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
 
     override fun onHook() {
         if (hookParam.packageName != PACKAGE || installationStarted) return

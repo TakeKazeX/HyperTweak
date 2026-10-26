@@ -6,9 +6,9 @@ import android.app.Activity
 import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.ResolveInfo
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.InstallPolicy
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
@@ -19,10 +19,10 @@ import java.lang.reflect.Modifier
 internal abstract class PickerHooker(private val key: String) : StaticHooker() {
     protected val tag: String get() = hookerName
     override val installPolicy = InstallPolicy.WHEN_ENABLED
-    override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
     @Volatile protected var enabled = false
 
-    override fun isFeatureEnabled() = Preferences.nativePickerEnabled(key)
+    private val selected by hookSetting(false) { Preferences.nativePickerEnabled(key) }
+    override fun isFeatureEnabled() = selected
 
     fun refreshSettings() {
         Preferences.invalidateRuntimeReadCache()

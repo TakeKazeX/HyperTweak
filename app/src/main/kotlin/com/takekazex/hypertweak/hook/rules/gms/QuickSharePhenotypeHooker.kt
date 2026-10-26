@@ -9,8 +9,8 @@ import android.content.Context
 import android.content.Intent
 import android.database.Cursor
 import android.database.sqlite.SQLiteDatabase
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 import org.luckypray.dexkit.DexKitBridge
@@ -69,7 +69,8 @@ import java.lang.reflect.Modifier
  * read-side EXISTS query.
  */
 object QuickSharePhenotypeHooker : StaticHooker() {
-    override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingQuickShareEnabled by hookSetting(false) { Preferences.getBoolean(PlatformSettingsKeys.KEY_QUICK_SHARE_ENABLED, false) }
 
     private const val TAG = "QuickShare"
     private const val GMS_PACKAGE = "com.google.android.gms"
@@ -88,7 +89,7 @@ object QuickSharePhenotypeHooker : StaticHooker() {
     /** GMS's official override-commit entry point; protected by its own signature permission. */
     private const val FLAG_OVERRIDE_ACTION = "com.google.android.gms.phenotype.FLAG_OVERRIDE"
 
-    private val hooksInstalled = AtomicBoolean(false)
+    private val hooksInstalled = generationResource(AtomicBoolean(false)) { it.set(false) }
 
     /**
      * Process-local snapshot of the preference, so the hook callbacks do not depend on
@@ -96,8 +97,7 @@ object QuickSharePhenotypeHooker : StaticHooker() {
      * runs (a secondary-user GMS process can initialize nearby sharing before the module's
      * package-ready context arrives). Refreshed from [Preferences] whenever it is initialized.
      */
-    @Volatile
-    private var enabledCache = false
+    private var enabledCache by generationState { false }
 
     override fun onPrepareHotReload() {
         hooksInstalled.set(false)
@@ -105,7 +105,7 @@ object QuickSharePhenotypeHooker : StaticHooker() {
 
     override fun onHook() {
         if (hookParam.packageName != GMS_PACKAGE) return
-        enabledCache = Preferences.getBoolean(PlatformSettingsKeys.KEY_QUICK_SHARE_ENABLED, false)
+        enabledCache = settingQuickShareEnabled
         if (enabledCache) installGateHooks()
         else DebugLog.hookSkippedDebug(TAG, "Quick Share gates", "disabled")
     }
@@ -116,13 +116,13 @@ object QuickSharePhenotypeHooker : StaticHooker() {
         // would only contend on the same SQLite file. Falls back to running if not attached yet.
         // Secondary processes also need the enabled gate, but disabled generations need no
         // DexKit mapping/class materialization. Main-process override removal still runs.
-        enabledCache = Preferences.getBoolean(PlatformSettingsKeys.KEY_QUICK_SHARE_ENABLED, false)
+        enabledCache = settingQuickShareEnabled
         if (enabledCache) installGateHooks()
         val isMain = runCatching { hookParam.isMainProcess }.getOrDefault(true)
         if (!isMain) return
 
         // Preferences is initialized by the caller before this point.
-        enabledCache = Preferences.getBoolean(PlatformSettingsKeys.KEY_QUICK_SHARE_ENABLED, false)
+        enabledCache = settingQuickShareEnabled
         val enabled = enabledCache
         val appContext = context.applicationContext ?: context
         Thread {
@@ -148,7 +148,7 @@ object QuickSharePhenotypeHooker : StaticHooker() {
 
     private fun quickShareEnabled(): Boolean {
         if (Preferences.isInitialized) {
-            enabledCache = Preferences.getBoolean(PlatformSettingsKeys.KEY_QUICK_SHARE_ENABLED, false)
+            enabledCache = settingQuickShareEnabled
         }
         return enabledCache
     }

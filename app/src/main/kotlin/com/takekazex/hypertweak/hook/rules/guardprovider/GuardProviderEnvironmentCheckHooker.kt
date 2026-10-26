@@ -2,6 +2,7 @@ package com.takekazex.hypertweak.hook.rules.guardprovider
 
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.DynamicHooker
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
@@ -31,6 +32,11 @@ private val LOOP_OPS = setOf("aget-object", "add-int/lit8")
 
 /** Dynamically gates only the verified local su predicates; the existing preference key is retained. */
 object GuardProviderEnvironmentCheckHooker : DynamicHooker() {
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingGuardProviderDisableEnvironmentCheck by hookSetting(false) {
+        Preferences.getBoolean(PlatformSettingsKeys.KEY_GUARD_PROVIDER_DISABLE_ENVIRONMENT_CHECK, false)
+    }
+
     override fun onHook() {
         if (hookParam.packageName != PACKAGE) return
         val apkPath = hookParam.appInfo?.sourceDir?.takeIf(String::isNotBlank) ?: run {
@@ -102,10 +108,7 @@ object GuardProviderEnvironmentCheckHooker : DynamicHooker() {
             method.hook("guardprovider_environment_${MethodDescriptorCodec.descriptor(method)}") {
                 before { param ->
                     HookFailurePolicy.open(TAG, "${method.name}.before", Unit) {
-                        if (Preferences.getBoolean(
-                                PlatformSettingsKeys.KEY_GUARD_PROVIDER_DISABLE_ENVIRONMENT_CHECK,
-                                false
-                            )
+                        if (settingGuardProviderDisableEnvironmentCheck
                         ) param.result = false
                     }
                 }

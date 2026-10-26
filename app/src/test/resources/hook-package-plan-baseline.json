@@ -4,6 +4,7 @@
     "process": "com.android.systemui",
     "targets": [
       "RestartBroadcastHooker",
+      "ViewVisibilityRouter",
       "AODHooker",
       "AodWallpaperHandoffHooker",
       "HideFingerprintIcon",
@@ -50,6 +51,7 @@
     "process": "com.android.systemui:aux",
     "targets": [
       "RestartBroadcastHooker",
+      "ViewVisibilityRouter",
       "AODHooker",
       "AodWallpaperHandoffHooker",
       "HideFingerprintIcon",

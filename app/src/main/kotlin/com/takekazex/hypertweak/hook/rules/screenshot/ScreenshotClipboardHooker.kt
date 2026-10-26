@@ -6,6 +6,7 @@ import android.content.Context
 import android.net.Uri
 import android.provider.MediaStore
 import io.github.libxposed.api.XposedInterface
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.hook.base.dex.DexFeature
@@ -20,7 +21,12 @@ private object ScreenshotClipboardFeature : DexFeature {
 
 /** Keep the host's URI publication, permission grants and save failure handling intact. */
 object ScreenshotClipboardHooker : StaticHooker() {
-    @Volatile private var retired = false
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingScreenshotCopyToClipboard by hookSetting(false) { Preferences.screenshotCopyToClipboard() }
+
+    @Volatile
+    private var retired = false
+    init { generationCleanup { retired = true } }
     private val requests = ScreenshotClipboardRequests()
     private val publications = ScreenshotClipboardPublication {
         DebugLog.w("ScreenshotClipboard", "committed clipboard publication failed", it)
@@ -86,9 +92,9 @@ object ScreenshotClipboardHooker : StaticHooker() {
                     val receiver = chain.thisObject
                     val args = chain.args.toTypedArray()
                     if (publications.defer(uri) {
-                        if (!retired && Preferences.screenshotCopyToClipboard()) commits.await(uri,
+                        if (!retired && settingScreenshotCopyToClipboard) commits.await(uri,
                             ready = { isPublished(context, uri) }, publish = {
-                                if (!retired && Preferences.screenshotCopyToClipboard()) {
+                                if (!retired && settingScreenshotCopyToClipboard) {
                                     requests.enter(true)
                                     try { originalCopy.invoke(receiver, *args) } finally { requests.leave() }
                                     DebugLog.d("ScreenshotClipboard", "native clipboard published after MediaStore commit")
@@ -96,7 +102,7 @@ object ScreenshotClipboardHooker : StaticHooker() {
                             })
                     }) return@intercept null
                 }
-                requests.enter(!retired && Preferences.screenshotCopyToClipboard())
+                requests.enter(!retired && settingScreenshotCopyToClipboard)
                 try { chain.proceed() } finally { requests.leave() }
             }
         }

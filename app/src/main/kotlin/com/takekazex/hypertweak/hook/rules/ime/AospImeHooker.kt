@@ -14,7 +14,6 @@ import android.view.ViewParent
 import android.view.WindowInsets
 import com.takekazex.hypertweak.hook.base.CompatibleMethodResolver
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 import com.takekazex.hypertweak.util.platform.StaticFieldWriter
@@ -60,7 +59,7 @@ object AospImeHooker : StaticHooker() {
     /** Padding a view had before the rounded-corner listener started adjusting it. */
     private val basePaddings = generationMainResource(WeakHashMap<View, IntArray>()) { it.clear() }
 
-    private var insetsView: WeakReference<View>? = null
+    private var insetsView: WeakReference<View>? by generationState { null }
 
     /** MIUI can side-load its dex more than once; attach the child hooker per ClassLoader. */
     private val hookedDexLoaders = generationResource(Collections.newSetFromMap(WeakHashMap<ClassLoader, Boolean>())) { it.clear() }
@@ -94,8 +93,6 @@ object AospImeHooker : StaticHooker() {
     /** Back buttons already rewired for dismiss-only semantics (dedupes repeat inflations). */
     private val wiredBackViews = generationMainResource(WeakHashMap<View, Boolean>()) { it.clear() }
 
-    override val hotReloadMode = HotReloadMode.RECREATE
-
     override fun onPrepareHotReload() {
         raise.prepareReload()
         HostAccess.onMain {
@@ -124,6 +121,7 @@ object AospImeHooker : StaticHooker() {
     }
 
     override fun onHook() {
+        com.takekazex.hypertweak.hook.rules.ime.prepareAospImeConfigSettings()
         val barEnabled = AospImeConfig.isEnabled()
         if (barEnabled) {
             hookHideImeRenderGesturalNavButtons()

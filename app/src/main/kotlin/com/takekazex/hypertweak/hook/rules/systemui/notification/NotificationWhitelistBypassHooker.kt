@@ -6,18 +6,24 @@ import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 import android.content.Context
 import android.content.SharedPreferences
 import android.service.notification.StatusBarNotification
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 
 /** Bypass only the domestic whitelist fallback; explicit app/channel settings remain native. */
 object NotificationWhitelistBypassHooker : StaticHooker() {
-    override val hotReloadMode = HotReloadMode.RECREATE
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingNotificationWhitelistBypass by hookSetting(false) {
+        Preferences.getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_WHITELIST_BYPASS, false)
+    }
+
     private const val TAG = "NotificationWhitelistBypass"
-    @Volatile private var enabled = false
-    @Volatile private var retired = false
+    private var enabled by generationState { false }
+    @Volatile
+    private var retired = false
+    init { generationCleanup { retired = true } }
 
     override fun onHook() {
         if (!isMainProcess) return
@@ -51,7 +57,7 @@ object NotificationWhitelistBypassHooker : StaticHooker() {
             val decision = "com.android.systemui.statusbar.notification.interruption.VisualInterruptionDecisionProviderImplInjector".toClassOrNull()
                 ?: error("Missing native interruption decision")
             decision.declaredMethods.forEach { deoptimize(it) }
-            enabled = Preferences.getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_WHITELIST_BYPASS, false)
+            enabled = settingNotificationWhitelistBypass
             canFloat.hook {
                 after { param -> boundary("whitelist") {
                     if (!enabled || retired || !domestic || param.result != false) return@boundary
@@ -90,7 +96,7 @@ object NotificationWhitelistBypassHooker : StaticHooker() {
 
     fun refreshSettings() {
         Preferences.invalidateRuntimeReadCache()
-        enabled = Preferences.getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_WHITELIST_BYPASS, false)
+        enabled = settingNotificationWhitelistBypass
     }
 
     override fun onPrepareHotReload() {

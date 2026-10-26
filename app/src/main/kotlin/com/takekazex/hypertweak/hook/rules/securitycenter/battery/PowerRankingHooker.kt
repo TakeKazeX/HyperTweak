@@ -6,9 +6,9 @@ import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 
 import android.content.Context
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.InstallPolicy
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
@@ -33,7 +33,10 @@ import java.util.ArrayList
  * materialized `Method`/`Class`/`Field` objects leave it ([CardResolution]).
  */
 object PowerRankingHooker : StaticHooker() {
-    override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingSecurityCenterRestorePowerRanking by hookSetting(false) {
+        Preferences.getBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_RESTORE_POWER_RANKING, false)
+    }
 
     private const val TAG = "PowerRanking"
     private const val PACKAGE = "com.miui.securitycenter"
@@ -44,16 +47,15 @@ object PowerRankingHooker : StaticHooker() {
 
     private var fallbackBuilder: FallbackBuilder? by generationState { null }
 
-
     /** Only prepare this optional display feature while enabled. */
     override val installPolicy: InstallPolicy = InstallPolicy.WHEN_ENABLED
 
     override fun isFeatureEnabled(): Boolean =
-        Preferences.getBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_RESTORE_POWER_RANKING, false)
+        settingSecurityCenterRestorePowerRanking
 
     override fun onHook() {
         if (hookParam.packageName != PACKAGE) return
-        if (!Preferences.getBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_RESTORE_POWER_RANKING, false)) {
+        if (!settingSecurityCenterRestorePowerRanking) {
             DebugLog.hookSkippedDebug(TAG, "power ranking", "disabled")
             return
         }

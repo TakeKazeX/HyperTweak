@@ -6,6 +6,7 @@ import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 import android.annotation.SuppressLint
 import android.media.AudioManager
 import android.widget.SeekBar
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.DynamicHooker
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
@@ -17,6 +18,14 @@ import java.util.WeakHashMap
 
 /** The plugin handles keys by setting an absolute media index, bypassing AudioService key flags. */
 class ControlCenterVolumeKeyHooker : DynamicHooker() {
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingVolumeKeyStepCount by hookSetting(PlatformSettingsKeys.DEFAULT_VOLUME_KEY_STEP_COUNT) {
+        Preferences.getInt(PlatformSettingsKeys.KEY_VOLUME_KEY_STEP_COUNT, PlatformSettingsKeys.DEFAULT_VOLUME_KEY_STEP_COUNT)
+    }
+    private val settingVolumeKeyStepScope by hookSetting(PlatformSettingsKeys.VOLUME_KEY_SCOPE_MEDIA_ONLY) {
+        Preferences.getInt(PlatformSettingsKeys.KEY_VOLUME_KEY_STEP_SCOPE, PlatformSettingsKeys.VOLUME_KEY_SCOPE_MEDIA_ONLY)
+    }
+
     private companion object {
         // Hidden AudioManager flag consumed by AudioService's actual volume-key path.
         const val FLAG_FROM_KEY = 0x1000
@@ -47,8 +56,8 @@ class ControlCenterVolumeKeyHooker : DynamicHooker() {
                         slider.invoke(controller) !is SeekBar) return@open
                     val increase = param.args.firstOrNull() as? Boolean ?: return@open
                     val configuration = VolumeKeyStepPolicy.configuration(
-                        Preferences.getInt(PlatformSettingsKeys.KEY_VOLUME_KEY_STEP_COUNT, PlatformSettingsKeys.DEFAULT_VOLUME_KEY_STEP_COUNT),
-                        Preferences.getInt(PlatformSettingsKeys.KEY_VOLUME_KEY_STEP_SCOPE, PlatformSettingsKeys.VOLUME_KEY_SCOPE_MEDIA_ONLY)
+                        settingVolumeKeyStepCount,
+                        settingVolumeKeyStepScope
                     )
                     val range = maximum.getInt(controller) - minimum.getInt(controller)
                     if (range <= 0) return@open

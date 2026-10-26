@@ -6,6 +6,7 @@ import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 
 import android.os.Handler
 import android.os.Looper
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.DynamicHooker
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
@@ -17,6 +18,11 @@ import java.util.concurrent.TimeUnit
 
 /** Uses the plugin's temporary-hide event and per-content gate; never deletes island data. */
 class ControlCenterSuperIslandHooker : DynamicHooker() {
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingCcHideSuperIsland by hookSetting(false) {
+        Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_HIDE_SUPER_ISLAND, false)
+    }
+
     private val main = Handler(Looper.getMainLooper())
     private val forcedControllers = WeakHashMap<Any, Boolean>()
     private val knownControllers = WeakHashMap<Any, Boolean>()
@@ -77,7 +83,7 @@ class ControlCenterSuperIslandHooker : DynamicHooker() {
         fun value(owner: Any, getter: Method, reader: Method): Boolean =
             reader.invoke(getter.invoke(owner)) as? Boolean ?: false
         fun shouldHide(owner: Any): Boolean = !retiring &&
-            Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_HIDE_SUPER_ISLAND, false) &&
+            settingCcHideSuperIsland &&
             (value(owner, expanded, expandedValue) || value(owner, swiping, swipeValue))
         fun refresh(owner: Any) {
             synchronized(knownControllers) { knownControllers[owner] = true }

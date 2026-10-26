@@ -4,6 +4,7 @@ import com.takekazex.hypertweak.hook.base.cachedDeclaredField
 import com.takekazex.hypertweak.hook.base.cachedDeclaredMethod
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.hook.base.ThreadActivation
@@ -12,10 +13,13 @@ import java.lang.reflect.Modifier
 
 /** System-server screenshot policy. SKIP_SCREENSHOT and protected buffers are independent. */
 object ForceScreenshotHooker : StaticHooker() {
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingForceScreenshot by hookSetting(false) { Preferences.getBoolean(PlatformSettingsKeys.KEY_FORCE_SCREENSHOT, false) }
+
     override val hookerName = "ForceScreenshot"
-    @Volatile private var enabled = false
-    @Volatile private var ready = false
-    @Volatile private var failure: Throwable? = null
+    private var enabled by generationState { false }
+    private var ready by generationState { false }
+    private var failure: Throwable? by generationState { null }
     private val displayCapture = ThreadActivation()
     private var restoreNativeSurfaces: (() -> Boolean)? by generationState { null }
     private val recovery by lazy {
@@ -23,7 +27,7 @@ object ForceScreenshotHooker : StaticHooker() {
     }
 
     fun refreshSettings() {
-        enabled = ready && failure == null && Preferences.getBoolean(PlatformSettingsKeys.KEY_FORCE_SCREENSHOT, false)
+        enabled = ready && failure == null && settingForceScreenshot
         DebugLog.i(hookerName, "settings applied enabled=$enabled ready=$ready failed=${failure != null}")
         failure?.let { DebugLog.w(hookerName, "capture policy disabled after host failure", it) }
         if (!enabled && restoreNativeSurfaces != null) recovery.schedule()
@@ -33,8 +37,6 @@ object ForceScreenshotHooker : StaticHooker() {
         recovery.schedule()
     }
     override fun onPrepareHotReload() {
-        enabled = false
-        ready = false
         recovery.cancel()
     }
 

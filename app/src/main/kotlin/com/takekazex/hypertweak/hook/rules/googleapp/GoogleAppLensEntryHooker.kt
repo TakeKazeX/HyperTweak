@@ -5,8 +5,8 @@ import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import android.app.Activity
 import com.takekazex.hypertweak.BuildConfig
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 import io.github.libxposed.api.XposedInterface
@@ -55,7 +55,7 @@ import java.util.concurrent.atomic.AtomicBoolean
  *    deliberately left alone: those mean Lens genuinely cannot run (locale, device, locked), and
  *    faking them would only show a broken surface.
  *
- * Both callbacks are gated live on `Preferences.powerButtonAction() ==
+ * Both callbacks are gated live on `settingPowerButtonAction ==
  * POWER_BUTTON_ACTION_GOOGLE_LENS` and on this action's own marked launch, so another binding
  * leaves Google's behaviour untouched and a third-party Lens launch keeps Google's own answer. The
  * eligibility override additionally requires the caller to be the module's package.
@@ -67,7 +67,8 @@ import java.util.concurrent.atomic.AtomicBoolean
  * power-button action simply fails closed to the platform's own long-press handling.
  */
 object GoogleAppLensEntryHooker : StaticHooker() {
-    override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingPowerButtonAction by hookSetting(PlatformSettingsKeys.POWER_BUTTON_ACTION_DISABLED) { Preferences.powerButtonAction() }
 
     private const val TAG = "GoogleLensEntry"
 
@@ -92,7 +93,7 @@ object GoogleAppLensEntryHooker : StaticHooker() {
     internal const val HOOK_ELIGIBILITY = "google_lens_direct_intent_eligibility"
 
     /** One-shot guard: the Lens view reads the calling package dozens of times per launch. */
-    private val callerLogged = AtomicBoolean(false)
+    private val callerLogged = generationResource(AtomicBoolean(false)) { it.set(false) }
 
     override fun onHook() {
         // GoogleAppRuntime owns the one shared DexKit session; see GoogleAppLiveTranslateHooker.
@@ -280,7 +281,7 @@ object GoogleAppLensEntryHooker : StaticHooker() {
     }
 
     private fun lensActionSelected(): Boolean =
-        Preferences.powerButtonAction() == PlatformSettingsKeys.POWER_BUTTON_ACTION_GOOGLE_LENS
+        settingPowerButtonAction == PlatformSettingsKeys.POWER_BUTTON_ACTION_GOOGLE_LENS
 
     private fun classFor(dexName: String): Class<*>? = runCatching {
         Class.forName(

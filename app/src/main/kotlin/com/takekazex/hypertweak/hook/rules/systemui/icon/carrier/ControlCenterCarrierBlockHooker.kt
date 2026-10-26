@@ -30,9 +30,9 @@ import android.view.ViewTreeObserver
 import android.view.inspector.WindowInspector
 import android.widget.LinearLayout
 import androidx.core.view.isVisible
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HostAccess
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
@@ -55,6 +55,27 @@ import org.luckypray.dexkit.query.enums.StringMatchType
  */
 @SuppressLint("StaticFieldLeak")
 object ControlCenterCarrierBlockHooker : StaticHooker() {
+    init { generationCleanup { assetExecutor.shutdownNow() } }
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingCcHideDate by hookSetting(false) { Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_HIDE_DATE, false) }
+    private val settingCcCarrierTwoLine by hookSetting(false) { Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_CARRIER_TWO_LINE, false) }
+    private val settingCcNetworkFirstRow by hookSetting(false) {
+        Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_NETWORK_FIRST_ROW, false)
+    }
+    private val settingIconCellularTypeSmall5ga by hookSetting(false) {
+        Preferences.getBoolean(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_SMALL_5GA, false)
+    }
+    private val settingIconMobileRowStyle by hookSetting(0) { Preferences.getInt(IconSettingsKeys.KEY_ICON_MOBILE_ROW_STYLE, 0) }
+    private val settingCcCarrierShowNonDataType by hookSetting(false) {
+        Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_CARRIER_SHOW_NON_DATA_TYPE, false)
+    }
+    private val settingCellularTypeKeepsOnWifi by hookSetting(false) { Preferences.cellularTypeKeepsOnWifi() }
+    private val settingCcCarrierShowBadge by hookSetting(true) {
+        Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_CARRIER_SHOW_BADGE, true)
+    }
+    private val settingCcCarrierBadgeOne by hookSetting("1") { Preferences.getString(SystemUiSettingsKeys.KEY_CC_CARRIER_BADGE_ONE, "1") }
+    private val settingCcCarrierBadgeTwo by hookSetting("2") { Preferences.getString(SystemUiSettingsKeys.KEY_CC_CARRIER_BADGE_TWO, "2") }
+
     init {
         hostRecovery(HostRecoveryPhase.PRESENTATION, icons = true) {
             recoverExistingViews(it.context, it.views, it.progress, it.visible)
@@ -63,8 +84,6 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
             if (it.coroutineScope != null && it.wifiInteractor != null) recoverWifi(it.coroutineScope!!, it.wifiInteractor!!, it.context)
         }
     }
-
-    override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
 
     private const val TAG = "IconTuner"
     private const val LAYOUT_CLASS = "com.android.systemui.controlcenter.shade.MiuiCarrierTextLayout"
@@ -110,70 +129,72 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
     }
     private var assetExecutor = newAssetExecutor()
     private val generation = AtomicLong(0L)
-    private val installed = AtomicBoolean(false)
+    private val installed = generationResource(AtomicBoolean(false)) { it.set(false) }
     private val artLock = Any()
 
     /** Use the regular network-type size, not the former compact 11sp variant. */
-    @Volatile private var typeConfig = MobileTypeConfig(
+    private var typeConfig by generationState { MobileTypeConfig(
         textSizeSp = 14f,
         weight = 630,
         singleWeight = 400,
         paddingStartSp = 1f,
         paddingEndSp = 1f
-    )
+    ) }
 
-    private val blocks = WeakHashMap<Any, CarrierBlock>()
-    private val rowIndex = WeakHashMap<Any, CarrierRowParts>()
-    private val maskedContainers = WeakHashMap<Any, CarrierMask>()
+    private val blocks = generationMainResource(WeakHashMap<Any, CarrierBlock>()) { it.clear() }
+    private val rowIndex = generationMainResource(WeakHashMap<Any, CarrierRowParts>()) { it.clear() }
+    private val maskedContainers = generationMainResource(WeakHashMap<Any, CarrierMask>()) { it.clear() }
     private val wifiSubscriptions = HostFlowSubscriptions()
-    @Volatile private var enabled = false
-    @Volatile private var showNonDataType = false
-    @Volatile private var keepTypeOnWifi = false
+    private var enabled by generationState { false }
+    private var showNonDataType by generationState { false }
+    private var keepTypeOnWifi by generationState { false }
     private var shadeSwitching by generationState { false }
     private var hostShadeSwitching by generationState { false }
     private var shadeSwitchProgress by generationState { 0f }
 
     internal fun isShadeSwitching(): Boolean = shadeSwitching
-    private var networkOnFirstRow = false
-    private var dataFirst = false
-    private var rowOrder = listOf(0, 1)
-    private var showBadge = true
-    private var badgeTexts = listOf("1", "2")
-    @Volatile private var hostContext: Context? = null
-    private var subscriptionManager: SubscriptionManager? = null
-    private var subscriptionListener: SubscriptionManager.OnSubscriptionsChangedListener? = null
-    private var simNames: Map<Int, String> = emptyMap()
-    @Volatile private var svgRepository: IconSvgRepository? = null
+    private var networkOnFirstRow by generationState { false }
+    private var dataFirst by generationState { false }
+    private var rowOrder by generationState { listOf(0, 1) }
+    private var showBadge by generationState { true }
+    private var badgeTexts by generationState { listOf("1", "2") }
+    private var hostContext: Context? by generationState { null }
+    private var subscriptionManager: SubscriptionManager? by generationState { null }
+    private var subscriptionListener: SubscriptionManager.OnSubscriptionsChangedListener? by generationState { null }
+    private var simNames: Map<Int, String> by generationState { emptyMap() }
+    private var svgRepository: IconSvgRepository? by generationState { null }
     private var artwork: CarrierArtwork? by generationState { null }
-    @Volatile private var artGeneration = Long.MIN_VALUE
-    @Volatile private var artInFlight = Long.MIN_VALUE
+    @Volatile
+    private var artGeneration = Long.MIN_VALUE
+    @Volatile
+    private var artInFlight = Long.MIN_VALUE
 
-    private val knownLayouts = WeakHashMap<ViewGroup, Boolean>()
+    private val knownLayouts = generationMainResource(WeakHashMap<ViewGroup, Boolean>()) { it.clear() }
     private var recoveryTask: Runnable? by generationState { null }
-    private var recoveryAttempt = 0
-    private var lastRecoveryEvidence: CarrierRecoveryEvidence? = null
+    private var recoveryAttempt by generationState { 0 }
+    private var lastRecoveryEvidence: CarrierRecoveryEvidence? by generationState { null }
 
     private var wifiScope: Any? by generationState { null }
     private var wifiInteractor: Any? by generationState { null }
 
-    private var carrierLayoutId = 0
-    private var fakeStatusBarId = 0
-    private var statusBarId = 0
-    private var wifiSignalId = 0
-    private var mobileGroupId = 0
-    private var mobileTypeId = 0
+    private var carrierLayoutId by generationState { 0 }
+    private var fakeStatusBarId by generationState { 0 }
+    private var statusBarId by generationState { 0 }
+    private var wifiSignalId by generationState { 0 }
+    private var mobileGroupId by generationState { 0 }
+    private var mobileTypeId by generationState { 0 }
 
-    private var leftTextField: Field? = null
-    private var rightTextField: Field? = null
-    private var carrierTextField: Field? = null
-    private var separatorField: Field? = null
-    private var keyguardSeparatorField: Field? = null
+    private var leftTextField: Field? by generationState { null }
+    private var rightTextField: Field? by generationState { null }
+    private var carrierTextField: Field? by generationState { null }
+    private var separatorField: Field? by generationState { null }
+    private var keyguardSeparatorField: Field? by generationState { null }
 
     /** All mutable view state is consumed on the main looper. */
-    private var mobileState = MobileSignalState()
+    private var mobileState by generationState { MobileSignalState() }
     private var wifiLevel: Int? by generationState { null }
-    private var progress = 0f
-    private var panelVisible = false
+    private var progress by generationState { 0f }
+    private var panelVisible by generationState { false }
 
     fun onPackageReady(context: Context) {
         HostAccess.onMain { bindEnvironment(context) }
@@ -235,8 +256,8 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
      */
     val requiresMobileState: Boolean
         get() = enabled ||
-            (Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_HIDE_DATE, false) &&
-                Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_CARRIER_TWO_LINE, false))
+            (settingCcHideDate &&
+                settingCcCarrierTwoLine)
 
     override fun saveHotReloadState(): Any = onMainBlocking {
         listOf((knownLayouts.keys + blocks.keys.filterIsInstance<ViewGroup>()).distinct(),
@@ -348,7 +369,6 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
 
     override fun onPrepareHotReload() {
         val token = generation.incrementAndGet()
-        enabled = false
         main.removeCallbacksAndMessages(null)
 
         assetExecutor.shutdownNow()
@@ -388,31 +408,25 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
             panelVisible = false
         }
         installed.set(false)
-        if (generation.get() == token) artGeneration = Long.MIN_VALUE
+        synchronized(artLock) { if (generation.get() == token) artGeneration = Long.MIN_VALUE }
     }
 
     override fun onHook() {
         if (assetExecutor.isShutdown) assetExecutor = newAssetExecutor()
-        networkOnFirstRow = Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_NETWORK_FIRST_ROW, false)
+        networkOnFirstRow = settingCcNetworkFirstRow
         IconTunerFlows.init(classLoader)
         typeConfig = typeConfig.copy(
-            small5GaEnabled = Preferences.getBoolean(
-                IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_SMALL_5GA,
-                false
-            )
+            small5GaEnabled = settingIconCellularTypeSmall5ga
         )
-        dataFirst = Preferences.getInt(IconSettingsKeys.KEY_ICON_MOBILE_ROW_STYLE, 0) == 1
-        val hideDate = Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_HIDE_DATE, false)
-        val twoLine = Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_CARRIER_TWO_LINE, false)
-        showNonDataType = Preferences.getBoolean(
-            SystemUiSettingsKeys.KEY_CC_CARRIER_SHOW_NON_DATA_TYPE,
-            false
-        )
-        keepTypeOnWifi = Preferences.cellularTypeKeepsOnWifi()
-        showBadge = Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_CARRIER_SHOW_BADGE, true)
+        dataFirst = settingIconMobileRowStyle == 1
+        val hideDate = settingCcHideDate
+        val twoLine = settingCcCarrierTwoLine
+        showNonDataType = settingCcCarrierShowNonDataType
+        keepTypeOnWifi = settingCellularTypeKeepsOnWifi
+        showBadge = settingCcCarrierShowBadge
         badgeTexts = listOf(
-            Preferences.getString(SystemUiSettingsKeys.KEY_CC_CARRIER_BADGE_ONE, "1"),
-            Preferences.getString(SystemUiSettingsKeys.KEY_CC_CARRIER_BADGE_TWO, "2")
+            settingCcCarrierBadgeOne,
+            settingCcCarrierBadgeTwo
         ).mapIndexed(CarrierBlockPolicy::badgeText)
         // 开关 2 is the enabling switch for 开关 3/4: without the hidden date the second row would
         // overlap the date, and the settings page disables the dependent rows for the same reason.
@@ -942,7 +956,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
     // ---------------------------------------------------------------- rendering
 
     private val renderGate = FrameUpdateGate()
-    private var renderTicket = 0L
+    private var renderTicket by generationState { 0L }
     private val renderFrame = Choreographer.FrameCallback {
         renderGate.drain(renderTicket) {
             if (enabled) runCatching { renderAll() }

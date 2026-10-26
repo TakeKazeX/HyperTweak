@@ -18,6 +18,7 @@ import android.os.Looper
 import android.view.View
 import android.view.ViewGroup
 import androidx.core.view.isVisible
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.hook.rules.systemui.icon.carrier.ControlCenterCarrierBlockHooker
@@ -25,6 +26,12 @@ import com.takekazex.hypertweak.hook.rules.systemui.icon.ControlCenterHeaderHook
 import com.takekazex.hypertweak.presentation.icon.MobileSignalState
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 import com.takekazex.hypertweak.util.logging.DebugLog
+
+// Published on settings acceptance; hook callbacks perform no storage reads.
+private val settingCcHideDate by hookSetting(false) { Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_HIDE_DATE, false) }
+private val settingCcCarrierTwoLine by hookSetting(false) { Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_CARRIER_TWO_LINE, false) }
+
+internal fun prepareDuoPanelHandoverSettings() { settingCcHideDate }
 
 /** Owns proxy transforms, signal overlays and network/airplane handover leases. */
 internal class DuoPanelHandover(private val host: Host) {
@@ -102,8 +109,8 @@ internal class DuoPanelHandover(private val host: Host) {
         binding.surface != DuoSurface.HOME && binding.surface != DuoSurface.KEYGUARD &&
         host.expandedStyle == DuoExpandedStyle.KEEP_DUO &&
         ControlCenterHeaderHooker.supportsCompactLayout(binding.battery) &&
-        Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_HIDE_DATE, false) &&
-        Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_CARRIER_TWO_LINE, false)
+        settingCcHideDate &&
+        settingCcCarrierTwoLine
 
     fun clearSignalMotions(binding: DuoBinding) {
         if (binding.dotsInMotion) {

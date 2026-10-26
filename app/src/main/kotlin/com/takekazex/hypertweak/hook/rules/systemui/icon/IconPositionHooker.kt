@@ -10,14 +10,15 @@ import com.takekazex.hypertweak.settings.contract.IconSurface
 
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 
+import com.takekazex.hypertweak.hook.base.ViewVisibilityRouter
 import com.takekazex.hypertweak.hook.base.HostAccess
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
 import android.view.View
 import android.view.ViewGroup
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.reflect.Constructor
@@ -36,6 +37,11 @@ import androidx.core.view.isGone
  * reorders the existing `mSlots` ArrayList and adds empty Slot records for enabled module slots.
  */
 object IconPositionHooker : StaticHooker() {
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingCcIconRowOverrides by hookSetting(emptySet()) {
+        Preferences.getStringSet(SystemUiSettingsKeys.KEY_CC_ICON_ROW_OVERRIDES, emptySet())
+    }
+
     init {
         hostRecovery(HostRecoveryPhase.SLOT_ORDER, icons = true) {
             it.controller?.let { controller -> recoverSlotOrder(controller, it.context) }
@@ -44,8 +50,6 @@ object IconPositionHooker : StaticHooker() {
             recoverExistingContainers(it.views)
         }
     }
-
-    override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
 
     private const val TAG = "IconTuner"
     private const val LIST_FACTORY_CLASS =
@@ -78,26 +82,26 @@ object IconPositionHooker : StaticHooker() {
 
     private val mainHandler = Handler(Looper.getMainLooper())
     private val stateLock = Any()
-    private val containerStates = WeakHashMap<Any, ContainerState>()
+    private val containerStates = generationMainResource(WeakHashMap<Any, ContainerState>()) { it.clear() }
     private val maskOwners = IconMaskOwners()
     private val duoSlots = setOf("airplane", "mobile", "stacked_mobile", "wifi", "demo_wifi",
         "stacked_mobile_icon", "stacked_mobile_type", "single_mobile_sim1", "single_mobile_sim2")
 
-    @Volatile
-    private var options = IconTunerOptions.snapshot()
+    private var options by generationState { IconTunerOptions.snapshot() }
 
+    private var restoring by generationState { false }
     @Volatile
-    private var restoring = false
-    @Volatile private var retiring = false
-    private var applyingNativeVisibility = false
-    private var applyingNativeViewVisibility = false
+    private var retiring = false
+    init { generationCleanup { retiring = true } }
+    private var applyingNativeVisibility by generationState { false }
+    private var applyingNativeViewVisibility by generationState { false }
     private val nativeViewVisibility = NativeViewVisibilityMask(View.GONE)
-    private var mobileViewClass: Class<*>? = null
+    private var mobileViewClass: Class<*>? by generationState { null }
 
-    private val networkVisibility = LinkedHashMap<Class<*>, Method>()
-    private val clipStates = WeakHashMap<ViewGroup, Pair<Boolean, Boolean>>()
-    private var rowOverrides: Set<String> = emptySet()
-    private val rowLayoutOwners = WeakHashMap<ViewGroup, Boolean>()
+    private val networkVisibility = generationMainResource(LinkedHashMap<Class<*>, Method>()) { it.clear() }
+    private val clipStates = generationMainResource(WeakHashMap<ViewGroup, Pair<Boolean, Boolean>>()) { it.clear() }
+    private var rowOverrides: Set<String> by generationState { emptySet() }
+    private val rowLayoutOwners = generationMainResource(WeakHashMap<ViewGroup, Boolean>()) { it.clear() }
     private class LowerRowMotion(val source: View) {
         val motion = CarrierTypeMotion()
         var savedAlpha = source.alpha
@@ -107,15 +111,15 @@ object IconPositionHooker : StaticHooker() {
             if (abs(source.alpha - appliedAlpha) < .001f) source.alpha = savedAlpha
         }
     }
-    private val lowerRowMotions = IdentityHashMap<View, LowerRowMotion>()
-    private val lastRestoredOverflow = WeakHashMap<ViewGroup, Set<String>>()
+    private val lowerRowMotions = generationMainResource(IdentityHashMap<View, LowerRowMotion>()) { it.clear() }
+    private val lastRestoredOverflow = generationMainResource(WeakHashMap<ViewGroup, Set<String>>()) { it.clear() }
     private val activeHostLayouts = ThreadLocal<ArrayDeque<ViewGroup>>()
-    private var originalSlotOrder = emptyList<String>()
-    private var slotsField: Field? = null
-    private var slotNameField: Field? = null
-    private var ignoredSlotsField: Field? = null
-    private var layoutFromField: Field? = null
-    private var slotConstructor: Constructor<*>? = null
+    private var originalSlotOrder by generationState { emptyList<String>() }
+    private var slotsField: Field? by generationState { null }
+    private var slotNameField: Field? by generationState { null }
+    private var ignoredSlotsField: Field? by generationState { null }
+    private var layoutFromField: Field? by generationState { null }
+    private var slotConstructor: Constructor<*>? by generationState { null }
 
     override fun saveHotReloadState(): Any = HostAccess.onMain {
         mapOf("order" to ArrayList(originalSlotOrder), "containers" to synchronized(stateLock) {
@@ -195,7 +199,7 @@ object IconPositionHooker : StaticHooker() {
         retiring = false
         IconTunerFlows.init(classLoader)
         options = IconTunerOptions.snapshot()
-        rowOverrides = Preferences.getStringSet(SystemUiSettingsKeys.KEY_CC_ICON_ROW_OVERRIDES, emptySet())
+        rowOverrides = settingCcIconRowOverrides
         hookStatusBarIconListFactory()
         hookIgnoredSlots()
         networkVisibility.clear()
@@ -233,24 +237,15 @@ object IconPositionHooker : StaticHooker() {
 
     /** MIUI's binder writes View visibility independently of the icon container's visible state. */
     private fun hookNativeMobileVisibility() {
-        val method = HostAccess.requireDeclaredMethod(View::class.java, "setVisibility", Int::class.javaPrimitiveType, accessible = false)
-        deoptimize(method)
-        method.hook {
-            before { param ->
-                if (applyingNativeViewVisibility || Looper.myLooper() != Looper.getMainLooper()) return@before
-                val view = param.thisObject as? View ?: return@before
-                val type = mobileViewClass ?: return@before
-                if (!type.isInstance(view)) return@before
-                runCatching {
-                    val container = view.parent ?: return@runCatching
-                    val slot = findField(type, "slot")?.get(view) as? String ?: return@runCatching
-                    val requested = param.args[0] as? Int ?: return@runCatching
-                    param.args[0] = nativeViewVisibility.hostRequest(
-                        view, requested, slot in maskSlotsFor(container)
-                    )
-                }.onFailure { DebugLog.w(TAG, "native mobile visibility mask failed", it) }
-            }
-        }
+        val target = mobileViewClass ?: return
+        ViewVisibilityRouter.visibility(this, target, before = route@{ view, requested ->
+            if (applyingNativeViewVisibility || Looper.myLooper() != Looper.getMainLooper()) return@route null
+            val type = mobileViewClass ?: return@route null
+            if (!type.isInstance(view)) return@route null
+            val container = view.parent ?: return@route null
+            val slot = findField(type, "slot")?.get(view) as? String ?: return@route null
+            nativeViewVisibility.hostRequest(view, requested, slot in maskSlotsFor(container))
+        })
     }
 
     private fun reconcileNativeMobileVisibility(view: View, masked: Boolean) {

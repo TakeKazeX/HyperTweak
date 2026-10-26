@@ -4,10 +4,10 @@ import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import android.content.ClipboardManager
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.CompatibleMethodResolver
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 import com.takekazex.hypertweak.util.platform.StaticFieldWriter
@@ -29,6 +29,11 @@ import java.lang.reflect.Method
  * HyperOS keeps showing its own editor as well; both appear.
  */
 object UnlockClipboardHooker : StaticHooker() {
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingAospClipboardEditor by hookSetting(false) {
+        Preferences.getBoolean(PlatformSettingsKeys.KEY_AOSP_CLIPBOARD_EDITOR, false)
+    }
+
     private const val TAG = "UnlockClipboard"
 
     private const val CLIPBOARD_LISTENER = "com.android.systemui.clipboardoverlay.ClipboardListener"
@@ -36,14 +41,11 @@ object UnlockClipboardHooker : StaticHooker() {
     /** `mClipboardManager` on baselines before the per-user split. */
     private val CLIPBOARD_MANAGER_FIELDS = listOf("mClipboardManagerForUser", "mClipboardManager")
 
-    @Volatile
-    private var enabled = false
+    private var enabled by generationState { false }
 
     private var ctsTestPkgListField: Field? by generationState { null }
     private var originalCtsTestPkgList: List<*>? by generationState { null }
     private var primaryClipSourceMethod: Method? by generationState { null }
-
-    override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
 
     override fun onPrepareHotReload() {
         restoreOriginalList()
@@ -51,7 +53,7 @@ object UnlockClipboardHooker : StaticHooker() {
     }
 
     override fun onHook() {
-        enabled = Preferences.getBoolean(PlatformSettingsKeys.KEY_AOSP_CLIPBOARD_EDITOR, false)
+        enabled = settingAospClipboardEditor
         if (!enabled) {
             DebugLog.hookSkippedDebug(TAG, "clipboard overlay", "disabled")
             return

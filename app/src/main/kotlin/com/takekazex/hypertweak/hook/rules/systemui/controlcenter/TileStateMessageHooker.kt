@@ -8,6 +8,7 @@ import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.DynamicHooker
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
@@ -19,6 +20,11 @@ import java.util.concurrent.TimeUnit
 
 /** Reschedules only the native message slot's runnable, preserving Folme and slot recycling. */
 class TileStateMessageHooker : DynamicHooker() {
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingCcTileMessageDurationMs by hookSetting(TileStateMessageDuration.DEFAULT_MS) {
+        Preferences.getInt(SystemUiSettingsKeys.KEY_CC_TILE_MESSAGE_DURATION_MS, TileStateMessageDuration.DEFAULT_MS)
+    }
+
     private val main = Handler(Looper.getMainLooper())
     private val completed = WeakHashMap<Any, Long>()
     private val listenerOwners = WeakHashMap<Any, java.lang.ref.WeakReference<Any>>()
@@ -81,7 +87,7 @@ class TileStateMessageHooker : DynamicHooker() {
     }
 
     private var bindSlot: ((Any) -> Unit)? = null
-    private fun duration() = Preferences.getInt(SystemUiSettingsKeys.KEY_CC_TILE_MESSAGE_DURATION_MS, TileStateMessageDuration.DEFAULT_MS)
+    private fun duration() = settingCcTileMessageDurationMs
     private fun reschedule(message: Any, duration: Int) {
         val start = completed[message] ?: return
         val handler = handlerField.get(ownerField.get(message)) as? Handler ?: return

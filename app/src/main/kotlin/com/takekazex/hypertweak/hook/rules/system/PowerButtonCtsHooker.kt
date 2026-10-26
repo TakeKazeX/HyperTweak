@@ -5,8 +5,8 @@ import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import android.content.Context
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.hook.rules.googleapp.GoogleLensLauncher
 import com.takekazex.hypertweak.util.logging.DebugLog
@@ -68,8 +68,10 @@ import java.util.concurrent.atomic.AtomicLong
  * fires whenever a custom action is bound.
  */
 object PowerButtonCtsHooker : StaticHooker() {
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingPowerButtonAction by hookSetting(PlatformSettingsKeys.POWER_BUTTON_ACTION_DISABLED) { Preferences.powerButtonAction() }
+
     override val hookerName = "PowerButtonCts"
-    override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
 
     private const val SCOPE = "PowerButtonCTS"
 
@@ -127,17 +129,13 @@ object PowerButtonCtsHooker : StaticHooker() {
      */
     private val claimedGestureStartTime = AtomicLong(Long.MIN_VALUE)
 
-    @Volatile
-    private var setPowerKeyHandledMethod: Method? = null
-    @Volatile
-    private var launchAssistActionMethod: Method? = null
-    @Volatile
-    private var performHapticFeedbackMethod: Method? = null
-    @Volatile
-    private var systemContextCache: Context? = null
+    private var setPowerKeyHandledMethod: Method? by generationState { null }
+    private var launchAssistActionMethod: Method? by generationState { null }
+    private var performHapticFeedbackMethod: Method? by generationState { null }
+    private var systemContextCache: Context? by generationState { null }
 
     override fun onHook() {
-        if (Preferences.powerButtonAction() == PlatformSettingsKeys.POWER_BUTTON_ACTION_DISABLED) {
+        if (settingPowerButtonAction == PlatformSettingsKeys.POWER_BUTTON_ACTION_DISABLED) {
             DebugLog.hookSkippedDebug(SCOPE, "power button long press", "action disabled")
             return
         }
@@ -321,7 +319,7 @@ object PowerButtonCtsHooker : StaticHooker() {
     }
 
     private fun dispatchEnabled(): Boolean =
-        Preferences.powerButtonAction() != PlatformSettingsKeys.POWER_BUTTON_ACTION_DISABLED
+        settingPowerButtonAction != PlatformSettingsKeys.POWER_BUTTON_ACTION_DISABLED
 
     /** `SingleKeyGestureEvent.getKeyCode()`; -1 when unavailable, which matches no real key. */
     private fun readEventKeyCode(event: Any): Int = runCatching {
@@ -389,7 +387,7 @@ object PowerButtonCtsHooker : StaticHooker() {
         eventTime: Long
     ): Boolean {
         markPowerKeyHandled(policy)
-        val dispatched = when (Preferences.powerButtonAction()) {
+        val dispatched = when (settingPowerButtonAction) {
             PlatformSettingsKeys.POWER_BUTTON_ACTION_CIRCLE_TO_SEARCH -> {
                 DebugLog.i(SCOPE, "$layer long-press power -> Circle to Search")
                 ContextualSearchSystemHooker.startFromSystemServer()

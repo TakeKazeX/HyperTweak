@@ -9,6 +9,7 @@ import android.os.Handler
 import android.os.Looper
 import android.view.View
 import android.view.ViewGroup
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.DynamicHooker
 import com.takekazex.hypertweak.hook.base.ThreadActivation
@@ -79,15 +80,28 @@ internal class DockPredictionBudget(private val limit: Int) {
 
 /** Quota changes keep the vendor model/filter/clone paths and never write global_dock_apps. */
 object SecurityCenterDockHooker : DynamicHooker() {
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingSecurityCenterDockUnlimitedPinned by hookSetting(false) {
+        Preferences.getBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_DOCK_UNLIMITED_PINNED, false)
+    }
+    private val settingSecurityCenterDockUnlimitedPredictions by hookSetting(false) {
+        Preferences.getBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_DOCK_UNLIMITED_PREDICTIONS, false)
+    }
+    private val settingSecurityCenterDockPredictLimit by hookSetting(8) {
+        Preferences.getInt(PlatformSettingsKeys.KEY_SECURITY_CENTER_DOCK_PREDICT_LIMIT, 8)
+    }
+
     private const val TAG = "SecurityCenterDock"
-    @Volatile private var retired = false
-    @Volatile private var settings = SecurityCenterDockSettings()
+    @Volatile
+    private var retired = false
+    init { generationCleanup { retired = true } }
+    private var settings by generationState { SecurityCenterDockSettings() }
     private val main = Handler(Looper.getMainLooper())
-    private val layouts = WeakHashMap<View, Boolean>()
-    private val editorHolders = WeakHashMap<Any, Boolean>()
-    private var targets: Targets? = null
-    @Volatile private var appliedSettings: SecurityCenterDockSettings? = null
-    private var pendingSettings: SecurityCenterDockSettings? = null
+    private val layouts = generationMainResource(WeakHashMap<View, Boolean>()) { it.clear() }
+    private val editorHolders = generationMainResource(WeakHashMap<Any, Boolean>()) { it.clear() }
+    private var targets: Targets? by generationState { null }
+    private var appliedSettings: SecurityCenterDockSettings? by generationState { null }
+    private var pendingSettings: SecurityCenterDockSettings? by generationState { null }
     private val refreshGeneration = java.util.concurrent.atomic.AtomicLong()
     private class LoadFrame(val settings: SecurityCenterDockSettings) {
         val budget = DockPredictionBudget(settings.budget)
@@ -309,9 +323,9 @@ object SecurityCenterDockHooker : DynamicHooker() {
     }
 
     private fun readSettings() = SecurityCenterDockSettings(
-        Preferences.getBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_DOCK_UNLIMITED_PINNED, false),
-        Preferences.getBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_DOCK_UNLIMITED_PREDICTIONS, false),
-        Preferences.getInt(PlatformSettingsKeys.KEY_SECURITY_CENTER_DOCK_PREDICT_LIMIT, 8).coerceIn(0, 15))
+        settingSecurityCenterDockUnlimitedPinned,
+        settingSecurityCenterDockUnlimitedPredictions,
+        settingSecurityCenterDockPredictLimit.coerceIn(0, 15))
 
     /**
      * Outcome of a settings application.

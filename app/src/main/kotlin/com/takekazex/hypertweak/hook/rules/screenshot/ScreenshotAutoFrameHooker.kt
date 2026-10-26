@@ -11,6 +11,7 @@ import android.graphics.Bitmap
 import android.graphics.Point
 import android.hardware.display.DisplayManager
 import android.net.Uri
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
@@ -21,18 +22,24 @@ import androidx.core.graphics.scale
 
 /** Native frame composition at the full-screen save boundary, leaving capture/scroll bitmaps alone. */
 object ScreenshotAutoFrameHooker : StaticHooker() {
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingScreenshotAutoFrameEnabled by hookSetting(false) { Preferences.screenshotAutoFrameEnabled() }
+    private val settingScreenshotEditorMode by hookSetting(0) { Preferences.screenshotEditorMode() }
+
     private const val TAG = "ScreenshotAutoFrame"
     private const val RECEIPTS = "hypertweak_screenshot_frames"
     private data class Source(val type: Int, val displayId: Int, val owner: java.lang.ref.WeakReference<Any>? = null)
     private data class Transformation(val data: Any, val original: Bitmap, val framed: Bitmap, val source: File)
     private data class Preview(val original: Bitmap, val bitmap: Bitmap)
-    private val previews = WeakHashMap<Any, Preview>()
-    private val renderedSources = WeakHashMap<Bitmap, File>()
-    private val sources = WeakHashMap<Any, Source>()
-    private val enrolled = WeakHashMap<Any, Source>()
-    private val transformations = WeakHashMap<Any, Transformation>()
+    private val previews = generationMainResource(WeakHashMap<Any, Preview>()) { it.clear() }
+    private val renderedSources = generationMainResource(WeakHashMap<Bitmap, File>()) { it.clear() }
+    private val sources = generationMainResource(WeakHashMap<Any, Source>()) { it.clear() }
+    private val enrolled = generationMainResource(WeakHashMap<Any, Source>()) { it.clear() }
+    private val transformations = generationMainResource(WeakHashMap<Any, Transformation>()) { it.clear() }
     private val saveSources = ThreadLocal<ArrayDeque<Source>>()
-    @Volatile private var retired = false
+    @Volatile
+    private var retired = false
+    init { generationCleanup { retired = true } }
     private var frameAccess: NativeScreenshotFrameAccess? by generationState { null }
     override fun saveHotReloadState(): Any? = Preferences.saveScreenshotSettings()
     override fun restoreHotReloadState(state: Any?) { Preferences.restoreScreenshotSettings(state) }
@@ -145,7 +152,7 @@ object ScreenshotAutoFrameHooker : StaticHooker() {
                 val task = param.thisObject
                 val source = synchronized(enrolled) { enrolled.remove(task) } ?: return@before
                 if (retired) return@before
-                val enabled = Preferences.screenshotAutoFrameEnabled()
+                val enabled = settingScreenshotAutoFrameEnabled
                 DebugLog.d(TAG, "screenshot save settings enabled=$enabled")
                 if (!enabled) return@before
                 boundary("compose native screenshot frame") {
@@ -240,7 +247,7 @@ object ScreenshotAutoFrameHooker : StaticHooker() {
         val source = HostAccess.requireDeclaredField(manager, "mSource", accessible = true)
         val context = HostAccess.requireDeclaredField(manager, "mContext", accessible = true)
         val sessions = ScreenshotEditorSessions {
-            Preferences.screenshotEditorMode().also { DebugLog.d(TAG, "screenshot editor session mode=$it") }
+            settingScreenshotEditorMode.also { DebugLog.d(TAG, "screenshot editor session mode=$it") }
         }
         val saveAsPng = HostAccess.requireDeclaredMethod(manager, "setNeedSaveAsPng", Boolean::class.javaPrimitiveType, accessible = false)
         val rawFiles = WeakHashMap<Any, File>()

@@ -17,9 +17,9 @@ import android.os.PowerManager
 import android.view.View
 import android.view.ViewTreeObserver
 import android.widget.TextView
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.util.logging.DebugLog
@@ -59,6 +59,21 @@ import java.util.concurrent.Executors
  * BottomIndicationLayout owns reversible layout and overflow independently of telemetry.
  */
 object LockscreenChargingDetailHooker : StaticHooker() {
+    init { generationCleanup { worker.shutdownNow() } }
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingLockscreenChargingDetail by hookSetting(false) {
+        Preferences.getBoolean(SystemUiSettingsKeys.KEY_LOCKSCREEN_CHARGING_DETAIL, false)
+    }
+    private val settingLockscreenChargingDetailFields by hookSetting(LockscreenChargingOptions.DEFAULT_FIELDS) {
+        Preferences.getInt(SystemUiSettingsKeys.KEY_LOCKSCREEN_CHARGING_DETAIL_FIELDS, LockscreenChargingOptions.DEFAULT_FIELDS)
+    }
+    private val settingLockscreenChargingDetailIntervalMs by hookSetting(LockscreenChargingOptions.DEFAULT_INTERVAL_MS) {
+        Preferences.getInt(SystemUiSettingsKeys.KEY_LOCKSCREEN_CHARGING_DETAIL_INTERVAL_MS, LockscreenChargingOptions.DEFAULT_INTERVAL_MS)
+    }
+    private val settingLockscreenChargingDetailTwoRows by hookSetting(true) {
+        Preferences.getBoolean(SystemUiSettingsKeys.KEY_LOCKSCREEN_CHARGING_DETAIL_TWO_ROWS, true)
+    }
+
     init {
         hostRecovery(HostRecoveryPhase.WINDOWS) {
             it.component?.let { component -> HostAccess.read(component, "keyguardIndicationControllerProvider") }
@@ -71,8 +86,6 @@ object LockscreenChargingDetailHooker : StaticHooker() {
         }
     }
 
-    override val hotReloadMode = HotReloadMode.RECREATE
-
     private const val TAG = "LockscreenChargeDetail"
     private const val ROTATE_VC = "com.android.systemui.keyguard.KeyguardIndicationRotateTextViewController"
 
@@ -80,19 +93,19 @@ object LockscreenChargingDetailHooker : StaticHooker() {
     private const val BATTERY_ROLE = 3
 
     private fun detailEnabled(): Boolean =
-        Preferences.getBoolean(SystemUiSettingsKeys.KEY_LOCKSCREEN_CHARGING_DETAIL, false)
+        settingLockscreenChargingDetail
 
-    private var currIndicationTypeField: Field? = null
-    private var viewField: Field? = null
-    private var messageField: Field? = null
-    private var rotateControllerField: Field? = null
-    private var hostDozingField: Field? = null
-    private var hostVisibleField: Field? = null
-    private var rotateDozingField: Field? = null
-    private var stateListenerField: Field? = null
-    private var onDozingChanged: Method? = null
-    private var indicationHost = WeakReference<Any>(null)
-    private var hostSyncPending = false
+    private var currIndicationTypeField: Field? by generationState { null }
+    private var viewField: Field? by generationState { null }
+    private var messageField: Field? by generationState { null }
+    private var rotateControllerField: Field? by generationState { null }
+    private var hostDozingField: Field? by generationState { null }
+    private var hostVisibleField: Field? by generationState { null }
+    private var rotateDozingField: Field? by generationState { null }
+    private var stateListenerField: Field? by generationState { null }
+    private var onDozingChanged: Method? by generationState { null }
+    private var indicationHost by generationState { WeakReference<Any>(null) }
+    private var hostSyncPending by generationState { false }
     private val hostSync = Runnable {
         hostSyncPending = false
         boundary {
@@ -112,23 +125,23 @@ object LockscreenChargingDetailHooker : StaticHooker() {
             }
         }
     }
-    private var getIntProperty: Method? = null
+    private var getIntProperty: Method? by generationState { null }
 
-    private val layouts = WeakHashMap<TextView, BottomIndicationLayout>()
-    private var recentController: WeakReference<Any?> = WeakReference(null)
+    private val layouts = generationMainResource(WeakHashMap<TextView, BottomIndicationLayout>()) { it.clear() }
+    private var recentController: WeakReference<Any?> by generationState { WeakReference(null) }
 
     private var reportedFirstAppend by generationState { false }
 
-    private var interactive = false
-    private var receiverContext: Context? = null
+    private var interactive by generationState { false }
+    private var receiverContext: Context? by generationState { null }
     private var worker = Executors.newSingleThreadExecutor { task ->
         Thread(task, "HT-ChargeSample").apply { isDaemon = true }
     }
-    private var sampleGate = ChargingSampleGate()
-    private var activeView = WeakReference<TextView>(null)
-    private var observedView = WeakReference<TextView>(null)
-    private var observer: ViewTreeObserver? = null
-    private var samplingActive = false
+    private var sampleGate by generationState { ChargingSampleGate() }
+    private var activeView by generationState { WeakReference<TextView>(null) }
+    private var observedView by generationState { WeakReference<TextView>(null) }
+    private var observer: ViewTreeObserver? by generationState { null }
+    private var samplingActive by generationState { false }
     private val preDraw = ViewTreeObserver.OnPreDrawListener {
         boundary {
             if (displayDemanded() != samplingActive) reconcile()
@@ -162,16 +175,16 @@ object LockscreenChargingDetailHooker : StaticHooker() {
             scheduleHostSync()
         }
     }
-    private var cachedCurrentUa = 0L
-    private var cachedVoltageMv = -1
-    private var cachedTempTenths = Int.MIN_VALUE
+    private var cachedCurrentUa by generationState { 0L }
+    private var cachedVoltageMv by generationState { -1 }
+    private var cachedTempTenths by generationState { Int.MIN_VALUE }
 
     // Bumped on every onHook/onPrepareHotReload so stale refresh loops die on hot reload.
     @Volatile
     private var refreshGeneration = 0
 
     private val refreshHandler = Handler(Looper.getMainLooper())
-    private var refreshRunnable: Runnable? = null
+    private var refreshRunnable: Runnable? by generationState { null }
 
     internal fun recoverController(controller: Any) {
         if (detailEnabled()) attachDetail(controller)
@@ -349,10 +362,10 @@ object LockscreenChargingDetailHooker : StaticHooker() {
     // ─── Live sub-option readers (memo TTL 100 ms, so no SystemUI restart required) ───
 
     private fun fields(): Int =
-        Preferences.getInt(SystemUiSettingsKeys.KEY_LOCKSCREEN_CHARGING_DETAIL_FIELDS, LockscreenChargingOptions.DEFAULT_FIELDS)
+        settingLockscreenChargingDetailFields
 
     private fun refreshIntervalMs(): Int =
-        Preferences.getInt(SystemUiSettingsKeys.KEY_LOCKSCREEN_CHARGING_DETAIL_INTERVAL_MS, LockscreenChargingOptions.DEFAULT_INTERVAL_MS)
+        settingLockscreenChargingDetailIntervalMs
             .coerceIn(LockscreenChargingOptions.MIN_INTERVAL_MS, LockscreenChargingOptions.MAX_INTERVAL_MS)
 
     private fun boundary(action: () -> Unit) =
@@ -475,7 +488,7 @@ object LockscreenChargingDetailHooker : StaticHooker() {
             return
         }
         layouts.getOrPut(view) { BottomIndicationLayout(view) }.show(base, detail,
-            Preferences.getBoolean(SystemUiSettingsKeys.KEY_LOCKSCREEN_CHARGING_DETAIL_TWO_ROWS, true))
+            settingLockscreenChargingDetailTwoRows)
         if (!reportedFirstAppend) {
             reportedFirstAppend = true
             DebugLog.i(TAG, "appended live charge detail: $detail")

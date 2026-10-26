@@ -2,9 +2,9 @@ package com.takekazex.hypertweak.hook.rules.system
 
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.reflect.Method
@@ -25,6 +25,11 @@ import java.lang.reflect.Method
  * Ported from tehcneko's AOSP Package Installer (GPL-3.0).
  */
 object AospPackageInstallerHooker : StaticHooker() {
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingAospPackageInstaller by hookSetting(false) {
+        Preferences.getBoolean(PlatformSettingsKeys.KEY_AOSP_PACKAGE_INSTALLER, false)
+    }
+
     private const val TAG = "AospPackageInstaller"
 
     private const val PMS_IMPL = "com.android.server.pm.PackageManagerServiceImpl"
@@ -41,9 +46,7 @@ object AospPackageInstallerHooker : StaticHooker() {
     private fun depth(): Int = forcedCtsDepth.get() ?: 0
 
     private fun isEnabled(): Boolean =
-        Preferences.getBoolean(PlatformSettingsKeys.KEY_AOSP_PACKAGE_INSTALLER, false)
-
-    override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
+        settingAospPackageInstaller
 
     override fun onPrepareHotReload() {
         forcedCtsDepth.remove()

@@ -4,9 +4,9 @@ import android.content.res.Resources
 import android.graphics.Canvas
 import android.graphics.Color
 import android.view.View
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 import io.github.lingqiqi5211.ezhooktool.xposed.dsl.HookFactory
@@ -62,7 +62,8 @@ import java.util.concurrent.ConcurrentHashMap
  * Installed once; acknowledged settings update the gates before the next native transition.
  */
 object FreeformBlurTransitionHooker : StaticHooker() {
-    override val hotReloadMode = HotReloadMode.RECREATE
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingFreeformBlurTransition by hookSetting(false) { Preferences.freeformBlurTransition() }
 
     private const val TAG = "FreeformBlur"
 
@@ -106,8 +107,7 @@ object FreeformBlurTransitionHooker : StaticHooker() {
 
     // ─── Cached state ─────────────────────────────────────────────────────────────────────────
 
-    @Volatile
-    private var enabled = false
+    private var enabled by generationState { false }
 
     private var targets: Targets? by generationState { null }
 
@@ -134,10 +134,10 @@ object FreeformBlurTransitionHooker : StaticHooker() {
     )
 
     private val nativeCapabilities = linkedMapOf<Field, Boolean>()
-    private val backgrounds = WeakHashMap<View, Int>()
+    private val backgrounds = generationMainResource(WeakHashMap<View, Int>()) { it.clear() }
 
     fun refreshSettings() = HostAccess.onMain {
-        enabled = Preferences.freeformBlurTransition()
+        enabled = settingFreeformBlurTransition
         nativeCapabilities.forEach { (field, original) -> StaticFieldWriter.setBoolean(field, original || enabled) }
         if (!enabled) restoreBackgrounds()
         DebugLog.i(TAG, "settings applied enabled=$enabled capabilityCaches=${nativeCapabilities.size}")
@@ -149,7 +149,6 @@ object FreeformBlurTransitionHooker : StaticHooker() {
     }
 
     override fun onPrepareHotReload() {
-        enabled = false
         HostAccess.onMain {
             restoreBackgrounds()
             nativeCapabilities.forEach { (field, original) -> StaticFieldWriter.setBoolean(field, original) }
@@ -158,7 +157,7 @@ object FreeformBlurTransitionHooker : StaticHooker() {
     }
 
     override fun onHook() {
-        enabled = Preferences.freeformBlurTransition()
+        enabled = settingFreeformBlurTransition
         // Resolve original cached capabilities before installing property overrides. Direct-read
         // consumers must observe the acknowledged switch too, including a default-off startup.
         listOf(

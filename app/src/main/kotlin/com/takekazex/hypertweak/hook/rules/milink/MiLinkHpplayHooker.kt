@@ -5,9 +5,9 @@ import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 import android.content.Context
 import android.preference.PreferenceManager
 import androidx.core.content.edit
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.reflect.Method
@@ -22,7 +22,10 @@ import java.lang.reflect.Method
  * turn the external path back on.
  */
 object MiLinkHpplayHooker : StaticHooker() {
-    override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingMilinkBlockHpplayFiles by hookSetting(false) {
+        Preferences.getBoolean(PlatformSettingsKeys.KEY_MILINK_BLOCK_HPPLAY_FILES, false)
+    }
 
     private const val TAG = "MiLinkHpplay"
     private const val PACKAGE = "com.milink.service"
@@ -32,7 +35,7 @@ object MiLinkHpplayHooker : StaticHooker() {
 
     override fun onHook() {
         if (hookParam.packageName != PACKAGE) return
-        if (!Preferences.getBoolean(PlatformSettingsKeys.KEY_MILINK_BLOCK_HPPLAY_FILES, false)) {
+        if (!settingMilinkBlockHpplayFiles) {
             DebugLog.hookSkippedDebug(TAG, "MiLink HPPlay external files", "disabled")
             return
         }

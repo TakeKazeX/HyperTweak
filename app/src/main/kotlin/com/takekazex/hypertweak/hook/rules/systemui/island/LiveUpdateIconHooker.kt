@@ -17,6 +17,7 @@ import android.os.Handler
 import android.os.Looper
 import android.widget.ImageView
 import androidx.core.graphics.createBitmap
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.DynamicHooker
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
@@ -27,6 +28,11 @@ import java.util.concurrent.TimeUnit
 
 /** Fixes native promoted-notification masks at their existing real/fake icon binding boundary. */
 class LiveUpdateIconHooker : DynamicHooker() {
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingIslandLiveUpdateIcon by hookSetting(false) {
+        Preferences.getBoolean(PlatformSettingsKeys.KEY_ISLAND_LIVE_UPDATE_ICON, false)
+    }
+
     private data class Tint(val original: ColorStateList?, val mode: PorterDuff.Mode?, val applied: ColorStateList)
     private val main = Handler(Looper.getMainLooper())
     private val holders = WeakHashMap<Any, Boolean>()
@@ -76,7 +82,7 @@ class LiveUpdateIconHooker : DynamicHooker() {
             if (retiring || !owner.isInstance(holder)) return
             val image = iconField.get(holder) as? ImageView ?: return
             release(image)
-            if (!Preferences.getBoolean(PlatformSettingsKeys.KEY_ISLAND_LIVE_UPDATE_ICON, false)) return
+            if (!settingIslandLiveUpdateIcon) return
             val info = picInfo.invoke(holder) ?: return
             val bundle = currentData.invoke(holder)?.let { extras.invoke(it) as? Bundle }
             if (!LiveUpdateIconPolicy.eligible(bundle?.getBoolean("miui.focus.isPromoted", false) == true,

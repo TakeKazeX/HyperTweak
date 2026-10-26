@@ -10,8 +10,8 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Process
 import android.provider.Settings
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.reflect.Method
@@ -75,8 +75,10 @@ import java.lang.reflect.Method
  * against the public stub jar.
  */
 object DefaultAssistantHooker : StaticHooker() {
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingPowerButtonAction by hookSetting(PlatformSettingsKeys.POWER_BUTTON_ACTION_DISABLED) { Preferences.powerButtonAction() }
+
     override val hookerName = "DefaultAssistant"
-    override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
 
     private const val SCOPE = "DefaultAssistant"
     private const val ROLE_ASSISTANT = "android.app.role.ASSISTANT"
@@ -114,8 +116,7 @@ object DefaultAssistantHooker : StaticHooker() {
 
     private var observerInstalled by generationState { false }
 
-    @Volatile
-    private var settingObserver: android.database.ContentObserver? = null
+    private var settingObserver: android.database.ContentObserver? by generationState { null }
 
     private val startupRetry = SystemServerStartupRetry(
         scope = SCOPE,
@@ -457,7 +458,7 @@ object DefaultAssistantHooker : StaticHooker() {
     // ─── Platform access ──────────────────────────────────────────────────────
 
     private fun isDefaultAssistantAction(): Boolean =
-        Preferences.powerButtonAction() == PlatformSettingsKeys.POWER_BUTTON_ACTION_DEFAULT_ASSISTANT
+        settingPowerButtonAction == PlatformSettingsKeys.POWER_BUTTON_ACTION_DEFAULT_ASSISTANT
 
     private fun currentAssistantSetting(context: Context): String? =
         runCatching { Settings.Secure.getString(context.contentResolver, SETTING_ASSISTANT) }

@@ -1,6 +1,15 @@
 package com.takekazex.hypertweak.hook.rules.securitycenter.battery
 
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
+
+// Published on settings acceptance; hook callbacks perform no storage reads.
+private val settingKeepRefreshRateInPowerSave by hookSetting(false) { Preferences.keepRefreshRateInPowerSave() }
+private val settingKeepHapticFeedbackInPowerSave by hookSetting(false) { Preferences.keepHapticFeedbackInPowerSave() }
+private val settingKeepSystemSoundsInPowerSave by hookSetting(false) { Preferences.keepSystemSoundsInPowerSave() }
+private val settingKeepWakeupGesturesInPowerSave by hookSetting(false) { Preferences.keepWakeupGesturesInPowerSave() }
+
+internal fun preparePowerSaveOverridePolicySettings() { settingKeepRefreshRateInPowerSave }
 
 /**
  * The pure decision behind [PowerSaveOverrideHooker]: does this Security Center write belong to a
@@ -81,10 +90,10 @@ internal object PowerSaveOverridePolicy {
     /** Reads the independent feature switch, including legacy configuration compatibility. */
     fun isGroupEnabled(group: Group): Boolean =
         when (group) {
-            Group.REFRESH_RATE -> Preferences.keepRefreshRateInPowerSave()
-            Group.HAPTIC_FEEDBACK -> Preferences.keepHapticFeedbackInPowerSave()
-            Group.SYSTEM_SOUNDS -> Preferences.keepSystemSoundsInPowerSave()
-            Group.WAKEUP_GESTURES -> Preferences.keepWakeupGesturesInPowerSave()
+            Group.REFRESH_RATE -> settingKeepRefreshRateInPowerSave
+            Group.HAPTIC_FEEDBACK -> settingKeepHapticFeedbackInPowerSave
+            Group.SYSTEM_SOUNDS -> settingKeepSystemSoundsInPowerSave
+            Group.WAKEUP_GESTURES -> settingKeepWakeupGesturesInPowerSave
         }
 
     /** Whether any feature still needs the hook installed. */

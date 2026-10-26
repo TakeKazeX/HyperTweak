@@ -4,6 +4,7 @@ import com.takekazex.hypertweak.hook.base.cachedPublicMethod
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import android.app.Activity
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.StaticHooker
@@ -24,12 +25,13 @@ object HyperOsAiEntriesHooker : StaticHooker() {
     private const val FRAGMENT = "com.android.settings.XiaomiHyperOSAiFragment"
     private const val MODEL = "com.android.settings.hyperosai.ModelManagementController"
     private const val GEMINI = "com.android.settings.hyperosai.GeminiController"
-    private val pages = WeakHashMap<Any, Boolean>()
-    private val displays = HashMap<Class<*>, Method>()
-    private var nativeLabelDisplay: Method? = null
-    private var fragmentActivity: Class<*>? = null
-    private var ready = false
+    private val pages = generationMainResource(WeakHashMap<Any, Boolean>()) { it.clear() }
+    private val displays = generationMainResource(HashMap<Class<*>, Method>()) { it.clear() }
+    private var nativeLabelDisplay: Method? by generationState { null }
+    private var fragmentActivity: Class<*>? by generationState { null }
+    private var ready by generationState { false }
     private var retired = false
+    init { generationCleanup { retired = true } }
 
     override fun onHook() {
         if (hookParam.packageName != PACKAGE || !isMainProcess) return
@@ -71,6 +73,7 @@ object HyperOsAiEntriesHooker : StaticHooker() {
     }
 
     private fun hookAvailability(className: String, hookId: String, key: String) {
+        val enabled by hookSetting(false) { Preferences.getBoolean(key, false) }
         val owner = hostClass(className) ?: return
         val availability = owner.declaredMethods.singleOrNull {
             it.name == "getAvailabilityStatus" && it.parameterTypes.isEmpty() && it.returnType == Int::class.javaPrimitiveType
@@ -82,7 +85,7 @@ object HyperOsAiEntriesHooker : StaticHooker() {
         availability.hook(hookId) {
             after { param ->
                 HookFailurePolicy.open(TAG, "entry availability", Unit) {
-                    if (!retired && Preferences.getBoolean(key, false)) param.result = 0
+                    if (!retired && enabled) param.result = 0
                 }
             }
         }
@@ -159,10 +162,8 @@ object HyperOsAiEntriesHooker : StaticHooker() {
         // controllers restore visibility before replacement.
         retired = true
         if (ready) refreshHosts(recoverLabels = false)
-        ready = false
         pages.clear()
         displays.clear()
-        nativeLabelDisplay = null
         fragmentActivity = null
     }
 }

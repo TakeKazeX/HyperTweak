@@ -5,6 +5,7 @@ import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 
 import android.media.MediaActionSound
 import android.net.Uri
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
@@ -12,6 +13,11 @@ import java.io.File
 
 /** Keeps the HyperOS screenshot sound when the lockscreen status bar is hidden. */
 object SystemUiScreenshotSoundHooker : StaticHooker() {
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingHideLockscreenStatusBar by hookSetting(false) {
+        Preferences.getBoolean(SystemUiSettingsKeys.KEY_HIDE_LOCKSCREEN_STATUS_BAR, false)
+    }
+
     private const val HYPEROS_SHUTTER_SOUND_PATH = "/system/media/audio/ui/camera_click.ogg"
     private const val MIUI_SCREENSHOT_PROVIDER =
         "com.miui.screenshot.core.dependencies.ScreenshotSoundProviderImpl"
@@ -30,7 +36,7 @@ object SystemUiScreenshotSoundHooker : StaticHooker() {
             HostAccess.requirePublicMethod(MediaActionSound::class.java, "play", Int::class.javaPrimitiveType, accessible = false).hook {
                 before { param ->
                     if (
-                        Preferences.getBoolean(SystemUiSettingsKeys.KEY_HIDE_LOCKSCREEN_STATUS_BAR, false) &&
+                        settingHideLockscreenStatusBar &&
                             (param.args.getOrNull(0) as? Number)?.toInt() == MediaActionSound.SHUTTER_CLICK
                     ) {
                         // The MIUI screenshot process owns the real HyperOS shutter playback.
@@ -52,7 +58,7 @@ object SystemUiScreenshotSoundHooker : StaticHooker() {
             HostAccess.requireDeclaredMethod(providerClass, "resolveSoundUri", Boolean::class.javaPrimitiveType, accessible = true).hook("miui_screenshot_sound_uri") {
                 before { param ->
                     if (
-                        Preferences.getBoolean(SystemUiSettingsKeys.KEY_HIDE_LOCKSCREEN_STATUS_BAR, false) &&
+                        settingHideLockscreenStatusBar &&
                             (param.args.getOrNull(0) as? Boolean) == false
                     ) {
                         param.result = hyperOsShutterSoundUri

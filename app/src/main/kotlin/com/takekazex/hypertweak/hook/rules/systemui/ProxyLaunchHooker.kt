@@ -30,7 +30,7 @@ object ProxyLaunchHooker : StaticHooker() {
         )
     )
 
-    private var registration: Pair<Context, BroadcastReceiver>? = null
+    private var registration: Pair<Context, BroadcastReceiver>? by generationState { null }
 
     override fun onHook() {
         // Registered from HookEntry.onPackageReady once an application Context exists.

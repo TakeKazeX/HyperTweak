@@ -2,8 +2,8 @@ package com.takekazex.hypertweak.hook.rules.systemui.icon
 
 import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
 
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 
@@ -24,7 +24,34 @@ import com.takekazex.hypertweak.util.logging.DebugLog
  * the observer field; rebuilding native icon groups reconnects existing binder collections.
  */
 object CellularIconHooker : StaticHooker() {
-    override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingIconHideCellularActivity by hookSetting(false) {
+        Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_ACTIVITY, false)
+    }
+    private val settingIconHideCellularType by hookSetting(false) {
+        Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_TYPE, false)
+    }
+    private val settingIconHideCellularRoamGlobal by hookSetting(false) {
+        Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_ROAM_GLOBAL, false)
+    }
+    private val settingIconHideCellularRoam by hookSetting(false) {
+        Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_ROAM, false)
+    }
+    private val settingIconHideCellularSmallRoam by hookSetting(false) {
+        Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_SMALL_ROAM, false)
+    }
+    private val settingIconHideCellularVowifi by hookSetting(false) {
+        Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_VOWIFI, false)
+    }
+    private val settingIconHideCellularVolte by hookSetting(false) {
+        Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_VOLTE, false)
+    }
+    private val settingIconHideCellularVolteNoService by hookSetting(false) {
+        Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_VOLTE_NO_SERVICE, false)
+    }
+    private val settingIconHideCellularSpeechHd by hookSetting(false) {
+        Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_SPEECH_HD, false)
+    }
 
     private const val TAG = "IconTuner"
     private const val VM_CLASS = "com.android.systemui.statusbar.pipeline.mobile.ui.viewmodel.MiuiCellularIconVM"
@@ -47,18 +74,17 @@ object CellularIconHooker : StaticHooker() {
 
     private var hideSpeechHd by generationState { false }
 
-
     override fun onHook() {
         IconTunerFlows.init(classLoader)
-        hideActivity = Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_ACTIVITY, false)
-        hideType = Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_TYPE, false)
-        hideRoamGlobal = Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_ROAM_GLOBAL, false)
-        hideRoam = Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_ROAM, false)
-        hideSmallRoam = Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_SMALL_ROAM, false)
-        hideVoWifi = Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_VOWIFI, false)
-        hideVolte = Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_VOLTE, false)
-        hideVolteNoService = Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_VOLTE_NO_SERVICE, false)
-        hideSpeechHd = Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_SPEECH_HD, false)
+        hideActivity = settingIconHideCellularActivity
+        hideType = settingIconHideCellularType
+        hideRoamGlobal = settingIconHideCellularRoamGlobal
+        hideRoam = settingIconHideCellularRoam
+        hideSmallRoam = settingIconHideCellularSmallRoam
+        hideVoWifi = settingIconHideCellularVowifi
+        hideVolte = settingIconHideCellularVolte
+        hideVolteNoService = settingIconHideCellularVolteNoService
+        hideSpeechHd = settingIconHideCellularSpeechHd
 
         val anyEnabled = hideActivity || hideType || hideRoamGlobal || hideRoam || hideSmallRoam ||
             hideVoWifi || hideVolte || hideVolteNoService || hideSpeechHd

@@ -2,8 +2,8 @@ package com.takekazex.hypertweak.hook.rules.securitycenter.battery
 
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.InstallPolicy
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.hook.base.dex.DexFeature
@@ -34,7 +34,10 @@ internal object DetailedPowerDataFeature : DexFeature {
  * five scans per boot, 573-1301 ms each (measured 2026-10-24).
  */
 object DetailedPowerDataHooker : StaticHooker() {
-    override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingSecurityCenterShowDetailedPowerData by hookSetting(false) {
+        Preferences.getBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_SHOW_DETAILED_POWER_DATA, false)
+    }
 
     private const val TAG = "DetailedPowerData"
     private const val PACKAGE = "com.miui.securitycenter"
@@ -45,7 +48,7 @@ object DetailedPowerDataHooker : StaticHooker() {
     override val installPolicy: InstallPolicy = InstallPolicy.WHEN_ENABLED
 
     override fun isFeatureEnabled(): Boolean =
-        Preferences.getBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_SHOW_DETAILED_POWER_DATA, false)
+        settingSecurityCenterShowDetailedPowerData
 
     override fun onHook() {
         if (hookParam.packageName != PACKAGE) return

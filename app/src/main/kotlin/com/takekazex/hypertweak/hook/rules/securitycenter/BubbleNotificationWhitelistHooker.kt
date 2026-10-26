@@ -13,10 +13,10 @@ import android.provider.Settings
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import android.util.ArrayMap
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.CompatibleMethodResolver
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.reflect.Constructor
@@ -34,6 +34,11 @@ import java.lang.reflect.Method
  * or change the freeform lifecycle.
  */
 object BubbleNotificationWhitelistHooker : StaticHooker() {
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingSecurityCenterBubbleNotificationUnlock by hookSetting(false) {
+        Preferences.getBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_BUBBLE_NOTIFICATION_UNLOCK, false)
+    }
+
     private const val TAG = "BubbleNotificationWhitelist"
 
     private const val BUBBLES_SETTINGS = "com.miui.bubbles.settings.BubblesSettings"
@@ -49,13 +54,8 @@ object BubbleNotificationWhitelistHooker : StaticHooker() {
     private const val BUBBLE_UP_MANAGER_SETTINGS_FIELD = "mBubblesSettings"
     private const val SECURE_BUBBLE_APP_SETTINGS = "miui_bubble_app_settings"
 
-    override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
-
     override fun onHook() {
-        if (!Preferences.getBoolean(
-                PlatformSettingsKeys.KEY_SECURITY_CENTER_BUBBLE_NOTIFICATION_UNLOCK,
-                false
-            )
+        if (!settingSecurityCenterBubbleNotificationUnlock
         ) {
             DebugLog.hookSkippedDebug(TAG, "Security Center bubble notification app limit", "disabled")
             return
@@ -111,10 +111,7 @@ object BubbleNotificationWhitelistHooker : StaticHooker() {
             gate.hook {
                 before { param ->
                     HookFailurePolicy.open(TAG, "isEnableBubbleNotification", Unit) {
-                        if (Preferences.getBoolean(
-                            PlatformSettingsKeys.KEY_SECURITY_CENTER_BUBBLE_NOTIFICATION_UNLOCK,
-                            false
-                        )
+                        if (settingSecurityCenterBubbleNotificationUnlock
                         ) {
                             val notification = param.args.getOrNull(0) as? StatusBarNotification
                                 ?: return@open

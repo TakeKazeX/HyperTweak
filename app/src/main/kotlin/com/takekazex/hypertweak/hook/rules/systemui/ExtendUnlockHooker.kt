@@ -8,10 +8,10 @@ import android.app.KeyguardManager
 import android.content.ComponentName
 import android.content.Context
 import android.os.SystemClock
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.CompatibleMethodResolver
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.reflect.Field
@@ -48,6 +48,9 @@ import java.util.concurrent.ConcurrentHashMap
  * notification loop, so a trust revocation can never read back a stale `true`.
  */
 object ExtendUnlockHooker : StaticHooker() {
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingExtendUnlockFix by hookSetting(false) { Preferences.getBoolean(PlatformSettingsKeys.KEY_EXTEND_UNLOCK_FIX, false) }
+
     private const val TAG = "ExtendUnlock"
 
     private const val KEYGUARD_UPDATE_MONITOR = "com.android.keyguard.KeyguardUpdateMonitor"
@@ -63,8 +66,7 @@ object ExtendUnlockHooker : StaticHooker() {
 
     private class CachedTrust(val uptimeMs: Long, val trusted: Boolean)
 
-    @Volatile
-    private var enabled = false
+    private var enabled by generationState { false }
 
     private val trustCache = generationResource(ConcurrentHashMap<Int, CachedTrust>()) { it.clear() }
 
@@ -81,8 +83,6 @@ object ExtendUnlockHooker : StaticHooker() {
     /** `KeyguardManager.isKeyguardLocked()` — gates the override on the keyguard being on screen. */
     private var isKeyguardLockedMethod: Method? by generationState { null }
 
-    override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
-
     /**
      * Puts GMS's Extend Unlock agent into the enabled trust agent list, which is what actually makes
      * the feature available.
@@ -96,7 +96,7 @@ object ExtendUnlockHooker : StaticHooker() {
      */
     fun syncTrustAgent(context: Context) {
         HookFailurePolicy.open(TAG, "syncTrustAgent", Unit) {
-            val wanted = Preferences.getBoolean(PlatformSettingsKeys.KEY_EXTEND_UNLOCK_FIX, false)
+            val wanted = settingExtendUnlockFix
             val lockPatternUtils = "com.android.internal.widget.LockPatternUtils".toClassOrNull()
                 ?: return@open
             val instance = lockPatternUtils.getConstructor(Context::class.java).newInstance(context)
@@ -127,7 +127,7 @@ object ExtendUnlockHooker : StaticHooker() {
     }
 
     override fun onHook() {
-        enabled = Preferences.getBoolean(PlatformSettingsKeys.KEY_EXTEND_UNLOCK_FIX, false)
+        enabled = settingExtendUnlockFix
         if (!enabled) {
             DebugLog.hookSkippedDebug(TAG, "keyguard trust state", "disabled")
             return

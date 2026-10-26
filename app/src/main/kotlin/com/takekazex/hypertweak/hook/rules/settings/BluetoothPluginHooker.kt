@@ -4,12 +4,19 @@ import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import android.util.Log
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.hook.rules.bluetooth.AirPodsScope
 import java.lang.reflect.Method
 
 object BluetoothPluginHooker : StaticHooker() {
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingDisableSpatialAudio by hookSetting(false) {
+        Preferences.getBoolean(PlatformSettingsKeys.KEY_DISABLE_SPATIAL_AUDIO, false)
+    }
+    private val settingForceAdaptiveAnc by hookSetting(false) { Preferences.getBoolean(PlatformSettingsKeys.KEY_FORCE_ADAPTIVE_ANC, false) }
+
     private const val TAG = "HyperTweak"
 
     override fun onHook() {
@@ -137,8 +144,8 @@ object BluetoothPluginHooker : StaticHooker() {
         }
 
     private fun disableSpatialEnabled() =
-        Preferences.getBoolean(PlatformSettingsKeys.KEY_DISABLE_SPATIAL_AUDIO, false)
+        settingDisableSpatialAudio
 
     private fun forceAdaptiveEnabled() =
-        Preferences.getBoolean(PlatformSettingsKeys.KEY_FORCE_ADAPTIVE_ANC, false)
+        settingForceAdaptiveAnc
 }

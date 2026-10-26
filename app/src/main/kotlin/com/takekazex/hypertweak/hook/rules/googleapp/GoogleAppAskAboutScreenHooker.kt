@@ -5,10 +5,10 @@ import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import com.takekazex.hypertweak.hook.base.dex.DexContractMembers
 import android.content.Context
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.BooleanArgumentOverride
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 import org.luckypray.dexkit.DexKitBridge
@@ -71,7 +71,9 @@ import java.util.concurrent.atomic.AtomicBoolean
  * native path and lets Google's own model and callback choose the text.
  */
 object GoogleAppAskAboutScreenHooker : StaticHooker() {
-    override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingAskAboutScreen by hookSetting(false) { Preferences.getBoolean(PlatformSettingsKeys.KEY_ASK_ABOUT_SCREEN, false) }
+
 
     const val PACKAGE = "com.google.android.googlequicksearchbox"
 
@@ -97,19 +99,17 @@ object GoogleAppAskAboutScreenHooker : StaticHooker() {
         HOOK_CAPABILITY
     )
 
-    @Volatile
-    private var enabledCache = false
+    private var enabledCache by generationState { false }
 
-    @Volatile
-    private var targets: Targets? = null
+    private var targets: Targets? by generationState { null }
 
-    private val capabilityOverrideLogged = AtomicBoolean()
-    private val eligibilityOverrideLogged = AtomicBoolean()
-    private val hintOverrideLogged = AtomicBoolean()
-    private val thumbnailOverrideLogged = AtomicBoolean()
+    private val capabilityOverrideLogged = generationResource(AtomicBoolean()) { it.set(false) }
+    private val eligibilityOverrideLogged = generationResource(AtomicBoolean()) { it.set(false) }
+    private val hintOverrideLogged = generationResource(AtomicBoolean()) { it.set(false) }
+    private val thumbnailOverrideLogged = generationResource(AtomicBoolean()) { it.set(false) }
 
     private fun featureEnabled(): Boolean {
-        enabledCache = Preferences.getBoolean(PlatformSettingsKeys.KEY_ASK_ABOUT_SCREEN, false)
+        enabledCache = settingAskAboutScreen
         return enabledCache
     }
 

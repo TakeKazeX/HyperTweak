@@ -21,7 +21,6 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
 import com.takekazex.hypertweak.hook.rules.systemui.AODHooker
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.DynamicHooker
 import com.takekazex.hypertweak.presentation.icon.duo.DuoBattery
 import com.takekazex.hypertweak.presentation.icon.duo.DuoContent
@@ -38,7 +37,6 @@ import androidx.core.view.isVisible
 
 /** Adapter for the AOD plugin's battery row, usually hosted inside SystemUI. */
 class AodStatusIconHooker : DynamicHooker() {
-    override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
 
     companion object {
         /** Never retains a retired hooker: the host owns the views the records point at. */
@@ -117,6 +115,7 @@ class AodStatusIconHooker : DynamicHooker() {
     }
 
     override fun onHook() {
+        com.takekazex.hypertweak.hook.rules.aod.prepareAodIconSettingsSettings()
         retiring = false
         // The AOD battery row stays hooked for this process generation: every committed AOD
         // setting is applied through [refreshSettings], including the first option that turns the

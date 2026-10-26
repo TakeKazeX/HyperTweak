@@ -4,9 +4,9 @@ import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import android.content.ContentResolver
 import android.provider.Settings
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 import io.github.lingqiqi5211.ezhooktool.xposed.common.HookParam
@@ -22,7 +22,17 @@ import java.lang.reflect.Method
  * and the persisted ROM configuration remain untouched.
  */
 object LowBatteryWarningHooker : StaticHooker() {
-    override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
+    private val hasSelectedMode by hookSetting(false) { Preferences.contains(PlatformSettingsKeys.KEY_SECURITY_CENTER_LOW_BATTERY_MODE) }
+    private val hasLegacyMode by hookSetting(false) {
+        Preferences.contains(PlatformSettingsKeys.KEY_SECURITY_CENTER_HIDE_LOW_BATTERY_WARNING)
+    }
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingSecurityCenterLowBatteryMode by hookSetting(PlatformSettingsKeys.SECURITY_CENTER_LOW_BATTERY_FOLLOW) {
+        Preferences.getInt(PlatformSettingsKeys.KEY_SECURITY_CENTER_LOW_BATTERY_MODE, PlatformSettingsKeys.SECURITY_CENTER_LOW_BATTERY_FOLLOW)
+    }
+    private val settingSecurityCenterHideLowBatteryWarning by hookSetting(false) {
+        Preferences.getBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_HIDE_LOW_BATTERY_WARNING, false)
+    }
 
     private const val TAG = "LowBatteryWarning"
     private const val PACKAGE = "com.miui.securitycenter"
@@ -52,11 +62,8 @@ object LowBatteryWarningHooker : StaticHooker() {
     }
 
     private fun selectedMode(): Int {
-        if (Preferences.contains(PlatformSettingsKeys.KEY_SECURITY_CENTER_LOW_BATTERY_MODE)) {
-            return Preferences.getInt(
-                PlatformSettingsKeys.KEY_SECURITY_CENTER_LOW_BATTERY_MODE,
-                PlatformSettingsKeys.SECURITY_CENTER_LOW_BATTERY_FOLLOW
-            ).coerceIn(
+        if (hasSelectedMode) {
+            return settingSecurityCenterLowBatteryMode.coerceIn(
                 PlatformSettingsKeys.SECURITY_CENTER_LOW_BATTERY_FOLLOW,
                 PlatformSettingsKeys.SECURITY_CENTER_LOW_BATTERY_SILENT
             )
@@ -64,8 +71,8 @@ object LowBatteryWarningHooker : StaticHooker() {
 
         // Version 1 stored one boolean. Its enabled state meant both dialog and sound were hidden.
         return if (
-            Preferences.contains(PlatformSettingsKeys.KEY_SECURITY_CENTER_HIDE_LOW_BATTERY_WARNING) &&
-            Preferences.getBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_HIDE_LOW_BATTERY_WARNING, false)
+            hasLegacyMode &&
+            settingSecurityCenterHideLowBatteryWarning
         ) {
             PlatformSettingsKeys.SECURITY_CENTER_LOW_BATTERY_SILENT
         } else {

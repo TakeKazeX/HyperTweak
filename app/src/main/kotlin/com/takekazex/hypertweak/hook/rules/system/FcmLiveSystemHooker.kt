@@ -7,6 +7,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.content.pm.ResolveInfo
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.hook.base.CollectionOverrides
@@ -18,6 +19,9 @@ import com.takekazex.hypertweak.util.logging.DebugLog
  * https://github.com/howard20181/HyperOS_FCM_Live
  */
 object FcmLiveSystemHooker : StaticHooker() {
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingFcmLiveEnabled by hookSetting(false) { Preferences.getBoolean(PlatformSettingsKeys.KEY_FCM_LIVE_ENABLED, false) }
+
     override val hookerName = "FcmLiveSystem"
 
     private val CN_DEFER_BROADCAST = listOf(
@@ -30,11 +34,10 @@ object FcmLiveSystemHooker : StaticHooker() {
     private const val GMS_PACKAGE_NAME = "com.google.android.gms"
     private const val GMS_PERSISTENT_PROCESS_NAME = "com.google.android.gms.persistent"
 
-    @Volatile
-    private var loggedImmutableWhiteList = false
+    private var loggedImmutableWhiteList by generationState { false }
 
     override fun onInit() {
-        if (!Preferences.getBoolean(PlatformSettingsKeys.KEY_FCM_LIVE_ENABLED, false)) {
+        if (!settingFcmLiveEnabled) {
             DebugLog.d(hookerName, "FCM Live disabled by user preference")
             return
         }

@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.system
 
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.StaticHooker
@@ -25,6 +26,9 @@ import com.takekazex.hypertweak.util.logging.DebugLog
  * system_server's own loader. Verified byte-identical against OS4.0.0.31 `miui-framework.jar`.
  */
 object ThemeDrmRevalidationHooker : StaticHooker() {
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingAllowThirdPartyTheme by hookSetting(false) { Preferences.allowThirdPartyTheme() }
+
     private const val TAG = "ThemeDrm"
     private const val DRM_MANAGER = "miui.drm.DrmManager"
     private const val THEME_RECEIVER = "miui.drm.ThemeReceiver"
@@ -34,7 +38,7 @@ object ThemeDrmRevalidationHooker : StaticHooker() {
     private val revalidating = ThreadLocal<Boolean>()
 
     override fun onHook() {
-        if (!Preferences.allowThirdPartyTheme()) {
+        if (!settingAllowThirdPartyTheme) {
             DebugLog.hookSkippedDebug(TAG, "theme DRM re-validation", "disabled")
             return
         }

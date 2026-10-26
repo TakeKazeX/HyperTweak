@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.lockscreen
 
+import com.takekazex.hypertweak.hook.base.ViewVisibilityRouter
 import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
 import com.takekazex.hypertweak.hook.rules.systemui.NativeViewAttachmentReplay
@@ -9,9 +10,9 @@ import com.takekazex.hypertweak.settings.contract.LockscreenBottomTextOptions
 
 import android.view.View
 import android.view.ViewParent
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 
@@ -25,13 +26,22 @@ import com.takekazex.hypertweak.util.logging.DebugLog
  * card or per-app notification gate is touched.
  */
 object LockscreenBottomTextHooker : StaticHooker() {
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingLockscreenBottomText by hookSetting(false) {
+        Preferences.getBoolean(SystemUiSettingsKeys.KEY_LOCKSCREEN_BOTTOM_TEXT, false)
+    }
+    private val settingLockscreenBottomTextMask by hookSetting(LockscreenBottomTextOptions.DEFAULT_MASK) {
+        Preferences.getInt(SystemUiSettingsKeys.KEY_LOCKSCREEN_BOTTOM_TEXT_MASK, LockscreenBottomTextOptions.DEFAULT_MASK)
+    }
+    private val settingLockscreenBottomTextMode by hookSetting(LockscreenBottomTextOptions.DEFAULT_MODE) {
+        Preferences.getInt(SystemUiSettingsKeys.KEY_LOCKSCREEN_BOTTOM_TEXT_MODE, LockscreenBottomTextOptions.DEFAULT_MODE)
+    }
+
     init {
         hostRecovery(HostRecoveryPhase.WINDOWS) {
             recoverExistingViews(it.views)
         }
     }
-
-    override val hotReloadMode = HotReloadMode.RECREATE
 
     private const val TAG = "LockscreenBottomText"
     private const val INDICATION_CONTROLLER =
@@ -62,8 +72,7 @@ object LockscreenBottomTextHooker : StaticHooker() {
     private const val KEY_TO_UNLOCK_TYPE = 18
     private const val ENTER_TO_UNLOCK_TYPE = 19
 
-    @Volatile
-    private var enabled = false
+    private var enabled by generationState { false }
 
     private var numStateClass: Class<*>? by generationState { null }
 
@@ -94,7 +103,7 @@ object LockscreenBottomTextHooker : StaticHooker() {
      */
     fun refreshSettings() {
         val wasEnabled = enabled
-        enabled = Preferences.getBoolean(SystemUiSettingsKeys.KEY_LOCKSCREEN_BOTTOM_TEXT, false)
+        enabled = settingLockscreenBottomText
         if (wasEnabled != enabled) {
             com.takekazex.hypertweak.hook.base.HostAccess.onMain {
                 knownIndicationViews.toList().filter { it.isAttachedToWindow }
@@ -109,7 +118,7 @@ object LockscreenBottomTextHooker : StaticHooker() {
         java.util.Collections.newSetFromMap(java.util.WeakHashMap<View, Boolean>())
 
     override fun onHook() {
-        enabled = Preferences.getBoolean(SystemUiSettingsKeys.KEY_LOCKSCREEN_BOTTOM_TEXT, false)
+        enabled = settingLockscreenBottomText
         hookRotatingIndications()
         hookCompactStatusText()
         hookCompactStatusAnimations()
@@ -166,28 +175,10 @@ object LockscreenBottomTextHooker : StaticHooker() {
             DebugLog.d(TAG, "$NUM_STATE_VIEW child ids deferred to target resources")
         }
 
-        runCatching {
-            HostAccess.requirePublicMethod(View::class.java, "setVisibility", Int::class.javaPrimitiveType, accessible = false).hook {
-                before { param ->
-                    HookFailurePolicy.open(TAG, "compact status visibility", Unit) {
-                        val view = param.thisObject as? View ?: return@open
-                        // The interceptor stays installed while the feature is off; only the
-                        // accepted snapshot decides whether it may change the host's result.
-                        if (!enabled) return@open
-                        if (isCompactStatusContainer(view) && !hasAllowedCompactStatus()) {
-                            param.args[0] = View.GONE
-                            return@open
-                        }
-                        if (!isCompactStatusChild(view)) return@open
-                        if (shouldHideCompactView(view)) {
-                            param.args[0] = View.GONE
-                        }
-                    }
-                }
-            }
-        }.onFailure {
-            DebugLog.hookFailed(TAG, "View#setVisibility(Int)", it)
-        }
+        ViewVisibilityRouter.visibility(this, before = { view, _ ->
+            if (enabled && (isCompactStatusContainer(view) && !hasAllowedCompactStatus() ||
+                    isCompactStatusChild(view) && shouldHideCompactView(view))) View.GONE else null
+        })
     }
 
     /**
@@ -339,15 +330,9 @@ object LockscreenBottomTextHooker : StaticHooker() {
 
     private fun isAllowed(category: Int): Boolean {
         if (!enabled) return true
-        val mask = Preferences.getInt(
-            SystemUiSettingsKeys.KEY_LOCKSCREEN_BOTTOM_TEXT_MASK,
-            LockscreenBottomTextOptions.DEFAULT_MASK
-        )
+        val mask = settingLockscreenBottomTextMask
         val selected = (mask and category) != 0
-        return if (Preferences.getInt(
-                SystemUiSettingsKeys.KEY_LOCKSCREEN_BOTTOM_TEXT_MODE,
-                LockscreenBottomTextOptions.DEFAULT_MODE
-            ) == LockscreenBottomTextOptions.MODE_WHITELIST
+        return if (settingLockscreenBottomTextMode == LockscreenBottomTextOptions.MODE_WHITELIST
         ) {
             selected
         } else {

@@ -4,6 +4,7 @@ import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import android.content.Intent
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.StaticHooker
@@ -24,6 +25,11 @@ import java.lang.reflect.Field
  * leaving the header construction and click routing in Settings untouched.
  */
 object GoogleServicesSettingsHooker : StaticHooker() {
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingShowGoogleServicesInSettings by hookSetting(false) {
+        Preferences.getBoolean(PlatformSettingsKeys.KEY_SHOW_GOOGLE_SERVICES_IN_SETTINGS, false)
+    }
+
     private const val TAG = "GoogleServicesSettings"
     private const val SETTINGS_CLASS = "com.android.settings.MiuiSettings"
     private const val UPDATE_HEADER_LIST = "updateHeaderList"
@@ -31,7 +37,7 @@ object GoogleServicesSettingsHooker : StaticHooker() {
     private const val GOOGLE_SETTINGS_PACKAGE = "com.google.android.gms"
 
     override fun onHook() {
-        if (!Preferences.getBoolean(PlatformSettingsKeys.KEY_SHOW_GOOGLE_SERVICES_IN_SETTINGS, false)) {
+        if (!settingShowGoogleServicesInSettings) {
             DebugLog.hookSkippedDebug(TAG, "Settings home Google services entry", "disabled")
             return
         }
@@ -61,10 +67,7 @@ object GoogleServicesSettingsHooker : StaticHooker() {
         updateHeaderList.hook("settings_google_services_home_reveal") {
             after { param ->
                 HookFailurePolicy.open(TAG, "$UPDATE_HEADER_LIST.after", Unit) {
-                    if (!Preferences.getBoolean(
-                            PlatformSettingsKeys.KEY_SHOW_GOOGLE_SERVICES_IN_SETTINGS,
-                            false
-                        )
+                    if (!settingShowGoogleServicesInSettings
                     ) {
                         return@open
                     }

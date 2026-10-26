@@ -8,7 +8,6 @@ import com.takekazex.hypertweak.settings.contract.IconSurface
 import com.takekazex.hypertweak.hook.base.HostAccess
 import android.os.Handler
 import android.os.Looper
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.reflect.Field
@@ -30,8 +29,6 @@ object IconManagerHooker : StaticHooker() {
         }
     }
 
-    override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
-
     private const val TAG = "IconTuner"
     private const val UTILS_CLASS = "com.android.systemui.statusbar.phone.MiuiIconManagerUtils"
     private const val ICON_MANAGER_CLASS = "com.android.systemui.statusbar.phone.ui.IconManager"
@@ -42,19 +39,19 @@ object IconManagerHooker : StaticHooker() {
     )
 
     private val mainHandler = Handler(Looper.getMainLooper())
-    private val states = WeakHashMap<Any, ManagerState>()
-    private val listSurfaces = IdentityHashMap<Any, IconSurface>()
-    private val pristineLists = IdentityHashMap<Any, List<String>>()
+    private val states = generationMainResource(WeakHashMap<Any, ManagerState>()) { it.clear() }
+    private val listSurfaces = generationMainResource(IdentityHashMap<Any, IconSurface>()) { it.clear() }
+    private val pristineLists = generationMainResource(IdentityHashMap<Any, List<String>>()) { it.clear() }
     private val stateLock = Any()
 
-    @Volatile
-    private var options = IconTunerOptions.snapshot()
+    private var options by generationState { IconTunerOptions.snapshot() }
 
+    private var restoring by generationState { false }
     @Volatile
-    private var restoring = false
-    @Volatile private var retiring = false
+    private var retiring = false
+    init { generationCleanup { retiring = true } }
 
-    private var setBlockListMethod: java.lang.reflect.Method? = null
+    private var setBlockListMethod: java.lang.reflect.Method? by generationState { null }
 
     override fun saveHotReloadState(): Any = HostAccess.onMain {
         synchronized(stateLock) {

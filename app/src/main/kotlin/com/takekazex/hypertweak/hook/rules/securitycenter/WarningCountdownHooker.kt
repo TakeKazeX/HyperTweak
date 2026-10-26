@@ -14,9 +14,9 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 import io.github.lingqiqi5211.ezhooktool.xposed.common.HookParam
@@ -72,7 +72,10 @@ import java.lang.reflect.Modifier
  * resolution is ambiguous.
  */
 object WarningCountdownHooker : StaticHooker() {
-    override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingSecurityCenterPermissionWarningMode by hookSetting(PlatformSettingsKeys.SECURITY_CENTER_WARNING_FOLLOW_SYSTEM) {
+        Preferences.getInt(PlatformSettingsKeys.KEY_SECURITY_CENTER_PERMISSION_WARNING_MODE, PlatformSettingsKeys.SECURITY_CENTER_WARNING_FOLLOW_SYSTEM)
+    }
 
     private const val TAG = "WarningCountdown"
     private const val PACKAGE = "com.miui.securitycenter"
@@ -106,7 +109,7 @@ object WarningCountdownHooker : StaticHooker() {
     private const val PROPERTY_COMPAT_CLASS = "com.miui.permcenter.compact.SystemPropertiesCompat"
 
     /** Per-activity-class countdown field resolved by the decrement probe below. */
-    private val countdownFields = java.util.concurrent.ConcurrentHashMap<Class<*>, Field>()
+    private val countdownFields = generationResource(java.util.concurrent.ConcurrentHashMap<Class<*>, Field>()) { it.clear() }
 
     /** Host property accessors (`set`/`get`), resolved once per process. */
     private val propertyAccessors by lazy { resolvePropertyAccessors() }
@@ -131,10 +134,7 @@ object WarningCountdownHooker : StaticHooker() {
         }
     }
 
-    private fun selectedMode(): Int = Preferences.getInt(
-        PlatformSettingsKeys.KEY_SECURITY_CENTER_PERMISSION_WARNING_MODE,
-        PlatformSettingsKeys.SECURITY_CENTER_WARNING_FOLLOW_SYSTEM
-    ).coerceIn(
+    private fun selectedMode(): Int = settingSecurityCenterPermissionWarningMode.coerceIn(
         PlatformSettingsKeys.SECURITY_CENTER_WARNING_FOLLOW_SYSTEM,
         PlatformSettingsKeys.SECURITY_CENTER_WARNING_DIRECT_APPROVE
     )

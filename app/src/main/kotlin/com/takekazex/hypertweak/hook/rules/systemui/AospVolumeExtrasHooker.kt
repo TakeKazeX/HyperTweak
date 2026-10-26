@@ -25,8 +25,8 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.core.util.isNotEmpty
 import com.takekazex.hypertweak.R
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
@@ -50,7 +50,8 @@ import kotlin.math.roundToInt
  * the controller rather than querying AudioManager for a possibly different stream.
  */
 object AospVolumeExtrasHooker : StaticHooker() {
-    override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingAospVolumePanel by hookSetting(false) { Preferences.getBoolean(PlatformSettingsKeys.KEY_AOSP_VOLUME_PANEL, false) }
 
     private const val TAG = "AospVolumeExtras"
     private const val VOLUME_DIALOG_VIEW_BINDER =
@@ -72,11 +73,9 @@ object AospVolumeExtrasHooker : StaticHooker() {
     private const val MODULE_PACKAGE = "com.takekazex.hypertweak"
 
     /** Resolved once: a package context lookup is far too heavy for a per-view-bind call. */
-    @Volatile
-    private var cachedDndDescription: String? = null
+    private var cachedDndDescription: String? by generationState { null }
 
-    @Volatile
-    private var enabled = false
+    private var enabled by generationState { false }
 
     private var controllerStateField: Field? by generationState { null }
     private var viewModelField: Field? by generationState { null }
@@ -104,7 +103,7 @@ object AospVolumeExtrasHooker : StaticHooker() {
     }
 
     override fun onHook() {
-        if (!Preferences.getBoolean(PlatformSettingsKeys.KEY_AOSP_VOLUME_PANEL, false)) {
+        if (!settingAospVolumePanel) {
             DebugLog.hookSkippedDebug(TAG, "AOSP volume extras", "AOSP volume panel disabled")
             return
         }

@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.screenshot
 
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.hook.base.dex.DexFeature
@@ -47,7 +48,12 @@ internal class ScreenshotDirectoryDecisions {
 }
 
 object ScreenshotSaveDirectoryHooker : StaticHooker() {
-    @Volatile private var retired = false
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingScreenshotPicturesDirectory by hookSetting(false) { Preferences.screenshotPicturesDirectory() }
+
+    @Volatile
+    private var retired = false
+    init { generationCleanup { retired = true } }
     private val decisions = ScreenshotDirectoryDecisions()
     override fun onHook() {
         retired = false
@@ -69,13 +75,13 @@ object ScreenshotSaveDirectoryHooker : StaticHooker() {
         }
         access.workers.forEach { worker ->
             worker.hook("screenshot_directory_save_scope") {
-                before { decisions.enter(!retired && Preferences.screenshotPicturesDirectory()) }
+                before { decisions.enter(!retired && settingScreenshotPicturesDirectory) }
                 after { decisions.leave() }
             }
         }
         access.predicate.hook("screenshot_directory_predicate") {
             before { param ->
-                if (!retired && decisions.current(Preferences::screenshotPicturesDirectory)) {
+                if (!retired && decisions.current { settingScreenshotPicturesDirectory }) {
                     param.result = true
                     DebugLog.d("ScreenshotDirectory", "native Pictures/Screenshots directory selected")
                 }

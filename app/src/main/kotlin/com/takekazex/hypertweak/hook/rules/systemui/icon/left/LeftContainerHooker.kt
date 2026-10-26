@@ -12,8 +12,8 @@ import android.os.Looper
 import android.view.View
 import android.view.ViewGroup
 import android.widget.LinearLayout
+import com.takekazex.hypertweak.hook.base.ViewVisibilityRouter
 import com.takekazex.hypertweak.hook.base.HostAccess
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.settings.contract.IconSlotPolicy
 import com.takekazex.hypertweak.settings.contract.IconTunerContract
@@ -98,9 +98,10 @@ object LeftContainerHooker : StaticHooker() {
         override fun cancelSlot(slot: String) = handover.cancelSlot(slot)
         override fun slotOf(view: View) = LeftContainerHooker.slotOf(view)
     }, cloner)
-    override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
 
-    @Volatile private var retiring = false
+    @Volatile
+    private var retiring = false
+    init { generationCleanup { retiring = true } }
     private const val TAG = "IconTuner"
     private const val RECONCILE_INTERVAL_MS = 1500L
 
@@ -162,14 +163,11 @@ object LeftContainerHooker : StaticHooker() {
     // drifted from the slots the hook actually moves.
 
     // ── Live snapshot (refreshed by the ticker; read by the per-event hooks) ──
-    @Volatile
-    private var active = false
+    private var active by generationState { false }
 
-    @Volatile
-    private var activeSlots: Set<String> = emptySet()
+    private var activeSlots: Set<String> by generationState { emptySet() }
 
-    @Volatile
-    private var leftMode = IconTunerContract.LEFT_MODE_DISABLED
+    private var leftMode by generationState { IconTunerContract.LEFT_MODE_DISABLED }
 
     private val mainHandler = Handler(Looper.getMainLooper())
     private val reconcileRunnable = Runnable { reconcileTick() }
@@ -199,48 +197,44 @@ object LeftContainerHooker : StaticHooker() {
         states.values.firstOrNull { it.isKeyguard }?.migratedSlots ?: emptySet()
     }
 
-    private var islandShowingField: Field? = null
-    private var slotGetter: Method? = null
-    @Volatile private var appContext: Context? = null
+    private var islandShowingField: Field? by generationState { null }
+    private var slotGetter: Method? by generationState { null }
+    private var appContext: Context? by generationState { null }
 
     /** Home DarkIconManager -> bookkeeping. Weak so stale managers vanish. */
-    private val states = WeakHashMap<Any, LeftState>()
+    private val states = generationMainResource(WeakHashMap<Any, LeftState>()) { it.clear() }
 
     private fun masterEnabled(): Boolean = leftMode != IconTunerContract.LEFT_MODE_DISABLED
 
     /** Owned slots as of the last tick, so a change can refresh the merged block lists. */
-    private var publishedOwnedSlots: Set<String> = emptySet()
-    private var publishedKeyguardOwnedSlots: Set<String> = emptySet()
+    private var publishedOwnedSlots: Set<String> by generationState { emptySet() }
+    private var publishedKeyguardOwnedSlots: Set<String> by generationState { emptySet() }
 
     /**
      * Panel expansion of the control center: 0 while the bar is alone, 1 once the shade owns the top
      * of the screen. Written per frame by the host's expand callback and re-read on every tick.
      */
-    @Volatile
-    private var panelProgress = 0f
+    private var panelProgress by generationState { 0f }
 
     /** True while the control-center window is still visible, including a gesture resting at 0. */
-    @Volatile
-    private var panelVisible = false
+    private var panelVisible by generationState { false }
 
     /** At this endpoint the host copies are ready; no home-to-QS overlay should replay. */
-    private var shadeSwitchSettledToControlCenter = false
+    private var shadeSwitchSettledToControlCenter by generationState { false }
 
     /** True once the host expansion callback is hooked; only then the hand-over is authoritative. */
-    @Volatile
-    private var panelProgressHooked = false
+    private var panelProgressHooked by generationState { false }
 
     /** The shade owns the status-bar band. Read on every tick as the coarser fallback signal. */
-    @Volatile
-    private var shadeFullyOpen = false
+    private var shadeFullyOpen by generationState { false }
 
     /**
      * The live control-center rows, in [CC_ROW_CLASSES] order. Weak: the shade views are recreated on
      * configuration changes and the old ones must not be kept alive. Read and written on the main
      * thread only.
      */
-    private val ccRows = LinkedHashMap<String, WeakReference<ViewGroup>>()
-    private val ccRowsScratch = ArrayList<ViewGroup>(CC_ROW_CLASSES.size)
+    private val ccRows = generationMainResource(LinkedHashMap<String, WeakReference<ViewGroup>>()) { it.clear() }
+    private val ccRowsScratch = generationMainResource(ArrayList<ViewGroup>(CC_ROW_CLASSES.size)) { it.clear() }
 
     /** A secondary host copy temporarily hidden while the overlay carries the icon. */
     private fun reloadSnapshot() {
@@ -565,23 +559,16 @@ object LeftContainerHooker : StaticHooker() {
         } ?: DebugLog.hookSkipped(TAG, "$STATUS_BAR_VIEW_CLASS#onAttachedToWindow", "method not found")
 
         // A host root can hide/reveal without attachment or an icon payload change.
-        HostAccess.requirePublicMethod(View::class.java, "setVisibility", Int::class.javaPrimitiveType, accessible = false).hook {
-            after { param ->
-                if (retiring || reconciling) return@after
-                val root = param.thisObject as? View ?: return@after
-                if (synchronized(states) { states.values.any { it.barRoot === root } }) requestReconcile()
+        ViewVisibilityRouter.visibility(this, ViewGroup::class.java, after = { root ->
+            if (!retiring && !reconciling && synchronized(states) { states.values.any { it.barRoot === root } }) {
+                requestReconcile()
             }
-        }
-
-        HostAccess.requirePublicMethod(View::class.java, "setAlpha", Float::class.javaPrimitiveType, accessible = false).hook {
-            after { param ->
-                if (retiring || reconciling) return@after
-                val view = param.thisObject as? View ?: return@after
-                if (synchronized(states) { states.values.any { it.barRoot === view || it.leftHost === view } }) {
-                    runOnMain { handover.applyHandoverGuarded(panelProgress) }
-                }
+        })
+        ViewVisibilityRouter.alpha(this, ViewGroup::class.java, after = { view ->
+            if (!retiring && !reconciling && synchronized(states) { states.values.any { it.barRoot === view || it.leftHost === view } }) {
+                runOnMain { handover.applyHandoverGuarded(panelProgress) }
             }
-        }
+        })
 
         // 4. Hide the left container while the status-bar island is showing.
         val islandHandlerClass = ISLAND_HANDLER_CLASS.toClassOrNull()
@@ -969,7 +956,7 @@ object LeftContainerHooker : StaticHooker() {
         mainHandler.postDelayed(reconcileRunnable, RECONCILE_INTERVAL_MS)
     }
 
-    private var ownershipRefreshPending = false
+    private var ownershipRefreshPending by generationState { false }
     internal fun onDuoOwnershipChanged() {
         if (ownershipRefreshPending) return
         ownershipRefreshPending = true
@@ -980,7 +967,7 @@ object LeftContainerHooker : StaticHooker() {
         }
     }
 
-    private var reconciling = false
+    private var reconciling by generationState { false }
     private fun reconcileAll() {
         if (retiring || reconciling) return
         reconciling = true

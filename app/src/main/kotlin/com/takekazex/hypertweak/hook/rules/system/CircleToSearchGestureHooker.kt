@@ -7,8 +7,8 @@ import android.os.Handler
 import android.os.Looper
 import android.database.ContentObserver
 import android.provider.Settings
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 
@@ -61,8 +61,10 @@ import com.takekazex.hypertweak.util.logging.DebugLog
  *   means. A `ContentObserver` re-applies it if something else moves it.
  */
 object CircleToSearchGestureHooker : StaticHooker() {
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingContextualSearchLongPress by hookSetting(false) { Preferences.contextualSearchLongPress() }
+
     override val hookerName = "CircleToSearchGesture"
-    override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
 
     private const val SCOPE = "CtsGesture"
 
@@ -76,8 +78,7 @@ object CircleToSearchGestureHooker : StaticHooker() {
 
     private var observerInstalled by generationState { false }
 
-    @Volatile
-    private var settingObserver: ContentObserver? = null
+    private var settingObserver: ContentObserver? by generationState { null }
 
     private val startupRetry = SystemServerStartupRetry(
         scope = SCOPE,
@@ -121,7 +122,7 @@ object CircleToSearchGestureHooker : StaticHooker() {
     }
 
     private fun isCircleToSearchLongPressEnabled(): Boolean =
-        Preferences.contextualSearchLongPress()
+        settingContextualSearchLongPress
 
     private fun align(context: Context) {
         val current = Settings.Secure.getString(context.contentResolver, SETTING_NAV_LONG_PRESS)

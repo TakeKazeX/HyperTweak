@@ -11,6 +11,7 @@ import android.content.Context
 import android.provider.Settings
 import android.util.SparseArray
 import android.util.SparseIntArray
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.StaticHooker
@@ -24,6 +25,11 @@ import java.lang.reflect.Method
 import java.util.concurrent.Executor
 
 object ImmediateMonetRefreshHooker : StaticHooker() {
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingImmediateMonetRefresh by hookSetting(SystemUiSettingsKeys.DEFAULT_IMMEDIATE_MONET_REFRESH) {
+        Preferences.getBoolean(SystemUiSettingsKeys.KEY_IMMEDIATE_MONET_REFRESH, SystemUiSettingsKeys.DEFAULT_IMMEDIATE_MONET_REFRESH)
+    }
+
     private const val SCOPE = "ImmediateMonetRefresh"
     private const val CONTROLLER_CLASS = "com.android.systemui.theme.ThemeOverlayController"
     private const val MIUI_HELPER_CLASS = "com.miui.keyguard.utils.ThemeOverlayControllerHelper"
@@ -33,7 +39,6 @@ object ImmediateMonetRefreshHooker : StaticHooker() {
         "com.miui.systemui.theme.ThemeOverlayControllerDelegate"
     private const val INTERFACES_MANAGER_CLASS =
         "com.miui.systemui.interfacesmanager.InterfacesImplManager"
-    private const val USER_TRACKER_IMPL_CLASS = "com.android.systemui.settings.UserTrackerImpl"
     private const val FASHION_GALLERY_PACKAGE = "com.miui.android.fashiongallery"
 
     private data class DeferredStore(
@@ -42,26 +47,26 @@ object ImmediateMonetRefreshHooker : StaticHooker() {
         val source: String
     )
 
-    private var controllerClass: Class<*>? = null
-    @Volatile
-    private var controllerReference: WeakReference<Any>? = null
-    private var listenerControllerField: Field? = null
-    private var handleWallpaperColorsMethod: Method? = null
-    private var currentColorsField: Field? = null
-    private var contextField: Field? = null
-    private var wallpaperManagerField: Field? = null
-    private var mainExecutorField: Field? = null
-    private var userTrackerField: Field? = null
-    private var userIdMethod: Method? = null
-    private var controllerStore: DeferredStore? = null
-    private var miuiStore: DeferredStore? = null
+    private var controllerClass: Class<*>? by generationState { null }
+    private var controllerReference: WeakReference<Any>? by generationState { null }
+    private var listenerControllerField: Field? by generationState { null }
+    private var handleWallpaperColorsMethod: Method? by generationState { null }
+    private val currentColorsField: Field?
+        get() = controllerClass?.let { declaredField(it, "mCurrentColors") }
+    private val contextField: Field?
+        get() = controllerClass?.let { declaredField(it, "mContext") }
+    private val wallpaperManagerField: Field?
+        get() = controllerClass?.let { declaredField(it, "mWallpaperManager") }
+    private val mainExecutorField: Field?
+        get() = controllerClass?.let { declaredField(it, "mMainExecutor") }
+    private val userTrackerField: Field?
+        get() = controllerClass?.let { declaredField(it, "mUserTracker") }
+    private var controllerStore: DeferredStore? by generationState { null }
+    private var miuiStore: DeferredStore? by generationState { null }
 
-    private var delegateClass: Class<*>? = null
-    private var getImplementationMethod: Method? = null
-    private var delegateLazyField: Field? = null
-    private var lazyGetMethod: Method? = null
-    private var themeOverlayCallback: Method? = null
-    private var miuiWallpaperCallback: Method? = null
+    private var delegateClass: Class<*>? by generationState { null }
+    private var themeOverlayCallback: Method? by generationState { null }
+    private var miuiWallpaperCallback: Method? by generationState { null }
 
     override fun saveHotReloadState(): Any? = controllerReference?.get()
 
@@ -93,14 +98,6 @@ object ImmediateMonetRefreshHooker : StaticHooker() {
                     Int::class.javaPrimitiveType
                 )
             )
-        }?.apply { isAccessible = true }
-        currentColorsField = declaredField(controllerType, "mCurrentColors")
-        contextField = declaredField(controllerType, "mContext")
-        wallpaperManagerField = declaredField(controllerType, "mWallpaperManager")
-        mainExecutorField = declaredField(controllerType, "mMainExecutor")
-        userTrackerField = declaredField(controllerType, "mUserTracker")
-        userIdMethod = USER_TRACKER_IMPL_CLASS.toClassOrNull()?.declaredMethods?.firstOrNull {
-            it.name == "getUserId" && it.parameterCount == 0
         }?.apply { isAccessible = true }
         controllerStore = deferredStore(controllerType, source = "system")
         miuiStore = MIUI_HELPER_CLASS.toClassOrNull()?.let {
@@ -277,20 +274,13 @@ object ImmediateMonetRefreshHooker : StaticHooker() {
             .getOrNull()
     }.filter { !java.lang.reflect.Modifier.isStatic(it.modifiers) }.singleOrNull()
 
-    private fun uniqueFieldByType(callbackClass: Class<*>, ownerClass: Class<*>): Field? {
-        val fields = mutableListOf<Field>()
-        var current: Class<*>? = callbackClass
-        while (current != null) {
-            fields += current.declaredFields.filter { ownerClass.isAssignableFrom(it.type) }
-            current = current.superclass
+    private fun uniqueFieldByType(callbackClass: Class<*>, ownerClass: Class<*>): Field? =
+        HostAccess.cached(callbackClass, "monet:controller:${ownerClass.name}", Field::class.java) {
+            generateSequence(callbackClass) { it.superclass }.flatMap { it.declaredFields.asSequence() }
+                .filter { ownerClass.isAssignableFrom(it.type) }.singleOrNull()?.apply { isAccessible = true }
         }
-        return fields.singleOrNull()?.apply { isAccessible = true }
-    }
 
-    private fun isEnabled(): Boolean = Preferences.getBoolean(
-        SystemUiSettingsKeys.KEY_IMMEDIATE_MONET_REFRESH,
-        SystemUiSettingsKeys.DEFAULT_IMMEDIATE_MONET_REFRESH
-    )
+    private fun isEnabled(): Boolean = settingImmediateMonetRefresh
 
     private fun rememberController(controller: Any) {
         if (controllerClass?.isInstance(controller) == true) {
@@ -301,38 +291,23 @@ object ImmediateMonetRefreshHooker : StaticHooker() {
     private fun resolveController(): Any? {
         controllerReference?.get()?.let { return it }
         val type = delegateClass ?: return null
-        val delegate = getImplementationMethod?.invoke(null, type) ?: return null
-        val lazy = delegateLazyField?.get(delegate) ?: return null
-        val controller = lazyGetMethod?.invoke(lazy) ?: return null
+        val manager = INTERFACES_MANAGER_CLASS.toClassOrNull() ?: return null
+        val delegate = HostAccess.declaredMethod(manager, "getImpl", Class::class.java, accessible = true)
+            ?.invoke(null, type) ?: return null
+        val lazy = declaredField(type, "themeOverlayController")?.get(delegate) ?: return null
+        val controller = HostAccess.publicMethod(lazy.javaClass, "get", accessible = true)?.invoke(lazy) ?: return null
         if (controllerClass?.isInstance(controller) != true) return null
         rememberController(controller)
         return controller
     }
 
     private fun resolveControllerFallbackMembers() {
-        val managerType = INTERFACES_MANAGER_CLASS.toClassOrNull() ?: return
-        val delegateType = CONTROLLER_DELEGATE_CLASS.toClassOrNull() ?: return
-        delegateClass = delegateType
-        getImplementationMethod = managerType.declaredMethods.firstOrNull {
-            it.name == "getImpl" && it.parameterTypes.contentEquals(arrayOf(Class::class.java))
-        }?.apply { isAccessible = true }
-        delegateLazyField = delegateType.declaredFields.firstOrNull {
-            it.name == "themeOverlayController"
-        }?.apply { isAccessible = true }
-        lazyGetMethod = delegateLazyField?.type?.methods?.firstOrNull {
-            it.name == "get" && it.parameterCount == 0
-        }?.apply { isAccessible = true }
+        delegateClass = CONTROLLER_DELEGATE_CLASS.toClassOrNull()
     }
 
     private fun currentUserId(controller: Any): Int? {
         val tracker = userTrackerField?.get(controller) ?: return null
-        val method = userIdMethod ?: tracker.javaClass.methods.firstOrNull {
-            it.name == "getUserId" && it.parameterCount == 0
-        }?.apply {
-            isAccessible = true
-            userIdMethod = this
-        } ?: return null
-        return method.invoke(tracker) as? Int
+        return HostAccess.publicMethod(tracker.javaClass, "getUserId", accessible = true)?.invoke(tracker) as? Int
     }
 
     private fun isFashionGallerySource(controller: Any, which: Int): Boolean {
@@ -413,18 +388,9 @@ object ImmediateMonetRefreshHooker : StaticHooker() {
         miuiWallpaperCallback = null
         listenerControllerField = null
         handleWallpaperColorsMethod = null
-        currentColorsField = null
-        contextField = null
-        wallpaperManagerField = null
-        mainExecutorField = null
-        userTrackerField = null
-        userIdMethod = null
         controllerStore = null
         miuiStore = null
         delegateClass = null
-        getImplementationMethod = null
-        delegateLazyField = null
-        lazyGetMethod = null
     }
 
     private const val WALLPAPER_FLAGS = WallpaperManager.FLAG_SYSTEM or WallpaperManager.FLAG_LOCK

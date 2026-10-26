@@ -9,6 +9,7 @@ import android.os.Build
 import android.util.SparseArray
 import androidx.core.util.isNotEmpty
 import com.takekazex.hypertweak.settings.contract.CameraLegendaryMomentMode
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.hook.base.dex.DexOperandIndex
@@ -24,6 +25,26 @@ import org.luckypray.dexkit.DexKitBridge
 import org.luckypray.dexkit.query.enums.StringMatchType
 
 object CameraImpersonationHooker : StaticHooker() {
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingCameraImpersonateThemeLcc by hookSetting(false) {
+        Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_IMPERSONATE_THEME_LCC, false)
+    }
+    private val settingCameraAllShutterSounds by hookSetting(false) {
+        Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_ALL_SHUTTER_SOUNDS, false)
+    }
+    private val settingCameraLegendaryMomentMode by hookSetting(CameraLegendaryMomentMode.DEFAULT) { Preferences.cameraLegendaryMomentMode() }
+    private val settingCameraLegendaryExtraModes by hookSetting(false) {
+        Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_LEGENDARY_EXTRA_MODES, false,)
+    }
+    private val settingCameraLeicaStyle by hookSetting(false) { Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_LEICA_STYLE, false) }
+    private val settingCameraSmartComposition by hookSetting(false) {
+        Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_SMART_COMPOSITION, false)
+    }
+    private val settingCameraContentCredential by hookSetting(false) {
+        Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_CONTENT_CREDENTIAL, false)
+    }
+    private val settingCameraAdaptiveLens by hookSetting(false) { Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_ADAPTIVE_LENS, false) }
+
     private const val TAG = "CamImpersonate"
     private const val PACKAGE = "com.android.camera"
     private const val TINT_COLOR_PREFERENCE_KEY = "pref_tint_color"
@@ -43,6 +64,8 @@ object CameraImpersonationHooker : StaticHooker() {
     private val disabledWidgetReceiverNamesLock = Any()
 
     override fun onHook() {
+        com.takekazex.hypertweak.hook.rules.camera.prepareCameraWatermarkBrandSettings()
+        com.takekazex.hypertweak.hook.rules.camera.prepareCameraMasterLiveHooksSettings()
         if (hookParam.packageName != PACKAGE) return
         // Config-dependent hooks read the active profile. Wait until its provider initializes it,
         // while still installing these gates before Application.onCreate builds camera modes.
@@ -302,7 +325,7 @@ object CameraImpersonationHooker : StaticHooker() {
         deoptimize(vMethod)
         vMethod.hook("cam_impersonate_theme_lcc") {
             after { param ->
-                if (Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_IMPERSONATE_THEME_LCC, false)) {
+                if (settingCameraImpersonateThemeLcc) {
                     param.result = true
                 }
             }
@@ -313,7 +336,7 @@ object CameraImpersonationHooker : StaticHooker() {
     // ─── 7. Keep the 相机配色 (tint color) settings entry visible under the fake LCC theme ─
 
     private fun hookLccCustomizationProvider() {
-        if (!Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_IMPERSONATE_THEME_LCC, false)) {
+        if (!settingCameraImpersonateThemeLcc) {
             DebugLog.d(TAG, "adaptive tint-color gate skipped; fake LCC theme is disabled")
             return
         }
@@ -341,7 +364,7 @@ object CameraImpersonationHooker : StaticHooker() {
         deoptimize(gateMethod)
         gateMethod.hook("cam_restore_tint_color") {
             before { param ->
-                if (Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_IMPERSONATE_THEME_LCC, false)) {
+                if (settingCameraImpersonateThemeLcc) {
                     param.result = true
                 }
             }
@@ -493,7 +516,7 @@ object CameraImpersonationHooker : StaticHooker() {
                 deoptimize(method)
                 method.hook("cam_leica_style_${method.declaringClass.name}") {
                     after { param ->
-                        if (leicaStyle() || Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_ALL_SHUTTER_SOUNDS, false)) {
+                        if (leicaStyle() || settingCameraAllShutterSounds) {
                             param.result = true
                         }
                     }
@@ -550,7 +573,7 @@ object CameraImpersonationHooker : StaticHooker() {
         loadMethod.hook("cam_shutter_sound_load_scope") {
             before {
                 currentShutterSoundLoadScope().addLast(
-                    Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_ALL_SHUTTER_SOUNDS, false),
+                    settingCameraAllShutterSounds,
                 )
             }
             after {
@@ -593,7 +616,7 @@ object CameraImpersonationHooker : StaticHooker() {
         deoptimize(method)
         method.hook("cam_legendary_profile_gate") {
             after { param ->
-                val mode = Preferences.cameraLegendaryMomentMode()
+                val mode = settingCameraLegendaryMomentMode
                 if (!CameraLegendaryProfileState.isApplied(mode)) return@after
                 when (mode) {
                     CameraLegendaryMomentMode.MODE_LEICA -> param.result = true
@@ -723,10 +746,7 @@ object CameraImpersonationHooker : StaticHooker() {
             method.hook("cam_unlock_legendary_registry_${method.name}") {
                 after { param ->
                     val unlockLegendary = legendaryMomentUnlock()
-                    val unlockExtras = Preferences.getBoolean(
-                        CameraSettingsKeys.KEY_CAMERA_LEGENDARY_EXTRA_MODES,
-                        false,
-                    )
+                    val unlockExtras = settingCameraLegendaryExtraModes
                     if (!unlockLegendary && !unlockExtras &&
                         !(masterLive.masterLiveGateReady && masterLive.masterliveEnabled() && masterLive.masterLiveHasEffectTable())) return@after
                     @Suppress("UNCHECKED_CAST")
@@ -802,7 +822,7 @@ object CameraImpersonationHooker : StaticHooker() {
             }
     }
 
-    private var smartCompositionResourceIds: Pair<Int, Int>? = null
+    private var smartCompositionResourceIds: Pair<Int, Int>? by generationState { null }
     private const val SMART_COMPOSITION_PREF_KEY = "pref_camera_crop_preferred_key"
     private fun hookSmartCompositionTopRow() {
         val clazz = CameraFeatureResolver.captureSettings(
@@ -952,20 +972,20 @@ object CameraImpersonationHooker : StaticHooker() {
     private fun keepModel(): Boolean = true
 
     private fun leicaStyle(): Boolean =
-        Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_LEICA_STYLE, false)
+        settingCameraLeicaStyle
 
     private fun legendaryMomentUnlock(): Boolean {
-        val mode = Preferences.cameraLegendaryMomentMode()
+        val mode = settingCameraLegendaryMomentMode
         return mode != CameraLegendaryMomentMode.MODE_OFF && CameraLegendaryProfileState.isApplied(mode)
     }
 
     private fun smartCompositionUnlock(): Boolean =
-        Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_SMART_COMPOSITION, false)
+        settingCameraSmartComposition
 
     private fun contentCredentialUnlock(): Boolean =
-        Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_CONTENT_CREDENTIAL, false)
+        settingCameraContentCredential
 
     private fun adaptiveLensUnlock(): Boolean =
-        Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_ADAPTIVE_LENS, false)
+        settingCameraAdaptiveLens
 
 }

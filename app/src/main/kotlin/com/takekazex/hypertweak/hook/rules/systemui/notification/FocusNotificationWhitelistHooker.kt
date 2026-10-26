@@ -3,9 +3,9 @@ package com.takekazex.hypertweak.hook.rules.systemui.notification
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import android.content.Context
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.reflect.Method
@@ -35,7 +35,10 @@ import java.lang.reflect.Method
  * read the switch live on each callback.
  */
 object FocusNotificationWhitelistHooker : StaticHooker() {
-    override val hotReloadMode = HotReloadMode.RECREATE
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingFocusNotificationUnlockWhitelist by hookSetting(false) {
+        Preferences.getBoolean(PlatformSettingsKeys.KEY_FOCUS_NOTIFICATION_UNLOCK_WHITELIST, false)
+    }
 
     private const val TAG = "FocusNotificationWhitelist"
     private const val SETTINGS_MANAGER =
@@ -69,7 +72,7 @@ object FocusNotificationWhitelistHooker : StaticHooker() {
         method.hook {
             before { param ->
                 HookFailurePolicy.open(TAG, target, Unit) {
-                    if (!Preferences.getBoolean(PlatformSettingsKeys.KEY_FOCUS_NOTIFICATION_UNLOCK_WHITELIST, false)) return@open
+                    if (!settingFocusNotificationUnlockWhitelist) return@open
                     val context = param.args[0] as? Context ?: return@open
                     val pkg = param.args[1] as? String ?: return@open
                     val focusPref = try {

@@ -11,16 +11,18 @@ import android.content.pm.PackageManager
 import android.os.Binder
 import android.os.IBinder
 import android.os.SystemClock
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.runtime.settings.SettingsTransport
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 import io.github.libxposed.api.XposedInterface
 
 /** Restricts the contextual-search compatibility bridge to the SystemUI and provider calls. */
 object ContextualSearchSystemHooker : StaticHooker() {
-    override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingPowerButtonAction by hookSetting(PlatformSettingsKeys.POWER_BUTTON_ACTION_DISABLED) { Preferences.powerButtonAction() }
+    private val settingContextualSearchLongPress by hookSetting(false) { Preferences.contextualSearchLongPress() }
 
     private const val SCOPE = "ContextualSearchBridge"
     private const val SYSTEM_UI_PACKAGE = "com.android.systemui"
@@ -29,12 +31,11 @@ object ContextualSearchSystemHooker : StaticHooker() {
 
     private val activeBridgedInvocation = ThreadLocal<Boolean>()
 
-    private val resolvedUids = mutableMapOf<String, Int>()
+    private val resolvedUids = generationMainResource(mutableMapOf<String, Int>()) { it.clear() }
 
-    @Volatile private var systemContext: Context? = null
+    private var systemContext: Context? by generationState { null }
 
-    @Volatile
-    private var systemPackageManager: PackageManager? = null
+    private var systemPackageManager: PackageManager? by generationState { null }
 
     override fun onPrepareHotReload() {
         // Only the per-invocation flag is process state. The uid cache and PackageManager are
@@ -66,8 +67,8 @@ object ContextualSearchSystemHooker : StaticHooker() {
      *   [NativeRuleConfig.KEY_CONTEXTUAL_SEARCH_LONG_PRESS]).
      */
     private fun isContextualSearchEnabled(): Boolean =
-        Preferences.powerButtonAction() == PlatformSettingsKeys.POWER_BUTTON_ACTION_CIRCLE_TO_SEARCH ||
-            Preferences.contextualSearchLongPress()
+        settingPowerButtonAction == PlatformSettingsKeys.POWER_BUTTON_ACTION_CIRCLE_TO_SEARCH ||
+            settingContextualSearchLongPress
 
     /**
      * Starts Circle to Search from system_server itself (long-press power button). The bridge
@@ -80,7 +81,7 @@ object ContextualSearchSystemHooker : StaticHooker() {
         // bridge flag is never set and the original power action runs. This path is the
         // system_server invocation, so it is gated on the power-button binding specifically --
         // not on [isContextualSearchEnabled], which the launcher entry point also satisfies.
-        if (Preferences.powerButtonAction() !=
+        if (settingPowerButtonAction !=
             PlatformSettingsKeys.POWER_BUTTON_ACTION_CIRCLE_TO_SEARCH
         ) {
             return false
@@ -174,7 +175,7 @@ object ContextualSearchSystemHooker : StaticHooker() {
                     // Native MiuiHome owns detection; SystemUI owns actual handle visibility,
                     // transient reveal and successful-trigger feedback. This also migrates an
                     // already-mapped old/native-upstream payload without replacing its hooks.
-                    if (Preferences.contextualSearchLongPress() &&
+                    if (settingContextualSearchLongPress &&
                         chain.args.getOrNull(0) == ENTRY_POINT &&
                         Binder.getCallingUid() == resolveUid(MIUI_HOME_PACKAGE)
                     ) {

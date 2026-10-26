@@ -30,6 +30,8 @@ internal object HostMembers {
 
     fun read(owner: Any, name: String): Any? = field(owner.javaClass, name)?.get(owner)
 
+    /** Inherited-table handles are always accessible=true. Never share them with exactMethods,
+     * whose handles retain the explicitly requested access policy. */
     fun method(type: Class<*>, name: String, vararg parameters: Class<*>): Method? =
         members.get(type).methods.computeIfAbsent(MethodKey(name, parameters.toList())) {
             java.util.Optional.ofNullable(generateSequence(type) { it.superclass }

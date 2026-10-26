@@ -5,6 +5,7 @@ import com.takekazex.hypertweak.settings.contract.CameraSettingsKeys
 
 import android.view.View
 import com.takekazex.hypertweak.settings.contract.CameraLegendaryMomentMode
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
@@ -14,6 +15,12 @@ import java.lang.reflect.Modifier
 import java.util.Collections
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicReference
+
+// Published on settings acceptance; hook callbacks perform no storage reads.
+private val settingCameraLegendaryMomentMode by hookSetting(CameraLegendaryMomentMode.DEFAULT) { Preferences.cameraLegendaryMomentMode() }
+private val settingCameraLegendaryExtraModes by hookSetting(false) {
+    Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_LEGENDARY_EXTRA_MODES, false)
+}
 
 /** Process-local status shared with the entry and registry hooks. */
 internal object CameraLegendaryProfileState {
@@ -61,7 +68,7 @@ internal object CameraLegendaryProfileState {
     fun cinematicEntry(): Class<*>? = cinematicEntry.get()
 
     fun selectedProfileApplied(): Boolean {
-        val mode = Preferences.cameraLegendaryMomentMode()
+        val mode = settingCameraLegendaryMomentMode
         return mode == CameraLegendaryMomentMode.MODE_LEGENDARY && isApplied(mode)
     }
 }
@@ -75,9 +82,10 @@ object CameraLegendaryProfileHooker : StaticHooker() {
     private const val PIXEL_200MP_ITEM_ID = 254
 
     private val pixelItemLookupDepth = ThreadLocal<Int>()
-    private val hookedPixelItemBuilders = Collections.newSetFromMap(ConcurrentHashMap<Method, Boolean>())
+    private val hookedPixelItemBuilders = generationResource(Collections.newSetFromMap(ConcurrentHashMap<Method, Boolean>())) { it.clear() }
 
     override fun onHook() {
+        settingCameraLegendaryMomentMode
         if (hookParam.packageName != PACKAGE) return
         if (!hookParam.isMainProcess) {
             CameraLegendaryProfileState.markApplied(null)
@@ -93,7 +101,7 @@ object CameraLegendaryProfileHooker : StaticHooker() {
 
     private fun initializeCameraModes() {
         if (!hookParam.isMainProcess) return
-        val mode = Preferences.cameraLegendaryMomentMode()
+        val mode = settingCameraLegendaryMomentMode
         val ctx = CameraResolver.Ctx(classLoader, hookParam.appInfo)
         val binding = CameraHostProfile.resolve(ctx, TAG) ?: run {
             reject(mode, "camera config ABI was not resolved")
@@ -378,7 +386,7 @@ object CameraLegendaryProfileHooker : StaticHooker() {
     }
 
     private fun extraModesEnabled(): Boolean =
-        Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_LEGENDARY_EXTRA_MODES, false)
+        settingCameraLegendaryExtraModes
 
     private fun pixelItemLookupDepth(): Int = pixelItemLookupDepth.get() ?: 0
 

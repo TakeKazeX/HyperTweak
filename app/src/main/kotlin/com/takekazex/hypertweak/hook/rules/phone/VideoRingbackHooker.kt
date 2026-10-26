@@ -2,6 +2,7 @@ package com.takekazex.hypertweak.hook.rules.phone
 
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.StaticHooker
@@ -22,12 +23,17 @@ import java.util.concurrent.atomic.AtomicBoolean
  * argument is the backend boundary that also survives cloud callbacks.
  */
 object VideoRingbackHooker : StaticHooker() {
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingDisableVideoRingback by hookSetting(false) {
+        Preferences.getBoolean(PlatformSettingsKeys.KEY_DISABLE_VIDEO_RINGBACK, false)
+    }
+
     private const val TAG = "VideoRingback"
     private const val PHONE_PACKAGE = "com.android.phone"
     private const val BASE_CLASS = "com.android.phone.FiveGManagerBase"
     private const val MANAGER_CLASS = "com.android.phone.FiveGManager"
 
-    private val enforcementApplied = AtomicBoolean(false)
+    private val enforcementApplied = generationResource(AtomicBoolean(false)) { it.set(false) }
     private var setCrbtDisable: Method? by generationState { null }
 
     override fun onPrepareHotReload() {
@@ -36,7 +42,7 @@ object VideoRingbackHooker : StaticHooker() {
 
     override fun onHook() {
         if (hookParam.packageName != PHONE_PACKAGE) return
-        if (!Preferences.getBoolean(PlatformSettingsKeys.KEY_DISABLE_VIDEO_RINGBACK, false)) {
+        if (!settingDisableVideoRingback) {
             DebugLog.hookSkippedDebug(TAG, "video ringback disable", "disabled")
             return
         }
@@ -135,5 +141,5 @@ object VideoRingbackHooker : StaticHooker() {
     }
 
     private fun isEnabled(): Boolean =
-        Preferences.getBoolean(PlatformSettingsKeys.KEY_DISABLE_VIDEO_RINGBACK, false)
+        settingDisableVideoRingback
 }

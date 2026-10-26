@@ -4,16 +4,23 @@ import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.DynamicHooker
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import org.luckypray.dexkit.query.enums.StringMatchType
 
 class SliderPercentageHooker(
     private val pluginContext: android.content.Context? = null,
     private val pluginApkPath: String = ""
 ) : DynamicHooker(), SliderSession {
-    override val hotReloadMode = HotReloadMode.RECREATE
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingSliderShowPercentage by hookSetting(false) {
+        Preferences.getBoolean(SystemUiSettingsKeys.KEY_SLIDER_SHOW_PERCENTAGE, false)
+    }
+    private val settingSliderSamePercentageStyle by hookSetting(false) {
+        Preferences.getBoolean(SystemUiSettingsKeys.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false)
+    }
+
 
     @Volatile
     override var showPercentageEnabled: Boolean = false
@@ -130,8 +137,8 @@ class SliderPercentageHooker(
      * waits for the next plugin load and a disable releases the percentage rendering in place.
      */
     fun refreshSettings() {
-        val show = Preferences.getBoolean(SystemUiSettingsKeys.KEY_SLIDER_SHOW_PERCENTAGE, false)
-        val sameStyle = Preferences.getBoolean(SystemUiSettingsKeys.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false)
+        val show = settingSliderShowPercentage
+        val sameStyle = settingSliderSamePercentageStyle
         val changed = show != showPercentageEnabled || sameStyle != sameStyleEnabled
         showPercentageEnabled = show
         sameStyleEnabled = sameStyle
@@ -145,8 +152,8 @@ class SliderPercentageHooker(
     }
 
     override fun onHook() {
-        showPercentageEnabled = Preferences.getBoolean(SystemUiSettingsKeys.KEY_SLIDER_SHOW_PERCENTAGE, false)
-        sameStyleEnabled = Preferences.getBoolean(SystemUiSettingsKeys.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false)
+        showPercentageEnabled = settingSliderShowPercentage
+        sameStyleEnabled = settingSliderSamePercentageStyle
         SliderHookHelper.sameStyleEnabled = sameStyleEnabled
         // The plugin session owns these hooks for its whole life; the master switch is read at
         // render time, so a later enable does not need a new plugin session or a restart.

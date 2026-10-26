@@ -6,7 +6,6 @@ import com.takekazex.hypertweak.settings.contract.IconSlotPolicy
 import android.graphics.PorterDuff
 import android.view.View
 import android.widget.ImageView
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.reflect.Field
@@ -15,18 +14,17 @@ import java.lang.reflect.Modifier
 
 /** Applies SystemUI's area tint to module-owned bitmap status-bar slots only. */
 object IconSlotTintHooker : StaticHooker() {
-    override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
 
     private const val TAG = "IconTuner"
     private const val VIEW_CLASS = "com.android.systemui.statusbar.StatusBarIconView"
 
     private val moduleSlots = IconSlotPolicy.MODULE_SLOTS.toSet()
 
-    private var slotField: Field? = null
-    private var iconField: Field? = null
-    private var packageField: Field? = null
-    private var tintMethod: Method? = null
-    private var decorMethod: Method? = null
+    private var slotField: Field? by generationState { null }
+    private var iconField: Field? by generationState { null }
+    private var packageField: Field? by generationState { null }
+    private var tintMethod: Method? by generationState { null }
+    private var decorMethod: Method? by generationState { null }
 
     override fun onHook() {
         val viewClass = VIEW_CLASS.toClassOrNull() ?: run {

@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.system
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 import android.annotation.SuppressLint
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -13,16 +14,20 @@ import android.os.SystemClock
 import android.os.PowerManager
 import android.provider.Settings
 import androidx.core.content.ContextCompat
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 import io.github.lingqiqi5211.ezhooktool.xposed.EzXposed
 
+// Published on settings acceptance; hook callbacks perform no storage reads.
+private val settingBatteryAutoPowerSaveEnabled by hookSetting(false) { Preferences.batteryAutoPowerSaveEnabled() }
+private val settingExitPowerSaveWhenCharging by hookSetting(false) { Preferences.exitPowerSaveWhenCharging() }
+private val settingBatteryAutoPowerSaveThreshold by hookSetting(PlatformSettingsKeys.DEFAULT_BATTERY_AUTO_POWER_SAVE_THRESHOLD) { Preferences.batteryAutoPowerSaveThreshold() }
+
 /** Owns the battery monitor in SystemUI once its application context is available. */
 object BatteryAutoPowerSaveHooker : StaticHooker() {
-    override val hotReloadMode = HotReloadMode.RESTART_RECOMMENDED
 
     private const val TAG = "BatteryAutoPowerSave"
     private const val PACKAGE = "com.android.systemui"
@@ -34,6 +39,7 @@ object BatteryAutoPowerSaveHooker : StaticHooker() {
     private var monitor: BatteryMonitor? by generationState { null }
 
     override fun onHook() {
+        settingBatteryAutoPowerSaveEnabled
         if (hookParam.packageName != PACKAGE) return
         // Preference-channel recovery retries onHook after package-ready may already have run.
         val context = hookParam.appContext ?: runCatching { EzXposed.appContextOrNull }.getOrNull()
@@ -71,8 +77,8 @@ object BatteryAutoPowerSaveHooker : StaticHooker() {
         val context = hookParam.appContext ?: runCatching { EzXposed.appContextOrNull }.getOrNull() ?: return
         onPackageReady(context)
         monitor?.let { it.postEvaluation() }
-        DebugLog.i(TAG, "settings applied autoSave=" + Preferences.batteryAutoPowerSaveEnabled() +
-            " exitOnCharge=" + Preferences.exitPowerSaveWhenCharging())
+        DebugLog.i(TAG, "settings applied autoSave=" + settingBatteryAutoPowerSaveEnabled +
+            " exitOnCharge=" + settingExitPowerSaveWhenCharging)
     }
 
     @Synchronized
@@ -236,7 +242,7 @@ private class BatteryMonitor(private val context: Context) {
     private fun evaluate(trigger: String): Long? {
         // Both features off: no battery work, no requested mode change. This keeps a monitor that
         // was registered while idle from doing anything until a switch turns one on.
-        if (!Preferences.batteryAutoPowerSaveEnabled() && !Preferences.exitPowerSaveWhenCharging()) {
+        if (!settingBatteryAutoPowerSaveEnabled && !settingExitPowerSaveWhenCharging) {
             reconciler.cancel()
             exitRequest.cancel()
             unplugEnablePending = false
@@ -256,9 +262,9 @@ private class BatteryMonitor(private val context: Context) {
         )
         lastSeenCharging = sample.charging
         val config = Config(
-            Preferences.batteryAutoPowerSaveEnabled(),
-            Preferences.batteryAutoPowerSaveThreshold(),
-            Preferences.exitPowerSaveWhenCharging(),
+            settingBatteryAutoPowerSaveEnabled,
+            settingBatteryAutoPowerSaveThreshold,
+            settingExitPowerSaveWhenCharging,
         )
         val userId = PowerSaveSetter.currentUser()
         val justPlugged = connectionTracker.update(

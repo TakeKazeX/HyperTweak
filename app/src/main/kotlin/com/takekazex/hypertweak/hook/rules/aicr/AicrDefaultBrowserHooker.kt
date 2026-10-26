@@ -15,9 +15,9 @@ import android.view.ViewGroup
 import android.view.WindowManager
 import com.takekazex.hypertweak.hook.base.HostAccess
 import androidx.core.net.toUri
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.InstallPolicy
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
@@ -27,7 +27,10 @@ import java.lang.reflect.Method
 
 /** Routes only HyperAI Copy Direct web actions to Android's current default browser. */
 object AicrDefaultBrowserHooker : StaticHooker() {
-    override val hotReloadMode = HotReloadMode.RECREATE
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingAicrCopyDirectDefaultBrowser by hookSetting(false) {
+        Preferences.getBoolean(PlatformSettingsKeys.KEY_AICR_COPY_DIRECT_DEFAULT_BROWSER, false)
+    }
 
     private const val TAG = "AicrDefaultBrowser"
     private const val PACKAGE = "com.xiaomi.aicr"
@@ -36,7 +39,7 @@ object AicrDefaultBrowserHooker : StaticHooker() {
     // Semantic identifiers, not obfuscated method names.
     private const val HOOK_LEGACY = "aicr_default_browser:legacy_copy_direct"
     private const val HOOK_ACTION_RESPONSE = "aicr_default_browser:copy_direct_response"
-    private var titleRenderer: AicrBubbleTitleRenderer? = null
+    private var titleRenderer: AicrBubbleTitleRenderer? by generationState { null }
     private const val HOOK_BUBBLE_TITLE = "aicr_default_browser:render_browser_highlight"
     private const val HOOK_PANEL_DISPATCH = "aicr_default_browser:copy_direct_panel_dispatch"
 
@@ -369,7 +372,7 @@ object AicrDefaultBrowserHooker : StaticHooker() {
         }.getOrNull()
 
     private fun isEnabled(): Boolean =
-        Preferences.getBoolean(PlatformSettingsKeys.KEY_AICR_COPY_DIRECT_DEFAULT_BROWSER, false)
+        settingAicrCopyDirectDefaultBrowser
 }
 
 /** Persistent feature cache identity. */

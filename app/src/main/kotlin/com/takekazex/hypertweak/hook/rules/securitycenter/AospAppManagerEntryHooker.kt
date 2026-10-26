@@ -11,10 +11,10 @@ import android.view.View
 import androidx.core.view.get
 import androidx.core.view.isEmpty
 import androidx.core.view.size
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.CompatibleMethodResolver
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
-import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.util.Locale
@@ -31,6 +31,11 @@ import java.util.Locale
  * reverse-engineering workspace, so every lookup is null-checked and the hooker fails silently.
  */
 object AospAppManagerEntryHooker : StaticHooker() {
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingAospAppManagerEntry by hookSetting(false) {
+        Preferences.getBoolean(PlatformSettingsKeys.KEY_AOSP_APP_MANAGER_ENTRY, false)
+    }
+
     private const val TAG = "AospAppManagerEntry"
 
     private const val APPCOMPAT_ACTIVITY = "miuix.appcompat.app.AppCompatActivity"
@@ -49,10 +54,8 @@ object AospAppManagerEntryHooker : StaticHooker() {
     private fun allAppsTitle(): String =
         if (Locale.getDefault().language == "zh") "所有应用 (AOSP)" else "All apps (AOSP)"
 
-    override val hotReloadMode = HotReloadMode.RECREATE
-
     override fun onHook() {
-        if (!Preferences.getBoolean(PlatformSettingsKeys.KEY_AOSP_APP_MANAGER_ENTRY, false)) {
+        if (!settingAospAppManagerEntry) {
             DebugLog.hookSkippedDebug(TAG, "app manager menu", "disabled")
             return
         }

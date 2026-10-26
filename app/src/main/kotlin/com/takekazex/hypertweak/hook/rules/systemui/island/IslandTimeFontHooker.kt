@@ -8,6 +8,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.widget.TextView
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.DynamicHooker
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
@@ -21,6 +22,11 @@ import java.util.concurrent.TimeUnit
 
 /** Uses the font resource and axes declared by the native narrowFont renderer. */
 class IslandTimeFontHooker : DynamicHooker() {
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingIslandNarrowTimeFont by hookSetting(false) {
+        Preferences.getBoolean(PlatformSettingsKeys.KEY_ISLAND_NARROW_TIME_FONT, false)
+    }
+
     private data class Font(val typeface: Typeface?, val variation: String?) {
         fun matches(view: TextView) = typeface === view.typeface && variation == view.fontVariationSettings
         fun restore(view: TextView) {
@@ -59,7 +65,7 @@ class IslandTimeFontHooker : DynamicHooker() {
             existing.forEach { holder ->
                 HookFailurePolicy.open(TAG, "refresh timer font", Unit) { update?.invoke(holder) }
             }
-            DebugLog.i(TAG, "settings applied enabled=${Preferences.getBoolean(PlatformSettingsKeys.KEY_ISLAND_NARROW_TIME_FONT, false)} holders=${existing.size} narrowViews=${leases.size}")
+            DebugLog.i(TAG, "settings applied enabled=${settingIslandNarrowTimeFont} holders=${existing.size} narrowViews=${leases.size}")
         }
     }
     fun refreshSettings() {
@@ -142,7 +148,7 @@ class IslandTimeFontHooker : DynamicHooker() {
         fun apply(holder: Any, view: TextView, slot: Slot) {
             val packageName = (currentData.invoke(holder)?.let { extras.invoke(it) } as? Bundle)
                 ?.getString("miui.pkg.name")
-            if (retiring || !Preferences.getBoolean(PlatformSettingsKeys.KEY_ISLAND_NARROW_TIME_FONT, false) ||
+            if (retiring || !settingIslandNarrowTimeFont ||
                 !IslandTimeFontPolicy.eligible(packageName, slot.numeric, view.text)) {
                 release(view)
                 return
