@@ -4,6 +4,7 @@ import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import android.app.Activity
+import java.util.WeakHashMap
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
@@ -52,12 +53,24 @@ object AospAppInfoEntryHooker : StaticHooker() {
         "androidx.preference.Preference"
     )
 
-    override fun onHook() {
-        if (!settingAospAppInfoEntry) {
-            DebugLog.hookSkippedDebug(TAG, "app details page", "disabled")
-            return
-        }
+    private val fragments = generationMainResource(WeakHashMap<Any, Boolean>()) { it.clear() }
 
+    fun refreshSettings() = HostAccess.onMain {
+        fragments.keys.toList().forEach(::addAppInfoPreference)
+    }
+
+    override fun onPrepareHotReload() = HostAccess.onMain {
+        fragments.keys.toList().forEach { fragment ->
+            val preference = fragment.callMethodOrNull("findPreference", KEY_AOSP_APP_INFO) ?: return@forEach
+            preference.callMethodOrNull("setOnPreferenceClickListener", null)
+            val parent = preference.callMethodOrNull("getParent") ?: return@forEach
+            val order = preference.callMethodOrNull("getOrder") as? Int
+            parent.callMethodOrNull("removePreference", preference)
+            if (order != null && order < Int.MAX_VALUE) shiftPreferencesAfter(parent, order + 1, -1)
+        }
+    }
+
+    override fun onHook() {
         val fragment = DETAILS_FRAGMENT.toClassOrNull() ?: run {
             DebugLog.hookSkipped(TAG, DETAILS_FRAGMENT, "class not found")
             return
@@ -76,6 +89,11 @@ object AospAppInfoEntryHooker : StaticHooker() {
             return
         }
 
+        CompatibleMethodResolver.find(fragment, "onResume")?.hook {
+            after { param -> HookFailurePolicy.open(TAG, "resume app info", Unit) {
+                addAppInfoPreference(param.thisObject)
+            } }
+        }
         runCatching {
             method.hook {
                 after { param ->
@@ -91,7 +109,16 @@ object AospAppInfoEntryHooker : StaticHooker() {
 
     private fun addAppInfoPreference(fragment: Any?) {
         if (fragment == null) return
-        if (fragment.callMethodOrNull("findPreference", KEY_AOSP_APP_INFO) != null) return
+        fragments[fragment] = true
+        fragment.callMethodOrNull("findPreference", KEY_AOSP_APP_INFO)?.let {
+            it.callMethodOrNull("setVisible", settingAospAppInfoEntry)
+            val activity = fragment.callMethodOrNull("requireActivity") as? Activity
+            if (activity != null) createAppInfoIntent(activity)?.let { intent ->
+                setSafeClickListener(it, activity, intent)
+            }
+            return
+        }
+        if (!settingAospAppInfoEntry) return
 
         val anchor = fragment.callMethodOrNull("findPreference", KEY_OPEN_BY_DEFAULT) ?: return
         val parent = anchor.callMethodOrNull("getParent") ?: return
@@ -144,14 +171,14 @@ object AospAppInfoEntryHooker : StaticHooker() {
     }
 
     /** Makes room at [order] so the new entry lands directly after its anchor. */
-    private fun shiftPreferencesAfter(parent: Any, order: Int) {
+    private fun shiftPreferencesAfter(parent: Any, order: Int, delta: Int = 1) {
         val count = parent.callMethodOrNull("getPreferenceCount") as? Int ?: return
         for (index in 0 until count) {
             val preference = parent.callMethodOrNull("getPreference", index) ?: continue
             val current = preference.callMethodOrNull("getOrder") as? Int ?: continue
             // Preference.DEFAULT_ORDER (Int.MAX_VALUE) means "append last"; + 1 would overflow to
             // Int.MIN_VALUE and jump the row to the very top. Leave those where they are.
-            if (current in order until Int.MAX_VALUE) preference.callMethodOrNull("setOrder", current + 1)
+            if (current in order until Int.MAX_VALUE) preference.callMethodOrNull("setOrder", current + delta)
         }
     }
 

@@ -41,7 +41,7 @@ object UnlockClipboardHooker : StaticHooker() {
     /** `mClipboardManager` on baselines before the per-user split. */
     private val CLIPBOARD_MANAGER_FIELDS = listOf("mClipboardManagerForUser", "mClipboardManager")
 
-    private var enabled by generationState { false }
+    private val enabled get() = settingAospClipboardEditor
 
     private var ctsTestPkgListField: Field? by generationState { null }
     private var originalCtsTestPkgList: List<*>? by generationState { null }
@@ -49,15 +49,13 @@ object UnlockClipboardHooker : StaticHooker() {
 
     override fun onPrepareHotReload() {
         restoreOriginalList()
-        enabled = false
+    }
+
+    fun refreshSettings() {
+        HostAccess.onMain { if (!enabled) restoreOriginalList() }
     }
 
     override fun onHook() {
-        enabled = settingAospClipboardEditor
-        if (!enabled) {
-            DebugLog.hookSkippedDebug(TAG, "clipboard overlay", "disabled")
-            return
-        }
 
         val listener = CLIPBOARD_LISTENER.toClassOrNull() ?: run {
             DebugLog.hookSkipped(TAG, CLIPBOARD_LISTENER, "class not found")

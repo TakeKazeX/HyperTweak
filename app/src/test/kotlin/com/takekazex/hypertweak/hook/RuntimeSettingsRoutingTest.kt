@@ -19,6 +19,35 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class RuntimeSettingsRoutingTest {
+    @Test fun aospRestorePublishesEverySwitchAndResetToItsExecutingOwner() {
+        val keys = mapOf(
+            Groups.AOSP_INSTALLER to listOf(PlatformSettingsKeys.KEY_AOSP_PACKAGE_INSTALLER),
+            Groups.AOSP_SYSTEM_UI to listOf(PlatformSettingsKeys.KEY_AOSP_POWER_MENU,
+                PlatformSettingsKeys.KEY_AOSP_VOLUME_PANEL, PlatformSettingsKeys.KEY_AOSP_VOLUME_HAPTIC_MIUI,
+                PlatformSettingsKeys.KEY_AOSP_CLIPBOARD_EDITOR, PlatformSettingsKeys.KEY_EXTEND_UNLOCK_FIX),
+            Groups.AOSP_SECURITY to listOf(PlatformSettingsKeys.KEY_AOSP_APP_INFO_ENTRY,
+                PlatformSettingsKeys.KEY_AOSP_APP_MANAGER_ENTRY),
+        )
+        for ((group, switches) in keys) {
+            val ledger = RuntimeSettingsLedger()
+            val on = RuntimeSettingsSnapshot.read(1, switches.associateWith { true }, setOf(group))!!
+            assertTrue(ledger.accept(on))
+            val replacement = RuntimeSettingsLedger().also { it.restore(ledger.save()) }
+            switches.forEach { key ->
+                assertEquals(setOf(group), Groups.affected(key))
+                assertEquals(true, replacement.value(key))
+                assertNull(RuntimeSettingsSnapshot.read(2, mapOf(key to "true"), setOf(group)))
+            }
+            assertTrue(replacement.accept(RuntimeSettingsSnapshot.read(2, emptyMap<String, Any>(), setOf(group))!!))
+            switches.forEach { assertNull(replacement.value(it)) }
+            assertFalse(replacement.accept(on))
+        }
+        assertTrue(Groups.AOSP_INSTALLER in Groups.forProcess("system_server", true))
+        assertTrue(Groups.AOSP_SYSTEM_UI in Groups.forProcess("com.android.systemui"))
+        assertTrue(Groups.AOSP_SECURITY in Groups.forProcess("com.miui.securitycenter:ui"))
+        assertFalse(Groups.AOSP_INSTALLER in Groups.forProcess("com.android.systemui"))
+    }
+
     @Test fun darkModeScheduleRoutesOnlyToSystemServerAndRestoresAfterReplacementAndReset() {
         val key = PlatformSettingsKeys.KEY_DARK_MODE_IMMEDIATE_SCHEDULE
         val groups = setOf(Groups.DARK_MODE)
@@ -254,7 +283,7 @@ class RuntimeSettingsRoutingTest {
     @Test fun everyExistingLiveRouteHasExplicitConsumersIncludingScreenshotEditorAndSystemServer() {
         assertEquals(setOf(Groups.SCREENSHOT), Groups.forProcess("com.miui.screenshot"))
         assertEquals(Groups.forProcess("com.miui.screenshot"), Groups.forProcess("com.miui.screenshot:photo_editor"))
-        assertEquals(setOf(Groups.BACK, Groups.DOCK, Groups.VOLUME, Groups.GESTURE_BAR, Groups.FORCE_SCREENSHOT, Groups.DARK_MODE, Groups.NATIVE_PHOTO_PICKER, Groups.NATIVE_FILE_PICKER),
+        assertEquals(setOf(Groups.BACK, Groups.DOCK, Groups.VOLUME, Groups.GESTURE_BAR, Groups.FORCE_SCREENSHOT, Groups.DARK_MODE, Groups.NATIVE_PHOTO_PICKER, Groups.NATIVE_FILE_PICKER, Groups.AOSP_INSTALLER),
             Groups.forProcess("system_server", true))
         assertEquals(setOf(Groups.XMSF), Groups.forProcess("com.xiaomi.xmsf:push"))
         assertTrue(Groups.forProcess("com.miui.home").contains(Groups.NATIVE))

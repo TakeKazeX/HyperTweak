@@ -24,6 +24,9 @@ internal object RuntimeSettingsDefinitions {
     const val NATIVE_PHOTO_PICKER = "system.native_photo_picker"
     // Retain the aggregate group ID so pre-split saved snapshots remain readable.
     const val NATIVE_FILE_PICKER = "system.native_picker"
+    const val AOSP_INSTALLER = "system.aosp_installer"
+    const val AOSP_SYSTEM_UI = "systemui.aosp_restore"
+    const val AOSP_SECURITY = "securitycenter.aosp_restore"
     const val DARK_MODE = "system.dark_mode"
     const val FORCE_SCREENSHOT = "system.force_screenshot"
     const val SCREENSHOT = "screenshot.frame"
@@ -107,7 +110,16 @@ internal object RuntimeSettingsDefinitions {
     private val nativeKeys = setOf(PlatformSettingsKeys.KEY_HIDE_RECENTS_CLEAR_BUTTON, PlatformSettingsKeys.KEY_OPENED_FOLDER_COLUMNS,
         PlatformSettingsKeys.KEY_CONTEXTUAL_SEARCH_LONG_PRESS, PlatformSettingsKeys.KEY_ALLOW_ANDROID_WIDGETS_TO_ASSISTANT,
         PlatformSettingsKeys.KEY_NATIVE_RULE_REVISION, PlatformSettingsKeys.KEY_RECENTS_CARD_HAPTIC, PlatformSettingsKeys.KEY_FOLDER_STACK_PREVIEW, PlatformSettingsKeys.KEY_ANDROID_WIDGET_STACK, PlatformSettingsKeys.KEY_XIAOAI_GESTURE_OPTIONS, "prefs_epoch")
-    val strictBooleanKeys = setOf(
+    private val aospUiKeys = setOf(
+        PlatformSettingsKeys.KEY_AOSP_POWER_MENU, PlatformSettingsKeys.KEY_AOSP_VOLUME_PANEL,
+        PlatformSettingsKeys.KEY_AOSP_VOLUME_HAPTIC_MIUI, PlatformSettingsKeys.KEY_EXTEND_UNLOCK_FIX,
+        PlatformSettingsKeys.KEY_AOSP_CLIPBOARD_EDITOR,
+    )
+    private val aospSecurityKeys = setOf(
+        PlatformSettingsKeys.KEY_AOSP_APP_INFO_ENTRY, PlatformSettingsKeys.KEY_AOSP_APP_MANAGER_ENTRY,
+    )
+    val strictBooleanKeys = aospUiKeys + aospSecurityKeys + setOf(
+        PlatformSettingsKeys.KEY_AOSP_PACKAGE_INSTALLER,
         PlatformSettingsKeys.KEY_NATIVE_PICKER, PlatformSettingsKeys.KEY_NATIVE_PHOTO_PICKER, PlatformSettingsKeys.KEY_NATIVE_FILE_PICKER,
         PlatformSettingsKeys.KEY_SETTINGS_ONDEVICE_MODEL_ENTRY,
         PlatformSettingsKeys.KEY_SETTINGS_GEMINI_ENTRY,
@@ -163,6 +175,9 @@ internal object RuntimeSettingsDefinitions {
         NATIVE_FILE_PICKER to Group(setOf("android", "com.android.photopicker")) {
             it == PlatformSettingsKeys.KEY_NATIVE_FILE_PICKER || it == PlatformSettingsKeys.KEY_NATIVE_PICKER
         },
+        AOSP_INSTALLER to Group(setOf("android")) { it == PlatformSettingsKeys.KEY_AOSP_PACKAGE_INSTALLER },
+        AOSP_SYSTEM_UI to Group(systemUi) { it in aospUiKeys },
+        AOSP_SECURITY to Group(setOf("com.miui.securitycenter")) { it in aospSecurityKeys },
         DARK_MODE to Group(setOf("android")) { it == PlatformSettingsKeys.KEY_DARK_MODE_IMMEDIATE_SCHEDULE },
         FORCE_SCREENSHOT to Group(setOf("android")) { it == PlatformSettingsKeys.KEY_FORCE_SCREENSHOT },
         SCREENSHOT to Group(setOf("com.miui.screenshot")) {

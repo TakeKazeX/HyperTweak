@@ -1,9 +1,5 @@
 package com.takekazex.hypertweak.ui.page.platform
 
-import com.takekazex.hypertweak.ui.components.dialog.LocalRestartScopeHandled
-import com.takekazex.hypertweak.ui.components.dialog.LocalRestartScopeRequest
-import com.takekazex.hypertweak.ui.components.dialog.restartInProgress
-import com.takekazex.hypertweak.ui.app.LocalAppServices
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import androidx.compose.foundation.layout.Column
@@ -23,8 +19,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -34,7 +28,6 @@ import androidx.compose.ui.unit.dp
 import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.ui.app.LocalAppSettingsStore
 import com.takekazex.hypertweak.util.platform.ExtendUnlockLauncher
-import com.takekazex.hypertweak.util.restart.RestartScopeSelection
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -52,8 +45,7 @@ import top.yukonga.miuix.kmp.utils.overScrollVertical
  * Toggles that hand a HyperOS component back to its AOSP implementation.
  *
  * Most state is kept locally; the Settings-interface switch stays hoisted in `MainActivity` so its
- * existing restart tracking is preserved. Other changes report their process to the shared restart
- * dialog, and this page keeps local restart affordances for SystemUI and Security Center.
+ * existing restart tracking is preserved. Other switches use the runtime settings dispatcher.
  */
 @Composable
 fun AospRestorePage(
@@ -62,13 +54,9 @@ fun AospRestorePage(
     settingsGlobalInterface: Boolean,
     onSettingsGlobalInterfaceChange: (Boolean) -> Unit
 ) {
-    val services = LocalAppServices.current
     val settingsStore = LocalAppSettingsStore.current
     val scrollBehavior = MiuixScrollBehavior()
     val context = LocalContext.current
-    val coroutineScope = rememberCoroutineScope()
-    val requestRestartScopes = LocalRestartScopeRequest.current
-    val handleRestartedScopes = LocalRestartScopeHandled.current
 
     var packageInstaller by remember {
         mutableStateOf(settingsStore.getBoolean(PlatformSettingsKeys.KEY_AOSP_PACKAGE_INSTALLER, false))
@@ -100,10 +88,6 @@ fun AospRestorePage(
     var geminiEntry by remember {
         mutableStateOf(settingsStore.getBoolean(PlatformSettingsKeys.KEY_SETTINGS_GEMINI_ENTRY, false))
     }
-    // Keep the local prompt for immediate access on this page. Each affected switch also reports
-    // its process to the shared Home restart dialog through LocalRestartScopeRequest.
-    var systemUiRestartPending by rememberSaveable { mutableStateOf(false) }
-    var securityCenterRestartPending by rememberSaveable { mutableStateOf(false) }
 
     Scaffold(topBar = {
         TopAppBar(
@@ -174,8 +158,6 @@ fun AospRestorePage(
                         checked = powerMenu,
                         onCheckedChange = { enabled ->
                             powerMenu = enabled
-                            systemUiRestartPending = true
-                            requestRestartScopes(RestartScopeSelection(systemUi = true))
                             settingsStore.putBoolean(PlatformSettingsKeys.KEY_AOSP_POWER_MENU, enabled)
                         },
                         title = stringResource(R.string.aosp_power_menu),
@@ -185,8 +167,6 @@ fun AospRestorePage(
                         checked = volumePanel,
                         onCheckedChange = { enabled ->
                             volumePanel = enabled
-                            systemUiRestartPending = true
-                            requestRestartScopes(RestartScopeSelection(systemUi = true))
                             settingsStore.putBoolean(PlatformSettingsKeys.KEY_AOSP_VOLUME_PANEL, enabled)
                         },
                         title = stringResource(R.string.aosp_volume_panel),
@@ -196,8 +176,6 @@ fun AospRestorePage(
                         checked = volumePanelHapticMiui,
                         onCheckedChange = { enabled ->
                             volumePanelHapticMiui = enabled
-                            systemUiRestartPending = true
-                            requestRestartScopes(RestartScopeSelection(systemUi = true))
                             settingsStore.putBoolean(PlatformSettingsKeys.KEY_AOSP_VOLUME_HAPTIC_MIUI, enabled)
                         },
                         enabled = volumePanel,
@@ -208,8 +186,6 @@ fun AospRestorePage(
                         checked = extendUnlockFix,
                         onCheckedChange = { enabled ->
                             extendUnlockFix = enabled
-                            systemUiRestartPending = true
-                            requestRestartScopes(RestartScopeSelection(systemUi = true))
                             settingsStore.putBoolean(PlatformSettingsKeys.KEY_EXTEND_UNLOCK_FIX, enabled)
                         },
                         title = stringResource(R.string.aosp_extend_unlock),
@@ -225,32 +201,12 @@ fun AospRestorePage(
                         checked = clipboardEditor,
                         onCheckedChange = { enabled ->
                             clipboardEditor = enabled
-                            systemUiRestartPending = true
-                            requestRestartScopes(RestartScopeSelection(systemUi = true))
                             settingsStore.putBoolean(PlatformSettingsKeys.KEY_AOSP_CLIPBOARD_EDITOR, enabled)
                         },
                         title = stringResource(R.string.aosp_clipboard_editor),
                         summary = stringResource(R.string.aosp_clipboard_editor_summary)
                     )
-                    if (systemUiRestartPending) {
-                        ArrowPreference(
-                            title = stringResource(R.string.aosp_restart_system_ui),
-                            summary = stringResource(R.string.aosp_restart_system_ui_summary),
-                            enabled = !restartInProgress(RestartScopeSelection(systemUi = true)),
-                            onClick = {
-                                settingsStore.flush()
-                                services.restarts.restartScope(
-                                    context = context,
-                                    coroutineScope = coroutineScope,
-                                    selection = RestartScopeSelection(systemUi = true),
-                                    onCompleted = { completed ->
-                                        handleRestartedScopes(completed)
-                                        if (completed.systemUi) systemUiRestartPending = false
-                                    },
-                                )
-                            }
-                        )
-                    }
+
                 }
             }
 
@@ -261,8 +217,6 @@ fun AospRestorePage(
                         checked = appInfoEntry,
                         onCheckedChange = { enabled ->
                             appInfoEntry = enabled
-                            securityCenterRestartPending = true
-                            requestRestartScopes(RestartScopeSelection(securityCenter = true))
                             settingsStore.putBoolean(PlatformSettingsKeys.KEY_AOSP_APP_INFO_ENTRY, enabled)
                         },
                         title = stringResource(R.string.aosp_app_info_entry),
@@ -272,33 +226,12 @@ fun AospRestorePage(
                         checked = appManagerEntry,
                         onCheckedChange = { enabled ->
                             appManagerEntry = enabled
-                            securityCenterRestartPending = true
-                            requestRestartScopes(RestartScopeSelection(securityCenter = true))
                             settingsStore.putBoolean(PlatformSettingsKeys.KEY_AOSP_APP_MANAGER_ENTRY, enabled)
                         },
                         title = stringResource(R.string.aosp_app_manager_entry),
                         summary = stringResource(R.string.aosp_app_manager_entry_summary)
                     )
-                    if (securityCenterRestartPending) {
-                        val restartSelection = RestartScopeSelection(securityCenter = true)
-                        ArrowPreference(
-                            title = stringResource(R.string.aosp_restart_security_center),
-                            summary = stringResource(R.string.aosp_restart_security_center_summary),
-                            enabled = !restartInProgress(restartSelection),
-                            onClick = {
-                                settingsStore.flush()
-                                services.restarts.restartScope(
-                                    context = context,
-                                    coroutineScope = coroutineScope,
-                                    selection = restartSelection,
-                                    onCompleted = { completed ->
-                                        handleRestartedScopes(completed)
-                                        if (completed.securityCenter) securityCenterRestartPending = false
-                                    },
-                                )
-                            }
-                        )
-                    }
+
                 }
             }
 

@@ -3,6 +3,9 @@ package com.takekazex.hypertweak.hook.rules.securitycenter
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import android.app.Activity
+import com.takekazex.hypertweak.hook.base.HostAccess
+import java.util.WeakHashMap
+import java.lang.ref.WeakReference
 import android.content.Context
 import android.content.Intent
 import android.view.Menu
@@ -54,12 +57,20 @@ object AospAppManagerEntryHooker : StaticHooker() {
     private fun allAppsTitle(): String =
         if (Locale.getDefault().language == "zh") "所有应用 (AOSP)" else "All apps (AOSP)"
 
-    override fun onHook() {
-        if (!settingAospAppManagerEntry) {
-            DebugLog.hookSkippedDebug(TAG, "app manager menu", "disabled")
-            return
-        }
+    private val menus = generationMainResource(WeakHashMap<Menu, WeakReference<Activity>>()) { it.clear() }
 
+    fun refreshSettings() = HostAccess.onMain {
+        menus.entries.toList().forEach { (menu, reference) ->
+            menu.removeItem(MENU_ITEM_ID)
+            reference.get()?.takeIf { !it.isDestroyed }?.let { addEntry(it, menu) }
+        }
+    }
+
+    override fun onPrepareHotReload() = HostAccess.onMain {
+        menus.keys.toList().forEach { it.removeItem(MENU_ITEM_ID) }
+    }
+
+    override fun onHook() {
         val appCompat = APPCOMPAT_ACTIVITY.toClassOrNull() ?: run {
             DebugLog.hookSkipped(TAG, APPCOMPAT_ACTIVITY, "class not found")
             return
@@ -124,6 +135,11 @@ object AospAppManagerEntryHooker : StaticHooker() {
     }
 
     private fun addEntry(activity: Activity, menu: Menu) {
+        menus[menu] = WeakReference(activity)
+        if (!settingAospAppManagerEntry) {
+            menu.removeItem(MENU_ITEM_ID)
+            return
+        }
         // An empty end menu means miuix has not populated it yet; adding now would be replaced.
         if (menu.isEmpty() || hasEntry(menu)) return
 

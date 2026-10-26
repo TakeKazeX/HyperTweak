@@ -50,8 +50,7 @@ import java.lang.reflect.Method
  * `VolumeDialogControllerImpl$C`, `com.google.android.msdl.domain.MSDLPlayerImpl` and
  * `miui.util.HapticFeedbackUtil` are real, unobfuscated names in the SystemUI/framework dex, so no
  * DexKit is needed. Live behavior is gated on `KEY_AOSP_VOLUME_PANEL && KEY_AOSP_VOLUME_HAPTIC_MIUI`,
- * both snapshotted at `onHook` (the panel switch already needs a SystemUI restart). Requires a
- * SystemUI restart.
+ * both published by the runtime settings dispatcher. Hooks stay installed while disabled.
  */
 object AospVolumeHapticHooker : StaticHooker() {
     // Published on settings acceptance; hook callbacks perform no storage reads.
@@ -79,7 +78,7 @@ object AospVolumeHapticHooker : StaticHooker() {
     private const val TOKEN_DRAG_DISCRETE = "DRAG_INDICATOR_DISCRETE"
     private const val STATE_DRAG_HANDLE_DRAGGING = "DRAG_HANDLE_DRAGGING"
 
-    private var enabled by generationState { false }
+    private val enabled get() = settingAospVolumePanel && settingAospVolumeHapticMiui
 
     // Cached reflection (hot path: every volume change).
     private var hapticUtil: Any? by generationState { null }
@@ -100,19 +99,7 @@ object AospVolumeHapticHooker : StaticHooker() {
     // MSDL drag feedback); it is only swallowed for the key-driven handle animation (the "嗡嗡嗡").
     private var dragActive by generationState { false }
 
-    override fun onPrepareHotReload() {
-        enabled = false
-    }
-
     override fun onHook() {
-        if (!settingAospVolumePanel ||
-            !settingAospVolumeHapticMiui
-        ) {
-            DebugLog.hookSkippedDebug(TAG, "AOSP volume haptic", "disabled")
-            return
-        }
-        enabled = true
-
         // 1) Play the MIUI waveform once per volume-level change, keyed off the haptic-intent signal.
         val callbacksClass = callbacksInstance
             ?: CONTROLLER_CALLBACKS.toClassOrNull()?.also { callbacksInstance = it }

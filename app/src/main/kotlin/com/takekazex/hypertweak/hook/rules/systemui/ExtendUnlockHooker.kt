@@ -66,7 +66,7 @@ object ExtendUnlockHooker : StaticHooker() {
 
     private class CachedTrust(val uptimeMs: Long, val trusted: Boolean)
 
-    private var enabled by generationState { false }
+    private val enabled get() = settingExtendUnlockFix
 
     private val trustCache = generationResource(ConcurrentHashMap<Int, CachedTrust>()) { it.clear() }
 
@@ -122,16 +122,21 @@ object ExtendUnlockHooker : StaticHooker() {
         }
     }
 
-    override fun onPrepareHotReload() {
-        enabled = false
+    private var liveContext: Context? by generationState { null }
+
+    init {
+        hostRecovery(com.takekazex.hypertweak.hook.base.HostRecoveryPhase.CONTENT) { scope ->
+            liveContext = scope.context
+            syncTrustAgent(scope.context)
+        }
+    }
+
+    fun refreshSettings() {
+        trustCache.clear()
+        (liveContext ?: hookParam.appContext)?.let(::syncTrustAgent)
     }
 
     override fun onHook() {
-        enabled = settingExtendUnlockFix
-        if (!enabled) {
-            DebugLog.hookSkippedDebug(TAG, "keyguard trust state", "disabled")
-            return
-        }
 
         val monitor = KEYGUARD_UPDATE_MONITOR.toClassOrNull() ?: run {
             DebugLog.hookSkipped(TAG, KEYGUARD_UPDATE_MONITOR, "class not found")

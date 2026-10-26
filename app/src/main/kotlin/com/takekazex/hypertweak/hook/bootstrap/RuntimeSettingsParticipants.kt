@@ -64,6 +64,19 @@ internal object RuntimeSettingsParticipants {
         registerForProcess(RuntimeSettingsGroups.FORCE_SCREENSHOT) { _ ->
             com.takekazex.hypertweak.hook.rules.system.ForceScreenshotHooker.refreshSettings(); true
         }
+        registerForProcess(RuntimeSettingsGroups.AOSP_INSTALLER) { _ ->
+            com.takekazex.hypertweak.hook.rules.system.AospPackageInstallerHooker.refreshSettings()
+        }
+        registerForProcess(RuntimeSettingsGroups.AOSP_SYSTEM_UI) { _ ->
+            com.takekazex.hypertweak.hook.rules.systemui.UnlockClipboardHooker.refreshSettings()
+            com.takekazex.hypertweak.hook.rules.systemui.ExtendUnlockHooker.refreshSettings()
+            com.takekazex.hypertweak.hook.rules.systemui.AospSystemUiPluginBlockHooker.refreshSettings()
+        }
+        registerForProcess(RuntimeSettingsGroups.AOSP_SECURITY) { _ ->
+            com.takekazex.hypertweak.hook.rules.securitycenter.AospAppInfoEntryHooker.refreshSettings()
+            com.takekazex.hypertweak.hook.rules.securitycenter.AospAppManagerEntryHooker.refreshSettings()
+            true
+        }
         registerForProcess(RuntimeSettingsGroups.DARK_MODE) { _ ->
             com.takekazex.hypertweak.hook.rules.system.DarkModeScheduleHooker.refreshSettings()
         }

@@ -3,6 +3,8 @@ package com.takekazex.hypertweak.hook.rules.systemui
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import android.content.ComponentName
+import com.takekazex.hypertweak.hook.base.HostAccess
+import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
 import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.CompatibleMethodResolver
@@ -17,8 +19,8 @@ import com.takekazex.hypertweak.util.logging.DebugLog
  * `PluginActionManager.loadPluginComponent(ComponentName)` is the single funnel both plugin
  * discovery paths go through, and each caller skips the plugin when it returns null. Returning null
  * for the two MIUI components is what disabling them with `pm disable` achieves, without root and
- * without leaving persistent component state behind: turning the switch off and restarting SystemUI
- * restores MIUI's own UI.
+ * without leaving persistent component state behind. Reloading the two action managers restores
+ * MIUI's own UI when the switch is turned off.
  *
  * Matching is by class name so the control-center plugin in the same package — which
  * [SystemUIPluginHooker] depends on — keeps loading.
@@ -34,18 +36,39 @@ object AospSystemUiPluginBlockHooker : StaticHooker() {
     private const val GLOBAL_ACTIONS_PLUGIN = "miui.systemui.globalactions.GlobalActionsPlugin"
     private const val VOLUME_DIALOG_PLUGIN = "miui.systemui.volume.VolumeDialogPlugin"
 
-    private var blockedClasses: Set<String> by generationState { emptySet() }
+    private val blockedClasses: Set<String> get() = buildSet {
+        if (settingAospPowerMenu) add(GLOBAL_ACTIONS_PLUGIN)
+        if (settingAospVolumePanel) add(VOLUME_DIALOG_PLUGIN)
+    }
+    private var component: Any? by generationState { null }
+    private var applied: Set<String>? by generationState { null }
+
+    init {
+        hostRecovery(HostRecoveryPhase.CONTENT) { scope ->
+            component = scope.component
+            refreshSettings()
+        }
+    }
+
+    fun refreshSettings(): Boolean = HookFailurePolicy.open(TAG, "reload plugins", false) {
+        val wanted = blockedClasses
+        if (applied == wanted) return@open true
+        val host = component ?: return@open false
+        val root = HostAccess.read(host, "referenceGlobalRootComponentImpl") ?: return@open false
+        val manager = HostAccess.provider(root, "providesPluginManagerImplProvider") ?: return@open false
+        // Snapshot under the same monitor as PluginManagerImpl's add/remove listener operations.
+        val managers = synchronized(manager) {
+            (HostAccess.read(manager, "pluginMap") as? Map<*, *>)?.values?.filterNotNull()?.toList()
+        } ?: return@open false
+        managers.filter {
+            HostAccess.read(it, "action") in setOf("com.android.systemui.action.PLUGIN_GLOBAL_ACTIONS",
+                "com.android.systemui.action.PLUGIN_VOLUME")
+        }.forEach { checkNotNull(HostAccess.method(it, "loadAll")).invoke(it) }
+        applied = wanted
+        true
+    }
 
     override fun onHook() {
-        blockedClasses = buildSet {
-            if (settingAospPowerMenu) add(GLOBAL_ACTIONS_PLUGIN)
-            if (settingAospVolumePanel) add(VOLUME_DIALOG_PLUGIN)
-        }
-        if (blockedClasses.isEmpty()) {
-            DebugLog.hookSkippedDebug(TAG, "MIUI SystemUI plugins", "disabled")
-            return
-        }
-
         val actionManager = PLUGIN_ACTION_MANAGER.toClassOrNull() ?: run {
             DebugLog.hookSkipped(TAG, PLUGIN_ACTION_MANAGER, "class not found")
             return

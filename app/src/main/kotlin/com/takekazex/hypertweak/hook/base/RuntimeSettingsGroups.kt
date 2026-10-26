@@ -9,6 +9,9 @@ internal object RuntimeSettingsGroups {
     const val ISLANDS = RuntimeSettingsDefinitions.ISLANDS
     const val NATIVE_PHOTO_PICKER = RuntimeSettingsDefinitions.NATIVE_PHOTO_PICKER
     const val NATIVE_FILE_PICKER = RuntimeSettingsDefinitions.NATIVE_FILE_PICKER
+    const val AOSP_INSTALLER = RuntimeSettingsDefinitions.AOSP_INSTALLER
+    const val AOSP_SYSTEM_UI = RuntimeSettingsDefinitions.AOSP_SYSTEM_UI
+    const val AOSP_SECURITY = RuntimeSettingsDefinitions.AOSP_SECURITY
     const val DARK_MODE = RuntimeSettingsDefinitions.DARK_MODE
     const val FORCE_SCREENSHOT = RuntimeSettingsDefinitions.FORCE_SCREENSHOT
     const val SCREENSHOT = RuntimeSettingsDefinitions.SCREENSHOT

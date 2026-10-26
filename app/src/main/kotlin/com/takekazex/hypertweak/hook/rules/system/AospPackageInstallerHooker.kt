@@ -8,19 +8,20 @@ import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.reflect.Method
+import com.takekazex.hypertweak.hook.base.HostAccess
+import java.lang.reflect.Modifier
 
 /**
  * Restores the AOSP package installer on HyperOS.
  *
  * `PackageManagerServiceImpl.updateDefaultPkgInstallerLocked()` picks the MIUI installer unless
  * `isCTS()` is true, and `assertValidApkAndInstaller()` / `hookChooseBestActivity()` gate the same
- * way. Forcing `isCTS()` true for the duration of those three methods hands installs back to the
+ * way. Forcing `isCTS()` true for the duration of those installer methods hands installs back to the
  * AOSP installer.
  *
  * `isCTS()` is static and also gates MIUI's install verification for every caller, so the override
- * is scoped to the calling thread with a re-entrant depth counter. A process-wide flag — what the
- * upstream implementations use — would let a concurrent install on another system_server thread
- * skip signature and installer validation.
+ * is scoped to the calling thread with a re-entrant depth counter. A process-wide flag would
+ * affect concurrent system_server calls.
  *
  * Ported from tehcneko's AOSP Package Installer (GPL-3.0).
  */
@@ -36,10 +37,15 @@ object AospPackageInstallerHooker : StaticHooker() {
 
     /** Methods whose bodies should observe a CTS build. */
     private val SCOPED_METHODS = setOf(
+        "switchPackageInstaller",
         "hookChooseBestActivity",
         "updateDefaultPkgInstallerLocked",
         "assertValidApkAndInstaller"
     )
+
+    private var switchInstaller: Method? by generationState { null }
+    private var ctsMethod: Method? by generationState { null }
+    private var getService: Method? by generationState { null }
 
     private val forcedCtsDepth = ThreadLocal<Int>()
 
@@ -47,6 +53,36 @@ object AospPackageInstallerHooker : StaticHooker() {
 
     private fun isEnabled(): Boolean =
         settingAospPackageInstaller
+
+    fun refreshSettings(): Boolean = HookFailurePolicy.open(TAG, "refresh installer", false) {
+        val method = switchInstaller ?: return@open false
+        val service = getService?.invoke(null) ?: return@open false
+        // Before systemReady the vendor has not attached PMS yet. The original boot path will
+        // select the installer; runtime publications retry until initialization has completed.
+        if (HostAccess.read(service, "mPms") == null || HostAccess.read(service, "mPkgSettings") == null)
+            return@open false
+        val enabled = isEnabled()
+        if (enabled) {
+            val settings = HostAccess.read(service, "mPkgSettings") ?: return@open false
+            val packages = HostAccess.read(settings, "mPackages") ?: return@open false
+            val get = HostAccess.method(packages, "get", Any::class.java) ?: return@open false
+            val pms = HostAccess.read(service, "mPms") ?: return@open false
+            val lock = HostAccess.read(pms, "mLock") ?: return@open false
+            val available = synchronized(lock) {
+                listOf("com.android.packageinstaller", "com.google.android.packageinstaller")
+                    .any { get.invoke(packages, it) != null }
+            }
+            if (!available) return@open false
+        }
+        method.invoke(service)
+        val current = HostAccess.read(service, "mCurrentPackageInstaller") as? String
+        val nativeDefault = ctsMethod?.invoke(null) == true
+        val expected = if (enabled || nativeDefault) setOf("com.android.packageinstaller", "com.google.android.packageinstaller")
+            else setOf("com.miui.packageinstaller")
+        current in expected
+    }
+
+    override fun recoverHotReloadHosts() { refreshSettings() }
 
     override fun onPrepareHotReload() {
         forcedCtsDepth.remove()
@@ -67,14 +103,40 @@ object AospPackageInstallerHooker : StaticHooker() {
             return
         }
 
+        val switch = HostAccess.declaredMethod(pmsImpl, "switchPackageInstaller", accessible = true)
+            ?.takeIf { it.returnType == Void.TYPE && !Modifier.isStatic(it.modifiers) }
+        val stub = "com.android.server.pm.PackageManagerServiceStub".toClassOrNull()
+        val getter = stub?.let { HostAccess.declaredMethod(it, "get", accessible = true) }
+            ?.takeIf { Modifier.isStatic(it.modifiers) }
+        if (switch == null || getter == null || isCts.returnType != Boolean::class.javaPrimitiveType ||
+            !Modifier.isStatic(isCts.modifiers)) {
+            DebugLog.hookSkipped(TAG, "installer refresh contract", "missing or changed signature")
+            return
+        }
+        switchInstaller = switch
+        getService = getter
+        ctsMethod = isCts
         hookForcedResult(isCts)
 
-        val scoped = pmsImpl.declaredMethods.filter { it.name in SCOPED_METHODS }
-        if (scoped.isEmpty()) {
-            DebugLog.hookSkipped(TAG, "$PMS_IMPL installer selection", "no target methods found")
+        val contracts = mapOf(
+            "switchPackageInstaller" to ("void" to emptyList()),
+            "updateDefaultPkgInstallerLocked" to ("boolean" to emptyList()),
+            "assertValidApkAndInstaller" to ("void" to listOf("java.lang.String",
+                "android.content.pm.SigningDetails", "int", "java.lang.String", "boolean", "int")),
+            "hookChooseBestActivity" to ("android.content.pm.ResolveInfo" to listOf("android.content.Intent",
+                "java.lang.String", "long", "java.util.List", "int", "android.content.pm.ResolveInfo")),
+        )
+        val scoped = pmsImpl.declaredMethods.filter { method ->
+            contracts[method.name]?.let { (result, parameters) ->
+                method.returnType.name == result && method.parameterTypes.map { it.name } == parameters
+            } == true
+        }
+        if (scoped.size != SCOPED_METHODS.size || scoped.map { it.name }.toSet() != SCOPED_METHODS) {
+            DebugLog.hookSkipped(TAG, "$PMS_IMPL installer selection", "incomplete target methods")
             return
         }
         scoped.forEach(::hookScope)
+        refreshSettings()
     }
 
     /** `isCTS()` reports a CTS build while the calling thread sits inside a scoped method. */
@@ -99,11 +161,7 @@ object AospPackageInstallerHooker : StaticHooker() {
             method.hook {
                 before {
                     HookFailurePolicy.open(TAG, "enter:${method.name}", Unit) {
-                        // Only enter the scope when the feature is on, but always leave it below, so
-                        // toggling the switch mid-call cannot strand the counter above zero.
-                        if (isEnabled()) {
-                            forcedCtsDepth.set(depth() + 1)
-                        }
+                        forcedCtsDepth.set(depth() + 1)
                     }
                 }
                 after {

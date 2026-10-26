@@ -75,7 +75,7 @@ object AospVolumeExtrasHooker : StaticHooker() {
     /** Resolved once: a package context lookup is far too heavy for a per-view-bind call. */
     private var cachedDndDescription: String? by generationState { null }
 
-    private var enabled by generationState { false }
+    private val enabled get() = settingAospVolumePanel
 
     private var controllerStateField: Field? by generationState { null }
     private var viewModelField: Field? by generationState { null }
@@ -98,16 +98,7 @@ object AospVolumeExtrasHooker : StaticHooker() {
 
     private var pendingDnd: Boolean by generationState { false }
 
-    override fun onPrepareHotReload() {
-        enabled = false
-    }
-
     override fun onHook() {
-        if (!settingAospVolumePanel) {
-            DebugLog.hookSkippedDebug(TAG, "AOSP volume extras", "AOSP volume panel disabled")
-            return
-        }
-        enabled = true
         resolveStateFields()
         hookVolumeDialogBind()
         hookStateChanged()
