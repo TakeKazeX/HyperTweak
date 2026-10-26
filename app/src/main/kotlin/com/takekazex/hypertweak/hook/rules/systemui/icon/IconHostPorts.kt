@@ -9,7 +9,12 @@ internal class IconHostServices {
         val homeSlots: () -> Set<String> = { emptySet() },
         val keyguardSlots: () -> Set<String> = { emptySet() },
         val shadeStarted: (Boolean) -> Unit = {},
-        val shadeFinished: (Boolean) -> Unit = {}
+        val shadeFinished: (Boolean) -> Unit = {},
+        val visibilityChanged: () -> Unit = {}
+    )
+    data class Keyguard(
+        val showing: () -> Boolean? = { null },
+        val suppressed: () -> Boolean = { false }
     )
     data class Positions(
         val carrierMask: (Any, CarrierMask) -> Boolean = { _, _ -> false },
@@ -23,6 +28,7 @@ internal class IconHostServices {
     data class Binding(
         val left: Left = Left(), val positions: Positions = Positions(),
         val carrier: CarrierLayout = CarrierLayout(),
+        val keyguard: Keyguard = Keyguard(),
         val republish: () -> Unit = {}, val mobileReady: () -> Boolean = { false }
     )
     private data class Owned(val owner: Any?, val binding: Binding)
@@ -37,6 +43,7 @@ internal class IconHostServices {
 internal object IconHostPorts {
     val services = IconHostServices()
     val left get() = services.binding.left
+    val keyguard get() = services.binding.keyguard
     val positions get() = services.binding.positions
     val carrier get() = services.binding.carrier
     fun republish() = services.binding.republish()

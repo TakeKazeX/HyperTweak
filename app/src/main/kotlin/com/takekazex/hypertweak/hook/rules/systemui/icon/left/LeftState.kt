@@ -16,6 +16,7 @@ internal class LeftState(
          */
         val barRoot: View? = null
     ) {
+        var presentation = LeftVisibilityPolicy.Result.RELEASE
         var leftContainer: LinearLayout? = null
         /** slot -> clone view (our own, sized from the system view of the same slot). */
         val clones = HashMap<String, View>()

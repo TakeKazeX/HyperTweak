@@ -51,6 +51,11 @@ internal class LeftHandoverController(private val host: Host) {
             mainHandler.post { if (!host.retiring) applyHandoverGuarded(progress) }
             return
         }
+        // Policy changes can invalidate the source at any progress, including parked endpoints.
+        if (!host.active || host.sourceClones().isNullOrEmpty()) {
+            restoreHandover()
+            return
+        }
         if (ControlCenterCarrierBlockHooker.isShadeSwitching()) {
             suspendHandoverForShadeSwitch()
             return

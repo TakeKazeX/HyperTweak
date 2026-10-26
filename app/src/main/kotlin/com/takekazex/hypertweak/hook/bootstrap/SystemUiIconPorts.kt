@@ -3,6 +3,7 @@ package com.takekazex.hypertweak.hook.bootstrap
 import com.takekazex.hypertweak.hook.rules.systemui.icon.carrier.ControlCenterCarrierBlockHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.left.LeftContainerHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.*
+import com.takekazex.hypertweak.hook.rules.systemui.lockscreen.HideLockscreenStatusBarHooker
 
 /** Composition is lazy: wiring capabilities never constructs a host owner before attachment. */
 internal object SystemUiIconPorts {
@@ -11,7 +12,12 @@ internal object SystemUiIconPorts {
             homeSlots = { LeftContainerHooker.homeOwnedSlots() },
             keyguardSlots = { LeftContainerHooker.keyguardOwnedSlots() },
             shadeStarted = { LeftContainerHooker.onShadeSwitchStarted(it) },
-            shadeFinished = { LeftContainerHooker.onShadeSwitchFinished(it) }
+            shadeFinished = { LeftContainerHooker.onShadeSwitchFinished(it) },
+            visibilityChanged = { LeftContainerHooker.requestReconcile() }
+        ),
+        keyguard = IconHostServices.Keyguard(
+            showing = { HideLockscreenStatusBarHooker.keyguardShowing() },
+            suppressed = { HideLockscreenStatusBarHooker.statusBarSuppressed() }
         ),
         positions = IconHostServices.Positions(
             carrierMask = { container, mask -> IconPositionHooker.setCarrierMask(container, mask) },

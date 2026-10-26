@@ -28,4 +28,22 @@ class IconHostServicesTest {
         services.binding.republish()
         assertEquals(3, effects.size)
     }
+    @Test fun visibilityPortsAreGenerationOwnedAndRetiredTogether() {
+        val services = IconHostServices()
+        val owner = Any()
+        var events = 0
+        services.bind(owner, IconHostServices.Binding(
+            left = IconHostServices.Left(visibilityChanged = { events++ }),
+            keyguard = IconHostServices.Keyguard(showing = { true }, suppressed = { true })
+        ))
+        assertEquals(true, services.binding.keyguard.showing())
+        assertTrue(services.binding.keyguard.suppressed())
+        services.binding.left.visibilityChanged()
+        services.retire(owner)
+        assertNull(services.binding.keyguard.showing())
+        assertFalse(services.binding.keyguard.suppressed())
+        services.binding.left.visibilityChanged()
+        assertEquals(1, events)
+    }
+
 }

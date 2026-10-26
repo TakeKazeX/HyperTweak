@@ -36,7 +36,7 @@ internal class LeftPresentation(private val host: Host, private val cloner: Left
             LinearLayout.LayoutParams.MATCH_PARENT
         )
         left.tag = CONTAINER_TAG
-        left.visibility = if (state.islandShowing) View.GONE else View.VISIBLE
+        left.visibility = if (state.presentation.visible) View.VISIBLE else View.GONE
         val parent = if (state.isKeyguard) state.anchorWrapper else state.leftHost
         val index = if (state.isKeyguard) {
             parent?.childCount ?: return null
@@ -170,11 +170,14 @@ internal class LeftPresentation(private val host: Host, private val cloner: Left
             return
         }
         state.migratedSlots = state.clones.keys.toSet()
-        // Home is intentionally hidden while the keyguard owns the status bar. A normal unlock
-        // reaches this path with the same state and clones, so restore the container explicitly;
-        // otherwise the clones remain permanently GONE until SystemUI is recreated.
+        applyVisibility(state)
+    }
+
+    /** The only writer of container visibility, shared by all host callbacks. */
+    fun applyVisibility(state: LeftState) {
         state.leftContainer?.let { left ->
-            left.visibility = if (state.islandShowing) View.GONE else View.VISIBLE
+            val visibility = if (state.presentation.visible) View.VISIBLE else View.GONE
+            if (left.visibility != visibility) left.visibility = visibility
         }
     }
 

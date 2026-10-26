@@ -13,7 +13,8 @@ import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
-import java.lang.ref.WeakReference
+import android.view.inspector.WindowInspector
+import com.takekazex.hypertweak.hook.rules.systemui.icon.IconHostPorts
 
 /**
  * Hides the keyguard status bar while the lock screen is lit.
@@ -21,7 +22,7 @@ import java.lang.ref.WeakReference
  * The hooks stay installed for the process generation and every call re-reads [enabled], so both
  * directions of the switch apply immediately.
  *
- * Two values are tracked per hidden view and never mixed: [NativeIntent] is what the host last
+ * Two values are tracked per hidden view and never mixed: [LockscreenStatusBarIntent] is what the host last
  * *asked* for (captured from the intercepted arguments, and updated by every later host call), and
  * the module's own suppression is written directly. Disabling restores the native intent, so a
  * host that changed visibility or alpha while the row was hidden keeps that change.
@@ -41,24 +42,50 @@ object HideLockscreenStatusBarHooker : StaticHooker() {
     private val knownViews: MutableSet<View> =
         java.util.Collections.newSetFromMap(WeakHashMap<View, Boolean>())
 
-    /**
-     * SystemUI's window view root, used only to discover a status bar that was inflated before
-     * this generation ran. The application context is never cast to a View.
-     */
-    @Volatile
-    private var windowRoot: View? = null
+    private var retiring = false
+    private var stateController: Any? = null
+    private val attachListeners = WeakHashMap<View, View.OnAttachStateChangeListener>()
 
-    override fun saveHotReloadState(): Any = HostAccess.onMain { knownViews.toList() }
+    /** Null until the host controller is recovered; consumers may use their platform fallback. */
+    internal fun keyguardShowing(): Boolean? = stateController?.let {
+        runCatching {
+            val showing = HostAccess.read(it, "mShowing") as? Boolean ?: return@runCatching null
+            val occluded = HostAccess.read(it, "mOccluded") as? Boolean ?: return@runCatching null
+            showing && !occluded
+        }.getOrNull()
+    }
+    internal fun statusBarSuppressed(): Boolean = enabled
+
+    internal fun recoverStateController(component: Any?) {
+        if (component == null || retiring) return
+        runCatching { HostAccess.provider(component, "keyguardStateControllerImplProvider") }
+            .onSuccess { if (it != null) { stateController = it; notifyPresentation() } }
+            .onFailure { DebugLog.w("HideLockscreenStatusBar", "keyguard controller recovery failed", it) }
+    }
+
+    private fun notifyPresentation() {
+        if (!retiring) IconHostPorts.left.visibilityChanged()
+    }
+
+    override fun saveHotReloadState(): Any = HostAccess.onMain { listOf(knownViews.toList(), stateController) }
     override fun restoreHotReloadState(state: Any?) {
-        HostAccess.onMain { recoverExistingViews((state as? List<*>)?.filterIsInstance<View>().orEmpty()) }
+        HostAccess.onMain {
+            val saved = state as? List<*> ?: emptyList<Any>()
+            // Accept older generations which saved just a flat list of framework Views.
+            val views = (saved.firstOrNull() as? List<*>)?.filterIsInstance<View>()
+                ?: saved.filterIsInstance<View>()
+            stateController = saved.getOrNull(1)?.takeUnless { it is View }
+            recoverExistingViews(views)
+        }
     }
 
     /** A replacement may or may not have saved views; classify both and re-hide when enabled. */
     internal fun recoverExistingViews(views: List<View>) {
         val target = keyguardStatusBarClass
         (views + existingKeyguardStatusBars()).filter { target?.isInstance(it) == true }
-            .forEach { knownViews += it }
+            .forEach(::remember)
         if (enabled) knownViews.filter { it.isAttachedToWindow }.forEach(::hide)
+        notifyPresentation()
     }
 
     /**
@@ -70,12 +97,13 @@ object HideLockscreenStatusBarHooker : StaticHooker() {
         val changed = next != enabled
         enabled = next
         HostAccess.onMain {
-            existingKeyguardStatusBars().forEach { knownViews += it }
+            existingKeyguardStatusBars().forEach(::remember)
             if (enabled) {
                 knownViews.filter { it.isAttachedToWindow }.forEach(::hide)
             } else if (changed) {
                 restoreNative(knownViews.toList())
             }
+            notifyPresentation()
         }
         DebugLog.i(
             "HideLockscreenStatusBar",
@@ -84,16 +112,52 @@ object HideLockscreenStatusBarHooker : StaticHooker() {
     }
 
     override fun onPrepareHotReload() {
-        HostAccess.onMain { restoreNative(knownViews.toList()) }
-        knownViews.clear()
-        intents.clear()
-        windowRoot = null
-        keyguardStatusBarClass = null
-        enabled = false
+        retiring = true
+        HostAccess.onMain {
+            attachListeners.forEach { (view, listener) -> view.removeOnAttachStateChangeListener(listener) }
+            attachListeners.clear()
+            restoreNative(knownViews.toList())
+            knownViews.clear()
+            intents.clear()
+            stateController = null
+            keyguardStatusBarClass = null
+            enabled = false
+        }
     }
 
     override fun onHook() {
+        retiring = false
         enabled = Preferences.getBoolean(SystemUiSettingsKeys.KEY_HIDE_LOCKSCREEN_STATUS_BAR, false)
+        // The host emits actual showing/occlusion changes here, including insecure lock screens.
+        val stateClass = "com.android.systemui.statusbar.policy.KeyguardStateControllerImpl".toClassOrNull()
+        stateClass?.declaredMethods?.singleOrNull {
+            it.name == "notifyKeyguardState" && it.returnType == Void.TYPE &&
+                it.parameterTypes.contentEquals(arrayOf(Boolean::class.javaPrimitiveType, Boolean::class.javaPrimitiveType))
+        }?.let { method ->
+            deoptimize(method)
+            method.hook {
+                after { param ->
+                    runCatching {
+                        if (!retiring) HostAccess.onMain {
+                            stateController = param.thisObject
+                            notifyPresentation()
+                        }
+                    }.onFailure { DebugLog.w("HideLockscreenStatusBar", "keyguard state callback failed", it) }
+                }
+            }
+        } ?: DebugLog.hookSkipped("HideLockscreenStatusBar", "notifyKeyguardState(ZZ)", "method not found")
+        val controllerClass = "com.android.systemui.statusbar.phone.KeyguardStatusBarViewController".toClassOrNull()
+        controllerClass?.findMethodOrNull { name("onViewAttached"); noParams() }?.hook {
+            after { param ->
+                runCatching {
+                    HostAccess.onMain {
+                        stateController = HostAccess.read(param.thisObject, "mKeyguardStateController") ?: stateController
+                        (HostAccess.read(param.thisObject, "mView") as? View)?.let(::remember)
+                        notifyPresentation()
+                    }
+                }.onFailure { DebugLog.w("HideLockscreenStatusBar", "keyguard attach recovery failed", it) }
+            }
+        }
 
         val targetClass = runCatching {
             classLoader.loadClass("com.android.systemui.statusbar.phone.MiuiKeyguardStatusBarView")
@@ -156,7 +220,22 @@ object HideLockscreenStatusBarHooker : StaticHooker() {
     }
 
     private fun remember(view: View) {
+        if (retiring) return
         knownViews += view
+        if (!attachListeners.containsKey(view)) {
+            val listener = object : View.OnAttachStateChangeListener {
+                override fun onViewAttachedToWindow(v: View) {
+                    if (retiring) return
+                    if (enabled) hide(v)
+                    notifyPresentation()
+                }
+                override fun onViewDetachedFromWindow(v: View) {
+                    if (!retiring) notifyPresentation()
+                }
+            }
+            attachListeners[view] = listener
+            view.addOnAttachStateChangeListener(listener)
+        }
         if (enabled) HostAccess.onMain { hide(view) }
     }
 
@@ -179,9 +258,8 @@ object HideLockscreenStatusBarHooker : StaticHooker() {
     }
 
     /**
-     * Finds an inflated keyguard status bar without the window tree: SystemUI exposes its window
-     * view root through the application, and only that real View can be searched. A Context is
-     * never treated as a View.
+     * Find already-inflated hosts in every real window, including upgrade without saved state.
+     * A Context is never treated as a View.
      */
     private fun existingKeyguardStatusBars(): List<View> {
         val target = keyguardStatusBarClass ?: return knownViews.toList()
@@ -204,45 +282,19 @@ object HideLockscreenStatusBarHooker : StaticHooker() {
         }
     }
 
-    /**
-     * The real View roots of this process. `WindowManagerGlobal.mViews` holds one
-     * `ViewRootImpl` per window, so its child is the decor view - the only object a view search
-     * may start from. Cached after the first successful read.
-     */
-    private fun systemUiViewRoots(): List<View> {
-        windowRoot?.takeIf { it.isAttachedToWindow }?.let { return listOf(it) }
-        val roots = runCatching {
-            val globalClass = Class.forName("android.view.WindowManagerGlobal")
-            val global = globalClass.getMethod("getInstance").invoke(null)
-            val views = globalClass.getDeclaredField("mViews")
-                .apply { isAccessible = true }.get(global) as? Collection<*>
-            views.orEmpty().mapNotNull { rootImpl ->
-                runCatching { rootImpl?.javaClass?.getMethod("getView")?.invoke(rootImpl) as? View }
-                    .getOrNull()
-                    ?: runCatching {
-                        rootImpl?.javaClass?.getDeclaredField("mView")
-                            ?.apply { isAccessible = true }?.get(rootImpl) as? View
-                    }.getOrNull()
-            }
-        }.getOrDefault(emptyList())
-        roots.firstOrNull()?.let { windowRoot = it }
-        return roots
-    }
+    /** Snapshot every window as Views; mViews contains Views, not ViewRootImpl objects. */
+    private fun systemUiViewRoots(): List<View> = runCatching {
+        WindowInspector.getGlobalWindowViews().toList()
+    }.onFailure { DebugLog.w("HideLockscreenStatusBar", "window discovery failed", it) }
+        .getOrDefault(emptyList())
 
-    /**
-     * Application context, retained from package-ready. It lives as long as the injected
-     * SystemUI process; it is only a readiness signal, never searched as a View.
-     */
-    @Volatile
-    @android.annotation.SuppressLint("StaticFieldLeak")
-    private var hostContext: Context? = null
-
+    /** Kept as package-readiness entry point; host Views are discovered independently. */
     fun onApplicationContextReady(context: Context) {
-        hostContext = runCatching { context.applicationContext }.getOrNull() ?: context
+        if (!retiring && keyguardStatusBarClass != null) HostAccess.onMain { recoverExistingViews(emptyList()) }
     }
 
     private fun shouldHide(instance: Any?): Boolean =
-        enabled && !applying && instance != null && keyguardStatusBarClass?.isInstance(instance) == true
+        !retiring && enabled && !applying && instance != null && keyguardStatusBarClass?.isInstance(instance) == true
 
     private fun hide(view: View) {
         if (!enabled || !view.isAttachedToWindow) return

@@ -65,7 +65,10 @@ internal object StatusIconHotReloadRecovery {
                 recoverFeature("media app icon") { MediaCardHideAppIconHooker.recoverExistingViews(existingViews) }
                 recoverFeature("media output switch") { MediaCardHideDeviceSwitchHooker.recoverExistingViews(existingViews) }
                 recoverFeature("lockscreen date") { LockscreenDateHooker.recoverExistingViews(existingViews) }
-                recoverFeature("lockscreen status bar") { HideLockscreenStatusBarHooker.recoverExistingViews(existingViews) }
+                recoverFeature("lockscreen status bar") {
+                    HideLockscreenStatusBarHooker.recoverStateController(component)
+                    HideLockscreenStatusBarHooker.recoverExistingViews(existingViews)
+                }
                 recoverFeature("lockscreen compact labels") { LockscreenBottomTextHooker.recoverExistingViews(existingViews) }
                 recoverFeature("lockscreen indications") {
                     component?.let { provider(it, "keyguardIndicationControllerProvider") }?.let { indication ->

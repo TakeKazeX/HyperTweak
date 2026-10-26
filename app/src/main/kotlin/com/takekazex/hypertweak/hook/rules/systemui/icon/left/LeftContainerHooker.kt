@@ -3,6 +3,7 @@ package com.takekazex.hypertweak.hook.rules.systemui.icon.left
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IconManagerHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IconTunerFlows
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IconTunerOptions
+import com.takekazex.hypertweak.hook.rules.systemui.icon.IconHostPorts
 import android.app.KeyguardManager
 import android.content.Context
 import android.os.Handler
@@ -72,7 +73,9 @@ object LeftContainerHooker : StaticHooker() {
         override val shadeSwitchSettledToControlCenter get() = LeftContainerHooker.shadeSwitchSettledToControlCenter
         override val panelVisible get() = LeftContainerHooker.panelVisible
         override val panelProgress get() = LeftContainerHooker.panelProgress
-        override fun sourceClones() = synchronized(states) { states.values.firstOrNull { !it.isKeyguard }?.clones }
+        override fun sourceClones() = synchronized(states) {
+            states.values.firstOrNull { !it.isKeyguard && visibility(it).visible && sourceHostDrawn(it) }?.clones
+        }
         override fun restoreSources() = synchronized(states) {
             states.values.forEach { state ->
                 state.clones.values.forEach { clone -> if (clone.alpha != 1f) clone.alpha = 1f }
@@ -242,18 +245,32 @@ object LeftContainerHooker : StaticHooker() {
         activeSlots = slots
     }
 
-    private fun keyguardShowing(): Boolean = runCatching {
+    private fun keyguardShowing(): Boolean = IconHostPorts.keyguard.showing() ?: runCatching {
         appContext?.getSystemService(KeyguardManager::class.java)?.isKeyguardLocked == true
     }.getOrDefault(false)
 
-    private fun shouldRender(state: LeftState): Boolean {
-        if (!active || state.leftHost.visibility != View.VISIBLE ||
-            !state.leftHost.isAttachedToWindow || !state.leftHost.isShown
-        ) return false
-        if (state.isKeyguard) return leftMode == IconTunerContract.LEFT_MODE_HOME_AND_LOCKSCREEN &&
-            keyguardShowing()
-        return leftMode >= IconTunerContract.LEFT_MODE_HOME && !keyguardShowing()
+    private fun visibility(state: LeftState): LeftVisibilityPolicy.Result = LeftVisibilityPolicy.resolve(
+        configured = active && if (state.isKeyguard) leftMode == IconTunerContract.LEFT_MODE_HOME_AND_LOCKSCREEN
+            else leftMode >= IconTunerContract.LEFT_MODE_HOME,
+        attached = state.leftHost.isAttachedToWindow,
+        hostShown = state.leftHost.isShown,
+        keyguard = state.isKeyguard,
+        keyguardShowing = keyguardShowing(),
+        hideLockscreen = IconHostPorts.keyguard.suppressed(),
+        island = state.islandShowing
+    )
+
+    // Clone alpha belongs to the handover itself. Only host ancestors determine source eligibility.
+    private fun sourceHostDrawn(state: LeftState): Boolean {
+        var view: View? = state.leftHost
+        while (view != null) {
+            if (view.alpha <= 0f || view.visibility != View.VISIBLE) return false
+            view = view.parent as? View
+        }
+        return true
     }
+
+    private fun shouldRender(state: LeftState): Boolean = visibility(state).visible
 
     private fun <T> onMainBlocking(action: () -> T): T = HostAccess.onMain(action)
 
@@ -334,6 +351,10 @@ object LeftContainerHooker : StaticHooker() {
                         append(if (state.isKeyguard) "keyguard" else "home")
                         append(" attached=").append(state.leftHost.isAttachedToWindow)
                         append(" hostShown=").append(state.leftHost.isShown)
+                        append(" root=").append(System.identityHashCode(state.barRoot))
+                        append(" rootVis=").append(state.barRoot?.visibility)
+                        append(" rootAlpha=").append(state.barRoot?.alpha)
+                        append(" policy=").append(state.presentation)
                         append(" container=").append(
                             when {
                                 left == null -> "none"
@@ -354,6 +375,7 @@ object LeftContainerHooker : StaticHooker() {
             DebugLog.i(
                 TAG,
                 "left state stage=$stage mode=$leftMode active=$active keyguard=$keyguard " +
+                    "suppressed=${IconHostPorts.keyguard.suppressed()} " +
                     "wanted=${activeSlots.sorted()} rows=${summary.ifEmpty { listOf("none") }.joinToString(" | ")}"
             )
         }.onFailure { DebugLog.w(TAG, "left state summary failed", it) }
@@ -376,6 +398,7 @@ object LeftContainerHooker : StaticHooker() {
             states.values.forEach(presentation::teardownState)
             states.clear()
             ccRows.clear()
+            ownershipRefreshPending = false
             resetReflectionCaches()
             publishOwnedChange()
         }
@@ -533,6 +556,25 @@ object LeftContainerHooker : StaticHooker() {
                 }
             }
         } ?: DebugLog.hookSkipped(TAG, "$STATUS_BAR_VIEW_CLASS#onAttachedToWindow", "method not found")
+
+        // A host root can hide/reveal without attachment or an icon payload change.
+        View::class.java.getMethod("setVisibility", Int::class.javaPrimitiveType).hook {
+            after { param ->
+                if (retiring || reconciling) return@after
+                val root = param.thisObject as? View ?: return@after
+                if (synchronized(states) { states.values.any { it.barRoot === root } }) requestReconcile()
+            }
+        }
+
+        View::class.java.getMethod("setAlpha", Float::class.javaPrimitiveType).hook {
+            after { param ->
+                if (retiring || reconciling) return@after
+                val view = param.thisObject as? View ?: return@after
+                if (synchronized(states) { states.values.any { it.barRoot === view || it.leftHost === view } }) {
+                    runOnMain { handover.applyHandoverGuarded(panelProgress) }
+                }
+            }
+        }
 
         // 4. Hide the left container while the status-bar island is showing.
         val islandHandlerClass = ISLAND_HANDLER_CLASS.toClassOrNull()
@@ -776,11 +818,10 @@ object LeftContainerHooker : StaticHooker() {
         val clock = view.findViewById<View>(resourceId("keyguard_clock")) ?: return
         val alarm = view.findViewById<View>(resourceId("ll_alarm_container")) ?: return
         val anchors = listOf(clock, alarm)
-        if (anchors.any { it.parent !== leftFrame }) return
-
         synchronized(states) {
             val existing = states[manager]
             if (existing != null && existing.leftHost === leftFrame && existing.isKeyguard) return
+            if (anchors.any { it.parent !== leftFrame }) return
             existing?.let {
                 presentation.teardownState(it)
                 states.remove(manager)
@@ -932,23 +973,30 @@ object LeftContainerHooker : StaticHooker() {
         }
     }
 
+    private var reconciling = false
     private fun reconcileAll() {
-        if (retiring) return
+        if (retiring || reconciling) return
+        reconciling = true
+        try { reconcilePresentation() } finally { reconciling = false }
+    }
+
+    private fun reconcilePresentation() {
         reloadSnapshot()
         var needsOverlayRefresh = false
         synchronized(states) {
             states.values.forEach { state ->
-                if (shouldRender(state)) {
+                val next = visibility(state)
+                if (state.presentation != next) {
+                    DebugLog.i(TAG, "left visibility surface=${if (state.isKeyguard) "keyguard" else "home"} " +
+                        "root=${System.identityHashCode(state.barRoot)} reason=$next clones=${state.clones.size}")
+                }
+                state.presentation = next
+                if (next.retain) {
+                    // Content and migration ownership remain current even while temporarily hidden.
+                    presentation.applyVisibility(state)
                     presentation.syncClones(state)
                 } else {
-                    if (active && !state.isKeyguard && keyguardShowing()) {
-                        state.leftContainer?.visibility = View.GONE
-                    } else if (!active && state.leftHost.isShown) {
-                        state.clones.values.forEach { cloner.animateCloneVisibility(it, false) }
-                        if (state.clones.values.none { cloner.isAnimating(it) }) presentation.teardownState(state)
-                    } else {
-                        presentation.teardownState(state)
-                    }
+                    presentation.teardownState(state)
                 }
             }
             // A merged list only changes when the owned slots do, so react to that instead of
@@ -1046,37 +1094,18 @@ object LeftContainerHooker : StaticHooker() {
     // ─── Left clones ─────────────────────────────────────────────────────────────
 
     private fun syncClonesFor(state: LeftState?) {
-        if (state == null || !shouldRender(state)) return
-        if (Looper.myLooper() != Looper.getMainLooper()) {
-            mainHandler.post { if (!retiring) syncClonesFor(state) }
-            return
-        }
-        runCatching {
-            synchronized(states) {
-                presentation.syncClones(state)
-            }
-            // A new clone needs its control-center copy parked before the next drag frame.
-            handover.applyHandoverGuarded(panelProgress)
-        }
-            .onFailure { t -> DebugLog.w(TAG, "LeftContainer sync failed", t) }
+        if (state == null) return
+        requestReconcile()
     }
 
-    // ─── Dark tint ───────────────────────────────────────────────────────────────
-
-    // ─── Island ──────────────────────────────────────────────────────────────────
-
-    private fun applyIslandVisibility(handler: Any?, islandShowing: Boolean) {
+    /** Island events update policy inputs; they never independently reveal a container. */
+    private fun applyIslandVisibility(handler: Any?, islandShowing: Boolean) = runOnMain {
         synchronized(states) {
             states.values.forEach { state ->
-                if (handler == null || state.islandHandler !== handler) return@forEach
-                state.islandShowing = islandShowing
-                state.leftContainer?.let { left ->
-                    runCatching {
-                        left.visibility = if (islandShowing) View.GONE else View.VISIBLE
-                    }
-                }
+                if (handler != null && state.islandHandler === handler) state.islandShowing = islandShowing
             }
         }
+        requestReconcile()
     }
 
     // ─── Reflection helpers ──────────────────────────────────────────────────────
