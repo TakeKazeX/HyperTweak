@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.slider
 
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
@@ -12,7 +13,6 @@ import com.takekazex.hypertweak.hook.base.DynamicHooker
 import com.takekazex.hypertweak.hook.base.HotReloadMode
 import org.luckypray.dexkit.query.enums.StringMatchType
 import java.lang.reflect.Method
-import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Control Center corner-radius overrides (控制中心圆角).
@@ -142,13 +142,6 @@ class ControlCenterCornerHooker(
         else -> null
     }
 
-    override fun onPrepareHotReload() {
-        radiusMethodCache.clear()
-        sliderRadiusMethodCache.clear()
-        iconFieldCache.clear()
-        blurOutlineMethodCache.clear()
-    }
-
     // ─── Cached reflective accessors (keyed by Class, the plugin reloads can reuse them) ─────
 
     /**
@@ -162,16 +155,9 @@ class ControlCenterCornerHooker(
 
     private typealias CornerOverride = com.takekazex.hypertweak.hook.rules.systemui.controlcenter.CornerOverrideRecord
 
-    private val radiusMethodCache = ConcurrentHashMap<String, Method?>()
-    private val sliderRadiusMethodCache = ConcurrentHashMap<String, Method?>()
-    private val iconFieldCache = ConcurrentHashMap<String, java.lang.reflect.Field?>()
-    private val blurOutlineMethodCache = ConcurrentHashMap<String, Method?>()
-
     /** `setCornerRadius(float)` on ExpandableView/QS views/media holder. */
     private fun getSetCornerRadius(clazz: Class<*>): Method? =
-        radiusMethodCache.getOrPut("setCornerRadius@${clazz.name}") {
-            runCatching { clazz.getMethod("setCornerRadius", Float::class.javaPrimitiveType) }.getOrNull()
-        }
+        HostAccess.publicMethod(clazz, "setCornerRadius", Float::class.javaPrimitiveType!!, accessible = false)
 
     /**
      * `setOutlineRadius(float)` on ToggleSliderViewHolder (the track container's radius).
@@ -179,9 +165,7 @@ class ControlCenterCornerHooker(
      * value, as [applyToggleSliderCorner] explains.
      */
     private fun getSetOutlineRadius(clazz: Class<*>): Method? =
-        sliderRadiusMethodCache.getOrPut("setOutlineRadius@${clazz.name}") {
-            runCatching { clazz.getMethod("setOutlineRadius", Float::class.javaPrimitiveType) }.getOrNull()
-        }
+        HostAccess.publicMethod(clazz, "setOutlineRadius", Float::class.javaPrimitiveType!!, accessible = false)
 
     /** Finds one declared method by name, optionally pinning the parameter count. */
     private fun findDeclaredMethod(clazz: Class<*>, name: String, paramCount: Int? = null): Method? =
@@ -189,15 +173,13 @@ class ControlCenterCornerHooker(
 
     /** Reads one public field (or its getter) off a plugin binding object. */
     private fun bindingView(binding: Any, fieldName: String): View? =
-        runCatching { binding.javaClass.getField(fieldName).get(binding) as? View }.getOrNull()
-            ?: runCatching { binding.javaClass.getMethod("get" + fieldName.replaceFirstChar { it.uppercase() })
+        runCatching { HostAccess.requirePublicField(binding.javaClass, fieldName, accessible = false).get(binding) as? View }.getOrNull()
+            ?: runCatching { HostAccess.requirePublicMethod(binding.javaClass, "get" + fieldName.replaceFirstChar { it.uppercase() }, accessible = false)
                 .invoke(binding) as? View }.getOrNull()
 
     /** Mirrors the inner `icon` ImageView of a `QSTileItemIconView` (the glass/icon surface). */
     private fun getTileIconView(holder: Any, clazz: Class<*>): View? {
-        val field = iconFieldCache.getOrPut("icon@${clazz.name}") {
-            runCatching { clazz.getDeclaredField("icon").apply { isAccessible = true } }.getOrNull()
-        } ?: return null
+        val field = HostAccess.declaredField(clazz, "icon", accessible = true) ?: return null
         return runCatching { field.get(holder) as? View }.getOrNull()
     }
 
@@ -207,15 +189,10 @@ class ControlCenterCornerHooker(
      * it from its own `setCornerRadius`), and it is the only mechanism that reaches the
      * bionics/glass background material used by cards and tiles on OS4.
      */
-    private fun getBlurOutlineRoundRect(): Method? {
-        val key = "blurOutline@${classLoader.toString()}"
-        return blurOutlineMethodCache.getOrPut(key) {
-            runCatching {
-                val miBlurCompat = classLoader.loadClass("miui.systemui.util.MiBlurCompat")
-                miBlurCompat.getMethod("setBlurOutlineRoundRect", View::class.java, Float::class.javaPrimitiveType)
-            }.getOrNull()
-        }
-    }
+    private fun getBlurOutlineRoundRect(): Method? = runCatching {
+        val clz = classLoader.loadClass("miui.systemui.util.MiBlurCompat")
+        HostAccess.publicMethod(clz, "setBlurOutlineRoundRect", View::class.java, Float::class.javaPrimitiveType!!, accessible = false)
+    }.getOrNull()
 
     /**
      * One corner override point. The host's own drawable/outline is recorded the first time the
@@ -442,7 +419,7 @@ class ControlCenterCornerHooker(
     }
 
     private fun applyToggleSliderCorner(holder: Any, clz: Class<*>, radius: Float) {
-        val binding = runCatching { clz.getMethod("getBinding").invoke(holder) }.getOrNull() ?: return
+        val binding = runCatching { HostAccess.requirePublicMethod(clz, "getBinding", accessible = false).invoke(holder) }.getOrNull() ?: return
         // This override is the slider TRACK radius only. The vendor gives the track and the white
         // progress fill deliberately different stock radii and derives the fill's rounding from both:
         //   track (progressBg / bionicsProgressBg, @attr/sliderBgColor)
@@ -458,8 +435,8 @@ class ControlCenterCornerHooker(
         // Both track drawables are rebuilt by updateResources(), hence the after-hooks.
         if (radius <= 0f) {
             for (fieldName in listOf("progressBg", "bionicsProgressBg")) {
-                val view = runCatching { binding.javaClass.getField(fieldName).get(binding) as? View }.getOrNull()
-                    ?: runCatching { binding.javaClass.getMethod("get$fieldName").invoke(binding) as? View }.getOrNull()
+                val view = runCatching { HostAccess.requirePublicField(binding.javaClass, fieldName, accessible = false).get(binding) as? View }.getOrNull()
+                    ?: runCatching { HostAccess.requirePublicMethod(binding.javaClass, "get$fieldName", accessible = false).invoke(binding) as? View }.getOrNull()
                 if (view != null) releaseRadius(view)
             }
             getSetOutlineRadius(clz)?.let { setter ->
@@ -471,8 +448,8 @@ class ControlCenterCornerHooker(
             return
         }
         for (fieldName in listOf("progressBg", "bionicsProgressBg")) {
-            val view = runCatching { binding.javaClass.getField(fieldName).get(binding) as? View }.getOrNull()
-                ?: runCatching { binding.javaClass.getMethod("get$fieldName").invoke(binding) as? View }.getOrNull()
+            val view = runCatching { HostAccess.requirePublicField(binding.javaClass, fieldName, accessible = false).get(binding) as? View }.getOrNull()
+                ?: runCatching { HostAccess.requirePublicMethod(binding.javaClass, "get$fieldName", accessible = false).invoke(binding) as? View }.getOrNull()
             if (view != null) overrideRadius(view, radius)
         }
         // Only the track container's outline radius (`toggleSliderInner`, provider `$2`, which falls
@@ -490,13 +467,13 @@ class ControlCenterCornerHooker(
             }
             runCatching { outlineSetter.invoke(holder, radius) }
         }
-        val inner = runCatching { binding.javaClass.getField("toggleSliderInner").get(binding) as? View }.getOrNull()
-            ?: runCatching { binding.javaClass.getMethod("getToggleSliderInner").invoke(binding) as? View }.getOrNull()
+        val inner = runCatching { HostAccess.requirePublicField(binding.javaClass, "toggleSliderInner", accessible = false).get(binding) as? View }.getOrNull()
+            ?: runCatching { HostAccess.requirePublicMethod(binding.javaClass, "getToggleSliderInner", accessible = false).invoke(binding) as? View }.getOrNull()
         inner?.invalidateOutline()
         // The fill's outline reads progressBg's drawable corner, so it must be recomputed now that
         // the track corner changed; it stays at min(vendor 2dp, track radius) as a result.
-        val progress = runCatching { binding.javaClass.getField("progress").get(binding) as? View }.getOrNull()
-            ?: runCatching { binding.javaClass.getMethod("getProgress").invoke(binding) as? View }.getOrNull()
+        val progress = runCatching { HostAccess.requirePublicField(binding.javaClass, "progress", accessible = false).get(binding) as? View }.getOrNull()
+            ?: runCatching { HostAccess.requirePublicMethod(binding.javaClass, "getProgress", accessible = false).invoke(binding) as? View }.getOrNull()
         progress?.invalidateOutline()
     }
 
@@ -632,8 +609,8 @@ class ControlCenterCornerHooker(
                     after { param ->
                         runCatching {
                             val holder = param.thisObject
-                            val itemView = runCatching { holder.javaClass.getMethod("getItemView").invoke(holder) as? View }
-                                .getOrNull() ?: runCatching { holder.javaClass.getField("itemView").get(holder) as? View }.getOrNull()
+                            val itemView = runCatching { HostAccess.requirePublicMethod(holder.javaClass, "getItemView", accessible = false).invoke(holder) as? View }
+                                .getOrNull() ?: runCatching { HostAccess.requirePublicField(holder.javaClass, "itemView", accessible = false).get(holder) as? View }.getOrNull()
                             if (itemView != null) entryApplier(itemView)
                         }.onFailure { t -> Log.e("HyperTweak", "CC corner: device entry onConfigurationChanged", t) }
                     }
@@ -655,7 +632,7 @@ class ControlCenterCornerHooker(
         }.getOrNull() ?: return
         val setCorner = getSetCornerRadius(holderClz)
         val setCornerMethod = setCorner ?: runCatching {
-            holderClz.getMethod("setCornerRadius", Float::class.javaPrimitiveType)
+            HostAccess.requirePublicMethod(holderClz, "setCornerRadius", Float::class.javaPrimitiveType, accessible = false)
         }.getOrNull() ?: return
         setCornerMethod.hook {
             intercept { chain ->

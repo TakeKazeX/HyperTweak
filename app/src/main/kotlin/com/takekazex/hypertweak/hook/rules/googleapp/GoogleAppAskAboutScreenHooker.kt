@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.googleapp
 
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import com.takekazex.hypertweak.hook.base.dex.DexContractMembers
@@ -631,12 +632,12 @@ object GoogleAppAskAboutScreenHooker : StaticHooker() {
         val context = hookParam.appContext
             ?: runCatching {
                 val activityThread = Class.forName("android.app.ActivityThread")
-                activityThread.getDeclaredMethod("currentApplication").invoke(null) as? Context
+                HostAccess.requireDeclaredMethod(activityThread, "currentApplication", accessible = false).invoke(null) as? Context
             }.getOrNull()
             ?: runCatching {
                 val activityThread = Class.forName("android.app.ActivityThread")
-                val thread = activityThread.getMethod("currentActivityThread").invoke(null)
-                activityThread.getMethod("getSystemContext").invoke(thread) as? Context
+                val thread = HostAccess.requirePublicMethod(activityThread, "currentActivityThread", accessible = false).invoke(null)
+                HostAccess.requirePublicMethod(activityThread, "getSystemContext", accessible = false).invoke(thread) as? Context
             }.getOrNull()
             ?: return "unknown"
         val info = context.packageManager.getPackageInfo(PACKAGE, 0)

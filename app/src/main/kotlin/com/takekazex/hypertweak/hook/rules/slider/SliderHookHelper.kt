@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.slider
 
+import com.takekazex.hypertweak.hook.base.HostAccess
 import android.graphics.Typeface
 import android.util.Log
 import android.view.View
@@ -12,18 +13,8 @@ import java.util.WeakHashMap
 // ─── Package-Level View Extensions ─────────────────────────────────────────
 
 private object MiBlurMethodCache {
-    private val methodCache = java.util.concurrent.ConcurrentHashMap<String, java.lang.reflect.Method?>()
-
-    fun getMethod(view: View, name: String, vararg paramTypes: Class<*>): java.lang.reflect.Method? {
-        val key = "${view.javaClass.name}#$name"
-        return methodCache.getOrPut(key) {
-            runCatching { view.javaClass.getMethod(name, *paramTypes) }.getOrNull()
-        }
-    }
-
-    fun clear() {
-        methodCache.clear()
-    }
+    fun getMethod(view: View, name: String, vararg paramTypes: Class<*>): java.lang.reflect.Method? =
+        HostAccess.publicMethod(view.javaClass, name, *paramTypes, accessible = false)
 }
 
 fun View.setMiViewBlurMode(mode: Int) {
@@ -193,8 +184,8 @@ object SliderHookHelper {
     }
 
     private fun resolveSliderFromHolder(holder: Any): SeekBar? =
-        runCatching { holder.javaClass.getField("slider").get(holder) as? SeekBar }.getOrNull()
-            ?: runCatching { holder.javaClass.getMethod("getSlider").invoke(holder) as? SeekBar }.getOrNull()
+        runCatching { HostAccess.requirePublicField(holder.javaClass, "slider", accessible = false).get(holder) as? SeekBar }.getOrNull()
+            ?: runCatching { HostAccess.requirePublicMethod(holder.javaClass, "getSlider", accessible = false).invoke(holder) as? SeekBar }.getOrNull()
 
     fun blendColors(color1: Int, color2: Int, fraction: Float): Int {
         val a = (color1 ushr 24 and 0xff) + ((color2 ushr 24 and 0xff) - (color1 ushr 24 and 0xff)) * fraction
@@ -227,7 +218,7 @@ object SliderHookHelper {
             } else {
                 val m = runCatching {
                     val clz = context.classLoader.loadClass("miui.systemui.controlcenter.utils.ControlCenterUtils")
-                    clz.getMethod("getBackgroundBlurOpenedInDefaultTheme", android.content.Context::class.java)
+                    HostAccess.requirePublicMethod(clz, "getBackgroundBlurOpenedInDefaultTheme", android.content.Context::class.java, accessible = false)
                 }.getOrNull()
                 isBlurSupportedMethod = m
                 isBlurSupportedMethodLoaded = true
@@ -251,19 +242,12 @@ object SliderHookHelper {
 
     @Synchronized
     fun clearHotReloadCaches() {
-        MiBlurMethodCache.clear()
         tags.clear()
         sameStyleEnabled = false
         isBlurSupportedMethod = null
         isBlurSupportedMethodLoaded = false
         clearActiveColorCache()
-        getMiViewBlurModeMethod = null
-        getMiViewBlurModeMethodLoaded = false
-        setBlendMethod = null
-        setBlendMethodLoaded = false
         holderMethodCache.clear()
-        topTextMethodCache.clear()
-        brightnessValueMethodCache.clear()
     }
 
     // Cached blendColors resource lookup (avoids getIdentifier + createPackageContext per call)
@@ -273,18 +257,6 @@ object SliderHookHelper {
     private var cachedBlendColorsResources: android.content.res.Resources? = null
     @Volatile
     private var cachedOriginalBlendColors: IntArray? = null
-
-    // Cached getMiViewBlurMode method (avoids getMethod per call)
-    @Volatile
-    private var getMiViewBlurModeMethod: java.lang.reflect.Method? = null
-    @Volatile
-    private var getMiViewBlurModeMethodLoaded = false
-
-    // Cached setMiBackgroundBlendColors method (static, not per-view)
-    @Volatile
-    private var setBlendMethod: java.lang.reflect.Method? = null
-    @Volatile
-    private var setBlendMethodLoaded = false
 
     fun getActiveColor(context: android.content.Context, sliderType: String? = null): Int {
         val cacheKey = sliderType ?: "default"
@@ -395,18 +367,7 @@ object SliderHookHelper {
                 }
 
                 // Cached getMiViewBlurMode method
-                val blurModeMethod = synchronized(this) {
-                    if (getMiViewBlurModeMethodLoaded) {
-                        getMiViewBlurModeMethod
-                    } else {
-                        val m = runCatching {
-                            topText.javaClass.getMethod("getMiViewBlurMode")
-                        }.getOrNull()
-                        getMiViewBlurModeMethod = m
-                        getMiViewBlurModeMethodLoaded = true
-                        m
-                    }
-                }
+                val blurModeMethod = HostAccess.publicMethod(topText.javaClass, "getMiViewBlurMode", accessible = false)
                 val currentMode = if (blurModeMethod != null) {
                     runCatching { blurModeMethod.invoke(topText) as? Int }.getOrNull() ?: 0
                 } else 0
@@ -441,24 +402,11 @@ object SliderHookHelper {
                         }
 
                         // Cached setMiBackgroundBlendColors method (static, not per-view)
-                        val blendMethod = synchronized(this) {
-                            if (setBlendMethodLoaded) {
-                                setBlendMethod
-                            } else {
-                                val m = runCatching {
-                                    val clz = context.classLoader.loadClass("miui.systemui.util.MiBlurCompat")
-                                    clz.getMethod(
-                                        "setMiBackgroundBlendColors",
-                                        View::class.java,
-                                        IntArray::class.java,
-                                        Float::class.javaPrimitiveType
-                                    )
-                                }.getOrNull()
-                                setBlendMethod = m
-                                setBlendMethodLoaded = true
-                                m
-                            }
-                        }
+                        val blendMethod = runCatching {
+                            val clz = context.classLoader.loadClass("miui.systemui.util.MiBlurCompat")
+                            HostAccess.publicMethod(clz, "setMiBackgroundBlendColors", View::class.java,
+                                IntArray::class.java, Float::class.javaPrimitiveType!!, accessible = false)
+                        }.getOrNull()
                         blendMethod?.invoke(null, topText, forcedBlendColors, 1f)
                     }.onFailure { t ->
                         Log.e("HyperTweak", "applyTopTextStyle: failed to setMiBackgroundBlendColors", t)
@@ -503,12 +451,12 @@ object SliderHookHelper {
         }
         for (name in holderMethodNames) {
             val r = runCatching {
-                val m = clazz.getDeclaredMethod(name).also { it.isAccessible = true }
+                val m = HostAccess.requireDeclaredMethod(clazz, name, accessible = true)
                 val result = m.invoke(sliderController)
                 if (result != null) holderMethodCache[clazz] = m
                 result
             }.recoverCatching {
-                val m = clazz.getMethod(name)
+                val m = HostAccess.requirePublicMethod(clazz, name, accessible = false)
                 val result = m.invoke(sliderController)
                 if (result != null) holderMethodCache[clazz] = m
                 result
@@ -518,79 +466,33 @@ object SliderHookHelper {
         return null
     }
 
-    private val topTextMethodCache = java.util.concurrent.ConcurrentHashMap<Class<*>, java.lang.reflect.Method?>()
-    private val brightnessValueMethodCache = java.util.concurrent.ConcurrentHashMap<Class<*>, java.lang.reflect.Method>()
+    fun getTopTextFromHolder(holder: Any): TextView? = runCatching {
+        HostAccess.publicMethod(holder.javaClass, "getTopText", accessible = false)?.invoke(holder) as? TextView
+    }.getOrNull()
 
-    fun getTopTextFromHolder(holder: Any): TextView? {
-        val clazz = holder.javaClass
-        val cached = topTextMethodCache[clazz]
-        if (cached != null) {
-            return runCatching { cached.invoke(holder) as? TextView }.getOrNull()
-        }
-        return runCatching {
-            val m = clazz.getMethod("getTopText")
-            topTextMethodCache[clazz] = m
-            m.invoke(holder) as? TextView
-        }.getOrNull()
-    }
+    fun calcVolumePercent(sliderController: Any): Int? = runCatching {
+        val systemVolume = HostAccess.readDeclared(sliderController, "systemVolume") as? Int ?: return@runCatching null
+        if (systemVolume == Int.MIN_VALUE) return@runCatching null
+        val max = HostAccess.readDeclared(sliderController, "sliderMaxValue") as? Int ?: return@runCatching null
+        val min = HostAccess.readDeclared(sliderController, "sliderMinValue") as? Int ?: return@runCatching null
+        volumePercent(systemVolume * 1000, min, max)
+    }.getOrNull()
 
-    fun calcVolumePercent(sliderController: Any): Int? {
-        return runCatching {
-            var fSystemVolume = getTag(sliderController, "cached_fSystemVolume") as? java.lang.reflect.Field
-            var fSliderMaxValue = getTag(sliderController, "cached_fSliderMaxValue") as? java.lang.reflect.Field
-            var fSliderMinValue = getTag(sliderController, "cached_fSliderMinValue") as? java.lang.reflect.Field
-
-            if (fSystemVolume == null || fSliderMaxValue == null || fSliderMinValue == null) {
-                fSystemVolume = sliderController.javaClass.getDeclaredField("systemVolume").apply { isAccessible = true }
-                fSliderMaxValue = sliderController.javaClass.getDeclaredField("sliderMaxValue").apply { isAccessible = true }
-                fSliderMinValue = sliderController.javaClass.getDeclaredField("sliderMinValue").apply { isAccessible = true }
-
-                putTag(sliderController, "cached_fSystemVolume", fSystemVolume)
-                putTag(sliderController, "cached_fSliderMaxValue", fSliderMaxValue)
-                putTag(sliderController, "cached_fSliderMinValue", fSliderMinValue)
-            }
-
-            val systemVolume = fSystemVolume?.get(sliderController) as? Int ?: return@runCatching null
-            if (systemVolume == Int.MIN_VALUE) return@runCatching null  // unsynced sentinel; * 1000 would wrap to 0
-            val sliderMaxValue = fSliderMaxValue?.get(sliderController) as? Int ?: return@runCatching null
-            val sliderMinValue = fSliderMinValue?.get(sliderController) as? Int ?: return@runCatching null
-            volumePercent(systemVolume * 1000, sliderMinValue, sliderMaxValue)
-        }.getOrNull()
-    }
-
-    fun calcVolumePercentFromSliderValue(sliderController: Any, sliderValue: Int): Int? {
-        return runCatching {
-            var mValueToVolume = getTag(sliderController, "cached_mValueToVolume") as? java.lang.reflect.Method
-            var fStreamMaxVolume = getTag(sliderController, "cached_fStreamMaxVolume") as? java.lang.reflect.Field
-            var fStreamMinVolume = getTag(sliderController, "cached_fStreamMinVolume") as? java.lang.reflect.Field
-
-            if (mValueToVolume == null || fStreamMaxVolume == null || fStreamMinVolume == null) {
-                mValueToVolume = sliderController.javaClass.getDeclaredMethod("valueToVolume", Int::class.javaPrimitiveType).apply { isAccessible = true }
-                fStreamMaxVolume = sliderController.javaClass.getDeclaredField("streamMaxVolume").apply { isAccessible = true }
-                fStreamMinVolume = sliderController.javaClass.getDeclaredField("streamMinVolume").apply { isAccessible = true }
-
-                putTag(sliderController, "cached_mValueToVolume", mValueToVolume)
-                putTag(sliderController, "cached_fStreamMaxVolume", fStreamMaxVolume)
-                putTag(sliderController, "cached_fStreamMinVolume", fStreamMinVolume)
-            }
-
-            val level = mValueToVolume?.invoke(sliderController, sliderValue) as? Int ?: return@runCatching null
-            val maxLevel = fStreamMaxVolume?.get(sliderController) as? Int ?: return@runCatching null
-            val minLevel = fStreamMinVolume?.get(sliderController) as? Int ?: return@runCatching null
-            volumePercent(level, minLevel, maxLevel)
-        }.getOrNull()
-    }
+    fun calcVolumePercentFromSliderValue(sliderController: Any, sliderValue: Int): Int? = runCatching {
+        val method = HostAccess.declaredMethod(sliderController.javaClass, "valueToVolume", Int::class.javaPrimitiveType!!, accessible = true)
+        val level = method?.invoke(sliderController, sliderValue) as? Int ?: return@runCatching null
+        val max = HostAccess.readDeclared(sliderController, "streamMaxVolume") as? Int ?: return@runCatching null
+        val min = HostAccess.readDeclared(sliderController, "streamMinVolume") as? Int ?: return@runCatching null
+        volumePercent(level, min, max)
+    }.getOrNull()
 
     fun calcBrightnessPercent(slider: SeekBar): Int? {
         val min = slider.min
         val max = slider.max
         val clazz = slider.javaClass
         // Resolve getTargetValue()/getValue() once per SeekBar class — this runs on every drag frame.
-        val method = brightnessValueMethodCache[clazz] ?: run {
-            val m = runCatching { clazz.getMethod("getTargetValue") }.getOrNull()
-                ?: runCatching { clazz.getMethod("getValue") }.getOrNull()
-            if (m != null) brightnessValueMethodCache[clazz] = m
-            m
+        val method = HostAccess.cached(clazz, "slider-brightness:value-getter", java.lang.reflect.Method::class.java) {
+            HostAccess.publicMethod(clazz, "getTargetValue", accessible = false) ?: HostAccess.publicMethod(clazz, "getValue", accessible = false)
         }
         val value = method?.let { runCatching { it.invoke(slider) as? Int }.getOrNull() } ?: slider.progress
         // null when the range is degenerate or a spring overshoot leaves the value out of range —

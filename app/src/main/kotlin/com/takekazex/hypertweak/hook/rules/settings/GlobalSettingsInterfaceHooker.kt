@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.settings
 
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import com.takekazex.hypertweak.hook.Preferences
@@ -27,11 +28,10 @@ object GlobalSettingsInterfaceHooker : StaticHooker() {
 
         try {
             val buildClass = Class.forName(MIUI_BUILD_CLASS, true, null)
-            val field = buildClass.getDeclaredField(INTERNATIONAL_BUILD_FIELD).apply {
+            val field = HostAccess.requireDeclaredField(buildClass, INTERNATIONAL_BUILD_FIELD, accessible = true).apply {
                 require(type == java.lang.Boolean.TYPE && Modifier.isStatic(modifiers)) {
                     "$MIUI_BUILD_CLASS#$INTERNATIONAL_BUILD_FIELD is not a static boolean"
                 }
-                isAccessible = true
             }
 
             // Follow HyperCeiler's Settings hook: switch the flag consumed by international UI

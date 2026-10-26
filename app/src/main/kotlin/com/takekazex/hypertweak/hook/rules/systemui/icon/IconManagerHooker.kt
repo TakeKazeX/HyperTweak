@@ -253,7 +253,7 @@ object IconManagerHooker : StaticHooker() {
     @Suppress("UNCHECKED_CAST")
     private fun registerHostList(clazz: Class<*>, fieldName: String, surface: IconSurface) {
         runCatching {
-            val field = clazz.getDeclaredField(fieldName).apply { isAccessible = true }
+            val field = HostAccess.requireDeclaredField(clazz, fieldName, accessible = true)
             val list = field.get(null) as? List<*> ?: return@runCatching
             synchronized(stateLock) {
                 listSurfaces.putIfAbsent(list, surface)
@@ -336,8 +336,6 @@ object IconManagerHooker : StaticHooker() {
         }
     }
 
-    private val locationFields = HashMap<Class<*>, Field?>()
-
     private fun usesTwoLineControlCenterPolicy(location: String?): Boolean {
         if (!IconSlotPolicy.ownsTwoLineControlCenterRow(location)) return false
         // Landscape keeps one native row, but must retain the same configured icon visibility.
@@ -345,19 +343,10 @@ object IconManagerHooker : StaticHooker() {
     }
 
     private fun readLocation(manager: Any): String? = runCatching {
-        locationFields.getOrPut(manager.javaClass) { hierarchyField(manager.javaClass, "mLocation") }?.get(manager)?.toString()
+        HostAccess.field(manager.javaClass, "mLocation")?.get(manager)?.toString()
     }.getOrNull()
 
-    private fun hierarchyField(type: Class<*>, name: String): Field? {
-        var current: Class<*>? = type
-        while (current != null) {
-            runCatching {
-                return current.getDeclaredField(name).apply { isAccessible = true }
-            }
-            current = current.superclass
-        }
-        return null
-    }
+    private fun hierarchyField(type: Class<*>, name: String): Field? = HostAccess.field(type, name)
 
     private fun stableStrings(values: List<*>): List<String> {
         val result = LinkedHashSet<String>()

@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.settings
 
+import com.takekazex.hypertweak.hook.base.cachedPublicMethod
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import android.app.Activity
@@ -24,7 +25,6 @@ object HyperOsAiEntriesHooker : StaticHooker() {
     private const val MODEL = "com.android.settings.hyperosai.ModelManagementController"
     private const val GEMINI = "com.android.settings.hyperosai.GeminiController"
     private val pages = WeakHashMap<Any, Boolean>()
-    private val methods = HashMap<Pair<Class<*>, String>, Method>()
     private val displays = HashMap<Class<*>, Method>()
     private var nativeLabelDisplay: Method? = null
     private var fragmentActivity: Class<*>? = null
@@ -40,12 +40,12 @@ object HyperOsAiEntriesHooker : StaticHooker() {
         hookAvailability(GEMINI, "hyperos_ai:gemini_entry", PlatformSettingsKeys.KEY_SETTINGS_GEMINI_ENTRY)
         listOf(MODEL, GEMINI).forEach { name ->
             val owner = hostClass(name) ?: return@forEach
-            displays[owner] = owner.getMethod("displayPreference", screen)
+            displays[owner] = HostAccess.requirePublicMethod(owner, "displayPreference", screen, accessible = false)
         }
         // Native rendering also clears labels left by the previous APK after its unmatched
         // hook is retired. No label hook or module text is installed.
         nativeLabelDisplay = hostClass("com.android.settings.hyperosai.SuperXiaoAiController")
-            ?.getMethod("displayPreference", screen)
+            ?.cachedPublicMethod("displayPreference", screen, accessible = false)
         val fragment = hostClass(FRAGMENT) ?: return
         val resume = fragment.declaredMethods.singleOrNull {
             it.name == "onResume" && it.parameterTypes.isEmpty() && it.returnType == Void.TYPE
@@ -89,11 +89,11 @@ object HyperOsAiEntriesHooker : StaticHooker() {
     }
 
     private fun call(owner: Any, name: String): Any? {
-        val method = methods.getOrPut(owner.javaClass to name) {
+        val method = HostAccess.cached(owner.javaClass, "settings-ai:declared-noargs:$name", java.lang.reflect.Method::class.java) {
             generateSequence(owner.javaClass) { it.superclass }.mapNotNull { type ->
                 type.declaredMethods.singleOrNull { it.name == name && it.parameterTypes.isEmpty() }
             }.first().apply { isAccessible = true }
-        }
+        } ?: throw NoSuchElementException("Missing native Settings callback: $name")
         return method.invoke(owner)
     }
 
@@ -119,7 +119,7 @@ object HyperOsAiEntriesHooker : StaticHooker() {
     private fun refreshHosts(recoverLabels: Boolean = true): Boolean {
         val discovered = HookFailurePolicy.open(TAG, "recover AI pages", false) {
             val owner = Class.forName("android.app.ActivityThread")
-            val thread = owner.getMethod("currentActivityThread").invoke(null)
+            val thread = HostAccess.requirePublicMethod(owner, "currentActivityThread", accessible = false).invoke(null)
             val records = thread?.let { HostAccess.read(it, "mActivities") } as? Map<*, *>
             records?.values?.filterNotNull()?.forEach { record ->
                 val activity = HostAccess.read(record, "activity") as? Activity ?: return@forEach
@@ -161,7 +161,6 @@ object HyperOsAiEntriesHooker : StaticHooker() {
         if (ready) refreshHosts(recoverLabels = false)
         ready = false
         pages.clear()
-        methods.clear()
         displays.clear()
         nativeLabelDisplay = null
         fragmentActivity = null

@@ -1,5 +1,8 @@
 package com.takekazex.hypertweak.hook.rules.system
 
+import com.takekazex.hypertweak.hook.base.cachedDeclaredField
+import com.takekazex.hypertweak.hook.base.cachedDeclaredMethod
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import android.content.Context
@@ -95,12 +98,12 @@ object ContextualSearchSystemHooker : StaticHooker() {
 
     private fun invokeContextualSearchService(): Boolean {
         val serviceManager = Class.forName("android.os.ServiceManager")
-        val binder = serviceManager.getMethod("getService", String::class.java)
+        val binder = HostAccess.requirePublicMethod(serviceManager, "getService", String::class.java, accessible = false)
             .invoke(null, "contextual_search") as? IBinder ?: return false
         val stubClass = Class.forName(
             "android.app.contextualsearch.IContextualSearchManager\$Stub"
         )
-        val service = stubClass.getMethod("asInterface", IBinder::class.java)
+        val service = HostAccess.requirePublicMethod(stubClass, "asInterface", IBinder::class.java, accessible = false)
             .invoke(null, binder) ?: return false
         val interfaceClass = Class.forName(
             "android.app.contextualsearch.IContextualSearchManager"
@@ -127,14 +130,13 @@ object ContextualSearchSystemHooker : StaticHooker() {
     private fun hookServiceStartupGate() {
         val contextualSearchPackageId = classLoader
             .loadClass("com.android.internal.R\$string")
-            .getDeclaredField("config_defaultContextualSearchPackageName")
+            .cachedDeclaredField("config_defaultContextualSearchPackageName", accessible = false)
             .getInt(null)
         val systemServerClass = classLoader.loadClass("com.android.server.SystemServer")
-        val method = systemServerClass.getDeclaredMethod(
+        val method = HostAccess.requireDeclaredMethod(systemServerClass,
             "deviceHasConfigString",
             Context::class.java,
-            Int::class.javaPrimitiveType
-        ).apply { isAccessible = true }
+            Int::class.javaPrimitiveType, accessible = true)
 
         method.hook("gesture_bar_cts_service_startup") {
             before { param ->
@@ -210,10 +212,9 @@ object ContextualSearchSystemHooker : StaticHooker() {
 
         // Both methods are small and private, so ART is free to inline them; deoptimize first or the
         // hooks never fire. Mirrors the sibling AOSP-restore hookers.
-        val enforcePermissionMethod = serviceClass.getDeclaredMethod(
+        val enforcePermissionMethod = HostAccess.requireDeclaredMethod(serviceClass,
             "enforcePermission",
-            String::class.java
-        ).apply { isAccessible = true }
+            String::class.java, accessible = true)
         deoptimize(enforcePermissionMethod)
         enforcePermissionMethod.hook("gesture_bar_cts_permission") {
             intercept { chain ->
@@ -221,8 +222,7 @@ object ContextualSearchSystemHooker : StaticHooker() {
             }
         }
 
-        val packageNameMethod = serviceClass.getDeclaredMethod("getContextualSearchPackageName")
-            .apply { isAccessible = true }
+        val packageNameMethod = HostAccess.requireDeclaredMethod(serviceClass, "getContextualSearchPackageName", accessible = true)
         deoptimize(packageNameMethod)
         packageNameMethod.hook("gesture_bar_cts_package") {
             intercept { chain ->
@@ -239,8 +239,8 @@ object ContextualSearchSystemHooker : StaticHooker() {
         try {
             val context = systemContext ?: run {
                 val activityThread = classLoader.loadClass("android.app.ActivityThread")
-                val thread = activityThread.getMethod("currentActivityThread").invoke(null)
-                (activityThread.getMethod("getSystemContext").invoke(thread) as? Context)
+                val thread = HostAccess.requirePublicMethod(activityThread, "currentActivityThread", accessible = false).invoke(null)
+                (HostAccess.requirePublicMethod(activityThread, "getSystemContext", accessible = false).invoke(thread) as? Context)
                     ?.also { systemContext = it }
             } ?: return
             val identity = Binder.clearCallingIdentity()
@@ -313,7 +313,7 @@ object ContextualSearchSystemHooker : StaticHooker() {
         val resolved = runCatching {
             val activityThread = Class.forName("android.app.ActivityThread")
             val application = activityThread
-                .getDeclaredMethod("currentApplication")
+                .cachedDeclaredMethod("currentApplication", accessible = false)
                 .invoke(null) as? Context
             application?.packageManager
         }.onFailure {

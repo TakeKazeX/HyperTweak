@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.controlcenter
 
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.hook.rules.systemui.ReadyIslandController
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 
@@ -51,7 +52,7 @@ class ControlCenterSuperIslandHooker : DynamicHooker() {
             ?: return
         // Resolve every required contract before installing any hooks. The flow implementation
         // is obfuscated, so resolve getValue against each getter's declared return interface.
-        fun getter(owner: Class<*>, name: String) = owner.getDeclaredMethod(name).apply { isAccessible = true }
+        fun getter(owner: Class<*>, name: String) = HostAccess.requireDeclaredMethod(owner, name, accessible = true)
         val expanded = getter(state, "getControlCenterExpanded")
         val swiping = getter(state, "getControlCenterPanelSwipeToAppearance")
         val tempHidden = getter(state, "getTempHidden")
@@ -62,17 +63,17 @@ class ControlCenterSuperIslandHooker : DynamicHooker() {
             ?: return
         val readyController = ReadyIslandController.resolve(view, getController,
             getter(view, "getViewComponent").returnType, coordinator) ?: return
-        val getView = controller.getDeclaredMethod("access\$getView", controller).apply { isAccessible = true }
-        val hiddenGate = ext.getDeclaredMethod("isTempHiddenExt", state, Int::class.javaObjectType)
-        val hideEvent = view.getDeclaredMethod("onIslandTempHide", Boolean::class.javaPrimitiveType!!, type.returnType)
-        val expandedEvent = controller.getDeclaredMethod("controlCenterExpanded", Boolean::class.javaPrimitiveType!!)
+        val getView = HostAccess.requireDeclaredMethod(controller, "access\$getView", controller, accessible = true)
+        val hiddenGate = HostAccess.requireDeclaredMethod(ext, "isTempHiddenExt", state, Int::class.javaObjectType, accessible = false)
+        val hideEvent = HostAccess.requireDeclaredMethod(view, "onIslandTempHide", Boolean::class.javaPrimitiveType!!, type.returnType, accessible = false)
+        val expandedEvent = HostAccess.requireDeclaredMethod(controller, "controlCenterExpanded", Boolean::class.javaPrimitiveType!!, accessible = false)
         val swipeEvent = controller.declaredMethods.single {
             it.name == "controlCenterPanelExpandHeightChanged" && it.parameterCount == 1 &&
                 it.returnType == Void.TYPE
         }
-        val expandedValue = expanded.returnType.getMethod("getValue")
-        val swipeValue = swiping.returnType.getMethod("getValue")
-        val hiddenValue = tempHidden.returnType.getMethod("getValue")
+        val expandedValue = HostAccess.requirePublicMethod(expanded.returnType, "getValue", accessible = false)
+        val swipeValue = HostAccess.requirePublicMethod(swiping.returnType, "getValue", accessible = false)
+        val hiddenValue = HostAccess.requirePublicMethod(tempHidden.returnType, "getValue", accessible = false)
         fun value(owner: Any, getter: Method, reader: Method): Boolean =
             reader.invoke(getter.invoke(owner)) as? Boolean ?: false
         fun shouldHide(owner: Any): Boolean = !retiring &&

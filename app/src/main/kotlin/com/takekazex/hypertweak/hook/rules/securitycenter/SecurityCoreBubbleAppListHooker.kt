@@ -2,6 +2,9 @@
 
 package com.takekazex.hypertweak.hook.rules.securitycenter
 
+import com.takekazex.hypertweak.hook.base.HostAccess
+
+import com.takekazex.hypertweak.hook.base.cachedPublicMethod
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import android.content.Context
@@ -158,7 +161,7 @@ object SecurityCoreBubbleAppListHooker : StaticHooker() {
 
         val userId = runCatching {
             Class.forName("android.os.UserHandle")
-                .getMethod("myUserId")
+                .cachedPublicMethod("myUserId", accessible = false)
                 .invoke(null) as? Int
         }.getOrNull() ?: 0
         packages.forEach { packageName ->
@@ -202,6 +205,6 @@ object SecurityCoreBubbleAppListHooker : StaticHooker() {
         name: String,
         vararg parameterTypes: Class<*>
     ): Method? = runCatching {
-        getDeclaredMethod(name, *parameterTypes).apply { isAccessible = true }
+        HostAccess.requireDeclaredMethod(this, name, *parameterTypes, accessible = true)
     }.getOrNull()
 }

@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.securitycenter
 
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import android.app.Activity
@@ -168,7 +169,7 @@ object AospAppInfoEntryHooker : StaticHooker() {
         // the same value the fragment itself reads — not a uid, so it must NOT be run through
         // getUserId(int), which would collapse XSpace's 999 and second-space's 10 back to user 0.
         val myUserId = runCatching {
-            UserHandle::class.java.getMethod("myUserId").invoke(null) as? Int
+            HostAccess.requirePublicMethod(UserHandle::class.java, "myUserId", accessible = false).invoke(null) as? Int
         }.getOrNull() ?: 0
         val userId = activity.intent.getIntExtra("miui.intent.extra.USER_ID", myUserId)
 

@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.camera
 
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import com.takekazex.hypertweak.hook.base.dex.DexOperandIndex
@@ -16,7 +17,6 @@ import java.nio.file.Path
 object CameraWatermarkHooker : StaticHooker() {
     private const val TAG = "CamWmUnlock"
     private const val PACKAGE = "com.android.camera"
-
 
     private const val LEICA_ASSET_ROOT = "watermarks/leica"
 
@@ -184,8 +184,8 @@ object CameraWatermarkHooker : StaticHooker() {
 
     private fun cameraContext(classLoader: ClassLoader): Context? = runCatching {
         val global = classLoader.loadClass("com.xiaomi.camera.basic.Global")
-        (global.getMethod("getContext").invoke(null) as? Context)
-            ?: (global.getMethod("getApplication").invoke(null) as? Context)
+        (HostAccess.requirePublicMethod(global, "getContext", accessible = false).invoke(null) as? Context)
+            ?: (HostAccess.requirePublicMethod(global, "getApplication", accessible = false).invoke(null) as? Context)
     }.getOrNull()
 
     private fun copyMissingLeicaAssets(context: Context, workingDirectory: File): Int {
@@ -231,8 +231,6 @@ object CameraWatermarkHooker : StaticHooker() {
         }
         return 1
     }
-
-
 
     private fun hookDeviceLogo(ctx: CameraResolver.Ctx) {
         val profile = CameraHostProfile.resolve(ctx, TAG) ?: return

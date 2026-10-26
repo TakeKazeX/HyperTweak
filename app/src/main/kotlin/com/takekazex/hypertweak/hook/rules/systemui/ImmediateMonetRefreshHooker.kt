@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui
 
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
@@ -402,7 +403,7 @@ object ImmediateMonetRefreshHooker : StaticHooker() {
     }
 
     private fun declaredField(type: Class<*>, name: String): Field? = runCatching {
-        type.getDeclaredField(name).apply { isAccessible = true }
+        HostAccess.requireDeclaredField(type, name, accessible = true)
     }.getOrNull()
 
     private fun clearResolvedMembers() {

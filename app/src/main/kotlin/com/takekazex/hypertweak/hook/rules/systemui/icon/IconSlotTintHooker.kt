@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.IconSlotPolicy
 
 import android.graphics.PorterDuff
@@ -112,7 +113,7 @@ object IconSlotTintHooker : StaticHooker() {
     private fun findField(type: Class<*>, name: String): Field? {
         var current: Class<*>? = type
         while (current != null) {
-            runCatching { current.getDeclaredField(name) }.getOrNull()?.let { return it }
+            runCatching { HostAccess.requireDeclaredField(current, name, accessible = false) }.getOrNull()?.let { return it }
             current = current.superclass
         }
         return null

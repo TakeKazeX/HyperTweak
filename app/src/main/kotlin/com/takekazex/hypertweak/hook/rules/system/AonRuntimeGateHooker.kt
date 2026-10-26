@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.system
 
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.util.logging.DebugLog
@@ -40,7 +41,7 @@ object AonRuntimeGateHooker : StaticHooker() {
     override fun onHook() {
         val resources = "android.content.res.Resources".toClassOrNull() ?: return
         val method = runCatching {
-            resources.getDeclaredMethod("getBoolean", Int::class.javaPrimitiveType)
+            HostAccess.requireDeclaredMethod(resources, "getBoolean", Int::class.javaPrimitiveType, accessible = false)
         }.getOrNull() ?: return
         deoptimize(method)
         method.hook("aon_runtime_visual_gates") { after { param ->

@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.camera
 
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.CameraSettingsKeys
 
 import android.os.Build
@@ -166,7 +167,7 @@ object CameraWatermarkBrand {
      */
     private fun readMarketName(): String? = runCatching {
         val cls = Class.forName("android.os.SystemProperties")
-        val get = cls.getMethod("get", String::class.java, String::class.java)
+        val get = HostAccess.requirePublicMethod(cls, "get", String::class.java, String::class.java, accessible = false)
         (get.invoke(null, "ro.product.marketname", Build.MODEL) as? String)
             ?.takeIf { it.isNotBlank() }
     }.onFailure { t ->

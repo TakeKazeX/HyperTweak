@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui.notification
 
+import com.takekazex.hypertweak.hook.base.cachedDeclaredField
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 
@@ -47,19 +49,19 @@ object NotificationMiniWindowHooker : StaticHooker() {
             val row = ROW.toClassOrNull() ?: error("Missing notification row injector")
             val settings = "com.miui.systemui.notification.NotificationSettingsManager".toClassOrNull()
                 ?: error("Missing notification settings")
-            val gate = manager.getDeclaredMethod("canNotificationSlide", String::class.java, PendingIntent::class.java)
+            val gate = HostAccess.requireDeclaredMethod(manager, "canNotificationSlide", String::class.java, PendingIntent::class.java, accessible = false)
             check(gate.returnType == Boolean::class.javaPrimitiveType)
-            settingsField = manager.getDeclaredField("notificationSettingsManager").apply {
+            settingsField = HostAccess.requireDeclaredField(manager, "notificationSettingsManager", accessible = true).apply {
                 check(type == settings); isAccessible = true
             }
             whitelistFields = listOf("mAllowNotificationSlide", "mAllowNotificationSlideLocal").map { name ->
-                settings.getDeclaredField(name).apply { check(type == List::class.java); isAccessible = true }
+                HostAccess.requireDeclaredField(settings, name, accessible = true).apply { check(type == List::class.java); isAccessible = true }
             }
             injectorField = "com.android.systemui.statusbar.notification.row.ExpandableView".toClassOrNull()
-                ?.getDeclaredField("mInjector")?.apply { isAccessible = true }
+                ?.cachedDeclaredField("mInjector", accessible = true)
                 ?: error("Missing native row injector field")
-            updateBar = row.getDeclaredMethod("updateMiniWindowBar").apply { isAccessible = true }
-            updateTip = row.getDeclaredMethod("updateFreeformTipView").apply { isAccessible = true }
+            updateBar = HostAccess.requireDeclaredMethod(row, "updateMiniWindowBar", accessible = true)
+            updateTip = HostAccess.requireDeclaredMethod(row, "updateFreeformTipView", accessible = true)
             enabled = Preferences.getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_MINI_WINDOW, false)
             // Both verified callers write canSlide, then use native bar/touch handling. Avoid
             // already-inlined gate bodies after attaching to a living SystemUI process.

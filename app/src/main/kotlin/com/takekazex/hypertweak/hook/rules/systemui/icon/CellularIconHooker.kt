@@ -47,8 +47,6 @@ object CellularIconHooker : StaticHooker() {
 
     private var hideSpeechHd by generationState { false }
 
-    override fun onPrepareHotReload() {
-    }
 
     override fun onHook() {
         IconTunerFlows.init(classLoader)

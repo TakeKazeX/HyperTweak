@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.system
 
+import com.takekazex.hypertweak.hook.base.cachedDeclaredMethod
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
@@ -200,8 +202,8 @@ object GestureBarTransitionHooker : StaticHooker() {
 
     private class TransitionContract(private val cl: ClassLoader) {
         private fun type(name: String) = cl.loadClass(name)
-        private fun Class<*>.field(name: String) = getDeclaredField(name).apply { isAccessible = true }
-        private fun Class<*>.method(name: String, vararg args: Class<*>) = getDeclaredMethod(name, *args).apply { isAccessible = true }
+        private fun Class<*>.field(name: String) = HostAccess.requireDeclaredField(this, name, accessible = true)
+        private fun Class<*>.method(name: String, vararg args: Class<*>) = HostAccess.requireDeclaredMethod(this, name, *args, accessible = true)
         private val tr = type("com.android.server.wm.Transition")
         private val dc = type("com.android.server.wm.DisplayContent")
         private val wc = type("com.android.server.wm.WindowContainer")
@@ -254,7 +256,7 @@ object GestureBarTransitionHooker : StaticHooker() {
             return
         }
         val method = runCatching {
-            policyClass.getDeclaredMethod(SHOULD_ATTACH).apply { isAccessible = true }
+            HostAccess.requireDeclaredMethod(policyClass, SHOULD_ATTACH, accessible = true)
         }.onFailure {
             DebugLog.hookFailed(TAG, "$DISPLAY_POLICY#$SHOULD_ATTACH()", it)
         }.getOrNull() ?: return
@@ -263,11 +265,10 @@ object GestureBarTransitionHooker : StaticHooker() {
         runCatching {
             val transition = "com.android.server.wm.Transition".toClassOrNull()
                 ?: error("Missing native transition owner")
-            val caller = transition.getDeclaredMethod(
+            val caller = HostAccess.requireDeclaredMethod(transition,
                 "handleLegacyRecentsStartBehavior",
                 classLoader.loadClass("com.android.server.wm.DisplayContent"),
-                classLoader.loadClass("android.window.TransitionInfo")
-            )
+                classLoader.loadClass("android.window.TransitionInfo"), accessible = false)
             check(caller.returnType == Void.TYPE && method.returnType == Boolean::class.javaPrimitiveType)
             deoptimize(caller)
             deoptimize(method)
@@ -282,9 +283,9 @@ object GestureBarTransitionHooker : StaticHooker() {
         }
         val contract = runCatching {
             Triple(
-                policyClass.getDeclaredField("mNavigationBar").apply { isAccessible = true },
-                policyClass.getDeclaredMethod("getCurrentUserResources").apply { isAccessible = true },
-                classLoader.loadClass("com.android.wm.shell.Flags").getDeclaredMethod("enableTinyTaskbar")
+                HostAccess.requireDeclaredField(policyClass, "mNavigationBar", accessible = true),
+                HostAccess.requireDeclaredMethod(policyClass, "getCurrentUserResources", accessible = true),
+                classLoader.loadClass("com.android.wm.shell.Flags").cachedDeclaredMethod("enableTinyTaskbar", accessible = false)
             )
         }.onFailure { DebugLog.hookFailed(TAG, "native attach safety contract", it) }.getOrNull() ?: return
         method.hook {

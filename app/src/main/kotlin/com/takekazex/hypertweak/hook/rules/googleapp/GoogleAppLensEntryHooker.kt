@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.googleapp
 
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import android.app.Activity
@@ -168,12 +169,11 @@ object GoogleAppLensEntryHooker : StaticHooker() {
             return
         }
         val method = runCatching {
-            Activity::class.java.getDeclaredMethod(name)
+            HostAccess.requireDeclaredMethod(Activity::class.java, name, accessible = true)
         }.getOrNull() ?: run {
             DebugLog.i(TAG, "Activity#$name not present on this build")
             return
         }
-        method.isAccessible = true
         deoptimize(method)
         method.hook(id) {
             after { param ->

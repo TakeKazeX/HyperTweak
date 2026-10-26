@@ -32,6 +32,17 @@ internal object HostAccess {
     fun method(type: Class<*>, name: String, vararg parameters: Class<*>) = HostMembers.method(type, name, *parameters)
     fun method(owner: Any, name: String, vararg parameters: Class<*>) = HostMembers.method(owner, name, *parameters)
 
+    fun <T : Any> cached(type: Class<*>, contract: String, resultType: Class<T>, resolve: () -> T?): T? =
+        HostMembers.cached(type, contract, resultType, resolve)
+    fun readDeclared(owner: Any, name: String) = HostMembers.declaredField(owner.javaClass, name, accessible = true)?.get(owner)
+    fun declaredField(type: Class<*>, name: String, accessible: Boolean) = HostMembers.declaredField(type, name, accessible)
+    fun declaredMethod(type: Class<*>, name: String, vararg parameters: Class<*>, accessible: Boolean) = HostMembers.declaredMethod(type, name, *parameters, accessible = accessible)
+    fun publicMethod(type: Class<*>, name: String, vararg parameters: Class<*>, accessible: Boolean) = HostMembers.publicMethod(type, name, *parameters, accessible = accessible)
+    fun requireDeclaredField(type: Class<*>, name: String, accessible: Boolean) = HostMembers.requireDeclaredField(type, name, accessible)
+    fun requirePublicField(type: Class<*>, name: String, accessible: Boolean) = HostMembers.requirePublicField(type, name, accessible)
+    fun requireDeclaredMethod(type: Class<*>, name: String, vararg parameters: Class<*>?, accessible: Boolean) = HostMembers.requireDeclaredMethod(type, name, *parameters, accessible = accessible)
+    fun requirePublicMethod(type: Class<*>, name: String, vararg parameters: Class<*>?, accessible: Boolean) = HostMembers.requirePublicMethod(type, name, *parameters, accessible = accessible)
+
     fun ancestor(view: android.view.View, className: String, includeSelf: Boolean = true): android.view.View? {
         var current: android.view.View? = if (includeSelf) view else view.parent as? android.view.View
         while (current != null) {

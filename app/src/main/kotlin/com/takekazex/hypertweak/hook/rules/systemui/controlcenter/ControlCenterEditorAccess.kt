@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.controlcenter
 
+import com.takekazex.hypertweak.hook.base.HostAccess
 import android.util.Log
 import android.view.View
 import com.takekazex.hypertweak.hook.base.CompatibleMethodResolver
@@ -212,8 +213,7 @@ internal class ControlCenterEditorAccess(private val resolveClass: (String) -> C
      */
     fun currentTouchListener(view: View): View.OnTouchListener? =
         runCatching {
-            val getter = View::class.java.getDeclaredMethod("getOnTouchListener")
-            getter.isAccessible = true
+            val getter = HostAccess.requireDeclaredMethod(View::class.java, "getOnTouchListener", accessible = true)
             getter.invoke(view) as? View.OnTouchListener
         }.getOrNull()
 
@@ -235,7 +235,7 @@ internal class ControlCenterEditorAccess(private val resolveClass: (String) -> C
             var type: Class<*>? = cls
             while (type != null && type != Any::class.java) {
                 try {
-                    return type.getDeclaredField(name).apply { isAccessible = true }
+                    return HostAccess.requireDeclaredField(type, name, accessible = true)
                 } catch (_: NoSuchFieldException) {
                     type = type.superclass
                 }

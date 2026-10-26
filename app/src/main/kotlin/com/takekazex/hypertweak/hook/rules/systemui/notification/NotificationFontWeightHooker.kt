@@ -229,7 +229,7 @@ object NotificationFontWeightHooker : StaticHooker() {
     }
 
     private fun invokeTextViewGetter(target: Any, name: String): TextView? =
-        runCatching { target.javaClass.getMethod(name).invoke(target) as? TextView }.getOrNull()
+        runCatching { HostAccess.requirePublicMethod(target.javaClass, name, accessible = false).invoke(target) as? TextView }.getOrNull()
 
     private fun setFieldTypeface(target: Any, name: String, typeface: Typeface) {
         (readField(target, name) as? TextView)?.let { applyTypeface(it, typeface, typeface.weight) }
@@ -250,7 +250,7 @@ object NotificationFontWeightHooker : StaticHooker() {
         while (type != null) {
             val currentType = type
             val value = runCatching {
-                currentType.getDeclaredField(name).apply { isAccessible = true }.get(target)
+                HostAccess.requireDeclaredField(currentType, name, accessible = true).get(target)
             }.getOrNull()
             if (value != null) return value
             type = currentType.superclass

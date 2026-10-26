@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.controlcenter
 
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 
 import android.content.Context
@@ -293,19 +294,18 @@ class ControlCenterCardResizeHooker : DynamicHooker() {
         val context = parent.context
         val bindingCls =
             "miui.systemui.controlcenter.databinding.QsCardItemViewBinding".toClass()
-        val binding = bindingCls.getDeclaredMethod(
+        val binding = HostAccess.requireDeclaredMethod(bindingCls,
             "inflate",
             LayoutInflater::class.java,
             ViewGroup::class.java,
-            Boolean::class.javaPrimitiveType
-        ).invoke(null, LayoutInflater.from(context), parent, false)
-        val root = bindingCls.getMethod("getRoot").invoke(binding) as View
+            Boolean::class.javaPrimitiveType, accessible = false).invoke(null, LayoutInflater.from(context), parent, false)
+        val root = HostAccess.requirePublicMethod(bindingCls, "getRoot", accessible = false).invoke(binding) as View
 
         val iconCls = "miui.systemui.controlcenter.qs.tileview.QSCardItemIconView".toClass()
         val sysUIContext = findField(listController.javaClass, "sysUIContext")
             ?.get(listController) as? Context ?: context
         val icon = newCardIconView(iconCls, context, sysUIContext)
-        root.javaClass.getMethod("init", iconCls).invoke(root, icon)
+        HostAccess.requirePublicMethod(root.javaClass, "init", iconCls, accessible = false).invoke(root, icon)
 
         val holderCls = "miui.systemui.controlcenter.panel.main.qs.QSCardViewHolder".toClass()
         val qsItemViewCls = "miui.systemui.controlcenter.qs.tileview.QSItemView".toClass()
@@ -590,8 +590,7 @@ class ControlCenterCardResizeHooker : DynamicHooker() {
 
     private fun staticInt(cls: Class<*>, name: String): Int =
         runCatching {
-            val field = cls.getDeclaredField(name)
-            field.isAccessible = true
+            val field = HostAccess.requireDeclaredField(cls, name, accessible = true)
             Modifier.isStatic(field.modifiers)
             field.getInt(null)
         }.getOrDefault(-1)
@@ -607,7 +606,7 @@ class ControlCenterCardResizeHooker : DynamicHooker() {
             var type: Class<*>? = cls
             while (type != null && type != Any::class.java) {
                 try {
-                    return type.getDeclaredField(name).apply { isAccessible = true }
+                    return HostAccess.requireDeclaredField(type, name, accessible = true)
                 } catch (_: NoSuchFieldException) {
                     type = type.superclass
                 }

@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.lockscreen
 
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 
 import com.takekazex.hypertweak.hook.Preferences
@@ -96,7 +97,7 @@ object LockscreenKeepNotificationsHooker : StaticHooker() {
         var type: Class<*>? = cls
         while (type != null && type != Any::class.java) {
             try {
-                return type.getDeclaredField(name).apply { isAccessible = true }
+                return HostAccess.requireDeclaredField(type, name, accessible = true)
             } catch (_: NoSuchFieldException) {
                 type = type.superclass
             }

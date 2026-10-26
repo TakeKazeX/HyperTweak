@@ -565,7 +565,7 @@ object LeftContainerHooker : StaticHooker() {
         } ?: DebugLog.hookSkipped(TAG, "$STATUS_BAR_VIEW_CLASS#onAttachedToWindow", "method not found")
 
         // A host root can hide/reveal without attachment or an icon payload change.
-        View::class.java.getMethod("setVisibility", Int::class.javaPrimitiveType).hook {
+        HostAccess.requirePublicMethod(View::class.java, "setVisibility", Int::class.javaPrimitiveType, accessible = false).hook {
             after { param ->
                 if (retiring || reconciling) return@after
                 val root = param.thisObject as? View ?: return@after
@@ -573,7 +573,7 @@ object LeftContainerHooker : StaticHooker() {
             }
         }
 
-        View::class.java.getMethod("setAlpha", Float::class.javaPrimitiveType).hook {
+        HostAccess.requirePublicMethod(View::class.java, "setAlpha", Float::class.javaPrimitiveType, accessible = false).hook {
             after { param ->
                 if (retiring || reconciling) return@after
                 val view = param.thisObject as? View ?: return@after
@@ -589,7 +589,7 @@ object LeftContainerHooker : StaticHooker() {
             DebugLog.hookSkipped(TAG, ISLAND_HANDLER_CLASS, "class not found")
         } else {
             islandShowingField = runCatching {
-                islandHandlerClass.getDeclaredField("islandShowing").apply { isAccessible = true }
+                HostAccess.requireDeclaredField(islandHandlerClass, "islandShowing", accessible = true)
             }.getOrNull()
             islandHandlerClass.findMethodOrNull { name("islandUpdate"); paramCount(2) }
                 ?.let { method ->
@@ -1123,8 +1123,8 @@ object LeftContainerHooker : StaticHooker() {
             while (c != null && slotGetter == null) {
                 val current = c
                 val found = current.interfaces.firstNotNullOfOrNull { iface ->
-                    runCatching { iface.getMethod("getSlot") }.getOrNull()
-                } ?: runCatching { current.getMethod("getSlot") }.getOrNull()
+                    runCatching { HostAccess.requirePublicMethod(iface, "getSlot", accessible = false) }.getOrNull()
+                } ?: runCatching { HostAccess.requirePublicMethod(current, "getSlot", accessible = false) }.getOrNull()
                 if (found != null) slotGetter = found
                 c = c.superclass
             }

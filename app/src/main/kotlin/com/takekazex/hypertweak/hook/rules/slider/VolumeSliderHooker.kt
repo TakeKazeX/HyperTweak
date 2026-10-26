@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.slider
 
+import com.takekazex.hypertweak.hook.base.HostAccess
 import android.util.Log
 import android.view.View
 import android.widget.TextView
@@ -29,32 +30,8 @@ class VolumeSliderHooker(
 
     private var isVolumeViewHooked by generationState { false }
 
-    // Cached field refs for VolumePanelViewController hooks (hot path: every volume state update)
-    private var cachedVpcFieldsLoaded by generationState { false }
-    private var vpcField_mState: java.lang.reflect.Field? by generationState { null }
-    private var vpcField_mExpanded: java.lang.reflect.Field? by generationState { null }
-    private var vpcField_mActiveStream: java.lang.reflect.Field? by generationState { null }
-    private var vpcField_mSuperVolume: java.lang.reflect.Field? by generationState { null }
-    private var vpcField_mSuperVolumeBg: java.lang.reflect.Field? by generationState { null }
-    private var vpcField_mVolumeView: java.lang.reflect.Field? by generationState { null }
-    private var vpcField_isControlCenterPanel: java.lang.reflect.Field? by generationState { null }
-    private var vpcField_mColumns: java.lang.reflect.Field? by generationState { null }
-
-    // Cached field refs for stream state
-    private var cachedStreamStateFieldsLoaded by generationState { false }
-    private var ssField_states: java.lang.reflect.Field? by generationState { null }
-    private var ssField_level: java.lang.reflect.Field? by generationState { null }
-    private var ssField_levelMin: java.lang.reflect.Field? by generationState { null }
-    private var ssField_levelMax: java.lang.reflect.Field? by generationState { null }
-    private var ssMethod_get: java.lang.reflect.Method? by generationState { null }
-
-    // Cached field refs for VolumeColumn
-    private var cachedVolumeColumnField: java.lang.reflect.Field? by generationState { null }
-    private var cachedColumnStreamField: java.lang.reflect.Field? by generationState { null }
-    private var cachedColumnStreamGetter: java.lang.reflect.Method? by generationState { null }
-
     // Cache textView → stream mapping to avoid expensive column search in updateSuperVolumeText
-    private val textViewToStreamCache = generationResource(java.util.WeakHashMap<TextView, Int>()) { it.clear() }
+    private val textViewToStreamCache = generationMainResource(java.util.WeakHashMap<TextView, Int>()) { it.clear() }
 
     override fun onPrepareHotReload() {
         badgeStyler.clear()
@@ -162,13 +139,12 @@ class VolumeSliderHooker(
                         val isExpanded = param.args[5] as? Boolean ?: false
                         val thisObject = param.thisObject
                         val isInCCMainPage = runCatching {
-                            thisObject.javaClass.getMethod("isInCCMainPage").invoke(thisObject) as Boolean
+                            HostAccess.requirePublicMethod(thisObject.javaClass, "isInCCMainPage", accessible = false).invoke(thisObject) as Boolean
                         }.getOrDefault(true)
                         
                         val shouldShow = VolumeBadgePolicy.visible(isExpanded, isInCCMainPage, sameStyle)
                         runCatching {
-                            val superVolume = thisObject.javaClass.getDeclaredField("superVolume")
-                                .apply { isAccessible = true }.get(thisObject) as? TextView ?: return@runCatching
+                            val superVolume = HostAccess.requireDeclaredField(thisObject.javaClass, "superVolume", accessible = true).get(thisObject) as? TextView ?: return@runCatching
                             superVolume.visibility = if (shouldShow) View.VISIBLE else View.INVISIBLE
                             badgeStyler.applyTextStyle(superVolume, sameStyle)
                         }
@@ -183,25 +159,6 @@ class VolumeSliderHooker(
         // Track whether badge theme has been applied since last show, to avoid re-applying on every update
         var badgeThemeApplied = false
 
-        // Helper: resolve the VolumePanelViewController field handles once per process.
-        fun loadVpcFields(thisObject: Any) {
-            if (cachedVpcFieldsLoaded) return
-            val clz = thisObject.javaClass
-            // Resolve each field independently and always latch loaded=true: a missing field leaves
-            // that ref null (every consumer null-checks) instead of throwing on — and re-running
-            // getDeclaredField for — every volume event.
-            fun field(name: String) = runCatching { clz.getDeclaredField(name).apply { isAccessible = true } }.getOrNull()
-            vpcField_mState = field("mState")
-            vpcField_mExpanded = field("mExpanded")
-            vpcField_mActiveStream = field("mActiveStream")
-            vpcField_mSuperVolume = field("mSuperVolume")
-            vpcField_mSuperVolumeBg = field("mSuperVolumeBg")
-            vpcField_mVolumeView = field("mVolumeView")
-            vpcField_isControlCenterPanel = field("isControlCenterPanel")
-            vpcField_mColumns = field("mColumns")
-            cachedVpcFieldsLoaded = true
-        }
-
         /**
          * Binds the dialog view's `updateSuperVolumeVisibility` once the volume view exists, so the
          * module's collapsed/CC visibility decision wins over the host's super-volume-only rule.
@@ -211,7 +168,7 @@ class VolumeSliderHooker(
         fun hookSuperVolumeVisibilityFallback(thisObject: Any) {
             if (isVolumeViewHooked) return
             runCatching {
-                val mVolumeView = vpcField_mVolumeView?.get(thisObject) ?: return@runCatching
+                val mVolumeView = HostAccess.readDeclared(thisObject, "mVolumeView") ?: return@runCatching
                 mVolumeView.javaClass.declaredMethods.firstOrNull {
                     it.name == "updateSuperVolumeVisibility" &&
                         it.parameterTypes.size == 1 &&
@@ -222,10 +179,10 @@ class VolumeSliderHooker(
                             if (parent.showPercentageEnabled) {
                                 val view = param.thisObject
                                 val isExpanded = runCatching {
-                                    view.javaClass.getMethod("isExpanded").invoke(view) as Boolean
+                                    HostAccess.requirePublicMethod(view.javaClass, "isExpanded", accessible = false).invoke(view) as Boolean
                                 }.getOrDefault(false)
                                 val inCCMainPage = runCatching {
-                                    view.javaClass.getMethod("inCCMainPage").invoke(view) as Boolean
+                                    HostAccess.requirePublicMethod(view.javaClass, "inCCMainPage", accessible = false).invoke(view) as Boolean
                                 }.getOrNull()
                                 if (inCCMainPage != true) {
                                     param.args[0] = !isExpanded
@@ -248,10 +205,10 @@ class VolumeSliderHooker(
         fun applyBadgeAppearance(thisObject: Any) {
             if (!parent.showPercentageEnabled) return
             runCatching {
-                loadVpcFields(thisObject)
-                val badgeBg = vpcField_mSuperVolumeBg?.get(thisObject) as? View ?: return@runCatching
-                val badgeText = vpcField_mSuperVolume?.get(thisObject) as? TextView ?: return@runCatching
-                val expanded = vpcField_mExpanded?.get(thisObject) as Boolean
+
+                val badgeBg = HostAccess.readDeclared(thisObject, "mSuperVolumeBg") as? View ?: return@runCatching
+                val badgeText = HostAccess.readDeclared(thisObject, "mSuperVolume") as? TextView ?: return@runCatching
+                val expanded = HostAccess.readDeclared(thisObject, "mExpanded") as Boolean
 
                 // Only the outer capsule paints the material; the text stays transparent.
                 badgeStyler.detachTextBackground(badgeText)
@@ -270,39 +227,22 @@ class VolumeSliderHooker(
         }
 
         // Helper: update badge text with the active stream's current percentage
-        fun loadStreamStateFields(mState: Any) {
-            if (cachedStreamStateFieldsLoaded) return
-            val stateClz = mState.javaClass
-            ssField_states = stateClz.getDeclaredField("states").apply { isAccessible = true }
-            // states can still be null before the first stream sync — return without latching so a
-            // later call retries, instead of pinning ssMethod_get null and disabling the badge for good.
-            val statesObj = ssField_states!!.get(mState) ?: return
-            ssMethod_get = statesObj.javaClass.getMethod("get", Int::class.javaPrimitiveType ?: Int::class.java)
-            // Level fields are initialized lazily from the first valid stream state.
-            cachedStreamStateFieldsLoaded = true
-        }
 
         fun updateBadgeText(thisObject: Any, activeStream: Int) {
             if (!parent.showPercentageEnabled) return
             runCatching {
-                loadVpcFields(thisObject)
-                val mState = vpcField_mState?.get(thisObject) ?: return
-                loadStreamStateFields(mState)
-                val states = ssField_states?.get(mState) ?: return
-                val streamState = ssMethod_get?.invoke(states, activeStream) ?: return
 
-                if (ssField_level == null || ssField_levelMax == null) {
-                    ssField_level = streamState.javaClass.getDeclaredField("level").apply { isAccessible = true }
-                    ssField_levelMin = runCatching { streamState.javaClass.getDeclaredField("levelMin").apply { isAccessible = true } }.getOrNull()
-                    ssField_levelMax = streamState.javaClass.getDeclaredField("levelMax").apply { isAccessible = true }
-                }
+                val mState = HostAccess.readDeclared(thisObject, "mState") ?: return
 
-                val level = (ssField_level?.get(streamState) as? Int) ?: 0
-                val levelMin = (ssField_levelMin?.get(streamState) as? Int) ?: 0
-                val levelMax = (ssField_levelMax?.get(streamState) as? Int) ?: 0
+                val states = HostAccess.requireDeclaredField(mState.javaClass, "states", accessible = true).get(mState) ?: return
+                val streamState = HostAccess.publicMethod(states.javaClass, "get", Int::class.javaPrimitiveType!!, accessible = false)?.invoke(states, activeStream) ?: return
+
+                val level = (HostAccess.requireDeclaredField(streamState.javaClass, "level", accessible = true).get(streamState) as? Int) ?: 0
+                val levelMin = (HostAccess.readDeclared(streamState, "levelMin") as? Int) ?: 0
+                val levelMax = (HostAccess.requireDeclaredField(streamState.javaClass, "levelMax", accessible = true).get(streamState) as? Int) ?: 0
                 val pct = volumePercent(level, levelMin, levelMax) ?: return@runCatching
 
-                val mSuperVolume = vpcField_mSuperVolume?.get(thisObject) as? TextView
+                val mSuperVolume = HostAccess.readDeclared(thisObject, "mSuperVolume") as? TextView
                 if (mSuperVolume != null) {
                     mSuperVolume.text = formatPercent(pct)
                 }
@@ -336,8 +276,8 @@ class VolumeSliderHooker(
         clzVolumeViewController?.declaredMethods?.firstOrNull { it.name == "showVolumePanelH" }?.let { method ->
             method.hook {
                 before { param ->
-                    loadVpcFields(param.thisObject)
-                    val activeStream = vpcField_mActiveStream?.get(param.thisObject) as? Int
+
+                    val activeStream = HostAccess.readDeclared(param.thisObject, "mActiveStream") as? Int
                     if (activeStream != null) updateBadgeText(param.thisObject, activeStream)
                     badgeThemeApplied = false
                     applyBadgeAppearance(param.thisObject)
@@ -355,20 +295,15 @@ class VolumeSliderHooker(
                     if (parent.showPercentageEnabled) {
                         runCatching {
                             val thisObject = param.thisObject
-                            loadVpcFields(thisObject)
-                            val mState = vpcField_mState?.get(thisObject) ?: return@runCatching
-                            val mExpanded = vpcField_mExpanded?.get(thisObject) as Boolean
-                            val activeStream = vpcField_mActiveStream?.get(thisObject) as Int
+
+                            val mState = HostAccess.readDeclared(thisObject, "mState") ?: return@runCatching
+                            val mExpanded = HostAccess.readDeclared(thisObject, "mExpanded") as Boolean
+                            val activeStream = HostAccess.readDeclared(thisObject, "mActiveStream") as Int
                             val column = param.args[0] ?: return@runCatching
-                            loadStreamStateFields(mState)
 
                             // Cache VolumeColumn field refs
-                            val colStreamField = cachedColumnStreamField ?: runCatching {
-                                column.javaClass.getDeclaredField("stream").apply { isAccessible = true }.also { cachedColumnStreamField = it }
-                            }.getOrNull()
-                            val colStreamGetter = if (colStreamField == null && cachedColumnStreamGetter == null) {
-                                runCatching { column.javaClass.getMethod("getStream").also { cachedColumnStreamGetter = it } }.getOrNull()
-                            } else cachedColumnStreamGetter
+                            val colStreamField = HostAccess.declaredField(column.javaClass, "stream", accessible = true)
+                            val colStreamGetter = if (colStreamField == null) HostAccess.publicMethod(column.javaClass, "getStream", accessible = false) else null
                             val stream = if (colStreamField != null) {
                                 runCatching { colStreamField.get(column) as Int }.getOrDefault(-1)
                             } else if (colStreamGetter != null) {
@@ -376,25 +311,20 @@ class VolumeSliderHooker(
                             } else -1
 
                             if (stream >= 0) {
-                                val states = ssField_states?.get(mState) ?: return@runCatching
-                                val streamState = ssMethod_get?.invoke(states, stream) ?: return@runCatching
+                                val states = HostAccess.requireDeclaredField(mState.javaClass, "states", accessible = true).get(mState) ?: return@runCatching
+                                val streamState = HostAccess.publicMethod(states.javaClass, "get", Int::class.javaPrimitiveType!!, accessible = false)?.invoke(states, stream) ?: return@runCatching
 
-                                if (ssField_level == null || ssField_levelMax == null) {
-                                    ssField_level = streamState.javaClass.getDeclaredField("level").apply { isAccessible = true }
-                                    ssField_levelMin = runCatching { streamState.javaClass.getDeclaredField("levelMin").apply { isAccessible = true } }.getOrNull()
-                                    ssField_levelMax = streamState.javaClass.getDeclaredField("levelMax").apply { isAccessible = true }
-                                }
-                                val level = (ssField_level?.get(streamState) as? Int) ?: 0
-                                val levelMin = (ssField_levelMin?.get(streamState) as? Int) ?: 0
-                                val levelMax = (ssField_levelMax?.get(streamState) as? Int) ?: 0
+                                val level = (HostAccess.requireDeclaredField(streamState.javaClass, "level", accessible = true).get(streamState) as? Int) ?: 0
+                                val levelMin = (HostAccess.readDeclared(streamState, "levelMin") as? Int) ?: 0
+                                val levelMax = (HostAccess.requireDeclaredField(streamState.javaClass, "levelMax", accessible = true).get(streamState) as? Int) ?: 0
                                 val pct = volumePercent(level, levelMin, levelMax) ?: return@runCatching
 
                                 val sameStyleVolume = parent.sameStyleEnabled
-                                val colSuperVolField = cachedVolumeColumnField ?: column.javaClass.getDeclaredField("superVolume").apply { isAccessible = true }.also { cachedVolumeColumnField = it }
-                                val columnSuperVolume = colSuperVolField.get(column) as? TextView
+                                val colSuperVolField = HostAccess.declaredField(column.javaClass, "superVolume", accessible = true)
+                                val columnSuperVolume = colSuperVolField?.get(column) as? TextView
                                 if (columnSuperVolume != null) {
                                     setPercentIfChanged(columnSuperVolume, pct)
-                                    val isControlCenter = (vpcField_isControlCenterPanel?.get(thisObject) as? Boolean) ?: false
+                                    val isControlCenter = (HostAccess.readDeclared(thisObject, "isControlCenterPanel") as? Boolean) ?: false
                                     val shouldShowInner = VolumeBadgePolicy.visible(mExpanded, isControlCenter, sameStyleVolume)
                                     columnSuperVolume.visibility = if (shouldShowInner) View.VISIBLE else View.INVISIBLE
                                     if (shouldShowInner) {
@@ -407,7 +337,7 @@ class VolumeSliderHooker(
 
                                 if (!mExpanded) {
                                     if (stream == activeStream) {
-                                        val mSuperVolume = vpcField_mSuperVolume?.get(thisObject) as? TextView
+                                        val mSuperVolume = HostAccess.readDeclared(thisObject, "mSuperVolume") as? TextView
                                         if (mSuperVolume != null) {
                                             setPercentIfChanged(mSuperVolume, pct)
                                             mSuperVolume.visibility = View.VISIBLE
@@ -440,14 +370,14 @@ class VolumeSliderHooker(
                         runCatching {
                             val thisObject = param.thisObject
                             val column = param.args[0] ?: return@runCatching
-                            loadVpcFields(thisObject)
-                            val mExpanded = vpcField_mExpanded?.get(thisObject) as Boolean
 
-                            val colSuperVolField = cachedVolumeColumnField ?: column.javaClass.getDeclaredField("superVolume").apply { isAccessible = true }.also { cachedVolumeColumnField = it }
-                            val superVolume = colSuperVolField.get(column) as? TextView
+                            val mExpanded = HostAccess.readDeclared(thisObject, "mExpanded") as Boolean
+
+                            val colSuperVolField = HostAccess.declaredField(column.javaClass, "superVolume", accessible = true)
+                            val superVolume = colSuperVolField?.get(column) as? TextView
                             if (superVolume != null) {
                                 val sameStyleVolume = parent.sameStyleEnabled
-                                val isControlCenter = (vpcField_isControlCenterPanel?.get(thisObject) as? Boolean) ?: false
+                                val isControlCenter = (HostAccess.readDeclared(thisObject, "isControlCenterPanel") as? Boolean) ?: false
                                 val shouldShowInner = VolumeBadgePolicy.visible(mExpanded, isControlCenter, sameStyleVolume)
                                 superVolume.visibility = if (shouldShowInner) View.VISIBLE else View.INVISIBLE
                             }
@@ -466,32 +396,28 @@ class VolumeSliderHooker(
                         val textView = param[0] as? TextView
                         if (textView != null) {
                             val skipped = runCatching {
-                                loadVpcFields(thisObject)
-                                val mState = vpcField_mState?.get(thisObject) ?: return@runCatching false
-                                loadStreamStateFields(mState)
-                                val mColumns = vpcField_mColumns?.get(thisObject) as? List<*> ?: return@runCatching false
+
+                                val mState = HostAccess.readDeclared(thisObject, "mState") ?: return@runCatching false
+
+                                val mColumns = HostAccess.readDeclared(thisObject, "mColumns") as? List<*> ?: return@runCatching false
 
                                 var foundStream = -1
-                                val mSuperVolume = vpcField_mSuperVolume?.get(thisObject) as? TextView
+                                val mSuperVolume = HostAccess.readDeclared(thisObject, "mSuperVolume") as? TextView
                                 
                                 if (textView === mSuperVolume) {
-                                    foundStream = vpcField_mActiveStream?.get(thisObject) as Int
+                                    foundStream = HostAccess.readDeclared(thisObject, "mActiveStream") as Int
                                 } else {
                                     val cached = textViewToStreamCache[textView]
                                     if (cached != null) {
                                         foundStream = cached
                                     } else {
-                                        val colSuperVolField = cachedVolumeColumnField
+
                                         for (col in mColumns) {
                                             if (col != null) {
-                                                val sv = colSuperVolField?.get(col) ?: col.javaClass.getDeclaredField("superVolume").apply { isAccessible = true }.also { cachedVolumeColumnField = it }.get(col)
+                                                val sv = HostAccess.readDeclared(col, "superVolume")
                                                 if (sv === textView) {
-                                                    val colStreamField = cachedColumnStreamField ?: runCatching {
-                                                        col.javaClass.getDeclaredField("stream").apply { isAccessible = true }.also { cachedColumnStreamField = it }
-                                                    }.getOrNull()
-                                                    val colStreamGetter = if (colStreamField == null && cachedColumnStreamGetter == null) {
-                                                        runCatching { col.javaClass.getMethod("getStream").also { cachedColumnStreamGetter = it } }.getOrNull()
-                                                    } else cachedColumnStreamGetter
+                                                    val colStreamField = HostAccess.declaredField(col.javaClass, "stream", accessible = true)
+                                                    val colStreamGetter = if (colStreamField == null) HostAccess.publicMethod(col.javaClass, "getStream", accessible = false) else null
                                                     foundStream = if (colStreamField != null) {
                                                         runCatching { colStreamField.get(col) as Int }.getOrDefault(-1)
                                                     } else if (colStreamGetter != null) {
@@ -508,21 +434,17 @@ class VolumeSliderHooker(
                                 }
 
                                 if (foundStream >= 0) {
-                                    val states = ssField_states?.get(mState) ?: return@runCatching false
-                                    val streamState = ssMethod_get?.invoke(states, foundStream) ?: return@runCatching false
-                                    if (ssField_level == null || ssField_levelMax == null) {
-                                        ssField_level = streamState.javaClass.getDeclaredField("level").apply { isAccessible = true }
-                                        ssField_levelMin = runCatching { streamState.javaClass.getDeclaredField("levelMin").apply { isAccessible = true } }.getOrNull()
-                                        ssField_levelMax = streamState.javaClass.getDeclaredField("levelMax").apply { isAccessible = true }
-                                    }
-                                    val level = (ssField_level?.get(streamState) as? Int) ?: 0
-                                    val levelMin = (ssField_levelMin?.get(streamState) as? Int) ?: 0
-                                    val levelMax = (ssField_levelMax?.get(streamState) as? Int) ?: 0
+                                    val states = HostAccess.requireDeclaredField(mState.javaClass, "states", accessible = true).get(mState) ?: return@runCatching false
+                                    val streamState = HostAccess.publicMethod(states.javaClass, "get", Int::class.javaPrimitiveType!!, accessible = false)?.invoke(states, foundStream) ?: return@runCatching false
+
+                                    val level = (HostAccess.requireDeclaredField(streamState.javaClass, "level", accessible = true).get(streamState) as? Int) ?: 0
+                                    val levelMin = (HostAccess.readDeclared(streamState, "levelMin") as? Int) ?: 0
+                                    val levelMax = (HostAccess.requireDeclaredField(streamState.javaClass, "levelMax", accessible = true).get(streamState) as? Int) ?: 0
                                     val pct = volumePercent(level, levelMin, levelMax) ?: return@runCatching false
 
                                     setPercentIfChanged(textView, pct)
 
-                                    val mExpanded = vpcField_mExpanded?.get(thisObject) as Boolean
+                                    val mExpanded = HostAccess.readDeclared(thisObject, "mExpanded") as Boolean
                                     val sameStyleSuper = parent.sameStyleEnabled
                                     textView.visibility = if (textView === mSuperVolume) {
                                         if (mExpanded && sameStyleSuper) View.GONE else View.VISIBLE
@@ -569,10 +491,10 @@ class VolumeSliderHooker(
                     if (parent.showPercentageEnabled) {
                         val view = param.thisObject
                         val isExpanded = runCatching {
-                            view.javaClass.getMethod("isExpanded").invoke(view) as Boolean
+                            HostAccess.requirePublicMethod(view.javaClass, "isExpanded", accessible = false).invoke(view) as Boolean
                         }.getOrDefault(false)
                         val inCCMainPage = runCatching {
-                            view.javaClass.getMethod("inCCMainPage").invoke(view) as Boolean
+                            HostAccess.requirePublicMethod(view.javaClass, "inCCMainPage", accessible = false).invoke(view) as Boolean
                         }.getOrNull()
                         if (inCCMainPage != true) {
                             param.args[0] = !isExpanded

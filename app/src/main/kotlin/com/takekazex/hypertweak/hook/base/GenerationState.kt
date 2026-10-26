@@ -17,8 +17,13 @@ internal class GenerationStateOwner {
     fun <T> state(initial: () -> T): GenerationState<T> =
         GenerationState(initial).also { state -> resets += { state.reset() } }
 
-    fun <T> resource(value: T, reset: (T) -> Unit): T = value.also {
-        resets += { reset(value) }
+    /** Dispatch before taking the value's monitor: never hold a lock while waiting on main. */
+    fun <T : Any> resource(
+        value: T,
+        dispatch: (() -> Unit) -> Unit = { it() },
+        reset: (T) -> Unit
+    ): T = value.also {
+        resets += { dispatch { synchronized(value) { reset(value) } } }
     }
 
     fun reset() {

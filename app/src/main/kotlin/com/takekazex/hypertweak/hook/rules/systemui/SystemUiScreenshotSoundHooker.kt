@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui
 
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 
 import android.media.MediaActionSound
@@ -26,7 +27,7 @@ object SystemUiScreenshotSoundHooker : StaticHooker() {
 
     private fun hookSystemUiFallbackSound() {
         runCatching {
-            MediaActionSound::class.java.getMethod("play", Int::class.javaPrimitiveType).hook {
+            HostAccess.requirePublicMethod(MediaActionSound::class.java, "play", Int::class.javaPrimitiveType, accessible = false).hook {
                 before { param ->
                     if (
                         Preferences.getBoolean(SystemUiSettingsKeys.KEY_HIDE_LOCKSCREEN_STATUS_BAR, false) &&
@@ -48,9 +49,7 @@ object SystemUiScreenshotSoundHooker : StaticHooker() {
     private fun hookMiuiScreenshotSoundProvider() {
         runCatching {
             val providerClass = classLoader.loadClass(MIUI_SCREENSHOT_PROVIDER)
-            providerClass.getDeclaredMethod("resolveSoundUri", Boolean::class.javaPrimitiveType).apply {
-                isAccessible = true
-            }.hook("miui_screenshot_sound_uri") {
+            HostAccess.requireDeclaredMethod(providerClass, "resolveSoundUri", Boolean::class.javaPrimitiveType, accessible = true).hook("miui_screenshot_sound_uri") {
                 before { param ->
                     if (
                         Preferences.getBoolean(SystemUiSettingsKeys.KEY_HIDE_LOCKSCREEN_STATUS_BAR, false) &&

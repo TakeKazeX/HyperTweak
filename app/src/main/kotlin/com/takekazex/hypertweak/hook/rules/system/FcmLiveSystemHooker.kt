@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.system
 
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import android.content.Context
@@ -53,18 +54,16 @@ object FcmLiveSystemHooker : StaticHooker() {
             val clazz = "com.miui.server.greeze.GreezeManagerService".toClassOrNull() ?: return@runCatching
 
             // boolean isAllowBroadcast(int callerUid, String callerPkgName, int calleeUid, String calleePkgName, String action)
-            val isAllowBroadcastMethod = clazz.getDeclaredMethod(
+            val isAllowBroadcastMethod = HostAccess.requireDeclaredMethod(clazz,
                 "isAllowBroadcast",
                 Int::class.javaPrimitiveType,
                 String::class.java,
                 Int::class.javaPrimitiveType,
                 String::class.java,
-                String::class.java
-            )
-            val getPackageNameFromUidMethod = clazz.getDeclaredMethod(
+                String::class.java, accessible = false)
+            val getPackageNameFromUidMethod = HostAccess.requireDeclaredMethod(clazz,
                 "getPackageNameFromUid",
-                Int::class.javaPrimitiveType
-            ).apply { isAccessible = true }
+                Int::class.javaPrimitiveType, accessible = true)
 
             isAllowBroadcastMethod.hook {
                 before { param ->
@@ -98,10 +97,9 @@ object FcmLiveSystemHooker : StaticHooker() {
             }
 
             // boolean deferBroadcastForMiui(String action)
-            val deferBroadcastForMiuiMethod = clazz.getDeclaredMethod(
+            val deferBroadcastForMiuiMethod = HostAccess.requireDeclaredMethod(clazz,
                 "deferBroadcastForMiui",
-                String::class.java
-            )
+                String::class.java, accessible = false)
             deferBroadcastForMiuiMethod.hook {
                 before { param ->
                     val action = param.args[0] as? String
@@ -113,9 +111,9 @@ object FcmLiveSystemHooker : StaticHooker() {
 
             // void triggerGMSLimitAction(boolean enable) or void triggerGMSLimitAction()
             val triggerGMSLimitActionMethod = runCatching {
-                clazz.getDeclaredMethod("triggerGMSLimitAction", Boolean::class.javaPrimitiveType)
+                HostAccess.requireDeclaredMethod(clazz, "triggerGMSLimitAction", Boolean::class.javaPrimitiveType, accessible = false)
             }.getOrElse {
-                clazz.getDeclaredMethod("triggerGMSLimitAction")
+                HostAccess.requireDeclaredMethod(clazz, "triggerGMSLimitAction", accessible = false)
             }
 
             triggerGMSLimitActionMethod.hook {
@@ -124,7 +122,7 @@ object FcmLiveSystemHooker : StaticHooker() {
                         if (param.args.isNotEmpty()) {
                             param.args[0] = false
                         } else {
-                            val mGmsLimitEnabledField = clazz.getDeclaredField("mGmsLimitEnabled").apply { isAccessible = true }
+                            val mGmsLimitEnabledField = HostAccess.requireDeclaredField(clazz, "mGmsLimitEnabled", accessible = true)
                             mGmsLimitEnabledField.setBoolean(param.thisObject, false)
                         }
                     }.onFailure { t ->
@@ -142,7 +140,7 @@ object FcmLiveSystemHooker : StaticHooker() {
     private fun hookDomesticPolicyManager() {
         runCatching {
             val clazz = "com.miui.server.greeze.DomesticPolicyManager".toClassOrNull() ?: return@runCatching
-            val deferBroadcastMethod = clazz.getDeclaredMethod("deferBroadcast", String::class.java)
+            val deferBroadcastMethod = HostAccess.requireDeclaredMethod(clazz, "deferBroadcast", String::class.java, accessible = false)
 
             deferBroadcastMethod.hook {
                 before { param ->
@@ -165,14 +163,14 @@ object FcmLiveSystemHooker : StaticHooker() {
             // miui-services.jar classes2.dex). Older builds use the m-prefixed instance fields;
             // try both spellings.
             val systemBlackListField = runCatching {
-                clazz.getDeclaredField("mSystemBlackList").apply { isAccessible = true }
+                HostAccess.requireDeclaredField(clazz, "mSystemBlackList", accessible = true)
             }.getOrElse {
-                clazz.getDeclaredField("SYSTEM_BLACK_LIST").apply { isAccessible = true }
+                HostAccess.requireDeclaredField(clazz, "SYSTEM_BLACK_LIST", accessible = true)
             }
             val useDataWhiteListField = runCatching {
-                clazz.getDeclaredField("mUseDataWhiteList").apply { isAccessible = true }
+                HostAccess.requireDeclaredField(clazz, "mUseDataWhiteList", accessible = true)
             }.getOrElse {
-                runCatching { clazz.getDeclaredField("USE_DATA_WHITE_LIST").apply { isAccessible = true } }
+                runCatching { HostAccess.requireDeclaredField(clazz, "USE_DATA_WHITE_LIST", accessible = true) }
                     .onFailure {
                         DebugLog.w(hookerName, "ListAppsManager use-data whitelist field is unavailable", it)
                     }.getOrNull()
@@ -198,7 +196,7 @@ object FcmLiveSystemHooker : StaticHooker() {
 
             // boolean isInWhiteList(String packageName)
             runCatching {
-                val isInWhiteListMethod = clazz.getDeclaredMethod("isInWhiteList", String::class.java)
+                val isInWhiteListMethod = HostAccess.requireDeclaredMethod(clazz, "isInWhiteList", String::class.java, accessible = false)
                 isInWhiteListMethod.hook {
                     before { param ->
                         // USE_DATA_WHITE_LIST is a process-wide static Set. Mutate it in place instead
@@ -260,15 +258,14 @@ object FcmLiveSystemHooker : StaticHooker() {
             val queueClass = "com.android.server.am.BroadcastQueue".toClassOrNull() ?: return@runCatching
             val recordClass = "com.android.server.am.BroadcastRecord".toClassOrNull() ?: return@runCatching
 
-            val callerPackageField = recordClass.getDeclaredField("callerPackage").apply { isAccessible = true }
-            val intentField = recordClass.getDeclaredField("intent").apply { isAccessible = true }
+            val callerPackageField = HostAccess.requireDeclaredField(recordClass, "callerPackage", accessible = true)
+            val intentField = HostAccess.requireDeclaredField(recordClass, "intent", accessible = true)
 
-            val checkMethod = stubClass.getDeclaredMethod(
+            val checkMethod = HostAccess.requireDeclaredMethod(stubClass,
                 "checkApplicationAutoStart",
                 queueClass,
                 recordClass,
-                ResolveInfo::class.java
-            )
+                ResolveInfo::class.java, accessible = false)
 
             checkMethod.hook {
                 before { param ->
@@ -296,7 +293,7 @@ object FcmLiveSystemHooker : StaticHooker() {
     private fun hookProcessPolicy() {
         runCatching {
             val clazz = "com.android.server.am.ProcessPolicy".toClassOrNull() ?: return@runCatching
-            val getWhiteListMethod = clazz.getDeclaredMethod("getWhiteList", Int::class.javaPrimitiveType)
+            val getWhiteListMethod = HostAccess.requireDeclaredMethod(clazz, "getWhiteList", Int::class.javaPrimitiveType, accessible = false)
 
             getWhiteListMethod.hook {
                 after { param ->
@@ -320,7 +317,7 @@ object FcmLiveSystemHooker : StaticHooker() {
     private fun hookAwareResourceControl() {
         runCatching {
             val clazz = "com.miui.server.greeze.power.AwareResourceControl".toClassOrNull() ?: return@runCatching
-            val mNoNetworkBlackUidsField = clazz.getDeclaredField("mNoNetworkBlackUids").apply { isAccessible = true }
+            val mNoNetworkBlackUidsField = HostAccess.requireDeclaredField(clazz, "mNoNetworkBlackUids", accessible = true)
 
             clazz.declaredConstructors.forEach { constructor ->
                 constructor.hook {
@@ -344,8 +341,8 @@ object FcmLiveSystemHooker : StaticHooker() {
         runCatching {
             val policyClass = "com.android.server.am.BroadcastSkipPolicy".toClassOrNull() ?: return@runCatching
             val recordClass = "com.android.server.am.BroadcastRecord".toClassOrNull() ?: return@runCatching
-            val callerPackageField = recordClass.getDeclaredField("callerPackage").apply { isAccessible = true }
-            val intentField = recordClass.getDeclaredField("intent").apply { isAccessible = true }
+            val callerPackageField = HostAccess.requireDeclaredField(recordClass, "callerPackage", accessible = true)
+            val intentField = HostAccess.requireDeclaredField(recordClass, "intent", accessible = true)
 
             fun isGmsC2dm(record: Any?): Boolean {
                 if (record == null) return false
@@ -372,7 +369,7 @@ object FcmLiveSystemHooker : StaticHooker() {
                 "shouldSkipAtEnqueueMessage",
                 "shouldSkipMessage"
             ).forEach { methodName ->
-                val method = policyClass.getDeclaredMethod(methodName, recordClass, Any::class.java)
+                val method = HostAccess.requireDeclaredMethod(policyClass, methodName, recordClass, Any::class.java, accessible = false)
                 method.hook {
                     before { param ->
                         if (isGmsC2dm(param.args.firstOrNull())) {
@@ -391,29 +388,26 @@ object FcmLiveSystemHooker : StaticHooker() {
     private fun hookActivityManagerService() {
         runCatching {
             val amsClass = "com.android.server.am.ActivityManagerService".toClassOrNull() ?: return@runCatching
-            val mContextField = amsClass.getDeclaredField("mContext").apply { isAccessible = true }
+            val mContextField = HostAccess.requireDeclaredField(amsClass, "mContext", accessible = true)
             val appThreadClass = "android.app.IApplicationThread".toClassOrNull() ?: return@runCatching
             val receiverClass = "android.content.IIntentReceiver".toClassOrNull() ?: return@runCatching
             val processRecordClass = "com.android.server.am.ProcessRecord".toClassOrNull() ?: return@runCatching
-            val infoField = processRecordClass.getDeclaredField("info").apply { isAccessible = true }
+            val infoField = HostAccess.requireDeclaredField(processRecordClass, "info", accessible = true)
 
             // Use API 31+ method (minSdk is 35)
-            val getRecordMethod = amsClass.getDeclaredMethod("getRecordForAppLOSP", appThreadClass).apply {
-                isAccessible = true
-            }
+            val getRecordMethod = HostAccess.requireDeclaredMethod(amsClass, "getRecordForAppLOSP", appThreadClass, accessible = true)
 
             val stringArrayClass = Array<String>::class.java
 
             // Use API 33+ method signature (minSdk is 35)
-            val method = amsClass.getDeclaredMethod(
+            val method = HostAccess.requireDeclaredMethod(amsClass,
                 "broadcastIntentWithFeature",
                 appThreadClass, String::class.java,
                 Intent::class.java, String::class.java, receiverClass,
                 Int::class.javaPrimitiveType, String::class.java, android.os.Bundle::class.java,
                 stringArrayClass, stringArrayClass,
                 stringArrayClass, Int::class.javaPrimitiveType, android.os.Bundle::class.java,
-                Boolean::class.javaPrimitiveType, Boolean::class.javaPrimitiveType, Int::class.javaPrimitiveType
-            )
+                Boolean::class.javaPrimitiveType, Boolean::class.javaPrimitiveType, Int::class.javaPrimitiveType, accessible = false)
             method.hook {
                 before { param ->
                     runCatching {
@@ -451,13 +445,12 @@ object FcmLiveSystemHooker : StaticHooker() {
                         val context = mContextField.get(thisObject) as? Context ?: return@runCatching
                         val powerExemptionManager = context.getSystemService("power_exemption") ?: return@runCatching
                         val pemClass = Class.forName("android.os.PowerExemptionManager")
-                        val addMethod = pemClass.getMethod(
+                        val addMethod = HostAccess.requirePublicMethod(pemClass,
                             "addToTemporaryAllowList",
                             String::class.java,
                             Int::class.javaPrimitiveType,
                             String::class.java,
-                            Long::class.javaPrimitiveType
-                        )
+                            Long::class.javaPrimitiveType, accessible = false)
                         addMethod.invoke(powerExemptionManager, packageName, 102, "GOOGLE_C2DM", 2000L)
                     }.onFailure { t ->
                         DebugLog.w(hookerName, "Failed to add FCM receiver to temporary allow list", t)

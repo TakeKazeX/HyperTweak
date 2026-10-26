@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.notification
 
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.hook.base.dex.DexOperandIndex
 import org.jf.dexlib2.iface.Method
 import org.jf.dexlib2.iface.instruction.OneRegisterInstruction
@@ -17,12 +18,12 @@ internal object NotificationIconFilterContract {
         require(values.keys == setOf("owner", "method", "ambient", "silent", "callers"))
         val owner = Class.forName(values.getValue("owner"), false, loader)
         fun predicate(type: Class<*>, name: String) {
-            val method = type.getDeclaredMethod(name, Any::class.java)
+            val method = HostAccess.requireDeclaredMethod(type, name, Any::class.java, accessible = false)
             require(method.returnType == Any::class.java && !java.lang.reflect.Modifier.isStatic(method.modifiers))
         }
         predicate(owner, values.getValue("method"))
-        val ambient = owner.getDeclaredField(values.getValue("ambient"))
-        val silent = owner.getDeclaredField(values.getValue("silent"))
+        val ambient = HostAccess.requireDeclaredField(owner, values.getValue("ambient"), accessible = false)
+        val silent = HostAccess.requireDeclaredField(owner, values.getValue("silent"), accessible = false)
         require(ambient.type == Boolean::class.javaPrimitiveType && silent.type == Boolean::class.javaPrimitiveType && ambient != silent)
         require(!java.lang.reflect.Modifier.isStatic(ambient.modifiers) && !java.lang.reflect.Modifier.isStatic(silent.modifiers))
         val callers = values.getValue("callers").split("\n").filter(String::isNotEmpty).map { value ->

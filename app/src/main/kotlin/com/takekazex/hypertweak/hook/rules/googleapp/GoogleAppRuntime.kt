@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.googleapp
 
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 
 import android.content.Context
@@ -114,7 +115,7 @@ object GoogleAppRuntime : StaticHooker() {
         sourceDir?.takeIf { it.isNotBlank() }?.let { return it }
         val resolved = runCatching {
             val activityThread = Class.forName("android.app.ActivityThread")
-            val application = activityThread.getDeclaredMethod("currentApplication").invoke(null)
+            val application = HostAccess.requireDeclaredMethod(activityThread, "currentApplication", accessible = false).invoke(null)
             (application as? Context)?.applicationInfo?.sourceDir
         }.onFailure { failure ->
             DebugLog.w(TAG, "Could not recover Google App source path", failure)
@@ -169,8 +170,4 @@ object GoogleAppRuntime : StaticHooker() {
         return null
     }
 
-    override fun onPrepareHotReload() {
-        // The old generation's targets remain available for replaceOldHandle() until the new
-        // generation has consumed its old handles. Only reset the attach guard here.
-    }
 }

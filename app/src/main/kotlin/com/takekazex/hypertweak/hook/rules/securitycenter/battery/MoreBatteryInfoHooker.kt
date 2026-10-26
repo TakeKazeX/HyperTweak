@@ -2,6 +2,7 @@
 
 package com.takekazex.hypertweak.hook.rules.securitycenter.battery
 
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
@@ -447,8 +448,8 @@ object MoreBatteryInfoHooker : StaticHooker() {
 
     private fun resolveMiChargeCycleCount(): Int? = runCatching {
         val miChargeClass = "miui.util.IMiCharge".toClassOrNull() ?: return@runCatching null
-        val instance = miChargeClass.getMethod("getInstance").invoke(null) ?: return@runCatching null
-        miChargeClass.getMethod("getBatteryCycleCount").invoke(instance)?.toString()?.toIntOrNull()
+        val instance = HostAccess.requirePublicMethod(miChargeClass, "getInstance", accessible = false).invoke(null) ?: return@runCatching null
+        HostAccess.requirePublicMethod(miChargeClass, "getBatteryCycleCount", accessible = false).invoke(instance)?.toString()?.toIntOrNull()
     }.getOrNull()?.takeIf { it >= 0 }
 
     private fun localizedTitle(chinese: String, english: String): String =

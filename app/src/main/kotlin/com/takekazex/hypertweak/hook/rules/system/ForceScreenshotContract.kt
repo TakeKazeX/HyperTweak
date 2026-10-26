@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.system
 
+import com.takekazex.hypertweak.hook.base.HostAccess
 import java.lang.reflect.Field
 import java.lang.reflect.Method
 import java.lang.reflect.Modifier
@@ -59,14 +60,12 @@ internal object ForceScreenshotVendorGate {
         }.apply { isAccessible = true }
         val live = factory.invoke(null)
         check(live != null && stub.isInstance(live)) { "Vendor window-manager singleton unavailable" }
-        return live.javaClass.getMethod("notAllowCaptureDisplay", root, Int::class.javaPrimitiveType).apply {
+        return HostAccess.requirePublicMethod(live.javaClass, "notAllowCaptureDisplay", root, Int::class.javaPrimitiveType, accessible = true).apply {
             check(returnType == Boolean::class.javaPrimitiveType && !Modifier.isStatic(modifiers) &&
                 !Modifier.isAbstract(modifiers)) { "Vendor screenshot gate signature changed" }
-            isAccessible = true
         }
     }
 }
-
 
 /** Repair Surface security changed by older global isSecureLocked overrides. The host's own
  * refresh reads its current policy and schedules its native transaction/animation under the WM lock.
@@ -84,9 +83,8 @@ internal class ForceScreenshotSurfaceRecovery private constructor(
             fun field(type: Class<*>) = service.declaredFields.single {
                 !Modifier.isStatic(it.modifiers) && it.type == type
             }.apply { isAccessible = true }
-            val refresh = root.getDeclaredMethod("refreshSecureSurfaceState").apply {
+            val refresh = HostAccess.requireDeclaredMethod(root, "refreshSecureSurfaceState", accessible = true).apply {
                 check(returnType == Void.TYPE && !Modifier.isStatic(modifiers))
-                isAccessible = true
             }
             return ForceScreenshotSurfaceRecovery(service, field(root), field(lock), refresh)
         }

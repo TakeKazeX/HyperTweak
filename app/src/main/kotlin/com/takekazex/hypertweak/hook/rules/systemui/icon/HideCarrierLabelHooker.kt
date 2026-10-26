@@ -184,7 +184,7 @@ object HideCarrierLabelHooker : StaticHooker() {
 
     private fun hideRequestedRow(row: Any) {
         val isKeyguard = runCatching { keyguardLayoutField?.getBoolean(row) }.getOrNull() ?: false
-        val slotId = runCatching { row.javaClass.getDeclaredField("innerCarrierSlotId").apply { isAccessible = true } }
+        val slotId = runCatching { HostAccess.requireDeclaredField(row.javaClass, "innerCarrierSlotId", accessible = true) }
             .getOrNull()?.let { runCatching { it.getInt(row) }.getOrDefault(-1) } ?: -1
         val hide = if (isKeyguard) {
             when (slotId) {
@@ -217,7 +217,7 @@ object HideCarrierLabelHooker : StaticHooker() {
         var c: Class<*>? = clazz
         while (c != null) {
             runCatching {
-                return c.getDeclaredField(name).apply { isAccessible = true }
+                return HostAccess.requireDeclaredField(c, name, accessible = true)
             }
             c = c.superclass
         }

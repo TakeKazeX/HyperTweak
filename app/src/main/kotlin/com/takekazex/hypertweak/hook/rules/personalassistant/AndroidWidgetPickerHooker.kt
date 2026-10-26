@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.personalassistant
 
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.hook.base.dex.DexContractMembers
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 
@@ -330,7 +331,7 @@ object AndroidWidgetPickerHooker : StaticHooker() {
         if (!Modifier.isStatic(navigator.modifiers) || navigator.returnType != Void.TYPE || navigator.parameterCount != 1 ||
             !Activity::class.java.isAssignableFrom(navigator.parameterTypes[0])) error("entry/classic navigator signature")
         val activityClass = navigator.parameterTypes[0]
-        val source = activityClass.getDeclaredMethod("getOpenSource").apply { isAccessible = true }
+        val source = HostAccess.requireDeclaredMethod(activityClass, "getOpenSource", accessible = true)
         if (source.returnType != Int::class.javaPrimitiveType) error("entry/Activity source getter")
         val footerData = bridge.findMethod { matcher {
             paramTypes(View::class.java, android.os.Bundle::class.java)
@@ -338,7 +339,7 @@ object AndroidWidgetPickerHooker : StaticHooker() {
             addUsingString("mPickerFooter", StringMatchType.Equals)
         } }.toList().singleOrNull() ?: error("entry/footer onViewCreated contract")
         val footerCreated = materialize(footerData)
-        val footerStarted = footerCreated.declaringClass.getDeclaredMethod("onStart").apply { isAccessible = true }
+        val footerStarted = HostAccess.requireDeclaredMethod(footerCreated.declaringClass, "onStart", accessible = true)
         val footerActivity = allFields(footerCreated.declaringClass).singleOrNull { it.type == activityClass }
             ?.apply { isAccessible = true } ?: error("entry/footer Activity contract")
         val appCatalog = runCatching {
@@ -364,7 +365,7 @@ object AndroidWidgetPickerHooker : StaticHooker() {
             MainCatalog(entry, field, materialize(producer))
         }.onFailure { DebugLog.hookFailed(TAG, "default catalog", it) }.getOrNull()
         return EntryContract(appCatalog, mainCatalog, navigator, source, footerCreated, footerStarted, footerActivity,
-            footerCreated.declaringClass.getMethod("getView"))
+            HostAccess.requirePublicMethod(footerCreated.declaringClass, "getView", accessible = false))
     }
 
     private fun resolvePicker(bridge: DexKitBridge): Contract {

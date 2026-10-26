@@ -40,18 +40,15 @@ object SharePanelHooker : DynamicHooker() {
             val grid = "$PACKAGE.grid.ChooserGridAdapter".toClassOrNull() ?: return@open null
             val recycler = "androidx.recyclerview.widget.RecyclerView".toClassOrNull() ?: return@open null
             val activity = "$PACKAGE.ChooserActivity".toClassOrNull() ?: return@open null
-            val gate = group.getDeclaredMethod("isCollapsedWithOverflow")
+            val gate = HostAccess.requireDeclaredMethod(group, "isCollapsedWithOverflow", accessible = true)
             check(gate.returnType == Boolean::class.javaPrimitiveType)
-            val gridField = group.getDeclaredField("mChooserGridAdapter")
+            val gridField = HostAccess.requireDeclaredField(group, "mChooserGridAdapter", accessible = true)
             check(gridField.type == grid)
-            val notify = grid.getDeclaredMethod("notifyDataSetChangedSafely")
+            val notify = HostAccess.requireDeclaredMethod(grid, "notifyDataSetChangedSafely", accessible = true)
             check(notify.returnType == Void.TYPE)
             // R8 removed RecyclerView.getAdapter() from the installed host; its backing field remains.
-            val adapterField = recycler.getDeclaredField("mAdapter")
+            val adapterField = HostAccess.requireDeclaredField(recycler, "mAdapter", accessible = true)
             check(adapterField.type.isAssignableFrom(grid))
-            listOf(gate, notify).forEach { it.isAccessible = true }
-            gridField.isAccessible = true
-            adapterField.isAccessible = true
             Targets(gate, gridField, grid, recycler, adapterField, notify, activity)
         } ?: run {
             DebugLog.hookSkipped(TAG, "show all share channels", "grouped channel contract unavailable")
@@ -89,7 +86,7 @@ object SharePanelHooker : DynamicHooker() {
         Preferences.invalidateRuntimeReadCache()
         HookFailurePolicy.open(TAG, "recover living chooser", Unit) {
             val owner = Class.forName("android.app.ActivityThread")
-            val thread = owner.getMethod("currentActivityThread").invoke(null) ?: return@open
+            val thread = HostAccess.requirePublicMethod(owner, "currentActivityThread", accessible = true).invoke(null) ?: return@open
             val records = HostAccess.read(thread, "mActivities") as? Map<*, *> ?: return@open
             records.values.filterNotNull().forEach { record ->
                 val host = HostAccess.read(record, "activity") as? Activity ?: return@forEach

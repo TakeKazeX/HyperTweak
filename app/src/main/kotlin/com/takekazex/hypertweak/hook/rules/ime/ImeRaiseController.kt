@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.ime
 
+import com.takekazex.hypertweak.hook.base.cachedDeclaredField
+import com.takekazex.hypertweak.hook.base.cachedPublicMethod
 import android.content.Context
 import android.content.res.Resources
 import android.inputmethodservice.InputMethodService
@@ -107,8 +109,7 @@ internal class ImeRaiseController(
     private fun findInputMethodRoot(service: Context): View? {
         val rootField = imeRootField ?: runCatching {
             INPUT_METHOD_SERVICE.toClassOrNull()
-                ?.getDeclaredField("mRootView")
-                ?.apply { isAccessible = true }
+                ?.cachedDeclaredField("mRootView", accessible = true)
         }.getOrNull()?.also { imeRootField = it }
         // The service owns the current inflated input_method layout. Resource integers are
         // build-specific (the previous root ID is overlay_display_window_title on OS4 stable).
@@ -131,8 +132,7 @@ internal class ImeRaiseController(
         if (ims != null) {
             val field = inputViewField ?: runCatching {
                 INPUT_METHOD_SERVICE.toClassOrNull()
-                    ?.getDeclaredField("mInputView")
-                    ?.apply { isAccessible = true }
+                    ?.cachedDeclaredField("mInputView", accessible = true)
             }.getOrNull()?.also { inputViewField = it }
             val view = field?.let { runCatching { it.get(ims) as? View }.getOrNull() }
             if (view != null && view !== root) return view
@@ -242,8 +242,7 @@ internal class ImeRaiseController(
         captionInjectionState[root] = active
         runCatching {
             controller.javaClass
-                .getMethod("setImeCaptionBarInsetsHeight", Int::class.javaPrimitiveType)
-                .apply { isAccessible = true }
+                .cachedPublicMethod("setImeCaptionBarInsetsHeight", Int::class.javaPrimitiveType, accessible = true)
                 .invoke(controller, height)
             DebugLog.i(TAG, "caption injection synced: $height")
         }.onFailure {

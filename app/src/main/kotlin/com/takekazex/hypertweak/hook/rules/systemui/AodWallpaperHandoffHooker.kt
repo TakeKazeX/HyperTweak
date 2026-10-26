@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui
 
+import com.takekazex.hypertweak.hook.base.HostAccess
+
 import com.takekazex.hypertweak.settings.contract.AodSettingsKeys
 
 import com.takekazex.hypertweak.hook.Preferences
@@ -88,6 +90,6 @@ object AodWallpaperHandoffHooker : StaticHooker() {
     }
 
     private fun Class<*>.field(name: String): Field? = runCatching {
-        getDeclaredField(name).apply { isAccessible = true }
+        HostAccess.requireDeclaredField(this, name, accessible = true)
     }.getOrNull()
 }

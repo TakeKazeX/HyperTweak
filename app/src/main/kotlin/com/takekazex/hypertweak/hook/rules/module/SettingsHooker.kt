@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.module
 
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import android.app.Activity
@@ -31,8 +32,6 @@ object SettingsHooker : StaticHooker() {
     /** `header_icon_size` dimen id, resolved once per process instead of per header bind. */
     private var headerIconSizeResId by generationState { 0 }
 
-    override fun onPrepareHotReload() {
-    }
 
     override fun onHook() {
         val clzMiuiSettings = resolveAppClass(
@@ -134,7 +133,7 @@ object SettingsHooker : StaticHooker() {
                             val users = arrayListOf(ctorUserHandle.newInstance(0))
                             putParcelableArrayList("header_user", users)
                         }
-                        header.javaClass.getDeclaredField("extras").apply { isAccessible = true }.set(header, bundle)
+                        HostAccess.requireDeclaredField(header.javaClass, "extras", accessible = true).set(header, bundle)
 
                         list.add(SettingsHeaderPlacement.after(targetIndex, list.size), header)
                     }

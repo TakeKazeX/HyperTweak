@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.system
 
+import com.takekazex.hypertweak.hook.base.cachedDeclaredField
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
@@ -388,11 +390,11 @@ object SpatialAudioBlockerHooker : StaticHooker() {
     private fun ancTitleId(view: View, loader: ClassLoader?): Int = runCatching {
         view.resources.getIdentifier("anc_title", "id", "com.miui.circulate.world").takeIf { it != 0 }
             ?: Class.forName("com.miui.circulate.world.R\$id", false, loader ?: view.context.classLoader)
-            .getDeclaredField("anc_title").getInt(null)
+            .cachedDeclaredField("anc_title", accessible = false).getInt(null)
     }.getOrDefault(0)
 
     private fun field(target: Any, name: String): Any? = runCatching {
-        target.javaClass.getDeclaredField(name).apply { isAccessible = true }.get(target)
+        HostAccess.requireDeclaredField(target.javaClass, name, accessible = true).get(target)
     }.getOrNull()
 
     private fun findRuntimeClass(runtimeName: String, jadxName: String, vararg strings: String): Class<*>? {

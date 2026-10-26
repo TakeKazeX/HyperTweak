@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.aod
 
+import com.takekazex.hypertweak.hook.base.HostAccess
 import android.Manifest
 import android.annotation.SuppressLint
 import android.content.BroadcastReceiver
@@ -342,7 +343,7 @@ internal class AodSignalObserver(
     }
 
     private fun satelliteNetworkType(): Int? = runCatching {
-        TelephonyManager::class.java.getField("NETWORK_TYPE_SATELLITE").getInt(null)
+        HostAccess.requirePublicField(TelephonyManager::class.java, "NETWORK_TYPE_SATELLITE", accessible = false).getInt(null)
     }.getOrNull()
 
     private companion object {

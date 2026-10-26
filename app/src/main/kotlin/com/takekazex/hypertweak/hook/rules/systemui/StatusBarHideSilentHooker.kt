@@ -1,5 +1,10 @@
 package com.takekazex.hypertweak.hook.rules.systemui
 
+import com.takekazex.hypertweak.hook.base.cachedDeclaredField
+import com.takekazex.hypertweak.hook.base.cachedDeclaredMethod
+import com.takekazex.hypertweak.hook.base.cachedPublicField
+import com.takekazex.hypertweak.hook.base.cachedPublicMethod
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
 import com.takekazex.hypertweak.hook.rules.systemui.notification.NotificationIconFilterContract
 import com.takekazex.hypertweak.hook.rules.systemui.notification.NotificationModelCopy
@@ -96,8 +101,8 @@ object StatusBarHideSilentHooker : StaticHooker() {
             }
         }
         val pipeline = "com.android.systemui.statusbar.notification.collection.NotifPipeline".toClassOrNull()
-        builderField = pipeline?.getDeclaredField("mShadeListBuilder")?.apply { isAccessible = true }
-        schedule = builderField?.type?.getDeclaredMethod("scheduleRebuild", Int::class.javaPrimitiveType, Boolean::class.javaPrimitiveType)?.apply { isAccessible = true }
+        builderField = pipeline?.cachedDeclaredField("mShadeListBuilder", accessible = true)
+        schedule = builderField?.type?.cachedDeclaredMethod("scheduleRebuild", Int::class.javaPrimitiveType, Boolean::class.javaPrimitiveType, accessible = true)
         observeInstances("com.android.systemui.statusbar.notification.collection.NotifPipeline", pipelines)
         prepareDexTargets("notification icon threshold", resolve = {
             val apk = requireNotNull(hookParam.appInfo?.sourceDir)
@@ -110,10 +115,10 @@ object StatusBarHideSilentHooker : StaticHooker() {
             )
         }, install = { target ->
             val owner = target.owner.toClass()
-            val invoke = owner.getDeclaredMethod(target.method, Any::class.java)
-            val ambient = owner.getDeclaredField(target.ambientFlag).apply { isAccessible = true }
-            val silent = owner.getDeclaredField(target.silentFlag).apply { isAccessible = true }
-            target.callers.forEach { (type, name) -> deoptimize(type.toClass().getDeclaredMethod(name, Any::class.java)) }
+            val invoke = HostAccess.requireDeclaredMethod(owner, target.method, Any::class.java, accessible = false)
+            val ambient = HostAccess.requireDeclaredField(owner, target.ambientFlag, accessible = true)
+            val silent = HostAccess.requireDeclaredField(owner, target.silentFlag, accessible = true)
+            target.callers.forEach { (type, name) -> deoptimize(type.toClass().cachedDeclaredMethod(name, Any::class.java, accessible = false)) }
             invoke.hook("notification_icon_threshold_predicate") {
                 before { param ->
                     HookFailurePolicy.open(TAG, "scope status-bar filter", Unit) {
@@ -151,7 +156,7 @@ object StatusBarHideSilentHooker : StaticHooker() {
     fun recoverExistingHosts(component: Any?) {
         HookFailurePolicy.open(TAG, "recover notification pipeline", Unit) {
             val provider = component?.let { com.takekazex.hypertweak.hook.base.HostAccess.read(it, "notifPipelineProvider") }
-            provider?.javaClass?.getMethod("get")?.apply { isAccessible = true }?.invoke(provider)?.let(pipelines::add)
+            provider?.javaClass?.cachedPublicMethod("get", accessible = true)?.invoke(provider)?.let(pipelines::add)
             requestRebuild()
         }
     }
@@ -166,11 +171,11 @@ object StatusBarHideSilentHooker : StaticHooker() {
 
     /** Caches the reflective members used on the hot path; false when any of them is missing. */
     private fun resolveReflection(toModel: Method): Boolean {
-        rankingField = runCatching { toModel.parameterTypes[0].getField("mRanking") }.getOrNull()
+        rankingField = runCatching { toModel.parameterTypes[0].cachedPublicField("mRanking", accessible = false) }.getOrNull()
         getImportance = rankingField?.let { field ->
-            runCatching { field.type.getMethod("getImportance") }.getOrNull()
+            runCatching { HostAccess.requirePublicMethod(field.type, "getImportance", accessible = false) }.getOrNull()
         }
-        isSilentField = runCatching { toModel.returnType.getField("isSilent") }.getOrNull()
+        isSilentField = runCatching { HostAccess.requirePublicField(toModel.returnType, "isSilent", accessible = false) }.getOrNull()
         copier = isSilentField?.let { NotificationModelCopy(toModel.returnType, it) }
         return rankingField != null && getImportance != null && isSilentField != null
     }

@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.system
 
+import com.takekazex.hypertweak.hook.base.cachedDeclaredMethod
+import com.takekazex.hypertweak.hook.base.HostAccess
 import android.app.ActivityManager
 import android.content.ContentResolver
 import android.content.Context
@@ -23,13 +25,12 @@ internal object PowerSaveSetter {
     }
 
     private val currentUserMethod by lazy {
-        ActivityManager::class.java.getDeclaredMethod("getCurrentUser").apply { isAccessible = true }
+        HostAccess.requireDeclaredMethod(ActivityManager::class.java, "getCurrentUser", accessible = true)
     }
     private val nativeStateReader by lazy {
-        Settings.System::class.java.getDeclaredMethod(
+        Settings.System::class.java.cachedDeclaredMethod(
             "getIntForUser", ContentResolver::class.java, String::class.java,
-            Int::class.javaPrimitiveType, Int::class.javaPrimitiveType,
-        ).apply { isAccessible = true }
+            Int::class.javaPrimitiveType, Int::class.javaPrimitiveType, accessible = true)
     }
 
     val available: Boolean get() = setter != null

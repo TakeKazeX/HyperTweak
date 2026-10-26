@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.island
 
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import android.content.res.ColorStateList
@@ -55,17 +56,17 @@ class LiveUpdateIconHooker : DynamicHooker() {
     override fun onHook() {
         val owner = "miui.systemui.dynamicisland.module.IslandIconViewHolder".toClassOrNull() ?: return
         val data = classLoader.loadClass("com.android.systemui.plugins.miui.dynamicisland.DynamicIslandData")
-        val setIcon = owner.getDeclaredMethod("setIcon", data).apply { isAccessible = true }
+        val setIcon = HostAccess.requireDeclaredMethod(owner, "setIcon", data, accessible = true)
         check(setIcon.returnType == Void.TYPE)
-        val iconField = owner.getDeclaredField("icon").apply { isAccessible = true }
+        val iconField = HostAccess.requireDeclaredField(owner, "icon", accessible = true)
         check(iconField.type == ImageView::class.java)
-        val picInfo = owner.getMethod("getPicInfo")
-        val pic = picInfo.returnType.getMethod("getPic")
-        val type = picInfo.returnType.getMethod("getType")
-        val effect = picInfo.returnType.getMethod("getEffectSrc")
-        val currentData = owner.getMethod("getDynamicIslandData")
+        val picInfo = HostAccess.requirePublicMethod(owner, "getPicInfo", accessible = false)
+        val pic = HostAccess.requirePublicMethod(picInfo.returnType, "getPic", accessible = false)
+        val type = HostAccess.requirePublicMethod(picInfo.returnType, "getType", accessible = false)
+        val effect = HostAccess.requirePublicMethod(picInfo.returnType, "getEffectSrc", accessible = false)
+        val currentData = HostAccess.requirePublicMethod(owner, "getDynamicIslandData", accessible = false)
         check(currentData.returnType == data)
-        val extras = data.getMethod("getExtras")
+        val extras = HostAccess.requirePublicMethod(data, "getExtras", accessible = false)
         check(extras.returnType == Bundle::class.java)
         listOf("bind", "showShaderIcon", "updatePartial").forEach { name ->
             owner.declaredMethods.filter { it.name == name }.forEach(::deoptimize)

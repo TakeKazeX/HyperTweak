@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.controlcenter
 
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.TileStateMessageDuration
 
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
@@ -38,16 +39,16 @@ class TileStateMessageHooker : DynamicHooker() {
         ownerField = slot.declaredFields.single { it.type == controller }.apply { isAccessible = true }
         handlerField = controller.declaredFields.single { it.type == Handler::class.java }.apply { isAccessible = true }
         runnableField = slot.declaredFields.single { it.type == Runnable::class.java }.apply { isAccessible = true }
-        configField = slot.getDeclaredField("showConfig").apply { isAccessible = true }
-        listenersField = configField.type.getField("listeners")
-        val show = slot.getDeclaredMethod("show")
-        val hide = slot.getDeclaredMethod("hide")
+        configField = HostAccess.requireDeclaredField(slot, "showConfig", accessible = true)
+        listenersField = HostAccess.requirePublicField(configField.type, "listeners", accessible = false)
+        val show = HostAccess.requireDeclaredMethod(slot, "show", accessible = false)
+        val hide = HostAccess.requireDeclaredMethod(slot, "hide", accessible = false)
         check(show.returnType == Void.TYPE && hide.returnType == Void.TYPE)
         fun bind(message: Any) {
             val config = configField.get(message) ?: return
             val listener = (listenersField.get(config) as? Collection<*>)?.singleOrNull() ?: return
             val type = listener.javaClass
-            val complete = type.getDeclaredMethod("onComplete", Any::class.java)
+            val complete = HostAccess.requireDeclaredMethod(type, "onComplete", Any::class.java, accessible = false)
             check(complete.returnType == Void.TYPE &&
                 type.declaredFields.any { it.type == slot } &&
                 type.declaredFields.any { it.type == controller })

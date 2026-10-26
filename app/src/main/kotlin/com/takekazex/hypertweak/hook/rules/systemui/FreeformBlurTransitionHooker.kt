@@ -168,7 +168,7 @@ object FreeformBlurTransitionHooker : StaticHooker() {
         ).forEach { (name, member) ->
             runCatching {
                 val type = name.toClassOrNull() ?: return@runCatching
-                val field = type.getDeclaredField(member).apply { isAccessible = true }
+                val field = HostAccess.requireDeclaredField(type, member, accessible = true)
                 nativeCapabilities[field] = field.getBoolean(null)
             }.onFailure { DebugLog.w(TAG, "capability cache unavailable $name.$member", it) }
         }
@@ -310,10 +310,9 @@ object FreeformBlurTransitionHooker : StaticHooker() {
         // direct call site cannot slip through.
         runCatching {
             listOf(
-                Resources::class.java.getMethod("getColor", Int::class.javaPrimitiveType),
-                Resources::class.java.getMethod(
-                    "getColor", Int::class.javaPrimitiveType, Resources.Theme::class.java
-                )
+                HostAccess.requirePublicMethod(Resources::class.java, "getColor", Int::class.javaPrimitiveType, accessible = false),
+                HostAccess.requirePublicMethod(Resources::class.java,
+                    "getColor", Int::class.javaPrimitiveType, Resources.Theme::class.java, accessible = false)
             ).forEach { method ->
                 deoptimize(method)
                 method.hook("freeform_blur_bottom_board_${method.parameterCount}") {
@@ -334,9 +333,8 @@ object FreeformBlurTransitionHooker : StaticHooker() {
         // cached Class identity rather than by class name, because this method is called for every
         // background set anywhere in SystemUI.
         runCatching {
-            val method = View::class.java.getMethod(
-                "setBackgroundColor", Int::class.javaPrimitiveType
-            )
+            val method = HostAccess.requirePublicMethod(View::class.java,
+                "setBackgroundColor", Int::class.javaPrimitiveType, accessible = false)
             deoptimize(method)
             method.hook("freeform_blur_shape_view_background") {
                 before { param ->
@@ -681,7 +679,7 @@ object FreeformBlurTransitionHooker : StaticHooker() {
     }.onFailure { DebugLog.hookFailed(TAG, label, it) }.getOrDefault(false)
 
     private fun Class<*>.fieldOrNull(name: String): Field? =
-        runCatching { getDeclaredField(name).apply { isAccessible = true } }.getOrNull()
+        runCatching { HostAccess.requireDeclaredField(this, name, accessible = true) }.getOrNull()
 
     /** The declared method with an exact [parameterTypes] list; [returnType] null means any. */
     private fun Class<*>.singleMethodOrNull(
@@ -704,5 +702,5 @@ object FreeformBlurTransitionHooker : StaticHooker() {
     }.getOrNull()
 
     private fun Class<*>.staticFieldOrNull(name: String): Any? =
-        runCatching { getDeclaredField(name).apply { isAccessible = true }.get(null) }.getOrNull()
+        runCatching { HostAccess.requireDeclaredField(this, name, accessible = true).get(null) }.getOrNull()
 }

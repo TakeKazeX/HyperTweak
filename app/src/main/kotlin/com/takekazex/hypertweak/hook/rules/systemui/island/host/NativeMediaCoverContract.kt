@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.island.host
 
+import com.takekazex.hypertweak.hook.base.HostAccess
 import android.view.View
 import android.widget.ImageView
 import java.lang.reflect.Proxy
@@ -20,9 +21,8 @@ internal class NativeMediaCoverContract(loader: ClassLoader, systemUiLoader: Cla
     }.apply { isAccessible = true }
     val detach = NativeIslandMembers.named(holder, "onDetach", emptyList())
     val hidden = NativeIslandMembers.named(holder, "onHidden", emptyList())
-    private val image = holder.getDeclaredField("fixIcon").apply {
+    private val image = HostAccess.requireDeclaredField(holder, "fixIcon", accessible = true).apply {
         check(type == ImageView::class.java)
-        isAccessible = true
     }
     private val picture = NativeIslandMembers.named(holder, "getPicInfo", emptyList())
     private val pictureKey = NativeIslandMembers.named(picture.returnType, "getPic", emptyList())

@@ -60,4 +60,49 @@ class GenerationStateTest {
         assertEquals("empty", cache)
         assertTrue(cleared.isEmpty())
     }
+    @Test fun `retirement waits on the same monitor as concurrent writers`() {
+        val owner = GenerationStateOwner()
+        val cache = owner.resource(hashMapOf("remainder" to 1)) {
+            assertTrue(Thread.holdsLock(it))
+            it.clear()
+        }
+        val pool = java.util.concurrent.Executors.newSingleThreadExecutor()
+        val started = java.util.concurrent.CountDownLatch(1)
+        try {
+            val reset = synchronized(cache) {
+                val task = pool.submit { started.countDown(); owner.reset() }
+                assertTrue(started.await(5, java.util.concurrent.TimeUnit.SECONDS))
+                assertThrows(java.util.concurrent.TimeoutException::class.java) {
+                    task.get(100, java.util.concurrent.TimeUnit.MILLISECONDS)
+                }
+                assertEquals(1, cache["remainder"])
+                task
+            }
+            reset.get(5, java.util.concurrent.TimeUnit.SECONDS)
+            assertTrue(cache.isEmpty())
+        } finally { pool.shutdownNow() }
+    }
+
+    @Test fun `affinity dispatch happens before locking and cleanup finishes before reset returns`() {
+        val owner = GenerationStateOwner()
+        val pool = java.util.concurrent.Executors.newSingleThreadExecutor()
+        val caller = Thread.currentThread()
+        var resetThread: Thread? = null
+        val cache = hashMapOf("view" to 1)
+        owner.resource(cache, dispatch = { action ->
+            assertFalse(Thread.holdsLock(cache))
+            pool.submit { action() }.get(5, java.util.concurrent.TimeUnit.SECONDS)
+        }) {
+            resetThread = Thread.currentThread()
+            assertTrue(Thread.holdsLock(it))
+            it.clear()
+        }
+        try {
+            owner.reset()
+            assertNotSame(caller, resetThread)
+            assertNotNull(resetThread)
+            assertTrue(cache.isEmpty())
+        } finally { pool.shutdownNow() }
+    }
+
 }

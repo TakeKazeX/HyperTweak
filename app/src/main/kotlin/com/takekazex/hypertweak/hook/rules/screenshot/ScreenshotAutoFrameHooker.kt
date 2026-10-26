@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.screenshot
 
+import com.takekazex.hypertweak.hook.base.cachedDeclaredMethod
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 import com.takekazex.hypertweak.hook.base.dex.DexFeature
 import android.annotation.SuppressLint
@@ -235,44 +237,44 @@ object ScreenshotAutoFrameHooker : StaticHooker() {
 
     private fun installEditorHooks(access: NativeScreenshotFrameAccess) {
         val manager = classLoader.loadClass("com.miui.gallery.editor.photo.scribbles.ScreenImageManager")
-        val source = manager.getDeclaredField("mSource").accessible()
-        val context = manager.getDeclaredField("mContext").accessible()
+        val source = HostAccess.requireDeclaredField(manager, "mSource", accessible = true)
+        val context = HostAccess.requireDeclaredField(manager, "mContext", accessible = true)
         val sessions = ScreenshotEditorSessions {
             Preferences.screenshotEditorMode().also { DebugLog.d(TAG, "screenshot editor session mode=$it") }
         }
-        val saveAsPng = manager.getDeclaredMethod("setNeedSaveAsPng", Boolean::class.javaPrimitiveType)
+        val saveAsPng = HostAccess.requireDeclaredMethod(manager, "setNeedSaveAsPng", Boolean::class.javaPrimitiveType, accessible = false)
         val rawFiles = WeakHashMap<Any, File>()
         val identities = WeakHashMap<Any, ScreenshotMediaIdentity>()
         val initialized = WeakHashMap<Any, Boolean>()
-        val open = manager.getDeclaredMethod("openInputStream").apply { isAccessible = true }
-        val initialize = manager.getDeclaredMethod("initializePreview")
-        val release = manager.getDeclaredMethod("release")
+        val open = HostAccess.requireDeclaredMethod(manager, "openInputStream", accessible = true)
+        val initialize = HostAccess.requireDeclaredMethod(manager, "initializePreview", accessible = false)
+        val release = HostAccess.requireDeclaredMethod(manager, "release", accessible = false)
         val activity = classLoader.loadClass("com.miui.gallery.editor.photo.screen.home.ScreenEditorActivity")
-        val viewModel = activity.getDeclaredField("mViewModel").accessible()
+        val viewModel = HostAccess.requireDeclaredField(activity, "mViewModel", accessible = true)
         val model = classLoader.loadClass("com.miui.gallery.editor.photo.scribbles.ScreenEditorViewModel")
-        val getShell = model.getDeclaredMethod("getShellManager")
+        val getShell = HostAccess.requireDeclaredMethod(model, "getShellManager", accessible = false)
         val shell = classLoader.loadClass("com.miui.gallery.editor.photo.scribbles.ScreenShellManager")
-        val imageManagerField = activity.getDeclaredField("mScreenImageManager").accessible()
-        val portrait = shell.getDeclaredField("mIsRightRatio").accessible()
-        val checkEnabled = shell.getDeclaredMethod("checkShellFuncEnabled", Context::class.java)
-        val operation = shell.getDeclaredField("mScreenShellOperation").accessible()
+        val imageManagerField = HostAccess.requireDeclaredField(activity, "mScreenImageManager", accessible = true)
+        val portrait = HostAccess.requireDeclaredField(shell, "mIsRightRatio", accessible = true)
+        val checkEnabled = HostAccess.requireDeclaredMethod(shell, "checkShellFuncEnabled", Context::class.java, accessible = false)
+        val operation = HostAccess.requireDeclaredField(shell, "mScreenShellOperation", accessible = true)
         val shellOperation = classLoader.loadClass("com.miui.gallery.editor.photo.screen.shell.IScreenShellOperation")
-        val baseline = shellOperation.getDeclaredMethod("updateLastShellStatus")
+        val baseline = HostAccess.requireDeclaredMethod(shellOperation, "updateLastShellStatus", accessible = false)
         val doShell = shell.declaredMethods.single { it.name == "doShell" && it.parameterCount == 1 }
         val fragment = classLoader.loadClass("com.miui.gallery.editor.photo.scribbles.ImageEditorFragment")
-        val ready = fragment.getDeclaredMethod("setPreviewBitmap", Bitmap::class.java)
-        val getActivity = fragment.getMethod("getActivity")
+        val ready = HostAccess.requireDeclaredMethod(fragment, "setPreviewBitmap", Bitmap::class.java, accessible = false)
+        val getActivity = HostAccess.requirePublicMethod(fragment, "getActivity", accessible = false)
         val export = classLoader.loadClass("com.miui.gallery.editor.photo.app.ExportTask")
         val exportContext = classLoader.loadClass("com.miui.gallery.editor.photo.app.ExportContext")
         val exportData = classLoader.loadClass("com.miui.gallery.editor.photo.app.ExportSaveData")
-        val image = exportData.getDeclaredField("image").accessible()
-        val notify = export.getDeclaredField("mNotifyMediaStoreData").accessible()
-        val onExport = export.getDeclaredMethod("onExport", exportContext, exportData)
+        val image = HostAccess.requireDeclaredField(exportData, "image", accessible = true)
+        val notify = HostAccess.requireDeclaredField(export, "mNotifyMediaStoreData", accessible = true)
+        val onExport = HostAccess.requireDeclaredMethod(export, "onExport", exportContext, exportData, accessible = false)
         val renderData = classLoader.loadClass("com.miui.gallery.editor.photo.screen.core.ScreenRenderData")
         val drawEntry = classLoader.loadClass("com.miui.gallery.editor.photo.screen.core.ScreenDrawEntry")
-        val render = renderData.getDeclaredMethod("apply", Bitmap::class.java, Boolean::class.javaPrimitiveType)
-        val draw = drawEntry.getDeclaredMethod("apply", Bitmap::class.java, Boolean::class.javaPrimitiveType)
-        val shellEntry = renderData.getDeclaredField("mScreenShellEntry").accessible()
+        val render = HostAccess.requireDeclaredMethod(renderData, "apply", Bitmap::class.java, Boolean::class.javaPrimitiveType, accessible = false)
+        val draw = HostAccess.requireDeclaredMethod(drawEntry, "apply", Bitmap::class.java, Boolean::class.javaPrimitiveType, accessible = false)
+        val shellEntry = HostAccess.requireDeclaredField(renderData, "mScreenShellEntry", accessible = true)
         val renderJob = ThreadLocal<Any>()
         val rawRender = WeakHashMap<Any, File>()
         listOf(initialize, open, ready, onExport, render, draw, checkEnabled).forEach { check(deoptimize(it)) }
@@ -355,7 +357,7 @@ object ScreenshotAutoFrameHooker : StaticHooker() {
                 val bitmap = param.result as? Bitmap ?: return@after
                 boundary("preserve edited unframed screenshot") {
                     val host = hookParam.appContext ?: classLoader.loadClass("com.miui.gallery.util.StaticContext")
-                        .getDeclaredMethod("sGetAndroidContext").invoke(null) as? Context ?: return@boundary
+                        .cachedDeclaredMethod("sGetAndroidContext", accessible = false).invoke(null) as? Context ?: return@boundary
                     val raw = sourceStore(host).capture { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
                     synchronized(rawRender) { rawRender[job] = raw }
                 }
@@ -415,7 +417,6 @@ object ScreenshotAutoFrameHooker : StaticHooker() {
         receipts.publish(identity.key, identity.stamp)
     }
 
-    private fun Field.accessible() = apply { isAccessible = true }
     private inline fun boundary(action: String, block: () -> Unit) {
         runCatching(block).onFailure { DebugLog.w(TAG, action, it) }
     }

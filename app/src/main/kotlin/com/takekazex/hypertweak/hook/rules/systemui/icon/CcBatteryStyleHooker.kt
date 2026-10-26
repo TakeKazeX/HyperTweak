@@ -53,7 +53,6 @@ object CcBatteryStyleHooker : StaticHooker() {
     @Volatile private var leadingPercent = false
     private var retiring = false
     private val hostStyles = WeakHashMap<View, Int>()
-    private val fields = HashMap<Pair<Class<*>, String>, Field?>()
     private var tagField: Field? = null
     private var iconField: Field? = null
     private var percentField: Field? = null
@@ -161,17 +160,7 @@ object CcBatteryStyleHooker : StaticHooker() {
         }
     }
 
-    private fun field(type: Class<*>, name: String): Field? = fields.getOrPut(type to name) {
-        var current: Class<*>? = type
-        var found: Field? = null
-        while (current != null && found == null) {
-            found = runCatching {
-                current.getDeclaredField(name).apply { isAccessible = true }
-            }.getOrNull()
-            current = current.superclass
-        }
-        found
-    }
+    private fun field(type: Class<*>, name: String): Field? = HostAccess.field(type, name)
 
     private inline fun guarded(action: () -> Unit) {
         runCatching(action).onFailure {

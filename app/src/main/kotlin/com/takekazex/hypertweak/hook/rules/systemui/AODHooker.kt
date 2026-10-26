@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui
 
+import com.takekazex.hypertweak.hook.base.cachedPublicMethod
 import com.takekazex.hypertweak.settings.contract.AodSettingsKeys
 
 import com.takekazex.hypertweak.hook.base.dex.DexContractMembers
@@ -53,7 +54,7 @@ object AODHooker : StaticHooker() {
         generation++
         enabled = Preferences.getBoolean(AodSettingsKeys.KEY_AOD_FULLSCREEN, false)
         val parser = "miui.util.FeatureParser".toClassOrNull() ?: return
-        val get = parser.getDeclaredMethod("getBoolean", String::class.java, Boolean::class.javaPrimitiveType)
+        val get = HostAccess.requireDeclaredMethod(parser, "getBoolean", String::class.java, Boolean::class.javaPrimitiveType, accessible = false)
         // API-102 can attach this generation before the old generation's hook is removed.
         // Read the original implementation, otherwise the old forced true becomes our baseline.
         nativeSupport = module.getInvoker(get).setType(XposedInterface.Invoker.Type.ORIGIN)
@@ -65,7 +66,7 @@ object AODHooker : StaticHooker() {
         listOf(CONFIG, "com.miui.aod.Utils").forEach { name ->
             val type = name.toClassOrNull() ?: return@forEach
             runCatching {
-                val field = type.getDeclaredField("SUPPORT_FULL_AOD").apply { isAccessible = true }
+                val field = HostAccess.requireDeclaredField(type, "SUPPORT_FULL_AOD", accessible = true)
                 require(field.type == Boolean::class.javaPrimitiveType)
                 capabilities += field
                 cacheChangedAtAttach = cacheChangedAtAttach || field.getBoolean(null) != isFullscreenSupported()
@@ -97,7 +98,7 @@ object AODHooker : StaticHooker() {
             // Keep the native manager dormant when the unlock is off. Its wallpaper callback
             // must not persist "unsupported" over the user's full-AOD settings merely because
             // we prepared a manager instead of the original empty implementation.
-            type.getDeclaredMethod("updateSettings").hook { before { param ->
+            HostAccess.requireDeclaredMethod(type, "updateSettings", accessible = false).hook { before { param ->
                 if (!isFullscreenSupported() || refreshingPolicy) param.result = null
             } }
             type.declaredMethods.single { it.name == "addFullAodStateListener" && it.parameterCount == 1 }
@@ -113,7 +114,7 @@ object AODHooker : StaticHooker() {
             installManagerBridge(type)
         }
         if (hookParam.packageName == "com.miui.aod") {
-            Activity::class.java.getDeclaredMethod("onResume").hook { after { param ->
+            HostAccess.requireDeclaredMethod(Activity::class.java, "onResume", accessible = false).hook { after { param ->
                 (param.thisObject as? Activity)?.takeIf { it.packageName == "com.miui.aod" }?.let { activities[it] = true }
             } }
         }
@@ -123,7 +124,7 @@ object AODHooker : StaticHooker() {
     fun applyAodPluginCapability(loader: ClassLoader, retiring: Boolean = false) {
         val type = runCatching { loader.loadClass("com.miui.aod.Utils") }.getOrNull() ?: return
         runCatching {
-            val field = type.getDeclaredField("SUPPORT_FULL_AOD").apply { isAccessible = true }
+            val field = HostAccess.requireDeclaredField(type, "SUPPORT_FULL_AOD", accessible = true)
             require(field.type == Boolean::class.javaPrimitiveType)
             StaticFieldWriter.setBoolean(field, if (retiring) nativeSupport else isFullscreenSupported())
             type.declaredMethods.filter { it.name == "isSupportFsAod" || it.name == "isFullAodSupport" }
@@ -155,10 +156,10 @@ object AODHooker : StaticHooker() {
         val factory = factoryName.toClassOrNull()?.declaredMethods?.singleOrNull {
             it.name == "providesMiuiFullAodManager" && it.parameterCount == 1 && it.returnType == api
         } ?: return
-        val get = factory.parameterTypes[0].getMethod("get")
+        val get = factory.parameterTypes[0].cachedPublicMethod("get", accessible = false)
         val delegates = api.declaredMethods.filter {
             !java.lang.reflect.Modifier.isAbstract(it.modifiers) && !java.lang.reflect.Modifier.isStatic(it.modifiers)
-        }.map { it to managerType.getMethod(it.name, *it.parameterTypes) }
+        }.map { it to HostAccess.requirePublicMethod(managerType, it.name, *it.parameterTypes, accessible = false) }
         require(delegates.isNotEmpty())
         factory.hook { before { param ->
             runCatching {
@@ -229,7 +230,7 @@ object AODHooker : StaticHooker() {
                 } }, decode = { members ->
                     val callbacks = listOf("onOrientationChanged", "onLockTaskModeChanged").associateWith { callback ->
                         members.type(callback).also { type ->
-                            require(type.getDeclaredMethod(callback, Int::class.javaPrimitiveType).returnType == Void.TYPE)
+                            require(HostAccess.requireDeclaredMethod(type, callback, Int::class.javaPrimitiveType, accessible = false).returnType == Void.TYPE)
                             val fields = type.declaredFields.filter { !java.lang.reflect.Modifier.isStatic(it.modifiers) }
                             require(fields.size == 1 && fields.single().type.name == "com.android.keyguard.injector.DozeServiceHostInjector")
                         }
@@ -256,9 +257,9 @@ object AODHooker : StaticHooker() {
                     if (observer != null) managers.keys.toList().forEach { applyManager(it) }
                 }
             }
-            val register = context.contentResolver.javaClass.getMethod("registerContentObserver",
+            val register = HostAccess.requirePublicMethod(context.contentResolver.javaClass, "registerContentObserver",
                 android.net.Uri::class.java, Boolean::class.javaPrimitiveType, ContentObserver::class.java,
-                Int::class.javaPrimitiveType)
+                Int::class.javaPrimitiveType, accessible = false)
             observerContext = context
             observer = next
             try {
@@ -278,7 +279,7 @@ object AODHooker : StaticHooker() {
     private fun applyManager(owner: Any, recomputePolicy: Boolean = false) {
         runCatching {
             val context = HostAccess.read(owner, "mContext") as? Context ?: return
-            val deviceSupport = owner.javaClass.getDeclaredField("isDeviceSupport").apply { isAccessible = true }
+            val deviceSupport = HostAccess.requireDeclaredField(owner.javaClass, "isDeviceSupport", accessible = true)
             val previousSupport = deviceSupport.getBoolean(owner)
             deviceSupport.setBoolean(owner, isFullscreenSupported())
             if (recomputePolicy) {
@@ -291,11 +292,11 @@ object AODHooker : StaticHooker() {
                 } finally { refreshingPolicy = false }
                 HostAccess.invoke(owner, "updateSettings")
             }
-            val user = Class.forName("android.app.ActivityManager").getMethod("getCurrentUser").invoke(null) as Int
-            val read = Settings.Secure::class.java.getMethod("getIntForUser", android.content.ContentResolver::class.java,
-                String::class.java, Int::class.javaPrimitiveType, Int::class.javaPrimitiveType)
+            val user = Class.forName("android.app.ActivityManager").cachedPublicMethod("getCurrentUser", accessible = false).invoke(null) as Int
+            val read = Settings.Secure::class.java.cachedPublicMethod("getIntForUser", android.content.ContentResolver::class.java,
+                String::class.java, Int::class.javaPrimitiveType, Int::class.javaPrimitiveType, accessible = false)
             listOf("mAodFullScreenEnable" to "full_screen_aod_on", "isFullAodSupport" to "full_screen_aod_support")
-                .forEach { (field, key) -> owner.javaClass.getDeclaredField(field).apply { isAccessible = true }
+                .forEach { (field, key) -> HostAccess.requireDeclaredField(owner.javaClass, field, accessible = true)
                     .setBoolean(owner, read.invoke(null, context.contentResolver, key, 1, user) == 1) }
             if (previousSupport || isFullscreenSupported()) {
                 HostAccess.invoke(owner, "updateFullAodEnable")
@@ -309,9 +310,9 @@ object AODHooker : StaticHooker() {
         runCatching {
             val registry = "com.miui.systemui.interfacesmanager.InterfacesImplManager".toClassOrNull() ?: return
             val api = "com.miui.sysuiinterfaces.IDozeServiceHost".toClassOrNull() ?: return
-            val host = registry.getMethod("getImpl", Class::class.java).invoke(null, api) ?: return
+            val host = HostAccess.requirePublicMethod(registry, "getImpl", Class::class.java, accessible = false).invoke(null, api) ?: return
             val context = HostAccess.read(host, "mContext") as? Context ?: return
-            host.javaClass.getDeclaredField("mOrientation").apply { isAccessible = true }
+            HostAccess.requireDeclaredField(host.javaClass, "mOrientation", accessible = true)
                 .setInt(host, context.resources.configuration.orientation)
             val config = HostAccess.read(host, "configurationController") ?: return
             val tasks = HostAccess.read(host, "mTaskStackChangeListeners") ?: return
@@ -343,7 +344,7 @@ object AODHooker : StaticHooker() {
         if (hookParam.packageName != "com.miui.aod") return
         runCatching {
             val owner = Class.forName("android.app.ActivityThread")
-            val thread = owner.getDeclaredMethod("currentActivityThread").invoke(null) ?: return
+            val thread = HostAccess.requireDeclaredMethod(owner, "currentActivityThread", accessible = false).invoke(null) ?: return
             val records = HostAccess.read(thread, "mActivities") as? Map<*, *> ?: return
             records.values.filterNotNull().forEach { record ->
                 (HostAccess.read(record, "activity") as? Activity)

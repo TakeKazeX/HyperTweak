@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui
 
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import android.content.ClipboardManager
@@ -62,7 +63,7 @@ object UnlockClipboardHooker : StaticHooker() {
         }
 
         val field = runCatching {
-            listener.getDeclaredField("sCtsTestPkgList").apply { isAccessible = true }
+            HostAccess.requireDeclaredField(listener, "sCtsTestPkgList", accessible = true)
         }.getOrNull() ?: run {
             DebugLog.hookSkipped(TAG, "$CLIPBOARD_LISTENER#sCtsTestPkgList", "field not found")
             return
@@ -95,14 +96,14 @@ object UnlockClipboardHooker : StaticHooker() {
 
         val clipboardManager = CLIPBOARD_MANAGER_FIELDS.firstNotNullOfOrNull { name ->
             runCatching {
-                listenerInstance.javaClass.getDeclaredField(name).apply { isAccessible = true }
+                HostAccess.requireDeclaredField(listenerInstance.javaClass, name, accessible = true)
                     .get(listenerInstance) as? ClipboardManager
             }.getOrNull()
         } ?: return
 
         // getPrimaryClipSource() is @hide.
         val sourceMethod = primaryClipSourceMethod ?: runCatching {
-            ClipboardManager::class.java.getMethod("getPrimaryClipSource").apply { isAccessible = true }
+            HostAccess.requirePublicMethod(ClipboardManager::class.java, "getPrimaryClipSource", accessible = true)
         }.getOrNull()?.also { primaryClipSourceMethod = it } ?: return
 
         val source = runCatching { sourceMethod.invoke(clipboardManager) as? String }.getOrNull() ?: return

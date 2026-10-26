@@ -209,7 +209,7 @@ object MediaCardHideAppIconHooker : StaticHooker() {
         var type: Class<*>? = cls
         while (type != null && type != Any::class.java) {
             try {
-                return type.getDeclaredField("appIcon").apply { isAccessible = true }
+                return HostAccess.requireDeclaredField(type, "appIcon", accessible = true)
             } catch (_: NoSuchFieldException) {
                 type = type.superclass
             }

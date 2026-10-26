@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.system
 
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import android.util.Log
@@ -36,8 +37,7 @@ object SystemConfigHooker : StaticHooker() {
         // caller is iterating on a binder thread — the old getAvailableFeatures() per-call hook did
         // exactly that and risked a ConcurrentModificationException/AIOOBE in the victim thread.
         removeFeatureMethod = runCatching {
-            clzSystemConfig.getDeclaredMethod("removeFeature", String::class.java)
-                .apply { isAccessible = true }
+            HostAccess.requireDeclaredMethod(clzSystemConfig, "removeFeature", String::class.java, accessible = true)
         }.onFailure {
             Log.e(TAG, "SystemConfigHooker: removeFeature(String) is unavailable", it)
         }.getOrNull()

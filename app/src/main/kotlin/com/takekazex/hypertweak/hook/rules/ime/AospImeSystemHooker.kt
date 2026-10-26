@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.ime
 
+import com.takekazex.hypertweak.hook.base.HostAccess
 import android.content.Context
 import android.database.ContentObserver
 import android.os.Handler
@@ -112,10 +113,10 @@ object AospImeSystemHooker : StaticHooker() {
         }
 
         immsContextField = runCatching {
-            imms.getDeclaredField("mContext").apply { isAccessible = true }
+            HostAccess.requireDeclaredField(imms, "mContext", accessible = true)
         }.getOrNull()
         imeDrawsNavBarField = runCatching {
-            userData.getDeclaredField("mImeDrawsNavBar").apply { isAccessible = true }
+            HostAccess.requireDeclaredField(userData, "mImeDrawsNavBar", accessible = true)
         }.getOrNull()
         if (immsContextField == null || imeDrawsNavBarField == null) {
             DebugLog.hookSkipped(

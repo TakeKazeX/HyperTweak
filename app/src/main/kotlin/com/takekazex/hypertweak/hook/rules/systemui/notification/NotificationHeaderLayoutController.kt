@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.notification
 
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.NotificationHeaderGeometryModel
 import com.takekazex.hypertweak.settings.contract.NotificationHeaderModel
 import com.takekazex.hypertweak.settings.contract.NotificationHeaderMotionModel
@@ -95,8 +96,6 @@ internal class NotificationHeaderLayoutController(
     // the map value. Detach/hot-reload explicitly releases these short-lived SystemUI views.
     private val sessions = IdentityHashMap<ViewGroup, Session>()
     private val rootsByView = IdentityHashMap<View, ViewGroup>()
-    private val fields = HashMap<Pair<Class<*>, String>, Field?>()
-    private val methods = HashMap<Triple<Class<*>, String, Int>, Method?>()
 
     fun configure(options: Options) {
         this.options = options
@@ -239,8 +238,6 @@ internal class NotificationHeaderLayoutController(
         }
         sessions.clear()
         rootsByView.clear()
-        fields.clear()
-        methods.clear()
     }
 
     private fun createSession(root: ViewGroup): Session? {
@@ -745,19 +742,11 @@ internal class NotificationHeaderLayoutController(
     }
 
     private fun method(type: Class<*>, name: String, parameterCount: Int): Method? =
-        methods.getOrPut(Triple(type, name, parameterCount)) {
+        HostAccess.cached(type, "public-first:$name/$parameterCount", java.lang.reflect.Method::class.java) {
             type.methods.firstOrNull { it.name == name && it.parameterCount == parameterCount }
         }
 
-    private fun field(type: Class<*>, name: String): Field? = fields.getOrPut(type to name) {
-        var current: Class<*>? = type
-        var result: Field? = null
-        while (current != null && result == null) {
-            result = runCatching { current.getDeclaredField(name).apply { isAccessible = true } }.getOrNull()
-            current = current.superclass
-        }
-        result
-    }
+    private fun field(type: Class<*>, name: String): Field? = HostAccess.field(type, name)
 
     private fun read(owner: Any, name: String): Any? = field(owner.javaClass, name)?.get(owner)
 

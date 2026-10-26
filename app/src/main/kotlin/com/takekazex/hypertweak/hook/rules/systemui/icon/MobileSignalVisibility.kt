@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.hook.base.BaseHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.reflect.Method
@@ -205,7 +206,7 @@ object MobileSignalVisibility {
     private fun readVisibilityField(viewModel: Any): Any? {
         var current: Class<*>? = viewModel.javaClass
         while (current != null) {
-            val field = runCatching { current.getDeclaredField(VISIBILITY_FIELD) }.getOrNull()
+            val field = runCatching { HostAccess.requireDeclaredField(current, VISIBILITY_FIELD, accessible = true) }.getOrNull()
             // A primitive/Boolean field of the same name is not the visibility Pair; keep walking
             // (and finally fall back to the getter) instead of handing a wrong value to the
             // reducer, which would disable the replacement silently.
@@ -213,7 +214,6 @@ object MobileSignalVisibility {
                 !field.type.isPrimitive
             ) {
                 return runCatching {
-                    field.isAccessible = true
                     field.get(viewModel)
                 }.getOrNull()
             }

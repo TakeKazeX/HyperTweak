@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.aicr
 
+import com.takekazex.hypertweak.hook.base.HostAccess
 import android.content.res.Configuration
 import android.graphics.LinearGradient
 import android.graphics.Shader
@@ -130,8 +131,8 @@ internal class AicrBubbleTitleRenderer private constructor(
         fun resolve(bind: Method): AicrBubbleTitleRenderer? = runCatching {
             check(bind.parameterCount == 1 && bind.returnType == Void.TYPE && ViewGroup::class.java.isAssignableFrom(bind.declaringClass))
             val cue = bind.parameterTypes.single()
-            fun field(type: Class<*>, name: String) = type.getDeclaredField(name).apply { isAccessible = true }
-            val displayGetter = cue.getMethod("getDisplay")
+            fun field(type: Class<*>, name: String) = HostAccess.requireDeclaredField(type, name, accessible = true)
+            val displayGetter = HostAccess.requirePublicMethod(cue, "getDisplay", accessible = false)
             val display = displayGetter.returnType
             val target = field(display, "targetPackage").also { check(it.type == String::class.java) }
             val card = field(display, "briefCard")
@@ -141,8 +142,8 @@ internal class AicrBubbleTitleRenderer private constructor(
             val highlight = cue.declaredClasses.single { it.simpleName == "Highlight" }
             val start = field(highlight, "start").also { check(it.type == Int::class.javaPrimitiveType) }
             val end = field(highlight, "end").also { check(it.type == Int::class.javaPrimitiveType) }
-            AicrBubbleTitleRenderer(bind.declaringClass, bind.declaringClass.getMethod("getCueData"),
-                displayGetter, cue.getMethod("getCategory"), target, card, title, text, highlights, start, end)
+            AicrBubbleTitleRenderer(bind.declaringClass, HostAccess.requirePublicMethod(bind.declaringClass, "getCueData", accessible = false),
+                displayGetter, HostAccess.requirePublicMethod(cue, "getCategory", accessible = false), target, card, title, text, highlights, start, end)
         }.getOrNull()
     }
 }

@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.securitycenter.battery
 
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
@@ -43,9 +44,6 @@ object PowerRankingHooker : StaticHooker() {
 
     private var fallbackBuilder: FallbackBuilder? by generationState { null }
 
-    override fun onPrepareHotReload() {
-
-    }
 
     /** Only prepare this optional display feature while enabled. */
     override val installPolicy: InstallPolicy = InstallPolicy.WHEN_ENABLED
@@ -261,7 +259,7 @@ object PowerRankingHooker : StaticHooker() {
 
         fun namedOrFirst(names: List<String>, type: Class<*>, fallback: List<Field>): Field? {
             val named = names.asSequence()
-                .mapNotNull { name -> runCatching { clazz.getDeclaredField(name) }.getOrNull() }
+                .mapNotNull { name -> runCatching { HostAccess.requireDeclaredField(clazz, name, accessible = true) }.getOrNull() }
                 .firstOrNull { it.type == type && !Modifier.isStatic(it.modifiers) && it !in used }
             return (named ?: fallback.firstOrNull { it !in used })?.apply {
                 isAccessible = true
@@ -289,7 +287,7 @@ object PowerRankingHooker : StaticHooker() {
     }
 
     private fun Class<*>.accessibleField(name: String): Field? =
-        runCatching { getDeclaredField(name).apply { isAccessible = true } }.getOrNull()
+        runCatching { HostAccess.requireDeclaredField(this, name, accessible = true) }.getOrNull()
 
     /**
      * The card method and everything read from its DexKit data while the bridge was open.

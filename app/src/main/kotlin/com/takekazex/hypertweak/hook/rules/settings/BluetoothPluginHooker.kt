@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.settings
 
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import android.util.Log
@@ -7,7 +8,6 @@ import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.hook.rules.bluetooth.AirPodsScope
 import java.lang.reflect.Method
-import java.util.concurrent.ConcurrentHashMap
 
 object BluetoothPluginHooker : StaticHooker() {
     private const val TAG = "HyperTweak"
@@ -43,7 +43,7 @@ object BluetoothPluginHooker : StaticHooker() {
                 runCatching {
                     val pref = param.thisObject
                     val key = runCatching {
-                        pref.javaClass.getMethod("getKey").invoke(pref) as? String
+                        HostAccess.requirePublicMethod(pref.javaClass, "getKey", accessible = false).invoke(pref) as? String
                     }.getOrNull()
 
                     if (key == null) return@before
@@ -130,15 +130,11 @@ object BluetoothPluginHooker : StaticHooker() {
 
     // addPreference fires for every preference added anywhere in Settings, so cache the
     // per-class method resolution instead of scanning javaClass.methods on each call.
-    private val methodCache = ConcurrentHashMap<Class<*>, ConcurrentHashMap<String, Method>>()
 
-    private fun resolveMethod(cls: Class<*>, name: String, argCount: Int): Method? {
-        val perClass = methodCache.getOrPut(cls) { ConcurrentHashMap() }
-        perClass["$name/$argCount"]?.let { return it }
-        val found = cls.methods.firstOrNull { it.name == name && it.parameterTypes.size == argCount }
-        if (found != null) perClass["$name/$argCount"] = found
-        return found
-    }
+    private fun resolveMethod(cls: Class<*>, name: String, argCount: Int): Method? =
+        HostAccess.cached(cls, "public-first:$name/$argCount", java.lang.reflect.Method::class.java) {
+            cls.methods.firstOrNull { it.name == name && it.parameterTypes.size == argCount }
+        }
 
     private fun disableSpatialEnabled() =
         Preferences.getBoolean(PlatformSettingsKeys.KEY_DISABLE_SPATIAL_AUDIO, false)

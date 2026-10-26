@@ -49,7 +49,7 @@ class MediaPlayerDeviceIconHooker : DynamicHooker() {
      * Restoring the host value (never an assumed VISIBLE) keeps a card whose detail is genuinely
      * unavailable unchanged when the switch is turned off.
      */
-    private val hiddenIcons = generationResource(java.util.WeakHashMap<Any, HostIconState>()) { it.clear() }
+    private val hiddenIcons = generationMainResource(java.util.WeakHashMap<Any, HostIconState>()) { it.clear() }
 
     @Volatile private var retiring = false
 

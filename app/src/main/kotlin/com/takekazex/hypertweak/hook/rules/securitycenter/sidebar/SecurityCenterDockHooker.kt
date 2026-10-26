@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.securitycenter.sidebar
 
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import android.content.pm.PackageInfo
@@ -375,8 +376,8 @@ object SecurityCenterDockHooker : DynamicHooker() {
     private fun recoverLayouts(t: Targets) {
         // Includes service windows born before this feature/module generation was installed.
         val global = Class.forName("android.view.WindowManagerGlobal")
-        val instance = global.getDeclaredMethod("getInstance").invoke(null)
-        val roots = global.getDeclaredField("mViews").apply { isAccessible = true }.get(instance) as? List<*> ?: return
+        val instance = HostAccess.requireDeclaredMethod(global, "getInstance", accessible = false).invoke(null)
+        val roots = HostAccess.requireDeclaredField(global, "mViews", accessible = true).get(instance) as? List<*> ?: return
         val type = t.methods.getValue("bind").declaringClass
         fun visit(view: View) {
             if (type.isInstance(view)) synchronized(layouts) { layouts[view] = true }

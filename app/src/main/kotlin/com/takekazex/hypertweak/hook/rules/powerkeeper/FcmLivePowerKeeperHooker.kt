@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.powerkeeper
 
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import android.os.Bundle
@@ -35,12 +36,11 @@ object FcmLivePowerKeeperHooker : StaticHooker() {
             // Legacy PowerKeeper builds routed this through NetdExecutor. Keep the fallback for
             // those builds, but its absence must not prevent installing the current GmsObserver hook.
             hookOptionalTarget("NetdExecutor.initGmsChain(String,int,String)") {
-                val method = netdExecutorClass.getDeclaredMethod(
+                val method = HostAccess.requireDeclaredMethod(netdExecutorClass,
                     "initGmsChain",
                     String::class.java,
                     Int::class.javaPrimitiveType,
-                    String::class.java
-                )
+                    String::class.java, accessible = false)
                 method.hook {
                     before { param ->
                         param.args[2] = "ACCEPT"
@@ -58,10 +58,9 @@ object FcmLivePowerKeeperHooker : StaticHooker() {
         // PowerKeeper 4.2.00 reports Google reachability to Greeze through this method. Its
         // argument is the network-limit state, so force false before the Binder update.
         hookOptionalTarget("GmsObserver.updateFrameworkGmsNetStatus(boolean)") {
-            val method = gmsObserverClass.getDeclaredMethod(
+            val method = HostAccess.requireDeclaredMethod(gmsObserverClass,
                 "updateFrameworkGmsNetStatus",
-                Boolean::class.javaPrimitiveType
-            )
+                Boolean::class.javaPrimitiveType, accessible = false)
             method.hook {
                 before { param ->
                     param.args[0] = false
@@ -77,7 +76,7 @@ object FcmLivePowerKeeperHooker : StaticHooker() {
             "updateGoogleReletivesWakelock"
         ).forEach { methodName ->
             hookOptionalTarget("GmsObserver.$methodName(boolean)") {
-                val method = gmsObserverClass.getDeclaredMethod(methodName, Boolean::class.javaPrimitiveType)
+                val method = HostAccess.requireDeclaredMethod(gmsObserverClass, methodName, Boolean::class.javaPrimitiveType, accessible = false)
                 method.hook {
                     before { param ->
                         param.args[0] = false
@@ -101,7 +100,7 @@ object FcmLivePowerKeeperHooker : StaticHooker() {
     private fun hookGlobalFeatureConfigureHelper() {
         runCatching {
             val clazz = "com.miui.powerkeeper.provider.GlobalFeatureConfigureHelper".toClassOrNull() ?: return@runCatching
-            val getDozeWhiteListAppsMethod = clazz.getDeclaredMethod("getDozeWhiteListApps", Bundle::class.java)
+            val getDozeWhiteListAppsMethod = HostAccess.requireDeclaredMethod(clazz, "getDozeWhiteListApps", Bundle::class.java, accessible = false)
 
             getDozeWhiteListAppsMethod.hook {
                 after { param ->

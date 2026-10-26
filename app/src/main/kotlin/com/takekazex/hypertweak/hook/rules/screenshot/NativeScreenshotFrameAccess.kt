@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.screenshot
 
+import com.takekazex.hypertweak.hook.base.HostAccess
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -19,12 +20,11 @@ internal class NativeScreenshotFrameAccess(private val loader: ClassLoader, priv
         MethodDescriptorCodec.descriptor(contract.fields.getValue(role)), loader))
     private fun load(name: String) = loader.loadClass(name)
     private fun field(type: Class<*>, name: String, valueType: Class<*>): Field =
-        type.getDeclaredField(name).apply {
+        HostAccess.requireDeclaredField(type, name, accessible = true).apply {
             check(this.type == valueType) { "Unexpected ${type.name}.$name layout" }
-            isAccessible = true
         }
     private fun method(type: Class<*>, name: String, vararg args: Class<*>): Method =
-        type.getDeclaredMethod(name, *args).apply { isAccessible = true }
+        HostAccess.requireDeclaredMethod(type, name, *args, accessible = true)
 
     private val entry = load("com.miui.gallery.editor.photo.screen.shell.ScreenShellEntry")
     private val shellInfo = load("com.miui.gallery.editor.photo.screen.shell.ShellInfoBean")

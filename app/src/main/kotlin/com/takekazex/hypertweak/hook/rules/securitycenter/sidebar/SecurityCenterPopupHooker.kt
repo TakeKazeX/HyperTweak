@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.securitycenter.sidebar
 
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import android.os.Handler
@@ -121,8 +122,8 @@ object SecurityCenterPopupHooker : DynamicHooker() {
         // Includes a bubble created by the previous APK, which has no saved module state.
         // Retain the host's timed removal/accounting: only its already visible presentation is hidden.
         val global = Class.forName("android.view.WindowManagerGlobal")
-        val instance = global.getDeclaredMethod("getInstance").invoke(null)
-        val roots = global.getDeclaredField("mViews").apply { isAccessible = true }.get(instance) as? List<*> ?: return
+        val instance = HostAccess.requireDeclaredMethod(global, "getInstance", accessible = false).invoke(null)
+        val roots = HostAccess.requireDeclaredField(global, "mViews", accessible = true).get(instance) as? List<*> ?: return
         for (root in roots.toList().filterIsInstance<View>()) {
             if (root.context.packageName != SecurityCenterDockHost.PACKAGE ||
                 (root.layoutParams as? WindowManager.LayoutParams)?.type != WindowManager.LayoutParams.TYPE_SYSTEM_ALERT) continue

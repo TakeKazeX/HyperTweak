@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.camera
 
+import com.takekazex.hypertweak.hook.base.HostAccess
 import android.os.Build
 import android.util.Size
 import android.util.SparseArray
@@ -326,7 +327,7 @@ internal class CameraMasterLiveHooks(owner: BaseHooker, private val config: Came
             }
             val effectName = hostProfile?.effectTable ?: return null
             val q0Method = runCatching {
-                k100.javaClass.getMethod(effectName).takeIf {
+                HostAccess.requirePublicMethod(k100.javaClass, effectName, accessible = false).takeIf {
                     it.parameterTypes.isEmpty() && Map::class.java.isAssignableFrom(it.returnType)
                 }
             }.getOrNull() ?: run {
@@ -366,7 +367,7 @@ internal class CameraMasterLiveHooks(owner: BaseHooker, private val config: Came
                     if (array.indexOfKey(CameraIdentity.MASTER_LIVE_MODE_ID) >= 0) return@after
                     // Copy before mutating: v1() results can be shared instances, and the hook
                     // must never widen the native table's visible state.
-                    val clone = runCatching { array.javaClass.getMethod("clone") }.getOrNull()
+                    val clone = runCatching { HostAccess.requirePublicMethod(array.javaClass, "clone", accessible = false) }.getOrNull()
                         ?: return@after
                     @Suppress("UNCHECKED_CAST")
                     val copy = runCatching { clone.invoke(array) as SparseArray<Any> }

@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.securitycenter.battery
 
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.AppSettingsKeys
 
 import android.content.BroadcastReceiver
@@ -233,13 +234,13 @@ object BatteryInfoHooker : StaticHooker() {
             val cls = chargeClass ?: return BatteryInfoSampler.Result.ContractMissing
             if (!methods.containsKey(name)) {
                 methods[name] = runCatching {
-                    if (argument == null) cls.getMethod(name) else cls.getMethod(name, String::class.java)
+                    if (argument == null) HostAccess.requirePublicMethod(cls, name, accessible = false) else HostAccess.requirePublicMethod(cls, name, String::class.java, accessible = false)
                 }.getOrNull()
             }
             val method = methods[name] ?: return BatteryInfoSampler.Result.Unsupported
             val started = SystemClock.elapsedRealtime()
             return try {
-                val target = instance ?: cls.getMethod("getInstance").invoke(null).also { instance = it }
+                val target = instance ?: HostAccess.requirePublicMethod(cls, "getInstance", accessible = false).invoke(null).also { instance = it }
                     ?: return BatteryInfoSampler.Result.Unavailable
                 halReads++
                 val raw = if (argument == null) method.invoke(target) else method.invoke(target, argument)

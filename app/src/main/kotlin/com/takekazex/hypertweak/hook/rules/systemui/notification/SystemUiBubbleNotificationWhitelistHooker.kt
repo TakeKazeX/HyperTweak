@@ -1,5 +1,8 @@
 package com.takekazex.hypertweak.hook.rules.systemui.notification
 
+import com.takekazex.hypertweak.hook.base.HostAccess
+
+import com.takekazex.hypertweak.hook.base.cachedDeclaredMethod
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import android.content.Context
@@ -219,14 +222,12 @@ object SystemUiBubbleNotificationWhitelistHooker : StaticHooker() {
                 Settings.Secure.getString(context.contentResolver, SECURE_BUBBLE_APP_SETTINGS)
             } else {
                 val method = secureStringForUserMethod ?: Settings.Secure::class.java
-                    .getDeclaredMethod(
+                    .cachedDeclaredMethod(
                         "getStringForUser",
                         ContentResolver::class.java,
                         String::class.java,
-                        Int::class.javaPrimitiveType
-                    )
+                        Int::class.javaPrimitiveType, accessible = true)
                 .apply {
-                    isAccessible = true
                     secureStringForUserMethod = this
                 }
                 method.invoke(null, context.contentResolver, SECURE_BUBBLE_APP_SETTINGS, userId) as? String
@@ -259,9 +260,8 @@ object SystemUiBubbleNotificationWhitelistHooker : StaticHooker() {
 
         return runCatching {
             val method = currentApplicationMethod ?: Class.forName("android.app.ActivityThread")
-                .getDeclaredMethod("currentApplication")
+                .cachedDeclaredMethod("currentApplication", accessible = true)
                 .apply {
-                    isAccessible = true
                     currentApplicationMethod = this
                 }
             method.invoke(null) as? Context
@@ -269,8 +269,8 @@ object SystemUiBubbleNotificationWhitelistHooker : StaticHooker() {
     }
 
     private fun Class<*>.getDeclaredFieldOrNull(name: String): Field? =
-        runCatching { getDeclaredField(name).apply { isAccessible = true } }.getOrNull()
+        runCatching { HostAccess.requireDeclaredField(this, name, accessible = true) }.getOrNull()
 
     private fun Class<*>.getDeclaredMethodOrNull(name: String): Method? =
-        runCatching { getDeclaredMethod(name).apply { isAccessible = true } }.getOrNull()
+        runCatching { HostAccess.requireDeclaredMethod(this, name, accessible = true) }.getOrNull()
 }

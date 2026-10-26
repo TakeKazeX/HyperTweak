@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.ime
 
+import com.takekazex.hypertweak.hook.base.cachedDeclaredMethod
+import com.takekazex.hypertweak.hook.base.HostAccess
 import android.content.Context
 import android.content.res.Resources
 import android.graphics.Insets
@@ -56,7 +58,7 @@ object AospImeHooker : StaticHooker() {
     private const val NAV_BAR_SHADOW_DP = 4
 
     /** Padding a view had before the rounded-corner listener started adjusting it. */
-    private val basePaddings = generationResource(WeakHashMap<View, IntArray>()) { it.clear() }
+    private val basePaddings = generationMainResource(WeakHashMap<View, IntArray>()) { it.clear() }
 
     private var insetsView: WeakReference<View>? = null
 
@@ -90,15 +92,17 @@ object AospImeHooker : StaticHooker() {
     private var navBackIdCached: Int by generationState { -1 }
 
     /** Back buttons already rewired for dismiss-only semantics (dedupes repeat inflations). */
-    private val wiredBackViews = generationResource(WeakHashMap<View, Boolean>()) { it.clear() }
+    private val wiredBackViews = generationMainResource(WeakHashMap<View, Boolean>()) { it.clear() }
 
     override val hotReloadMode = HotReloadMode.RECREATE
 
     override fun onPrepareHotReload() {
         raise.prepareReload()
-        insetsView?.get()?.let { view ->
-            runCatching { view.setOnApplyWindowInsetsListener(null) }
-            basePaddings.remove(view)
+        HostAccess.onMain {
+            insetsView?.get()?.let { view ->
+                runCatching { view.setOnApplyWindowInsetsListener(null) }
+                basePaddings.remove(view)
+            }
         }
     }
 
@@ -169,7 +173,7 @@ object AospImeHooker : StaticHooker() {
                         // loadDex throws for anything that is not a BaseDexClassLoader.
                         if (param.throwable != null) return@open
                         val loader = param.args.getOrNull(0) as? ClassLoader ?: return@open
-                        if (!hookedDexLoaders.add(loader)) return@open
+                        if (!synchronized(hookedDexLoaders) { hookedDexLoaders.add(loader) }) return@open
                         attach(MiuiImeBottomHooker, loader)
                     }
                 }
@@ -196,7 +200,7 @@ object AospImeHooker : StaticHooker() {
         // international branch and render the AOSP caption bar, instead of short-circuiting the
         // return value and bypassing the original's own `canImeRenderGesturalNavButtons()` gate.
         val internationalBuildField = runCatching {
-            serviceClass.getDeclaredField("IS_INTERNATIONAL_BUILD").apply { isAccessible = true }
+            HostAccess.requireDeclaredField(serviceClass, "IS_INTERNATIONAL_BUILD", accessible = true)
         }.getOrNull()
         if (internationalBuildField == null) {
             DebugLog.hookSkipped(TAG, "$INPUT_METHOD_SERVICE#IS_INTERNATIONAL_BUILD", "field not found")
@@ -291,8 +295,7 @@ object AospImeHooker : StaticHooker() {
         imeInjectorResolved = true
         imeInjectorInstance = runCatching {
             INPUT_METHOD_SERVICE_STUB.toClassOrNull()
-                ?.getDeclaredMethod("getInstance")
-                ?.apply { isAccessible = true }
+                ?.cachedDeclaredMethod("getInstance", accessible = true)
                 ?.invoke(null)
         }.getOrNull()
         return imeInjectorInstance
@@ -308,7 +311,7 @@ object AospImeHooker : StaticHooker() {
         while (clazz != null) {
             val current = clazz
             val found = runCatching {
-                current.getDeclaredMethod("isImeSupport", Context::class.java).apply { isAccessible = true }
+                HostAccess.requireDeclaredMethod(current, "isImeSupport", Context::class.java, accessible = true)
             }.getOrNull()
             if (found != null) {
                 imeSupportMethod = found
@@ -325,7 +328,7 @@ object AospImeHooker : StaticHooker() {
             return
         }
         navBarServiceField = runCatching {
-            implClass.getDeclaredField("mService").apply { isAccessible = true }
+            HostAccess.requireDeclaredField(implClass, "mService", accessible = true)
         }.getOrNull()
 
         val method = CompatibleMethodResolver.find(
@@ -420,8 +423,7 @@ object AospImeHooker : StaticHooker() {
         }
         return runCatching {
             "android.app.ActivityThread".toClassOrNull()
-                ?.getDeclaredMethod("currentApplication")
-                ?.apply { isAccessible = true }
+                ?.cachedDeclaredMethod("currentApplication", accessible = true)
                 ?.invoke(null) as? Context
         }.getOrNull()
     }
@@ -580,8 +582,7 @@ object AospImeHooker : StaticHooker() {
         val keyButtonClass = NAV_BAR_KEY_BUTTON_VIEW.toClassOrNull()
         if (keyButtonClass != null && keyButtonClass.isInstance(backButton)) {
             val setCode = backButtonCodeMethod ?: runCatching {
-                keyButtonClass.getDeclaredMethod("setCode", Int::class.javaPrimitiveType)
-                    .apply { isAccessible = true }
+                HostAccess.requireDeclaredMethod(keyButtonClass, "setCode", Int::class.javaPrimitiveType, accessible = true)
             }.getOrNull()?.also { backButtonCodeMethod = it }
             if (setCode != null) {
                 runCatching { setCode.invoke(backButton, 0) }
@@ -662,7 +663,7 @@ object AospImeHooker : StaticHooker() {
         }
         // NavigationBarInflaterView declares its own mHorizontal, so read this one off NavigationBarView.
         navBarHorizontalField = runCatching {
-            navBarViewClass.getDeclaredField("mHorizontal").apply { isAccessible = true }
+            HostAccess.requireDeclaredField(navBarViewClass, "mHorizontal", accessible = true)
         }.getOrNull() ?: run {
             DebugLog.hookSkipped(TAG, "$NAV_BAR_VIEW#mHorizontal", "field not found")
             return
@@ -701,7 +702,7 @@ object AospImeHooker : StaticHooker() {
             return
         }
         deadZoneSizeMinField = runCatching {
-            deadZoneClass.getDeclaredField("mSizeMin").apply { isAccessible = true }
+            HostAccess.requireDeclaredField(deadZoneClass, "mSizeMin", accessible = true)
         }.getOrNull() ?: run {
             DebugLog.hookSkipped(TAG, "$DEAD_ZONE#mSizeMin", "field not found")
             return

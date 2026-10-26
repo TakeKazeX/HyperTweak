@@ -240,14 +240,14 @@ object LockscreenChargingDetailHooker : StaticHooker() {
         }
 
         val typeField = runCatching {
-            clazz.getDeclaredField("mCurrIndicationType").apply { isAccessible = true }
+            HostAccess.requireDeclaredField(clazz, "mCurrIndicationType", accessible = true)
         }.getOrElse {
             DebugLog.hookSkipped(TAG, "$ROTATE_VC#mCurrIndicationType", "field not found")
             return
         }
         currIndicationTypeField = typeField
         messageField = runCatching {
-            clazz.getDeclaredField("mCurrMessage").apply { isAccessible = true }
+            HostAccess.requireDeclaredField(clazz, "mCurrMessage", accessible = true)
         }.getOrElse {
             DebugLog.hookSkipped(TAG, "$ROTATE_VC#mCurrMessage", "field not found")
             return
@@ -255,9 +255,9 @@ object LockscreenChargingDetailHooker : StaticHooker() {
 
         // mView is declared `public final View` on the ViewController base class.
         val field = runCatching {
-            clazz.getField("mView").apply { isAccessible = true }
+            HostAccess.requirePublicField(clazz, "mView", accessible = true)
         }.getOrElse {
-            runCatching { clazz.getDeclaredField("mView").apply { isAccessible = true } }.getOrNull()
+            runCatching { HostAccess.requireDeclaredField(clazz, "mView", accessible = true) }.getOrNull()
         }
         viewField = field ?: run {
             DebugLog.hookSkipped(TAG, "$ROTATE_VC#mView", "field not found")
@@ -266,8 +266,7 @@ object LockscreenChargingDetailHooker : StaticHooker() {
 
         // getIntProperty(int) is @hide (but public) — resolve it once for the hot path.
         getIntProperty = runCatching {
-            BatteryManager::class.java.getMethod("getIntProperty", Int::class.javaPrimitiveType)
-                .apply { isAccessible = true }
+            HostAccess.requirePublicMethod(BatteryManager::class.java, "getIntProperty", Int::class.javaPrimitiveType, accessible = true)
         }.getOrNull()
 
         val showIndication = clazz.declaredMethods.firstOrNull {
@@ -296,17 +295,16 @@ object LockscreenChargingDetailHooker : StaticHooker() {
 
     private fun hookIndicationHost(rotateClass: Class<*>) = boundary {
         val hostClass = classLoader.loadClass("com.android.systemui.statusbar.KeyguardIndicationController")
-        fun Class<*>.field(name: String) = getDeclaredField(name).apply { isAccessible = true }
+        fun Class<*>.field(name: String) = HostAccess.requireDeclaredField(this, name, accessible = true)
         val owner = hostClass.field("mRotateTextViewController")
         val dozing = hostClass.field("mDozing")
         val visible = hostClass.field("mVisible")
         val rotateDozing = rotateClass.field("mIsDozing")
         val listener = rotateClass.field("mStatusBarStateListener")
-        val wake = listener.type.getDeclaredMethod("onDozingChanged", Boolean::class.javaPrimitiveType)
-            .apply { isAccessible = true }
+        val wake = HostAccess.requireDeclaredMethod(listener.type, "onDozingChanged", Boolean::class.javaPrimitiveType, accessible = true)
         val targets = listOf(
-            hostClass.getDeclaredMethod("setIndicationArea", android.view.ViewGroup::class.java),
-            hostClass.getDeclaredMethod("updateDeviceEntryIndication", Boolean::class.javaPrimitiveType)
+            HostAccess.requireDeclaredMethod(hostClass, "setIndicationArea", android.view.ViewGroup::class.java, accessible = false),
+            HostAccess.requireDeclaredMethod(hostClass, "updateDeviceEntryIndication", Boolean::class.javaPrimitiveType, accessible = false)
         )
         rotateControllerField = owner
         hostDozingField = dozing

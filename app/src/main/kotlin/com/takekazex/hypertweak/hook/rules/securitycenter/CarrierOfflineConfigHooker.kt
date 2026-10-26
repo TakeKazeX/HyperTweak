@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.securitycenter
 
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import com.takekazex.hypertweak.hook.Preferences
@@ -89,7 +90,7 @@ object CarrierOfflineConfigHooker : DynamicHooker() {
         val getter = MethodDescriptorCodec.method(getterDescriptor, classLoader) ?: return null
         if (getter.declaringClass.name != className || getter.name != "isOffline" ||
             getter.parameterCount != 0 || getter.returnType != Boolean::class.javaPrimitiveType ||
-            getter.declaringClass.getDeclaredField("isOffline").type != Boolean::class.javaPrimitiveType
+            HostAccess.requireDeclaredField(getter.declaringClass, "isOffline", accessible = false).type != Boolean::class.javaPrimitiveType
         ) {
             DebugLog.w(TAG, "cached offline getter owner/signature mismatch; rejecting cache")
             return null

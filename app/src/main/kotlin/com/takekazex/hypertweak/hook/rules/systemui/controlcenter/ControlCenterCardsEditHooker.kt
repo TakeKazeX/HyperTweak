@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.controlcenter
 
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 
 import android.os.Handler
@@ -237,7 +238,7 @@ class ControlCenterCardsEditHooker : DynamicHooker() {
 
     /** The itemView field of a panel adapter, resolved once per adapter class. */
     private fun itemViewFieldOf(adapter: Any): Field? = runCatching {
-        adapter.javaClass.getField("itemView").apply { isAccessible = true }
+        HostAccess.requirePublicField(adapter.javaClass, "itemView", accessible = true)
     }.getOrNull()
 
     private fun enabled(): Boolean =

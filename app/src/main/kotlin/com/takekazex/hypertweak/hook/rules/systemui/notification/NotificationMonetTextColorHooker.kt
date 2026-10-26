@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui.notification
 
+import com.takekazex.hypertweak.hook.base.cachedDeclaredField
+import com.takekazex.hypertweak.hook.base.cachedDeclaredMethod
 import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 
@@ -51,9 +53,6 @@ object NotificationMonetTextColorHooker : StaticHooker() {
     private val palettes = WeakHashMap<Any, PaletteOverride>()
     private val rowEffects = WeakHashMap<View, Any>()
     private val paletteLock = Any()
-    private data class FieldKey(val type: Class<*>, val name: String)
-    private val fields = HashMap<FieldKey, Field?>()
-    private val getters = HashMap<FieldKey, Method?>()
     private val resourceIds = generationResource(WeakHashMap<Resources, List<Int>>()) { it.clear() }
 
     // Keep host objects, not old theme-derived colors. Replay through the same eligibility path.
@@ -109,8 +108,6 @@ object NotificationMonetTextColorHooker : StaticHooker() {
             palettes.clear()
             textColorField = null
         }
-        synchronized(fields) { fields.clear() }
-        synchronized(getters) { getters.clear() }
     }
 
     /**
@@ -167,14 +164,13 @@ object NotificationMonetTextColorHooker : StaticHooker() {
         retiring = false
         HookFailurePolicy.open(TAG, "native material capability", Unit) {
             binderField = (WRAPPER + "NotificationHeaderViewWrapperInjector").toClassOrNull()
-                ?.getDeclaredField("sNotificationRowContentBinderInjector")?.apply { isAccessible = true }
+                ?.cachedDeclaredField("sNotificationRowContentBinderInjector", accessible = true)
             val materialClass = "com.android.systemui.statusbar.notification.style.domain.NotificationMaterialStateInteractor".toClassOrNull()
             fixContextMethod = materialClass?.declaredMethods?.singleOrNull {
                 it.name == "getFixUiModeContext" && it.parameterCount == 2 &&
                     it.parameterTypes[1] == Boolean::class.javaPrimitiveType && it.returnType == Context::class.java
             }?.apply { isAccessible = true }
-            darkContextMethod = materialClass?.getDeclaredMethod("wrapDarkContext", Context::class.java, Boolean::class.javaPrimitiveType)
-                ?.apply { isAccessible = true }
+            darkContextMethod = materialClass?.cachedDeclaredMethod("wrapDarkContext", Context::class.java, Boolean::class.javaPrimitiveType, accessible = true)
         }
         // Failure of the framework capability must not suppress independent SystemUI hooks.
         val paletteHooks = HookFailurePolicy.open(TAG, "palette install", 0) { hookPalette() }
@@ -433,7 +429,7 @@ object NotificationMonetTextColorHooker : StaticHooker() {
 
     private fun stockTextColors(context: Context): Set<Int> {
         val resources = context.resources
-        val ids = resourceIds.getOrPut(resources) {
+        val ids = synchronized(resourceIds) { resourceIds.getOrPut(resources) {
             listOf("notification_primary_text_color_light", "notification_secondary_text_color_light",
                 "notification_primary_text_color_current", "notification_secondary_text_color_current",
                 "notification_time_color", "notification_action_text_color",
@@ -443,7 +439,7 @@ object NotificationMonetTextColorHooker : StaticHooker() {
             } + listOf("materialColorOnSurface", "materialColorShadow").mapNotNull { name ->
                 resources.getIdentifier(name, "color", "android").takeIf { it != 0 }
             }
-        }
+        } }
         return ids.mapNotNull { runCatching { context.getColor(it) }.getOrNull() }.toSet()
     }
 
@@ -477,29 +473,10 @@ object NotificationMonetTextColorHooker : StaticHooker() {
     private fun hierarchy(owner: Any): List<String> =
         generateSequence<Class<*>>(owner.javaClass) { it.superclass }.map { it.name }.toList()
 
-    private fun read(owner: Any, name: String): Any? {
-        val field = synchronized(fields) {
-            val key = FieldKey(owner.javaClass, name)
-            if (!fields.containsKey(key)) fields[key] = run {
-                generateSequence<Class<*>>(owner.javaClass) { it.superclass }.mapNotNull { type ->
-                    runCatching { type.getDeclaredField(name).apply { isAccessible = true } }.getOrNull()
-                }.firstOrNull()
-            }
-            fields[key]
-        }
-        return field?.get(owner)
-    }
+    private fun read(owner: Any, name: String): Any? = HostAccess.read(owner, name)
 
-    private fun invokeGetter(owner: Any, name: String): Any? {
-        val method = synchronized(getters) {
-            val key = FieldKey(owner.javaClass, name)
-            if (!getters.containsKey(key)) getters[key] = run {
-                runCatching { owner.javaClass.getMethod(name).apply { isAccessible = true } }.getOrNull()
-            }
-            getters[key]
-        }
-        return method?.invoke(owner)
-    }
+    private fun invokeGetter(owner: Any, name: String): Any? =
+        HostAccess.publicMethod(owner.javaClass, name, accessible = true)?.invoke(owner)
     private fun getter(owner: Any, name: String): TextView? = invokeGetter(owner, name) as? TextView
     private fun getterBoolean(owner: Any, name: String): Boolean? = invokeGetter(owner, name) as? Boolean
     private fun isNight(context: Context): Boolean = context.resources.configuration.uiMode and

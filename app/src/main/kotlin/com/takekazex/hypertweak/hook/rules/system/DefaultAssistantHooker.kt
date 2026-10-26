@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.system
 
+import com.takekazex.hypertweak.hook.base.cachedPublicMethod
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import android.content.ComponentName
@@ -203,11 +205,10 @@ object DefaultAssistantHooker : StaticHooker() {
             .putExtra("android.intent.extra.ASSIST_DISPLAY_ID", 0)
         // Hidden API: the module compiles against the public stub, so this is reflective.
         val started = runCatching {
-            val method: Method = Context::class.java.getMethod(
+            val method: Method = HostAccess.requirePublicMethod(Context::class.java,
                 "startActivityAsUser",
                 Intent::class.java,
-                Class.forName("android.os.UserHandle")
-            )
+                Class.forName("android.os.UserHandle"), accessible = false)
             method.invoke(context, intent, Process.myUserHandle())
             true
         }.getOrElse {
@@ -270,7 +271,7 @@ object DefaultAssistantHooker : StaticHooker() {
         val roleManager = context.getSystemService("role") ?: return null
         @Suppress("UNCHECKED_CAST")
         val holders = roleManager.javaClass
-            .getMethod("getRoleHoldersAsUser", String::class.java, Class.forName("android.os.UserHandle"))
+            .cachedPublicMethod("getRoleHoldersAsUser", String::class.java, Class.forName("android.os.UserHandle"), accessible = false)
             .invoke(roleManager, ROLE_ASSISTANT, Process.myUserHandle()) as? List<String>
         holders?.firstOrNull()
     }.onFailure {
@@ -280,16 +281,16 @@ object DefaultAssistantHooker : StaticHooker() {
     /** The active voice-interaction service, via the hidden AIDL. */
     private fun activeVoiceService(): ComponentName? = runCatching {
         val serviceManager = Class.forName("android.os.ServiceManager")
-        val binder = serviceManager.getMethod("getService", String::class.java)
+        val binder = HostAccess.requirePublicMethod(serviceManager, "getService", String::class.java, accessible = false)
             .invoke(null, SERVICE_VOICE_INTERACTION) as? android.os.IBinder ?: return null
         val stub = Class.forName("com.android.internal.app.IVoiceInteractionManagerService\$Stub")
-        val service = stub.getMethod("asInterface", android.os.IBinder::class.java)
+        val service = HostAccess.requirePublicMethod(stub, "asInterface", android.os.IBinder::class.java, accessible = false)
             .invoke(null, binder) ?: return null
         // Resolve the method from the generated AIDL interface, not from the runtime Binder proxy.
         // On this ROM the proxy is a hidden framework implementation and reflective lookup on its
         // concrete class can fail even though the interface exposes the method.
         val interfaceClass = Class.forName("com.android.internal.app.IVoiceInteractionManagerService")
-        interfaceClass.getMethod("getActiveServiceComponentName").invoke(service) as? ComponentName
+        HostAccess.requirePublicMethod(interfaceClass, "getActiveServiceComponentName", accessible = false).invoke(service) as? ComponentName
     }.onFailure {
         DebugLog.w(SCOPE, "could not read the active voice-interaction service", it)
     }.getOrNull()
@@ -354,9 +355,9 @@ object DefaultAssistantHooker : StaticHooker() {
             val info = infoClass
                 .getConstructor(PackageManager::class.java, android.content.pm.ServiceInfo::class.java)
                 .newInstance(context.packageManager, serviceInfo)
-            val parseError = infoClass.getMethod("getParseError").invoke(info) as? String
-            val supportsAssist = infoClass.getMethod("getSupportsAssist").invoke(info) as? Boolean
-            val recognition = infoClass.getMethod("getRecognitionService").invoke(info)
+            val parseError = HostAccess.requirePublicMethod(infoClass, "getParseError", accessible = false).invoke(info) as? String
+            val supportsAssist = HostAccess.requirePublicMethod(infoClass, "getSupportsAssist", accessible = false).invoke(info) as? Boolean
+            val recognition = HostAccess.requirePublicMethod(infoClass, "getRecognitionService", accessible = false).invoke(info)
             if (parseError != null) {
                 DebugLog.w(SCOPE, "$component voice-interaction metadata: $parseError")
                 return@runCatching false
@@ -469,8 +470,8 @@ object DefaultAssistantHooker : StaticHooker() {
      */
     private fun systemContext(): Context? = runCatching {
         val activityThread = Class.forName("android.app.ActivityThread")
-        val thread = activityThread.getMethod("currentActivityThread").invoke(null) ?: return null
-        activityThread.getMethod("getSystemContext").invoke(thread) as? Context
+        val thread = HostAccess.requirePublicMethod(activityThread, "currentActivityThread", accessible = false).invoke(null) ?: return null
+        HostAccess.requirePublicMethod(activityThread, "getSystemContext", accessible = false).invoke(thread) as? Context
     }.onFailure {
         DebugLog.w(SCOPE, "could not resolve the system context", it)
     }.getOrNull()

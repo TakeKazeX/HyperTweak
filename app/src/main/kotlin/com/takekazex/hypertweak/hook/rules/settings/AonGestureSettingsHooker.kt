@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.settings
 
+import com.takekazex.hypertweak.hook.base.HostAccess
 import android.content.Context
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.StaticHooker
@@ -62,15 +63,15 @@ object AonGestureSettingsHooker : StaticHooker() {
 
     private fun ensureExtraRows(host: Any) {
         val hostClass = host.javaClass
-        val ctx = (hostClass.getMethod("getContext").invoke(host) as? Context) ?: return
-        val screen = hostClass.getMethod("getPreferenceScreen").invoke(host) ?: return
+        val ctx = (HostAccess.requirePublicMethod(hostClass, "getContext", accessible = false).invoke(host) as? Context) ?: return
+        val screen = HostAccess.requirePublicMethod(hostClass, "getPreferenceScreen", accessible = false).invoke(host) ?: return
         val screenClass = screen.javaClass
         // Class.classLoader is annotated @RecentlyNullable; a loaded screen class always has one.
         val loader = requireNotNull(screenClass.classLoader)
         val findPreference =
-            screenClass.getMethod("findPreference", CharSequence::class.java)
+            HostAccess.requirePublicMethod(screenClass, "findPreference", CharSequence::class.java, accessible = false)
         val addPreference =
-            screenClass.getMethod("addPreference", loader.loadClass("androidx.preference.Preference"))
+            HostAccess.requirePublicMethod(screenClass, "addPreference", loader.loadClass("androidx.preference.Preference"), accessible = false)
         // A Landing row 上下滑动屏幕 lives inside a (key-less) PreferenceCategory; add ours to the
         // first category if present so they render in the same group, otherwise to the screen root.
         val category = firstCategory(screenClass, loader, screen)
@@ -85,12 +86,12 @@ object AonGestureSettingsHooker : StaticHooker() {
                 .getConstructor(Context::class.java)
                 .newInstance(ctx)
             val prefClass = preference.javaClass
-            prefClass.getMethod("setKey", String::class.java).invoke(preference, row.key)
-            prefClass.getMethod("setFragment", String::class.java).invoke(preference, row.fragment)
-            prefClass.getMethod("setOrder", Int::class.javaPrimitiveType).invoke(preference, 200)
+            HostAccess.requirePublicMethod(prefClass, "setKey", String::class.java, accessible = false).invoke(preference, row.key)
+            HostAccess.requirePublicMethod(prefClass, "setFragment", String::class.java, accessible = false).invoke(preference, row.fragment)
+            HostAccess.requirePublicMethod(prefClass, "setOrder", Int::class.javaPrimitiveType, accessible = false).invoke(preference, 200)
             val titleId = stringId(ctx, row.titleResource)
             if (titleId != 0) {
-                prefClass.getMethod("setTitle", Int::class.javaPrimitiveType).invoke(preference, titleId)
+                HostAccess.requirePublicMethod(prefClass, "setTitle", Int::class.javaPrimitiveType, accessible = false).invoke(preference, titleId)
             }
             setStatusSummary(preference, ctx, row)
             (category ?: screen).let { addPreference.invoke(it, preference) }
@@ -100,8 +101,8 @@ object AonGestureSettingsHooker : StaticHooker() {
     private fun firstCategory(screenClass: Class<*>, loader: ClassLoader, screen: Any): Any? {
         val categoryClass = runCatching { loader.loadClass("androidx.preference.PreferenceCategory") }.getOrNull()
             ?: return null
-        val count = screenClass.getMethod("getPreferenceCount").invoke(screen) as Int
-        val getPreference = screenClass.getMethod("getPreference", Int::class.javaPrimitiveType)
+        val count = HostAccess.requirePublicMethod(screenClass, "getPreferenceCount", accessible = false).invoke(screen) as Int
+        val getPreference = HostAccess.requirePublicMethod(screenClass, "getPreference", Int::class.javaPrimitiveType, accessible = false)
         for (i in 0 until count) {
             val child = getPreference.invoke(screen, i) ?: continue
             if (categoryClass.isInstance(child)) return child
@@ -114,7 +115,7 @@ object AonGestureSettingsHooker : StaticHooker() {
         val resName = if (open) "aon_gesture_status_open" else "aon_gesture_status_not_open"
         val id = stringId(ctx, resName)
         if (id != 0) {
-            preference.javaClass.getMethod("setSummary", Int::class.javaPrimitiveType)
+            HostAccess.requirePublicMethod(preference.javaClass, "setSummary", Int::class.javaPrimitiveType, accessible = false)
                 .invoke(preference, id)
         }
     }

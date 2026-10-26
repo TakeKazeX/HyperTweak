@@ -2,6 +2,8 @@
 
 package com.takekazex.hypertweak.hook.rules.system
 
+import com.takekazex.hypertweak.hook.base.cachedDeclaredField
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import android.content.pm.ApplicationInfo
@@ -59,7 +61,7 @@ object ForceDarkAppListHooker : StaticHooker() {
             after { param ->
                 if (!Preferences.getBoolean(PlatformSettingsKeys.KEY_UNLOCK_THIRD_PARTY_DARK_MODE, false)) return@after
                 val packageName = param.args.getOrNull(0) as? String ?: return@after
-                val pm = runCatching { managerClass.getDeclaredField("mPackageManager").apply { isAccessible = true }.get(param.thisObject) as? android.content.pm.PackageManager }.getOrNull()
+                val pm = runCatching { HostAccess.requireDeclaredField(managerClass, "mPackageManager", accessible = true).get(param.thisObject) as? android.content.pm.PackageManager }.getOrNull()
                 val app = runCatching { pm?.getApplicationInfo(packageName, 0) }.getOrNull()
                 if (app != null && isThirdParty(app)) param.result = false
             }
@@ -72,8 +74,7 @@ object ForceDarkAppListHooker : StaticHooker() {
                 // actual list-generation boundary so the value is available before the loop.
                 runCatching {
                     Class.forName("miui.os.Build", false, managerClass.classLoader)
-                        .getDeclaredField("IS_INTERNATIONAL_BUILD")
-                        .apply { isAccessible = true }
+                        .cachedDeclaredField("IS_INTERNATIONAL_BUILD", accessible = true)
                         .setBoolean(null, true)
                 }
             }
@@ -84,7 +85,7 @@ object ForceDarkAppListHooker : StaticHooker() {
                 val data = param.result ?: return@after
                 val userId = (param.args.getOrNull(1) as? Int) ?: 0
                 runCatching {
-                    val pm = managerClass.getDeclaredField("mPackageManager").apply { isAccessible = true }
+                    val pm = HostAccess.requireDeclaredField(managerClass, "mPackageManager", accessible = true)
                         .get(param.thisObject) as android.content.pm.PackageManager
                     val getter = data.javaClass.methods.first { it.name == "getDarkModeAppDetailInfoList" && it.parameterTypes.isEmpty() }
                     val setter = data.javaClass.methods.first { it.name == "setDarkModeAppDetailInfoList" && it.parameterTypes.size == 1 }
@@ -95,13 +96,12 @@ object ForceDarkAppListHooker : StaticHooker() {
                     pm.getInstalledApplications(0).filter(::isThirdParty).forEach { app ->
                         if (!names.add(app.packageName)) return@forEach
                         val detail = detailClass.getDeclaredConstructor().apply { isAccessible = true }.newInstance()
-                        detailClass.getMethod("setLabel", String::class.java).invoke(detail, app.loadLabel(pm).toString())
-                        detailClass.getMethod("setPkgName", String::class.java).invoke(detail, app.packageName)
+                        HostAccess.requirePublicMethod(detailClass, "setLabel", String::class.java, accessible = false).invoke(detail, app.loadLabel(pm).toString())
+                        HostAccess.requirePublicMethod(detailClass, "setPkgName", String::class.java, accessible = false).invoke(detail, app.packageName)
                         val enabled = runCatching {
-                            managerClass.getDeclaredMethod("getAppDarkModeEnable", String::class.java, Int::class.javaPrimitiveType)
-                                .apply { isAccessible = true }.invoke(param.thisObject, app.packageName, userId) as Boolean
+                            HostAccess.requireDeclaredMethod(managerClass, "getAppDarkModeEnable", String::class.java, Int::class.javaPrimitiveType, accessible = true).invoke(param.thisObject, app.packageName, userId) as Boolean
                         }.getOrDefault(false)
-                        detailClass.getMethod("setEnabled", Boolean::class.javaPrimitiveType).invoke(detail, enabled)
+                        HostAccess.requirePublicMethod(detailClass, "setEnabled", Boolean::class.javaPrimitiveType, accessible = false).invoke(detail, enabled)
                         list += detail
                     }
                     setter.invoke(data, list)

@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.camera
 
+import com.takekazex.hypertweak.hook.base.cachedDeclaredMethod
+import com.takekazex.hypertweak.hook.base.HostAccess
 import android.content.ContentProvider
 import android.os.Handler
 import android.os.Looper
@@ -52,7 +54,7 @@ internal object CameraApplicationInit {
             runCatching {
                 val providerBoundary = method.returnType == java.lang.Boolean.TYPE
                 val published = if (providerBoundary) Class.forName("android.app.ActivityThread", false, loader)
-                    .getDeclaredMethod("installContentProviders", android.content.Context::class.java, List::class.java)
+                    .cachedDeclaredMethod("installContentProviders", android.content.Context::class.java, List::class.java, accessible = false)
                     .also { require(it.returnType == Void.TYPE && !Modifier.isStatic(it.modifiers)) }
                     else null
                 fun installQueued() {
@@ -135,12 +137,11 @@ internal object CameraApplicationInit {
     private fun resolveApplicationOnCreate(hooker: BaseHooker): Method? {
         val className = hooker.hookParam.appInfo?.className?.takeIf { it.isNotBlank() } ?: return null
         val applicationClass = runCatching { hooker.classLoader.loadClass(className) }.getOrNull() ?: return null
-        return runCatching { applicationClass.getDeclaredMethod("onCreate") }
+        return runCatching { HostAccess.requireDeclaredMethod(applicationClass, "onCreate", accessible = true) }
             .getOrNull()
             ?.takeIf {
                 !Modifier.isStatic(it.modifiers) && it.parameterCount == 0 && it.returnType == Void.TYPE
             }
-            ?.apply { isAccessible = true }
     }
 
     private fun runAction(hooker: BaseHooker, action: () -> Unit) {

@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.system
 
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.VolumeKeyStepPolicy
 
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
@@ -57,13 +58,12 @@ object VolumeKeyStepsHooker : StaticHooker() {
         val audioDeviceAttributesClass = loadClass(AUDIO_DEVICE_ATTRIBUTES) ?: return
 
         val stateFieldsReady = runCatching {
-            streamTypeField = streamStateClass.getDeclaredField("mStreamType").accessible()
-            indexMaxField = streamStateClass.getDeclaredField("mIndexMax").accessible()
-            indexMinField = streamStateClass.getDeclaredField("mIndexMin").accessible()
-            getIndexMethod = streamStateClass.getDeclaredMethod(
+            streamTypeField = HostAccess.requireDeclaredField(streamStateClass, "mStreamType", accessible = true)
+            indexMaxField = HostAccess.requireDeclaredField(streamStateClass, "mIndexMax", accessible = true)
+            indexMinField = HostAccess.requireDeclaredField(streamStateClass, "mIndexMin", accessible = true)
+            getIndexMethod = HostAccess.requireDeclaredMethod(streamStateClass,
                 "getIndex",
-                Int::class.javaPrimitiveType!!
-            ).accessible()
+                Int::class.javaPrimitiveType!!, accessible = true)
         }.isSuccess
         if (!stateFieldsReady) {
             DebugLog.hookSkipped(TAG, VOLUME_STREAM_STATE, "stream index fields were not found")
@@ -72,13 +72,12 @@ object VolumeKeyStepsHooker : StaticHooker() {
 
         val adjustStreamVolumeMethod = resolveAdjustStreamVolume(serviceClass, audioDeviceAttributesClass)
         val setIndexMethod = runCatching {
-            streamStateClass.getDeclaredMethod(
+            HostAccess.requireDeclaredMethod(streamStateClass,
                 "setIndex",
                 Int::class.javaPrimitiveType!!,
                 Int::class.javaPrimitiveType!!,
                 String::class.java,
-                Boolean::class.javaPrimitiveType!!
-            ).accessible()
+                Boolean::class.javaPrimitiveType!!, accessible = true)
         }.getOrNull()
         if (adjustStreamVolumeMethod == null || setIndexMethod == null) {
             DebugLog.hookSkipped(TAG, AUDIO_SERVICE, "OS4 adjustStreamVolume/VolumeStreamState.setIndex signatures were not recognized")
@@ -127,8 +126,10 @@ object VolumeKeyStepsHooker : StaticHooker() {
             Preferences.getInt(PlatformSettingsKeys.KEY_VOLUME_KEY_STEP_SCOPE, PlatformSettingsKeys.VOLUME_KEY_SCOPE_MEDIA_ONLY)
         )
         if (configuration != activeConfiguration) {
-            hardwareStepRemainders.clear()
-            activeConfiguration = configuration
+            synchronized(hardwareStepRemainders) {
+                hardwareStepRemainders.clear()
+                activeConfiguration = configuration
+            }
             loggedFirstAppliedStep.set(false)
             DebugLog.i(TAG, "applied live configuration steps=${configuration.steps} scope=${configuration.scope}")
         }
@@ -227,6 +228,5 @@ object VolumeKeyStepsHooker : StaticHooker() {
         DebugLog.w(TAG, "could not load $name", t)
     }.getOrNull()
 
-    private fun Field.accessible(): Field = apply { isAccessible = true }
     private fun Method.accessible(): Method = apply { isAccessible = true }
 }

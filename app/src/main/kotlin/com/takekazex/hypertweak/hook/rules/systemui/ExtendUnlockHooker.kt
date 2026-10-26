@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui
 
+import com.takekazex.hypertweak.hook.base.cachedPublicMethod
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import android.app.KeyguardManager
@@ -100,12 +102,12 @@ object ExtendUnlockHooker : StaticHooker() {
             val instance = lockPatternUtils.getConstructor(Context::class.java).newInstance(context)
 
             val userId = runCatching {
-                android.os.UserHandle::class.java.getMethod("myUserId").invoke(null) as? Int
+                android.os.UserHandle::class.java.cachedPublicMethod("myUserId", accessible = false).invoke(null) as? Int
             }.getOrNull() ?: 0
 
             @Suppress("UNCHECKED_CAST")
             val enabled = lockPatternUtils
-                .getMethod("getEnabledTrustAgents", Int::class.javaPrimitiveType)
+                .cachedPublicMethod("getEnabledTrustAgents", Int::class.javaPrimitiveType, accessible = false)
                 .invoke(instance, userId) as? List<ComponentName> ?: emptyList()
 
             val agent = ComponentName(GMS_PACKAGE, GMS_TRUST_AGENT)
@@ -114,7 +116,7 @@ object ExtendUnlockHooker : StaticHooker() {
 
             val next = if (wanted) enabled + agent else enabled.filterNot { it == agent }
             lockPatternUtils
-                .getMethod("setEnabledTrustAgents", Collection::class.java, Int::class.javaPrimitiveType)
+                .cachedPublicMethod("setEnabledTrustAgents", Collection::class.java, Int::class.javaPrimitiveType, accessible = false)
                 .invoke(instance, next, userId)
             DebugLog.i(TAG, "${if (wanted) "enabled" else "disabled"} trust agent $agent for user $userId")
         }
@@ -137,7 +139,7 @@ object ExtendUnlockHooker : StaticHooker() {
         }
 
         contextField = runCatching {
-            monitor.getDeclaredField("mContext").apply { isAccessible = true }
+            HostAccess.requireDeclaredField(monitor, "mContext", accessible = true)
         }.getOrNull()
         isSimPinSecureMethod = CompatibleMethodResolver.find(
             monitor, "isSimPinSecure", returnType = Boolean::class.javaPrimitiveType
@@ -304,17 +306,15 @@ object ExtendUnlockHooker : StaticHooker() {
         val keyguardManager = context.getSystemService(KeyguardManager::class.java) ?: return false
 
         val isKeyguardLocked = isKeyguardLockedMethod ?: runCatching {
-            KeyguardManager::class.java.getMethod("isKeyguardLocked").apply { isAccessible = true }
+            HostAccess.requirePublicMethod(KeyguardManager::class.java, "isKeyguardLocked", accessible = true)
         }.getOrNull()?.also { isKeyguardLockedMethod = it } ?: return false
         val isDeviceSecure = isDeviceSecureMethod ?: runCatching {
             KeyguardManager::class.java
-                .getMethod("isDeviceSecure", Int::class.javaPrimitiveType)
-                .apply { isAccessible = true }
+                .cachedPublicMethod("isDeviceSecure", Int::class.javaPrimitiveType, accessible = true)
         }.getOrNull()?.also { isDeviceSecureMethod = it } ?: return false
         val isDeviceLocked = isDeviceLockedMethod ?: runCatching {
             KeyguardManager::class.java
-                .getMethod("isDeviceLocked", Int::class.javaPrimitiveType)
-                .apply { isAccessible = true }
+                .cachedPublicMethod("isDeviceLocked", Int::class.javaPrimitiveType, accessible = true)
         }.getOrNull()?.also { isDeviceLockedMethod = it } ?: return false
 
         // Only override, and only seed the cache, while the keyguard is actually showing. A false

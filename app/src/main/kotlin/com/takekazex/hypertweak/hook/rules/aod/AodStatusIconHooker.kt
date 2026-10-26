@@ -2,6 +2,7 @@
 
 package com.takekazex.hypertweak.hook.rules.aod
 
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.AodSettingsKeys
 
 import android.content.Context
@@ -67,12 +68,14 @@ class AodStatusIconHooker : DynamicHooker() {
     }
 
     private val main = Handler(Looper.getMainLooper())
-    private val bindings = generationResource(IdentityHashMap<View, Binding>()) { it.clear() }
+    private val bindings = generationMainResource(IdentityHashMap<View, Binding>()) { it.clear() }
     private var signalObserver: AodSignalObserver? by generationState { null }
     /** Invalidates queued refreshes of a retired generation or a newer settings snapshot. */
     @Volatile private var revision = 0L
+    @Volatile private var retiring = false
+    @Volatile private var retirementEpoch = 0L
     /** Living AOD containers (the view whose row gate owns the battery widget). */
-    private val containers = generationResource(java.util.WeakHashMap<View, Boolean>()) { it.clear() }
+    private val containers = generationMainResource(java.util.WeakHashMap<View, Boolean>()) { it.clear() }
 
     private data class NativeChild(
         val view: View,
@@ -102,14 +105,19 @@ class AodStatusIconHooker : DynamicHooker() {
     }
 
     override fun onPrepareHotReload() {
-        AODHooker.applyAodPluginCapability(classLoader, retiring = true)
-        revision++ // separates this generation's queued refreshes from the next one
-        synchronized(live) { live.remove(this) }
-        bindings.values.toList().forEach { binding -> runCatching { restore(binding) } }
-        signalObserver?.stop()
+        retiring = true
+        retirementEpoch++
+        HostAccess.onMain {
+            AODHooker.applyAodPluginCapability(classLoader, retiring = true)
+            revision++ // separates this generation's queued refreshes from the next one
+            synchronized(live) { live.remove(this) }
+            bindings.values.toList().forEach { binding -> runCatching { restore(binding) } }
+            signalObserver?.stop()
+        }
     }
 
     override fun onHook() {
+        retiring = false
         // The AOD battery row stays hooked for this process generation: every committed AOD
         // setting is applied through [refreshSettings], including the first option that turns the
         // customised row on, which used to require a SystemUI restart.
@@ -180,7 +188,7 @@ class AodStatusIconHooker : DynamicHooker() {
                 before { param ->
                     val root = param.thisObject as? View ?: return@before
                     val battery = batteryFrom(root, param.args.firstOrNull()) ?: return@before
-                    bindings[root]?.battery = battery
+                    onMain { bindings[root]?.battery = battery }
                 }
                 after { param ->
                     val root = param.thisObject as? View ?: return@after
@@ -220,7 +228,7 @@ class AodStatusIconHooker : DynamicHooker() {
                     val requested = param.args[0] as? Boolean ?: return@before
                     // A native false also means a preview layout with no battery/step stub.
                     // Promoting it to true enters inflateBattery with a null native container.
-                    containers[container] = requested
+                    onMain { containers[container] = requested }
                     param.args[0] = AodRowPolicy.showNativeRow(requested, AodIconSettings.current().showRow)
                 }
                 after { param ->
@@ -640,7 +648,7 @@ class AodStatusIconHooker : DynamicHooker() {
     private fun field(type: Class<*>, name: String): Field? {
         var current: Class<*>? = type
         while (current != null) {
-            runCatching { current.getDeclaredField(name) }.getOrNull()?.let { return it.apply { isAccessible = true } }
+            runCatching { HostAccess.requireDeclaredField(current, name, accessible = true) }.getOrNull()?.let { return it }
             current = current.superclass
         }
         return null
@@ -657,8 +665,8 @@ class AodStatusIconHooker : DynamicHooker() {
     private fun findMethod(type: Class<*>, name: String, vararg params: Class<*>): Method? {
         var current: Class<*>? = type
         while (current != null) {
-            runCatching { current.getDeclaredMethod(name, *params) }.getOrNull()?.let {
-                return it.apply { isAccessible = true }
+            runCatching { HostAccess.requireDeclaredMethod(current, name, *params, accessible = true) }.getOrNull()?.let {
+                return it
             }
             current = current.superclass
         }
@@ -710,7 +718,10 @@ class AodStatusIconHooker : DynamicHooker() {
     }
 
     private fun onMain(block: () -> Unit) {
-        if (Looper.myLooper() == Looper.getMainLooper()) guarded(block)
-        else main.post { guarded(block) }
+        if (retiring) return
+        val epoch = retirementEpoch
+        val action: () -> Unit = { if (!retiring && epoch == retirementEpoch) guarded(block) }
+        if (Looper.myLooper() == Looper.getMainLooper()) action()
+        else main.post { action() }
     }
 }

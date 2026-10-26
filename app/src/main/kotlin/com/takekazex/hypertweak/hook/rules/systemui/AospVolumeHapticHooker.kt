@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui
 
+import com.takekazex.hypertweak.hook.base.cachedPublicField
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import com.takekazex.hypertweak.hook.Preferences
@@ -153,8 +155,8 @@ object AospVolumeHapticHooker : StaticHooker() {
             DebugLog.hookSkipped(TAG, "$SLIDER_PROVIDER#onProgress(Float)", "method not found")
             return
         }
-        fieldHasVibratedUpper = clazz.getDeclaredField("hasVibratedAtUpperBookend").apply { isAccessible = true }
-        fieldHasVibratedLower = clazz.getDeclaredField("hasVibratedAtLowerBookend").apply { isAccessible = true }
+        fieldHasVibratedUpper = HostAccess.requireDeclaredField(clazz, "hasVibratedAtUpperBookend", accessible = true)
+        fieldHasVibratedLower = HostAccess.requireDeclaredField(clazz, "hasVibratedAtLowerBookend", accessible = true)
         deoptimize(onProgress)
         onProgress.hook {
             before { param ->
@@ -186,7 +188,7 @@ object AospVolumeHapticHooker : StaticHooker() {
         }
         if (stateDragDragging == null) {
             val stateClass = SLIDER_STATE.toClassOrNull()
-            stateDragDragging = stateClass?.getField(STATE_DRAG_HANDLE_DRAGGING)?.get(null)
+            stateDragDragging = stateClass?.cachedPublicField(STATE_DRAG_HANDLE_DRAGGING, accessible = false)?.get(null)
         }
         val dragState = stateDragDragging
         deoptimize(executeOnState)
@@ -215,9 +217,9 @@ object AospVolumeHapticHooker : StaticHooker() {
         }
         if (thresholdToken == null) {
             val tokenClass = MSDL_TOKEN.toClassOrNull()
-            thresholdToken = tokenClass?.getField(TOKEN_DRAG_THRESHOLD_LIMIT)?.get(null)
-            dragContinuousToken = tokenClass?.getField(TOKEN_DRAG_CONTINUOUS)?.get(null)
-            dragDiscreteToken = tokenClass?.getField(TOKEN_DRAG_DISCRETE)?.get(null)
+            thresholdToken = tokenClass?.cachedPublicField(TOKEN_DRAG_THRESHOLD_LIMIT, accessible = false)?.get(null)
+            dragContinuousToken = tokenClass?.cachedPublicField(TOKEN_DRAG_CONTINUOUS, accessible = false)?.get(null)
+            dragDiscreteToken = tokenClass?.cachedPublicField(TOKEN_DRAG_DISCRETE, accessible = false)?.get(null)
         }
         val threshold = thresholdToken
         val dragContinuous = dragContinuousToken
@@ -279,11 +281,10 @@ object AospVolumeHapticHooker : StaticHooker() {
             val ctor = cls.getDeclaredConstructor(android.content.Context::class.java, Boolean::class.javaPrimitiveType).apply {
                 isAccessible = true
             }
-            val method = cls.getDeclaredMethod(
+            val method = HostAccess.requireDeclaredMethod(cls,
                 "performHapticFeedback",
                 Int::class.javaPrimitiveType,
-                Boolean::class.javaPrimitiveType
-            ).apply { isAccessible = true }
+                Boolean::class.javaPrimitiveType, accessible = true)
             val util = ctor.newInstance(ctx, false)
             performHapticFeedback = method
             hapticUtil = util
@@ -297,7 +298,7 @@ object AospVolumeHapticHooker : StaticHooker() {
     private fun currentApplication(): Any? {
         return runCatching {
             val at = Class.forName("android.app.ActivityThread")
-            val m = at.getDeclaredMethod("currentApplication").apply { isAccessible = true }
+            val m = HostAccess.requireDeclaredMethod(at, "currentApplication", accessible = true)
             m.invoke(null) as? android.content.Context
         }.getOrNull()
     }

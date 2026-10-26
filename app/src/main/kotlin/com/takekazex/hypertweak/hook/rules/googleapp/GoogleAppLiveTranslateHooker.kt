@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.googleapp
 
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import com.takekazex.hypertweak.hook.base.dex.DexContractMembers
@@ -140,7 +141,7 @@ object GoogleAppLiveTranslateHooker : StaticHooker() {
             val hookId = if (clazz == impl) HOOK_SYSTEM_FEATURE else HOOK_SYSTEM_FEATURE_BASE
             if (existingHookIds.contains(hookId)) continue
             runCatching {
-                val method = clazz.getDeclaredMethod("hasSystemFeature", String::class.java)
+                val method = HostAccess.requireDeclaredMethod(clazz, "hasSystemFeature", String::class.java, accessible = false)
                 if (Modifier.isAbstract(method.modifiers)) {
                     DebugLog.d(TAG, "skipping abstract hasSystemFeature on ${clazz.name}")
                     return@runCatching

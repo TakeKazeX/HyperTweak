@@ -2,6 +2,7 @@
 
 package com.takekazex.hypertweak.hook.rules.systemui.icon.carrier
 
+import com.takekazex.hypertweak.hook.base.cachedDeclaredMethod
 import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
 import com.takekazex.hypertweak.hook.rules.systemui.icon.ControlCenterHeaderHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.FrameUpdateGate
@@ -526,7 +527,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         // still needs a repaint, because our fallback is the SIM name rather than that SPN.
         val customNameChanged = runCatching {
             hierarchyField(rowClass, "carrierTextController")?.type
-                ?.getDeclaredMethod("onCustomCarrierChanged", Array<String>::class.java)
+                ?.cachedDeclaredMethod("onCustomCarrierChanged", Array<String>::class.java, accessible = true)
                 ?.takeIf { it.returnType == Void.TYPE }?.apply { isAccessible = true }
         }.getOrNull()
         customNameChanged?.let { method ->

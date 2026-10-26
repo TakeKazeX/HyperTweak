@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.settings
 
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import android.content.Intent
@@ -28,12 +29,6 @@ object GoogleServicesSettingsHooker : StaticHooker() {
     private const val UPDATE_HEADER_LIST = "updateHeaderList"
     private const val ADD_GOOGLE_HEADERS = "AddGoogleSettingsHeaders"
     private const val GOOGLE_SETTINGS_PACKAGE = "com.google.android.gms"
-
-    private val headerFieldCache = HashMap<Class<*>, Field?>()
-
-    override fun onPrepareHotReload() {
-        synchronized(headerFieldCache) { headerFieldCache.clear() }
-    }
 
     override fun onHook() {
         if (!Preferences.getBoolean(PlatformSettingsKeys.KEY_SHOW_GOOGLE_SERVICES_IN_SETTINGS, false)) {
@@ -90,17 +85,5 @@ object GoogleServicesSettingsHooker : StaticHooker() {
         }
     }
 
-    private fun field(type: Class<*>, name: String): Field? {
-        synchronized(headerFieldCache) {
-            if (headerFieldCache.containsKey(type)) return headerFieldCache[type]
-            val resolved = generateSequence(type) { it.superclass }
-                .mapNotNull { current ->
-                    runCatching { current.getDeclaredField(name) }.getOrNull()
-                }
-                .firstOrNull()
-                ?.apply { isAccessible = true }
-            headerFieldCache[type] = resolved
-            return resolved
-        }
-    }
+    private fun field(type: Class<*>, name: String): Field? = HostAccess.field(type, name)
 }

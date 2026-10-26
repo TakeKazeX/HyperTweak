@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.system
 
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import android.content.ComponentName
@@ -63,9 +64,7 @@ object PasskeyHooker : StaticHooker() {
         // Initialize IS_INTERNATIONAL_BUILD field if available
         try {
             val buildClass = classLoader.loadClass("miui.os.Build")
-            fIsInternationalBuildBoolean = buildClass.getDeclaredField("IS_INTERNATIONAL_BUILD").apply {
-                isAccessible = true
-            }
+            fIsInternationalBuildBoolean = HostAccess.requireDeclaredField(buildClass, "IS_INTERNATIONAL_BUILD", accessible = true)
         } catch (e: Exception) {
             DebugLog.e(TAG, "find IS_INTERNATIONAL_BUILD failed", e)
         }
@@ -104,7 +103,7 @@ object PasskeyHooker : StaticHooker() {
         // RequestSession constructor hook
         val cRequestSession = "com.android.server.credentials.RequestSession".toClassOrNull() ?: return
         val fHybridService = runCatching {
-            cRequestSession.getDeclaredField("mHybridService").apply { isAccessible = true }
+            HostAccess.requireDeclaredField(cRequestSession, "mHybridService", accessible = true)
         }.getOrNull() ?: return
 
         val aClass = "com.android.server.credentials.RequestSession\$SessionLifetime".toClassOrNull() ?: return
@@ -132,15 +131,13 @@ object PasskeyHooker : StaticHooker() {
         val classIntentFactory = "android.credentials.selection.IntentFactory".toClassOrNull() ?: return
         val classIntentCreationResultBuilder = "android.credentials.selection.IntentCreationResult\$Builder".toClassOrNull() ?: return
         val mGetOemOverrideComponentName = runCatching {
-            classIntentFactory.getDeclaredMethod(
+            HostAccess.requireDeclaredMethod(classIntentFactory,
                 "getOemOverrideComponentName",
-                Context::class.java, classIntentCreationResultBuilder, Int::class.javaPrimitiveType!!
-            )
+                Context::class.java, classIntentCreationResultBuilder, Int::class.javaPrimitiveType!!, accessible = false)
         }.getOrNull() ?: runCatching {
-            classIntentFactory.getDeclaredMethod(
+            HostAccess.requireDeclaredMethod(classIntentFactory,
                 "getOemOverrideComponentName",
-                Context::class.java, classIntentCreationResultBuilder
-            )
+                Context::class.java, classIntentCreationResultBuilder, accessible = false)
         }.getOrNull()
 
         mGetOemOverrideComponentName?.hook {
@@ -169,12 +166,12 @@ object PasskeyHooker : StaticHooker() {
                             }
                             if (oemComponentEnabled && info.exported) {
                                 runCatching {
-                                    val setOemUiPackageNameMethod = intentResultBuilder.javaClass.getMethod("setOemUiPackageName", String::class.java)
+                                    val setOemUiPackageNameMethod = HostAccess.requirePublicMethod(intentResultBuilder.javaClass, "setOemUiPackageName", String::class.java, accessible = false)
                                     setOemUiPackageNameMethod.invoke(intentResultBuilder, oemComponentName.packageName)
 
                                     val oemUiUsageStatusClass = "android.credentials.selection.IntentCreationResult\$OemUiUsageStatus".toClass()
-                                    val successValue = oemUiUsageStatusClass.getField("SUCCESS").get(null)
-                                    val setOemUiUsageStatusMethod = intentResultBuilder.javaClass.getMethod("setOemUiUsageStatus", oemUiUsageStatusClass)
+                                    val successValue = HostAccess.requirePublicField(oemUiUsageStatusClass, "SUCCESS", accessible = false).get(null)
+                                    val setOemUiUsageStatusMethod = HostAccess.requirePublicMethod(intentResultBuilder.javaClass, "setOemUiUsageStatus", oemUiUsageStatusClass, accessible = false)
                                     setOemUiUsageStatusMethod.invoke(intentResultBuilder, successValue)
                                 }
                                 return@intercept oemComponentName
@@ -321,8 +318,8 @@ object PasskeyHooker : StaticHooker() {
     private fun tryStartActivityAsUser(context: Context, intent: Intent, userId: Int): Boolean {
         return runCatching {
             // Context#startActivityAsUser and UserHandle#of are @hide; resolve by name.
-            val userHandle = UserHandle::class.java.getMethod("of", Int::class.javaPrimitiveType!!).invoke(null, userId)
-            context.javaClass.getMethod("startActivityAsUser", Intent::class.java, UserHandle::class.java)
+            val userHandle = HostAccess.requirePublicMethod(UserHandle::class.java, "of", Int::class.javaPrimitiveType!!, accessible = false).invoke(null, userId)
+            HostAccess.requirePublicMethod(context.javaClass, "startActivityAsUser", Intent::class.java, UserHandle::class.java, accessible = false)
                 .invoke(context, intent, userHandle)
         }.isSuccess
     }
@@ -357,14 +354,14 @@ object PasskeyHooker : StaticHooker() {
             return
         }
         val itemView = runCatching {
-            viewHolder.javaClass.getField("itemView").get(viewHolder) as? View
+            HostAccess.requirePublicField(viewHolder.javaClass, "itemView", accessible = false).get(viewHolder) as? View
         }.getOrNull()
         if (itemView == null) {
             DebugLog.i(TAG, "DIAG wire skipped: no itemView")
             return
         }
         val context = runCatching {
-            preference.javaClass.getMethod("getContext").invoke(preference) as? Context
+            HostAccess.requirePublicMethod(preference.javaClass, "getContext", accessible = false).invoke(preference) as? Context
         }.getOrNull()
         if (context == null) {
             DebugLog.i(TAG, "DIAG wire skipped: no context")
@@ -387,25 +384,24 @@ object PasskeyHooker : StaticHooker() {
         if (switch.javaClass.name == "miuix.slidingwidget.widget.SlidingSwitch") return
 
         val listenerField = runCatching {
-            preference.javaClass.getDeclaredField("mOnClickListener").apply { isAccessible = true }
+            HostAccess.requireDeclaredField(preference.javaClass, "mOnClickListener", accessible = true)
         }.getOrNull()
         if (listenerField == null) {
             DebugLog.i(TAG, "DIAG wire skipped: no mOnClickListener field")
             return
         }
         val onCheckChanged = runCatching {
-            listenerField.type.getDeclaredMethod(
+            HostAccess.requireDeclaredMethod(listenerField.type,
                 "onCheckChanged",
                 preference.javaClass,
-                Boolean::class.javaPrimitiveType!!
-            )
+                Boolean::class.javaPrimitiveType!!, accessible = false)
         }.getOrNull()
         if (onCheckChanged == null) {
             DebugLog.i(TAG, "DIAG wire skipped: no onCheckChanged method in ${listenerField.type.name}")
             return
         }
         val checkedField = runCatching {
-            preference.javaClass.getDeclaredField("mChecked").apply { isAccessible = true }
+            HostAccess.requireDeclaredField(preference.javaClass, "mChecked", accessible = true)
         }.getOrNull()
 
         switch.setOnCheckedChangeListener { _, checked ->
@@ -427,14 +423,14 @@ object PasskeyHooker : StaticHooker() {
         // controller's authoritative state at every bind so the rows always reflect reality.
         val listener = listenerField.get(preference) ?: return
         val controller = runCatching {
-            listener.javaClass.getDeclaredField("this\$0").apply { isAccessible = true }.get(listener)
+            HostAccess.requireDeclaredField(listener.javaClass, "this\$0", accessible = true).get(listener)
         }.getOrNull()
         val packageName = runCatching {
-            listener.javaClass.getDeclaredField("val\$packageName").apply { isAccessible = true }.get(listener) as? String
+            HostAccess.requireDeclaredField(listener.javaClass, "val\$packageName", accessible = true).get(listener) as? String
         }.getOrNull()
         if (controller != null && packageName != null && checkedField != null) {
             val enabledNamesField = runCatching {
-                controller.javaClass.getDeclaredField("mEnabledPackageNames").apply { isAccessible = true }
+                HostAccess.requireDeclaredField(controller.javaClass, "mEnabledPackageNames", accessible = true)
             }.getOrNull()
             if (enabledNamesField != null) {
                 val enabled = runCatching {
@@ -575,7 +571,7 @@ object PasskeyHooker : StaticHooker() {
         val iClass = "com.xiaomi.scanner.module.code.utils.bean.MiFiDoBean".toClassOrNull()
         if (iClass != null) {
             runCatching {
-                val aMethod = iClass.getDeclaredMethod("getAppPackageName")
+                val aMethod = HostAccess.requireDeclaredMethod(iClass, "getAppPackageName", accessible = false)
                 aMethod.hook {
                     intercept { chain ->
                         if (Preferences.getBoolean(PlatformSettingsKeys.KEY_UNLOCK_PASSKEY, false)) {
@@ -604,7 +600,7 @@ object PasskeyHooker : StaticHooker() {
         val method = if (cached != null && cached.declaringClass == chainClass) {
             cached
         } else {
-            chainClass.getMethod("proceed").also { chainMethod = it }
+            HostAccess.requirePublicMethod(chainClass, "proceed", accessible = false).also { chainMethod = it }
         }
         return try {
             method.invoke(chain)

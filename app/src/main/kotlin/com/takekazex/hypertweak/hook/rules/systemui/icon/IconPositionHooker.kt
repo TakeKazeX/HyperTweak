@@ -95,8 +95,6 @@ object IconPositionHooker : StaticHooker() {
     private var mobileViewClass: Class<*>? = null
 
     private val networkVisibility = LinkedHashMap<Class<*>, Method>()
-    private val networkSlotFields = HashMap<Class<*>, Field?>()
-    private val networkVisibleStateFields = HashMap<Class<*>, Field?>()
     private val clipStates = WeakHashMap<ViewGroup, Pair<Boolean, Boolean>>()
     private var rowOverrides: Set<String> = emptySet()
     private val rowLayoutOwners = WeakHashMap<ViewGroup, Boolean>()
@@ -111,11 +109,6 @@ object IconPositionHooker : StaticHooker() {
     }
     private val lowerRowMotions = IdentityHashMap<View, LowerRowMotion>()
     private val lastRestoredOverflow = WeakHashMap<ViewGroup, Set<String>>()
-    private val iconVisibleGetters = HashMap<Class<*>, Method?>()
-    private val iconBlockedGetters = HashMap<Class<*>, Method?>()
-    private val removeFlagGetters = HashMap<Class<*>, Method?>()
-    private val networkSpeedWidthGetters = HashMap<Class<*>, Method?>()
-    private val batteryLayoutFields = HashMap<Class<*>, Field?>()
     private val activeHostLayouts = ThreadLocal<ArrayDeque<ViewGroup>>()
     private var originalSlotOrder = emptyList<String>()
     private var slotsField: Field? = null
@@ -123,7 +116,6 @@ object IconPositionHooker : StaticHooker() {
     private var ignoredSlotsField: Field? = null
     private var layoutFromField: Field? = null
     private var slotConstructor: Constructor<*>? = null
-    private val slotGetters = HashMap<Class<*>, Method?>()
 
     override fun saveHotReloadState(): Any = HostAccess.onMain {
         mapOf("order" to ArrayList(originalSlotOrder), "containers" to synchronized(stateLock) {
@@ -207,13 +199,6 @@ object IconPositionHooker : StaticHooker() {
         hookStatusBarIconListFactory()
         hookIgnoredSlots()
         networkVisibility.clear()
-        networkSlotFields.clear()
-        networkVisibleStateFields.clear()
-        iconVisibleGetters.clear()
-        iconBlockedGetters.clear()
-        removeFlagGetters.clear()
-        networkSpeedWidthGetters.clear()
-        batteryLayoutFields.clear()
         listOf(
             "com.android.systemui.statusbar.pipeline.mobile.ui.view.ModernStatusBarMobileView",
             "com.android.systemui.statusbar.pipeline.shared.ui.view.ModernStatusBarView"
@@ -225,12 +210,11 @@ object IconPositionHooker : StaticHooker() {
             }?.apply { isAccessible = true } ?: return@forEach
             networkVisibility[type] = method
             if (name.endsWith(".ModernStatusBarMobileView")) mobileViewClass = type
-            networkSlotFields[type] = findField(type, "slot")
             deoptimize(method)
             method.hook { before { param ->
                 val view = param.thisObject as? android.view.View ?: return@before
                 val container = view.parent ?: return@before
-                val slot = runCatching { networkSlotFields[type]?.get(view) as? String }.getOrNull()
+                val slot = runCatching { findField(type, "slot")?.get(view) as? String }.getOrNull()
                 if (slot != null && slot in maskSlotsFor(container)) {
                     // Save host-visible requests before forcing this container's network child
                     // closed. Calls with state 2 can be the superclass half of a subclass call,
@@ -249,7 +233,7 @@ object IconPositionHooker : StaticHooker() {
 
     /** MIUI's binder writes View visibility independently of the icon container's visible state. */
     private fun hookNativeMobileVisibility() {
-        val method = View::class.java.getDeclaredMethod("setVisibility", Int::class.javaPrimitiveType)
+        val method = HostAccess.requireDeclaredMethod(View::class.java, "setVisibility", Int::class.javaPrimitiveType, accessible = false)
         deoptimize(method)
         method.hook {
             before { param ->
@@ -259,7 +243,7 @@ object IconPositionHooker : StaticHooker() {
                 if (!type.isInstance(view)) return@before
                 runCatching {
                     val container = view.parent ?: return@runCatching
-                    val slot = networkSlotFields[type]?.get(view) as? String ?: return@runCatching
+                    val slot = findField(type, "slot")?.get(view) as? String ?: return@runCatching
                     val requested = param.args[0] as? Int ?: return@runCatching
                     param.args[0] = nativeViewVisibility.hostRequest(
                         view, requested, slot in maskSlotsFor(container)
@@ -442,17 +426,17 @@ object IconPositionHooker : StaticHooker() {
             val view = access.view.get(state) as? View ?: continue
             if (view.parent !== container || view.isGone) continue
             val slot = slotOf(view) ?: continue
-            val iconVisibleMethod = iconVisibleGetters.getOrPut(view.javaClass) {
+            val iconVisibleMethod = HostAccess.cached(view.javaClass, "icon-position:iconVisibleGetters", java.lang.reflect.Method::class.java) {
                 findNoArgMethod(view.javaClass, "isIconVisible")
             } ?: continue
             val iconVisible = runCatching { iconVisibleMethod.invoke(view) as? Boolean }
                 .getOrNull() ?: continue
-            val iconBlockedMethod = iconBlockedGetters.getOrPut(view.javaClass) {
+            val iconBlockedMethod = HostAccess.cached(view.javaClass, "icon-position:iconBlockedGetters", java.lang.reflect.Method::class.java) {
                 findNoArgMethod(view.javaClass, "isIconBlocked")
             } ?: continue
             val iconBlocked = runCatching { iconBlockedMethod.invoke(view) as? Boolean }
                 .getOrNull() ?: continue
-            val removeFlagMethod = removeFlagGetters.getOrPut(view.javaClass) {
+            val removeFlagMethod = HostAccess.cached(view.javaClass, "icon-position:removeFlagGetters", java.lang.reflect.Method::class.java) {
                 findNoArgMethod(view.javaClass, "getRemoveFlag")
             } ?: continue
             val removeFlag = runCatching { removeFlagMethod.invoke(view) as? Boolean }
@@ -618,7 +602,7 @@ object IconPositionHooker : StaticHooker() {
         for (index in 0 until group.childCount) {
             val child = group.getChildAt(index)
             val entry = networkVisibility.entries.firstOrNull { it.key.isInstance(child) } ?: continue
-            val slot = networkSlotFields[entry.key]?.get(child) as? String ?: continue
+            val slot = findField(entry.key, "slot")?.get(child) as? String ?: continue
             reconcileNativeMobileVisibility(child, slot in slots)
             if (slot in slots) {
                 if (!state.nativeVisibleStates.containsKey(child)) {
@@ -638,11 +622,7 @@ object IconPositionHooker : StaticHooker() {
     }
 
     private fun readNativeVisibleState(view: View): Int? = runCatching {
-        val field = if (networkVisibleStateFields.containsKey(view.javaClass)) {
-            networkVisibleStateFields[view.javaClass]
-        } else {
-            findField(view.javaClass, "iconVisibleState").also { networkVisibleStateFields[view.javaClass] = it }
-        }
+        val field = findField(view.javaClass, "iconVisibleState")
         field?.getInt(view)
     }.getOrNull()
 
@@ -675,16 +655,7 @@ object IconPositionHooker : StaticHooker() {
         return runCatching { field?.get(slot) as? String }.getOrNull()
     }
 
-    private fun findField(type: Class<*>, name: String): Field? {
-        var current: Class<*>? = type
-        while (current != null) {
-            runCatching {
-                return current.getDeclaredField(name).apply { isAccessible = true }
-            }
-            current = current.superclass
-        }
-        return null
-    }
+    private fun findField(type: Class<*>, name: String): Field? = HostAccess.field(type, name)
 
     private fun findMethod(type: Class<*>, name: String): Method? {
         var current: Class<*>? = type
@@ -768,7 +739,7 @@ object IconPositionHooker : StaticHooker() {
             // An appearance fade must not collapse either row's horizontal positions.
             if (access.gone.getBoolean(state) || access.visibleState.getInt(state) != 0 ||
                 !isHostLayoutVisible(view, slot, container)) continue
-            val removing = removeFlagGetters.getOrPut(view.javaClass) {
+            val removing = HostAccess.cached(view.javaClass, "icon-position:removeFlagGetters", java.lang.reflect.Method::class.java) {
                 findNoArgMethod(view.javaClass, "getRemoveFlag")
             }?.let { runCatching { it.invoke(view) as? Boolean }.getOrNull() } ?: false
             if (removing) continue
@@ -835,7 +806,7 @@ object IconPositionHooker : StaticHooker() {
     private fun effectiveBattery(container: ViewGroup): View? {
         val parent = container.parent as? ViewGroup ?: return null
         val layoutBattery = runCatching {
-            batteryLayoutFields.getOrPut(parent.javaClass) {
+            HostAccess.cached(parent.javaClass, "icon-position:batteryLayoutFields", java.lang.reflect.Field::class.java) {
                 findField(parent.javaClass, "mBattery")
             }?.get(parent) as? View
         }.getOrNull()
@@ -860,10 +831,10 @@ object IconPositionHooker : StaticHooker() {
         if (view.visibility != View.VISIBLE || view.width <= 0) return false
         val ignored = runCatching { ignoredSlotsField?.get(container) as? List<*> }.getOrNull()
         if (ignored?.contains(slot) == true) return false
-        val visible = iconVisibleGetters.getOrPut(view.javaClass) {
+        val visible = HostAccess.cached(view.javaClass, "icon-position:iconVisibleGetters", java.lang.reflect.Method::class.java) {
             findNoArgMethod(view.javaClass, "isIconVisible")
         }?.let { runCatching { it.invoke(view) as? Boolean }.getOrNull() } ?: true
-        val blocked = iconBlockedGetters.getOrPut(view.javaClass) {
+        val blocked = HostAccess.cached(view.javaClass, "icon-position:iconBlockedGetters", java.lang.reflect.Method::class.java) {
             findNoArgMethod(view.javaClass, "isIconBlocked")
         }?.let { runCatching { it.invoke(view) as? Boolean }.getOrNull() } ?: false
         return visible && !blocked
@@ -871,7 +842,7 @@ object IconPositionHooker : StaticHooker() {
 
     private fun occupiedWidth(view: View): Float {
         val networkSpeedWidth = if (view.javaClass.name == NETWORK_SPEED_CLASS) {
-            networkSpeedWidthGetters.getOrPut(view.javaClass) {
+            HostAccess.cached(view.javaClass, "icon-position:networkSpeedWidthGetters", java.lang.reflect.Method::class.java) {
                 findNoArgMethod(view.javaClass, "getNetworkSpeedWidth")
             }?.let { runCatching { (it.invoke(view) as? Number)?.toFloat() }.getOrNull() }
         } else {
@@ -886,10 +857,10 @@ object IconPositionHooker : StaticHooker() {
         var current: Class<*>? = type
         while (current != null) {
             runCatching {
-                return current.getDeclaredMethod(name).apply { isAccessible = true }
+                return HostAccess.requireDeclaredMethod(current, name, accessible = true)
             }
             runCatching {
-                return current.getMethod(name).apply { isAccessible = true }
+                return HostAccess.requirePublicMethod(current, name, accessible = true)
             }
             current = current.superclass
         }
@@ -897,13 +868,13 @@ object IconPositionHooker : StaticHooker() {
     }
 
     private fun slotOf(view: View): String? {
-        val getter = slotGetters.getOrPut(view.javaClass) {
+        val getter = HostAccess.cached(view.javaClass, "icon-position:slotGetters", java.lang.reflect.Method::class.java) {
             var current: Class<*>? = view.javaClass
             var found: Method? = null
             while (current != null && found == null) {
                 found = current.interfaces.firstNotNullOfOrNull { iface ->
-                    runCatching { iface.getMethod("getSlot") }.getOrNull()
-                } ?: runCatching { current.getMethod("getSlot") }.getOrNull()
+                    runCatching { HostAccess.requirePublicMethod(iface, "getSlot", accessible = true) }.getOrNull()
+                } ?: runCatching { HostAccess.requirePublicMethod(current, "getSlot", accessible = true) }.getOrNull()
                 current = current.superclass
             }
             found?.apply { isAccessible = true }

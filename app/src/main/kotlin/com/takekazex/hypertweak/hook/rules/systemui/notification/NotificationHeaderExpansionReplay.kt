@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.notification
 
+import com.takekazex.hypertweak.hook.base.HostAccess
 import java.lang.reflect.Field
 import java.lang.reflect.Method
 
@@ -15,12 +16,12 @@ internal object NotificationHeaderExpansionReplay {
         check(method.declaringClass.isInstance(callback)) { "Wrong native notification callback owner" }
         field(controller, "lastSetTextSizeExpansion").setFloat(controller, -1f)
         // Recompute the host's clockScale/clockScaleEnlarge from its current native font sizes.
-        controller.javaClass.getMethod("updateTranslationY").apply { isAccessible = true }.invoke(controller)
+        HostAccess.requirePublicMethod(controller.javaClass, "updateTranslationY", accessible = true).invoke(controller)
         method.apply { isAccessible = true }.invoke(callback, progress)
     }
 
     private fun field(owner: Any, name: String): Field =
         generateSequence(owner.javaClass) { it.superclass }
-            .mapNotNull { type -> runCatching { type.getDeclaredField(name).apply { isAccessible = true } }.getOrNull() }
+            .mapNotNull { type -> runCatching { HostAccess.requireDeclaredField(type, name, accessible = true) }.getOrNull() }
             .firstOrNull() ?: error("Missing native notification controller field: $name")
 }

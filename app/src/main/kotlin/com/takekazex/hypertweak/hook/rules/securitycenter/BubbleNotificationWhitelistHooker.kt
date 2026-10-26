@@ -2,6 +2,8 @@
 
 package com.takekazex.hypertweak.hook.rules.securitycenter
 
+import com.takekazex.hypertweak.hook.base.HostAccess
+
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import android.content.Context
@@ -341,7 +343,7 @@ object BubbleNotificationWhitelistHooker : StaticHooker() {
     }
 
     private fun Class<*>.getDeclaredFieldOrNull(name: String): Field? =
-        runCatching { getDeclaredField(name).apply { isAccessible = true } }.getOrNull()
+        runCatching { HostAccess.requireDeclaredField(this, name, accessible = true) }.getOrNull()
 
     private fun Class<*>.getDeclaredConstructorOrNull(vararg parameterTypes: Class<*>): Constructor<*>? =
         runCatching { getDeclaredConstructor(*parameterTypes).apply { isAccessible = true } }.getOrNull()
@@ -349,7 +351,7 @@ object BubbleNotificationWhitelistHooker : StaticHooker() {
     private fun Class<*>.getDeclaredMethodOrNull(
         name: String,
         vararg parameterTypes: Class<*>
-    ): Method? = runCatching { getDeclaredMethod(name, *parameterTypes).apply { isAccessible = true } }.getOrNull()
+    ): Method? = runCatching { HostAccess.requireDeclaredMethod(this, name, *parameterTypes, accessible = true) }.getOrNull()
 
     /** Deoptimizes the notification callback that may inline shouldHeadUp and its private gate. */
     private fun deoptimizeNotificationCaller() {

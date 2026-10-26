@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.slider
  
+import com.takekazex.hypertweak.hook.base.HostAccess
 import android.util.Log
 import android.view.View
 import android.widget.TextView
@@ -24,119 +25,46 @@ class BrightnessSliderHooker(
         val fromLeft: Int, val fromTop: Int, val fromWidth: Int, val fromHeight: Int,
         val toLeft: Int, val toTop: Int, val toWidth: Int, val toHeight: Int
     )
-    private val animatorBounds = generationResource(java.util.WeakHashMap<Any, AnimatorBounds>()) { it.clear() }
+    private val animatorBounds = generationMainResource(java.util.WeakHashMap<Any, AnimatorBounds>()) { it.clear() }
 
-    // Cached fields for BrightnessPanelAnimator (frameCallback hot path)
-    private var animatorSizeField: java.lang.reflect.Field? = null
-    private var animatorGetToViewMethod: java.lang.reflect.Method? = null
-    private var animatorFromViewField: java.lang.reflect.Field? = null
-    // Keyed by Class: these resolve against several runtime types (holder binding vs slider-view
-    // binding, fromView vs toView), so a single slot would be poisoned by the first class seen.
-    private val viewGetTopTextMethodCache = java.util.concurrent.ConcurrentHashMap<Class<*>, java.lang.reflect.Method>()
-    private val viewGetSliderBindingMethodCache = java.util.concurrent.ConcurrentHashMap<Class<*>, java.lang.reflect.Method>()
-    private val bindingTopTextFieldCache = java.util.concurrent.ConcurrentHashMap<Class<*>, java.lang.reflect.Field>()
+    private fun getOrCacheAnimatorSizeField(clazz: Class<*>): java.lang.reflect.Field? =
+        HostAccess.requireDeclaredField(clazz, "size", accessible = true)
 
-    // Cached fields for BrightnessSliderController (setInMirror)
-    private var inMirrorField: java.lang.reflect.Field? = null
-    private var mirrorBlurProviderField: java.lang.reflect.Field? = null
+    private fun getOrCacheAnimatorGetToViewMethod(clazz: Class<*>): java.lang.reflect.Method? =
+        HostAccess.requireDeclaredMethod(clazz, "getToView", accessible = true)
 
-    // Cached fields for BrightnessPanelSliderDelegate (prepareShow / updateIconProgress)
-    private var delegateBindingField: java.lang.reflect.Field? = null
-    private var delegateToggleSliderField: java.lang.reflect.Field? = null
-    private var delegateTopTextField: java.lang.reflect.Field? = null
-    private var delegateSliderField: java.lang.reflect.Field? = null
-    private var delegateUpdateProgressMethod: java.lang.reflect.Method? = null
+    private fun getOrCacheAnimatorFromViewField(clazz: Class<*>): java.lang.reflect.Field? =
+        HostAccess.requireDeclaredField(clazz, "fromView", accessible = true)
 
-    private fun getOrCacheAnimatorSizeField(clazz: Class<*>): java.lang.reflect.Field? {
-        animatorSizeField?.let { return it }
-        val f = clazz.getDeclaredField("size").apply { isAccessible = true }
-        animatorSizeField = f
-        return f
-    }
+    private fun getOrCacheViewGetTopTextMethod(clazz: Class<*>): java.lang.reflect.Method? =
+        HostAccess.requirePublicMethod(clazz, "getTopText", accessible = false)
 
-    private fun getOrCacheAnimatorGetToViewMethod(clazz: Class<*>): java.lang.reflect.Method? {
-        animatorGetToViewMethod?.let { return it }
-        val m = clazz.getDeclaredMethod("getToView").apply { isAccessible = true }
-        animatorGetToViewMethod = m
-        return m
-    }
+    private fun getOrCacheViewGetSliderBindingMethod(clazz: Class<*>): java.lang.reflect.Method? =
+        HostAccess.requirePublicMethod(clazz, "getSliderBinding", accessible = false)
 
-    private fun getOrCacheAnimatorFromViewField(clazz: Class<*>): java.lang.reflect.Field? {
-        animatorFromViewField?.let { return it }
-        val f = clazz.getDeclaredField("fromView").apply { isAccessible = true }
-        animatorFromViewField = f
-        return f
-    }
+    private fun getOrCacheBindingTopTextField(clazz: Class<*>): java.lang.reflect.Field? =
+        HostAccess.requirePublicField(clazz, "topText", accessible = false)
 
-    private fun getOrCacheViewGetTopTextMethod(clazz: Class<*>): java.lang.reflect.Method? {
-        viewGetTopTextMethodCache[clazz]?.let { return it }
-        val m = clazz.getMethod("getTopText")
-        viewGetTopTextMethodCache[clazz] = m
-        return m
-    }
+    private fun getOrCacheInMirrorField(clazz: Class<*>): java.lang.reflect.Field? =
+        HostAccess.requireDeclaredField(clazz, "inMirror", accessible = true)
 
-    private fun getOrCacheViewGetSliderBindingMethod(clazz: Class<*>): java.lang.reflect.Method? {
-        viewGetSliderBindingMethodCache[clazz]?.let { return it }
-        val m = clazz.getMethod("getSliderBinding")
-        viewGetSliderBindingMethodCache[clazz] = m
-        return m
-    }
+    private fun getOrCacheMirrorBlurProviderField(clazz: Class<*>): java.lang.reflect.Field? =
+        runCatching { HostAccess.requireDeclaredField(clazz, "mirrorBlurProvider", accessible = true) }.getOrNull()
 
-    private fun getOrCacheBindingTopTextField(clazz: Class<*>): java.lang.reflect.Field? {
-        bindingTopTextFieldCache[clazz]?.let { return it }
-        val f = clazz.getField("topText")
-        bindingTopTextFieldCache[clazz] = f
-        return f
-    }
+    private fun getOrCacheDelegateBindingField(clazz: Class<*>): java.lang.reflect.Field? =
+        HostAccess.requireDeclaredField(clazz, "binding", accessible = true)
 
-    private fun getOrCacheInMirrorField(clazz: Class<*>): java.lang.reflect.Field? {
-        inMirrorField?.let { return it }
-        val f = clazz.getDeclaredField("inMirror").apply { isAccessible = true }
-        inMirrorField = f
-        return f
-    }
+    private fun getOrCacheDelegateToggleSliderField(clazz: Class<*>): java.lang.reflect.Field? =
+        HostAccess.requirePublicField(clazz, "toggleSlider", accessible = true)
 
-    private fun getOrCacheMirrorBlurProviderField(clazz: Class<*>): java.lang.reflect.Field? {
-        mirrorBlurProviderField?.let { return it }
-        val f = runCatching { clazz.getDeclaredField("mirrorBlurProvider").apply { isAccessible = true } }.getOrNull()
-        mirrorBlurProviderField = f
-        return f
-    }
+    private fun getOrCacheDelegateTopTextField(clazz: Class<*>): java.lang.reflect.Field? =
+        HostAccess.requirePublicField(clazz, "topText", accessible = true)
 
-    private fun getOrCacheDelegateBindingField(clazz: Class<*>): java.lang.reflect.Field? {
-        delegateBindingField?.let { return it }
-        val f = clazz.getDeclaredField("binding").apply { isAccessible = true }
-        delegateBindingField = f
-        return f
-    }
+    private fun getOrCacheDelegateSliderField(clazz: Class<*>): java.lang.reflect.Field? =
+        HostAccess.requirePublicField(clazz, "slider", accessible = true)
 
-    private fun getOrCacheDelegateToggleSliderField(clazz: Class<*>): java.lang.reflect.Field? {
-        delegateToggleSliderField?.let { return it }
-        val f = clazz.getField("toggleSlider").apply { isAccessible = true }
-        delegateToggleSliderField = f
-        return f
-    }
-
-    private fun getOrCacheDelegateTopTextField(clazz: Class<*>): java.lang.reflect.Field? {
-        delegateTopTextField?.let { return it }
-        val f = clazz.getField("topText").apply { isAccessible = true }
-        delegateTopTextField = f
-        return f
-    }
-
-    private fun getOrCacheDelegateSliderField(clazz: Class<*>): java.lang.reflect.Field? {
-        delegateSliderField?.let { return it }
-        val f = clazz.getField("slider").apply { isAccessible = true }
-        delegateSliderField = f
-        return f
-    }
-
-    private fun getOrCacheDelegateUpdateProgressMethod(clazz: Class<*>): java.lang.reflect.Method? {
-        delegateUpdateProgressMethod?.let { return it }
-        val m = clazz.getDeclaredMethod("updateIconProgress", Boolean::class.javaPrimitiveType).apply { isAccessible = true }
-        delegateUpdateProgressMethod = m
-        return m
-    }
+    private fun getOrCacheDelegateUpdateProgressMethod(clazz: Class<*>): java.lang.reflect.Method? =
+        HostAccess.requireDeclaredMethod(clazz, "updateIconProgress", Boolean::class.javaPrimitiveType, accessible = true)
 
     override fun onHook() {
         val clzBrightnessSlider = parent.resolveClass("miui.systemui.controlcenter.panel.main.brightness.BrightnessSliderController")
@@ -190,8 +118,8 @@ class BrightnessSliderHooker(
                     val result = chain.proceed()
 
                     runCatching {
-                        val holder = thisObject.javaClass.getMethod("getHolder").invoke(thisObject) ?: return@runCatching
-                        val binding = runCatching { holder.javaClass.getMethod("getBinding").invoke(holder) }.getOrNull() ?: holder
+                        val holder = HostAccess.requirePublicMethod(thisObject.javaClass, "getHolder", accessible = false).invoke(thisObject) ?: return@runCatching
+                        val binding = runCatching { HostAccess.requirePublicMethod(holder.javaClass, "getBinding", accessible = false).invoke(holder) }.getOrNull() ?: holder
                         val mirrorBlurProvider = getOrCacheMirrorBlurProviderField(binding.javaClass)?.let { f ->
                             runCatching { f.get(binding) as? View }.getOrNull()
                         }

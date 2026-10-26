@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.securitycenter
 
+import com.takekazex.hypertweak.hook.base.cachedPublicField
 import com.takekazex.hypertweak.settings.contract.AppSettingsKeys
 
 import android.app.Activity
@@ -25,7 +26,7 @@ object AppDetailsIconLaunchHooker : DynamicHooker() {
     private const val DETAILS = "com.miui.appmanager.ApplicationsDetailsActivity"
     private data class Original(val clickable: Boolean, val focusable: Int)
     private val icons = WeakHashMap<ImageView, Original>()
-    private val userHandle by lazy { UserHandle::class.java.getMethod("of", Int::class.javaPrimitiveType) }
+    private val userHandle by lazy { HostAccess.requirePublicMethod(UserHandle::class.java, "of", Int::class.javaPrimitiveType, accessible = false) }
     private var retired = false
     private var ready = false
 
@@ -38,10 +39,10 @@ object AppDetailsIconLaunchHooker : DynamicHooker() {
         val bind = title.declaredMethods.singleOrNull {
             it.name == "onBindViewHolder" && it.parameterCount == 1 && it.returnType == Void.TYPE
         } ?: return
-        val itemView = bind.parameterTypes.single().getField("itemView")
+        val itemView = bind.parameterTypes.single().cachedPublicField("itemView", accessible = false)
         val fragment = "com.miui.appmanager.fragment.ApplicationsDetailsFragment".toClassOrNull() ?: return
-        val resume = fragment.getDeclaredMethod("onResume")
-        val getActivity = fragment.getMethod("getActivity")
+        val resume = HostAccess.requireDeclaredMethod(fragment, "onResume", accessible = false)
+        val getActivity = HostAccess.requirePublicMethod(fragment, "getActivity", accessible = false)
         bind.hook {
             after { param ->
                 HookFailurePolicy.open(TAG, "bind icon", Unit) {
@@ -128,7 +129,7 @@ object AppDetailsIconLaunchHooker : DynamicHooker() {
         // Also covers upgrading from an APK without this feature or any saved host state.
         HookFailurePolicy.open(TAG, "recover details activity", Unit) {
             val owner = Class.forName("android.app.ActivityThread")
-            val thread = owner.getMethod("currentActivityThread").invoke(null) ?: return@open
+            val thread = HostAccess.requirePublicMethod(owner, "currentActivityThread", accessible = false).invoke(null) ?: return@open
             val records = HostAccess.read(thread, "mActivities") as? Map<*, *> ?: return@open
             records.values.filterNotNull().forEach { record ->
                 val host = HostAccess.read(record, "activity") as? Activity ?: return@forEach

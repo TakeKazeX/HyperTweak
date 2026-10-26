@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.ime
 
+import com.takekazex.hypertweak.hook.base.cachedDeclaredMethod
+import com.takekazex.hypertweak.hook.base.HostAccess
 import android.content.Context
 import android.view.LayoutInflater
 import android.view.View
@@ -11,7 +13,6 @@ import com.takekazex.hypertweak.hook.base.HotReloadMode
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.reflect.Field
-import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Makes MIUI's keyboard switcher list every enabled input method instead of the customised ones,
@@ -36,14 +37,11 @@ object MiuiImeBottomHooker : StaticHooker() {
 
     /** Resolved once at hook time; `getSupportIme` fires on every switcher list request. */
     private var sBottomViewHelperField: Field? by generationState { null }
-    private val mImmFieldCache = generationResource(ConcurrentHashMap<Class<*>, Field?>()) { it.clear() }
 
     /** Process-wide `InputMethodManager` fallback when the bottom-view helper is not ready. */
     private var immSingleton: InputMethodManager? by generationState { null }
     private var immSingletonResolved by generationState { false }
 
-    override fun onPrepareHotReload() {
-    }
 
     override fun onHook() {
         val bottomManager = BOTTOM_MANAGER.toClassOrNull() ?: run {
@@ -52,13 +50,13 @@ object MiuiImeBottomHooker : StaticHooker() {
         }
 
         sBottomViewHelperField = runCatching {
-            bottomManager.getDeclaredField("sBottomViewHelper").apply { isAccessible = true }
+            HostAccess.requireDeclaredField(bottomManager, "sBottomViewHelper", accessible = true)
         }.getOrNull()
 
         // The dex's allowlist is the authoritative "MIUI-customized keyboard" signal on .19,
         // where InputMethodServiceInjector.isImeSupport(Context) no longer exists.
         runCatching {
-            val map = bottomManager.getDeclaredField("sImeMinVersionSupport").apply { isAccessible = true }
+            val map = HostAccess.requireDeclaredField(bottomManager, "sImeMinVersionSupport", accessible = true)
                 .get(null) as? Map<*, *>
             if (map != null) {
                 MiuiCustomizedImePackages.update(map.keys.filterIsInstance<String>().toSet())
@@ -189,14 +187,7 @@ object MiuiImeBottomHooker : StaticHooker() {
         }
     }
 
-    private fun mImmFieldOf(helperClass: Class<*>): Field? {
-        mImmFieldCache[helperClass]?.let { return it }
-        val field = runCatching {
-            helperClass.getDeclaredField("mImm").apply { isAccessible = true }
-        }.getOrNull()
-        mImmFieldCache[helperClass] = field
-        return field
-    }
+    private fun mImmFieldOf(helperClass: Class<*>): Field? = HostAccess.declaredField(helperClass, "mImm", accessible = true)
 
     /**
      * Fallback for when `sBottomViewHelper` has not been initialized yet: `InputMethodManager` is
@@ -207,13 +198,11 @@ object MiuiImeBottomHooker : StaticHooker() {
         immSingletonResolved = true
         immSingleton = runCatching {
             "android.view.inputmethod.InputMethodManager".toClassOrNull()
-                ?.getDeclaredMethod("peekInstance")
-                ?.apply { isAccessible = true }
+                ?.cachedDeclaredMethod("peekInstance", accessible = true)
                 ?.invoke(null) as? InputMethodManager
         }.getOrNull() ?: runCatching {
             "android.view.inputmethod.InputMethodManager".toClassOrNull()
-                ?.getDeclaredMethod("getInstance")
-                ?.apply { isAccessible = true }
+                ?.cachedDeclaredMethod("getInstance", accessible = true)
                 ?.invoke(null) as? InputMethodManager
         }.getOrNull()
         return immSingleton

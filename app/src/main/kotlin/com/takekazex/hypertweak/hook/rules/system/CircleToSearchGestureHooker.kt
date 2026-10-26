@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.system
 
+import com.takekazex.hypertweak.hook.base.HostAccess
 import android.content.Context
 import android.net.Uri
 import android.os.Handler
@@ -207,8 +208,8 @@ object CircleToSearchGestureHooker : StaticHooker() {
 
     private fun systemContext(): Context? = runCatching {
         val activityThread = Class.forName("android.app.ActivityThread")
-        val thread = activityThread.getMethod("currentActivityThread").invoke(null) ?: return null
-        activityThread.getMethod("getSystemContext").invoke(thread) as? Context
+        val thread = HostAccess.requirePublicMethod(activityThread, "currentActivityThread", accessible = false).invoke(null) ?: return null
+        HostAccess.requirePublicMethod(activityThread, "getSystemContext", accessible = false).invoke(thread) as? Context
     }.onFailure {
         DebugLog.w(SCOPE, "could not resolve the system context", it)
     }.getOrNull()

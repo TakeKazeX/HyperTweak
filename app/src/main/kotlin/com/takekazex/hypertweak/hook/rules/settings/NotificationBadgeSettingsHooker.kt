@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.settings
 
+import com.takekazex.hypertweak.hook.base.HostAccess
 import android.app.NotificationChannel
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
@@ -61,8 +62,6 @@ object NotificationBadgeSettingsHooker : StaticHooker() {
     /** The preference captured just before `removeDefaultPrefs` detaches it. */
     private var capturedPref: Any? by generationState { null }
 
-    override fun onPrepareHotReload() {
-    }
 
     override fun onHook() {
         if (!Preferences.notificationBadge()) {
@@ -149,7 +148,7 @@ object NotificationBadgeSettingsHooker : StaticHooker() {
             it.name == "updateChannel" && it.parameterTypes.size == 3
         }?.apply { isAccessible = true }
         lockFieldsMethod = runCatching {
-            NotificationChannel::class.java.getMethod("lockFields", Int::class.javaPrimitiveType)
+            HostAccess.requirePublicMethod(NotificationChannel::class.java, "lockFields", Int::class.javaPrimitiveType, accessible = false)
         }.getOrNull()
         listenerInterface = runCatching {
             Class.forName(LISTENER_IFACE, false, baseClass.classLoader)
@@ -219,7 +218,7 @@ object NotificationBadgeSettingsHooker : StaticHooker() {
         var type: Class<*>? = cls
         while (type != null && type != Any::class.java) {
             try {
-                return type.getDeclaredField(name).apply { isAccessible = true }
+                return HostAccess.requireDeclaredField(type, name, accessible = true)
             } catch (_: NoSuchFieldException) {
                 type = type.superclass
             }

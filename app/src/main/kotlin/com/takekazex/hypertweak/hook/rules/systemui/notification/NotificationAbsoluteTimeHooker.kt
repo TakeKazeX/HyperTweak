@@ -63,11 +63,11 @@ object NotificationAbsoluteTimeHooker : StaticHooker() {
         val header = HEADER.toClassOrNull() ?: return
         val wrapper = WRAPPER.toClassOrNull() ?: return
         boundary("resolve") {
-            timeField = type.getDeclaredField("mTimeMillis").apply { isAccessible = true }
-            relativeField = type.getDeclaredField("mShowRelativeTime").apply { isAccessible = true }
-            nextUpdateField = type.getDeclaredField("mUpdateTimeMillis").apply { isAccessible = true }
-            wrapperViewField = wrapper.getDeclaredField("mView").apply { isAccessible = true }
-            val update = type.getDeclaredMethod("update").apply { isAccessible = true }
+            timeField = HostAccess.requireDeclaredField(type, "mTimeMillis", accessible = true)
+            relativeField = HostAccess.requireDeclaredField(type, "mShowRelativeTime", accessible = true)
+            nextUpdateField = HostAccess.requireDeclaredField(type, "mUpdateTimeMillis", accessible = true)
+            wrapperViewField = HostAccess.requireDeclaredField(wrapper, "mView", accessible = true)
+            val update = HostAccess.requireDeclaredMethod(type, "update", accessible = true)
             updateMethod = update
             val content = header.declaredMethods.single { method ->
                 method.name == "onContentUpdated" && method.parameterTypes.map { it.name } ==
@@ -89,7 +89,7 @@ object NotificationAbsoluteTimeHooker : StaticHooker() {
                     if (views.containsKey(view)) render(view)
                 } }
             }
-            type.getDeclaredMethod("onInitializeAccessibilityNodeInfoInternal", AccessibilityNodeInfo::class.java)
+            HostAccess.requireDeclaredMethod(type, "onInitializeAccessibilityNodeInfoInternal", AccessibilityNodeInfo::class.java, accessible = false)
                 .hook("notification_absolute_time_accessibility") {
                     after { param -> boundary("accessibility") {
                         val view = param.thisObject as? TextView ?: return@boundary

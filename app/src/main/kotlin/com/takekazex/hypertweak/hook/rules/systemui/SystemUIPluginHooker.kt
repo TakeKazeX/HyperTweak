@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui
 
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.hook.rules.systemui.controlcenter.ControlCenterCardsEditHooker
 import com.takekazex.hypertweak.hook.rules.systemui.controlcenter.ControlCenterSuperIslandHooker
 import com.takekazex.hypertweak.hook.rules.systemui.controlcenter.ControlCenterVolumeKeyHooker
@@ -316,7 +317,7 @@ object SystemUIPluginHooker : StaticHooker() {
     private fun readPluginField(obj: Any, vararg names: String): Any? {
         for (name in names) {
             val value = runCatching {
-                obj.javaClass.getDeclaredField(name).apply { isAccessible = true }.get(obj)
+                HostAccess.requireDeclaredField(obj.javaClass, name, accessible = true).get(obj)
             }.getOrNull()
             if (value != null) return value
         }

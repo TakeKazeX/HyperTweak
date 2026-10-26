@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.lockscreen
 
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
 import com.takekazex.hypertweak.hook.rules.systemui.NativeViewAttachmentReplay
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
@@ -166,7 +167,7 @@ object LockscreenBottomTextHooker : StaticHooker() {
         }
 
         runCatching {
-            View::class.java.getMethod("setVisibility", Int::class.javaPrimitiveType).hook {
+            HostAccess.requirePublicMethod(View::class.java, "setVisibility", Int::class.javaPrimitiveType, accessible = false).hook {
                 before { param ->
                     HookFailurePolicy.open(TAG, "compact status visibility", Unit) {
                         val view = param.thisObject as? View ?: return@open
@@ -252,11 +253,10 @@ object LockscreenBottomTextHooker : StaticHooker() {
      */
     private fun hookCompactStatusMeasurement() {
         val measure = runCatching {
-            View::class.java.getMethod(
+            HostAccess.requirePublicMethod(View::class.java,
                 "measure",
                 Int::class.javaPrimitiveType,
-                Int::class.javaPrimitiveType
-            )
+                Int::class.javaPrimitiveType, accessible = false)
         }.getOrElse {
             DebugLog.hookFailed(TAG, "View#measure(Int,Int)", it)
             return
@@ -405,6 +405,6 @@ object LockscreenBottomTextHooker : StaticHooker() {
     }
 
     private fun Class<*>.staticId(name: String): Int = runCatching {
-        getField(name).getInt(null)
+        HostAccess.requirePublicField(this, name, accessible = false).getInt(null)
     }.getOrDefault(0)
 }

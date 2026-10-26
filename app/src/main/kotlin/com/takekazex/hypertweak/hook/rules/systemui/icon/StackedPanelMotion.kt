@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.hook.rules.systemui.icon.carrier.ControlCenterCarrierBlockHooker
 import android.graphics.Picture
 import android.graphics.RectF
@@ -10,20 +11,16 @@ import android.widget.ImageView
 import androidx.core.view.isVisible
 import com.takekazex.hypertweak.presentation.icon.duo.DuoSignalRow
 import com.takekazex.hypertweak.hook.rules.systemui.icon.duo.SignalRowMotion
-import java.lang.reflect.Field
-import java.lang.reflect.Method
 import java.util.IdentityHashMap
 import kotlin.math.abs
 
 /** Uses the same per-SIM overlay as Duo while retaining the normal host icon-controller slot. */
 internal class StackedPanelMotion(private val callback: Any) {
-    private val getters = HashMap<Class<*>, Method?>()
     private var expandedRow: View? = null
     private var fakeRow: View? = null
     private var sourceView: ImageView? = null
     private var statusContainer: View? = null
     private var signalId = 0
-    private val fields = HashMap<Pair<Class<*>, String>, Field?>()
     private val motions = HashMap<Int, SignalRowMotion>()
     private val targets = HashMap<Int, View>()
     private val masked = IdentityHashMap<View, Float>()
@@ -48,10 +45,7 @@ internal class StackedPanelMotion(private val callback: Any) {
         if (!visible || picture == null || rows.isEmpty()) { clear(); return }
         val owner = read(callback, "this\$0") ?: return
         val lazyHeader = read(owner, "headerController") ?: return
-        val lazyClass = lazyHeader.javaClass
-        if (!getters.containsKey(lazyClass)) getters[lazyClass] = lazyClass.methods
-            .firstOrNull { it.name == "get" && it.parameterCount == 0 }
-        val header = getters[lazyClass]?.invoke(lazyHeader) ?: return
+        val header = HostAccess.publicMethod(lazyHeader.javaClass, "get", accessible = false)?.invoke(lazyHeader) ?: return
         val expanded = read(header, "controlCenterStatusBar") as? View ?: return
         val nextRoot = expanded.rootView as? ViewGroup ?: return
         if (root !== nextRoot || observer?.isAlive != true) {
@@ -159,12 +153,7 @@ internal class StackedPanelMotion(private val callback: Any) {
         observer = null; root = null; expandedRow = null; fakeRow = null
         sourceView = null; statusContainer = null; signalId = 0
     }
-    private fun read(owner: Any, name: String): Any? {
-        val key = owner.javaClass to name
-        if (!fields.containsKey(key)) fields[key] = generateSequence(owner.javaClass) { it.superclass }
-            .mapNotNull { runCatching { it.getDeclaredField(name).apply { isAccessible = true } }.getOrNull() }.firstOrNull()
-        return fields[key]?.get(owner)
-    }
+    private fun read(owner: Any, name: String): Any? = HostAccess.read(owner, name)
     private fun find(view: View, predicate: (View) -> Boolean): View? {
         if (predicate(view)) return view
         if (view is ViewGroup) for (i in 0 until view.childCount) find(view.getChildAt(i), predicate)?.let { return it }

@@ -92,14 +92,14 @@ object LockscreenDateHooker : StaticHooker() {
             val clock = classLoader.loadClass("com.miui.clock.MiuiClockController\$IClockView")
             val role = classLoader.loadClass("com.miui.clock.module.ClockViewType")
             val controllers = listOf("mMiuiClockController", "mMiuiSecondaryClockController")
-                .map { container.getDeclaredField(it).apply { isAccessible = true } }
+                .map { HostAccess.requireDeclaredField(container, it, accessible = true) }
             require(controllers.all { it.type == controller })
-            val activeClock = controller.getDeclaredField("mClockView").apply { isAccessible = true }
+            val activeClock = HostAccess.requireDeclaredField(controller, "mClockView", accessible = true)
             require(activeClock.type == clock)
-            val getView = clock.getMethod("getIClockView", role)
+            val getView = HostAccess.requirePublicMethod(clock, "getIClockView", role, accessible = false)
             require(View::class.java.isAssignableFrom(getView.returnType))
             val dateRoles = listOf("DATE", "WEEK", "FULL_DATE", "FULL_WEEK", "FULL_DATE_WEEK", "NOTIFICATION_DATE")
-                .mapNotNull { name -> runCatching { role.getField(name).get(null) }.getOrNull() }
+                .mapNotNull { name -> runCatching { HostAccess.requirePublicField(role, name, accessible = false).get(null) }.getOrNull() }
             require(dateRoles.isNotEmpty())
             // New clock styles expose their configurable first line as TEXT_AREA, even when
             // that line renders a date. Its native content type distinguishes it from weather,
@@ -107,12 +107,11 @@ object LockscreenDateHooker : StaticHooker() {
             val contentType = runCatching {
                 val textArea = classLoader.loadClass("com.miui.clock.classic.ClassicTextAreaView")
                 require(TextView::class.java.isAssignableFrom(textArea))
-                textArea.getDeclaredField("mCurrentLineType").apply {
+                HostAccess.requireDeclaredField(textArea, "mCurrentLineType", accessible = true).apply {
                     require(type == Int::class.javaPrimitiveType)
-                    isAccessible = true
                 }
             }.getOrNull()
-            val textAreaRole = runCatching { role.getField("TEXT_AREA").get(null) }.getOrNull()
+            val textAreaRole = runCatching { HostAccess.requirePublicField(role, "TEXT_AREA", accessible = false).get(null) }.getOrNull()
             bind = bind@{ root ->
                 if (!enabled || bindings.containsKey(root) || !root.isAttachedToWindow) return@bind
                 val binding = Binding(root, controllers, activeClock, getView, dateRoles, contentType, textAreaRole)
@@ -128,7 +127,7 @@ object LockscreenDateHooker : StaticHooker() {
                 enabled = Preferences.getBoolean(SystemUiSettingsKeys.KEY_HIDE_LOCKSCREEN_DATE, false)
                 bind?.invoke(root)
             }
-            val attach = container.getDeclaredMethod("onAttachedToWindow")
+            val attach = HostAccess.requireDeclaredMethod(container, "onAttachedToWindow", accessible = false)
             attach.hook {
                 after { param ->
                     val root = param.thisObject as? ViewGroup ?: return@after

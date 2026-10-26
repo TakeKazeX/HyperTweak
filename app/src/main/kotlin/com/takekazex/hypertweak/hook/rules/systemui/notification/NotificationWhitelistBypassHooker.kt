@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.notification
 
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 
 import android.content.Context
@@ -26,27 +27,27 @@ object NotificationWhitelistBypassHooker : StaticHooker() {
                 ?: error("Missing notification settings")
             val prefs = "com.miui.systemui.notification.NotificationSettingsManager\$Prefs".toClassOrNull()
                 ?: error("Missing notification settings prefs")
-            val canFloat = settings.getDeclaredMethod("canFloat", Context::class.java, String::class.java, String::class.java)
+            val canFloat = HostAccess.requireDeclaredMethod(settings, "canFloat", Context::class.java, String::class.java, String::class.java, accessible = false)
                 .apply { check(returnType == Boolean::class.javaPrimitiveType) }
-            val floatKey = prefs.getDeclaredMethod("getFloatKey", String::class.java, String::class.java)
-            val getPrefs = prefs.getDeclaredMethod("getNotif", Context::class.java)
+            val floatKey = HostAccess.requireDeclaredMethod(prefs, "getFloatKey", String::class.java, String::class.java, accessible = false)
+            val getPrefs = HostAccess.requireDeclaredMethod(prefs, "getNotif", Context::class.java, accessible = false)
                 .apply { check(SharedPreferences::class.java.isAssignableFrom(returnType)) }
-            val domestic = settings.getDeclaredField("USE_WHITE_LISTS").getBoolean(null)
-            val singleton = settings.getDeclaredField("sINSTANCE")
+            val domestic = HostAccess.requireDeclaredField(settings, "USE_WHITE_LISTS", accessible = false).getBoolean(null)
+            val singleton = HostAccess.requireDeclaredField(settings, "sINSTANCE", accessible = false)
             val helper = "com.miui.systemui.notification.NotificationSettingsHelper".toClassOrNull()
                 ?: error("Missing notification settings helper")
-            val userContext = helper.getDeclaredMethod("getUserContext")
-            val contextUserId = Context::class.java.getDeclaredMethod("getUserId")
+            val userContext = HostAccess.requireDeclaredMethod(helper, "getUserContext", accessible = false)
+            val contextUserId = HostAccess.requireDeclaredMethod(Context::class.java, "getUserId", accessible = false)
             val expanded = "com.android.systemui.statusbar.notification.ExpandedNotification".toClassOrNull()
                 ?: error("Missing expanded notification")
-            val cachedFloat = expanded.getDeclaredField("mCanFloat")
+            val cachedFloat = HostAccess.requireDeclaredField(expanded, "mCanFloat", accessible = false)
                 .apply { check(type == Boolean::class.javaPrimitiveType) }
-            val effectivePackage = expanded.getDeclaredField("mPkgName")
+            val effectivePackage = HostAccess.requireDeclaredField(expanded, "mPkgName", accessible = false)
                 .apply { check(type == String::class.java) }
-            val expandedCanFloat = expanded.getDeclaredMethod("canFloat")
+            val expandedCanFloat = HostAccess.requireDeclaredMethod(expanded, "canFloat", accessible = false)
             val producer = "com.miui.systemui.notification.MiuiBaseNotifUtil".toClassOrNull()
                 ?: error("Missing notification settings producer")
-            deoptimize(producer.getDeclaredMethod("generateInnerNotifBean", StatusBarNotification::class.java))
+            deoptimize(HostAccess.requireDeclaredMethod(producer, "generateInnerNotifBean", StatusBarNotification::class.java, accessible = false))
             val decision = "com.android.systemui.statusbar.notification.interruption.VisualInterruptionDecisionProviderImplInjector".toClassOrNull()
                 ?: error("Missing native interruption decision")
             decision.declaredMethods.forEach { deoptimize(it) }

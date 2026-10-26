@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.island
 
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import android.graphics.Typeface
@@ -70,11 +71,11 @@ class IslandTimeFontHooker : DynamicHooker() {
         val base = "miui.systemui.dynamicisland.module.BaseIslandModuleViewHolder".toClassOrNull() ?: return
         val template = classLoader.loadClass("miui.systemui.dynamicisland.model.IslandTemplate")
         val data = classLoader.loadClass("com.android.systemui.plugins.miui.dynamicisland.DynamicIslandData")
-        val currentData = base.getMethod("getDynamicIslandData")
+        val currentData = HostAccess.requirePublicMethod(base, "getDynamicIslandData", accessible = false)
         check(currentData.returnType == data)
-        val extras = data.getMethod("getExtras")
+        val extras = HostAccess.requirePublicMethod(data, "getExtras", accessible = false)
         check(extras.returnType == Bundle::class.java)
-        val fixedFont = base.getDeclaredMethod("setFixedFont", TextView::class.java)
+        val fixedFont = HostAccess.requireDeclaredMethod(base, "setFixedFont", TextView::class.java, accessible = false)
         val source = IslandCondensedFontSource.resolve(File("/product/etc/mi_fonts_customization.xml"), File("/product/fonts"))
         val narrow = requireNotNull(Typeface.Builder(source)
             .setFontVariationSettings(IslandCondensedFontSource.AXES).build()) { "native condensed font could not load" }
@@ -92,7 +93,7 @@ class IslandTimeFontHooker : DynamicHooker() {
             val owner = classLoader.loadClass("miui.systemui.dynamicisland.module.$name")
             check(base.isAssignableFrom(owner))
             owner to fields.map { (field, numeric) ->
-                Slot(owner.getDeclaredField(field).apply {
+                Slot(HostAccess.requireDeclaredField(owner, field, accessible = true).apply {
                     isAccessible = true
                     check(TextView::class.java.isAssignableFrom(type))
                 }, numeric)
@@ -101,22 +102,22 @@ class IslandTimeFontHooker : DynamicHooker() {
         // Hot reload does not rerun bind on an already visible island. Recover those holders
         // from the native factory's four builder maps, including its fake measurement views.
         val coordinator = classLoader.loadClass("miui.systemui.dynamicisland.event.DynamicIslandEventCoordinator")
-        val getWindow = coordinator.getMethod("getWindowView")
-        val getContents = getWindow.returnType.getMethod("getContentViews")
+        val getWindow = HostAccess.requirePublicMethod(coordinator, "getWindowView", accessible = false)
+        val getContents = HostAccess.requirePublicMethod(getWindow.returnType, "getContentViews", accessible = false)
         val content = classLoader.loadClass("miui.systemui.dynamicisland.window.content.DynamicIslandBaseContentView")
-        val getController = content.getMethod("getController")
-        val getFactory = getController.returnType.getMethod("getIslandTemplateFactory")
+        val getController = HostAccess.requirePublicMethod(content, "getController", accessible = false)
+        val getFactory = HostAccess.requirePublicMethod(getController.returnType, "getIslandTemplateFactory", accessible = false)
         val factory = classLoader.loadClass("miui.systemui.dynamicisland.template.IslandTemplateFactory")
         check(getFactory.returnType == factory)
         val builder = classLoader.loadClass("miui.systemui.dynamicisland.template.IslandTemplateBuilder")
         val adapter = classLoader.loadClass("miui.systemui.dynamicisland.module.IslandModuleViewHolderAdapter")
         val builders = listOf("bigIslandBuilderMap", "smallIslandBuilderMap", "fakeBigIslandBuilderMap", "fakeSmallIslandBuilderMap")
-            .map { name -> factory.getDeclaredField(name).apply {
+            .map { name -> HostAccess.requireDeclaredField(factory, name, accessible = true).apply {
                 isAccessible = true
                 check(Map::class.java.isAssignableFrom(type))
             } }
         val getAdapter = builder.declaredFields.single { it.type == adapter }.apply { isAccessible = true }
-        val nativeHolders = adapter.getDeclaredField("holders").apply {
+        val nativeHolders = HostAccess.requireDeclaredField(adapter, "holders", accessible = true).apply {
             isAccessible = true
             check(Map::class.java.isAssignableFrom(type))
         }
@@ -136,7 +137,7 @@ class IslandTimeFontHooker : DynamicHooker() {
                 }
             }.filter { it.javaClass in slots }.distinct()
         }
-        val binds = slots.keys.map { it.getDeclaredMethod("bind", template, data) }
+        val binds = slots.keys.map { HostAccess.requireDeclaredMethod(it, "bind", template, data, accessible = false) }
         fun holderSlots(holder: Any) = slots[holder.javaClass].orEmpty()
         fun apply(holder: Any, view: TextView, slot: Slot) {
             val packageName = (currentData.invoke(holder)?.let { extras.invoke(it) } as? Bundle)

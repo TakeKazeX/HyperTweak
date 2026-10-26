@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.settings
 
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 
 import android.app.NotificationChannel
@@ -174,7 +175,7 @@ object ChannelKeyguardToggleHooker : StaticHooker() {
         var type: Class<*>? = cls
         while (type != null && type != Any::class.java) {
             try {
-                return type.getDeclaredField(name).apply { isAccessible = true }
+                return HostAccess.requireDeclaredField(type, name, accessible = true)
             } catch (_: NoSuchFieldException) {
                 type = type.superclass
             }

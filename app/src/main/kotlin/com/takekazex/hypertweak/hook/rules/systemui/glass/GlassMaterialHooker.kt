@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.glass
 
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.presentation.glass.scaleBlendArrayColors
 import com.takekazex.hypertweak.presentation.glass.scaleColorAlpha
 import com.takekazex.hypertweak.presentation.glass.scaleColorLightness
@@ -188,10 +189,10 @@ object GlassMaterialHooker : StaticHooker() {
         installed = true
         val resources = Resources::class.java
         val targets = listOf(
-            resources.getMethod("getDimensionPixelSize", Int::class.javaPrimitiveType),
-            resources.getMethod("getIntArray", Int::class.javaPrimitiveType),
-            resources.getMethod("getColor", Int::class.javaPrimitiveType),
-            resources.getMethod("getColor", Int::class.javaPrimitiveType, Resources.Theme::class.java)
+            HostAccess.requirePublicMethod(resources, "getDimensionPixelSize", Int::class.javaPrimitiveType, accessible = false),
+            HostAccess.requirePublicMethod(resources, "getIntArray", Int::class.javaPrimitiveType, accessible = false),
+            HostAccess.requirePublicMethod(resources, "getColor", Int::class.javaPrimitiveType, accessible = false),
+            HostAccess.requirePublicMethod(resources, "getColor", Int::class.javaPrimitiveType, Resources.Theme::class.java, accessible = false)
         )
         targets.forEach { method ->
             runCatching {
@@ -217,9 +218,7 @@ object GlassMaterialHooker : StaticHooker() {
      */
     private fun hookViewSetMiGlass() {
         val method = runCatching {
-            View::class.java.getDeclaredMethod("setMiGlass", FloatArray::class.java).apply {
-                isAccessible = true
-            }
+            HostAccess.requireDeclaredMethod(View::class.java, "setMiGlass", FloatArray::class.java, accessible = true)
         }.getOrNull() ?: return DebugLog.hookSkipped(TAG, "View#setMiGlass", "method not found")
 
         runCatching {

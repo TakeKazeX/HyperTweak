@@ -2,6 +2,7 @@
 
 package com.takekazex.hypertweak.hook.rules.systemui.gesturebar
 
+import com.takekazex.hypertweak.hook.base.cachedDeclaredMethod
 import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 
@@ -199,7 +200,7 @@ object HideBottomBarHooker : StaticHooker() {
                 navBarHeightAndroidResId = Resources.getSystem()
                     .getIdentifier("navigation_bar_height", "dimen", "android")
             }
-            Resources::class.java.getMethod("getDimensionPixelSize", Int::class.javaPrimitiveType).hook {
+            HostAccess.requirePublicMethod(Resources::class.java, "getDimensionPixelSize", Int::class.javaPrimitiveType, accessible = false).hook {
                 before { param ->
                     if (!hideGestureBarEnabled || raiseLayoutEnabled) return@before
                     val resources = param.thisObject as? Resources ?: return@before
@@ -487,7 +488,7 @@ object HideBottomBarHooker : StaticHooker() {
         // Capture newly created controllers; recovery adopts controllers from older APKs.
         runCatching {
             cl.loadClass("com.android.systemui.navigationbar.views.NavigationBar")
-                .getDeclaredMethod("updateViewLayout", Int::class.javaPrimitiveType).hook {
+                .cachedDeclaredMethod("updateViewLayout", Int::class.javaPrimitiveType, accessible = false).hook {
                     before { param -> navigationBars.add(param.thisObject) }
                 }
         }.onFailure { DebugLog.hookFailed(TAG, "NavigationBar#updateViewLayout(int)", it) }
@@ -538,7 +539,7 @@ object HideBottomBarHooker : StaticHooker() {
                 val type = cl.loadClass(className)
                 methods.forEach { (name, parameters) ->
                     runCatching {
-                        type.getDeclaredMethod(name, *parameters).hook {
+                        HostAccess.requireDeclaredMethod(type, name, *parameters, accessible = false).hook {
                             after { home.refreshLauncherHome("$className.$name") }
                         }
                     }.onFailure { DebugLog.hookSkipped(TAG, "$className#$name", "${it.message}") }
@@ -554,12 +555,12 @@ object HideBottomBarHooker : StaticHooker() {
     private fun hookHandleAlpha(cl: ClassLoader) {
         runCatching {
             val handleClass = cl.loadClass(navigationHandleClassNames.first())
-            val setAlpha = handleClass.getDeclaredMethod("setAlpha", Float::class.javaPrimitiveType)
+            val setAlpha = HostAccess.requireDeclaredMethod(handleClass, "setAlpha", Float::class.javaPrimitiveType, accessible = false)
             // Undo AOT inlining in the animator that also writes the alpha.
             deoptimize(setAlpha)
-            deoptimize(handleClass.getDeclaredMethod("onAttachedToWindow"))
+            deoptimize(HostAccess.requireDeclaredMethod(handleClass, "onAttachedToWindow", accessible = false))
             deoptimize(cl.loadClass("com.android.systemui.navigationbar.gestural.NavigationHandlePressAnimator\$2")
-                .getDeclaredMethod("onUpdate", Any::class.java, java.util.Collection::class.java))
+                .cachedDeclaredMethod("onUpdate", Any::class.java, java.util.Collection::class.java, accessible = false))
             setAlpha.hook {
                 before { param ->
                     if (!followGenerationActive || presentation.ownAlphaWrite.get() == true) return@before
@@ -582,13 +583,13 @@ object HideBottomBarHooker : StaticHooker() {
     private fun hookAttachmentSampling(cl: ClassLoader) {
         runCatching {
             val method = cl.loadClass("com.android.systemui.navigationbar.NavigationBarControllerImpl\$1")
-                .getDeclaredMethod("setNavigationBarLumaSamplingEnabled",
-                    Int::class.javaPrimitiveType, Boolean::class.javaPrimitiveType)
+                .cachedDeclaredMethod("setNavigationBarLumaSamplingEnabled",
+                    Int::class.javaPrimitiveType, Boolean::class.javaPrimitiveType, accessible = false)
             // Deoptimize is best-effort; a failure there must never stop the hook from installing.
             deoptimize(method)
             runCatching {
                 deoptimize(cl.loadClass("com.android.systemui.statusbar.CommandQueue\$H")
-                    .getDeclaredMethod("handleMessage", android.os.Message::class.java))
+                    .cachedDeclaredMethod("handleMessage", android.os.Message::class.java, accessible = false))
             }.onFailure { DebugLog.w(TAG, "failed to deoptimize CommandQueue handler", it) }
             method.hook {
                 after { param ->
@@ -611,7 +612,7 @@ object HideBottomBarHooker : StaticHooker() {
     private fun hookTransitionFinished(cl: ClassLoader) {
         runCatching {
             cl.loadClass("com.android.systemui.statusbar.phone.CentralSurfacesCommandQueueCallbacks")
-                .getDeclaredMethod("appTransitionFinished", Int::class.javaPrimitiveType).hook {
+                .cachedDeclaredMethod("appTransitionFinished", Int::class.javaPrimitiveType, accessible = false).hook {
                     after { param ->
                         val display = param.args[0] as? Int ?: return@after
                         runCatching { events.onTransitionFinished(display) }
@@ -627,7 +628,7 @@ object HideBottomBarHooker : StaticHooker() {
         try {
             val controller = cl.loadClass(target)
             val methods = listOf("onOverviewShown" to true, "onOverviewHidden" to false).map { (name, visible) ->
-                controller.getDeclaredMethod(name, Int::class.javaPrimitiveType).also {
+                HostAccess.requireDeclaredMethod(controller, name, Int::class.javaPrimitiveType, accessible = false).also {
                     check(it.returnType == Void.TYPE)
                 } to visible
             }
@@ -649,7 +650,7 @@ object HideBottomBarHooker : StaticHooker() {
         // A launcher crash or rebind must not retain its last visible-Overview report.
         try {
             cl.loadClass("com.android.systemui.LauncherProxyService")
-                .getDeclaredMethod("disconnectFromLauncherService", String::class.java).hook {
+                .cachedDeclaredMethod("disconnectFromLauncherService", String::class.java, accessible = false).hook {
                     after {
                         deadlines.cancelAllDeadlines()
                         state.clear()

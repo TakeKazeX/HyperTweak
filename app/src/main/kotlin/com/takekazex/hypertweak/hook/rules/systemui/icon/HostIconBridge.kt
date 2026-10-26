@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import com.takekazex.hypertweak.hook.base.HostAccess
+
 import android.graphics.Bitmap
 import android.graphics.drawable.Icon
 import android.os.Looper
@@ -33,8 +35,7 @@ class HostIconBridge(
     /** Exact host icon identity prevents stale-generation cleanup from deleting a new holder. */
     private val ownedIcons = LinkedHashMap<String, Any>()
 
-    private val iconListField: Field? = findField(controller.javaClass, "mStatusBarIconList")
-        ?.apply { isAccessible = true }
+    private val iconListField: Field? = findField(controller.javaClass, "mStatusBarIconList", accessible = true)
     private var holderMethod: Method? = null
     private var setIconMethod: Method? = null
     private var setVisibilityMethod: Method? = null
@@ -205,8 +206,7 @@ class HostIconBridge(
             type,
             shape
         ).also { statusIcon ->
-            findField(statusIcon.javaClass, "visible")?.apply {
-                isAccessible = true
+            findField(statusIcon.javaClass, "visible", accessible = true)?.apply {
                 setBoolean(statusIcon, true)
             }
         }
@@ -245,14 +245,14 @@ class HostIconBridge(
             it.name == "getIconHolder" && it.parameterTypes.size == 2 &&
                 it.parameterTypes[0] == Int::class.javaPrimitiveType &&
                 it.parameterTypes[1] == String::class.java
-        }?.apply { isAccessible = true }.also { holderMethod = it }
+        }?.also { holderMethod = it }
             ?: return null
         method.invoke(list, 0, slot)
     }.onFailure { DebugLog.w(TAG, "failed to inspect icon slot=$slot", it) }.getOrNull()
 
     private fun holderPackage(holder: Any?): String? = runCatching {
         val icon = holder?.let { holderIconField(it).get(it) } ?: return null
-        (packageField ?: findField(icon.javaClass, "pkg")?.apply { isAccessible = true }
+        (packageField ?: findField(icon.javaClass, "pkg", accessible = true)
             .also { packageField = it })?.get(icon) as? String
     }.getOrNull()
 
@@ -264,7 +264,7 @@ class HostIconBridge(
 
     private fun holderVisible(holder: Any): Boolean = runCatching {
         val icon = holderIconField(holder).get(holder) ?: return false
-        findField(icon.javaClass, "visible")?.getBoolean(icon) ?: true
+        findField(icon.javaClass, "visible", accessible = false)?.getBoolean(icon) ?: true
     }.getOrDefault(true)
 
     private fun resolveSetIconMethod(holder: Any): Method = setIconMethod ?: findMethod(controller.javaClass) {
@@ -299,16 +299,16 @@ class HostIconBridge(
             .onFailure { DebugLog.w(TAG, "failed to restore icon slot=$slot after publish failure", it) }
     }
 
-    private fun holderIconField(holder: Any): Field = holderIconField ?: findField(holder.javaClass, "icon")
-        ?.apply { isAccessible = true }.also { holderIconField = it }
+    private fun holderIconField(holder: Any): Field = holderIconField ?: findField(holder.javaClass, "icon", accessible = true)
+        ?.also { holderIconField = it }
         ?: error("StatusBarIconHolder.icon not found")
 
-    private fun holderTypeField(holder: Any): Field = holderTypeField ?: findField(holder.javaClass, "type")
-        ?.apply { isAccessible = true }.also { holderTypeField = it }
+    private fun holderTypeField(holder: Any): Field = holderTypeField ?: findField(holder.javaClass, "type", accessible = true)
+        ?.also { holderTypeField = it }
         ?: error("StatusBarIconHolder.type not found")
 
-    private fun holderTagField(holder: Any): Field = holderTagField ?: findField(holder.javaClass, "tag")
-        ?.apply { isAccessible = true }.also { holderTagField = it }
+    private fun holderTagField(holder: Any): Field = holderTagField ?: findField(holder.javaClass, "tag", accessible = true)
+        ?.also { holderTagField = it }
         ?: error("StatusBarIconHolder.tag not found")
 
     private inner class HolderSnapshot(holder: Any) {
@@ -325,10 +325,10 @@ class HostIconBridge(
         }
     }
 
-    private fun findField(type: Class<*>, name: String): Field? {
+    private fun findField(type: Class<*>, name: String, accessible: Boolean): Field? {
         var current: Class<*>? = type
         while (current != null) {
-            current.getDeclaredFieldOrNull(name)?.let { return it }
+            current.getDeclaredFieldOrNull(name, accessible)?.let { return it }
             current = current.superclass
         }
         return null
@@ -343,6 +343,6 @@ class HostIconBridge(
         return type.methods.firstOrNull(predicate)
     }
 
-    private fun Class<*>.getDeclaredFieldOrNull(name: String): Field? =
-        runCatching { getDeclaredField(name) }.getOrNull()
+    private fun Class<*>.getDeclaredFieldOrNull(name: String, accessible: Boolean): Field? =
+        runCatching { HostAccess.requireDeclaredField(this, name, accessible) }.getOrNull()
 }

@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.system
 
+import com.takekazex.hypertweak.hook.base.HostAccess
 import android.content.Context
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.StaticHooker
@@ -117,8 +118,7 @@ object AonGestureFeatureHooker : StaticHooker() {
         var clazz: Class<*>? = host.javaClass
         while (clazz != null) {
             try {
-                val f: Field = clazz.getDeclaredField(name)
-                f.isAccessible = true
+                val f: Field = HostAccess.requireDeclaredField(clazz, name, accessible = true)
                 return f
             } catch (_: NoSuchFieldException) {
                 clazz = clazz.superclass

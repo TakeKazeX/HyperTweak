@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.voiceassist
 
+import com.takekazex.hypertweak.hook.base.HostAccess
 import android.app.Service
 import android.content.Intent
 import android.provider.Settings
@@ -47,7 +48,7 @@ object XiaoaiGestureHooker : StaticHooker() {
 
     private fun install(access: Access) {
         val service = access.consumer.declaringClass
-        val start = service.getDeclaredMethod("onStartCommand", Intent::class.java, Int::class.javaPrimitiveType, Int::class.javaPrimitiveType)
+        val start = HostAccess.requireDeclaredMethod(service, "onStartCommand", Intent::class.java, Int::class.javaPrimitiveType, Int::class.javaPrimitiveType, accessible = false)
         check(deoptimize(access.keyboard) && deoptimize(access.consumer) && deoptimize(start))
         start.hook("xiaoai_long_press_text") {
             before { param ->

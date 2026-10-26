@@ -57,8 +57,6 @@ object ControlCenterPrivacyHooker : StaticHooker() {
     private const val HEADER = "com.android.systemui.controlcenter.shade.ControlCenterHeaderController"
     private const val CONTROLLER = "com.android.systemui.statusbar.privacy.MiuiPrivacyControllerImpl"
     private val main = Handler(Looper.getMainLooper())
-    private val fields = HashMap<Pair<Class<*>, String>, Field?>()
-    private val methods = HashMap<Pair<Class<*>, String>, Method?>()
     private val constructors = HashMap<Class<*>, Constructor<*>>()
     private val bindings = WeakHashMap<ViewGroup, Binding>()
     private val headers = WeakHashMap<Any, Boolean>()
@@ -483,7 +481,7 @@ object ControlCenterPrivacyHooker : StaticHooker() {
         val key = "$uid:$pkg"
         val label = labels[key] ?: runCatching {
             val pm = root.context.packageManager
-            val resolver = methods.getOrPut(pm.javaClass to "getApplicationInfoAsUser") {
+            val resolver = HostAccess.cached(pm.javaClass, "application-info-as-user:String/int/int", java.lang.reflect.Method::class.java) {
                 pm.javaClass.methods.firstOrNull { it.name == "getApplicationInfoAsUser" &&
                     it.parameterTypes.contentEquals(arrayOf(String::class.java, Int::class.javaPrimitiveType,
                         Int::class.javaPrimitiveType)) }?.apply { isAccessible = true }
@@ -678,8 +676,6 @@ object ControlCenterPrivacyHooker : StaticHooker() {
             bindings.clear()
             headers.clear()
             layoutStates.clear()
-            fields.clear()
-            methods.clear()
             constructors.clear()
             labels.evictAll()
             projectionHistory.clear()
@@ -701,15 +697,11 @@ object ControlCenterPrivacyHooker : StaticHooker() {
     private fun id(view: View, name: String) = view.resources.getIdentifier(name, "id", view.context.packageName)
     private fun dp(view: View, value: Int) = (value * view.resources.displayMetrics.density).roundToInt()
     private fun setInt(owner: Any, name: String, value: Int) { field(owner.javaClass, name)?.setInt(owner, value) }
-    private fun field(type: Class<*>, name: String): Field? = fields.getOrPut(type to name) {
-        generateSequence(type) { it.superclass }.mapNotNull {
-            runCatching { it.getDeclaredField(name).apply { isAccessible = true } }.getOrNull()
-        }.firstOrNull()
-    }
+    private fun field(type: Class<*>, name: String): Field? = HostAccess.field(type, name)
     private fun read(owner: Any, name: String) = field(owner.javaClass, name)?.get(owner)
-    private fun invoke(owner: Any, name: String) = methods.getOrPut(owner.javaClass to name) {
+    private fun invoke(owner: Any, name: String) = HostAccess.cached(owner.javaClass, "declared-hierarchy-noargs:$name", java.lang.reflect.Method::class.java) {
         generateSequence(owner.javaClass) { it.superclass }.mapNotNull {
-            runCatching { it.getDeclaredMethod(name).apply { isAccessible = true } }.getOrNull()
+            HostAccess.declaredMethod(it, name, accessible = true)
         }.firstOrNull()
     }?.invoke(owner)
     private inline fun guarded(action: () -> Unit) {

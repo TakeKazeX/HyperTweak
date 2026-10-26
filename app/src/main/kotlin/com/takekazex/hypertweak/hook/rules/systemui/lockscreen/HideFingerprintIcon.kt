@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.lockscreen
 
+import com.takekazex.hypertweak.hook.base.HostAccess
 import android.graphics.Canvas
 import android.graphics.PorterDuff
 import android.view.View
@@ -231,9 +232,9 @@ object HideFingerprintIcon : StaticHooker() {
     private fun findField(clazz: Class<*>, name: String): Field? {
         var current: Class<*>? = clazz
         while (current != null) {
-            val field = runCatching { current.getDeclaredField(name) }.getOrNull()
+            val field = runCatching { HostAccess.requireDeclaredField(current, name, accessible = true) }.getOrNull()
             if (field != null) {
-                return field.apply { isAccessible = true }
+                return field
             }
             current = current.superclass
         }

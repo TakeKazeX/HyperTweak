@@ -149,8 +149,8 @@ object AicrDefaultBrowserHooker : StaticHooker() {
         val browser = resolveDefaultBrowserPackage(context) ?: return@onMain
         val label = applicationLabel(context, browser) ?: return@onMain
         val type = Class.forName("android.view.WindowManagerGlobal")
-        val global = type.getDeclaredMethod("getInstance").invoke(null)
-        val roots = type.getDeclaredField("mViews").apply { isAccessible = true }.get(global) as? List<*> ?: return@onMain
+        val global = HostAccess.requireDeclaredMethod(type, "getInstance", accessible = false).invoke(null)
+        val roots = HostAccess.requireDeclaredField(type, "mViews", accessible = true).get(global) as? List<*> ?: return@onMain
         var applied = 0
         roots.toList().filterIsInstance<View>().forEach { root ->
             val params = root.layoutParams as? WindowManager.LayoutParams ?: return@forEach

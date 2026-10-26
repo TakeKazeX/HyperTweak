@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import com.takekazex.hypertweak.hook.base.HostAccess
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
@@ -71,10 +72,10 @@ internal object StatusIconHotReloadRecovery {
             check(scope.managers.isNotEmpty()) { "No existing icon managers" }
             rebuildIconGroups(controller, scope.managers) { dispatch(HostRecoveryPhase.SLOT_ORDER) }
             scope.views = windowViews()
-            val expansion = component?.let { provider(it, "controlCenterExpandControllerDelegateProvider") }
-            scope.progress = expansion?.let { read(it, "expansionState") }?.let(IconTunerFlows::readFlowValue) as? Float
-            scope.visible = expansion?.let { read(it, "visibleState") }?.let(IconTunerFlows::readFlowValue) as? Boolean
-            scope.stretch = expansion?.let { read(it, "stretchHeightState") }?.let(IconTunerFlows::readFlowValue) as? Float
+            val expansion = IconTunerFlows.readExpansionSnapshot(component)
+            scope.progress = expansion.progress
+            scope.visible = expansion.visible
+            scope.stretch = expansion.stretch
             dispatch(HostRecoveryPhase.MANAGERS)
             dispatch(HostRecoveryPhase.CONTAINERS)
             dispatch(HostRecoveryPhase.PRESENTATION)
@@ -121,10 +122,7 @@ internal object StatusIconHotReloadRecovery {
 
     private fun provider(component: Any, name: String): Any? = read(component, name)?.let { invoke(it, "get") }
     private fun invoke(owner: Any, name: String): Any? = runCatching {
-        owner.javaClass.methods.firstOrNull { it.name == name && it.parameterCount == 0 }
-            ?.apply { isAccessible = true }?.invoke(owner)
+        HostAccess.publicMethod(owner.javaClass, name, accessible = true)?.invoke(owner)
     }.getOrNull()
-    private fun read(owner: Any, name: String): Any? = generateSequence(owner.javaClass) { it.superclass }
-        .mapNotNull { type -> runCatching { type.getDeclaredField(name).apply { isAccessible = true } }.getOrNull() }
-        .firstOrNull()?.let { runCatching { it.get(owner) }.getOrNull() }
+    private fun read(owner: Any, name: String): Any? = runCatching { HostAccess.read(owner, name) }.getOrNull()
 }

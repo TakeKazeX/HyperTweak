@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.camera
 
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.hook.base.dex.DexOperandIndex
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 import com.takekazex.hypertweak.hook.base.dex.DexFeature
@@ -40,7 +41,7 @@ internal object CameraHostProfile {
         }
         fun configMethod(receiver: Class<*>, name: String?, returnType: Class<*>): Method? =
             name?.let { runCatching {
-                receiver.getMethod(it).takeIf { method ->
+                HostAccess.requirePublicMethod(receiver, it, accessible = true).takeIf { method ->
                     !Modifier.isStatic(method.modifiers) && method.parameterCount == 0 &&
                         returnType.isAssignableFrom(method.returnType)
                 }?.apply { isAccessible = true }
@@ -54,7 +55,7 @@ internal object CameraHostProfile {
         /** The actual host base type defines the ABI; feature misses never invalidate it. */
         fun acceptsConfig(candidate: Any): Boolean = configType.isInstance(candidate) &&
             configType.methods.filter { !Modifier.isStatic(it.modifiers) && !it.isSynthetic }.all { expected ->
-                runCatching { candidate.javaClass.getMethod(expected.name, *expected.parameterTypes) }
+                runCatching { HostAccess.requirePublicMethod(candidate.javaClass, expected.name, *expected.parameterTypes, accessible = false) }
                     .getOrNull()?.returnType == expected.returnType
             }
         fun replaceConfigInstance(target: Any): Boolean = runCatching {
@@ -86,7 +87,7 @@ internal object CameraHostProfile {
         val config = field.type
         fun member(key: String, owner: Class<*>, returns: Class<*>, static: Boolean): String? {
             val name = values[key] ?: return null
-            val method = runCatching { owner.getDeclaredMethod(name) }.getOrElse { owner.getMethod(name) }
+            val method = runCatching { HostAccess.requireDeclaredMethod(owner, name, accessible = false) }.getOrElse { HostAccess.requirePublicMethod(owner, name, accessible = false) }
             require(method.parameterCount == 0 && returns.isAssignableFrom(method.returnType) &&
                 Modifier.isStatic(method.modifiers) == static && !method.isBridge && !method.isSynthetic)
             return name

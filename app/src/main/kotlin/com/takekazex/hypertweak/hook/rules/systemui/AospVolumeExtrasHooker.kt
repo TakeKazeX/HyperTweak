@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui
 
+import com.takekazex.hypertweak.hook.base.cachedDeclaredMethod
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import android.app.Dialog
@@ -394,13 +396,11 @@ object AospVolumeExtrasHooker : StaticHooker() {
 
     private fun setDnd(context: Context, enabled: Boolean): Boolean {
         return runCatching {
-            val method = miuiSetZenModeOn ?: SOUND_MODE.toClassOrNull()?.getDeclaredMethod(
+            val method = miuiSetZenModeOn ?: SOUND_MODE.toClassOrNull()?.cachedDeclaredMethod(
                 "setZenModeOn",
                 Context::class.java,
                 Boolean::class.javaPrimitiveType,
-                String::class.java
-            )?.apply {
-                isAccessible = true
+                String::class.java, accessible = true)?.apply {
                 miuiSetZenModeOn = this
             }
             if (method != null) {
@@ -408,13 +408,11 @@ object AospVolumeExtrasHooker : StaticHooker() {
                 return true
             }
             val notificationManager = context.getSystemService(NotificationManager::class.java) ?: return false
-            val fallback = notificationSetZenMode ?: NotificationManager::class.java.getDeclaredMethod(
+            val fallback = notificationSetZenMode ?: HostAccess.requireDeclaredMethod(NotificationManager::class.java,
                 "setZenMode",
                 Int::class.javaPrimitiveType,
                 Uri::class.java,
-                String::class.java
-            ).apply {
-                isAccessible = true
+                String::class.java, accessible = true).apply {
                 notificationSetZenMode = this
             }
             fallback.invoke(notificationManager, if (enabled) 1 else 0, null, TAG)
@@ -437,7 +435,7 @@ object AospVolumeExtrasHooker : StaticHooker() {
     }
 
     private fun Class<*>.findField(name: String): Field? =
-        runCatching { getDeclaredField(name).apply { isAccessible = true } }.getOrNull()
+        runCatching { HostAccess.requireDeclaredField(this, name, accessible = true) }.getOrNull()
 
     private fun resolveColor(context: Context, name: String, fallback: Int): Int {
         val id = context.resources.getIdentifier(name, "color", SYSTEM_UI_PACKAGE)

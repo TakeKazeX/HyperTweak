@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.securitycenter
 
+import com.takekazex.hypertweak.hook.base.cachedPublicMethod
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
@@ -308,7 +310,7 @@ object WarningCountdownHooker : StaticHooker() {
         // has already skipped the countdown, so the page is still immediately usable.
         val permName = runCatching {
             fragment.javaClass
-                .getMethod("getArguments")
+                .cachedPublicMethod("getArguments", accessible = false)
                 .invoke(fragment) as? Bundle
         }.getOrNull()?.getString(KEY_PERM_NAME)
 
@@ -586,10 +588,10 @@ object WarningCountdownHooker : StaticHooker() {
     private fun resolvePropertyAccessors(): PropertyAccessors? {
         PROPERTY_COMPAT_CLASS.toClassOrNull()?.let { compat ->
             val write = runCatching {
-                compat.getMethod("set", String::class.java, String::class.java)
+                HostAccess.requirePublicMethod(compat, "set", String::class.java, String::class.java, accessible = false)
             }.getOrNull()
             val read = runCatching {
-                compat.getMethod("getString", String::class.java, String::class.java)
+                HostAccess.requirePublicMethod(compat, "getString", String::class.java, String::class.java, accessible = false)
             }.getOrNull()
             if (write != null && read != null) return PropertyAccessors(write, read)
         }
@@ -597,10 +599,10 @@ object WarningCountdownHooker : StaticHooker() {
             Class.forName("android.os.SystemProperties", false, classLoader)
         }.getOrNull() ?: return null
         val write = runCatching {
-            platform.getMethod("set", String::class.java, String::class.java)
+            HostAccess.requirePublicMethod(platform, "set", String::class.java, String::class.java, accessible = false)
         }.getOrNull()
         val read = runCatching {
-            platform.getMethod("get", String::class.java, String::class.java)
+            HostAccess.requirePublicMethod(platform, "get", String::class.java, String::class.java, accessible = false)
         }.getOrNull()
         return if (write != null && read != null) PropertyAccessors(write, read) else null
     }

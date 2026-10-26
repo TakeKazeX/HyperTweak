@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.system
 
+import com.takekazex.hypertweak.hook.base.cachedDeclaredMethod
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import com.takekazex.hypertweak.hook.Preferences
@@ -95,7 +96,7 @@ object DarkModeScheduleHooker : StaticHooker() {
         // ServiceManager returns the local Binder in system_server. Its outer-instance field
         // recovers a living service even on upgrade from an APK which never tracked this feature.
         return HookFailurePolicy.open(TAG, "recover pending schedule", false) {
-            val binder = Class.forName("android.os.ServiceManager").getDeclaredMethod("getService", String::class.java)
+            val binder = Class.forName("android.os.ServiceManager").cachedDeclaredMethod("getService", String::class.java, accessible = false)
                 .invoke(null, "uimode") ?: return@open false
             val outer = generateSequence(binder.javaClass as Class<*>?) { it.superclass }
                 .flatMap { it.declaredFields.asSequence() }

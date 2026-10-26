@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.googleapp
 
+import com.takekazex.hypertweak.hook.base.cachedPublicMethod
+import com.takekazex.hypertweak.hook.base.HostAccess
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
@@ -107,10 +109,10 @@ object GoogleLensLauncher {
      */
     private fun startActivity(context: Context, intent: Intent): Boolean = runCatching {
         val userHandle = UserHandle::class.java
-            .getMethod("of", Int::class.javaPrimitiveType)
+            .cachedPublicMethod("of", Int::class.javaPrimitiveType, accessible = false)
             .invoke(null, currentUserId())
         context.javaClass
-            .getMethod("startActivityAsUser", Intent::class.java, UserHandle::class.java)
+            .cachedPublicMethod("startActivityAsUser", Intent::class.java, UserHandle::class.java, accessible = false)
             .invoke(context, intent, userHandle)
         true
     }.recoverCatching {
@@ -127,9 +129,9 @@ object GoogleLensLauncher {
      */
     private fun currentUserId(): Int = runCatching {
         Class.forName("android.app.ActivityManager")
-            .getMethod("getCurrentUser")
+            .cachedPublicMethod("getCurrentUser", accessible = false)
             .invoke(null) as? Int
     }.getOrNull() ?: runCatching {
-        UserHandle::class.java.getMethod("myUserId").invoke(null) as? Int
+        HostAccess.requirePublicMethod(UserHandle::class.java, "myUserId", accessible = false).invoke(null) as? Int
     }.getOrNull() ?: 0
 }

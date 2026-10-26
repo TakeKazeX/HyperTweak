@@ -105,10 +105,10 @@ internal class LeftIconCloner(owner: BaseHooker) : HookComponent(owner) {
         }
         resolveIconViewSetter()
         iconViewMIconField = runCatching {
-            iconViewClass.getDeclaredField("mIcon").apply { isAccessible = true }
+            HostAccess.requireDeclaredField(iconViewClass, "mIcon", accessible = true)
         }.getOrNull()
         isIconVisibleMethod = runCatching {
-            iconViewClass.getMethod("isIconVisible")
+            HostAccess.requirePublicMethod(iconViewClass, "isIconVisible", accessible = false)
         }.getOrNull()
 
         return true
@@ -228,7 +228,7 @@ internal class LeftIconCloner(owner: BaseHooker) : HookComponent(owner) {
             var c: Class<*>? = manager.javaClass
             while (c != null) {
                 val f = runCatching {
-                    c.getDeclaredField("mDarkIconDispatcher").apply { isAccessible = true }
+                    HostAccess.requireDeclaredField(c, "mDarkIconDispatcher", accessible = true)
                 }.getOrNull()
                 if (f != null) {
                     darkDispatcherField = f
@@ -275,7 +275,7 @@ internal class LeftIconCloner(owner: BaseHooker) : HookComponent(owner) {
         var c: Class<*>? = cls
         while (c != null) {
             runCatching {
-                c.getDeclaredMethod("set", iconCls).apply { isAccessible = true }
+                HostAccess.requireDeclaredMethod(c, "set", iconCls, accessible = true)
             }.getOrNull()?.let { method ->
                 iconViewSetMethod = method
                 return method

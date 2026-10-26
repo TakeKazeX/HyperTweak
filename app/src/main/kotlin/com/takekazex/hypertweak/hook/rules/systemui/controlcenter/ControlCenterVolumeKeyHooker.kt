@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.controlcenter
 
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import android.annotation.SuppressLint
@@ -28,13 +29,13 @@ class ControlCenterVolumeKeyHooker : DynamicHooker() {
     override fun onHook() {
         val target = "miui.systemui.controlcenter.panel.main.volume.VolumeSliderController".toClassOrNull()
             ?: return
-        val change = target.getDeclaredMethod("changeVolume", Boolean::class.javaPrimitiveType!!)
-        val step = target.getDeclaredField("sliderKeyStep").apply { isAccessible = true }
-        val minimum = target.getDeclaredField("streamMinVolume").apply { isAccessible = true }
-        val maximum = target.getDeclaredField("streamMaxVolume").apply { isAccessible = true }
-        val remote = target.getDeclaredField("miplayDeviceType").apply { isAccessible = true }
-        val tracking = target.getDeclaredField("tracking").apply { isAccessible = true }
-        val slider = target.getDeclaredMethod("getSlider").apply { isAccessible = true }
+        val change = HostAccess.requireDeclaredMethod(target, "changeVolume", Boolean::class.javaPrimitiveType!!, accessible = false)
+        val step = HostAccess.requireDeclaredField(target, "sliderKeyStep", accessible = true)
+        val minimum = HostAccess.requireDeclaredField(target, "streamMinVolume", accessible = true)
+        val maximum = HostAccess.requireDeclaredField(target, "streamMaxVolume", accessible = true)
+        val remote = HostAccess.requireDeclaredField(target, "miplayDeviceType", accessible = true)
+        val tracking = HostAccess.requireDeclaredField(target, "tracking", accessible = true)
+        val slider = HostAccess.requireDeclaredMethod(target, "getSlider", accessible = true)
         deoptimize(change)
         change.hook("control_center_configured_volume_key_step") {
             before { param ->
@@ -79,8 +80,8 @@ class ControlCenterVolumeKeyHooker : DynamicHooker() {
         // as key input so it shares AudioService's configured step; other MiPlay controllers stay native.
         HookFailurePolicy.open("ControlCenterVolumeKey", "media detail registration", Unit) {
             val local = "com.android.systemui.SystemVolumeController".toClassOrNull() ?: return@open
-            val adjust = local.getDeclaredMethod("doAdjustVolume", Boolean::class.javaPrimitiveType!!)
-            val audio = local.getDeclaredMethod("getMAudioManager").apply { isAccessible = true }
+            val adjust = HostAccess.requireDeclaredMethod(local, "doAdjustVolume", Boolean::class.javaPrimitiveType!!, accessible = false)
+            val audio = HostAccess.requireDeclaredMethod(local, "getMAudioManager", accessible = true)
             deoptimize(adjust)
             adjust.hook("control_center_media_detail_volume_key") {
                 before { param ->

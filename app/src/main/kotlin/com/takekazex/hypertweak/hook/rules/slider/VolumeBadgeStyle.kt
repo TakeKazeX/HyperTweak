@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.slider
 
+import com.takekazex.hypertweak.hook.base.cachedPublicMethod
+import com.takekazex.hypertweak.hook.base.HostAccess
 import android.content.Context
 import android.content.res.Configuration
 import android.graphics.Color
@@ -277,7 +279,7 @@ internal class VolumeBadgeStyler(private val tag: String) {
             glassEnabled = publicMethod(hostLoader, HOST_UTIL, METHOD_GLASS_ENABLED, Context::class.java),
             backgroundStyle = publicMethodByNameAndArity(hostLoader, HOST_UTIL, METHOD_BACKGROUND_STYLE, 4),
             backgroundStyleInstance = backgroundStyleClass?.let {
-                runCatching { it.getField("INSTANCE").get(null) }.getOrNull()
+                runCatching { HostAccess.requirePublicField(it, "INSTANCE", accessible = false).get(null) }.getOrNull()
             },
             sliderBlendColor = publicMethodByNameAndArity(hostLoader, HOST_VOLUME_COLUMN_RES, METHOD_SLIDER_BLEND_COLOR, 3),
             radius = publicMethod(hostLoader, HOST_VOLUME_COLUMN_RES, METHOD_RADIUS, Context::class.java),
@@ -295,7 +297,7 @@ internal class VolumeBadgeStyler(private val tag: String) {
         name: String,
         vararg parameterTypes: Class<*>,
     ): Method? = runCatching {
-        loadClass(classLoader, className)?.getMethod(name, *parameterTypes)
+        loadClass(classLoader, className)?.cachedPublicMethod(name, *parameterTypes, accessible = false)
     }.getOrNull()
 
     /**

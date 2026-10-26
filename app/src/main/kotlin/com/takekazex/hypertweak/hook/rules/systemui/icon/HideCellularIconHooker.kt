@@ -446,7 +446,7 @@ object HideCellularIconHooker : StaticHooker() {
     private fun findField(type: Class<*>, name: String): Field? {
         var current: Class<*>? = type
         while (current != null) {
-            runCatching { return current.getDeclaredField(name).apply { isAccessible = true } }
+            runCatching { return HostAccess.requireDeclaredField(current, name, accessible = true) }
             current = current.superclass
         }
         return null

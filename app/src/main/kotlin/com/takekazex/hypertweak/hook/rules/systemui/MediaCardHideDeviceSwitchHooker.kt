@@ -475,7 +475,7 @@ object MediaCardHideDeviceSwitchHooker : StaticHooker() {
         var type: Class<*>? = cls
         while (type != null && type != Any::class.java) {
             try {
-                return type.getDeclaredField(name).apply { isAccessible = true }
+                return HostAccess.requireDeclaredField(type, name, accessible = true)
             } catch (_: NoSuchFieldException) {
                 type = type.superclass
             }

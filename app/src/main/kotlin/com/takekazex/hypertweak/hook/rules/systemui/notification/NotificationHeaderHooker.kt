@@ -18,7 +18,6 @@ import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.reflect.Field
-import java.lang.reflect.Method
 import java.util.IdentityHashMap
 import java.util.WeakHashMap
 import java.util.concurrent.CountDownLatch
@@ -59,8 +58,6 @@ object NotificationHeaderHooker : StaticHooker() {
         "com.android.systemui.statusbar.notification.stack.NotificationStackScrollLayout"
 
     private val main = Handler(Looper.getMainLooper())
-    private val fields = HashMap<Pair<Class<*>, String>, Field?>()
-    private val methods = HashMap<Triple<Class<*>, String, Int>, Method?>()
     private val clockSizing = NotificationHeaderClockSizing(::field, ::read,
         resolveClass = { it.toClassOrNull() }, timeScale = { timeScale })
     private val layoutController = NotificationHeaderLayoutController(
@@ -218,8 +215,6 @@ object NotificationHeaderHooker : StaticHooker() {
             resettingHeaders.clear()
             notificationTopPaddingRefreshDepth.remove()
             notificationClockPositionDepth.remove()
-            fields.clear()
-            methods.clear()
             clockSizing.clearConfigMethods()
             generatedCallbacks = null
         }
@@ -776,22 +771,13 @@ object NotificationHeaderHooker : StaticHooker() {
         candidates.singleOrNull()?.apply { isAccessible = true }?.get(callback)
     }.getOrNull()
 
-    private fun invokeNoArgs(owner: Any, name: String): Any? {
-        val method = methods.getOrPut(Triple(owner.javaClass, name, 0)) {
-            owner.javaClass.methods.firstOrNull { it.name == name && it.parameterCount == 0 }
-        } ?: return null
-        return runCatching { method.invoke(owner) }.getOrNull()
-    }
+    private fun invokeNoArgs(owner: Any, name: String): Any? = runCatching {
+        HostAccess.publicMethod(owner.javaClass, name, accessible = false)?.invoke(owner)
+    }.getOrNull()
 
-    private fun invokeWithBoolean(owner: Any, name: String, value: Boolean): Any? {
-        val method = methods.getOrPut(Triple(owner.javaClass, name, 1)) {
-            owner.javaClass.methods.firstOrNull {
-                it.name == name && it.parameterCount == 1 &&
-                    it.parameterTypes[0] == Boolean::class.javaPrimitiveType
-            }
-        } ?: return null
-        return runCatching { method.invoke(owner, value) }.getOrNull()
-    }
+    private fun invokeWithBoolean(owner: Any, name: String, value: Boolean): Any? = runCatching {
+        HostAccess.publicMethod(owner.javaClass, name, Boolean::class.javaPrimitiveType!!, accessible = false)?.invoke(owner, value)
+    }.getOrNull()
 
     private fun updateCarrierFromHost(root: ViewGroup) {
         runCatching {
@@ -801,17 +787,7 @@ object NotificationHeaderHooker : StaticHooker() {
         }.onFailure { DebugLog.w(TAG, "failed to restore carrier visibility", it) }
     }
 
-    private fun field(type: Class<*>, name: String): Field? = fields.getOrPut(type to name) {
-        var current: Class<*>? = type
-        var result: Field? = null
-        while (current != null && result == null) {
-            result = runCatching {
-                current.getDeclaredField(name).apply { isAccessible = true }
-            }.getOrNull()
-            current = current.superclass
-        }
-        result
-    }
+    private fun field(type: Class<*>, name: String): Field? = HostAccess.field(type, name)
 
     private inline fun guarded(stage: String, block: () -> Unit) {
         runCatching(block).onFailure { DebugLog.w(TAG, "$stage failed", it) }

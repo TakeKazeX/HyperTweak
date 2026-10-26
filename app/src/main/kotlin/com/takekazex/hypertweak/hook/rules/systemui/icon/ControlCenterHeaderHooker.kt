@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
 import com.takekazex.hypertweak.settings.contract.ControlCenterPrivacyPolicy
 
@@ -42,7 +43,6 @@ object ControlCenterHeaderHooker : StaticHooker() {
     private const val PARENT_ID = 0
     private const val UNSET = -1
     private val main = Handler(Looper.getMainLooper())
-    private val fields = HashMap<Pair<Class<*>, String>, Field?>()
     private val dates = WeakHashMap<View, DateState>()
     private val layouts = WeakHashMap<View, LayoutState>()
     private class ResourceIds(resources: Resources) {
@@ -90,7 +90,6 @@ object ControlCenterHeaderHooker : StaticHooker() {
             compactCarrierVisibility.clear()
             compactHeaders.clear()
             compactPrivacy.clear()
-            fields.clear()
             resourceIds.clear()
         }
         if (Looper.myLooper() == Looper.getMainLooper()) restore() else {
@@ -380,15 +379,7 @@ object ControlCenterHeaderHooker : StaticHooker() {
 
     private fun read(owner: Any, name: String): Any? = field(owner.javaClass, name)?.get(owner)
 
-    private fun field(type: Class<*>, name: String): Field? = fields.getOrPut(type to name) {
-        var current: Class<*>? = type
-        var found: Field? = null
-        while (current != null && found == null) {
-            found = runCatching { current.getDeclaredField(name).apply { isAccessible = true } }.getOrNull()
-            current = current.superclass
-        }
-        found
-    }
+    private fun field(type: Class<*>, name: String): Field? = HostAccess.field(type, name)
 
     private inline fun guarded(action: () -> Unit) {
         runCatching(action).onFailure { DebugLog.w(TAG, "control-center header update failed", it) }

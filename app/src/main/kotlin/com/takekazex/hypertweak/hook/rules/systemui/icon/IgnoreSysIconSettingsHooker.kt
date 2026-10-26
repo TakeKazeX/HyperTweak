@@ -35,8 +35,6 @@ object IgnoreSysIconSettingsHooker : StaticHooker() {
 
     private var netSpeedShown by generationState { false }
 
-    override fun onPrepareHotReload() {
-    }
 
     override fun onHook() {
         IconTunerFlows.init(classLoader)
@@ -66,7 +64,7 @@ object IgnoreSysIconSettingsHooker : StaticHooker() {
     internal fun recoverNetworkSpeed(component: Any) {
         val speed = HostAccess.provider(component, "networkSpeedControllerProvider") ?: return
         if (ignoreSysHide) {
-            speed.javaClass.getDeclaredField("mShowNetworkSpeed").apply { isAccessible = true }.setBoolean(speed, netSpeedShown)
+            HostAccess.requireDeclaredField(speed.javaClass, "mShowNetworkSpeed", accessible = true).setBoolean(speed, netSpeedShown)
             speed.javaClass.declaredMethods.singleOrNull {
                 it.name.contains("mupdateVisibility") && it.parameterTypes.contentEquals(arrayOf(speed.javaClass, String::class.java))
             }?.apply { isAccessible = true }?.invoke(null, speed, "HyperTweak hot reload")
@@ -106,7 +104,7 @@ object IgnoreSysIconSettingsHooker : StaticHooker() {
             return
         }
         val showField = runCatching {
-            speedClass.getDeclaredField("mShowNetworkSpeed").apply { isAccessible = true }
+            HostAccess.requireDeclaredField(speedClass, "mShowNetworkSpeed", accessible = true)
         }.getOrNull()
         if (showField == null) {
             DebugLog.hookSkipped(TAG, "$SPEED_CLASS#mShowNetworkSpeed", "field not found")

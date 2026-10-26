@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.system
 
+import com.takekazex.hypertweak.hook.base.cachedPublicMethod
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import android.content.Context
@@ -278,10 +280,9 @@ object PowerButtonCtsHooker : StaticHooker() {
         val policyClass = PHONE_WINDOW_MANAGER_CLASS.toClassOrNull()
             ?: return DebugLog.hookSkipped(SCOPE, TARGET_AOSP_LONG_PRESS, "class not found")
         runCatching {
-            val method = policyClass.getDeclaredMethod(
+            val method = HostAccess.requireDeclaredMethod(policyClass,
                 "powerLongPress",
-                Long::class.javaPrimitiveType
-            ).apply { isAccessible = true }
+                Long::class.javaPrimitiveType, accessible = true)
             deoptimize(method)
             method.hook("power_button_cts_aosp_long_press") {
                 before { param ->
@@ -324,12 +325,12 @@ object PowerButtonCtsHooker : StaticHooker() {
 
     /** `SingleKeyGestureEvent.getKeyCode()`; -1 when unavailable, which matches no real key. */
     private fun readEventKeyCode(event: Any): Int = runCatching {
-        event.javaClass.getMethod("getKeyCode").invoke(event) as? Int ?: -1
+        HostAccess.requirePublicMethod(event.javaClass, "getKeyCode", accessible = false).invoke(event) as? Int ?: -1
     }.getOrDefault(-1)
 
     /** `SingleKeyGestureEvent.getType()`; -1 when unavailable, which never equals the long press. */
     private fun readEventType(event: Any): Int = runCatching {
-        event.javaClass.getMethod("getType").invoke(event) as? Int ?: -1
+        HostAccess.requirePublicMethod(event.javaClass, "getType", accessible = false).invoke(event) as? Int ?: -1
     }.getOrDefault(-1)
 
     /**
@@ -339,7 +340,7 @@ object PowerButtonCtsHooker : StaticHooker() {
     private fun readEventStartTime(event: Any): Long? {
         for (name in listOf("getStartTime", "getEventTime")) {
             val value = runCatching {
-                event.javaClass.getMethod(name).invoke(event) as? Long
+                HostAccess.requirePublicMethod(event.javaClass, name, accessible = false).invoke(event) as? Long
             }.getOrNull()
             if (value != null) return value
         }
@@ -359,8 +360,7 @@ object PowerButtonCtsHooker : StaticHooker() {
         if (rule.javaClass.name == PHONE_WINDOW_MANAGER_CLASS) return rule
         for (fieldName in listOf("mWindowManagerPolicy", "this\$0")) {
             val value = runCatching {
-                rule.javaClass.getDeclaredField(fieldName)
-                    .apply { isAccessible = true }
+                HostAccess.requireDeclaredField(rule.javaClass, fieldName, accessible = true)
                     .get(rule)
             }.getOrNull()
             if (value != null) return value
@@ -371,7 +371,7 @@ object PowerButtonCtsHooker : StaticHooker() {
     /** The live policy from system_server's own service registry. */
     private fun localWindowManagerPolicy(): Any? = runCatching {
         Class.forName("android.os.LocalServices")
-            .getMethod("getService", Class::class.java)
+            .cachedPublicMethod("getService", Class::class.java, accessible = false)
             .invoke(null, Class.forName("com.android.server.policy.WindowManagerPolicy"))
     }.onFailure { t ->
         DebugLog.w(SCOPE, "failed to resolve the window manager policy", t)
@@ -499,11 +499,11 @@ object PowerButtonCtsHooker : StaticHooker() {
         systemContextCache?.let { return it }
         val resolved = runCatching {
             Class.forName("android.app.ActivityThread")
-                .getMethod("currentActivityThread")
+                .cachedPublicMethod("currentActivityThread", accessible = false)
                 .invoke(null)
                 ?.let { thread ->
                     Class.forName("android.app.ActivityThread")
-                        .getMethod("getSystemContext")
+                        .cachedPublicMethod("getSystemContext", accessible = false)
                         .invoke(thread) as? Context
                 }
         }.getOrNull()
@@ -542,9 +542,8 @@ object PowerButtonCtsHooker : StaticHooker() {
         var current: Class<*>? = type
         while (current != null) {
             runCatching {
-                current.getDeclaredMethod(name, *params.filterNotNull().toTypedArray())
+                HostAccess.requireDeclaredMethod(current, name, *params.filterNotNull().toTypedArray(), accessible = true)
             }.getOrNull()?.let { method ->
-                method.isAccessible = true
                 return method
             }
             current = current.superclass
@@ -561,7 +560,7 @@ object PowerButtonCtsHooker : StaticHooker() {
         if (policy == null) return
         runCatching {
             val method = setPowerKeyHandledMethod ?: policy.javaClass
-                .getMethod("setPowerKeyHandled", Boolean::class.javaPrimitiveType)
+                .cachedPublicMethod("setPowerKeyHandled", Boolean::class.javaPrimitiveType, accessible = false)
                 .also { setPowerKeyHandledMethod = it }
             method.invoke(policy, true)
         }.onFailure { t ->

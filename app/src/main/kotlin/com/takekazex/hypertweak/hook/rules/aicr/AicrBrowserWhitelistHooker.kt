@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.aicr
 
+import com.takekazex.hypertweak.hook.base.HostAccess
 import android.content.Context
 import android.graphics.drawable.Drawable
 import android.os.Bundle
@@ -62,8 +63,8 @@ object AicrBrowserWhitelistHooker : StaticHooker() {
     private fun install(targets: Targets) {
         val method = targets.render
         val fragment = method.parameterTypes[0]
-        val arguments = fragment.getMethod("getArguments")
-        val requireContext = fragment.getMethod("requireContext")
+        val arguments = HostAccess.requirePublicMethod(fragment, "getArguments", accessible = false)
+        val requireContext = HostAccess.requirePublicMethod(fragment, "requireContext", accessible = false)
         val rows = fragment.declaredFields.single { it.name == "appPrefByKey" && Map::class.java.isAssignableFrom(it.type) }
             .apply { isAccessible = true }
         // Include the same packages before native batch state loading. Otherwise added rows
@@ -130,7 +131,7 @@ object AicrBrowserWhitelistHooker : StaticHooker() {
                 candidate.parameterTypes.contentEquals(arrayOf(String::class.java, String::class.java))
             }.apply { isAccessible = true }
         }
-        val packageField = type.getDeclaredField("packageName").apply { isAccessible = true }
+        val packageField = HostAccess.requireDeclaredField(type, "packageName", accessible = true)
         val existing = original.mapNotNull { it?.let { item -> packageField.get(item) as? String } }.toSet()
         return original + AicrBrowserCatalog.installed(context).filter { it.packageName !in existing }
             .map { ctor.newInstance(it.packageName, it.label) }

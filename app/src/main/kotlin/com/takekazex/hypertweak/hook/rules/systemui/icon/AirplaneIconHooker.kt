@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
 
 import android.graphics.Canvas
@@ -16,9 +17,9 @@ object AirplaneIconHooker : StaticHooker() {
     override fun onHook() {
         if (!Preferences.getBoolean(IconSettingsKeys.KEY_ICON_MIRROR_AIRPLANE, false)) return
         val type = "com.android.systemui.statusbar.StatusBarIconView".toClassOrNull() ?: return
-        val slot = runCatching { type.getDeclaredField("mSlot").apply { isAccessible = true } }
+        val slot = runCatching { HostAccess.requireDeclaredField(type, "mSlot", accessible = true) }
             .getOrNull() ?: return
-        val method = runCatching { type.getDeclaredMethod("onDraw", Canvas::class.java) }.getOrNull()
+        val method = runCatching { HostAccess.requireDeclaredMethod(type, "onDraw", Canvas::class.java, accessible = false) }.getOrNull()
             ?: return
         // ThreadLocal.get() is @RecentlyNullable on the platform; withInitial always supplies one.
         val saves = ThreadLocal.withInitial { java.util.ArrayDeque<Int>() }

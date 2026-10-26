@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import com.takekazex.hypertweak.hook.base.cachedPublicField
 import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
 import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
 
@@ -21,8 +22,6 @@ import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 import org.luckypray.dexkit.query.enums.StringMatchType
 import java.io.File
-import java.lang.reflect.Field
-import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.roundToInt
 
 /**
@@ -52,10 +51,6 @@ object WifiIconHooker : StaticHooker() {
     private const val STANDARD_TRANSFORM_OWNER_MARKER = "WifiViewModelInject"
     private const val WIFI_ACTIVE_CLASS =
         "com.android.systemui.statusbar.pipeline.wifi.shared.model.WifiNetworkModel\$Active"
-
-    /** Reflective field lookups, cached per (declaring class, field name); see [resolveField]. */
-    private val fieldCache = ConcurrentHashMap<Pair<Class<*>, String>, Field>()
-    private val fieldMisses = ConcurrentHashMap.newKeySet<Pair<Class<*>, String>>()
 
     private var hideActivity by generationState { false }
     private var hideType by generationState { false }
@@ -129,7 +124,7 @@ object WifiIconHooker : StaticHooker() {
             val companionClass = "$WIFI_ICON_CLASS\$Companion".toClassOrNull()
             val activeClass = ACTIVE_CLASS.toClassOrNull()
             val hiddenInstance = runCatching {
-                HIDDEN_CLASS.toClass().getField("INSTANCE").get(null)
+                HIDDEN_CLASS.toClass().cachedPublicField("INSTANCE", accessible = false).get(null)
             }.getOrNull()
             val fromModel = companionClass?.findMethodOrNull { name("fromModel") }
             if (fromModel == null || activeClass == null || hiddenInstance == null) {
@@ -457,29 +452,8 @@ object WifiIconHooker : StaticHooker() {
     private fun safeFloat(value: Float): Float =
         value.takeIf(Float::isFinite)?.coerceIn(-48f, 48f) ?: 0f
 
-    private fun readField(target: Any?, name: String): Any? {
-        var type = target?.javaClass
-        while (type != null) {
-            val field = resolveField(type, name)
-            if (field != null) return runCatching { field.get(target) }.getOrNull()
-            type = type.superclass
-        }
-        return null
-    }
-
-    /**
-     * Cached `getDeclaredField` lookup. The wifi-standard callback runs on every icon update, so
-     * walking the superclass chain reflectively each time was measurable overhead in SystemUI.
-     * Misses are remembered too, so a name absent from the whole chain is not re-resolved.
-     */
-    private fun resolveField(type: Class<*>, name: String): Field? {
-        val key = type to name
-        fieldCache[key]?.let { return it }
-        if (key in fieldMisses) return null
-        val field = runCatching { type.getDeclaredField(name).apply { isAccessible = true } }.getOrNull()
-        if (field == null) fieldMisses.add(key) else fieldCache[key] = field
-        return field
-    }
+    private fun readField(target: Any?, name: String): Any? =
+        target?.let { runCatching { HostAccess.read(it, name) }.getOrNull() }
 
     private fun readInt(target: Any?, name: String): Int? =
         (readField(target, name) as? Number)?.toInt()

@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import com.takekazex.hypertweak.hook.base.cachedDeclaredField
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.reflect.Field
 
@@ -63,7 +65,7 @@ object IconTunerFlows {
             val stateFlowKt = Class.forName(
                 hostClassName("kotlinx.coroutines.flow", "StateFlowKt"), false, loader
             )
-            val mutableStateFlow = stateFlowKt.getMethod("MutableStateFlow", Any::class.java)
+            val mutableStateFlow = HostAccess.requirePublicMethod(stateFlowKt, "MutableStateFlow", Any::class.java, accessible = false)
             mutableStateFlow.invoke(null, value)
         }.getOrElse { t ->
             DebugLog.e("IconTunerFlows", "failed to create MutableStateFlow", t)
@@ -98,18 +100,18 @@ object IconTunerFlows {
         val stateFlowKt = Class.forName(
             hostClassName("kotlinx.coroutines.flow", "StateFlowKt"), false, cl()
         )
-        stateFlowKt.getMethod("MutableStateFlow", Any::class.java).invoke(null, value)
+        HostAccess.requirePublicMethod(stateFlowKt, "MutableStateFlow", Any::class.java, accessible = false).invoke(null, value)
     }.getOrNull()
 
     /** Unwraps the `MutableStateFlow` behind a `ReadonlyStateFlow` (`$$delegate_0`). */
     fun mutableOfReadonly(flow: Any): Any? = runCatching {
-        flow.javaClass.getDeclaredField("\$\$delegate_0").apply { isAccessible = true }.get(flow)
+        HostAccess.requireDeclaredField(flow.javaClass, "\$\$delegate_0", accessible = true).get(flow)
     }.getOrNull()
 
     /** Calls `MutableStateFlow.setValue(value)` reflectively. */
     fun setFlowValue(mutable: Any, value: Any) {
         runCatching {
-            mutable.javaClass.getMethod("setValue", Any::class.java).invoke(mutable, value)
+            HostAccess.requirePublicMethod(mutable.javaClass, "setValue", Any::class.java, accessible = false).invoke(mutable, value)
         }.onFailure { t ->
             DebugLog.w("IconTunerFlows", "setValue failed (${t.javaClass.simpleName})", t)
         }
@@ -117,22 +119,35 @@ object IconTunerFlows {
 
     /** Reads the current value of a `StateFlow` via `getValue()`, unwrapping `Pair` firsts. */
     fun readFlowValue(flow: Any): Any? = runCatching {
-        flow.javaClass.getMethod("getValue").invoke(flow)
+        HostAccess.requirePublicMethod(flow.javaClass, "getValue", accessible = false).invoke(flow)
     }.getOrNull()
+
+    internal data class ExpansionSnapshot(val progress: Float?, val visible: Boolean?, val stretch: Float?)
+
+    /** Owns the vendor delegate/flow contract; the recovery dispatcher consumes values only. */
+    internal fun readExpansionSnapshot(component: Any?): ExpansionSnapshot {
+        val expansion = component?.let {
+            runCatching { HostAccess.provider(it, "controlCenterExpandControllerDelegateProvider") }.getOrNull()
+        }
+        fun value(name: String): Any? = expansion?.let {
+            runCatching { HostAccess.read(it, name) }.getOrNull()
+        }?.let(::readFlowValue)
+        return ExpansionSnapshot(value("expansionState") as? Float, value("visibleState") as? Boolean,
+            value("stretchHeightState") as? Float)
+    }
 
     /** Boolean from a flow value, tolerating `Boolean` or `Pair(Boolean, *)` shapes. */
     fun readFlowBoolean(value: Any?): Boolean {
         if (value == null) return true
         if (value is Boolean) return value
         return runCatching {
-            val first = value.javaClass.getMethod("getFirst").invoke(value)
+            val first = HostAccess.requirePublicMethod(value.javaClass, "getFirst", accessible = false).invoke(value)
             first as? Boolean ?: true
         }.getOrDefault(true)
     }
 
     private val unsafe: sun.misc.Unsafe by lazy {
-        val f = Class.forName("sun.misc.Unsafe").getDeclaredField("theUnsafe")
-        f.isAccessible = true
+        val f = Class.forName("sun.misc.Unsafe").cachedDeclaredField("theUnsafe", accessible = true)
         f.get(null) as sun.misc.Unsafe
     }
 
@@ -142,8 +157,9 @@ object IconTunerFlows {
      */
     @Suppress("DEPRECATION") // sun.misc.Unsafe is the only host API on ART; intentional.
     fun writeField(target: Any, field: Field, value: Any) {
-        if (!field.isAccessible) runCatching { field.isAccessible = true }
-        runCatching { field.set(target, value) }.onFailure {
+        runCatching {
+            HostAccess.requireDeclaredField(field.declaringClass, field.name, accessible = true).set(target, value)
+        }.onFailure {
             DebugLog.d("IconTunerFlows", "field.set rejected (${it.javaClass.simpleName}), using Unsafe")
             unsafe.putObject(target, unsafe.objectFieldOffset(field), value)
         }

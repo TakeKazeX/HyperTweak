@@ -123,11 +123,10 @@ object CellularTypeIconHooker : StaticHooker() {
     /** Styles the separate single-SIM label, scoped to the host's mobile_type_single view id. */
     private fun hookSmall5GaTextView() {
         val setText = runCatching {
-            TextView::class.java.getMethod(
+            HostAccess.requirePublicMethod(TextView::class.java,
                 "setText",
                 CharSequence::class.java,
-                TextView.BufferType::class.java
-            )
+                TextView.BufferType::class.java, accessible = false)
         }.getOrElse {
             DebugLog.hookSkipped(TAG, "TextView#setText(CharSequence,BufferType)", "method not found")
             return
@@ -363,7 +362,7 @@ object CellularTypeIconHooker : StaticHooker() {
         var current: Class<*>? = clazz
         while (current != null) {
             runCatching {
-                return current.getDeclaredField(name).apply { isAccessible = true }
+                return HostAccess.requireDeclaredField(current, name, accessible = true)
             }
             current = current.superclass
         }

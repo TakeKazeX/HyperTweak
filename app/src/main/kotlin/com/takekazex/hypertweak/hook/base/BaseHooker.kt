@@ -56,8 +56,12 @@ sealed class BaseHooker {
         generationStates.state(initial)
 
     /** Cache identity and synchronization monitors survive until all host cleanup has finished. */
-    protected fun <T> generationResource(value: T, reset: (T) -> Unit): T =
-        generationStates.resource(value, reset)
+    protected fun <T : Any> generationResource(value: T, reset: (T) -> Unit): T =
+        generationStates.resource(value, reset = reset)
+
+    /** UI-owned collections retire on their owning looper, with no monitor held during dispatch. */
+    protected fun <T : Any> generationMainResource(value: T, reset: (T) -> Unit): T =
+        generationStates.resource(value, dispatch = { action -> HostAccess.onMain(action) }, reset = reset)
 
     /** Recovery belongs to the installed owner, so absent/plugin-only hookers cannot participate. */
     protected fun hostRecovery(

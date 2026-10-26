@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.system
 
+import com.takekazex.hypertweak.hook.base.cachedDeclaredField
+import com.takekazex.hypertweak.hook.base.cachedDeclaredMethod
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import com.takekazex.hypertweak.hook.Preferences
@@ -55,7 +57,7 @@ object ForceScreenshotHooker : StaticHooker() {
             }
             val captureValue: Any = if (setter.parameterTypes.single() == Boolean::class.javaPrimitiveType) true
                 else classLoader.loadClass("android.window.ScreenCapture\$ScreenCaptureParams")
-                    .getDeclaredField("SECURE_CONTENT_POLICY_CAPTURE").apply { isAccessible = true }.getInt(null)
+                    .cachedDeclaredField("SECURE_CONTENT_POLICY_CAPTURE", accessible = true).getInt(null)
             val contract = ForceScreenshotContract.resolve(capture, builder, layerBuilder, surface, setter, captureValue)
             val native = owner.declaredMethods.filter { it.name in setOf("nativeCaptureDisplay", "nativeCaptureLayers") }
             check(native.size == 2 && native.all { Modifier.isNative(it.modifiers) && Modifier.isStatic(it.modifiers) &&
@@ -67,7 +69,7 @@ object ForceScreenshotHooker : StaticHooker() {
             val surfaceRecovery = ForceScreenshotSurfaceRecovery.resolve(wm, root,
                 classLoader.loadClass("com.android.server.wm.WindowManagerGlobalLock"))
             val checkWindow = classLoader.loadClass("android.os.ServiceManager")
-                .getDeclaredMethod("checkService", String::class.java).apply { isAccessible = true }
+                .cachedDeclaredMethod("checkService", String::class.java, accessible = true)
             restoreNativeSurfaces = {
                 // This runs on the existing bounded main-thread recovery scheduler, never inside
                 // a capture callback. Refuse proxies: restoration requires our local WMS instance.

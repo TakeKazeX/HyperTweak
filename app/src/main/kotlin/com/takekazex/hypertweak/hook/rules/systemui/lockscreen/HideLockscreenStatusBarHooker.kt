@@ -194,7 +194,7 @@ object HideLockscreenStatusBarHooker : StaticHooker() {
         // The intercepted argument is the host's request. It updates the native intent for that
         // dimension only; the module's own hidden value is never written back into the baseline.
         runCatching {
-            View::class.java.getMethod("setVisibility", Int::class.javaPrimitiveType).hook {
+            HostAccess.requirePublicMethod(View::class.java, "setVisibility", Int::class.javaPrimitiveType, accessible = false).hook {
                 before { param ->
                     if (!shouldHide(param.thisObject)) return@before
                     val view = param.thisObject as? View ?: return@before
@@ -209,7 +209,7 @@ object HideLockscreenStatusBarHooker : StaticHooker() {
         }
 
         runCatching {
-            View::class.java.getMethod("setAlpha", Float::class.javaPrimitiveType).hook {
+            HostAccess.requirePublicMethod(View::class.java, "setAlpha", Float::class.javaPrimitiveType, accessible = false).hook {
                 before { param ->
                     if (!shouldHide(param.thisObject)) return@before
                     val view = param.thisObject as? View ?: return@before

@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.securitycenter
 
+import com.takekazex.hypertweak.hook.base.cachedDeclaredField
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import android.app.Activity
@@ -236,10 +237,9 @@ object SecurityCenterUsbInstallNetworkVerifyHooker : DynamicHooker() {
         val expectedFieldPrefix = "${ACTIVITY_DESCRIPTOR}->"
         if (!fieldDescriptor.startsWith(expectedFieldPrefix) || !fieldDescriptor.endsWith(":Z")) return null
         val fieldName = fieldDescriptor.removePrefix(expectedFieldPrefix).removeSuffix(":Z")
-        val inputField = runCatching { classLoader.loadClass(ACTIVITY).getDeclaredField(fieldName) }.getOrNull()
+        val inputField = runCatching { classLoader.loadClass(ACTIVITY).cachedDeclaredField(fieldName, accessible = true) }.getOrNull()
             ?: return null
         if (inputField.type != Boolean::class.javaPrimitiveType) return null
-        inputField.isAccessible = true
         if (network.declaringClass.name != ACTIVITY || network.parameterCount != 0 || network.returnType != Void.TYPE ||
             falseSetter.declaringClass.name != ACTIVITY || falseSetter.parameterCount != 1 ||
             falseSetter.parameterTypes[0] != Boolean::class.javaPrimitiveType || falseSetter.returnType != Void.TYPE

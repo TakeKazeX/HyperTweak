@@ -57,7 +57,6 @@ object NotificationHeaderWeatherHooker : StaticHooker() {
     )
 
     private val main = Handler(Looper.getMainLooper())
-    private val fields = HashMap<Pair<Class<*>, String>, Field?>()
     private val headers = WeakHashMap<ViewGroup, HeaderState>()
     private val baseTexts = WeakHashMap<TextView, String>()
     private val dateLayouts = WeakHashMap<TextView, DateLayoutState>()
@@ -123,7 +122,6 @@ object NotificationHeaderWeatherHooker : StaticHooker() {
             headers.clear()
             baseTexts.clear()
             dateLayouts.clear()
-            fields.clear()
             fetcher = null
             fetchMethod = null
             callbackProxy = null
@@ -428,15 +426,5 @@ object NotificationHeaderWeatherHooker : StaticHooker() {
 
     private fun read(owner: Any, name: String): Any? = field(owner.javaClass, name)?.get(owner)
 
-    private fun field(type: Class<*>, name: String): Field? = fields.getOrPut(type to name) {
-        var current: Class<*>? = type
-        var result: Field? = null
-        while (current != null && result == null) {
-            result = runCatching {
-                current.getDeclaredField(name).apply { isAccessible = true }
-            }.getOrNull()
-            current = current.superclass
-        }
-        result
-    }
+    private fun field(type: Class<*>, name: String): Field? = HostAccess.field(type, name)
 }

@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.camera
 
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.CameraSettingsKeys
 
 import android.view.View
@@ -117,7 +118,7 @@ object CameraLegendaryProfileHooker : StaticHooker() {
         runCatching {
             val getter = binding.modelArrayGetter ?: return@runCatching
             val facade = binding.facadeInstance() ?: return@runCatching
-            val values = binding.facade.getMethod(getter).invoke(facade) as? Array<*> ?: return@runCatching
+            val values = HostAccess.requirePublicMethod(binding.facade, getter, accessible = false).invoke(facade) as? Array<*> ?: return@runCatching
             CameraLegendaryProfileState.captureNativeWatermarkIfMissing(values)
         }.onFailure { DebugLog.w(TAG, "native watermark snapshot could not be captured", it) }
 

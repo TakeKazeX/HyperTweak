@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon.duo
 
+import com.takekazex.hypertweak.hook.base.HostAccess
 import java.lang.reflect.Modifier
 
 /** Cached access to the native manager; a late registration may recover without a new hook. */
@@ -8,10 +9,10 @@ internal class FullAodDozingSource(
     registryClass: Class<*>,
     private val api: Class<*>,
 ) {
-    private val getImpl = registryClass.getMethod("getImpl", Class::class.java).apply {
+    private val getImpl = HostAccess.requirePublicMethod(registryClass, "getImpl", Class::class.java, accessible = false).apply {
         require(Modifier.isStatic(modifiers) && returnType == Any::class.java)
     }
-    private val dozing = managerClass.getField("isDozing").apply {
+    private val dozing = HostAccess.requirePublicField(managerClass, "isDozing", accessible = false).apply {
         require(type == Boolean::class.javaPrimitiveType && !Modifier.isStatic(modifiers))
     }
     @Volatile private var owner: Any? = null

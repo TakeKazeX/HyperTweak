@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.camera
 
+import com.takekazex.hypertweak.hook.base.cachedPublicMethod
+import com.takekazex.hypertweak.hook.base.HostAccess
 import android.content.ComponentName
 import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
@@ -145,7 +147,7 @@ object CameraImpersonationHooker : StaticHooker() {
         val owner = profile.facadeInstance() ?: return
         val getter = profile.modelArrayGetter ?: return
         runCatching {
-            val values = profile.facade.getMethod(getter).invoke(owner) as? Array<*>
+            val values = HostAccess.requirePublicMethod(profile.facade, getter, accessible = false).invoke(owner) as? Array<*>
             originalThirdSlot.set(values?.getOrNull(2) as? String)
         }.onFailure { DebugLog.w(TAG, "native watermark text could not be read", it) }
     }
@@ -663,7 +665,7 @@ object CameraImpersonationHooker : StaticHooker() {
     }
 
     private val registryContextGetter by lazy {
-        runCatching { classLoader.loadClass("com.xiaomi.camera.basic.Global").getMethod("getContext") }.getOrNull()
+        runCatching { classLoader.loadClass("com.xiaomi.camera.basic.Global").cachedPublicMethod("getContext", accessible = false) }.getOrNull()
     }
     private val masterLiveRegistryEntry by lazy {
         runCatching { classLoader.loadClass("com.android.camera.features.mode.masterlive.MasterLiveModuleEntry") }.getOrNull()
@@ -774,7 +776,7 @@ object CameraImpersonationHooker : StaticHooker() {
                 .mapNotNull { ctor -> runCatching { ctor.apply { isAccessible = true }.newInstance(context) }.getOrNull() }
                 .mapNotNull { candidate ->
                     val moduleId = runCatching {
-                        candidate.javaClass.getMethod("getModuleId").invoke(candidate) as? Int
+                        HostAccess.requirePublicMethod(candidate.javaClass, "getModuleId", accessible = false).invoke(candidate) as? Int
                     }.getOrNull() ?: return@mapNotNull null
                     if (expectedModuleId != null && moduleId != expectedModuleId) return@mapNotNull null
                     moduleId to candidate
@@ -839,14 +841,13 @@ object CameraImpersonationHooker : StaticHooker() {
             var holder: Class<*>? = fragClass
             var groupField: Field? = null
             while (holder != null && groupField == null) {
-                groupField = runCatching { holder.getDeclaredField("mPreferenceGroup") }.getOrNull()
+                groupField = runCatching { HostAccess.requireDeclaredField(holder, "mPreferenceGroup", accessible = true) }.getOrNull()
                 holder = holder.superclass
             }
             val groupField0 = groupField ?: run {
                 DebugLog.d(TAG, "mPreferenceGroup not found on $fragClass; top row skipped")
                 return
             }
-            groupField0.isAccessible = true
             val screen = groupField0.get(fragment) ?: return
             // androidx.preference.PreferenceGroup is host-bundled and its findPreference was
             // R8-renamed to `k0` on this build — resolve by name candidates + single-arg shape.
@@ -857,11 +858,11 @@ object CameraImpersonationHooker : StaticHooker() {
             } ?: return
             val category = find.invoke(screen, "category_photo_setting") ?: return
             if (find.invoke(screen, SMART_COMPOSITION_PREF_KEY) != null) return
-            val res = fragClass.getMethod("getResources").invoke(fragment) as android.content.res.Resources
+            val res = HostAccess.requirePublicMethod(fragClass, "getResources", accessible = false).invoke(fragment) as android.content.res.Resources
             val (titleRes, summaryRes) = smartCompositionResourceIds ?: return
-            val helper = fragClass.getMethod(
+            val helper = HostAccess.requirePublicMethod(fragClass,
                 "addCheckBoxPreference", groupClass, String::class.java,
-                java.lang.Boolean.TYPE, java.lang.Integer.TYPE, java.lang.Integer.TYPE,
+                java.lang.Boolean.TYPE, java.lang.Integer.TYPE, java.lang.Integer.TYPE, accessible = false,
             )
             helper.invoke(fragment, category, SMART_COMPOSITION_PREF_KEY, true, titleRes, summaryRes)
             DebugLog.i(TAG, "smart-composition top row injected into category_photo_setting")
