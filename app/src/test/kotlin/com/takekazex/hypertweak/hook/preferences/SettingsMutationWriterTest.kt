@@ -48,6 +48,20 @@ class SettingsMutationWriterTest {
         assertEquals(false, RuntimeSettingsSignal.lastAcknowledged()!!.values[key])
         assertEquals(12L, RuntimeSettingsSignal.lastAcknowledged()!!.revision)
     }
+
+    @Test fun backupBarrierWaitsForEarlierRemoteWrites() = isolated { s, writer ->
+        writer.write { putString("backup_value", "latest") }
+        writer.awaitPendingWrites()
+        assertEquals("latest", s.remote.persisted["backup_value"])
+    }
+
+    @Test fun backupBarrierReportsRejectedQueue() {
+        val storage = Storage()
+        storage.serializedWriter.shutdown()
+        assertThrows(java.util.concurrent.RejectedExecutionException::class.java) {
+            SettingsMutationWriter(storage).awaitPendingWrites()
+        }
+    }
     @Test fun rejectedReplacementRepairsDaemonShadowAndKeepsAcknowledgement() = isolated { s, writer ->
         s.remote.values["ordinary"] = "before"
         s.remote.persisted["ordinary"] = "before"

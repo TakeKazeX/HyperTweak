@@ -1,107 +1,118 @@
 package com.takekazex.hypertweak.hook.preferences
 
+import com.takekazex.hypertweak.util.backup.SettingsBackupDocument
 import org.json.JSONArray
 import org.json.JSONObject
+import org.json.JSONTokener
 
-/**
- * Versioned JSON representation used by the settings backup/restore page.
- *
- * SharedPreferences supports a small set of value types, but JSON numbers do not retain their
- * original type. Every entry therefore carries its SharedPreferences type explicitly.
- */
+/** Portable settings only; metadata is informational and never enters the restore map. */
 internal object SettingsBackupCodec {
-    private const val FORMAT_VERSION = 1
-    private const val KEY_FORMAT_VERSION = "format_version"
-    private const val KEY_CREATED_AT = "created_at"
-    private const val KEY_SETTINGS = "settings"
-    private const val KEY_TYPE = "type"
-    private const val KEY_VALUE = "value"
+    private val types = listOf("boolean", "int", "long", "float", "string", "string_set")
 
-    private const val TYPE_BOOLEAN = "boolean"
-    private const val TYPE_INT = "int"
-    private const val TYPE_LONG = "long"
-    private const val TYPE_FLOAT = "float"
-    private const val TYPE_STRING = "string"
-    private const val TYPE_STRING_SET = "string_set"
-
-    fun encode(values: Map<String, *>, createdAtMillis: Long = System.currentTimeMillis()): String {
-        val settings = JSONObject()
+    fun encode(
+        values: Map<String, *>,
+        createdAtMillis: Long = System.currentTimeMillis(),
+        metadata: JSONObject = JSONObject()
+    ): String {
+        val groups = types.associateWith { JSONObject() }
         values.toSortedMap().forEach { (key, value) ->
-            encodeValue(value)?.let { settings.put(key, it) }
+            require(key.isNotBlank()) { "Settings backup contains a blank key" }
+            val type = when (value) {
+                is Boolean -> "boolean"
+                is Int -> "int"
+                is Long -> "long"
+                is Float -> "float"
+                is String -> "string"
+                is Set<*>, is Collection<*> -> "string_set"
+                else -> throw IllegalArgumentException("Unsupported setting value: $key")
+            }
+            val encoded = when (type) {
+                // JSON numbers cannot preserve all 64-bit integers in common script runtimes.
+                "long" -> value.toString()
+                "float" -> (value as Float).also {
+                    require(it.isFinite()) { "Float setting is invalid: $key" }
+                }
+                "string_set" -> JSONArray((value as Collection<*>).map {
+                    require(it is String) { "String-set setting is invalid: $key" }
+                    it
+                }.distinct().sorted())
+                else -> value
+            }
+            groups.getValue(type).put(key, encoded)
         }
-        return JSONObject()
-            .put(KEY_FORMAT_VERSION, FORMAT_VERSION)
-            .put(KEY_CREATED_AT, createdAtMillis)
-            .put(KEY_SETTINGS, settings)
-            .toString(2)
+        val settings = JSONObject()
+        groups.forEach { (type, entries) -> if (entries.length() > 0) settings.put(type, entries) }
+        return SettingsBackupDocument.validate(JSONObject()
+            .put("format", "hypertweak-settings")
+            .put("format_version", 2)
+            .put("created_at", createdAtMillis)
+            .put("metadata", metadata)
+            .put("settings", settings)
+            .toString())
     }
 
-    /** Returns only SharedPreferences-compatible values. Invalid or unsupported entries fail. */
+    /** Decode and validate the entire document before the manager starts any mutation. */
     fun decode(json: String): Map<String, Any> {
-        val root = JSONObject(json)
-        require(root.optInt(KEY_FORMAT_VERSION, -1) == FORMAT_VERSION) {
+        val reader = JSONTokener(SettingsBackupDocument.validate(json))
+        val root = reader.nextValue() as? JSONObject
+            ?: throw IllegalArgumentException("Settings backup must be an object")
+        require(reader.nextClean() == '\u0000') { "Trailing data in settings backup" }
+        val version = root.opt("format_version")
+        require(version is Number && version.toString() in setOf("1", "2")) {
             "Unsupported settings backup format"
         }
-        val settings = root.optJSONObject(KEY_SETTINGS)
+        val settings = root.optJSONObject("settings")
             ?: throw IllegalArgumentException("Settings backup has no settings object")
         val result = LinkedHashMap<String, Any>()
-        val keys = settings.keys()
-        while (keys.hasNext()) {
-            val key = keys.next()
+        fun add(key: String, type: String, value: Any, v2: Boolean) {
             require(key.isNotBlank()) { "Settings backup contains a blank key" }
-            val entry = settings.optJSONObject(key)
-                ?: throw IllegalArgumentException("Invalid entry for setting: $key")
-            result[key] = decodeValue(entry, key)
+            require(!result.containsKey(key)) { "Duplicate setting across type groups: $key" }
+            result[key] = decodeValue(type, value, key, v2)
+        }
+        if (version.toString() == "1") {
+            settings.keys().forEach { key ->
+                val entry = settings.optJSONObject(key)
+                    ?: throw IllegalArgumentException("Invalid entry for setting: $key")
+                add(key, entry.optString("type", ""), entry.get("value"), false)
+            }
+        } else {
+            require(root.opt("format") == "hypertweak-settings") { "Invalid settings backup identity" }
+            settings.keys().forEach { type ->
+                require(type in types) { "Unknown setting type: $type" }
+                val entries = settings.optJSONObject(type)
+                    ?: throw IllegalArgumentException("Invalid setting type group: $type")
+                entries.keys().forEach { key -> add(key, type, entries.get(key), true) }
+            }
         }
         return result
     }
 
-    private fun encodeValue(value: Any?): JSONObject? {
-        val entry = JSONObject()
-        when (value) {
-            is Boolean -> entry.put(KEY_TYPE, TYPE_BOOLEAN).put(KEY_VALUE, value)
-            is Int -> entry.put(KEY_TYPE, TYPE_INT).put(KEY_VALUE, value)
-            is Long -> entry.put(KEY_TYPE, TYPE_LONG).put(KEY_VALUE, value)
-            is Float -> entry.put(KEY_TYPE, TYPE_FLOAT).put(KEY_VALUE, value.toDouble())
-            is String -> entry.put(KEY_TYPE, TYPE_STRING).put(KEY_VALUE, value)
-            is Set<*> -> {
-                val strings = value.map { it as? String ?: return null }.sorted()
-                entry.put(KEY_TYPE, TYPE_STRING_SET).put(KEY_VALUE, JSONArray(strings))
-            }
-            is Collection<*> -> {
-                val strings = value.map { it as? String ?: return null }.sorted()
-                entry.put(KEY_TYPE, TYPE_STRING_SET).put(KEY_VALUE, JSONArray(strings))
-            }
-            else -> return null
-        }
-        return entry
-    }
-
-    private fun decodeValue(entry: JSONObject, key: String): Any {
-        val type = entry.optString(KEY_TYPE, "")
-        require(entry.has(KEY_VALUE) && entry.opt(KEY_VALUE) != JSONObject.NULL) {
-            "Setting has no value: $key"
+    private fun decodeValue(type: String, value: Any, key: String, v2: Boolean): Any {
+        fun invalid(): Nothing = throw IllegalArgumentException("Invalid $type setting: $key")
+        fun integer(): Long {
+            if (value !is Number) invalid()
+            return value.toString().toLongOrNull() ?: invalid()
         }
         return when (type) {
-            TYPE_BOOLEAN -> entry.getBoolean(KEY_VALUE)
-            TYPE_INT -> entry.getLong(KEY_VALUE).also {
-                require(it in Int.MIN_VALUE.toLong()..Int.MAX_VALUE.toLong()) {
-                    "Integer setting is out of range: $key"
-                }
+            "boolean" -> value as? Boolean ?: invalid()
+            "int" -> integer().also {
+                if (it !in Int.MIN_VALUE.toLong()..Int.MAX_VALUE.toLong()) invalid()
             }.toInt()
-            TYPE_LONG -> entry.getLong(KEY_VALUE)
-            TYPE_FLOAT -> entry.getDouble(KEY_VALUE).also {
-                require(it.isFinite() && it in -Float.MAX_VALUE.toDouble()..Float.MAX_VALUE.toDouble()) {
-                    "Float setting is invalid: $key"
-                }
-            }.toFloat()
-            TYPE_STRING -> entry.getString(KEY_VALUE)
-            TYPE_STRING_SET -> {
-                val array = entry.optJSONArray(KEY_VALUE)
-                    ?: throw IllegalArgumentException("String-set setting is invalid: $key")
-                buildSet {
-                    for (index in 0 until array.length()) add(array.getString(index))
-                }
+            "long" -> if (v2) {
+                if (value !is String || !value.matches(Regex("-?(0|[1-9][0-9]*)"))) invalid()
+                value.toLongOrNull() ?: invalid()
+            } else integer()
+            "float" -> {
+                if (value !is Number) invalid()
+                val number = value.toDouble()
+                val float = number.toFloat()
+                if (!number.isFinite() || !float.isFinite()) invalid()
+                float
+            }
+            "string" -> value as? String ?: invalid()
+            "string_set" -> {
+                if (value !is JSONArray) invalid()
+                buildSet { for (index in 0 until value.length()) add(value.get(index) as? String ?: invalid()) }
             }
             else -> throw IllegalArgumentException("Unknown setting type for $key: $type")
         }

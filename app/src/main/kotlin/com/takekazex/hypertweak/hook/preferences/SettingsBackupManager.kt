@@ -5,18 +5,21 @@ import com.takekazex.hypertweak.hook.runtime.settings.BackGestureSettingsSnapsho
 import android.content.SharedPreferences
 import androidx.core.content.edit
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+import org.json.JSONObject
 
 internal class SettingsBackupManager(private val storage: Storage) {
     interface Storage {
         val logLock: Any
         val settingsMutationLock: Any
         val isInitialized: Boolean
+        val canReadRemote: Boolean get() = isInitialized
         val remotePrefs: SharedPreferences
         val localSourcePrefs: SharedPreferences?
         fun cache(): SharedPreferences?
         fun invalidate()
         fun flush()
         fun isRuntimeKey(key: String): Boolean
+        fun backupMetadata(): JSONObject = JSONObject()
         fun commit(snapshot: NativeRuleStateSnapshot, replacement: Map<String, *>, edit: SharedPreferences.Editor.() -> Unit): Boolean
     }
     fun clearAllSettings(): Boolean {
@@ -56,10 +59,13 @@ internal class SettingsBackupManager(private val storage: Storage) {
             // the serialized writer. Drain that queue so a backup taken right after a toggle also
             // contains the latest remote value.
             storage.flush()
-            val source = runCatching {
-                if (storage.isInitialized) storage.remotePrefs.all else emptyMap()
-            }.getOrElse { storage.localSourcePrefs?.all.orEmpty() }
-            return SettingsBackupCodec.encode(source.filterKeys { !storage.isRuntimeKey(it) })
+            val remote = if (storage.canReadRemote) runCatching { storage.remotePrefs.all }.getOrNull() else null
+            val source = remote ?: checkNotNull(storage.localSourcePrefs) {
+                "No readable settings source for backup"
+            }.all
+            return SettingsBackupCodec.encode(
+                source.filterKeys { !storage.isRuntimeKey(it) }, metadata = storage.backupMetadata()
+                    .put("snapshot_source", if (remote != null) "backend" else "local"))
         }
     }
 
@@ -78,15 +84,15 @@ internal class SettingsBackupManager(private val storage: Storage) {
         synchronized(storage.settingsMutationLock) {
             check(storage.isInitialized) { "Preferences are not initialized" }
             storage.flush()
-            val epoch = runCatching {
-                storage.remotePrefs.getLong("prefs_epoch", 0L)
-            }.getOrDefault(0L) + 1
+            val previousEpoch = storage.remotePrefs.getLong("prefs_epoch", 0L)
+            check(previousEpoch in 0 until Long.MAX_VALUE) { "Invalid settings epoch" }
+            val epoch = previousEpoch + 1
             val nativeRevision = android.os.SystemClock.elapsedRealtimeNanos().coerceAtLeast(1)
             val nativeReset = requireNotNull(NativeRuleStateSnapshot.read {
                 restored + mapOf(PlatformSettingsKeys.KEY_NATIVE_RULE_REVISION to nativeRevision, "prefs_epoch" to epoch)
             }) { "Invalid native settings in backup" }
             val currentKeys = buildSet {
-                runCatching { storage.remotePrefs.all.keys }.getOrDefault(emptySet())
+                storage.remotePrefs.all.keys
                     .filterNot(storage::isRuntimeKey)
                     .forEach(::add)
                 storage.localSourcePrefs?.all.orEmpty().keys

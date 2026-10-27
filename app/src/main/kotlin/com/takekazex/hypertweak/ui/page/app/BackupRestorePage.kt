@@ -36,6 +36,7 @@ import androidx.compose.ui.unit.dp
 import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.ui.app.LocalAppSettingsStore
 import com.takekazex.hypertweak.util.logging.DebugLog
+import com.takekazex.hypertweak.util.backup.SettingsBackupDocument
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -116,9 +117,8 @@ fun BackupRestorePage(
         scope.launch {
             val result = withContext(Dispatchers.IO) {
                 runCatching {
-                    val json = resolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8).use { reader ->
-                        reader?.readText() ?: error("Unable to open the selected file")
-                    }
+                    val json = resolver.openInputStream(uri)?.use(SettingsBackupDocument::read)
+                        ?: error("Unable to open the selected file")
                     settingsStore.backup.restoreSettings(json)
                 }
             }

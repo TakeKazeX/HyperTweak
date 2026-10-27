@@ -42,6 +42,13 @@ internal class SettingsMutationWriter(private val storage: Storage) {
 
     data class Receipt(val values: Map<String, *>, val revision: Long, val localMirror: Boolean)
 
+    /** Backup snapshots must fail on queue timeout instead of reporting stale data as current. */
+    fun awaitPendingWrites() {
+        if (isInitialized && !isLocalOnly && localSourcePrefs !== remotePrefs) {
+            AcknowledgedSettingsTask.run(serializedWriter) { Unit }
+        }
+    }
+
     /** External edits share the UI writer, acknowledgement and rollback boundary. */
     fun inspect(): Receipt = synchronized(settingsMutationLock) {
         check(isInitialized && !isLocalOnly) { "BACKEND_UNAVAILABLE" }

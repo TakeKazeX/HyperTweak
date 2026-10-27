@@ -44,12 +44,22 @@ object Preferences {
         override val logLock get() = Preferences.logLock
         override val settingsMutationLock get() = Preferences.settingsMutationLock
         override val isInitialized get() = Preferences.isInitialized
+        override val canReadRemote get() = Preferences.isInitialized && !isLocalOnly && !remoteBackendUnavailable
         override val remotePrefs get() = Preferences.remotePrefs
         override val localSourcePrefs get() = Preferences.localSourcePrefs
         override fun cache() = getLocalCache()
         override fun invalidate() = memoClear()
-        override fun flush() = Preferences.flush()
+        override fun flush() = mutations.awaitPendingWrites()
         override fun isRuntimeKey(key: String) = Preferences.isRuntimeKey(key)
+        override fun backupMetadata() = org.json.JSONObject()
+            .put("module", org.json.JSONObject()
+                .put("version_name", com.takekazex.hypertweak.BuildConfig.VERSION_NAME)
+                .put("version_code", com.takekazex.hypertweak.BuildConfig.VERSION_CODE))
+            .put("system", org.json.JSONObject()
+                .put("device", android.os.Build.DEVICE)
+                .put("android_release", android.os.Build.VERSION.RELEASE)
+                .put("api", android.os.Build.VERSION.SDK_INT)
+                .put("build_fingerprint", android.os.Build.FINGERPRINT))
         override fun commit(snapshot: NativeRuleStateSnapshot, replacement: Map<String, *>, edit: SharedPreferences.Editor.() -> Unit) =
             commitRemoteMutation(snapshot, replacement, edit)
     })
