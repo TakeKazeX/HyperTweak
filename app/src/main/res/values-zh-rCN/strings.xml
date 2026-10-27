@@ -1699,4 +1699,11 @@
     <string name="icon_stacked_signal_artwork_ios27">iOS 27</string>
     <string name="back_gesture_upstream_detection_disabled_title">关闭上游检测</string>
     <string name="back_gesture_upstream_detection_disabled_summary">跳过上游模块检测，允许使用本模块返回手势。若上游已在运行，请先在 LSPosed 中停用上游并重启相关宿主。</string>
+    <string name="shortcuts_pin_lsposed">添加 LSPosed 到桌面</string>
+    <string name="shortcuts_pin_lsposed_summary">使用 LSPosed 图标创建快捷方式，自动通过 Root 开放 HyperOS 快捷方式权限；移除快捷方式不会卸载 HyperTweak</string>
+    <string name="shortcuts_pin_preparing">正在准备快捷方式权限…</string>
+    <string name="shortcuts_pin_requested">已向桌面发送添加请求，如有提示请确认</string>
+    <string name="shortcuts_pin_unsupported">当前桌面不支持添加快捷方式</string>
+    <string name="shortcuts_pin_permission_required">自动配置权限失败，请授予 HyperTweak Root 权限，或在应用权限中允许创建桌面快捷方式后重试</string>
+    <string name="shortcuts_pin_failed">无法请求添加快捷方式，请检查桌面权限后重试</string>
 </resources>

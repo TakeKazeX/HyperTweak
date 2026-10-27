@@ -1,6 +1,15 @@
 package com.takekazex.hypertweak.ui.page.app
 
+import android.widget.Toast
 import com.takekazex.hypertweak.ui.app.LocalAppServices
+import androidx.compose.foundation.Image
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
+import top.yukonga.miuix.kmp.preference.ArrowPreference
+import com.takekazex.hypertweak.util.platform.ShortcutUtils
+import kotlinx.coroutines.launch
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.withResumed
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -92,6 +101,14 @@ fun AppShortcutsPage(
     onShortcutsChanged: () -> Unit
 ) {
     val services = LocalAppServices.current
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    var pinInProgress by remember { mutableStateOf(false) }
+    val pinRequested = stringResource(R.string.shortcuts_pin_requested)
+    val pinUnsupported = stringResource(R.string.shortcuts_pin_unsupported)
+    val pinPermissionRequired = stringResource(R.string.shortcuts_pin_permission_required)
+    val pinFailed = stringResource(R.string.shortcuts_pin_failed)
     val topAppBarScrollBehavior = MiuixScrollBehavior()
     val allShortcuts = remember { services.shortcuts.getAvailableShortcuts() }
     val itemHeightPx = with(LocalDensity.current) { 56.dp.toPx() }
@@ -153,6 +170,46 @@ fun AppShortcutsPage(
                 .overScrollVertical(),
         ) {
             item("spacer_top") { Spacer(modifier = Modifier.height(8.dp)) }
+            item("desktop_shortcut") {
+                Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+                    ArrowPreference(
+                        enabled = !pinInProgress,
+                        title = stringResource(R.string.shortcuts_pin_lsposed),
+                        summary = stringResource(
+                            if (pinInProgress) R.string.shortcuts_pin_preparing
+                            else R.string.shortcuts_pin_lsposed_summary
+                        ),
+                        startAction = {
+                            Image(
+                                painter = painterResource(R.drawable.ic_shortcut_lsposed),
+                                contentDescription = null,
+                                modifier = Modifier.padding(end = 6.dp).size(32.dp)
+                            )
+                        },
+                        onClick = {
+                            if (!pinInProgress) {
+                                pinInProgress = true
+                                scope.launch {
+                                    try {
+                                        val result = services.shortcuts.pinLsposedShortcut(context) {
+                                            lifecycle.withResumed { }
+                                        }
+                                        val message = when (result) {
+                                            ShortcutUtils.PinResult.REQUESTED -> pinRequested
+                                            ShortcutUtils.PinResult.UNSUPPORTED -> pinUnsupported
+                                            ShortcutUtils.PinResult.PERMISSION_REQUIRED -> pinPermissionRequired
+                                            ShortcutUtils.PinResult.FAILED -> pinFailed
+                                        }
+                                        Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+                                    } finally {
+                                        pinInProgress = false
+                                    }
+                                }
+                            }
+                        }
+                    )
+                }
+            }
             item("title") {
                 SmallTitle(text = stringResource(R.string.shortcuts_hint))
             }

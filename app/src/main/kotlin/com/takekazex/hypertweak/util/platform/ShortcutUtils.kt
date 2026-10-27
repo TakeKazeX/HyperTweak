@@ -13,6 +13,10 @@ import androidx.core.graphics.drawable.IconCompat
 import androidx.core.net.toUri
 import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.settings.contract.SettingsValues
+import com.takekazex.hypertweak.util.logging.DebugLog
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 internal class ShortcutUtils(private val settings: SettingsValues) {
 
@@ -72,6 +76,61 @@ internal class ShortcutUtils(private val settings: SettingsValues) {
         return IconCompat.createWithBitmap(bitmap)
     }
 
+    enum class PinResult { REQUESTED, UNSUPPORTED, PERMISSION_REQUIRED, FAILED }
+
+    /** Root work stays off main; only the foreground app submits the launcher pin request. */
+    suspend fun pinLsposedShortcut(
+        context: Context,
+        awaitForeground: suspend () -> Unit
+    ): PinResult = withContext(Dispatchers.Main.immediate) {
+        try {
+            if (!ShortcutManagerCompat.isRequestPinShortcutSupported(context)) return@withContext PinResult.UNSUPPORTED
+        } catch (e: Exception) {
+            DebugLog.w("Shortcut", "Shortcut support query failed", e)
+            return@withContext PinResult.FAILED
+        }
+        val permissionReady = withContext(Dispatchers.IO) {
+            try {
+                val command = ShortcutPermission.command(
+                    context.packageName, context.applicationInfo.uid / 100_000
+                )
+                ShortcutPermission.isReady(NativeRootCommand.run(command).toString(Charsets.UTF_8))
+            } catch (e: Exception) {
+                DebugLog.w("Shortcut", "Automatic shortcut permission grant failed", e)
+                false
+            }
+        }
+        if (!permissionReady) return@withContext PinResult.PERMISSION_REQUIRED
+        // A root-authorization dialog can pause the app. Pin requests require foreground
+        // eligibility, so the page must resume before invoking ShortcutManager.
+        awaitForeground()
+        try {
+            val localizedContext = LocaleHelper.getLocalizedContext(
+                context, settings.getInt(AppSettingsKeys.KEY_LANGUAGE, 0)
+            )
+            val label = localizedContext.getString(R.string.hidden__lsposed_manager)
+            val shortcut = ShortcutInfoCompat.Builder(context, "lsposed")
+                .setShortLabel(label)
+                .setLongLabel(label)
+                .setIcon(IconCompat.createWithResource(context, R.drawable.ic_shortcut_lsposed))
+                .setIntent(lsposedIntent(context))
+                .build()
+            if (ShortcutManagerCompat.requestPinShortcut(context, shortcut, null)) PinResult.REQUESTED
+            else PinResult.FAILED
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            DebugLog.w("Shortcut", "LSPosed shortcut pin request failed", e)
+            PinResult.FAILED
+        }
+    }
+
+    private fun lsposedIntent(context: Context) =
+        Intent(Intent.ACTION_MAIN, null, context, com.takekazex.hypertweak.ShortcutEntryActivity::class.java).apply {
+            putExtra("shortcut_target", "lsposed")
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+        }
+
     fun updateShortcuts(context: Context) {
         val orderedIds = getOrderedList()
         val allDefs = getAvailableShortcuts().associateBy { it.id }
@@ -86,10 +145,7 @@ internal class ShortcutUtils(private val settings: SettingsValues) {
         val shortcuts = orderedIds.take(5).mapNotNull { id ->
             val def = allDefs[id] ?: return@mapNotNull null
             val intent = if (def.id == "lsposed") {
-                Intent(Intent.ACTION_MAIN, null, context, com.takekazex.hypertweak.ShortcutEntryActivity::class.java).apply {
-                    putExtra("shortcut_target", def.id)
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-                }
+                lsposedIntent(context)
             } else {
                 Intent(def.intentAction ?: Intent.ACTION_VIEW).apply {
                     if (def.intentComponent != null) {

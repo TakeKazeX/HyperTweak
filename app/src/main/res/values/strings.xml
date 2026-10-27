@@ -1708,4 +1708,11 @@
     <string name="icon_stacked_signal_artwork_ios27">iOS 27</string>
     <string name="back_gesture_upstream_detection_disabled_title">Disable upstream detection</string>
     <string name="back_gesture_upstream_detection_disabled_summary">Skip upstream module detection and allow HyperTweak back gestures. If upstream is already running, disable it in LSPosed and restart the affected apps before switching.</string>
+    <string name="shortcuts_pin_lsposed">Add LSPosed to home screen</string>
+    <string name="shortcuts_pin_lsposed_summary">Create a shortcut using the LSPosed icon. Root automatically grants shortcut permission on HyperOS. Removing the shortcut keeps HyperTweak installed.</string>
+    <string name="shortcuts_pin_preparing">Preparing shortcut permission…</string>
+    <string name="shortcuts_pin_requested">Request sent to launcher. Confirm there if prompted.</string>
+    <string name="shortcuts_pin_unsupported">The current launcher does not support adding shortcuts.</string>
+    <string name="shortcuts_pin_permission_required">Automatic permission setup failed. Grant root to HyperTweak or allow home screen shortcuts in app permissions, then try again.</string>
+    <string name="shortcuts_pin_failed">Could not request the shortcut. Check launcher permissions and try again.</string>
 </resources>

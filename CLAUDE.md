@@ -254,4 +254,19 @@ It uses the same unified cache/preparation/managed-hook/settings lifecycle as cl
 Directory tests cover both storage paths, rename/ambiguity/missing-target rejection, per-save
 consistency and legacy snapshot restoration. New files and MediaStore paths require device checks.
 
-Dynamic LSPosed shortcuts use the dedicated manifest-declared ShortcutEntryActivity. ShortcutUtils has no MainActivity dependency; MainActivity retains the legacy pinned-shortcut extra for upgrades, delegating the same root broadcast to LsposedManagerLauncher.
+LSPosed dynamic and desktop-pinned shortcuts use the dedicated manifest-declared
+ShortcutEntryActivity with empty `taskAffinity`; a background MainActivity task cannot
+absorb the shortcut launch by affinity. Settings → App Shortcuts pins the bundled LSPosed
+icon with stable ID `lsposed`, independent of the dynamic-menu toggles/reset. There is no
+LSPosed launcher alias: removing the shortcut does not uninstall HyperTweak. Updating from
+an earlier local alias build removes that component; add a real shortcut from the page.
+On explicit add, bounded root IO checks MIUI/HyperOS properties, reads the current user’s
+own-package shortcut AppOp, sets only operation 10017 to allow when needed, and verifies
+it (including UID overrides) before requesting pinning on main after the page resumes. Failures show a root/manual-permission hint; submitting
+a pin request is not reported as a completed pin. Root work disables repeat taps and has
+an eight-second bound; page cancellation suppresses the subsequent pin request. Launcher
+confirmation may still apply. Opening the manager requires
+root granted to HyperTweak. ShortcutUtils has no MainActivity dependency; MainActivity
+retains the legacy pinned-shortcut extra for upgrades, delegating the same root broadcast
+to LsposedManagerLauncher. Permission behavior reference:
+https://github.com/tiann/KernelSU/blob/ac1007e29dcc56fd3b5853517b3d62515e51bfa8/manager/app/src/main/java/me/weishu/kernelsu/ui/util/module/Shortcut.kt

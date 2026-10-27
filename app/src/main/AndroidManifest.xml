@@ -112,8 +112,10 @@
         <receiver android:name="com.takekazex.hypertweak.hook.SystemRuntimeSettingsSyncReceiver"
             android:exported="true"
             android:permission="android.permission.INTERACT_ACROSS_USERS" />
+        <!-- Shortcut launches must not resume the background app task by affinity. -->
         <activity
             android:name="com.takekazex.hypertweak.ShortcutEntryActivity"
+            android:taskAffinity=""
             android:exported="true"
             android:theme="@android:style/Theme.NoDisplay"
             android:excludeFromRecents="true" />
