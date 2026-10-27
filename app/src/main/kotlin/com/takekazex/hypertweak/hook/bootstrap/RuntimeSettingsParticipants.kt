@@ -52,6 +52,22 @@ internal object RuntimeSettingsParticipants {
     fun install(dispatcher: SettingsReloadDispatcher, processName: String, isSystemServer: Boolean, actions: Actions) {
         val registry = SettingsParticipantRegistry(RuntimeSettingsGroups.forProcess(processName, isSystemServer))
         fun registerForProcess(id: String, apply: (Set<String>) -> Boolean) = registry.register(id, apply)
+        registerForProcess(RuntimeSettingsGroups.POLICY_FEATURES) { _ ->
+            var applied = true
+            actions.hookers().forEach { hooker ->
+                runCatching { hooker.refreshFeatureState() }.onFailure {
+                    applied = false
+                    DebugLog.w("HookEntry", "policy refresh failed hooker=${hooker.hookerName}", it)
+                }
+            }
+            if (processName == "com.android.settings") {
+                applied = com.takekazex.hypertweak.hook.rules.settings.GlobalSettingsInterfaceHooker.refreshSettings() && applied
+            }
+            applied
+        }
+        // Callback policies read refreshed slots. Already-created Settings/download/Bluetooth
+        // screens must be reopened; snapshot delivery does not recreate user-owned screens.
+        registerForProcess(RuntimeSettingsGroups.PASSIVE_POLICIES) { _ -> true }
         registerForProcess(RuntimeSettingsGroups.GOOGLE_APP) { _ ->
             com.takekazex.hypertweak.hook.rules.googleapp.GoogleAppRuntime.refreshSettings()
         }
@@ -251,7 +267,6 @@ internal object RuntimeSettingsParticipants {
             LockscreenBottomTextHooker.refreshSettings()
             LockscreenChargingDetailHooker.refreshSettings()
             KeyguardFingerprintAvoidHooker.refreshSettings()
-            true
         }
         registerForProcess(RuntimeSettingsGroups.POWER_SAVE) { _ ->
             BatteryAutoPowerSaveHooker.refreshSettings()

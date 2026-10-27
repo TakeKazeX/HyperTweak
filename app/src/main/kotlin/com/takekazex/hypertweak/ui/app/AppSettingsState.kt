@@ -121,6 +121,8 @@ internal class AppSettingsState(val storage: AppSettingsStore) {
             SystemUiSettingsKeys.KEY_HIDE_FINGERPRINT_LOCKSCREEN -> hideFingerprintLockscreen
             SystemUiSettingsKeys.KEY_HIDE_FINGERPRINT_APP_AUTH -> hideFingerprintAppAuth
             SystemUiSettingsKeys.KEY_HIDE_LOCKSCREEN_STATUS_BAR -> hideLockscreenStatusBar
+            SystemUiSettingsKeys.KEY_LOCKSCREEN_ALL_NOTIFICATIONS -> lockscreenAllNotifications
+            SystemUiSettingsKeys.KEY_LOCKSCREEN_KEEP_NOTIFICATIONS -> lockscreenKeepNotifications
             SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_CLOCK_SECONDS -> notificationHeaderClockSeconds
             SystemUiSettingsKeys.KEY_NOTIFICATION_MONET_TEXT_COLOR -> notificationMonetTextColor
             SystemUiSettingsKeys.KEY_NOTIFICATION_FONT_WEIGHT -> notificationFontWeight

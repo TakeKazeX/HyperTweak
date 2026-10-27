@@ -107,6 +107,55 @@ class ControlCenterCardResizeHooker : DynamicHooker() {
     @Volatile
     private var lastAppliedSignature: String? = null
 
+    init {
+        hostRecovery(com.takekazex.hypertweak.hook.base.HostRecoveryPhase.ADAPTER_POLICY) { scope ->
+            if (lastAdapter == null) {
+                lastAdapter = scope.views.asSequence().mapNotNull { view ->
+                    // Native RecyclerViews remain in the plugin window across module upgrades.
+                    // Filter by the session loader so one plugin cannot adopt another's adapter.
+                    com.takekazex.hypertweak.hook.base.HostAccess.publicMethod(
+                        view.javaClass, "getAdapter", accessible = false
+                    )?.let { method -> runCatching { method.invoke(view) }.getOrNull() }
+                }.firstOrNull { it.javaClass.name == ADAPTER_NAME && it.javaClass.classLoader === classLoader }
+            }
+            refreshSettings()
+        }
+    }
+
+    @Volatile private var retired = false
+    private val settingsHandler = android.os.Handler(android.os.Looper.getMainLooper())
+
+    override fun saveHotReloadState(): Any = com.takekazex.hypertweak.hook.base.HostAccess.onMain {
+        listOf(lastAdapter, desiredCardHeights.entries.map { listOf(it.key, it.value) }, stampedViews.keys.toList())
+    }
+
+    override fun restoreHotReloadState(state: Any?) {
+        val saved = state as? List<*> ?: return
+        com.takekazex.hypertweak.hook.base.HostAccess.onMain {
+            lastAdapter = saved.getOrNull(0)
+            (saved.getOrNull(1) as? List<*>)?.forEach { item ->
+                val pair = item as? List<*> ?: return@forEach
+                val view = pair.getOrNull(0) as? View ?: return@forEach
+                val height = pair.getOrNull(1) as? Int ?: return@forEach
+                desiredCardHeights[view] = height
+            }
+            (saved.getOrNull(2) as? List<*>)?.filterIsInstance<View>()?.forEach { stampedViews[it] = true }
+        }
+        refreshSettings()
+    }
+
+    override fun onPrepareHotReload() {
+        retired = true
+        com.takekazex.hypertweak.hook.base.HostAccess.onMain {
+            settingsHandler.removeCallbacksAndMessages(null)
+            desiredCardHeights.clear()
+            stampedViews.clear()
+            lastAdapter = null
+            refreshAdapter = null
+            lastAppliedSignature = null
+        }
+    }
+
     override fun onHook() {
         installSpanHooks()
         installTileCardTypeHook()
@@ -126,9 +175,12 @@ class ControlCenterCardResizeHooker : DynamicHooker() {
     fun refreshSettings() {
         lastAppliedSignature = null
         val live = enabled()
-        lastAdapter?.let { adapter ->
-            runCatching { refreshAdapter?.invoke(adapter, false, false) }
-                .onFailure { Log.e(TAG, "ControlCenterResize: settings apply", it) }
+        settingsHandler.post {
+            if (retired) return@post
+            lastAdapter?.let { adapter ->
+                runCatching { refreshAdapter?.invoke(adapter, false, false) }
+                    .onFailure { Log.e(TAG, "ControlCenterResize: settings apply", it) }
+            }
         }
         Log.i(TAG, "ControlCenterResize: applied enabled=" + live)
     }
@@ -141,7 +193,7 @@ class ControlCenterCardResizeHooker : DynamicHooker() {
     private var refreshAdapter: java.lang.reflect.Method? = null
 
     private fun enabled(): Boolean =
-        settingCcResizeEnabled
+        !retired && settingCcResizeEnabled
 
     // ─── Size parsing ──────────────────────────────────────────────────────────
 
@@ -545,7 +597,6 @@ class ControlCenterCardResizeHooker : DynamicHooker() {
             it.name == "notifyChanged" && it.parameterTypes.size == 2 &&
                 it.parameterTypes.all { p -> p == Boolean::class.javaPrimitiveType }
         }?.apply { isAccessible = true } ?: return
-        val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
         refreshAdapter = notifyChanged
         changeVisible.hook {
             after { param ->
@@ -559,7 +610,8 @@ class ControlCenterCardResizeHooker : DynamicHooker() {
                     if (signature == lastAppliedSignature) return@runCatching
                     lastAppliedSignature = signature
                     val adapterInstance = param.thisObject
-                    mainHandler.post {
+                    settingsHandler.post {
+                        if (retired) return@post
                         runCatching { notifyChanged.invoke(adapterInstance, false, false) }
                             .onFailure { t -> Log.e(TAG, "ControlCenterResize: live refresh", t) }
                     }

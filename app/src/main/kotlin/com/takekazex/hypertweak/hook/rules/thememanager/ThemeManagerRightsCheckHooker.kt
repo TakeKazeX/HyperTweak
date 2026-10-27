@@ -6,6 +6,7 @@ import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
+import com.takekazex.hypertweak.hook.base.InstallPolicy
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 import org.luckypray.dexkit.query.enums.StringMatchType
@@ -38,6 +39,9 @@ object ThemeManagerRightsCheckHooker : StaticHooker() {
 
     /** Stable across host builds: the target method name is obfuscated, this id is not. */
     private const val HOOK_ID = "thememanager_theme_rights_check"
+
+    override val installPolicy = InstallPolicy.WHEN_ENABLED
+    override fun isFeatureEnabled() = settingAllowThirdPartyTheme
 
     override fun onHook() {
         if (hookParam.packageName != PACKAGE) return

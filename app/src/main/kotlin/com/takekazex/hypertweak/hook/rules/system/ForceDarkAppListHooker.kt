@@ -2,13 +2,13 @@
 
 package com.takekazex.hypertweak.hook.rules.system
 
-import com.takekazex.hypertweak.hook.base.cachedDeclaredField
 import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import android.content.pm.ApplicationInfo
 import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
+import com.takekazex.hypertweak.hook.base.InstallPolicy
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 
@@ -23,6 +23,9 @@ object ForceDarkAppListHooker : StaticHooker() {
     private const val CLASS_NAME = "com.android.server.ForceDarkAppListManager"
     private const val METHOD_NAME = "shouldShowInSettings"
     private const val LIST_METHOD_NAME = "getDarkModeAppList"
+
+    override val installPolicy = InstallPolicy.WHEN_ENABLED
+    override fun isFeatureEnabled() = settingUnlockThirdPartyDarkMode
 
     override fun onHook() {
         if (!settingUnlockThirdPartyDarkMode) return
@@ -72,15 +75,8 @@ object ForceDarkAppListHooker : StaticHooker() {
         managerClass.declaredMethods.firstOrNull { candidate ->
             candidate.name == LIST_METHOD_NAME && candidate.parameterTypes.size == 2
         }?.apply { isAccessible = true }?.hook("force_dark_list_prepare") {
-            before {
-                // The CN build guard is a static final field in some releases. Set it at the
-                // actual list-generation boundary so the value is available before the loop.
-                runCatching {
-                    Class.forName("miui.os.Build", false, managerClass.classLoader)
-                        .cachedDeclaredField("IS_INTERNATIONAL_BUILD", accessible = true)
-                        .setBoolean(null, true)
-                }
-            }
+            // Complete the returned list below without changing the process-wide Build flag.
+            // That flag is also consumed by unrelated services and cannot outlive this feature.
             after { param ->
                 // The returned DarkModeAppData is the system source consumed by Settings and WM.
                 // Add third-party records here, not in Settings, so the toggle state survives and

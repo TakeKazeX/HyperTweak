@@ -5,6 +5,7 @@ import android.app.NotificationChannel
 import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
+import com.takekazex.hypertweak.hook.base.InstallPolicy
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.reflect.Field
@@ -71,6 +72,9 @@ object NotificationMoreSettingsHooker : StaticHooker() {
 
     /** The preference captured just before `removeDefaultPrefs` detaches it. */
     private var capturedPref: Any? by generationState { null }
+
+    override val installPolicy = InstallPolicy.WHEN_ENABLED
+    override fun isFeatureEnabled() = settingNotificationMoreSettings
 
     override fun onHook() {
         if (!settingNotificationMoreSettings) {

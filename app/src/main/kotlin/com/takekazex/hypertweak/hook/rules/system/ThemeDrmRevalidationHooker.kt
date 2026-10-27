@@ -3,6 +3,7 @@ package com.takekazex.hypertweak.hook.rules.system
 import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
+import com.takekazex.hypertweak.hook.base.InstallPolicy
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.hook.rules.thememanager.ThemeDrmSupport
 import com.takekazex.hypertweak.util.logging.DebugLog
@@ -36,6 +37,9 @@ object ThemeDrmRevalidationHooker : StaticHooker() {
 
     /** Marks the re-validation call chain on its own thread; AsyncTask runs it off the main one. */
     private val revalidating = ThreadLocal<Boolean>()
+
+    override val installPolicy = InstallPolicy.WHEN_ENABLED
+    override fun isFeatureEnabled() = settingAllowThirdPartyTheme
 
     override fun onHook() {
         if (!settingAllowThirdPartyTheme) {

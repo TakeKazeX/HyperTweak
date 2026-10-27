@@ -8,6 +8,7 @@ import android.content.Context
 import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
+import com.takekazex.hypertweak.hook.base.InstallPolicy
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.reflect.Field
@@ -58,6 +59,9 @@ object ChannelKeyguardToggleHooker : StaticHooker() {
     private var listenerInterface: Class<*>? by generationState { null }
 
     private var capturedPref: Any? by generationState { null }
+
+    override val installPolicy = InstallPolicy.WHEN_ENABLED
+    override fun isFeatureEnabled() = settingLockscreenAllNotifications
 
     override fun onHook() {
         if (!settingLockscreenAllNotifications) {

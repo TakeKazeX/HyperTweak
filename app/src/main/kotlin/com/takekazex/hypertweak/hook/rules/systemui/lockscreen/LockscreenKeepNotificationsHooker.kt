@@ -6,6 +6,7 @@ import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
+import com.takekazex.hypertweak.hook.base.InstallPolicy
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.reflect.Field
@@ -33,7 +34,7 @@ import java.lang.reflect.Method
  *
  * `forceHideOnKeyguard` is static; `NotificationEntry.mSbn` (public) and
  * `ExpandedNotification.canShowOnKeyguard()` (public final) are resolved by name at install
- * time. The master switch gates hook installation and needs a SystemUI restart.
+ * time. The master switch installs/removes the managed hooks through the live-settings dispatcher.
  */
 object LockscreenKeepNotificationsHooker : StaticHooker() {
     // Published on settings acceptance; hook callbacks perform no storage reads.
@@ -50,6 +51,9 @@ object LockscreenKeepNotificationsHooker : StaticHooker() {
     private var mSbnField: Field? by generationState { null }
 
     private var canShowOnKeyguard: Method? by generationState { null }
+
+    override val installPolicy = InstallPolicy.WHEN_ENABLED
+    override fun isFeatureEnabled() = settingLockscreenKeepNotifications
 
     override fun onHook() {
         mSbnField = null

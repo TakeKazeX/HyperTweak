@@ -81,6 +81,8 @@ internal object RuntimeSettingsDefinitions {
     const val QUICK_SHARE = "gms.quick_share"
     const val PASSKEY = "google.passkey"
     const val FCM = "google.fcm"
+    const val POLICY_FEATURES = "features.policy"
+    const val PASSIVE_POLICIES = "features.passive_policy"
     const val REVISION = "runtime_settings_revision"
     private val islandKeys = setOf(
         PlatformSettingsKeys.KEY_REMOVE_ISLAND_PLACEHOLDER, PlatformSettingsKeys.KEY_THREE_ISLANDS, PlatformSettingsKeys.KEY_LANDSCAPE_FULL_ISLANDS,
@@ -134,7 +136,29 @@ internal object RuntimeSettingsDefinitions {
         PlatformSettingsKeys.KEY_QUICK_SHARE_ENABLED, PlatformSettingsKeys.KEY_UNLOCK_PASSKEY,
         PlatformSettingsKeys.KEY_FCM_LIVE_ENABLED,
     )
-    val strictBooleanKeys = googleKeys + aospUiKeys + aospSecurityKeys + setOf(
+    private val policyKeys = setOf(
+        PlatformSettingsKeys.KEY_BLOCK_DOWNLOAD_XL_LOG_DIR,
+        PlatformSettingsKeys.KEY_GUARD_PROVIDER_BLOCK_UPLOAD_APP_LIST,
+        PlatformSettingsKeys.KEY_MILINK_BLOCK_HPPLAY_FILES,
+        PlatformSettingsKeys.KEY_DISABLE_VIDEO_RINGBACK,
+        PlatformSettingsKeys.KEY_SETTINGS_GLOBAL_INTERFACE,
+        PlatformSettingsKeys.KEY_UNLOCK_THIRD_PARTY_DARK_MODE,
+        PlatformSettingsKeys.KEY_ALLOW_THIRD_PARTY_THEME,
+        PlatformSettingsKeys.KEY_MITRUST_DISABLE_RISK_MONITORING,
+        SystemUiSettingsKeys.KEY_LOCKSCREEN_ALL_NOTIFICATIONS,
+        SystemUiSettingsKeys.KEY_LOCKSCREEN_KEEP_NOTIFICATIONS,
+        SystemUiSettingsKeys.KEY_NOTIFICATION_BADGE,
+        SystemUiSettingsKeys.KEY_NOTIFICATION_MORE_SETTINGS,
+        SystemUiSettingsKeys.KEY_NOTIFICATION_BLOCK_FOLD,
+    )
+    private val passivePolicyKeys = setOf(
+        PlatformSettingsKeys.KEY_DOWNLOAD_ALWAYS_SHOW_FULL_LINK,
+        PlatformSettingsKeys.KEY_DOWNLOAD_HIDE_XL,
+        PlatformSettingsKeys.KEY_DOWNLOAD_ADD_NEW_BUTTON,
+        PlatformSettingsKeys.KEY_DISABLE_SPATIAL_AUDIO,
+        PlatformSettingsKeys.KEY_FORCE_ADAPTIVE_ANC,
+    )
+    val strictBooleanKeys = policyKeys + passivePolicyKeys + googleKeys + aospUiKeys + aospSecurityKeys + setOf(
         PlatformSettingsKeys.KEY_AOSP_PACKAGE_INSTALLER,
         PlatformSettingsKeys.KEY_NATIVE_PICKER, PlatformSettingsKeys.KEY_NATIVE_PHOTO_PICKER, PlatformSettingsKeys.KEY_NATIVE_FILE_PICKER,
         PlatformSettingsKeys.KEY_SETTINGS_ONDEVICE_MODEL_ENTRY,
@@ -175,6 +199,15 @@ internal object RuntimeSettingsDefinitions {
     data class Group(val targets: Set<String>, val owns: (String) -> Boolean)
     private val systemUi = setOf("com.android.systemui")
     val groups = linkedMapOf(
+        POLICY_FEATURES to Group(setOf(
+            "android", "com.android.systemui", "com.android.settings",
+            "com.android.providers.downloads", "com.miui.guardprovider", "com.milink.service",
+            "com.android.phone", "com.android.thememanager", "com.xiaomi.trustservice",
+        )) { it in policyKeys },
+        PASSIVE_POLICIES to Group(setOf(
+            "com.android.providers.downloads.ui", "com.android.settings",
+            "com.milink.service", "com.xiaomi.bluetooth",
+        )) { it in passivePolicyKeys },
         GOOGLE_APP to Group(setOf("com.google.android.googlequicksearchbox")) {
             it == PlatformSettingsKeys.KEY_ASK_ABOUT_SCREEN || it == PlatformSettingsKeys.KEY_FULL_SCREEN_TRANSLATE
         },

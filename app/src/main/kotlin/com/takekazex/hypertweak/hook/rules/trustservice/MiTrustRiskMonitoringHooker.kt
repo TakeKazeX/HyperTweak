@@ -8,6 +8,7 @@ import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
+import com.takekazex.hypertweak.hook.base.InstallPolicy
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 import org.luckypray.dexkit.query.enums.StringMatchType
@@ -30,6 +31,9 @@ object MiTrustRiskMonitoringHooker : StaticHooker() {
     private const val PACKAGE = "com.xiaomi.trustservice"
     private const val STATUS_EVENT_TAG = "MiTrustService/statusEventHandle"
     private const val MRM_SERVICE = "vendor.xiaomi.hardware.mrm.IMrm/default"
+
+    override val installPolicy = InstallPolicy.WHEN_ENABLED
+    override fun isFeatureEnabled() = settingMitrustDisableRiskMonitoring
 
     override fun onHook() {
         if (hookParam.packageName != PACKAGE) return

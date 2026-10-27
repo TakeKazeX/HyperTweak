@@ -43,7 +43,7 @@ class AppRestartTrackerTest {
 
     @Test fun revertingAToggleClearsOnlyItsDirtyRestartRequest() {
         val store = Store(); val tracker = AppRestartTracker(store, AppSettingsState(MemoryAppSettings()))
-        val key = SystemUiSettingsKeys.KEY_HIDE_LOCKSCREEN_STATUS_BAR
+        val key = SystemUiSettingsKeys.KEY_LOCKSCREEN_KEEP_NOTIFICATIONS
         store.values["tweak_baseline_$key"] = false
         tracker.markTweaked(key, true)
         assertEquals(setOf(key), tracker.dirtyTweakKeys)
@@ -56,11 +56,11 @@ class AppRestartTrackerTest {
     @Test fun partialRestartKeepsManualRequestsAndAdvancesTheClearedBaseline() {
         val store = Store(); val settings = AppSettingsState(MemoryAppSettings())
         val tracker = AppRestartTracker(store, settings)
-        val key = SystemUiSettingsKeys.KEY_HIDE_LOCKSCREEN_STATUS_BAR
+        val key = SystemUiSettingsKeys.KEY_LOCKSCREEN_KEEP_NOTIFICATIONS
         store.values["tweak_baseline_$key"] = false
         tracker.requestRestartScopes(RestartScopeSelection(settings = true))
         tracker.markTweaked(key, true)
-        settings.hideLockscreenStatusBar = true
+        settings.lockscreenKeepNotifications = true
         tracker.clearRestartedScopes(RestartScopeSelection(systemUi = true))
         assertTrue(tracker.dirtyTweakKeys.isEmpty())
         assertEquals(RestartScopeSelection(settings = true), tracker.pendingRestartScopes)
@@ -70,18 +70,35 @@ class AppRestartTrackerTest {
         assertTrue(tracker.pendingRestartScopes.settings)
     }
 
-    @Test fun selectorRestartWritesAnIntBaselineThatCanBeReadOnTheNextEdit() {
+    @Test fun liveChangesDoNotCreateDirtyBaselinesOrRestartRequests() {
+        val store = Store()
+        val tracker = AppRestartTracker(store, AppSettingsState(MemoryAppSettings()))
+        for (key in listOf(SystemUiSettingsKeys.KEY_HIDE_LOCKSCREEN_STATUS_BAR,
+            SystemUiSettingsKeys.KEY_CC_EDIT_ENABLED, PlatformSettingsKeys.KEY_THREE_ISLANDS,
+            PlatformSettingsKeys.KEY_XMSF_UNLOCK_FOCUS_AUTH)) {
+            tracker.markTweaked(key, true)
+            assertFalse(store.values.containsKey("tweak_baseline_$key"))
+        }
+        assertTrue(tracker.dirtyTweakKeys.isEmpty())
+        assertTrue(tracker.pendingRestartScopes.isEmpty())
+    }
+
+    @Test fun liveFingerprintSelectorIgnoresLegacyBaselineAndNeedsNoRestart() {
         val store = Store(); val settings = AppSettingsState(MemoryAppSettings())
         val tracker = AppRestartTracker(store, settings)
         val key = SystemUiSettingsKeys.KEY_LOCKSCREEN_FINGERPRINT_AVOID
-        store.values["tweak_baseline_$key"] = 1
-        tracker.markTweakedInt(key, 2)
-        settings.lockscreenFingerprintAvoid = 2
-        tracker.clearRestartedScopes(RestartScopeSelection(systemUi = true))
-        assertEquals(2, store.values["tweak_baseline_$key"])
-        tracker.markTweakedInt(key, 1)
-        assertEquals(setOf(key), tracker.dirtyTweakKeys)
-        assertTrue(tracker.pendingRestartScopes.systemUi)
+        // Older releases could leave either type in this retired restart slot.
+        for (legacy in listOf(1, true)) {
+            store.values["tweak_baseline_$key"] = legacy
+            for (mode in listOf(2, 1, 0)) {
+                tracker.markTweakedInt(key, mode)
+                settings.lockscreenFingerprintAvoid = mode
+                tracker.clearRestartedScopes(RestartScopeSelection(systemUi = true))
+                assertEquals(legacy, store.values["tweak_baseline_$key"])
+                assertTrue(tracker.dirtyTweakKeys.isEmpty())
+                assertTrue(tracker.pendingRestartScopes.isEmpty())
+            }
+        }
     }
 
     @Test fun resetTrackingAndBootMigrationPreserveUnrelatedSettings() {

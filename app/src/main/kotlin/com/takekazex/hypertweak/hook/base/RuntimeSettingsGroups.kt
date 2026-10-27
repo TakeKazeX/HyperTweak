@@ -55,6 +55,8 @@ internal object RuntimeSettingsGroups {
     const val QUICK_SHARE = RuntimeSettingsDefinitions.QUICK_SHARE
     const val PASSKEY = RuntimeSettingsDefinitions.PASSKEY
     const val FCM = RuntimeSettingsDefinitions.FCM
+    const val POLICY_FEATURES = RuntimeSettingsDefinitions.POLICY_FEATURES
+    const val PASSIVE_POLICIES = RuntimeSettingsDefinitions.PASSIVE_POLICIES
     const val REVISION = RuntimeSettingsDefinitions.REVISION
     private val groups get() = RuntimeSettingsDefinitions.groups
     val backKeys get() = RuntimeSettingsDefinitions.backKeys
@@ -63,6 +65,11 @@ internal object RuntimeSettingsGroups {
     fun target(process: String, systemServer: Boolean = false): String = if (systemServer || process == "system_server") "android" else {
         val base = process.substringBefore(':')
         when {
+            // OS4 manifests declare global process names as well as :private suffixes.
+            base == "android.process.media" -> "com.android.providers.downloads"
+            base in setOf("com.milink.crossdeviceservice", "com.milink.crossdeviceservice.file",
+                "com.xiaomi.vtcamera", "com.milink.service.persistent", "com.milink.runtime") -> "com.milink.service"
+            base == "com.android.thememanager.aiicon" -> "com.android.thememanager"
             // Every Security Center subprocess hosts part of the same feature set; before this,
             // `.power` was not normalized and therefore never received a settings snapshot at all
             // (its PowerSaveOverrideHooker and PowerRankingHooker only ever saw boot values).

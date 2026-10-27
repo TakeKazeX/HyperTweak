@@ -3,6 +3,7 @@ package com.takekazex.hypertweak.hook.rules.systemui.notification
 import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
+import com.takekazex.hypertweak.hook.base.InstallPolicy
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 
@@ -70,6 +71,9 @@ object NotificationBlockFoldHooker : StaticHooker() {
     override fun onPrepareHotReload() {
         enabled = false
     }
+
+    override val installPolicy = InstallPolicy.WHEN_ENABLED
+    override fun isFeatureEnabled() = settingNotificationBlockFold
 
     override fun onHook() {
         enabled = settingNotificationBlockFold

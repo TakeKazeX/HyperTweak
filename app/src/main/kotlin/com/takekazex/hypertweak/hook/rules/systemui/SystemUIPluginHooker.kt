@@ -149,7 +149,8 @@ object SystemUIPluginHooker : StaticHooker() {
     override fun saveHotReloadState(): Any = activeSessions.bindings().map { (owner, session) ->
         listOf(owner, session.threeIslandHooker.snapshotOwners(), session.superIslandHooker.snapshotControllers(),
             session.liveUpdateIconHooker.snapshotHolders(), session.timeFontHooker.snapshotHolders(),
-            session.tileMessageHooker.snapshotSlots())
+            session.tileMessageHooker.snapshotSlots(), session.cardsEditHooker?.saveHotReloadState(),
+            session.cardResizeHooker?.saveHotReloadState())
     }
 
     override fun restoreHotReloadState(state: Any?) {
@@ -161,6 +162,13 @@ object SystemUIPluginHooker : StaticHooker() {
             session.liveUpdateIconHooker.restoreHolders((entry.getOrNull(3) as? List<*>)?.filterNotNull().orEmpty())
             session.timeFontHooker.restoreHolders((entry.getOrNull(4) as? List<*>)?.filterNotNull().orEmpty())
             session.tileMessageHooker.restoreSlots(entry.getOrNull(5) as? List<*> ?: emptyList<Any>())
+            if (entry.getOrNull(7) != null && session.cardResizeHooker == null) {
+                val hooker = ControlCenterCardResizeHooker()
+                attach(hooker, session.classLoader)
+                session.attachCardResize(hooker)
+            }
+            session.cardsEditHooker?.restoreHotReloadState(entry.getOrNull(6))
+            session.cardResizeHooker?.restoreHotReloadState(entry.getOrNull(7))
             session.timeFontHooker.restoreIslandOwners((entry.getOrNull(1) as? List<*>)?.filterNotNull().orEmpty())
         }
     }
@@ -171,11 +179,7 @@ object SystemUIPluginHooker : StaticHooker() {
     }
 
     override fun onHook() {
-        // The control-center editor cards feature (编辑与排序 visibility + drag reorder) is
-        // gated on its master switch; the hooker attaches only when the switch is already on at
-        // plugin load, so enabling it the first time needs a SystemUI restart. Every callback
-        // inside the hooker re-reads the switch live, so turning it off applies without one.
-
+        // Optional hookers are also attached by ensureOptionalHookers on a live first enable.
         val clzPluginInstance = "com.android.systemui.shared.plugins.PluginInstance".toClassOrNull()
         if (clzPluginInstance == null) {
             DebugLog.hookSkipped("SystemUIPlugin", "PluginInstance", "class not found")

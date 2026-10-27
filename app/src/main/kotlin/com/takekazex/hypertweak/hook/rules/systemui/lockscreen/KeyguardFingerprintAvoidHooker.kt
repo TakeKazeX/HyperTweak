@@ -1,171 +1,175 @@
 package com.takekazex.hypertweak.hook.rules.systemui.lockscreen
 
-import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
-
-import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
-
-import com.takekazex.hypertweak.hook.base.dex.DexRuntime
-
-import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
+import android.os.Handler
+import android.os.Looper
 import com.takekazex.hypertweak.hook.Preferences
+import com.takekazex.hypertweak.hook.base.HostAccess
+import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
 import com.takekazex.hypertweak.hook.base.StaticHooker
+import com.takekazex.hypertweak.hook.rules.systemui.icon.HostFlowSubscriptions
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
+import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 import com.takekazex.hypertweak.util.logging.DebugLog
-import org.luckypray.dexkit.query.enums.MatchType
-import org.luckypray.dexkit.query.enums.StringMatchType
-import java.io.File
+import io.github.libxposed.api.XposedInterface
+import java.util.IdentityHashMap
 
 /**
- * Lockscreen notification fingerprint avoidance (锁屏通知指纹避让), OS4 SystemUI.
- *
- * SystemUI anchors the lockscreen notification stack against the in-display (GXZW) fingerprint
- * icon through `KeyguardPanelViewController.nsslLockYPosition`, a
- * `StateFlow<Triple<Int,Int,Int>>` computed from seven combined flows. When
- * `MiuiConfigs.GXZW_SENSOR && fingerApplyForKeyguard && hasEnrolledTemplates` the stack bottom
- * bound becomes `GXZW_ICON_Y + offset - 20dp` (just above the icon); otherwise it falls back to
- * the bottom indication area. The triple feeds `MiuiKeyguardRepositoryImpl`
- * `.notificationBottomOnKeyguard` and every stack/list/number positioning strategy.
- *
- * The combine lambda receives the seven combined values as an `Object[]`; the hook identifies the
- * two Boolean values by type rather than relying on their positions. It forces those values for
- * this computation only, so:
- * - mode 1 (不避让): both false -> the GXZW branch is skipped, notifications end at the
- *   indication-area bound and ignore the fingerprint icon entirely;
- * - mode 2 (避让): both true -> the GXZW branch runs regardless of the fingerprint-unlock
- *   setting or enrollment, so the stack always stops above the icon.
- *
- * `fingerApplyForKeyguard` is deliberately **not** replaced as a flow: it also drives the
- * fingerprint icon visibility (`MiuiGxzwStateProviderImpl`) and the low-position indication
- * area (`KeyguardBottomAreaInjector$gxzwLowPositionShow`), which must keep following the user's
- * setting.
- *
- * DexKit resolves the generated transform by its owner-name marker and its `invoke` and
- * `invokeSuspend` method shapes. At runtime, the two Boolean inputs are selected by type and
- * uniqueness, so a changed Flow input order does not silently rewrite unrelated values.
+ * Own only the final notification-bound publication, never the panel's seven-way combine.
+ * Explicit modes project current native geometry; default passes through the native input.
+ * The existing synchronous flow notifies every native layout consumer.
  */
 object KeyguardFingerprintAvoidHooker : StaticHooker() {
-    // Published on settings acceptance; hook callbacks perform no storage reads.
-    private val settingLockscreenFingerprintAvoid by hookSetting(PlatformSettingsKeys.LOCKSCREEN_FINGERPRINT_AVOID_DEFAULT) {
-        Preferences.getInt(SystemUiSettingsKeys.KEY_LOCKSCREEN_FINGERPRINT_AVOID, PlatformSettingsKeys.LOCKSCREEN_FINGERPRINT_AVOID_DEFAULT)
-    }
-
     private const val TAG = "KeyguardFingerprintAvoid"
-    private const val DEX_CACHE_KEY = "keyguardNsslLockYTransform"
-    private const val DEX_OWNER_MARKER =
-        "com.android.keyguard.panel.KeyguardPanelViewController\$nsslLockYPosition_delegate\$lambda"
-
-    private var mode by generationState { PlatformSettingsKeys.LOCKSCREEN_FINGERPRINT_AVOID_DEFAULT }
-
-    override fun onPrepareHotReload() {
-        mode = PlatformSettingsKeys.LOCKSCREEN_FINGERPRINT_AVOID_DEFAULT
+    private val settingMode by hookSetting(0) {
+        Preferences.getInt(SystemUiSettingsKeys.KEY_LOCKSCREEN_FINGERPRINT_AVOID, 0)
+    }
+    private val main by lazy { Handler(Looper.getMainLooper()) }
+    @Volatile private var retired = false
+    private var installed by generationState { false }
+    private var mode by generationState { 0 }
+    private var host: FingerprintAvoidanceHost? by generationState { null }
+    private var publish: ((Any, Int) -> Unit)? by generationState { null }
+    private val bindings = generationMainResource(IdentityHashMap<Any, Binding>()) { map ->
+        map.values.forEach { it.subscriptions.clear() }
+        map.clear()
     }
 
-    /**
-     * Accepted-snapshot refresh. The transform reads [mode] when the combine body runs, so a new
-     * mode applies to the next recomposition of the lock screen transform; leaving the host's own
-     * inputs untouched in the default mode is the disable path.
-     */
-    fun refreshSettings() {
-        mode = settingLockscreenFingerprintAvoid
-        DebugLog.i(TAG, "settings applied mode=$mode")
+    private class Binding(val repository: Any, val flow: Any, initial: Int) {
+        val projection = FingerprintBoundProjection(initial)
+        val subscriptions = HostFlowSubscriptions()
+        var inputs: FingerprintAvoidanceHost.Inputs? = null
+    }
+
+    init {
+        generationCleanup { retired = true; main.removeCallbacksAndMessages(null) }
+        hostRecovery(HostRecoveryPhase.CONTENT) { scope ->
+            val provider = scope.component?.let { HostAccess.read(it, "miuiKeyguardRepositoryImplProvider") }
+            if (provider != null) boundary("recover native repository") {
+                val repository = FingerprintAvoidanceHost.lazy(provider)
+                host?.getter?.invoke(repository) // The getter hook enrolls the already-living flow.
+            }
+        }
     }
 
     override fun onHook() {
-        mode = settingLockscreenFingerprintAvoid
-        // Installed for the generation regardless of the mode: the body reads [mode] at run time,
-        // so the first non-default choice applies to the living lock screen.
-
-        val combineLambda = resolveCombineLambdaClass()
-        val invoke = combineLambda?.declaredMethods?.firstOrNull {
-            it.name == "invoke" && it.parameterCount == 3
-        }
-        if (invoke == null) {
-            DebugLog.hookSkipped(
-                TAG,
-                "nsslLockYPosition combine transform",
-                "class or invoke(FlowCollector, Object[], Continuation) not found"
-            )
-            return
-        }
-
-        invoke.hook {
-            before { param ->
-                if (mode == PlatformSettingsKeys.LOCKSCREEN_FINGERPRINT_AVOID_DEFAULT) return@before
-                val values = param.args.getOrNull(1) as? Array<*> ?: return@before
-                if (values.size != 7) return@before
-                val booleanIndices = values.indices.filter { values[it] is Boolean }
-                if (booleanIndices.size != 2) {
-                    DebugLog.w(TAG, "expected exactly two Boolean inputs, found=${booleanIndices.size}")
-                    return@before
+        if (!isMainProcess) return
+        retired = false
+        mode = settingMode
+        boundary("resolve notification-bound contract") {
+            val contract = FingerprintAvoidanceHost(classLoader)
+            host = contract
+            val original = module.getInvoker(contract.setter).setType(XposedInterface.Invoker.Type.ORIGIN)
+            // Origin dispatch keeps module writes out of the upstream ledger and retains the
+            // OEM's main-thread affinity assertion, equality check and synchronous notifications.
+            publish = { flow, value -> original.invoke(flow, value) }
+            deoptimize(contract.getter)
+            deoptimize(contract.bridgeWriter)
+            contract.setter.hook {
+                before { param ->
+                    if (retired || Looper.myLooper() != Looper.getMainLooper()) return@before
+                    val binding = bindings[param.thisObject] ?: return@before
+                    val upstream = param.args.getOrNull(0) as? Int ?: return@before
+                    // Capture the real incoming value even when geometry resolution fails.
+                    binding.projection.observe(upstream, null)
+                    boundary("project native publication") {
+                        param.args[0] = binding.projection.effective(override(binding))
+                    }
                 }
-                val forced = mode == PlatformSettingsKeys.LOCKSCREEN_FINGERPRINT_AVOID_ALWAYS
-                // Never pollute the combine operator's cached source array: returning to native
-                // mode must see the original booleans, not our previous override.
-                @Suppress("UNCHECKED_CAST")
-                val anyValues = values.copyOf() as Array<Any?>
-                booleanIndices.forEach { anyValues[it] = forced }
-                param.args[1] = anyValues
+            }
+            contract.getter.hook {
+                after { param ->
+                    if (retired) return@after
+                    val repository = param.thisObject
+                    val flow = param.result ?: return@after
+                    if (Looper.myLooper() == Looper.getMainLooper()) boundary("bind native publication") {
+                        enroll(repository, flow)
+                    } else main.post { if (!retired) boundary("bind native publication") { enroll(repository, flow) } }
+                }
+            }
+            installed = true
+            DebugLog.i(TAG, "HOOK_OK final native notification-bound projection mode=$mode")
+        }
+    }
+
+    private fun enroll(repository: Any, readonly: Any) {
+        val contract = host ?: return
+        val flow = contract.unwrap(readonly)
+        if (bindings.containsKey(flow)) return
+        val binding = Binding(repository, flow, FingerprintAvoidanceHost.intValue(flow))
+        bindings[flow] = binding
+        ownSubscription(AutoCloseable { binding.subscriptions.clear() })
+        // Do not mutate a flow from inside its lazy getter: native getKeyguardStackStatusInfo
+        // can be running. Publish once the call stack has returned.
+        main.post { if (!retired && bindings[flow] === binding) boundary("initial publication") { refresh(binding) } }
+    }
+
+    private fun override(binding: Binding): Int? {
+        if (mode !in 1..2) return null
+        val inputs = binding.inputs ?: checkNotNull(host).inputs(binding.repository).also { binding.inputs = it }
+        return FingerprintAvoidancePolicy.bottom(mode, inputs.geometry(mode))
+    }
+
+    private fun refresh(binding: Binding) {
+        val value = binding.projection.effective(override(binding))
+        if (mode in 1..2 && !binding.subscriptions.isBound) {
+            val inputs = checkNotNull(binding.inputs)
+            try {
+                inputs.flows.forEach { flow ->
+                    check(binding.subscriptions.collect(inputs.scope, flow,
+                        isCurrent = { !retired && bindings[binding.flow] === binding }, replay = false) {
+                        // Default relies exclusively on genuine upstream publications.
+                        if (mode in 1..2) boundary("native geometry changed") {
+                            publish?.invoke(binding.flow, binding.projection.effective(override(binding)))
+                        }
+                    }) { "Native geometry subscription failed" }
+                }
+            } catch (error: Throwable) {
+                binding.subscriptions.clear()
+                throw error
+            }
+        } else if (mode !in 1..2) binding.subscriptions.clear()
+        publish?.invoke(binding.flow, value)
+        DebugLog.i(TAG, "bound applied mode=$mode upstream=${binding.projection.upstream} effective=$value")
+    }
+
+    fun refreshSettings(): Boolean = HostAccess.onMain {
+        if (retired) return@onMain true
+        mode = settingMode
+        var applied = mode !in 1..2 || installed
+        bindings.values.toList().forEach { binding ->
+            runCatching { refresh(binding) }.onFailure {
+                applied = false
+                binding.subscriptions.clear()
+                runCatching { publish?.invoke(binding.flow, binding.projection.upstream) }
+                DebugLog.w(TAG, "bound refresh failed; native baseline restored", it)
             }
         }
-        DebugLog.d(TAG, "hooked DexKit nsslLockYPosition transform (mode=$mode)")
+        applied
     }
 
-    private fun resolveCombineLambdaClass(): Class<*>? {
-        val appInfo = hookParam.appInfo ?: return null
-        val apkPath = appInfo.sourceDir ?: return null
-        val baseDir = appInfo.deviceProtectedDataDir ?: appInfo.dataDir ?: return null
-        return DexRuntime.resolveClasses(
-            cacheDir = File(baseDir, "cache"),
-            apkPath = apkPath,
-            classLoader = classLoader,
-            queries = mapOf(
-                DEX_CACHE_KEY to { bridge ->
-                    val candidates = bridge.findClass {
-                        matcher {
-                            className(DEX_OWNER_MARKER, StringMatchType.Contains)
-                            methods {
-                                matchType(MatchType.Contains)
-                                countMin(1)
-                                add {
-                                    name("invoke")
-                                    paramCount(3)
-                                    returnType(Any::class.java)
-                                }
-                            }
-                        }
-                    }.toList()
-                    val matchingNames = candidates.mapNotNull { data ->
-                        val type = runCatching { data.getInstance(classLoader) }
-                            .onFailure {
-                                DebugLog.w(TAG, "failed to load DexKit candidate ${data.name}", it)
-                            }
-                            .getOrNull()
-                        type?.takeIf(::isCombineLambdaClass)?.name
-                    }
-                        .distinct()
-                    DebugLog.d(
-                        TAG,
-                        "DexKit transform lookup: ownerCandidates=${candidates.size}, shapeMatches=${matchingNames.size}"
-                    )
-                    if (matchingNames.size != 1) {
-                        DebugLog.w(
-                            TAG,
-                            "DexKit transform candidates=${candidates.map { it.name }}, shapeMatches=$matchingNames"
-                        )
-                    }
-                    matchingNames.singleOrNull()
-                }
-            ),
-            validators = mapOf(DEX_CACHE_KEY to ::isCombineLambdaClass)
-        )[DEX_CACHE_KEY]
+    override fun saveHotReloadState(): Any = HostAccess.onMain { bindings.values.map { it.repository } }
+
+    override fun restoreHotReloadState(state: Any?) {
+        HostAccess.onMain {
+            (state as? List<*>)?.filterNotNull()?.forEach { repository ->
+                boundary("restore native repository") { host?.getter?.invoke(repository) }
+            }
+        }
     }
 
-    private fun isCombineLambdaClass(type: Class<*>): Boolean =
-        type.name.contains(DEX_OWNER_MARKER) &&
-            type.declaredMethods.count {
-                it.name == "invoke" && it.parameterCount == 3 && it.returnType == Any::class.java
-            } == 1 &&
-            type.declaredMethods.count {
-                it.name == "invokeSuspend" && it.parameterCount == 1 &&
-                    it.parameterTypes[0] == Any::class.java && it.returnType == Any::class.java
-            } == 1
+    override fun onPrepareHotReload() {
+        HostAccess.onMain {
+            retired = true
+            main.removeCallbacksAndMessages(null)
+            bindings.values.toList().forEach { binding ->
+                // Restore latest real upstream, never a stale install-time or module value.
+                boundary("restore upstream bound") { publish?.invoke(binding.flow, binding.projection.upstream) }
+                binding.subscriptions.clear()
+            }
+        }
+    }
+
+    private inline fun boundary(operation: String, action: () -> Unit) {
+        runCatching(action).onFailure { DebugLog.w(TAG, operation, it) }
+    }
 }

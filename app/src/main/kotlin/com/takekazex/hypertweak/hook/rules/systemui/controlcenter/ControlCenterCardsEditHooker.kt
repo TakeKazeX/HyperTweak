@@ -135,6 +135,52 @@ class ControlCenterCardsEditHooker : DynamicHooker() {
     /** Main-thread handler used to defer adapter refreshes out of ItemTouchHelper's event loop. */
     private val mainHandler = Handler(Looper.getMainLooper())
 
+    init {
+        hostRecovery(com.takekazex.hypertweak.hook.base.HostRecoveryPhase.ADAPTER_POLICY) { scope ->
+            if (lastAdapter == null) {
+                lastAdapter = scope.views.asSequence().mapNotNull { view ->
+                    // Native RecyclerViews remain in the plugin window across module upgrades.
+                    // Filter by the session loader so one plugin cannot adopt another's adapter.
+                    com.takekazex.hypertweak.hook.base.HostAccess.publicMethod(
+                        view.javaClass, "getAdapter", accessible = false
+                    )?.let { method -> runCatching { method.invoke(view) }.getOrNull() }
+                }.firstOrNull { it.javaClass.name == ADAPTER_NAME && it.javaClass.classLoader === classLoader }
+            }
+            refreshSettings()
+        }
+    }
+
+    @Volatile private var retired = false
+
+    override fun saveHotReloadState(): Any? = lastAdapter
+
+    override fun restoreHotReloadState(state: Any?) {
+        lastAdapter = state
+        refreshSettings()
+    }
+
+    override fun onPrepareHotReload() {
+        retired = true
+        com.takekazex.hypertweak.hook.base.HostAccess.onMain {
+            dragGeneration++
+            mainHandler.removeCallbacksAndMessages(null)
+            // Include detached/recycled holders, not only the currently attached adapter rows.
+            editor.originalTouchListeners.toMap().forEach { (view, listener) ->
+                runCatching { view.setOnTouchListener(listener as? View.OnTouchListener) }
+                    .onFailure { Log.e(TAG, "ControlCenterCardsEdit: retire touch listener", it) }
+            }
+            editor.originalTouchListeners.clear()
+            lastAdapter?.let { adapter ->
+                editor.clearResidualTransforms(adapter)
+                suppressAnimator?.invoke(adapter, false)
+                invalidateSpanCaches(adapter)
+            }
+            pendingContentOrder = null
+            pendingCardOrder = null
+            lastAdapter = null
+        }
+    }
+
     override fun onHook() {
         installEditVisibilityHooks()
         installDraggableHook()
@@ -225,7 +271,7 @@ class ControlCenterCardsEditHooker : DynamicHooker() {
         val adapter = lastAdapter
         mainHandler.post {
             runCatching {
-                if (adapter == null) return@runCatching
+                if (retired || adapter == null) return@runCatching
                 if (!live) {
                     editor.restoreManagedTouchListeners(adapter, itemViewFieldOf(adapter))
                     editor.clearResidualTransforms(adapter)
@@ -247,7 +293,7 @@ class ControlCenterCardsEditHooker : DynamicHooker() {
     }.getOrNull()
 
     private fun enabled(): Boolean =
-        settingCcEditEnabled
+        !retired && settingCcEditEnabled
 
     // ─── Edit-mode visibility ──────────────────────────────────────────────────
 

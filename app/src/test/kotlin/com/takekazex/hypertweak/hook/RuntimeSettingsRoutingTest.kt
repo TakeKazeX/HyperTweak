@@ -19,6 +19,41 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class RuntimeSettingsRoutingTest {
+    @Test fun policySwitchesReachNewProcessesAndRestoreDisableResetAfterUpgrade() {
+        val routes = mapOf(
+            "com.android.providers.downloads:remote" to PlatformSettingsKeys.KEY_BLOCK_DOWNLOAD_XL_LOG_DIR,
+            "com.miui.guardprovider" to PlatformSettingsKeys.KEY_GUARD_PROVIDER_BLOCK_UPLOAD_APP_LIST,
+            "com.milink.service:audio" to PlatformSettingsKeys.KEY_MILINK_BLOCK_HPPLAY_FILES,
+            "com.android.phone" to PlatformSettingsKeys.KEY_DISABLE_VIDEO_RINGBACK,
+            "com.android.thememanager" to PlatformSettingsKeys.KEY_ALLOW_THIRD_PARTY_THEME,
+            "com.xiaomi.trustservice" to PlatformSettingsKeys.KEY_MITRUST_DISABLE_RISK_MONITORING,
+            "system_server" to PlatformSettingsKeys.KEY_UNLOCK_THIRD_PARTY_DARK_MODE,
+            "com.android.settings" to PlatformSettingsKeys.KEY_SETTINGS_GLOBAL_INTERFACE,
+            "com.android.systemui" to SystemUiSettingsKeys.KEY_LOCKSCREEN_KEEP_NOTIFICATIONS,
+        )
+        for ((process, key) in routes) {
+            val target = Groups.target(process)
+            val groups = Groups.forProcess(process)
+            assertTrue("$process/$key", Groups.POLICY_FEATURES in groups)
+            assertTrue(Groups.owns(target, key))
+            assertEquals(mapOf(key to true), Groups.subset(target, mapOf(key to true, "unowned" to true)))
+            assertNull(RuntimeSettingsSnapshot.read(1, mapOf(key to "true"), groups))
+            val on = RuntimeSettingsSnapshot.read(1, mapOf(key to true), groups)!!
+            val ledger = RuntimeSettingsLedger()
+            assertTrue(ledger.accept(on))
+            val replacement = RuntimeSettingsLedger().also { it.restore(ledger.save()) }
+            assertEquals(true, replacement.value(key))
+            assertTrue(replacement.accept(on.mutate(key, false, 2)!!))
+            assertEquals(false, replacement.value(key))
+            assertTrue(replacement.accept(RuntimeSettingsSnapshot.read(3, emptyMap<String, Any>(), groups)!!))
+            assertNull(replacement.value(key))
+            assertFalse(replacement.accept(on))
+        }
+        assertTrue(Groups.owns("com.android.settings", SystemUiSettingsKeys.KEY_NOTIFICATION_MORE_SETTINGS))
+        assertTrue(Groups.PASSIVE_POLICIES in Groups.forProcess("com.android.providers.downloads.ui"))
+        assertTrue(Groups.PASSIVE_POLICIES in Groups.forProcess("com.xiaomi.bluetooth:application"))
+    }
+
     @Test fun aospRestorePublishesEverySwitchAndResetToItsExecutingOwner() {
         val keys = mapOf(
             Groups.AOSP_INSTALLER to listOf(PlatformSettingsKeys.KEY_AOSP_PACKAGE_INSTALLER),
@@ -276,7 +311,12 @@ class RuntimeSettingsRoutingTest {
         listOf("com.miui.securitycenter.remote", "com.miui.securitycenter.cache", "com.miui.securitycenter.power")
             .forEach { assertEquals(Groups.forTarget("com.miui.securitycenter"), Groups.forProcess("$it:worker")) }
         assertEquals(setOf(Groups.QUICK_SHARE), Groups.forProcess("com.google.android.gms.unstable"))
-        assertTrue(Groups.forProcess("android.process.media").isEmpty())
+        assertEquals(Groups.forTarget("com.android.providers.downloads"), Groups.forProcess("android.process.media"))
+        for (process in listOf("com.milink.crossdeviceservice", "com.milink.crossdeviceservice.file",
+            "com.xiaomi.vtcamera", "com.milink.service.persistent", "com.milink.runtime")) {
+            assertEquals(Groups.forTarget("com.milink.service"), Groups.forProcess(process))
+        }
+        assertEquals(Groups.forTarget("com.android.thememanager"), Groups.forProcess("com.android.thememanager.aiicon"))
         assertTrue(Groups.forProcess("com.milink.unregistered:worker").isEmpty())
     }
 
@@ -284,7 +324,7 @@ class RuntimeSettingsRoutingTest {
         assertEquals(setOf(Groups.SCREENSHOT), Groups.forProcess("com.miui.screenshot"))
         assertEquals(Groups.forProcess("com.miui.screenshot"), Groups.forProcess("com.miui.screenshot:photo_editor"))
         assertEquals(setOf(Groups.BACK, Groups.DOCK, Groups.VOLUME, Groups.GESTURE_BAR, Groups.FORCE_SCREENSHOT, Groups.DARK_MODE, Groups.NATIVE_PHOTO_PICKER, Groups.NATIVE_FILE_PICKER, Groups.AOSP_INSTALLER,
-            Groups.GMS_RESTRICTIONS, Groups.PASSKEY, Groups.FCM),
+            Groups.GMS_RESTRICTIONS, Groups.PASSKEY, Groups.FCM, Groups.POLICY_FEATURES),
             Groups.forProcess("system_server", true))
         assertEquals(setOf(Groups.XMSF), Groups.forProcess("com.xiaomi.xmsf:push"))
         assertTrue(Groups.forProcess("com.miui.home").contains(Groups.NATIVE))

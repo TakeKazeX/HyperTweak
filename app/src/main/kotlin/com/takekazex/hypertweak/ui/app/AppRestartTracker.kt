@@ -4,27 +4,12 @@ import android.content.Context
 import androidx.compose.runtime.*
 import androidx.core.content.edit
 import com.takekazex.hypertweak.settings.contract.AppSettingsKeys
-import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 import com.takekazex.hypertweak.util.restart.RestartScopeSelection
 import com.takekazex.hypertweak.util.scope.ScopeManager
 
 private val TWEAK_RESTART_SCOPES = mapOf(
-    IconSettingsKeys.KEY_ICON_DUO_ENABLED to RestartScopeSelection(systemUi = true),
-    IconSettingsKeys.KEY_ICON_DUO_EXPANDED to RestartScopeSelection(systemUi = true),
-    IconSettingsKeys.KEY_ICON_DUO_SIZE to RestartScopeSelection(systemUi = true),
-    IconSettingsKeys.KEY_ICON_DUO_RING_SCALE to RestartScopeSelection(systemUi = true),
-    IconSettingsKeys.KEY_ICON_DUO_WIFI_SCALE to RestartScopeSelection(systemUi = true),
-    IconSettingsKeys.KEY_ICON_DUO_CELLULAR_SCALE to RestartScopeSelection(systemUi = true),
-    IconSettingsKeys.KEY_ICON_DUO_TYPE_SCALE to RestartScopeSelection(systemUi = true),
-    IconSettingsKeys.KEY_ICON_DUO_DOTS_SCALE to RestartScopeSelection(systemUi = true),
-    IconSettingsKeys.KEY_ICON_DUO_AIRPLANE_SCALE to RestartScopeSelection(systemUi = true),
-    IconSettingsKeys.KEY_ICON_DUO_BATTERY_SCALE to RestartScopeSelection(systemUi = true),
-    IconSettingsKeys.KEY_ICON_DUO_PERCENT_SCALE to RestartScopeSelection(systemUi = true),
-    PlatformSettingsKeys.KEY_BLOCK_DOWNLOAD_XL_LOG_DIR to RestartScopeSelection(
-        additionalPackages = setOf(RestartScopeSelection.PACKAGE_DOWNLOADS)
-    ),
     PlatformSettingsKeys.KEY_DOWNLOAD_ALWAYS_SHOW_FULL_LINK to RestartScopeSelection(
         additionalPackages = setOf(RestartScopeSelection.PACKAGE_DOWNLOADS_UI)
     ),
@@ -34,31 +19,6 @@ private val TWEAK_RESTART_SCOPES = mapOf(
     PlatformSettingsKeys.KEY_DOWNLOAD_ADD_NEW_BUTTON to RestartScopeSelection(
         additionalPackages = setOf(RestartScopeSelection.PACKAGE_DOWNLOADS_UI)
     ),
-    SystemUiSettingsKeys.KEY_HIDE_FINGERPRINT to RestartScopeSelection(systemUi = true),
-    SystemUiSettingsKeys.KEY_HIDE_FINGERPRINT_AOD to RestartScopeSelection(systemUi = true),
-    SystemUiSettingsKeys.KEY_HIDE_FINGERPRINT_LOCKSCREEN to RestartScopeSelection(systemUi = true),
-    SystemUiSettingsKeys.KEY_HIDE_FINGERPRINT_APP_AUTH to RestartScopeSelection(systemUi = true),
-    SystemUiSettingsKeys.KEY_HIDE_LOCKSCREEN_STATUS_BAR to RestartScopeSelection(systemUi = true),
-    SystemUiSettingsKeys.KEY_HIDE_LOCKSCREEN_DATE to RestartScopeSelection(systemUi = true),
-    SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_CLOCK_SECONDS to RestartScopeSelection(systemUi = true),
-    SystemUiSettingsKeys.KEY_NOTIFICATION_MONET_TEXT_COLOR to RestartScopeSelection(systemUi = true),
-    SystemUiSettingsKeys.KEY_NOTIFICATION_FONT_WEIGHT to RestartScopeSelection(systemUi = true),
-    SystemUiSettingsKeys.KEY_NOTIFICATION_ABSOLUTE_TIME to RestartScopeSelection(systemUi = true),
-    SystemUiSettingsKeys.KEY_LOCKSCREEN_FINGERPRINT_AVOID to RestartScopeSelection(systemUi = true),
-    SystemUiSettingsKeys.KEY_SLIDER_SHOW_PERCENTAGE to RestartScopeSelection(systemUi = true),
-    SystemUiSettingsKeys.KEY_SLIDER_SAME_PERCENTAGE_STYLE to RestartScopeSelection(systemUi = true),
-    // The four per-element dp values are Float-typed prefs; only the Boolean master switch is
-    // tracked here (markTweaked stores Boolean baselines — Float keys would crash the baseline
-    // read in clearRestartedScopes). Changing a slider takes effect on the next SystemUI restart,
-    // which the master-switch restart dialog or the manual scope restart already covers.
-    SystemUiSettingsKeys.KEY_CC_CORNER_ENABLED to RestartScopeSelection(systemUi = true),
-    // The editor-cards hooks install at control-center plugin load; only enabling needs the
-    // restart (callbacks read the switch live, so disabling applies immediately).
-    SystemUiSettingsKeys.KEY_CC_EDIT_ENABLED to RestartScopeSelection(systemUi = true),
-    // Same for the element-size hooks; the individual size keys are read live on every bind.
-    SystemUiSettingsKeys.KEY_CC_RESIZE_ENABLED to RestartScopeSelection(systemUi = true),
-    SystemUiSettingsKeys.KEY_MEDIA_CARD_HIDE_APP_ICON to RestartScopeSelection(systemUi = true),
-    SystemUiSettingsKeys.KEY_MEDIA_CARD_HIDE_DEVICE_SWITCH to RestartScopeSelection(systemUi = true),
     SystemUiSettingsKeys.KEY_LOCKSCREEN_ALL_NOTIFICATIONS to RestartScopeSelection(systemUi = true),
     SystemUiSettingsKeys.KEY_LOCKSCREEN_KEEP_NOTIFICATIONS to RestartScopeSelection(systemUi = true),
     PlatformSettingsKeys.KEY_SHOW_IN_SETTINGS to RestartScopeSelection(settings = true),
@@ -82,16 +42,7 @@ private val TWEAK_RESTART_SCOPES = mapOf(
     PlatformSettingsKeys.KEY_MITRUST_DISABLE_RISK_MONITORING to RestartScopeSelection(
         additionalPackages = setOf(RestartScopeSelection.PACKAGE_TRUST_SERVICE)
     ),
-    PlatformSettingsKeys.KEY_GUARD_PROVIDER_BLOCK_UPLOAD_APP_LIST to RestartScopeSelection(
-        additionalPackages = setOf(RestartScopeSelection.PACKAGE_GUARD_PROVIDER)
-    ),
     PlatformSettingsKeys.KEY_MILINK_BLOCK_HPPLAY_FILES to RestartScopeSelection(milink = true),
-    // The theme rights-check hook installs into the Theme Manager process. The framework-side
-    // re-validation hook lives in system_server, which the app cannot restart; the Home page's
-    // hot reload (or a reboot) is what applies that half.
-    PlatformSettingsKeys.KEY_ALLOW_THIRD_PARTY_THEME to RestartScopeSelection(
-        additionalPackages = setOf(RestartScopeSelection.PACKAGE_THEME_MANAGER)
-    ),
 )
 
 private const val KEY_PENDING_RESTART_BOOT_TOKEN = "pending_restart_boot_token"
@@ -186,6 +137,8 @@ internal class AppRestartTracker(context: Context, private val values: AppSettin
     }
 
     fun markTweaked(key: String, value: Boolean, defaultValue: Boolean = false) {
+        // Live-only keys (including islands/XMSF) intentionally have Empty restart scope.
+        if (TWEAK_RESTART_SCOPES[key]?.isEmpty() != false) return
         val baselineKey = "$KEY_TWEAK_BASELINE_PREFIX$key"
         val splitFingerprintBaselineNeedsMigration =
             (key == SystemUiSettingsKeys.KEY_HIDE_FINGERPRINT_AOD ||
@@ -242,6 +195,7 @@ internal class AppRestartTracker(context: Context, private val values: AppSettin
      * `tweak_baseline_` slot, so it must never be mixed with a Boolean-typed key.
      */
     fun markTweakedInt(key: String, value: Int) {
+        if (TWEAK_RESTART_SCOPES[key]?.isEmpty() != false) return
         val baselineKey = "$KEY_TWEAK_BASELINE_PREFIX$key"
         val baseline = if (localPrefs.contains(baselineKey)) {
             localPrefs.getInt(baselineKey, value)
@@ -282,14 +236,7 @@ internal class AppRestartTracker(context: Context, private val values: AppSettin
         localPrefs.edit {
             putString(KEY_PENDING_RESTART_BOOT_TOKEN, bootToken)
             clearedKeys.forEach { key ->
-                if (key == SystemUiSettingsKeys.KEY_LOCKSCREEN_FINGERPRINT_AVOID) {
-                    // Int-typed selector tweaks store an Int baseline; the Boolean
-                    // branch below would write a Boolean into the same slot and crash
-                    // the next getInt baseline read with a ClassCastException.
-                    putInt("$KEY_TWEAK_BASELINE_PREFIX$key", values.currentTweakValueInt(key))
-                } else {
-                    putBoolean("$KEY_TWEAK_BASELINE_PREFIX$key", values.currentTweakValue(key))
-                }
+                putBoolean("$KEY_TWEAK_BASELINE_PREFIX$key", values.currentTweakValue(key))
             }
             putStringSet(KEY_DIRTY_TWEAK_KEYS, nextDirtyKeys)
             putStringSet(PlatformSettingsKeys.KEY_PENDING_RESTART_SCOPES, nextPendingScopes.toKeySet())

@@ -5,6 +5,7 @@ import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
+import com.takekazex.hypertweak.hook.base.InstallPolicy
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.reflect.Method
@@ -40,6 +41,9 @@ object VideoRingbackHooker : StaticHooker() {
         enforcementApplied.set(false)
     }
 
+    override val installPolicy = InstallPolicy.WHEN_ENABLED
+    override fun isFeatureEnabled() = settingDisableVideoRingback
+
     override fun onHook() {
         if (hookParam.packageName != PHONE_PACKAGE) return
         if (!settingDisableVideoRingback) {
@@ -47,6 +51,7 @@ object VideoRingbackHooker : StaticHooker() {
             return
         }
 
+        enforcementApplied.set(false)
         val base = BASE_CLASS.toClassOrNull() ?: run {
             DebugLog.hookSkipped(TAG, BASE_CLASS, "class not found")
             return

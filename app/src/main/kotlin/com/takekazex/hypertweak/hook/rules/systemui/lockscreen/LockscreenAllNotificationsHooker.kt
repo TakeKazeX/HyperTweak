@@ -6,6 +6,7 @@ import android.content.Context
 import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
+import com.takekazex.hypertweak.hook.base.InstallPolicy
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 
@@ -35,7 +36,7 @@ import com.takekazex.hypertweak.util.logging.DebugLog
  * also benefits that path — but it does NOT touch `mHasShownAfterUnlock` (that is the separate
  * Feature 4, `LockscreenKeepNotificationsHooker`).
  *
- * The master switch gates hook installation and needs a SystemUI restart.
+ * The master switch installs/removes the managed hooks through the live-settings dispatcher.
  */
 object LockscreenAllNotificationsHooker : StaticHooker() {
     // Published on settings acceptance; hook callbacks perform no storage reads.
@@ -48,6 +49,9 @@ object LockscreenAllNotificationsHooker : StaticHooker() {
         "com.miui.systemui.notification.NotificationSettingsManager"
     private const val PREFS_NAME = "app_notification"
     private const val PACKAGE_KEY_SUFFIX = "_keyguard"
+
+    override val installPolicy = InstallPolicy.WHEN_ENABLED
+    override fun isFeatureEnabled() = settingLockscreenAllNotifications
 
     override fun onHook() {
         if (!settingLockscreenAllNotifications) {

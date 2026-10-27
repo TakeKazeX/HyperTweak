@@ -7,6 +7,7 @@ import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 import android.content.Context
 import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
+import com.takekazex.hypertweak.hook.base.InstallPolicy
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.reflect.Method
@@ -35,6 +36,9 @@ object DownloadXlLogDirectoryHooker : StaticHooker() {
         "/storage/emulated/0/.xlDownload",
         "/sdcard/.xlDownload"
     )
+
+    override val installPolicy = InstallPolicy.WHEN_ENABLED
+    override fun isFeatureEnabled() = settingBlockDownloadXlLogDir
 
     override fun onHook() {
         if (!settingBlockDownloadXlLogDir) {

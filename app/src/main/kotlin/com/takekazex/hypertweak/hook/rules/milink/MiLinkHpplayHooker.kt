@@ -8,6 +8,7 @@ import androidx.core.content.edit
 import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
+import com.takekazex.hypertweak.hook.base.InstallPolicy
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.reflect.Method
@@ -32,6 +33,9 @@ object MiLinkHpplayHooker : StaticHooker() {
     private const val CONTEXT_PATH = "com.hpplay.common.utils.ContextPath"
     private const val LELINK_SOURCE_SDK = "com.hpplay.sdk.source.api.LelinkSourceSDK"
     private const val SD_CARD_PREF = "key_sdcard_dir_enable"
+
+    override val installPolicy = InstallPolicy.WHEN_ENABLED
+    override fun isFeatureEnabled() = settingMilinkBlockHpplayFiles
 
     override fun onHook() {
         if (hookParam.packageName != PACKAGE) return

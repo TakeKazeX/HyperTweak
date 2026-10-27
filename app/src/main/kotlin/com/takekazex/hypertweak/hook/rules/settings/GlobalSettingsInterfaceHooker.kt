@@ -22,13 +22,27 @@ object GlobalSettingsInterfaceHooker : StaticHooker() {
     private const val MIUI_BUILD_CLASS = "miui.os.Build"
     private const val INTERNATIONAL_BUILD_FIELD = "IS_INTERNATIONAL_BUILD"
 
+    private var buildFlag: java.lang.reflect.Field? by generationState { null }
+    private var originalFlag: Boolean? by generationState { null }
+
+    override fun onPrepareHotReload() {
+        val field = buildFlag ?: return
+        originalFlag?.let { StaticFieldWriter.setBoolean(field, it) }
+    }
+
+    fun refreshSettings(): Boolean {
+        if (hookParam.packageName != SETTINGS_PACKAGE || !isMainProcess) return true
+        val field = buildFlag ?: return false
+        return runCatching {
+            val desired = if (settingSettingsGlobalInterface) true else originalFlag ?: return false
+            if (field.getBoolean(null) != desired) StaticFieldWriter.setBoolean(field, desired)
+            field.getBoolean(null) == desired
+        }.onFailure { DebugLog.w(TAG, "could not refresh international Settings flag", it) }.getOrDefault(false)
+    }
+
     override fun onHook() {
         if (hookParam.packageName != SETTINGS_PACKAGE || !isMainProcess) {
             DebugLog.hookSkippedDebug(TAG, SETTINGS_PACKAGE, "not the Settings main process")
-            return
-        }
-        if (!settingSettingsGlobalInterface) {
-            DebugLog.hookSkippedDebug(TAG, "international Settings interface", "disabled")
             return
         }
 
@@ -40,17 +54,11 @@ object GlobalSettingsInterfaceHooker : StaticHooker() {
                 }
             }
 
-            // Follow HyperCeiler's Settings hook: switch the flag consumed by international UI
-            // branches. Build can already be initialized in the forked app process, so write its
-            // process-local static storage with the Android 16-compatible field writer.
-            if (!field.getBoolean(null)) {
-                StaticFieldWriter.setBoolean(field, true)
+            if (buildFlag == null) {
+                originalFlag = field.getBoolean(null)
+                buildFlag = field
             }
-            if (field.getBoolean(null)) {
-                DebugLog.i(TAG, "Settings IS_INTERNATIONAL_BUILD enabled")
-            } else {
-                DebugLog.w(TAG, "Could not enable Settings IS_INTERNATIONAL_BUILD")
-            }
+            if (!refreshSettings()) DebugLog.w(TAG, "could not apply international Settings flag")
         } catch (t: Throwable) {
             DebugLog.e(TAG, "Failed to enable Settings IS_INTERNATIONAL_BUILD", t)
         }
