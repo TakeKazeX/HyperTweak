@@ -79,12 +79,6 @@ private val TWEAK_RESTART_SCOPES = mapOf(
         milink = true,
         bluetooth = true
     ),
-    PlatformSettingsKeys.KEY_LBE_CLIPBOARD_TOAST to RestartScopeSelection(
-        // Both packages ship the vendor clipboard-read overlay; Security Center is the one that
-        // actually builds the one the user sees, so both processes must reload the hook.
-        securityCenter = true,
-        additionalPackages = setOf(RestartScopeSelection.PACKAGE_LBE_SECURITY)
-    ),
     PlatformSettingsKeys.KEY_MITRUST_DISABLE_RISK_MONITORING to RestartScopeSelection(
         additionalPackages = setOf(RestartScopeSelection.PACKAGE_TRUST_SERVICE)
     ),

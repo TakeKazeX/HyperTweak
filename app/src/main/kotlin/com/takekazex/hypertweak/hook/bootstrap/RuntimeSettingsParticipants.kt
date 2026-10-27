@@ -123,7 +123,7 @@ internal object RuntimeSettingsParticipants {
         }
         registerForProcess(RuntimeSettingsGroups.XMSF) { _ -> Preferences.invalidateRuntimeReadCache(); true }
         // Re-evaluate presence only; cold targets use each feature's managed preparation.
-        registerForProcess(RuntimeSettingsGroups.GATED_FEATURES) { _ ->
+        registerForProcess(RuntimeSettingsGroups.GATED_FEATURES) { keys ->
             Preferences.invalidateRuntimeReadCache()
             var applied = true
             actions.hookers().forEach { hooker ->
@@ -134,6 +134,11 @@ internal object RuntimeSettingsParticipants {
                     applied = false
                     DebugLog.w("HookEntry", "gated refresh failed hooker=${hooker.hookerName}", it)
                 }
+            }
+            if (processName == "com.miui.securitycenter" &&
+                com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys.KEY_SECURITY_CENTER_MORE_BATTERY_INFO in keys) {
+                actions.hookers().filterIsInstance<com.takekazex.hypertweak.hook.rules.securitycenter.battery.MoreBatteryInfoHooker>()
+                    .forEach { it.refreshExistingPage() }
             }
             applied
         }
@@ -154,6 +159,31 @@ internal object RuntimeSettingsParticipants {
             }
         }
         registerForProcess(RuntimeSettingsGroups.SECURITY_CHECKS) { _ -> Preferences.invalidateRuntimeReadCache(); true }
+        registerForProcess(RuntimeSettingsGroups.SECURITY_PRIVACY) { _ ->
+            com.takekazex.hypertweak.hook.rules.securitycenter.privacy.SecurityCenterPrivacyEntriesHooker.refreshSettings()
+            true
+        }
+        fun refreshSecurityHookers(matches: (BaseHooker) -> Boolean): Boolean {
+            var applied = true
+            actions.hookers().filter(matches).forEach { hooker ->
+                runCatching { hooker.refreshFeatureState() }.onFailure {
+                    applied = false
+                    DebugLog.w("HookEntry", "security refresh failed hooker=${hooker.hookerName}", it)
+                }
+            }
+            return applied
+        }
+        registerForProcess(RuntimeSettingsGroups.SECURITY_WARNINGS) { _ -> refreshSecurityHookers {
+            it is com.takekazex.hypertweak.hook.rules.securitycenter.WarningCountdownHooker
+        } }
+        registerForProcess(RuntimeSettingsGroups.SECURITY_BUBBLES) { _ -> refreshSecurityHookers {
+            it is com.takekazex.hypertweak.hook.rules.securitycenter.BubbleNotificationWhitelistHooker ||
+                it is com.takekazex.hypertweak.hook.rules.securitycenter.SecurityCoreBubbleAppListHooker ||
+                it is com.takekazex.hypertweak.hook.rules.systemui.notification.SystemUiBubbleNotificationWhitelistHooker
+        } }
+        registerForProcess(RuntimeSettingsGroups.SECURITY_CLIPBOARD) { _ -> refreshSecurityHookers {
+            it is com.takekazex.hypertweak.hook.rules.lbe.LbeClipboardToastHooker
+        } }
         registerForProcess(RuntimeSettingsGroups.OFFLINE_CONFIG) { _ -> Preferences.invalidateRuntimeReadCache(); true }
         registerForProcess(RuntimeSettingsGroups.XIAOAI_GESTURES) { _ -> true }
         registerForProcess(RuntimeSettingsGroups.SETTINGS_AI) { _ ->

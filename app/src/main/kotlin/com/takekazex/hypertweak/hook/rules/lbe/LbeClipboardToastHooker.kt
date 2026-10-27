@@ -10,6 +10,7 @@ import android.widget.Toast
 import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
+import com.takekazex.hypertweak.hook.base.InstallPolicy
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 import org.luckypray.dexkit.query.enums.StringMatchType
@@ -66,17 +67,13 @@ object LbeClipboardToastHooker : StaticHooker() {
     private const val CLIPBOARD_TOAST_TYPE = 1
     private const val TOAST_TEXT_RES_NAME = "overlay_read_clip_toast"
 
-    private var enabled by generationState { false }
-
     private var contextField: Field? by generationState { null }
 
-    override fun onPrepareHotReload() {
-        enabled = false
-    }
+    override val installPolicy = InstallPolicy.WHEN_ENABLED
+    override fun isFeatureEnabled() = settingLbeClipboardToast
 
     override fun onHook() {
-        enabled = settingLbeClipboardToast
-        if (!enabled) {
+        if (!isFeatureEnabled()) {
             DebugLog.hookSkippedDebug(TAG, hookParam.packageName, "clipboard Toast disabled")
             return
         }
@@ -120,7 +117,7 @@ object LbeClipboardToastHooker : StaticHooker() {
             method.hook {
                 before { param ->
                     HookFailurePolicy.open(TAG, method.name, Unit) {
-                        if (!enabled) return@open
+                        if (!settingLbeClipboardToast) return@open
                         if ((param.args.getOrNull(1) as? Number)?.toInt() != CLIPBOARD_TOAST_TYPE) {
                             return@open
                         }

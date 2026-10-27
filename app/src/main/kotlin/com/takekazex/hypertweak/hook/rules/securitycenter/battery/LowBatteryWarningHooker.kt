@@ -42,17 +42,11 @@ object LowBatteryWarningHooker : StaticHooker() {
     override fun onHook() {
         if (hookParam.packageName != PACKAGE) return
         val mode = selectedMode()
-        if (mode == PlatformSettingsKeys.SECURITY_CENTER_LOW_BATTERY_FOLLOW) {
-            DebugLog.hookSkippedDebug(TAG, "low-battery warning", "follow system")
-            return
-        }
-
         var installed = 0
         installed += hookIntReads(Settings.System::class.java)
-        if (mode == PlatformSettingsKeys.SECURITY_CENTER_LOW_BATTERY_SILENT) {
-            installed += hookStringReads(Settings.System::class.java)
-            installed += hookStringReads(Settings.Global::class.java)
-        }
+        // All modes must be switchable in a living process, including follow -> silent.
+        installed += hookStringReads(Settings.System::class.java)
+        installed += hookStringReads(Settings.Global::class.java)
 
         if (installed == 0) {
             DebugLog.hookSkipped(TAG, "low-battery warning", "Settings read methods not found")

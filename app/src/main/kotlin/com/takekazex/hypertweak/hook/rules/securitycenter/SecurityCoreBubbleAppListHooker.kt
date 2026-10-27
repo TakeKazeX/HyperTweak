@@ -14,6 +14,7 @@ import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.CompatibleMethodResolver
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
+import com.takekazex.hypertweak.hook.base.InstallPolicy
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.reflect.Constructor
@@ -41,6 +42,9 @@ object SecurityCoreBubbleAppListHooker : StaticHooker() {
         "com.miui.freeform.settings.bubble.entity.MiuiBubbleApp"
     private const val BUBBLE_MANAGE_ACTIVITY =
         "com.miui.freeform.settings.bubble.BubbleAppManageActivity"
+
+    override val installPolicy = InstallPolicy.WHEN_ENABLED
+    override fun isFeatureEnabled() = settingSecurityCenterBubbleNotificationUnlock
 
     override fun onHook() {
         if (!settingSecurityCenterBubbleNotificationUnlock
@@ -104,6 +108,7 @@ object SecurityCoreBubbleAppListHooker : StaticHooker() {
             getSupportBubbleApps.hook {
                 after { param ->
                     HookFailurePolicy.open(TAG, "getSupportBubbleApps", Unit) {
+                        if (!settingSecurityCenterBubbleNotificationUnlock) return@open
                         val context = param.args.getOrNull(0) as? Context ?: return@open
                         @Suppress("UNCHECKED_CAST")
                         val result = param.result as? MutableList<Any?> ?: return@open
@@ -120,6 +125,7 @@ object SecurityCoreBubbleAppListHooker : StaticHooker() {
             getInstalledBubbleApps?.hook {
                 after { param ->
                     HookFailurePolicy.open(TAG, "filter system bubble apps", Unit) {
+                        if (!settingSecurityCenterBubbleNotificationUnlock) return@open
                         val context = param.args.getOrNull(0) as? Context ?: return@open
                         @Suppress("UNCHECKED_CAST")
                         val result = param.result as? MutableList<Any?> ?: return@open

@@ -119,6 +119,13 @@ object MoreBatteryInfoHooker : StaticHooker() {
         clearCapturedPreferences()
     }
 
+    fun refreshExistingPage() = HostAccess.onMain {
+        if (!settingSecurityCenterMoreBatteryInfo) clearCapturedPreferences()
+        if (hookParam.isMainProcess) com.takekazex.hypertweak.hook.rules.securitycenter.SecurityCenterPageRefresh.refreshBattery()
+    }
+
+    override fun recoverHotReloadHosts() = refreshExistingPage()
+
     /** Keep the inexpensive host lifecycle hooks early; prepare optional read targets in the background. */
     override val installPolicy: InstallPolicy = InstallPolicy.WHEN_ENABLED
 

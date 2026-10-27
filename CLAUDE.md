@@ -156,11 +156,12 @@ the selected haptic scheme and does not mute contextual search. See
 `RuntimeSettingsGroups` registers setting ownership, destinations and resync authorization.
 Every explicit live-settings group uses the common snapshot/dispatcher: icons, islands,
 screenshot, back gesture, native launcher settings, Dock, volume-key steps, XMSF focus
-authentication, gesture-bar surfaces, security/offline checks, and the SystemUI domains added
+authentication, gesture-bar surfaces, security/offline checks, Security Center privacy and
+warnings, cross-package clipboard and bubble notifications, and the SystemUI domains added
 by the 2026-10-22 live-settings audit (`systemui.aod`, `.keyguard`, `.notification_header`,
 `.notification_text`, `.media_card`, `.control_center_plugin`, `.glass`, `.lockscreen`,
-`.power_save`). Those participants keep their hooks installed for the process generation and
-re-derive the policy on living hosts. The keyguard battery row uses `AodKeyguardPolicy`: an
+`.power_save`). Participants re-derive policies on living hosts; optional hooks use the
+managed on-demand installation lifecycle. The keyguard battery row uses `AodKeyguardPolicy`: an
 explicit host phase from `MiuiFullAodManager.isDozing` (`mToLockScreen` alone is not a dozing flag) keeps the native row in every
 lit/unknown state, and only the accepted ordinary Duo switch replaces it; AOD options apply
 only in AOD phases, and every suppression sets one release-able ownership flag.

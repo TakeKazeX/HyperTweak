@@ -303,7 +303,6 @@ internal fun AppContent(
                     },
                     lbeClipboardToast = lbeClipboardToast,
                     onLbeClipboardToastChange = { checked ->
-                        markTweaked(PlatformSettingsKeys.KEY_LBE_CLIPBOARD_TOAST, checked)
                         lbeClipboardToast = checked
                         settings.storage.putBoolean(PlatformSettingsKeys.KEY_LBE_CLIPBOARD_TOAST, checked)
                     },

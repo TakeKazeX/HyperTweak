@@ -18,6 +18,7 @@ import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.StaticHooker
+import com.takekazex.hypertweak.hook.base.InstallPolicy
 import com.takekazex.hypertweak.util.logging.DebugLog
 import io.github.lingqiqi5211.ezhooktool.xposed.common.HookParam
 import org.luckypray.dexkit.query.enums.StringMatchType
@@ -116,6 +117,9 @@ object WarningCountdownHooker : StaticHooker() {
 
     private class PropertyAccessors(val write: Method, val read: Method)
 
+    override val installPolicy = InstallPolicy.WHEN_ENABLED
+    override fun isFeatureEnabled() = selectedMode() != PlatformSettingsKeys.SECURITY_CENTER_WARNING_FOLLOW_SYSTEM
+
     override fun onHook() {
         if (hookParam.packageName != PACKAGE) return
         val mode = selectedMode()
@@ -128,10 +132,9 @@ object WarningCountdownHooker : StaticHooker() {
         hookAdbInputApplyPath()
         hookAdbVerifyPath()
 
-        if (mode == PlatformSettingsKeys.SECURITY_CENTER_WARNING_DIRECT_APPROVE) {
-            prepareDexTargets(name = WarningCountdownFeature.id,
-                resolve = ::resolveConfirmMethod, install = ::hookDirectApprovePath)
-        }
+        // Resolve both modes on first enable so a later 1 -> 2 change is effective too.
+        prepareDexTargets(name = WarningCountdownFeature.id,
+            resolve = ::resolveConfirmMethod, install = ::hookDirectApprovePath)
     }
 
     private fun selectedMode(): Int = settingSecurityCenterPermissionWarningMode.coerceIn(
@@ -301,6 +304,7 @@ object WarningCountdownHooker : StaticHooker() {
     }
 
     private fun callConfirmIfAllowed(param: HookParam, confirmMethod: Method) {
+        if (!warningShouldDirectApprove(selectedMode())) return
         val fragment = param.thisObject
         // 2nd exclusion layer: the fragment arguments carry `permName` (both
         // `InterceptPermissionFragment.v0` and `InterceptMIUIFragment.m0` copy it from the

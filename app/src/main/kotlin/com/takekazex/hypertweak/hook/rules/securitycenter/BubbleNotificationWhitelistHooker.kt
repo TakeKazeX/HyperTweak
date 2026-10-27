@@ -17,6 +17,7 @@ import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.CompatibleMethodResolver
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
+import com.takekazex.hypertweak.hook.base.InstallPolicy
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.reflect.Constructor
@@ -53,6 +54,9 @@ object BubbleNotificationWhitelistHooker : StaticHooker() {
     private const val BUBBLES_SETTINGS_APP_MAP_FIELD = "mBubbleAppMaps"
     private const val BUBBLE_UP_MANAGER_SETTINGS_FIELD = "mBubblesSettings"
     private const val SECURE_BUBBLE_APP_SETTINGS = "miui_bubble_app_settings"
+
+    override val installPolicy = InstallPolicy.WHEN_ENABLED
+    override fun isFeatureEnabled() = settingSecurityCenterBubbleNotificationUnlock
 
     override fun onHook() {
         if (!settingSecurityCenterBubbleNotificationUnlock
@@ -218,6 +222,7 @@ object BubbleNotificationWhitelistHooker : StaticHooker() {
             getDefaultBubbles.hook {
                 after { param ->
                     HookFailurePolicy.open(TAG, "getDefaultBubbles", Unit) {
+                        if (!settingSecurityCenterBubbleNotificationUnlock) return@open
                         @Suppress("UNCHECKED_CAST") // Host map returned by the hooked getter.
                         val result = param.result as? ArrayMap<Any?, Any?> ?: return@open
                         val context = contextField.get(param.thisObject) as? Context ?: return@open
@@ -235,6 +240,7 @@ object BubbleNotificationWhitelistHooker : StaticHooker() {
             getInstalledBubbleApps?.hook {
                 after { param ->
                     HookFailurePolicy.open(TAG, "filter system bubble apps", Unit) {
+                        if (!settingSecurityCenterBubbleNotificationUnlock) return@open
                         val context = contextField.get(param.thisObject) as? Context
                             ?: return@open
                         @Suppress("UNCHECKED_CAST")

@@ -1,10 +1,6 @@
 package com.takekazex.hypertweak.ui.page.securitycenter
 
-import com.takekazex.hypertweak.ui.components.dialog.LocalRestartScopeHandled
-import com.takekazex.hypertweak.ui.components.dialog.LocalRestartScopeRequest
-import com.takekazex.hypertweak.ui.components.dialog.restartInProgress
 import com.takekazex.hypertweak.ui.page.glass.DockSlider
-import com.takekazex.hypertweak.ui.app.LocalAppServices
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import com.takekazex.hypertweak.settings.contract.AppSettingsKeys
@@ -26,17 +22,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.ui.app.LocalAppSettingsStore
-import com.takekazex.hypertweak.util.restart.RestartScopeSelection
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -53,14 +46,14 @@ import top.yukonga.miuix.kmp.utils.overScrollVertical
 
 /** Security Center-scoped feature switches, grouped independently from AOSP restoration. */
 @Composable
-fun SecurityCenterPage(onBack: () -> Unit, onNavigateToPowerSave: () -> Unit) {
-    val services = LocalAppServices.current
+fun SecurityCenterPage(
+    onBack: () -> Unit,
+    onNavigateToPowerSave: () -> Unit,
+    lbeClipboardToast: Boolean,
+    onLbeClipboardToastChange: (Boolean) -> Unit,
+) {
     val settingsStore = LocalAppSettingsStore.current
     val scrollBehavior = MiuixScrollBehavior()
-    val context = LocalContext.current
-    val coroutineScope = rememberCoroutineScope()
-    val requestRestartScopes = LocalRestartScopeRequest.current
-    val handleRestartedScopes = LocalRestartScopeHandled.current
 
     var hideDolbyPopup by remember {
         mutableStateOf(settingsStore.getBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_HIDE_DOLBY_POPUP, false))
@@ -79,9 +72,6 @@ fun SecurityCenterPage(onBack: () -> Unit, onNavigateToPowerSave: () -> Unit) {
     }
     var iconLaunch by rememberSaveable {
         mutableStateOf(settingsStore.getBoolean(AppSettingsKeys.KEY_APP_DETAILS_ICON_LAUNCH, false))
-    }
-    var lbeClipboardToast by remember {
-        mutableStateOf(settingsStore.getBoolean(PlatformSettingsKeys.KEY_LBE_CLIPBOARD_TOAST, false))
     }
     var bubbleNotificationUnlock by remember {
         mutableStateOf(
@@ -192,15 +182,6 @@ fun SecurityCenterPage(onBack: () -> Unit, onNavigateToPowerSave: () -> Unit) {
     var contactsBusinessHallIgnoreOffline by remember {
         mutableStateOf(settingsStore.getBoolean(PlatformSettingsKeys.KEY_CONTACTS_BUSINESS_HALL_IGNORE_OFFLINE, false))
     }
-    var systemUiRestartPending by rememberSaveable { mutableStateOf(false) }
-    var securityCenterRestartPending by rememberSaveable { mutableStateOf(false) }
-
-    fun requestRestart(selection: RestartScopeSelection) {
-        if (selection.systemUi) systemUiRestartPending = true
-        if (selection.securityCenter) securityCenterRestartPending = true
-        requestRestartScopes(selection)
-    }
-
     Scaffold(
         topBar = {
             TopAppBar(
@@ -244,7 +225,6 @@ fun SecurityCenterPage(onBack: () -> Unit, onNavigateToPowerSave: () -> Unit) {
                     checked = privacyCallEntry,
                     onCheckedChange = { enabled ->
                         privacyCallEntry = enabled
-                        requestRestart(RestartScopeSelection(securityCenter = true))
                         settingsStore.putBoolean(
                             PlatformSettingsKeys.KEY_SECURITY_CENTER_PRIVACY_CALL_ENTRY,
                             enabled
@@ -263,7 +243,6 @@ fun SecurityCenterPage(onBack: () -> Unit, onNavigateToPowerSave: () -> Unit) {
                     selectedIndex = antiPeepingMode,
                     onSelectedIndexChange = { mode ->
                         antiPeepingMode = mode
-                        requestRestart(RestartScopeSelection(securityCenter = true))
                         settingsStore.putInt(
                             PlatformSettingsKeys.KEY_SECURITY_CENTER_ANTI_PEEPING_MODE,
                             mode
@@ -277,7 +256,6 @@ fun SecurityCenterPage(onBack: () -> Unit, onNavigateToPowerSave: () -> Unit) {
                     checked = frontCameraAssistantEntry,
                     onCheckedChange = { enabled ->
                         frontCameraAssistantEntry = enabled
-                        requestRestart(RestartScopeSelection(securityCenter = true))
                         settingsStore.putBoolean(
                             PlatformSettingsKeys.KEY_SECURITY_CENTER_FRONT_CAMERA_ASSISTANT_ENTRY,
                             enabled
@@ -293,7 +271,6 @@ fun SecurityCenterPage(onBack: () -> Unit, onNavigateToPowerSave: () -> Unit) {
                     checked = callPrivacyCameraEntry,
                     onCheckedChange = { enabled ->
                         callPrivacyCameraEntry = enabled
-                        requestRestart(RestartScopeSelection(securityCenter = true))
                         settingsStore.putBoolean(
                             PlatformSettingsKeys.KEY_SECURITY_CENTER_CALL_PRIVACY_CAMERA_ENTRY,
                             enabled
@@ -348,8 +325,10 @@ fun SecurityCenterPage(onBack: () -> Unit, onNavigateToPowerSave: () -> Unit) {
                     title = stringResource(R.string.security_center_dock_predictions),
                     value = dockPredictions, range = 0..15, defaultValue = 8, unit = "",
                     onChange = {
-                        dockPredictions = it
-                        settingsStore.putInt(PlatformSettingsKeys.KEY_SECURITY_CENTER_DOCK_PREDICT_LIMIT, it)
+                        if (dockPredictions != it) {
+                            dockPredictions = it
+                            settingsStore.putInt(PlatformSettingsKeys.KEY_SECURITY_CENTER_DOCK_PREDICT_LIMIT, it)
+                        }
                     },
                     summary = stringResource(R.string.security_center_dock_predictions_summary)
                 )
@@ -430,15 +409,7 @@ fun SecurityCenterPage(onBack: () -> Unit, onNavigateToPowerSave: () -> Unit) {
             Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
                 SwitchPreference(
                     checked = lbeClipboardToast,
-                    onCheckedChange = { enabled ->
-                        lbeClipboardToast = enabled
-                        requestRestart(
-                            RestartScopeSelection(
-                                additionalPackages = setOf(RestartScopeSelection.PACKAGE_LBE_SECURITY)
-                            )
-                        )
-                        settingsStore.putBoolean(PlatformSettingsKeys.KEY_LBE_CLIPBOARD_TOAST, enabled)
-                    },
+                    onCheckedChange = onLbeClipboardToastChange,
                     title = stringResource(R.string.tweaks_lbe_clipboard_toast_title),
                     summary = stringResource(R.string.tweaks_lbe_clipboard_toast_summary)
                 )
@@ -450,9 +421,6 @@ fun SecurityCenterPage(onBack: () -> Unit, onNavigateToPowerSave: () -> Unit) {
                     checked = bubbleNotificationUnlock,
                     onCheckedChange = { enabled ->
                         bubbleNotificationUnlock = enabled
-                        requestRestart(
-                            RestartScopeSelection(systemUi = true, securityCenter = true)
-                        )
                         settingsStore.putBoolean(
                             PlatformSettingsKeys.KEY_SECURITY_CENTER_BUBBLE_NOTIFICATION_UNLOCK,
                             enabled
@@ -474,7 +442,6 @@ fun SecurityCenterPage(onBack: () -> Unit, onNavigateToPowerSave: () -> Unit) {
                     selectedIndex = permissionWarningMode,
                     onSelectedIndexChange = { mode ->
                         permissionWarningMode = mode
-                        requestRestart(RestartScopeSelection(securityCenter = true))
                         settingsStore.putInt(
                             PlatformSettingsKeys.KEY_SECURITY_CENTER_PERMISSION_WARNING_MODE,
                             mode
@@ -502,7 +469,6 @@ fun SecurityCenterPage(onBack: () -> Unit, onNavigateToPowerSave: () -> Unit) {
                         selectedIndex = lowBatteryWarningMode,
                         onSelectedIndexChange = { mode ->
                             lowBatteryWarningMode = mode
-                            requestRestart(RestartScopeSelection(securityCenter = true))
                             settingsStore.putInt(
                                 PlatformSettingsKeys.KEY_SECURITY_CENTER_LOW_BATTERY_MODE,
                                 mode
@@ -515,7 +481,6 @@ fun SecurityCenterPage(onBack: () -> Unit, onNavigateToPowerSave: () -> Unit) {
                         checked = showDetailedPowerData,
                         onCheckedChange = { enabled ->
                             showDetailedPowerData = enabled
-                            requestRestart(RestartScopeSelection(securityCenter = true))
                             settingsStore.putBoolean(
                                 PlatformSettingsKeys.KEY_SECURITY_CENTER_SHOW_DETAILED_POWER_DATA,
                                 enabled
@@ -528,7 +493,6 @@ fun SecurityCenterPage(onBack: () -> Unit, onNavigateToPowerSave: () -> Unit) {
                         checked = restorePowerRanking,
                         onCheckedChange = { enabled ->
                             restorePowerRanking = enabled
-                            requestRestart(RestartScopeSelection(securityCenter = true))
                             settingsStore.putBoolean(
                                 PlatformSettingsKeys.KEY_SECURITY_CENTER_RESTORE_POWER_RANKING,
                                 enabled
@@ -541,7 +505,6 @@ fun SecurityCenterPage(onBack: () -> Unit, onNavigateToPowerSave: () -> Unit) {
                         checked = showBerserkMode,
                         onCheckedChange = { enabled ->
                             showBerserkMode = enabled
-                            requestRestart(RestartScopeSelection(securityCenter = true))
                             settingsStore.putBoolean(
                                 PlatformSettingsKeys.KEY_SECURITY_CENTER_SHOW_BERSERK_MODE,
                                 enabled
@@ -554,7 +517,6 @@ fun SecurityCenterPage(onBack: () -> Unit, onNavigateToPowerSave: () -> Unit) {
                         checked = moreBatteryInfo,
                         onCheckedChange = { enabled ->
                             moreBatteryInfo = enabled
-                            requestRestart(RestartScopeSelection(securityCenter = true))
                             settingsStore.putBoolean(
                                 PlatformSettingsKeys.KEY_SECURITY_CENTER_MORE_BATTERY_INFO,
                                 enabled
@@ -562,41 +524,6 @@ fun SecurityCenterPage(onBack: () -> Unit, onNavigateToPowerSave: () -> Unit) {
                         },
                         title = stringResource(R.string.security_center_more_battery_info),
                         summary = stringResource(R.string.security_center_more_battery_info_summary)
-                    )
-                }
-            }
-
-            if (systemUiRestartPending || securityCenterRestartPending) {
-                val restartSelection = RestartScopeSelection(
-                    systemUi = systemUiRestartPending,
-                    securityCenter = securityCenterRestartPending
-                )
-                SmallTitle(stringResource(R.string.security_center_apply_section))
-                Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-                    ArrowPreference(
-                        title = stringResource(
-                            when {
-                                systemUiRestartPending && securityCenterRestartPending ->
-                                    R.string.aosp_restart_security_center_and_system_ui
-                                securityCenterRestartPending -> R.string.aosp_restart_security_center
-                                else -> R.string.aosp_restart_system_ui
-                            }
-                        ),
-                        summary = stringResource(R.string.aosp_restart_security_center_summary),
-                        enabled = !restartInProgress(restartSelection),
-                        onClick = {
-                            settingsStore.flush()
-                            services.restarts.restartScope(
-                                context = context,
-                                coroutineScope = coroutineScope,
-                                selection = restartSelection,
-                                onCompleted = { completed ->
-                                    handleRestartedScopes(completed)
-                                    if (completed.systemUi) systemUiRestartPending = false
-                                    if (completed.securityCenter) securityCenterRestartPending = false
-                                },
-                            )
-                        }
                     )
                 }
             }

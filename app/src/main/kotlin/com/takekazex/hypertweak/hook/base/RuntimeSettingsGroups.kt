@@ -27,6 +27,10 @@ internal object RuntimeSettingsGroups {
     const val SECURITY_POPUPS = RuntimeSettingsDefinitions.SECURITY_POPUPS
     const val SECURITY_DOCK = RuntimeSettingsDefinitions.SECURITY_DOCK
     const val SECURITY_CHECKS = RuntimeSettingsDefinitions.SECURITY_CHECKS
+    const val SECURITY_PRIVACY = RuntimeSettingsDefinitions.SECURITY_PRIVACY
+    const val SECURITY_WARNINGS = RuntimeSettingsDefinitions.SECURITY_WARNINGS
+    const val SECURITY_BUBBLES = RuntimeSettingsDefinitions.SECURITY_BUBBLES
+    const val SECURITY_CLIPBOARD = RuntimeSettingsDefinitions.SECURITY_CLIPBOARD
     const val OFFLINE_CONFIG = RuntimeSettingsDefinitions.OFFLINE_CONFIG
     const val XIAOAI_GESTURES = RuntimeSettingsDefinitions.XIAOAI_GESTURES
     const val SETTINGS_AI = RuntimeSettingsDefinitions.SETTINGS_AI
@@ -63,7 +67,8 @@ internal object RuntimeSettingsGroups {
             // `.power` was not normalized and therefore never received a settings snapshot at all
             // (its PowerSaveOverrideHooker and PowerRankingHooker only ever saw boot values).
             base in setOf("com.miui.securitycenter", "com.miui.securitycenter.remote",
-                "com.miui.securitycenter.cache", "com.miui.securitycenter.power") -> "com.miui.securitycenter"
+                "com.miui.securitycenter.cache", "com.miui.securitycenter.power",
+                "com.miui.securitycenter.bootaware", "com.miui.securitycenter.uniauth") -> "com.miui.securitycenter"
             base in setOf("com.google.android.gms.persistent", "com.google.android.gms.unstable",
                 "com.google.android.gms.ui", "com.google.android.gms.learning", "com.google.android.gms.feedback",
                 "com.google.android.gms.remapping1", "com.google.android.gms.room") -> "com.google.android.gms"

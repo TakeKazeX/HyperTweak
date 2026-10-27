@@ -32,7 +32,9 @@ internal fun NavEntryBuilder.featuresPages(settings: NavigationSettings, navCont
         entry<Route.SecurityCenter> {
             SecurityCenterPage(
                 onBack = { navController.pop() },
-                onNavigateToPowerSave = { navController.navigateTo(Route.PowerSave) }
+                onNavigateToPowerSave = { navController.navigateTo(Route.PowerSave) },
+                lbeClipboardToast = lbeClipboardToast,
+                onLbeClipboardToastChange = onLbeClipboardToastChange,
             )
         }
         entry<Route.AospIme> {

@@ -11,10 +11,10 @@ import com.takekazex.hypertweak.hook.base.ThreadActivation
 import com.takekazex.hypertweak.hook.base.CompatibleMethodResolver
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.StaticHooker
+import com.takekazex.hypertweak.hook.rules.securitycenter.SecurityCenterPageRefresh
 import com.takekazex.hypertweak.util.logging.DebugLog
 import io.github.lingqiqi5211.ezhooktool.core.callMethodOrNull
 import org.json.JSONObject
-import java.io.File
 import java.lang.reflect.Modifier
 
 /** Keeps the native Security Center privacy and camera entries in their original preference pages. */
@@ -67,6 +67,8 @@ object SecurityCenterPrivacyEntriesHooker : StaticHooker() {
     private var supportedAntiPeepingModes: Set<Int> by generationState { emptySet() }
     /** False until the semantic profile says which native anti-peeping gates exist. */
     private var antiPeepingSupportKnown: Boolean by generationState { false }
+    private var semanticTargetsInstalled: Boolean by generationState { false }
+    private var lastSettings: List<Any>? by generationState { null }
 
     /**
      * A new generation must re-learn support: the profile is re-resolved after an APK update and
@@ -83,107 +85,72 @@ object SecurityCenterPrivacyEntriesHooker : StaticHooker() {
      */
     override fun onHook() {
         if (hookParam.packageName != PACKAGE) return
-        if (!hasAnyFeatureEnabled()) {
-            DebugLog.hookSkippedDebug(TAG, "native privacy and camera entries", "no overrides selected")
-            return
-        }
-
-        val selectedAntiPeepingMode = antiPeepingMode()
-        val needsAntiPeepingTargets =
-            selectedAntiPeepingMode != PlatformSettingsKeys.SECURITY_CENTER_ANTI_PEEPING_SYSTEM_DEFAULT
-        val needsFrontAssistantTargets =
-            hookParam.isMainProcess && isFrontCameraAssistantEnabled()
-
-        // Preference visibility does not depend on DEX evidence; install it before any scan so the
-        // settings page is already correct while the semantic targets are being resolved.
+        lastSettings = currentSettings()
         if (hookParam.isMainProcess) {
             hookPreferenceVisibility()
             hookPreferenceRemoval()
         }
-        if (!needsAntiPeepingTargets && !needsFrontAssistantTargets) {
-            if (hookParam.isMainProcess) {
-                DebugLog.i(TAG, "native entry overrides active; anti-peeping mode=$selectedAntiPeepingMode")
-            }
-            return
-        }
+        ensureSemanticTargets(allowCachedStartup = true)
+    }
 
+    private fun currentSettings(): List<Any> = listOf(
+        isPrivacyCallEnabled(), antiPeepingMode(), isFrontCameraAssistantEnabled(), isCallPrivacyCameraEnabled()
+    )
+
+    /** Install both capability variants once; callbacks always consult the accepted snapshot. */
+    fun refreshSettings() {
+        if (lastSettings == null) return
+        val next = currentSettings()
+        val changed = lastSettings != null && lastSettings != next
+        lastSettings = next
+        ensureSemanticTargets()
+        if (changed && hookParam.isMainProcess) SecurityCenterPageRefresh.refreshPrivacy()
+    }
+
+    override fun recoverHotReloadHosts() {
+        if (hookParam.isMainProcess) SecurityCenterPageRefresh.refreshPrivacy()
+    }
+
+    private fun ensureSemanticTargets(allowCachedStartup: Boolean = false) {
+        if (semanticTargetsInstalled ||
+            (antiPeepingMode() == PlatformSettingsKeys.SECURITY_CENTER_ANTI_PEEPING_SYSTEM_DEFAULT &&
+                (!hookParam.isMainProcess || !isFrontCameraAssistantEnabled()))) return
         val apkPath = hookParam.appInfo?.sourceDir
         if (apkPath.isNullOrBlank()) {
             DebugLog.w(TAG, "target APK path unavailable; semantic overrides skipped")
             return
         }
         val cacheDir = dexCacheDirectory
-
-        if (hookParam.isMainProcess) {
-            val profile = runCatching {
-                SecurityCenterPrivacyResolver.resolve(apkPath, classLoader, cacheDir)
-            }.onFailure {
-                DebugLog.w(TAG, "privacy target resolution failed", it)
-            }.getOrNull()
-            if (profile == null) {
-                DebugLog.w(TAG, "privacy targets unavailable; preserving native behavior")
-                return
-            }
-            installSemanticTargets(profile, selectedAntiPeepingMode)
-        } else {
-            // Auxiliary processes keep the old ordering whenever a cache entry exists: the gates
-            // are installed before the host's services run. Only the one scan after an APK update
-            // has to move past the provider-publish deadline, which is exactly what used to get
-            // the process killed.
+        // Preserve early capability coverage in provider processes when a validated cache exists;
+        // a cache miss still scans off-main and must never delay provider publication.
+        if (allowCachedStartup && !hookParam.isMainProcess) {
             val cached = runCatching {
-                SecurityCenterPrivacyResolver.resolve(
-                    apkPath,
-                    classLoader,
-                    cacheDir,
-                    cacheOnly = true
-                )
+                SecurityCenterPrivacyResolver.resolve(apkPath, classLoader, cacheDir, cacheOnly = true)
             }.getOrNull()
             if (cached != null) {
-                installSemanticTargets(cached, selectedAntiPeepingMode)
-            } else {
-                scheduleDeferredInstall(apkPath, cacheDir, selectedAntiPeepingMode)
+                installSemanticTargets(cached)
+                semanticTargetsInstalled = true
+                return
             }
         }
+        prepareDexTargets(name = "securitycenter.privacy",
+            resolve = { SecurityCenterPrivacyResolver.resolve(apkPath, classLoader, cacheDir) },
+            install = { profile ->
+                installSemanticTargets(profile)
+                semanticTargetsInstalled = true
+                if (hookParam.isMainProcess) SecurityCenterPageRefresh.refreshPrivacy()
+            })
     }
 
     /** Installs hooks that need the resolved DEX targets; callers own the generation boundary. */
-    private fun installSemanticTargets(
-        profile: SecurityCenterPrivacyResolver,
-        selectedAntiPeepingMode: Int
-    ) {
-        if (selectedAntiPeepingMode != PlatformSettingsKeys.SECURITY_CENTER_ANTI_PEEPING_SYSTEM_DEFAULT) {
-            hookAntiPeepingCapabilityGates(profile)
-        }
-        if (hookParam.isMainProcess && isFrontCameraAssistantEnabled()) {
+    private fun installSemanticTargets(profile: SecurityCenterPrivacyResolver) {
+        hookAntiPeepingCapabilityGates(profile)
+        if (hookParam.isMainProcess) {
             hookFrontAssistantAction(profile)
             hookFrontAssistantFunctionCardGates(profile)
             hookBeautyManageEntry(profile)
         }
-        if (hookParam.isMainProcess) {
-            DebugLog.i(TAG, "native entry overrides active; anti-peeping mode=$selectedAntiPeepingMode")
-        } else {
-            DebugLog.d(TAG, "anti-peeping capability gates installed mode=$selectedAntiPeepingMode")
-        }
     }
-
-    private fun scheduleDeferredInstall(apkPath: String, cacheDir: File?, antiPeepingMode: Int) {
-        prepareDexTargets(
-            name = "securitycenter.privacy",
-            resolve = { SecurityCenterPrivacyResolver.resolve(apkPath, classLoader, cacheDir) },
-            install = { profile ->
-                if (antiPeepingMode != PlatformSettingsKeys.SECURITY_CENTER_ANTI_PEEPING_SYSTEM_DEFAULT) {
-                    hookAntiPeepingCapabilityGates(profile)
-                }
-                DebugLog.d(TAG, "deferred anti-peeping gates installed mode=$antiPeepingMode")
-            },
-        )
-    }
-
-    private fun hasAnyFeatureEnabled(): Boolean =
-        isPrivacyCallEnabled() ||
-            antiPeepingMode() != PlatformSettingsKeys.SECURITY_CENTER_ANTI_PEEPING_SYSTEM_DEFAULT ||
-            isFrontCameraAssistantEnabled() ||
-            isCallPrivacyCameraEnabled()
 
     private fun isPrivacyCallEnabled(): Boolean = settingSecurityCenterPrivacyCallEntry
 
@@ -332,10 +299,6 @@ object SecurityCenterPrivacyEntriesHooker : StaticHooker() {
             if (v2 != null) add(PlatformSettingsKeys.SECURITY_CENTER_ANTI_PEEPING_V2)
         }
         antiPeepingSupportKnown = true
-        if (antiPeepingMode() !in supportedAntiPeepingModes) {
-            DebugLog.w(TAG, "selected anti-peeping capability unavailable; preserving native gates")
-            return
-        }
         listOf(v1 to PlatformSettingsKeys.SECURITY_CENTER_ANTI_PEEPING_V1,
             v2 to PlatformSettingsKeys.SECURITY_CENTER_ANTI_PEEPING_V2).forEach { (method, selectedMode) ->
             if (method == null) return@forEach

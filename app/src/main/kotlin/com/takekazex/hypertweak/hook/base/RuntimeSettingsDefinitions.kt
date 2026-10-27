@@ -43,6 +43,10 @@ internal object RuntimeSettingsDefinitions {
     const val SECURITY_POPUPS = "securitycenter.sidebar_popups"
     const val SECURITY_DOCK = "securitycenter.dock"
     const val SECURITY_CHECKS = "securitycenter.checks"
+    const val SECURITY_PRIVACY = "securitycenter.privacy"
+    const val SECURITY_WARNINGS = "securitycenter.warnings"
+    const val SECURITY_BUBBLES = "securitycenter.bubbles"
+    const val SECURITY_CLIPBOARD = "securitycenter.clipboard"
     const val OFFLINE_CONFIG = "carrier.offline_config"
     const val XIAOAI_GESTURES = "xiaoai.gesture_input"
     const val SETTINGS_AI = "settings.hyperos_ai"
@@ -140,6 +144,21 @@ internal object RuntimeSettingsDefinitions {
         PlatformSettingsKeys.KEY_SECURITY_CENTER_HIDE_GAME_POPUP,
         PlatformSettingsKeys.KEY_SECURITY_CENTER_DOCK_UNLIMITED_PINNED,
         PlatformSettingsKeys.KEY_SECURITY_CENTER_DOCK_UNLIMITED_PREDICTIONS,
+        PlatformSettingsKeys.KEY_SECURITY_CENTER_PRIVACY_CALL_ENTRY,
+        PlatformSettingsKeys.KEY_SECURITY_CENTER_FRONT_CAMERA_ASSISTANT_ENTRY,
+        PlatformSettingsKeys.KEY_SECURITY_CENTER_CALL_PRIVACY_CAMERA_ENTRY,
+        PlatformSettingsKeys.KEY_SECURITY_CENTER_HIDE_LOW_BATTERY_WARNING,
+        PlatformSettingsKeys.KEY_SECURITY_CENTER_BUBBLE_NOTIFICATION_UNLOCK,
+        PlatformSettingsKeys.KEY_LBE_CLIPBOARD_TOAST,
+        PlatformSettingsKeys.KEY_SECURITY_CENTER_SHOW_BERSERK_MODE,
+        PlatformSettingsKeys.KEY_SECURITY_CENTER_SHOW_DETAILED_POWER_DATA,
+        PlatformSettingsKeys.KEY_SECURITY_CENTER_RESTORE_POWER_RANKING,
+        PlatformSettingsKeys.KEY_SECURITY_CENTER_MORE_BATTERY_INFO,
+        PlatformSettingsKeys.KEY_POWER_SAVE_OVERRIDE_MASTER,
+        PlatformSettingsKeys.KEY_KEEP_REFRESH_RATE_IN_POWER_SAVE,
+        PlatformSettingsKeys.KEY_KEEP_HAPTIC_FEEDBACK_IN_POWER_SAVE,
+        PlatformSettingsKeys.KEY_KEEP_SYSTEM_SOUNDS_IN_POWER_SAVE,
+        PlatformSettingsKeys.KEY_KEEP_WAKEUP_GESTURES_IN_POWER_SAVE,
         PlatformSettingsKeys.KEY_XIAOAI_GESTURE_OPTIONS,
         SystemUiSettingsKeys.KEY_NOTIFICATION_WHITELIST_BYPASS,
         PlatformSettingsKeys.KEY_SHARE_PANEL_SHOW_ALL,
@@ -261,6 +280,23 @@ internal object RuntimeSettingsDefinitions {
                 it == PlatformSettingsKeys.KEY_SECURITY_CENTER_DISABLE_ROOT_SCAN_ITEM ||
                 it == PlatformSettingsKeys.KEY_SECURITY_CENTER_DISABLE_USB_INSTALL_INTERCEPT ||
                 it == PlatformSettingsKeys.KEY_SECURITY_CENTER_BYPASS_USB_INSTALL_NETWORK_VERIFY
+        },
+        SECURITY_PRIVACY to Group(setOf("com.miui.securitycenter")) {
+            it == PlatformSettingsKeys.KEY_SECURITY_CENTER_PRIVACY_CALL_ENTRY ||
+                it == PlatformSettingsKeys.KEY_SECURITY_CENTER_ANTI_PEEPING_MODE ||
+                it == PlatformSettingsKeys.KEY_SECURITY_CENTER_FRONT_CAMERA_ASSISTANT_ENTRY ||
+                it == PlatformSettingsKeys.KEY_SECURITY_CENTER_CALL_PRIVACY_CAMERA_ENTRY
+        },
+        SECURITY_WARNINGS to Group(setOf("com.miui.securitycenter")) {
+            it == PlatformSettingsKeys.KEY_SECURITY_CENTER_LOW_BATTERY_MODE ||
+                it == PlatformSettingsKeys.KEY_SECURITY_CENTER_HIDE_LOW_BATTERY_WARNING ||
+                it == PlatformSettingsKeys.KEY_SECURITY_CENTER_PERMISSION_WARNING_MODE
+        },
+        SECURITY_BUBBLES to Group(setOf("com.miui.securitycenter", "com.miui.securitycore", "com.android.systemui")) {
+            it == PlatformSettingsKeys.KEY_SECURITY_CENTER_BUBBLE_NOTIFICATION_UNLOCK
+        },
+        SECURITY_CLIPBOARD to Group(setOf("com.miui.securitycenter", "com.lbe.security.miui")) {
+            it == PlatformSettingsKeys.KEY_LBE_CLIPBOARD_TOAST
         },
         // The Network Assistant classes are packaged in Security Center; its activities run in
         // the main process and its service/provider consumers also use the .remote process.

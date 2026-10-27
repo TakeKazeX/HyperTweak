@@ -13,6 +13,7 @@ import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.CompatibleMethodResolver
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.StaticHooker
+import com.takekazex.hypertweak.hook.base.InstallPolicy
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.ref.WeakReference
 import java.lang.reflect.Field
@@ -65,6 +66,9 @@ object SystemUiBubbleNotificationWhitelistHooker : StaticHooker() {
     override fun onPrepareHotReload() {
         secureReadFailureLogged.set(false)
     }
+
+    override val installPolicy = InstallPolicy.WHEN_ENABLED
+    override fun isFeatureEnabled() = settingSecurityCenterBubbleNotificationUnlock
 
     override fun onHook() {
         if (!settingSecurityCenterBubbleNotificationUnlock

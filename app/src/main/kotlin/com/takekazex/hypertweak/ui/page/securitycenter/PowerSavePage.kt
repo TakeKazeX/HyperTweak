@@ -1,10 +1,6 @@
 package com.takekazex.hypertweak.ui.page.securitycenter
 
 import com.takekazex.hypertweak.ui.components.dialog.IntValueDialog
-import com.takekazex.hypertweak.ui.components.dialog.LocalRestartScopeHandled
-import com.takekazex.hypertweak.ui.components.dialog.LocalRestartScopeRequest
-import com.takekazex.hypertweak.ui.components.dialog.restartInProgress
-import com.takekazex.hypertweak.ui.app.LocalAppServices
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import androidx.compose.foundation.layout.Column
@@ -25,17 +21,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.ui.app.LocalAppSettingsStore
-import com.takekazex.hypertweak.util.restart.RestartScopeSelection
 import kotlin.math.roundToInt
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
@@ -54,18 +47,11 @@ import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 
-/** Power-save overrides and battery automation, with restart scopes tracked independently. */
+/** Power-save overrides and battery automation. */
 @Composable
 fun PowerSavePage(onBack: () -> Unit) {
-    val services = LocalAppServices.current
     val settingsStore = LocalAppSettingsStore.current
-    val context = LocalContext.current
-    val coroutineScope = rememberCoroutineScope()
     val scrollBehavior = MiuixScrollBehavior()
-    val requestRestartScopes = LocalRestartScopeRequest.current
-    val handleRestartedScopes = LocalRestartScopeHandled.current
-    val securityCenterScope = remember { RestartScopeSelection(securityCenter = true) }
-    val systemUiScope = remember { RestartScopeSelection(systemUi = true) }
 
     var refreshRate by remember { mutableStateOf(settingsStore.powerSave.keepRefreshRateInPowerSave()) }
     var hapticFeedback by remember { mutableStateOf(settingsStore.powerSave.keepHapticFeedbackInPowerSave()) }
@@ -77,23 +63,9 @@ fun PowerSavePage(onBack: () -> Unit) {
     }
     var exitWhenCharging by remember { mutableStateOf(settingsStore.powerSave.exitPowerSaveWhenCharging()) }
 
-    var securityRestartPending by rememberSaveable { mutableStateOf(false) }
-    var systemUiRestartPending by rememberSaveable { mutableStateOf(false) }
-    val restartScopes = RestartScopeSelection(
-        securityCenter = securityRestartPending,
-        systemUi = systemUiRestartPending,
-    )
-
-    fun requestRestart(scope: RestartScopeSelection) {
-        securityRestartPending = securityRestartPending || scope.securityCenter
-        systemUiRestartPending = systemUiRestartPending || scope.systemUi
-        requestRestartScopes(scope)
-    }
-
-    fun setOverride(key: String, value: Boolean, scope: RestartScopeSelection) {
-        if (scope.securityCenter) settingsStore.powerSave.setPowerSaveFeature(key, value)
+    fun setOverride(key: String, value: Boolean, powerSaveFeature: Boolean) {
+        if (powerSaveFeature) settingsStore.powerSave.setPowerSaveFeature(key, value)
         else settingsStore.putBoolean(key, value)
-        requestRestart(scope)
     }
 
     Scaffold(topBar = {
@@ -128,7 +100,7 @@ fun PowerSavePage(onBack: () -> Unit) {
                             setOverride(
                                 PlatformSettingsKeys.KEY_KEEP_REFRESH_RATE_IN_POWER_SAVE,
                                 checked,
-                                securityCenterScope,
+                                true,
                             )
                         },
                         title = stringResource(R.string.power_save_override_refresh_rate_title),
@@ -141,7 +113,7 @@ fun PowerSavePage(onBack: () -> Unit) {
                             setOverride(
                                 PlatformSettingsKeys.KEY_KEEP_HAPTIC_FEEDBACK_IN_POWER_SAVE,
                                 checked,
-                                securityCenterScope,
+                                true,
                             )
                         },
                         title = stringResource(R.string.power_save_override_haptic_title),
@@ -154,7 +126,7 @@ fun PowerSavePage(onBack: () -> Unit) {
                             setOverride(
                                 PlatformSettingsKeys.KEY_KEEP_SYSTEM_SOUNDS_IN_POWER_SAVE,
                                 checked,
-                                securityCenterScope,
+                                true,
                             )
                         },
                         title = stringResource(R.string.power_save_override_sounds_title),
@@ -167,7 +139,7 @@ fun PowerSavePage(onBack: () -> Unit) {
                             setOverride(
                                 PlatformSettingsKeys.KEY_KEEP_WAKEUP_GESTURES_IN_POWER_SAVE,
                                 checked,
-                                securityCenterScope,
+                                true,
                             )
                         },
                         title = stringResource(R.string.power_save_override_wakeup_title),
@@ -186,7 +158,7 @@ fun PowerSavePage(onBack: () -> Unit) {
                             setOverride(
                                 PlatformSettingsKeys.KEY_BATTERY_AUTO_POWER_SAVE_ENABLED,
                                 checked,
-                                systemUiScope,
+                                false,
                             )
                         },
                         title = stringResource(R.string.power_save_auto_title),
@@ -205,7 +177,6 @@ fun PowerSavePage(onBack: () -> Unit) {
                                 PlatformSettingsKeys.KEY_BATTERY_AUTO_POWER_SAVE_THRESHOLD,
                                 autoThreshold.roundToInt(),
                             )
-                            requestRestart(systemUiScope)
                         },
                     )
                     SwitchPreference(
@@ -215,39 +186,11 @@ fun PowerSavePage(onBack: () -> Unit) {
                             setOverride(
                                 PlatformSettingsKeys.KEY_EXIT_POWER_SAVE_WHEN_CHARGING,
                                 checked,
-                                systemUiScope,
+                                false,
                             )
                         },
                         title = stringResource(R.string.power_save_exit_charging_title),
                         summary = stringResource(R.string.power_save_exit_charging_summary)
-                    )
-                }
-            }
-
-            if (!restartScopes.isEmpty()) {
-                SmallTitle(stringResource(R.string.power_save_override_section_apply))
-                Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-                    ArrowPreference(
-                        title = stringResource(R.string.power_save_override_restart_title),
-                        summary = listOfNotNull(
-                            stringResource(R.string.restart_scope_security).takeIf { securityRestartPending },
-                            stringResource(R.string.restart_scope_system_ui).takeIf { systemUiRestartPending },
-                        ).joinToString(", "),
-                        enabled = !restartInProgress(restartScopes),
-                        onClick = {
-                            settingsStore.flush()
-                            val selection = restartScopes
-                            services.restarts.restartScope(
-                                context = context,
-                                coroutineScope = coroutineScope,
-                                selection = selection,
-                                onCompleted = { completed ->
-                                    handleRestartedScopes(completed)
-                                    if (completed.securityCenter) securityRestartPending = false
-                                    if (completed.systemUi) systemUiRestartPending = false
-                                },
-                            )
-                        }
                     )
                 }
             }

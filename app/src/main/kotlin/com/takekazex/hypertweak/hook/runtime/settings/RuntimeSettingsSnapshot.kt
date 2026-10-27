@@ -35,6 +35,12 @@ internal data class RuntimeSettingsSnapshot(val revision: Long, val values: Map<
             if (RuntimeSettingsGroups.BACK in groups && BackGestureSettingsSnapshot.read(values) == null) return null
             val predictionLimit = values[PlatformSettingsKeys.KEY_SECURITY_CENTER_DOCK_PREDICT_LIMIT]
             if (predictionLimit != null && (predictionLimit !is Int || predictionLimit !in 0..15)) return null
+            for (key in listOf(PlatformSettingsKeys.KEY_SECURITY_CENTER_LOW_BATTERY_MODE,
+                PlatformSettingsKeys.KEY_SECURITY_CENTER_PERMISSION_WARNING_MODE,
+                PlatformSettingsKeys.KEY_SECURITY_CENTER_ANTI_PEEPING_MODE)) {
+                val mode = values[key]
+                if (mode != null && (mode !is Int || mode !in 0..2)) return null
+            }
             val dock = values[com.takekazex.hypertweak.settings.contract.DockConfig.KEY]
             if (dock != null && (dock !is String || com.takekazex.hypertweak.settings.contract.DockConfig.decode(dock) == null)) return null
             return RuntimeSettingsSnapshot(revision, values.toMap(), groups.toSet())
