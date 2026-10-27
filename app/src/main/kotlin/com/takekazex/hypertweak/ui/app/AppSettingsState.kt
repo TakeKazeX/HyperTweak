@@ -85,7 +85,7 @@ internal class AppSettingsState(val storage: AppSettingsStore) {
     }
     var blockMiLinkHpplayFiles by settings.preference { storage.getBoolean(PlatformSettingsKeys.KEY_MILINK_BLOCK_HPPLAY_FILES, false) }
     var allowThirdPartyTheme by settings.preference { storage.getBoolean(PlatformSettingsKeys.KEY_ALLOW_THIRD_PARTY_THEME, false) }
-    var removeIslandPlaceholder by settings.preference { storage.getBoolean(PlatformSettingsKeys.KEY_REMOVE_ISLAND_PLACEHOLDER, true) }
+    var removeIslandPlaceholder by settings.preference { storage.getBoolean(PlatformSettingsKeys.KEY_REMOVE_ISLAND_PLACEHOLDER, false) }
     var threeIslands by settings.preference { storage.getBoolean(PlatformSettingsKeys.KEY_THREE_ISLANDS, false) }
     var landscapeFullIslands by settings.preference { storage.getBoolean(PlatformSettingsKeys.KEY_LANDSCAPE_FULL_ISLANDS, false) }
     var landscapeMoreIslands by settings.preference { storage.getBoolean(PlatformSettingsKeys.KEY_LANDSCAPE_MORE_ISLANDS, false) }

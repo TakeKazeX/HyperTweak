@@ -6,8 +6,8 @@ import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 
 // Published on settings acceptance; hook callbacks perform no storage reads.
-private val settingRemoveIslandPlaceholder by hookSetting(true) {
-    Preferences.getBoolean(PlatformSettingsKeys.KEY_REMOVE_ISLAND_PLACEHOLDER, true)
+private val settingRemoveIslandPlaceholder by hookSetting(false) {
+    Preferences.getBoolean(PlatformSettingsKeys.KEY_REMOVE_ISLAND_PLACEHOLDER, false)
 }
 private val settingThreeIslands by hookSetting(false) { Preferences.getBoolean(PlatformSettingsKeys.KEY_THREE_ISLANDS, false) }
 private val settingLandscapeFullIslands by hookSetting(false) {
@@ -21,7 +21,7 @@ internal fun prepareIslandPreferencesSettings() { settingRemoveIslandPlaceholder
 
 /** Live island switches; a narrow seam keeps policies and coordinators JVM-testable. */
 internal interface IslandSettings {
-    val removePlaceholder: Boolean get() = true
+    val removePlaceholder: Boolean get() = false
     val threeIslands: Boolean
     val landscapeFull: Boolean
     val landscapeMore: Boolean

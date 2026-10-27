@@ -21,6 +21,7 @@ import org.junit.Test
 
 class IslandSpectrumBudgetTest {
     private val settings = object : IslandSettings {
+        override val removePlaceholder = true
         override val threeIslands = true
         override val landscapeFull = false
         override val landscapeMore = false

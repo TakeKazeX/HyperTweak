@@ -108,7 +108,7 @@ class AppSettingsStateTest {
         val state = AppSettingsState(store)
         assertEquals(2, state.appLanguage)
         assertEquals(2, state.appBlurMode)
-        assertTrue(state.removeIslandPlaceholder)
+        assertFalse(state.removeIslandPlaceholder)
         store.putInt(AppSettingsKeys.KEY_LANGUAGE, 3)
         store.putFloat(AppSettingsKeys.KEY_PAGE_SCALE, 1.2f)
         store.effectiveAodFingerprint = true
