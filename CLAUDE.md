@@ -110,6 +110,8 @@ CreditsPage formats library versions from BuildConfig fields generated in app/bu
 from the declared implementation/compileOnly dependencies. Keep translations version-free; add a
 coordinate mapping when crediting another compiled library.
 
+Root 设置调试、临时授权、AI 命令与 v2/v3 诊断包维护见 `docs/DEBUG_DIAGNOSTICS.md`。
+
 ## Logging
 
 `util/logging/DebugLog.kt` owns severity, bounded dispatch and counted repeat suppression. `bootstrap/ProcessLogging` injects a live level reader through `LogBackend`; only the module Application receives the existing AppLogStore sink. Cold/hot hook entry binds a level reader without a persistence capability. Retirement flushes before dropping the binding; the logger never imports Preferences. `LogRecord`/`LogCodec` is the shared wire format; errors retain stack traces and expected preference/process skips use DEBUG. Detailed hook registration, target resolution and high-frequency rendering diagnostics belong at DEBUG; INFO describes meaningful runtime state changes. Do not classify severity from words inside a message, and do not silently swallow failures at shared resolver, persistence or system-callback boundaries.

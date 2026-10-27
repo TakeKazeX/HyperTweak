@@ -16,6 +16,13 @@ Read only the section needed for the current task. These workflows supplement [A
 
 Run tasks with `./gradlew`. For Kotlin-only compilation use `:app:compileDebugKotlin`; include `:app:compileDebugJavaWithJavac` when Java is affected, or use `:app:assembleDebug` when a complete debug artifact is needed. Filter JVM tests with `:app:testDebugUnitTest --tests '<test-class-or-pattern>'` when the affected behavior is isolated.
 
+For the root settings interface or diagnostic collector, see `docs/DEBUG_DIAGNOSTICS.md`.
+Run the shared settings/DebugSetting/DebugAccessSession JVM regressions, the Python script
+tests below, `generate_debug_catalog.py --check`, and shell syntax validation for
+`app/src/main/assets/diagnostics/collector.sh`. Release verification includes the provider
+manifest entry, protocol strings and script asset. Device probes must restore each tested
+setting's original explicit/absent state and distinguish backend commits from host effects.
+
 Architecture changes also run `python3 .github/scripts/check_architecture.py`,
 `python3 .github/scripts/check_hook_callbacks.py`, and
 `python3 -m unittest discover -s .github/scripts -p 'test_*.py'`. The guard covers

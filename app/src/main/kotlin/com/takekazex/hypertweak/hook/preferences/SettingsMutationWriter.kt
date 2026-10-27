@@ -40,6 +40,83 @@ internal class SettingsMutationWriter(private val storage: Storage) {
 
     private val nativeMirrorLock = Any()
 
+    data class Receipt(val values: Map<String, *>, val revision: Long, val localMirror: Boolean)
+
+    /** External edits share the UI writer, acknowledgement and rollback boundary. */
+    fun inspect(): Receipt = synchronized(settingsMutationLock) {
+        check(isInitialized && !isLocalOnly) { "BACKEND_UNAVAILABLE" }
+        AcknowledgedSettingsTask.run(serializedWriter) {
+            check(isInitialized && !isLocalOnly) { "BACKEND_UNAVAILABLE" }
+            val backend = remotePrefs
+            check(backend !== localSourcePrefs) { "BACKEND_UNAVAILABLE" }
+            val snapshot = RuntimeSettingsSignal.lastAcknowledged() ?: error("BACKEND_UNAVAILABLE")
+            Receipt(committedValues(snapshot, backend), snapshot.revision, true)
+        }
+    }
+
+    private fun committedValues(snapshot: RuntimeSettingsSnapshot, backend: SharedPreferences): Map<String, *> =
+        backend.all.filterKeys { !RuntimeSettingsSnapshot.owns(it) } + snapshot.values
+
+    fun patch(changes: Map<String, Any>, remove: Set<String>, expectedRevision: Long?,
+        authorize: () -> Unit): Receipt = synchronized(settingsMutationLock) {
+        check(isInitialized && !isLocalOnly) { "BACKEND_UNAVAILABLE" }
+        AcknowledgedSettingsTask.run(serializedWriter) {
+            authorize()
+            check(isInitialized && !isLocalOnly) { "BACKEND_UNAVAILABLE" }
+            val backend = remotePrefs
+            check(backend !== localSourcePrefs) { "BACKEND_UNAVAILABLE" }
+            val before = RuntimeSettingsSignal.lastAcknowledged() ?: error("BACKEND_UNAVAILABLE")
+            check(expectedRevision == null || expectedRevision == before.revision) { "REVISION_CONFLICT" }
+            val old = committedValues(before, backend)
+            val next = (old - remove + changes).toMutableMap()
+            val nativeKeys = NativeRuleStateSnapshot(false, 3, false).settingsValues().keys -
+                setOf("prefs_epoch", PlatformSettingsKeys.KEY_NATIVE_RULE_REVISION)
+            if ((changes.keys + remove).any { it in nativeKeys }) {
+                next[PlatformSettingsKeys.KEY_NATIVE_RULE_REVISION] = maxOf(
+                    (old[PlatformSettingsKeys.KEY_NATIVE_RULE_REVISION] as? Long ?: 0) + 1,
+                    android.os.SystemClock.elapsedRealtimeNanos())
+            }
+            requireNotNull(NativeRuleStateSnapshot.read { next }) { "INVALID_NATIVE_SETTINGS" }
+            val runtime = RuntimeSettingsSignal.prepareReplacement(next)
+            authorize()
+            check(!isLocalOnly && backend === remotePrefs) { "BACKEND_CHANGED" }
+            try {
+                val editor = backend.edit()
+                remove.forEach(editor::remove)
+                changes.forEach { (key, value) -> editor.putPreferenceValue(key, value) }
+                next[PlatformSettingsKeys.KEY_NATIVE_RULE_REVISION]?.let {
+                    editor.putPreferenceValue(PlatformSettingsKeys.KEY_NATIVE_RULE_REVISION, it)
+                }
+                RuntimeSettingsSignal.write(editor, runtime)
+                check(editor.commit()) { "COMMIT_REJECTED" }
+            } catch (error: Exception) {
+                // RemotePreferences may expose a rejected editor's shadow values.
+                runCatching {
+                    val rollback = backend.edit().clear()
+                    old.forEach { (key, value) -> if (value != null) rollback.putPreferenceValue(key, value) }
+                    RuntimeSettingsSignal.write(rollback, before, complete = true)
+                    check(rollback.commit()) { "ROLLBACK_REJECTED" }
+                }.onFailure { SettingsDiagnostics.e("DebugSettings", "rollback failed", it) }
+                throw error
+            }
+            RuntimeSettingsSignal.acknowledge(runtime)
+            val mirrored = runCatching {
+                localSourcePrefs?.takeIf { it !== remotePrefs }?.let { local ->
+                    val editor = local.edit()
+                    remove.forEach(editor::remove)
+                    changes.forEach { (key, value) -> editor.putPreferenceValue(key, value) }
+                    next[PlatformSettingsKeys.KEY_NATIVE_RULE_REVISION]?.let {
+                        editor.putPreferenceValue(PlatformSettingsKeys.KEY_NATIVE_RULE_REVISION, it)
+                    }
+                    check(editor.commit()) { "LOCAL_MIRROR_REJECTED" }
+                }
+                true
+            }.onFailure { SettingsDiagnostics.e("DebugSettings", "local mirror failed after remote commit", it) }.getOrDefault(false)
+            (changes.keys + remove).forEach(storage::invalidate)
+            Receipt(next, runtime.revision, mirrored)
+        }
+    }
+
     fun write(localKey: String? = null, nativeMutation: Pair<String, Any>? = null, runtimeMutation: Pair<String, Any>? = null, runtimeChanges: Map<String, Any> = emptyMap(), block: SharedPreferences.Editor.() -> Unit) {
         synchronized(settingsMutationLock) {
             if (localKey != null && AppLogStore.isRuntimeKey(localKey)) {

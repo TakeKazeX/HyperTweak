@@ -1715,4 +1715,19 @@
     <string name="shortcuts_pin_unsupported">The current launcher does not support adding shortcuts.</string>
     <string name="shortcuts_pin_permission_required">Automatic permission setup failed. Grant root to HyperTweak or allow home screen shortcuts in app permissions, then try again.</string>
     <string name="shortcuts_pin_failed">Could not request the shortcut. Check launcher permissions and try again.</string>
+    <string name="debug_root_title">Root settings interface</string>
+    <string name="debug_root_enable">Allow root settings debugging</string>
+    <string name="debug_root_summary">Off by default. Authorizes UID 0 for 30 minutes. Expires after reboot or app update. Ordinary shell and apps are denied.</string>
+    <string name="debug_root_remaining">Authorized · about %1$d minutes remaining</string>
+    <string name="debug_root_command">ADB: su -c content call --uri content://com.takekazex.hypertweak.debug --method status. See docs/DEBUG_DIAGNOSTICS.md for JSON commands.</string>
+    <string name="debug_bundle_title">Diagnostic bundle</string>
+    <string name="debug_bundle_system">Include system crash evidence (root)</string>
+    <string name="debug_bundle_privacy">Adds system/LSPosed logs, DropBox, ANRs, tombstones and kernel evidence. May contain private data and other modules’ logs.</string>
+    <string name="debug_bundle_summary">Collects locally without changing settings or uploading. Module collection works without root; unavailable sources are recorded. Review before sharing.</string>
+    <string name="debug_bundle_generate">Generate diagnostic bundle</string>
+    <string name="debug_bundle_running">Collecting…</string>
+    <string name="debug_bundle_cancel">Cancel collection</string>
+    <string name="debug_bundle_ready">Bundle ready · %1$d KiB</string>
+    <string name="debug_bundle_share">Share diagnostic bundle</string>
+    <string name="debug_bundle_sources">Module sources: %1$d collected, %2$d unavailable. Detailed system-source status is inside the archive.</string>
 </resources>

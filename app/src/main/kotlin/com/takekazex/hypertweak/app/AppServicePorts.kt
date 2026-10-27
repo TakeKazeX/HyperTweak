@@ -11,6 +11,7 @@ import com.takekazex.hypertweak.util.scope.ScopeManager
 import com.takekazex.hypertweak.util.scope.ScopePromptStore
 
 internal interface AppServicePorts {
+    val diagnostics: com.takekazex.hypertweak.util.diagnostics.DiagnosticCollector
     val restarts: RestartUtils
     val shortcuts: ShortcutUtils
     val wireless: WirelessDiagnostics

@@ -124,6 +124,7 @@ fun DebugPage(
                     )
                 }
             }
+            DebugAccessSection()
             SmallTitle(stringResource(R.string.debug_actions_title))
             Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
                 Column(Modifier.fillMaxWidth()) {

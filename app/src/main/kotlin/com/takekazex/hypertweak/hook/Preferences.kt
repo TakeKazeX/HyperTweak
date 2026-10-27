@@ -517,6 +517,11 @@ object Preferences {
     /** A remote change callback is authoritative; do not reuse pre-notification reads. */
     fun invalidateRuntimeReadCache() = memoClear()
 
+    internal fun inspectDebugSettings() = mutations.inspect()
+    internal fun patchDebugSettings(changes: Map<String, Any>, remove: Set<String>, expectedRevision: Long?,
+        authorize: () -> Unit) = mutations.patch(changes, remove, expectedRevision, authorize)
+    internal fun isDebugUserSetting(key: String) = !isRuntimeKey(key)
+
     fun init(prefs: SharedPreferences, useLocalOnly: Boolean = false) {
         memoClear()
         remoteBackendUnavailable = false

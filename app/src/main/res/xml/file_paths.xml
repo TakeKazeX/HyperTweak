@@ -2,7 +2,7 @@
 <!--
   Shareable paths for update installation and user-requested log export.
 
-  Only downloaded updates and exported log files are exposed as named subdirectories of filesDir.
+  Only downloaded updates, exported log files and private diagnostic jobs are exposed as named subdirectories of filesDir.
   A `<root-path>` or an external-storage entry would let any activity that receives
   one granted URI walk outside the downloaded package, so neither is declared.
 -->
@@ -13,4 +13,5 @@
     <files-path
         name="logs"
         path="logs/" />
+    <files-path name="diagnostics" path="diagnostics/" />
 </paths>

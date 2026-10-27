@@ -15,6 +15,9 @@ import io.github.libxposed.service.XposedService
 
 /** App-process composition only; runtime managers remain the owners of their existing state. */
 internal object DefaultAppServices : AppServicePorts {
+    override val diagnostics = com.takekazex.hypertweak.util.diagnostics.DiagnosticCollector {
+        com.takekazex.hypertweak.app.debug.DebugSettingsService.snapshot()
+    }
     override val restarts = RestartUtils(PreferencesAppSettings::flush)
     override val shortcuts = ShortcutUtils(PreferencesAppSettings)
     override val wireless = WirelessDiagnostics { logger, enabled -> PreferencesAppSettings.putBoolean(logger.preference, enabled) }

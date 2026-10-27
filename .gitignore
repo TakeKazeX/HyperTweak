@@ -28,4 +28,5 @@ modules_config.db-wal
 
 # Local evidence/research documents (reverse-engineering notes, investigation
 # reports, port plans). Kept on disk only, not published with the repository.
-/docs/
+/docs/*
+!/docs/DEBUG_DIAGNOSTICS.md

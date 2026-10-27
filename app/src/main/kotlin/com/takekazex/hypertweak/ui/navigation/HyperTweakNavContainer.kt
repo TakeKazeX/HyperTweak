@@ -54,6 +54,8 @@ fun HyperTweakNavContainer(
     val scaleTransition = remember(predictiveBackFollowGesture) {
         scaleBackTransition(predictiveBackFollowGesture)
     }
+    val debugRevision by com.takekazex.hypertweak.util.diagnostics.DebugSettingsEvents.revision.collectAsState()
+    key(debugRevision) {
     NavDisplay(
         backStack = backStack,
         onBack = { navController.pop() },
@@ -68,4 +70,5 @@ fun HyperTweakNavContainer(
         ),
         content = entryProvider,
     )
+    }
 }

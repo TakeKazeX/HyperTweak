@@ -13,7 +13,7 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class SettingsMutationWriterTest {
-    private class Storage(val local: MutationTestPreferences = MutationTestPreferences(), val remote: MutationTestPreferences = MutationTestPreferences(), override val isLocalOnly: Boolean = false) : SettingsMutationWriter.Storage {
+    private class Storage(val local: MutationTestPreferences = MutationTestPreferences(), val remote: MutationTestPreferences = MutationTestPreferences(), override var isLocalOnly: Boolean = false) : SettingsMutationWriter.Storage {
         override val settingsMutationLock = Any()
         override var isInitialized = true
         override val remotePrefs = remote.prefs
@@ -221,6 +221,89 @@ class SettingsMutationWriterTest {
         assertEquals(2L, cache.persisted["prefs_epoch"])
         assertEquals(true, s.remote.persisted[key])
         assertEquals(true, cache.persisted[key])
+    }
+
+    @Test fun debugPatchCommitsAndResetRemovesExplicitValues() = isolated { s, writer ->
+        val key = SystemUiSettingsKeys.KEY_SLIDER_SHOW_PERCENTAGE
+        val first = writer.patch(mapOf(key to true), emptySet(), 10L) { }
+        assertEquals(true, s.remote.persisted[key])
+        assertEquals(true, s.local.persisted[key])
+        assertTrue(first.revision > 10)
+        val reset = writer.patch(emptyMap(), setOf(key), first.revision) { }
+        assertFalse(s.remote.persisted.containsKey(key))
+        assertFalse(s.local.persisted.containsKey(key))
+        assertFalse(reset.values.containsKey(key))
+        assertFalse(RuntimeSettingsSignal.lastAcknowledged()!!.values.containsKey(key))
+    }
+    @Test fun debugPatchRejectsConflictAndExpiredAuthorizationBeforeCommit() = isolated { s, writer ->
+        val key = SystemUiSettingsKeys.KEY_SLIDER_SHOW_PERCENTAGE
+        fun rejected(block: () -> Unit) {
+            try { block(); fail("must reject") } catch (_: Exception) { }
+        }
+        rejected { writer.patch(mapOf(key to true), emptySet(), 9L) { } }
+        rejected { writer.patch(mapOf(key to true), emptySet(), 10L) { error("DEBUG_ACCESS_DISABLED") } }
+        assertEquals(0, s.remote.commits)
+        assertFalse(s.local.persisted.containsKey(key))
+    }
+    @Test fun rejectedDebugPatchRollsBackShadowAndNeverUpdatesMirror() = isolated { s, writer ->
+        val key = SystemUiSettingsKeys.KEY_SLIDER_SHOW_PERCENTAGE
+        s.remote.shadowBeforeAcknowledgement = true
+        s.remote.rejectNext = true
+        try { writer.patch(mapOf(key to true), emptySet(), 10L) { }; fail("must reject") }
+        catch (_: Exception) { }
+        assertFalse(s.remote.persisted.containsKey(key))
+        assertFalse(s.remote.values.containsKey(key))
+        assertFalse(s.local.persisted.containsKey(key))
+        assertEquals(10L, RuntimeSettingsSignal.lastAcknowledged()!!.revision)
+    }
+    @Test fun debugPatchReportsRemoteSuccessEvenIfLocalMirrorFails() = isolated { s, writer ->
+        s.local.rejectNext = true
+        val receipt = writer.patch(mapOf(SystemUiSettingsKeys.KEY_SLIDER_SHOW_PERCENTAGE to true), emptySet(), null) { }
+        assertFalse(receipt.localMirror)
+        assertEquals(true, s.remote.persisted[SystemUiSettingsKeys.KEY_SLIDER_SHOW_PERCENTAGE])
+    }
+    @Test fun debugNativeResetAndInvalidBatchPreserveContract() = isolated { s, writer ->
+        val key = PlatformSettingsKeys.KEY_OPENED_FOLDER_COLUMNS
+        writer.patch(mapOf(key to 5), emptySet(), null) { }
+        assertEquals(5, s.remote.persisted[key])
+        writer.patch(emptyMap(), setOf(key), null) { }
+        assertFalse(s.remote.persisted.containsKey(key))
+        val before = RuntimeSettingsSignal.lastAcknowledged()
+        try { writer.patch(mapOf(key to 8), emptySet(), null) { }; fail("must reject") }
+        catch (_: Exception) { }
+        assertEquals(before, RuntimeSettingsSignal.lastAcknowledged())
+    }
+
+    @Test fun debugReadAndPatchNeverResurrectRejectedRuntimeShadow() = isolated { s, writer ->
+        val key = SystemUiSettingsKeys.KEY_SLIDER_SHOW_PERCENTAGE
+        // A previous failed ordinary editor exposed a value absent from the acknowledged map.
+        s.remote.values[key] = true
+        assertFalse(writer.inspect().values.containsKey(key))
+        writer.patch(mapOf("record_logs" to true), emptySet(), null) { }
+        assertFalse(RuntimeSettingsSignal.lastAcknowledged()!!.values.containsKey(key))
+        assertFalse(s.remote.persisted.containsKey(key))
+        assertFalse(s.remote.values.containsKey(key))
+    }
+
+    @Test fun debugPatchCannotFallBackToLocalStoreAfterQueueAdmission() = isolated { s, writer ->
+        try {
+            writer.patch(mapOf("record_logs" to false), emptySet(), null) { s.isLocalOnly = true }
+            fail("must reject disconnected backend")
+        } catch (_: Exception) { }
+        assertEquals(0, s.remote.commits)
+        assertEquals(0, s.local.commits)
+    }
+
+    @Test fun expiredDebugGrantBeforeCommitDoesNotEvenRunRollbackEditor() = isolated { s, writer ->
+        var checks = 0
+        try {
+            writer.patch(mapOf("record_logs" to false), emptySet(), null) {
+                if (++checks == 2) error("DEBUG_ACCESS_DISABLED")
+            }
+            fail("must reject expired grant")
+        } catch (_: Exception) { }
+        assertEquals(0, s.remote.commits)
+        assertEquals(0, s.local.commits)
     }
 
 }

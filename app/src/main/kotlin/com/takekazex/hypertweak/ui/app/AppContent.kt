@@ -47,6 +47,8 @@ internal fun AppContent(
     services: com.takekazex.hypertweak.app.AppServicePorts
 ) {
     val settings = remember { AppSettingsState(store) }
+    val debugRevision by com.takekazex.hypertweak.util.diagnostics.DebugSettingsEvents.revision.collectAsState()
+    LaunchedEffect(debugRevision) { if (debugRevision > 0) settings.reload() }
     val restarts = remember { AppRestartTracker(activity, settings) }
     with(settings) {
         with(restarts) {

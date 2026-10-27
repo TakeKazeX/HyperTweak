@@ -180,6 +180,13 @@
             android:grantUriPermissions="false"
             tools:ignore="ExportedContentProvider" />
 
+        <provider
+            android:name="com.takekazex.hypertweak.DebugSettingsProvider"
+            android:authorities="com.takekazex.hypertweak.debug"
+            android:exported="true"
+            android:grantUriPermissions="false"
+            tools:ignore="ExportedContentProvider" />
+
         <!-- Shares downloaded updates with the installer and exported logs with the user's
              selected share target. Not exported; each intent grants read access to one file.
              `file_paths.xml` exposes only filesDir/updates/ and filesDir/logs/. -->

@@ -48,6 +48,7 @@ jobs:
       - name: Verify architecture boundaries
         run: |
           python3 -m unittest discover -s .github/scripts -p 'test_*.py'
+          python3 .github/scripts/generate_debug_catalog.py --check
           python3 .github/scripts/check_architecture.py
           python3 .github/scripts/check_hook_callbacks.py
 
