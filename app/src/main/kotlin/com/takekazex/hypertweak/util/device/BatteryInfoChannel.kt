@@ -111,6 +111,20 @@ object BatteryInfoChannel {
         context.sendBroadcast(intent)
     }
 
+    /** Acquire and immediately release a main-process provider; never invoke its business APIs. */
+    fun wakeProducer(context: Context): Boolean {
+        val authority = "com.miui.securitycenter.peep_protection_banner"
+        val provider = context.packageManager.resolveContentProvider(authority, 0) ?: return false
+        // Fail closed if a ROM moves the endpoint to another process or changes its access contract.
+        if (provider.packageName != PACKAGE || provider.processName != PACKAGE ||
+            !provider.exported || !provider.enabled || !provider.applicationInfo.enabled ||
+            !provider.readPermission.isNullOrEmpty() || !provider.writePermission.isNullOrEmpty()
+        ) return false
+        val client = context.contentResolver.acquireUnstableContentProviderClient(authority) ?: return false
+        client.close()
+        return true
+    }
+
     fun uri() = "content://$AUTHORITY".toUri()
 
     // ─── formatting helpers (shared by the producer hook and the reader) ─────

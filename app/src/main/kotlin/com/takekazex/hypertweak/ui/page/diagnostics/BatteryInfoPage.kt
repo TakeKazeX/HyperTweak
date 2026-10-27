@@ -78,6 +78,7 @@ fun BatteryInfoPage(onBack: () -> Unit) {
     var sections by remember { mutableStateOf<List<BatteryInfoReader.Section>>(emptyList()) }
     var snapshotStatus by remember { mutableStateOf(BatteryInfoChannel.Status.MISSING) }
     var loading by remember { mutableStateOf(true) }
+    var wakeAttempted by remember { mutableStateOf(false) }
 
     suspend fun load() {
         val result = withContext(Dispatchers.IO) {
@@ -111,6 +112,22 @@ fun BatteryInfoPage(onBack: () -> Unit) {
                     lastRequested = now
                 }
                 load()
+                if (!wakeAttempted && snapshotStatus == BatteryInfoChannel.Status.MISSING &&
+                    SystemClock.elapsedRealtime() - openedAt >= 2_000
+                ) {
+                    // Once per page visit, including across pause/resume. Allow an already-running
+                    // producer to answer first, then wake only if no privileged snapshot arrived.
+                    wakeAttempted = true
+                    val awakened = withContext(Dispatchers.IO) {
+                        runCatching { BatteryInfoChannel.wakeProducer(context) }
+                            .onFailure { com.takekazex.hypertweak.util.logging.DebugLog.w("BatteryInfoPage", "background wake failed", it) }
+                            .getOrDefault(false)
+                    }
+                    if (awakened) {
+                        BatteryInfoChannel.request(context, session)
+                        lastRequested = SystemClock.elapsedRealtime()
+                    }
+                }
                 loading = snapshotStatus == BatteryInfoChannel.Status.MISSING &&
                     SystemClock.elapsedRealtime() - openedAt < 2_000
                 manual = withTimeoutOrNull(REFRESH_MS) { refreshRequests.receive() } != null
