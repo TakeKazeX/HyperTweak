@@ -1,152 +1,26 @@
 // SPDX-License-Identifier: Apache-2.0
 // Instruction/data-flow contracts. Runtime locations, allocation CIDs and strategy fields
 // are decoded from the current image; there is no version/build-ID/address table.
-// Pool displacements and GDT selector immediates may move without changing these
-// functions. Masks retain their opcodes, registers and surrounding data flow.
+// Discovery uses bounded semantic bodies and cross-call/field relationships.
+// Short entry seeds enumerate candidates; they do not establish target identity.
 // The constructor's two local argument spills may exchange slots; their pairing
 // is validated below instead of treating the compiler's spill order as an ABI.
 namespace {
 constexpr uint32_t kStackGetterWords[] = {
-    0xa9bf79fdu, 0xaa0f03fdu, 0xd10081efu, 0xaa0103e3u, 0xf81f03a1u, 0xf81e83a2u,
-    0x937f7840u, 0xeb80045fu, 0x54000060u, 0x94000000u, 0xf8007002u, 0xf81f83a0u,
-    0xd2800041u, 0x94000000u, 0xaa0003e1u, 0xf85f83a0u, 0xf81e03a1u, 0xb800f020u,
-    0xf85f03a0u, 0xb8400002u, 0x8b1c8042u, 0xb840b043u, 0x93417c64u, 0xd1000483u,
-    0xd37ff865u, 0xb8013025u, 0xf85e83a5u, 0xeb0300bfu, 0x5400032du, 0xf9403f40u,
-    0xf9529000u, 0xf9400370u, 0x6b10001fu, 0x54000061u, 0xf9400362u, 0x94000000u,
-    0xf85e03a2u, 0x91400361u, 0xf946bc21u, 0xf81f83a0u, 0x94000000u, 0xf85f83a1u,
-    0xaa0003e2u, 0x94000000u, 0xf85f03a3u, 0xb8447060u, 0x8b1c8000u, 0xf9400370u,
-    0x6b10001fu, 0x54000200u, 0xaa1d03efu, 0xa8c179fdu, 0xd65f03c0u, 0xaa0403e0u,
-    0xaa0503e1u, 0xeb00003fu, 0x54000182u, 0xb840f041u, 0x8b1c8021u, 0x8b050830u,
-    0xb840f200u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x91400369u,
-    0xf9400129u, 0x94000000u, 0x94000000u,
+    0xa9bf79fdu, 0xaa0f03fdu, 0xd10081efu, 0xaa0103e3u,
+    0xf81f03a1u, 0xf81e83a2u, 0x937f7840u, 0xeb80045fu,
 };
 constexpr uint32_t kStackGetterMasks[] = {
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xfc000000u, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xfc000000u, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffe00fffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffc003ffu, 0xffffffffu, 0xffffffffu, 0xffc003ffu, 0xfc000000u,
-    0xffffffffu, 0xffc003ffu, 0xffc003ffu, 0xffffffffu, 0xfc000000u, 0xffffffffu,
-    0xffffffffu, 0xfc000000u, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffc003ffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0xffc003ffu,
-    0xffc003ffu, 0xfc000000u, 0xfc000000u,
+    0xffffffffu, 0xffffffffu, 0xffc003ffu, 0xffffffffu,
+    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
 };
 constexpr uint32_t kStackProducerWords[] = {
-    0xa9bf79fdu, 0xaa0f03fdu, 0xd10161efu, 0xaa0103e0u, 0xf81f83a1u, 0x94000000u,
-    0xd2800003u, 0xf85f83a2u, 0xf81f03a3u, 0xf85ff040u, 0xd34c7c00u, 0xaa0203e1u,
-    0xd13fe01eu, 0xf87e7abeu, 0xd63f03c0u, 0xf85f03a2u, 0xeb00005fu, 0x540021eau,
-    0xf85f83a3u, 0xf85ff060u, 0xd34c7c00u, 0xaa0303e1u, 0xd140041eu, 0xf87e7abeu,
-    0xd63f03c0u, 0xaa0003e1u, 0xf85f03a0u, 0xeb01001fu, 0x910082d0u, 0x9100c2d1u,
-    0x9a91b202u, 0xf81e83a2u, 0xf9403f41u, 0xf953b421u, 0x6b16003fu, 0x540001a1u,
-    0xf9403f40u, 0xf94e8000u, 0xf9400370u, 0x6b10001fu, 0x54000061u, 0xf9400362u,
-    0x94000000u, 0xf9400370u, 0xf90001f0u, 0xf9400364u, 0x94000000u, 0x14000002u,
-    0xaa0103e0u, 0xf8497001u, 0xf100103fu, 0x5400032bu, 0xf85f83a2u, 0xf8400043u,
-    0xf81e03a3u, 0xf85ff040u, 0xd34c7c00u, 0xaa0203e1u, 0xd140041eu, 0xf87e7abeu,
-    0xd63f03c0u, 0x91000401u, 0xf85e03a0u, 0xeb01001fu, 0x54000121u, 0xf85f83a2u,
-    0xf85f03a3u, 0xf8400040u, 0xd1000401u, 0xeb01007fu, 0x54000101u, 0x910082c0u,
-    0x14000007u, 0xf85f83a2u, 0xf85f03a3u, 0x14000003u, 0xf85f83a2u, 0xf85f03a3u,
-    0xf85e83a0u, 0xfc400040u, 0xfc400041u, 0x1e612802u, 0xfc1c03a2u, 0xfc400040u,
-    0xfc400041u, 0x1e612803u, 0xfc1c83a3u, 0x37200640u, 0xf85ff040u, 0xd34c7c00u,
-    0xaa0203e1u, 0xd13f801eu, 0xf87e7abeu, 0xd63f03c0u, 0xf85f03a2u, 0xb40018a0u,
-    0x9ac00c43u, 0x9b008861u, 0xeb1f003fu, 0x540018ebu, 0xf85f83a3u, 0xfc400060u,
-    0xfc400061u, 0x1e612802u, 0x9e620020u, 0x1e600841u, 0xfc5c03a0u, 0x1e612802u,
-    0xfc1b03a2u, 0xfc400060u, 0xfc400061u, 0x1e612803u, 0xfc1b83a3u, 0xf85ff060u,
-    0xd34c7c00u, 0xaa0303e1u, 0xd13f801eu, 0xf87e7abeu, 0xd63f03c0u, 0xf85f03a2u,
-    0xb40016e0u, 0x9ac00c41u, 0x9e620020u, 0xfc5b83a1u, 0x1e600822u, 0xfc5c83a1u,
-    0x1e622820u, 0xf85f83a3u, 0xfc400061u, 0xfc400062u, 0xfc5b03a3u, 0x4ea21c5fu,
-    0x4ea01c02u, 0x4ebf1fe0u, 0xaa0303e0u, 0xd2800042u, 0x14000066u, 0xaa0303f0u,
-    0xaa0203e3u, 0xaa1003e2u, 0x4ea21c40u, 0x4ea31c61u, 0xf85ff060u, 0xd34c7c00u,
-    0xaa0303e1u, 0xd140041eu, 0xf87e7abeu, 0xd63f03c0u, 0xf85f03a2u, 0xcb000043u,
-    0xf85f83a4u, 0xf81e03a3u, 0xfc400080u, 0xfc400081u, 0x1e612802u, 0xfc1b83a2u,
-    0xf85ff080u, 0xd34c7c00u, 0xaa0403e1u, 0xd140041eu, 0xf87e7abeu, 0xd63f03c0u,
-    0xaa0003e3u, 0xf85f83a2u, 0xf81d83a3u, 0xf85ff040u, 0xd34c7c00u, 0xaa0203e1u,
-    0xd13f801eu, 0xf87e7abeu, 0xd63f03c0u, 0xaa0003e1u, 0xf85d83a0u, 0xb4001101u,
-    0x9ac10c03u, 0x9b018062u, 0xeb1f005fu, 0x5400114bu, 0x9e620040u, 0xfc5b83a1u,
-    0x1e600822u, 0xfc5c03a0u, 0x1e622801u, 0xf85f83a2u, 0xfc400040u, 0xfc400042u,
-    0x1e622803u, 0xf85e03a0u, 0xd3407c00u, 0x12000001u, 0xd3407c21u, 0x9e620020u,
-    0x1e600862u, 0x1e622820u, 0xfc1b83a0u, 0xfc400041u, 0xfc400042u, 0x1e622823u,
-    0xfc1c03a3u, 0xf85ff040u, 0xd34c7c00u, 0xaa0203e1u, 0xd140041eu, 0xf87e7abeu,
-    0xd63f03c0u, 0xaa0003e3u, 0xf85f83a2u, 0xf81d83a3u, 0xf85ff040u, 0xd34c7c00u,
-    0xaa0203e1u, 0xd13f801eu, 0xf87e7abeu, 0xd63f03c0u, 0xaa0003e1u, 0xf85d83a0u,
-    0xb4000d01u, 0x9ac10c02u, 0x9e620040u, 0xfc5c03a1u, 0x1e600822u, 0xfc5c83a0u,
-    0x1e622801u, 0xf85f83a0u, 0xfc400000u, 0xfc400002u, 0x1e622803u, 0xf85e03a1u,
-    0xd2800042u, 0x9ac20c23u, 0x9e620060u, 0x1e600864u, 0x1e642820u, 0xfc400001u,
-    0xfc5b83a3u, 0x4ea21c5fu, 0x4ea01c02u, 0x4ebf1fe0u, 0xfc1c83a3u, 0xfc1c03a2u,
-    0xfc1b83a1u, 0xfc1b03a0u, 0xb8400001u, 0x8b1c8021u, 0xf81e83a1u, 0x94000000u,
-    0xfc5b83a0u, 0xf81d03a0u, 0xfc007000u, 0xfc5b03a0u, 0xfc00f000u, 0xfc5c83a0u,
-    0xfc017000u, 0xfc5c03a0u, 0xfc01f000u, 0xf85e83a2u, 0xb840b041u, 0xb840f043u,
-    0x8b1c8063u, 0xb840b064u, 0x93417c23u, 0xf81e03a3u, 0x93417c81u, 0xeb01007fu,
-    0x54000061u, 0xaa0203e1u, 0x94000000u, 0xf85f03a4u, 0xf85e83a2u, 0xf85e03a3u,
-    0x91000465u, 0xd37ff8a6u, 0xb800b046u, 0xb840f041u, 0x8b1c8021u, 0xf85d03a0u,
-    0x8b030839u, 0x91003f39u, 0xb9000320u, 0x360000e0u, 0x385ff030u, 0x385ff011u,
-    0x8a500a30u, 0xea5c821fu, 0x54000040u, 0x94000000u, 0x91000483u, 0x17fffee8u,
-    0xaa1603e0u, 0xaa1d03efu, 0xa8c179fdu, 0xd65f03c0u, 0xa9bf09e0u, 0xf9423b45u,
-    0xd2800004u, 0xf941075eu, 0xd63f03c0u, 0xd4200000u, 0xeb1f001fu, 0xcb000023u,
-    0x8b000021u, 0x9a81b061u, 0x17ffff36u, 0xa9bf09e0u, 0xf9423b45u, 0xd2800004u,
-    0xf941075eu, 0xd63f03c0u, 0xd4200000u, 0xa9bf05e0u, 0xf9423b45u, 0xd2800004u,
-    0xf941075eu, 0xd63f03c0u, 0xd4200000u, 0xeb1f003fu, 0xcb010043u, 0x8b010042u,
-    0x9a82b062u, 0x17ffff73u, 0xa9bf05e0u, 0xf9423b45u, 0xd2800004u, 0xf941075eu,
-    0xd63f03c0u, 0xd4200000u,
+    0xa9bf79fdu, 0xaa0f03fdu, 0xd10161efu, 0xaa0103e0u,
+    0xf81f83a1u, 0x94000000u, 0xd2800003u, 0xf85f83a2u,
 };
 constexpr uint32_t kStackProducerMasks[] = {
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xfc000000u,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffc003ffu, 0xffffffffu, 0xffffffffu, 0xffc003ffu,
-    0xfc000000u, 0xffc003ffu, 0xffffffffu, 0xffc003ffu, 0xfc000000u, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffe00fffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffe00fffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffe00fffu, 0xffe00fffu, 0xffffffffu, 0xffffffffu, 0xffe00fffu,
-    0xffe00fffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffe00fffu,
-    0xffe00fffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffe00fffu, 0xffe00fffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffe00fffu, 0xffe00fffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffe00fffu, 0xffe00fffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffe00fffu, 0xffe00fffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffe00fffu, 0xffe00fffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffe00fffu, 0xffe00fffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffe00fffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffe00fffu, 0xffffffffu, 0xffffffffu, 0xfc000000u,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xfc000000u, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xfc000000u, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu,
+    0xffffffffu, 0xffffffffu, 0xffc003ffu, 0xffffffffu,
+    0xffffffffu, 0xfc000000u, 0xffffffffu, 0xffffffffu,
 };
 constexpr uint32_t kStackFactoryWords[] = {
     0xa9bf79fdu, 0xaa0f03fdu, 0xd10081efu, 0xf81e83a2u, 0xb8413080u, 0xb841f083u,
@@ -209,202 +83,20 @@ constexpr uint32_t kStackFactoryMasks[] = {
     0xffffffffu, 0xffffffffu,
 };
 constexpr uint32_t kStackBuilderWords[] = {
-    0xa9bf79fdu, 0xaa0f03fdu, 0xd10241efu, 0xf9400fa0u, 0xb8417001u, 0x8b1c8021u,
-    0xf81f83a1u, 0xd2800021u, 0x94000000u, 0xaa0003e3u, 0xf85f83a0u, 0xf81e03a3u,
-    0xb800b060u, 0xb840b004u, 0x8b1c8084u, 0xf81e83a4u, 0xb8413081u, 0x8b1c8021u,
-    0xf9400ba5u, 0x93417ca6u, 0x36000045u, 0xf84070a6u, 0xaa0603e2u, 0xf81f03a6u,
-    0x94000000u, 0xaa0003e2u, 0xf85e83a0u, 0xf81d83a2u, 0xb8413001u, 0x8b1c8021u,
-    0x94000000u, 0xf85f03a1u, 0xf81d03a0u, 0xeb00003fu, 0x5400006au, 0x910082c4u,
-    0x1400002du, 0xf9403f42u, 0xf953b442u, 0x6b16005fu, 0x540001a1u, 0xf9403f40u,
-    0xf94e8000u, 0xf9400370u, 0x6b10001fu, 0x54000061u, 0xf9400362u, 0x94000000u,
-    0xf9400370u, 0xf90001f0u, 0xf9400364u, 0x94000000u, 0x14000002u, 0xaa0203e0u,
-    0xf8497001u, 0xf100103fu, 0x5400030bu, 0xf85d03a2u, 0xf85f03a0u, 0xeb02001fu,
-    0x54000281u, 0xf85e83a3u, 0xb8413061u, 0x8b1c8021u, 0xb8483024u, 0x8b1c8084u,
-    0xf9400370u, 0x6b10009fu, 0x54002b60u, 0xaa0403e1u, 0x94000000u, 0xaa0003e1u,
-    0xf85d03a0u, 0x91000402u, 0xeb02003fu, 0x910082d0u, 0x9100c2d1u, 0x9a910200u,
-    0xaa0003e4u, 0x14000002u, 0x9100c2c4u, 0xf85e83a3u, 0xf81c03a4u, 0xb840f060u,
-    0x8b1c8000u, 0xb8413001u, 0x8b1c8021u, 0x37200061u, 0x910082c7u, 0x14000007u,
-    0xb8413060u, 0x8b1c8000u, 0xd2802e71u, 0xb8716801u, 0x8b1c8021u, 0xaa0103e7u,
-    0xf9400ba6u, 0xf85f83a0u, 0xf85f03a5u, 0xf81c83a7u, 0xb840f002u, 0x8b1c8042u,
-    0xb840b040u, 0x93417c01u, 0xaa0103e0u, 0xaa0503e1u, 0xeb00003fu, 0x540026e2u,
-    0xb840f040u, 0x8b1c8000u, 0x8b050810u, 0xb840f201u, 0x8b1c8021u, 0xb8407020u,
-    0x8b1c8000u, 0xf81f83a0u, 0xaa1603e1u, 0xd28000c2u, 0x94000000u, 0xaa0003e1u,
-    0xf85f83a0u, 0xb800f020u, 0xf9400370u, 0xb8013030u, 0xf9400ba0u, 0xb8017020u,
-    0xf90001e1u, 0x94000000u, 0xf9400361u, 0xf81f83a0u, 0x94000000u, 0xaa0003e1u,
-    0xf85f83a0u, 0xf81a03a1u, 0xb800b020u, 0xf85e83a0u, 0xb840f002u, 0x8b1c8042u,
-    0xb840b043u, 0x8b1c8063u, 0xf81a83a3u, 0xb840f044u, 0x8b1c8084u, 0xf81b03a4u,
-    0xb8413002u, 0x8b1c8042u, 0xf81b83a2u, 0xd2803071u, 0xb8716845u, 0x8b1c80a5u,
-    0xf81f83a5u, 0x94000000u, 0xf85f03a2u, 0xf81983a0u, 0xf800b002u, 0xf85a83a1u,
-    0xb8013001u, 0xf85b03a1u, 0xb8017001u, 0xf85f83a1u, 0xb801b001u, 0xf85c03a3u,
-    0xb801f003u, 0xf85c83a4u, 0xb8023004u, 0xf85a03a4u, 0xb8007004u, 0x36200103u,
-    0x94000000u, 0xaa0003e1u, 0x910082c0u, 0xb800f020u, 0xf85983a0u, 0xb800b020u,
-    0x14000002u, 0xaa0003e1u, 0xf85f83a0u, 0xf81c83a1u, 0x36200320u, 0xf85b83a0u,
-    0xb8483002u, 0x8b1c8042u, 0xf9400370u, 0x6b10005fu, 0x54001d60u, 0xf840f043u,
-    0xf100087fu, 0x54000180u, 0xf85f03a2u, 0x94000000u, 0xaa0003e1u, 0xf85c83a0u,
-    0xb800b020u, 0xf85f03a3u, 0xf800f023u, 0xf85b83a2u, 0xb8017022u, 0xaa0103e4u,
-    0x14000009u, 0xaa0003e2u, 0xaa0103e0u, 0xf85f03a3u, 0x14000004u, 0xf85b83a2u,
-    0xaa0103e0u, 0xf85f03a3u, 0xaa0003e4u, 0xf85e03a0u, 0xaa0203e1u, 0xaa0303e2u,
-    0xf81f83a4u, 0x94000000u, 0xaa0003e3u, 0xf85e03a2u, 0xf81c83a3u, 0xb800f040u,
-    0x385ff050u, 0x385ff011u, 0x8a500a30u, 0xea5c821fu, 0x54000040u, 0x94000000u,
-    0x6b16007fu, 0x54000200u, 0xf85f83a0u, 0x91400361u, 0xf9429821u, 0x94000000u,
-    0xf81e03a0u, 0x94000000u, 0xaa0003e1u, 0xf85e03a0u, 0xb800f020u, 0xf85f83a0u,
-    0xb8013020u, 0xf85c83a0u, 0xb800b020u, 0xaa0103f7u, 0x14000003u, 0xf85f83a0u,
-    0xaa0003f7u, 0xf85e83b3u, 0xf85d83b4u, 0xf81e03b7u, 0xfc417280u, 0xb8413278u,
-    0x8b1c8318u, 0xd2803371u, 0xb8716b19u, 0x8b1c8339u, 0xf9400370u, 0x6b10033fu,
-    0x54001540u, 0xfc437321u, 0x1e613802u, 0xb8417260u, 0x8b1c8000u, 0xfc407001u,
-    0xfc1903a1u, 0x1e610840u, 0xa9bf79fdu, 0xaa0f03fdu, 0x927cedefu, 0x910001ffu,
-    0xf943af50u, 0xf9035b50u, 0xd63f0200u, 0xd2800110u, 0xf9035b50u, 0xf9433f50u,
-    0xd140061fu, 0xaa1d03efu, 0xa8c179fdu, 0xfc5903a1u, 0x1e611802u, 0xfc1883a2u,
-    0xfc41f280u, 0xfc42f323u, 0x1e633804u, 0x1e610880u, 0xa9bf79fdu, 0xaa0f03fdu,
-    0x927cedefu, 0x910001ffu, 0xf943af50u, 0xf9035b50u, 0xd63f0200u, 0xd2800110u,
-    0xf9035b50u, 0xf9433f50u, 0xd140061fu, 0xaa1d03efu, 0xa8c179fdu, 0x4ea01c01u,
-    0xfc5903a0u, 0x1e601822u, 0xfc1783a2u, 0xfc407280u, 0xfc1803a0u, 0xfc40f281u,
-    0xfc1903a1u, 0xd2803071u, 0xb8716b00u, 0x8b1c8000u, 0x37200220u, 0xf85f03a0u,
-    0xb840f261u, 0x8b1c8021u, 0xb840b022u, 0x8b1c8042u, 0xf81f83a2u, 0x94000000u,
-    0xaa0003e1u, 0xf85f03a0u, 0xf800f020u, 0xf85f83a0u, 0xb8017020u, 0xf85e03a2u,
-    0xb800b022u, 0xaa0103e0u, 0x1400002du, 0xaa1703e2u, 0xf85f03a0u, 0xb840f261u,
-    0x8b1c8021u, 0xb8413023u, 0x8b1c8063u, 0x362002a3u, 0xf9403f41u, 0xf953b421u,
-    0x6b16003fu, 0x540001a1u, 0xf9403f40u, 0xf94e8000u, 0xf9400370u, 0x6b10001fu,
-    0x54000061u, 0xf9400362u, 0x94000000u, 0xf9400370u, 0xf90001f0u, 0xf9400364u,
-    0x94000000u, 0x14000002u, 0xaa0103e0u, 0xb84e7001u, 0x8b1c8021u, 0x37200061u,
-    0xf85e03a0u, 0x14000010u, 0xf85e83a0u, 0xf85e03a2u, 0xf85f03a1u, 0xb8413003u,
-    0x8b1c8063u, 0xf81f83a3u, 0x94000000u, 0xaa0003e1u, 0xf85e03a0u, 0xb800b020u,
-    0xf85f83a0u, 0xb800f020u, 0xf85f03a0u, 0xf8013020u, 0xaa0103e0u, 0xfc5883a3u,
-    0xfc5783a0u, 0xfc5803a1u, 0xfc5903a2u, 0xf81e83a0u, 0xa9460b41u, 0x91004021u,
-    0xeb01005fu, 0x54000689u, 0xf9003341u, 0xd1003c21u, 0xd29c2b82u, 0xf2a00062u,
-    0xf81ff022u, 0xfc007023u, 0xf81f83a1u, 0x94000000u, 0xf85f83a1u, 0xb800b001u,
-    0xfc5783a0u, 0xfc00f000u, 0xfc5803a0u, 0xa9460b41u, 0x91004021u, 0xeb01005fu,
-    0x54000589u, 0xf9003341u, 0xd1003c21u, 0xd29c2b82u, 0xf2a00062u, 0xf81ff022u,
-    0xfc007020u, 0xb801f001u, 0xfc5903a0u, 0xa9460b41u, 0x91004021u, 0xeb01005fu,
-    0x540004e9u, 0xf9003341u, 0xd1003c21u, 0xd29c2b82u, 0xf2a00062u, 0xf81ff022u,
-    0xfc007020u, 0xb8023001u, 0xf85e83a1u, 0xb8027001u, 0xaa1d03efu, 0xa8c179fdu,
-    0xd65f03c0u, 0x91400369u, 0xf9400129u, 0x94000000u, 0x94000000u, 0x91400369u,
-    0xf9400129u, 0x94000000u, 0x91400369u, 0xf9400129u, 0x94000000u, 0xadbf0de2u,
-    0xadbf05e0u, 0xf81f8de0u, 0x94000000u, 0xaa0003e1u, 0xf84085e0u, 0xacc105e0u,
-    0xacc10de2u, 0x17ffffcau, 0x3c9f0de0u, 0xf81f8de0u, 0x94000000u, 0xaa0003e1u,
-    0xf84085e0u, 0x3cc105e0u, 0x17ffffd4u, 0x3c9f0de0u, 0xf81f8de0u, 0x94000000u,
-    0xaa0003e1u, 0xf84085e0u, 0x3cc105e0u, 0x17ffffd9u,
+    0xa9bf79fdu, 0xaa0f03fdu, 0xd10241efu, 0xf9400fa0u,
+    0xb8417001u, 0x8b1c8021u, 0xf81f83a1u, 0xd2800021u,
 };
 constexpr uint32_t kStackBuilderMasks[] = {
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xfc000000u, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xfc000000u, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xfc000000u, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffc003ffu, 0xffffffffu, 0xffffffffu, 0xffc003ffu, 0xfc000000u,
-    0xffc003ffu, 0xffffffffu, 0xffc003ffu, 0xfc000000u, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffc003ffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xfc000000u, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xfc000000u, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffc003ffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xfc000000u, 0xffc003ffu, 0xffffffffu, 0xfc000000u, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xfc000000u, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xfc000000u, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffc003ffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xfc000000u, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xfc000000u, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xfc000000u,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffc003ffu, 0xffc003ffu, 0xfc000000u,
-    0xffffffffu, 0xfc000000u, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffc003ffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xfc000000u,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffc003ffu, 0xffffffffu,
-    0xffffffffu, 0xffc003ffu, 0xfc000000u, 0xffc003ffu, 0xffffffffu, 0xffc003ffu,
-    0xfc000000u, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xfc000000u, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xfc000000u, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffc003ffu, 0xffc003ffu, 0xfc000000u, 0xfc000000u, 0xffc003ffu,
-    0xffc003ffu, 0xfc000000u, 0xffc003ffu, 0xffc003ffu, 0xfc000000u, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xfc000000u, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xfc000000u, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xfc000000u,
+    0xffffffffu, 0xffffffffu, 0xffc003ffu, 0xffffffffu,
     0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
 };
 constexpr uint32_t kStackChildrenWords[] = {
-    0xa9bf79fdu, 0xaa0f03fdu, 0xd10101efu, 0xf9400ba0u, 0xb8417001u, 0x8b1c8021u,
-    0xf81f83a1u, 0xd2800021u, 0x94000000u, 0xaa0003e2u, 0xf85f83a0u, 0xf81f03a2u,
-    0xb800b040u, 0xb8413001u, 0x8b1c8021u, 0xd2802c71u, 0xb8716820u, 0x8b1c8000u,
-    0xf9400370u, 0x6b10001fu, 0x54000bc0u, 0xaa0003e1u, 0xf9400364u, 0x94000000u,
-    0xaa0003e1u, 0xf85f03a2u, 0xb800f040u, 0x385ff050u, 0x385ff011u, 0x8a500a30u,
-    0xea5c821fu, 0x54000040u, 0x94000000u, 0xb840b020u, 0xf81f83a0u, 0x91400361u,
-    0xf9428c21u, 0x94000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u,
-    0xf9400361u, 0x94000000u, 0xaa0003e1u, 0xf81d83a1u, 0xb840b020u, 0x93417c02u,
-    0xf81e03a2u, 0xb840f023u, 0x8b1c8063u, 0xf81f83a3u, 0xd2800004u, 0xf81e83a4u,
-    0xeb02009fu, 0x5400056au, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u,
-    0xf9400364u, 0xf841f002u, 0xd63f0040u, 0xaa0003e3u, 0xaa1603e2u, 0xaa1603e1u,
-    0xf81d03a3u, 0xd2800784u, 0x36000060u, 0xf85ff004u, 0xd34c7c84u, 0x9283c131u,
-    0x8b110084u, 0xf115009fu, 0x540000c9u, 0x91400368u, 0xf9403d08u, 0x91400363u,
-    0xf9429063u, 0x94000000u, 0xf85f83a1u, 0xf85d03a0u, 0xf85e83a2u, 0x8b020839u,
-    0x91003f39u, 0xb9000320u, 0x360000e0u, 0x385ff030u, 0x385ff011u, 0x8a500a30u,
-    0xea5c821fu, 0x54000040u, 0x94000000u, 0x91000444u, 0xf85d83a1u, 0xf85f83a3u,
-    0xf85e03a2u, 0x17ffffd4u, 0xaa0103e0u, 0x94000000u, 0x91400361u, 0xf9437c21u,
-    0xb800f001u, 0x91400361u, 0xf9438021u, 0xb8017001u, 0x91400361u, 0xf9470821u,
-    0xb801b001u, 0xf85d83a1u, 0xb800b001u, 0xaa1d03efu, 0xa8c179fdu, 0xd65f03c0u,
-    0x91400369u, 0xf9400129u, 0x94000000u,
+    0xa9bf79fdu, 0xaa0f03fdu, 0xd10101efu, 0xf9400ba0u,
+    0xb8417001u, 0x8b1c8021u, 0xf81f83a1u, 0xd2800021u,
 };
 constexpr uint32_t kStackChildrenMasks[] = {
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xfc000000u, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffc003ffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffc003ffu, 0xfc000000u,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xfc000000u, 0xffffffffu, 0xffffffffu, 0xffc003ffu,
-    0xffc003ffu, 0xfc000000u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u,
-    0xffc003ffu, 0xfc000000u, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u,
-    0xffc003ffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffe0001fu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffc003ffu, 0xffc003ffu, 0xffc003ffu,
-    0xffc003ffu, 0xfc000000u, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xfc000000u, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xfc000000u, 0xffc003ffu, 0xffc003ffu,
-    0xffffffffu, 0xffc003ffu, 0xffc003ffu, 0xffffffffu, 0xffc003ffu, 0xffc003ffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffc003ffu, 0xffc003ffu, 0xfc000000u,
+    0xffffffffu, 0xffffffffu, 0xffc003ffu, 0xffffffffu,
+    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
 };
 constexpr uint8_t kStackCountWindow[] = {0xe3,0x03,0x00,0xaa,0xa0,0x83,0x5f,0xf8,0xa3,0x03,0x1f,0xf8,0x02,0x7c,0x41,0x93};
 constexpr uint8_t kStackLoopWindow[] = {0x80,0xf8,0x7f,0xd3,0xb0,0x03,0x5f,0xf8,0xe0,0x41,0x00,0xa9,0xa0,0x03,0x5f,0xf8};
@@ -546,50 +238,28 @@ constexpr uint32_t kStackBeginMasks[] = {
     0xffffffffu,
 };
 constexpr uint32_t kStackLayoutOwnerWords[] = {
-    0xa9bf79fdu, 0xaa0f03fdu, 0xd10081efu, 0xf81f83a1u, 0xf81f03a2u, 0xd28000a1u,
-    0x94000000u, 0xaa0003e2u, 0xf85f83a0u, 0xf81e83a2u, 0xb800f040u, 0xf85f03a1u,
-    0xb8013041u, 0xb840b003u, 0x8b1c8063u, 0xf81f03a3u, 0xf9400361u, 0x94000000u,
-    0xaa0003e3u, 0x910082c0u, 0xf81e03a3u, 0xb8013060u, 0xf85e83a2u, 0x91400361u,
-    0xf9400021u, 0x94000000u, 0xaa0003e1u, 0xf85e03a0u, 0xb800f001u, 0x910082c1u,
-    0xb801f001u, 0x9100c2c1u, 0xb8023001u, 0xf85f03a1u, 0xb801b001u, 0x91400362u,
-    0xf9400042u, 0xb8017002u, 0xf85e83a2u, 0xb8017040u, 0x91400360u, 0xf9400000u,
-    0xb801b040u, 0x94000000u, 0xf85e83a2u, 0x91400361u, 0xf9400021u, 0xf81e03a0u,
-    0x94000000u, 0xaa0003e1u, 0xf85e03a0u, 0xb800b001u, 0xf85e83a3u, 0xb801f060u,
-    0xf85f83a0u, 0xb840f002u, 0x8b1c8042u, 0xf85f03a1u, 0x94000000u, 0xb8453001u,
-    0x8b1c8021u, 0xf9400370u, 0x6b10003fu, 0x54000340u, 0xf81f83a1u, 0x94000000u,
-    0xf85e83a2u, 0x91400361u, 0xf9400021u, 0xf81f03a0u, 0x94000000u, 0xaa0003e1u,
-    0xf85f03a0u, 0xb800b001u, 0xf85e83a2u, 0x91400361u, 0xf9400021u, 0x94000000u,
-    0xf81e83a0u, 0x94000000u, 0xf85e83a1u, 0xb800f001u, 0xf85f03a1u, 0xb8013001u,
-    0xf85f83a1u, 0xb800b001u, 0xaa1d03efu, 0xa8c179fdu, 0xd65f03c0u, 0x91400369u,
-    0xf9400129u, 0x94000000u,
+    0xa9bf79fdu, 0xaa0f03fdu, 0xd10081efu, 0xf81f83a1u,
+    0xf81f03a2u, 0xd28000a1u, 0x94000000u, 0xaa0003e2u,
 };
 constexpr uint32_t kStackLayoutOwnerMasks[] = {
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xfc000000u, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffc003ffu, 0xfc000000u,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffc003ffu,
-    0xffc003ffu, 0xfc000000u, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffc003ffu,
-    0xffc003ffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffc003ffu, 0xffc003ffu,
-    0xffffffffu, 0xfc000000u, 0xffffffffu, 0xffc003ffu, 0xffc003ffu, 0xffffffffu,
-    0xfc000000u, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xfc000000u, 0xffffffffu,
-    0xffffffffu, 0xffc003ffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xfc000000u,
-    0xffffffffu, 0xffc003ffu, 0xffc003ffu, 0xffffffffu, 0xfc000000u, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffc003ffu, 0xffc003ffu, 0xfc000000u,
-    0xffffffffu, 0xfc000000u, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffc003ffu,
-    0xffc003ffu, 0xfc000000u,
+    0xffffffffu, 0xffffffffu, 0xffc003ffu, 0xffffffffu,
+    0xffffffffu, 0xffffffffu, 0xfc000000u, 0xffffffffu,
 };
+bool FindStackGetter(const Image&,uintptr_t*,uint32_t*);
+bool FindStackProducer(const Image&,uintptr_t*,uint32_t*);
+bool FindStackBuilder(const Image&,uintptr_t*,uint32_t*);
+bool FindStackChildren(const Image&,uintptr_t*,uint32_t*);
+bool FindStackOwner(const Image&,uintptr_t*,uint32_t*);
+bool ValidateStackSite(const Image&,unsigned,uintptr_t);
 const SiteSpec kFolderStackSites[] = {
-    {"getter", {reinterpret_cast<const uint8_t*>(kStackGetterWords), reinterpret_cast<const uint8_t*>(kStackGetterMasks), sizeof(kStackGetterWords)}, nullptr, true, {reinterpret_cast<const uint8_t*>(kStackGetterWords), reinterpret_cast<const uint8_t*>(kStackGetterMasks), 16u}, 0u},
-    {"producer", {reinterpret_cast<const uint8_t*>(kStackProducerWords), reinterpret_cast<const uint8_t*>(kStackProducerMasks), sizeof(kStackProducerWords)}, nullptr, true, {reinterpret_cast<const uint8_t*>(kStackProducerWords), reinterpret_cast<const uint8_t*>(kStackProducerMasks), sizeof(kStackProducerWords)}, 0u},
+    {"getter", {}, FindStackGetter, true, {reinterpret_cast<const uint8_t*>(kStackGetterWords), reinterpret_cast<const uint8_t*>(kStackGetterMasks), 32u}, 0u},
+    {"producer", {}, FindStackProducer, true, {reinterpret_cast<const uint8_t*>(kStackProducerWords), reinterpret_cast<const uint8_t*>(kStackProducerMasks), 32u}, 0u},
     {"factory", {reinterpret_cast<const uint8_t*>(kStackFactoryWords), reinterpret_cast<const uint8_t*>(kStackFactoryMasks), sizeof(kStackFactoryWords)}, nullptr, true, {reinterpret_cast<const uint8_t*>(kStackFactoryWords), reinterpret_cast<const uint8_t*>(kStackFactoryMasks), sizeof(kStackFactoryWords)}, 0u},
-    {"builder", {reinterpret_cast<const uint8_t*>(kStackBuilderWords), reinterpret_cast<const uint8_t*>(kStackBuilderMasks), sizeof(kStackBuilderWords)}, nullptr, true, {reinterpret_cast<const uint8_t*>(kStackBuilderWords), reinterpret_cast<const uint8_t*>(kStackBuilderMasks), sizeof(kStackBuilderWords)}, 0u},
-    {"children", {reinterpret_cast<const uint8_t*>(kStackChildrenWords), reinterpret_cast<const uint8_t*>(kStackChildrenMasks), sizeof(kStackChildrenWords)}, nullptr, true, {reinterpret_cast<const uint8_t*>(kStackChildrenWords), reinterpret_cast<const uint8_t*>(kStackChildrenMasks), 16u}, 0u},
+    {"builder", {}, FindStackBuilder, true, {reinterpret_cast<const uint8_t*>(kStackBuilderWords), reinterpret_cast<const uint8_t*>(kStackBuilderMasks), 32u}, 0u},
+    {"children", {}, FindStackChildren, true, {reinterpret_cast<const uint8_t*>(kStackChildrenWords), reinterpret_cast<const uint8_t*>(kStackChildrenMasks), 32u}, 0u},
     {"frame", {reinterpret_cast<const uint8_t*>(kStackFrameWords), reinterpret_cast<const uint8_t*>(kStackFrameMasks), sizeof(kStackFrameWords)}, nullptr, true, {reinterpret_cast<const uint8_t*>(kStackFrameWords), reinterpret_cast<const uint8_t*>(kStackFrameMasks), 16u}, 0u},
     {"refresh", {reinterpret_cast<const uint8_t*>(kStackRefreshWords), reinterpret_cast<const uint8_t*>(kStackRefreshMasks), sizeof(kStackRefreshWords)}, nullptr, true, {reinterpret_cast<const uint8_t*>(kStackRefreshWords), reinterpret_cast<const uint8_t*>(kStackRefreshMasks), 16u}, 0u},
-    {"layout_owner", {reinterpret_cast<const uint8_t*>(kStackLayoutOwnerWords), reinterpret_cast<const uint8_t*>(kStackLayoutOwnerMasks), sizeof(kStackLayoutOwnerWords)}, nullptr, true, {reinterpret_cast<const uint8_t*>(kStackLayoutOwnerWords), reinterpret_cast<const uint8_t*>(kStackLayoutOwnerMasks), 16u}, 0u},
+    {"layout_owner", {}, FindStackOwner, true, {reinterpret_cast<const uint8_t*>(kStackLayoutOwnerWords), reinterpret_cast<const uint8_t*>(kStackLayoutOwnerMasks), 32u}, 0u},
 };
 } // namespace
 const TargetSpec kFolderStackTarget = {"folder_stack_preview", "libapp.so", kFolderStackSites, 8};
@@ -618,6 +288,102 @@ int StackFrameDisplacement(uint32_t word) {
     const int immediate = static_cast<int>((word >> 12u) & 0x1ffu);
     return immediate < 256 ? immediate : immediate - 512;
 }
+size_t StackBodySpan(const Image& image,uintptr_t at) {
+    if(!IsDartPrologue(image,at))return 0;
+    for(size_t i=12;i<4096;i+=4) {
+        if(!Contains(image,at+i,4,kFlagRead|kFlagExec))return 0;
+        if(StackWord(image,at+i)==kDartReturn && StackWord(image,at+i-4)==kDartPopFrame &&
+            StackWord(image,at+i-8)==kDartRestoreFrame)return i+4;
+    }
+    return 0;
+}
+size_t StackGetterSpan(const Image& image,uintptr_t at) {
+    if(!IsDartPrologue(image,at))return 0;
+    for(size_t i=12;i<512;i+=4) {
+        if(!Contains(image,at+i,32,kFlagRead|kFlagExec))return 0;
+        if(StackWord(image,at+i)==0xb840f041u && StackWord(image,at+i+4)==0x8b1c8021u &&
+            StackWord(image,at+i+8)==0x8b050830u && StackWord(image,at+i+12)==0xb840f200u)return i+32;
+    }
+    return 0;
+}
+bool ValidateStackSite(const Image& image,unsigned site,uintptr_t at) {
+    const auto span=site==0 ? StackGetterSpan(image,at) : StackBodySpan(image,at);
+    if(!span)return false;
+    unsigned matches=0,secondary=0;
+    for(size_t i=0;i+20<=span;i+=4) {
+        const auto word=StackWord(image,at+i);
+        uint16_t field=0;
+        if(site==0) {
+            if(StackLoad(word,0xb8400000u,2,0,&field))++secondary;
+            if(word==0xb840f041u && StackWord(image,at+i+4)==0x8b1c8021u &&
+                StackWord(image,at+i+8)==0x8b050830u && StackWord(image,at+i+12)==0xb840f200u)++matches;
+        } else if(site==1) {
+            uint16_t x=0,padding=0;
+            if(StackLoad(word,0xfc400000u,0,2,&x) && StackLoad(StackWord(image,at+i+4),0xfc400000u,1,2,&padding) &&
+                StackWord(image,at+i+8)==0x1e612802u)++matches;
+            if(StackLoad(word,0xb8400000u,1,0,&field)) {
+                for(size_t d=4;d<=16 && i+d<span;d+=4) {
+                    uint32_t cid=0;if(StackAllocation(image,at+i+d,&cid))++secondary;
+                }
+            }
+        } else if(site==3) {
+            if(word!=0xaa0603e2u || (StackWord(image,at+i+4)&0xffe00fffu)!=0xf80003a6u)continue;
+            uintptr_t wrapper=0;
+            if(!IsBl(StackWord(image,at+i+8)) || !DecodeBlTarget(at+i+8,StackWord(image,at+i+8),&wrapper) ||
+                !IsDartPrologue(image,wrapper))continue;
+            unsigned fields=0,links=0;
+            for(size_t j=0;j+12<=128 && Contains(image,wrapper+j,12,kFlagRead|kFlagExec);j+=4) {
+                const auto w=StackWord(image,wrapper+j);uintptr_t getter=0;
+                if(w==kDartReturn)break;
+                if((w&0xffe0001fu)==0xd2800011u && StackWord(image,wrapper+j+4)==0xb8716820u &&
+                    StackWord(image,wrapper+j+8)==0x8b1c8000u)++fields;
+                if(IsBl(w) && DecodeBlTarget(wrapper+j,w,&getter) && ValidateStackSite(image,0,getter))++links;
+            }
+            if(fields==1 && links==1)++matches;
+        } else if(site==4) {
+            PoolRef pool{};
+            if(word==0xb840b020u && StackWord(image,at+i+4)==0xf81f83a0u &&
+                DecodePoolRef(StackWord(image,at+i+8),StackWord(image,at+i+12),&pool) && pool.dest_reg==1 &&
+                IsBl(StackWord(image,at+i+16)))++matches;
+            if(word==0xd2800004u && StackWord(image,at+i+4)==0xf81e83a4u && StackWord(image,at+i+8)==0xeb02009fu &&
+                (StackWord(image,at+i+12)&0xff00001fu)==0x5400000au)++secondary;
+        } else if(site==7) {
+            PoolRef id{};
+            if(i>=8 && word==0xb8017002u && DecodePoolRef(StackWord(image,at+i-8),StackWord(image,at+i-4),&id) &&
+                id.dest_reg==2 && StackWord(image,at+i+4)==0xf85e83a2u && StackWord(image,at+i+8)==0xb8017040u)++matches;
+            // The cached builder is saved across the GetBuilder constructor.
+            if(word==0xaa0003e3u && StackWord(image,at+i+4)==0x910082c0u &&
+                (StackWord(image,at+i+8)&0xffe00fffu)==0xf80003a3u && StackWord(image,at+i+12)==0xb8013060u) {
+                const int saved=StackFrameDisplacement(StackWord(image,at+i+8));
+                const auto frame=(StackWord(image,at+8)>>10)&0xfffu;
+                if(saved>=0 || static_cast<unsigned>(-saved)>frame)continue;
+                for(size_t d=16;d<=48 && i+d+8<=span;d+=4) {
+                    if(StackWord(image,at+i+d)==0xaa0003e1u &&
+                        (StackWord(image,at+i+d+4)&0xffe00fffu)==0xf84003a0u &&
+                        StackFrameDisplacement(StackWord(image,at+i+d+4))==saved &&
+                        StackWord(image,at+i+d+8)==0xb800f001u)++secondary;
+                }
+            }
+        }
+    }
+    return matches==1 && ((site==3) || secondary==1);
+}
+bool FindStackContract(const Image& image,unsigned site,const uint32_t* words,const uint32_t* masks,
+                       uintptr_t* output,uint32_t* candidates) {
+    uint32_t seed_masks[8]{};
+    memcpy(seed_masks,masks,sizeof(seed_masks));
+    seed_masks[2]=0xffc003ffu; // Compiler frame allocation is not target identity.
+    const BytePattern seed{reinterpret_cast<const uint8_t*>(words),reinterpret_cast<const uint8_t*>(seed_masks),sizeof(seed_masks)};
+    uintptr_t offsets[512]{};size_t count=0;uint32_t total=0;*candidates=0;
+    if(!CollectBytes(image,seed,offsets,512,&count,&total) || total>512)return false;
+    for(size_t i=0;i<count;++i)if(ValidateStackSite(image,site,offsets[i])){*output=offsets[i];++*candidates;}
+    return *candidates==1;
+}
+bool FindStackGetter(const Image& image,uintptr_t* out,uint32_t* n){return FindStackContract(image,0,kStackGetterWords,kStackGetterMasks,out,n);}
+bool FindStackProducer(const Image& image,uintptr_t* out,uint32_t* n){return FindStackContract(image,1,kStackProducerWords,kStackProducerMasks,out,n);}
+bool FindStackBuilder(const Image& image,uintptr_t* out,uint32_t* n){return FindStackContract(image,3,kStackBuilderWords,kStackBuilderMasks,out,n);}
+bool FindStackChildren(const Image& image,uintptr_t* out,uint32_t* n){return FindStackContract(image,4,kStackChildrenWords,kStackChildrenMasks,out,n);}
+bool FindStackOwner(const Image& image,uintptr_t* out,uint32_t* n){return FindStackContract(image,7,kStackLayoutOwnerWords,kStackLayoutOwnerMasks,out,n);}
 bool StackFactoryArguments(const Image& image, uintptr_t factory) {
     int saved[2] = {}, argument[2] = {};
     unsigned stores = 0, pairs = 0;
@@ -645,6 +411,11 @@ bool StackFactoryArguments(const Image& image, uintptr_t factory) {
     return pairs >= 2;
 }
 }
+size_t FolderStackSiteSpan(const Image& image,unsigned site,uintptr_t offset) {
+    if(site>=8)return 0;
+    if(site==0)return StackGetterSpan(image,offset);
+    return site==2 || site==5 || site==6 ? kFolderStackSites[site].pattern.size : StackBodySpan(image,offset);
+}
 bool VerifyFolderStackReturn(uintptr_t address) {
     return MatchPatternAtAddress(address, {kStackReturn, nullptr, sizeof(kStackReturn)});
 }
@@ -653,16 +424,19 @@ bool DecodeFolderStackLayout(const Image& image, uintptr_t getter, uintptr_t pro
     if (output == nullptr) return false;
     const uintptr_t locations[] = {getter, producer, factory};
     for (unsigned i = 0; i < 3; ++i)
-        if (!MatchBytes(image, locations[i], kFolderStackSites[i].pattern,
-                        kFlagRead | kFlagExec)) return false;
-    if (!MatchBytes(image,builder,kFolderStackSites[3].pattern,kFlagRead|kFlagExec) ||
-        !MatchBytes(image,children,kFolderStackSites[4].pattern,kFlagRead|kFlagExec)) return false;
+        if (i==2 ? !MatchBytes(image, locations[i], kFolderStackSites[i].pattern,kFlagRead|kFlagExec) :
+            !ValidateStackSite(image,i,locations[i])) return false;
+    if (!ValidateStackSite(image,3,builder) || !ValidateStackSite(image,4,children)) return false;
     if (!StackFactoryArguments(image, factory)) return false;
+    const auto getter_span=FolderStackSiteSpan(image,0,getter);
+    const auto producer_span=FolderStackSiteSpan(image,1,producer);
+    const auto builder_span=FolderStackSiteSpan(image,3,builder);
+    const auto children_span=FolderStackSiteSpan(image,4,children);
     FolderStackLayout out{};
     unsigned patch_count = 0, list_count = 0, factory_count = 0, allocation_count = 0;
     // Derive the return site from the validated indexed compressed-array read,
     // rather than carrying a research-time function-relative address.
-    for (size_t i = 0; i + 32 <= sizeof(kStackGetterWords); i += 4) {
+    for (size_t i = 0; i + 32 <= getter_span; i += 4) {
         const auto w = StackWord(image, getter + i);
         uint16_t field = 0;
         if (StackLoad(w, 0xb8400000u, 2, 0, &field)) { out.list = field; ++list_count; }
@@ -681,7 +455,7 @@ bool DecodeFolderStackLayout(const Image& image, uintptr_t getter, uintptr_t pro
     constexpr uint32_t ld = 0xfc400000u;
     unsigned found = 0;
     uint16_t producer_list = 0, gap_width = 0, gap_height = 0, small_gap_again = 0, small_width_again = 0;
-    for (size_t i = 0; i + 12 <= sizeof(kStackProducerWords); i += 4) {
+    for (size_t i = 0; i + 12 <= producer_span; i += 4) {
         const auto w = StackWord(image, producer+i), next = StackWord(image, producer+i+4);
         const auto third = StackWord(image, producer+i+8);
         uint16_t a=0, b=0;
@@ -712,7 +486,7 @@ bool DecodeFolderStackLayout(const Image& image, uintptr_t getter, uintptr_t pro
         if (StackLoad(w, 0xb8400000u, 1, 0, &a)) {
             producer_list=a;
             // Producer loads its list immediately before the PreviewItemInfo allocator.
-            for (size_t distance=4; distance<=16 && i+distance<sizeof(kStackProducerWords); distance+=4)
+            for (size_t distance=4; distance<=16 && i+distance<producer_span; distance+=4)
                 if (StackAllocation(image, producer+i+distance, &out.item)) ++allocation_count;
         }
     }
@@ -732,7 +506,7 @@ bool DecodeFolderStackLayout(const Image& image, uintptr_t getter, uintptr_t pro
     }
 
     unsigned count_sites=0, loop_sites=0, controller_links=0;
-    for (size_t i=0;i+36<=sizeof(kStackChildrenWords);i+=4) {
+    for (size_t i=0;i+36<=children_span;i+=4) {
         const auto w=StackWord(image,children+i);
         PoolRef pool{};
         if (w==0xb840b020u && StackWord(image,children+i+4)==0xf81f83a0u &&
@@ -748,7 +522,7 @@ bool DecodeFolderStackLayout(const Image& image, uintptr_t getter, uintptr_t pro
     }
     // The builder calls controller.previewIconInfo. Follow that wrapper to the
     // already resolved strategy getter, decoding its controller field operand.
-    for (size_t i=0;i+12<=sizeof(kStackBuilderWords);i+=4) {
+    for (size_t i=0;i+12<=builder_span;i+=4) {
         if (StackWord(image,builder+i)!=0xaa0603e2u || StackWord(image,builder+i+4)!=0xf81f03a6u) continue;
         const auto call=StackWord(image,builder+i+8); uintptr_t wrapper=0;
         if (!IsBl(call) || !DecodeBlTarget(builder+i+8,call,&wrapper) || !IsDartPrologue(image,wrapper)) return false;
@@ -823,7 +597,7 @@ bool DecodeFolderStackRefresh(const Image& image, uintptr_t frame, uintptr_t ref
                              FolderStackLayout* out, const uint8_t* identity) {
     if (!out || !MatchBytes(image,frame,kFolderStackSites[5].pattern,kFlagRead|kFlagExec) ||
         !MatchBytes(image,refresh,kFolderStackSites[6].pattern,kFlagRead|kFlagExec) ||
-        !MatchBytes(image,owner,kFolderStackSites[7].pattern,kFlagRead|kFlagExec)) return false;
+        !ValidateStackSite(image,7,owner)) return false;
     unsigned returns=0;
     for(size_t i=4;i+16<=sizeof(kStackFrameWords);i+=4) {
         if (!IsBl(StackWord(image,frame+i-4))) continue;
@@ -852,8 +626,9 @@ bool DecodeFolderStackRefresh(const Image& image, uintptr_t frame, uintptr_t ref
     }
     if (returns!=1 || singleton!=1 || out->registry_slot==0 || out->registry_slot%8 ||
         out->registry_slot>65528 || out->registry_slot==out->model_slot) return false;
+    const auto owner_span=FolderStackSiteSpan(image,7,owner);
     unsigned ids=0, windows=0, exits=0;
-    for(size_t i=8;i+4<=sizeof(kStackLayoutOwnerWords);i+=4) {
+    for(size_t i=8;i+4<=owner_span;i+=4) {
         PoolRef id{};
         if(StackWord(image,owner+i)==0xb8017002u &&
            DecodePoolRef(StackWord(image,owner+i-8),StackWord(image,owner+i-4),&id) && id.dest_reg==2) {

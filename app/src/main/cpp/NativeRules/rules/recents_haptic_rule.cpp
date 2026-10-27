@@ -21,45 +21,19 @@ uint8_t* base = nullptr;
 uint8_t original[16]{}, patch[16]{};
 const char* reason = "disabled";
 uint32_t generation = 0;
-struct Layout { uint32_t start, end, update, metrics, number; };
+using Layout = dart::RecentsHapticLayout;
 Layout layout{};
-uint32_t Word(const uint8_t* image, uintptr_t at) {
-    uint32_t out; memcpy(&out, image + at, sizeof(out)); return out;
-}
-uint32_t Immediate(uint32_t insn) { return (insn >> 5u) & 0xffffu; }
-bool AllocationCid(const dart::Image& image, uintptr_t call, uint32_t* cid) {
-    uint32_t insn = 0; uintptr_t stub = 0;
-    if (!dart::ReadInsn(image, call, &insn) || !dart::IsBl(insn) ||
-        !dart::DecodeBlTarget(call, insn, &stub) ||
-        !dart::Contains(image, stub, 12, dart::kFlagRead | dart::kFlagExec)) return false;
-    const auto first = Word(image.base, stub), second = Word(image.base, stub + 4);
-    if ((first & 0xffe0001fu) != 0xd2800002u ||
-        (second & 0xffe0001fu) != 0xf2a00002u ||
-        (Word(image.base, stub + 8) & 0xfc000000u) != 0x14000000u) return false;
-    *cid = (Immediate(first) | (Immediate(second) << 16u)) >> 12u;
-    return *cid > 0 && *cid < 65536;
-}
 bool Decode(const DartResolution& result, Layout* out) {
     dart::Image image{};
     if (!dart::ParseImage(result.base, &image)) return false;
-    const auto scroll = result.Find("scroll") - reinterpret_cast<uintptr_t>(result.base);
-    const auto update = result.Find("update") - reinterpret_cast<uintptr_t>(result.base);
-    const auto metrics = result.Find("metrics") - reinterpret_cast<uintptr_t>(result.base);
-    // The complete contracts validate the notification depth/metrics/drag fields,
-    // boxed metrics and the StackList widget's unboxed itemExtent at +0x13.
-    out->start = Immediate(Word(result.base, scroll + 0x18));
-    out->end = Immediate(Word(result.base, scroll + 0x54));
-    const uint32_t lo = Word(result.base, update + 0xc0), hi = Word(result.base, update + 0xc4);
-    if ((lo & 0xffe0001fu) != 0xd2800003u || (hi & 0xffe0001fu) != 0xf2a00003u) return false;
-    out->number = (Immediate(lo) | (Immediate(hi) << 16u)) >> 12u;
-    return AllocationCid(image, update + 0xd4, &out->update) &&
-           AllocationCid(image, metrics + 0xc8, &out->metrics) &&
-           out->start != out->end && out->start != out->update && out->end != out->update;
+    const auto origin=reinterpret_cast<uintptr_t>(result.base);
+    return dart::DecodeRecentsHapticLayout(image,result.Find("scroll")-origin,result.Find("builder")-origin,
+        result.Find("update")-origin,result.Find("metrics")-origin,out);
 }
-uint32_t ClassId(uintptr_t tagged) { uint32_t tag; memcpy(&tag, reinterpret_cast<void*>(tagged - 1), 4); return tag >> 12u; }
+uint32_t ClassId(uintptr_t tagged) { uint32_t tag; memcpy(&tag, reinterpret_cast<void*>(tagged - 1), 4); return (tag >> 12u) & 0xfffffu; }
 uintptr_t Field(uintptr_t object, size_t offset, uintptr_t heap) {
     uint32_t value; memcpy(&value, reinterpret_cast<void*>(object + offset), 4);
-    return (heap << 32u) + value;
+    return (value & 1u) ? (heap << 32u) + value : 0;
 }
 bool Number(uintptr_t object, uintptr_t null, double* out) {
     if (object == null || (object & 1u) == 0u || ClassId(object) != layout.number) return false;
@@ -121,25 +95,29 @@ extern "C" void HyperTweakObserveRecentsScroll(uintptr_t state, uintptr_t notifi
     const auto current = __atomic_load_n(&generation, __ATOMIC_ACQUIRE);
     if (seen_generation != current) { policy.Reset(); seen_generation = current; }
     if (!RecentsHapticRequested()) { policy.Reset(); return; }
+    if (!state || state==null || !(state&1u) || !notification || notification==null || !(notification&1u)) { policy.Reset();return; }
+    if (pthread_mutex_trylock(&lock)!=0) { policy.Reset();return; }
+    struct Unlock { ~Unlock() { pthread_mutex_unlock(&lock); } } unlock;
     const auto cid = ClassId(notification);
     const int kind = cid == layout.start ? 0 : cid == layout.update ? 1 : cid == layout.end ? 2 : -1;
     if (kind < 0) return;
-    int64_t depth; memcpy(&depth, reinterpret_cast<void*>(notification + 7), sizeof(depth));
+    int64_t depth; memcpy(&depth, reinterpret_cast<void*>(notification + layout.depth), sizeof(depth));
     if (depth != 0) return;
-    const auto metrics = Field(notification, 0xf, heap);
-    if (metrics == null || ClassId(metrics) != layout.metrics) { policy.Reset(); return; }
+    const auto metrics = Field(notification, layout.notification_metrics, heap);
+    if (!metrics || metrics == null || ClassId(metrics) != layout.metrics) { policy.Reset(); return; }
     const auto widget = Field(state, 0xb, heap);
-    if (widget == null) { policy.Reset(); return; }
+    if (!widget || widget == null) { policy.Reset(); return; }
     double width, pixels, min, max;
     memcpy(&width, reinterpret_cast<void*>(widget + 0x13), sizeof(width));
-    if (!Number(Field(metrics, 0xf, heap), null, &pixels) ||
-        !Number(Field(metrics, 7, heap), null, &min) ||
-        !Number(Field(metrics, 0xb, heap), null, &max)) { policy.Reset(); return; }
-    const bool user_drag = kind != 2 && Field(notification, 0x17, heap) != null;
+    if (!Number(Field(metrics, layout.pixels, heap), null, &pixels) ||
+        !Number(Field(metrics, layout.minimum, heap), null, &min) ||
+        !Number(Field(metrics, layout.maximum, heap), null, &max)) { policy.Reset(); return; }
+    const auto drag = kind != 2 ? Field(notification, layout.drag, heap) : 0;
+    const bool user_drag = drag && drag != null;
     double delta = NAN;
-    // didUpdateScrollPositionBy's verified producer stores scrollDelta at +0x1b.
+    // The producer/constructor contract decodes the boxed delta field.
     // It proves a real user drag even if the entry animation already owned ScrollStart.
-    if (kind == 1) (void)Number(Field(notification, 0x1b, heap), null, &delta);
+    if (kind == 1) (void)Number(Field(notification, layout.delta, heap), null, &delta);
     if (policy.Sample(state, kind, user_drag, pixels, width, min, max, delta)) {
         if (!HyperTweakSendRecentsHaptic()) LogWarn("recents card haptic signal unavailable");
     }

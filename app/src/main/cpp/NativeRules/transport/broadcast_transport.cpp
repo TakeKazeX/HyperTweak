@@ -17,6 +17,11 @@ bool MakeOptionString(const char* source, ROptionRString* output, const void* vt
     return MakeString(source, &output->value, vtable, memory);
 }
 bool Transport::Send(const Context& context, const char* action, void* extras, uint32_t kind) {
+    struct ExtrasOwner {
+        void* value;
+        void (*drop)(void*);
+        ~ExtrasOwner() { if(value && drop) drop(value); }
+    } pending_extras{extras,context.api.bundle_drop};
     auto& d = diagnostics;
     __atomic_fetch_add(&d.count, uint32_t{1}, __ATOMIC_RELAXED);
     Store(&d.kind, kind); Store(&d.result_tag, uint32_t{0xffffffffu});
@@ -43,6 +48,7 @@ bool Transport::Send(const Context& context, const char* action, void* extras, u
     if (extras) {
         if (!a.set_extras) { Store(&d.state, uint32_t{6}); a.intent_drop(intent); return false; }
         a.set_extras(intent, extras);
+        pending_extras.value = nullptr; // Native setter moves the Bundle into the Intent.
     }
     void* runtime = context.captured_runtime;
     if (reinterpret_cast<uintptr_t>(runtime) < 0x100000000ull) runtime = nullptr;

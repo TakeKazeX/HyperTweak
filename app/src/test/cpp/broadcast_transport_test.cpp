@@ -50,7 +50,10 @@ int main() {
     Reset(); c = Make(); c.api.send = nullptr; Check(transport, c, 3);
     Reset(); intent_ok = false; Check(transport, Make(), 4);
     for (int failure : {1, 2}) { Reset(); fail_at = failure; Check(transport, Make(), 5); assert(setters == 0 && intents == 1); }
-    Reset(); c = Make(); c.api.set_extras = nullptr; Check(transport, c, 6, "action", &bundle_value);
+    Reset(); c = Make(); c.api.set_extras = nullptr; Check(transport, c, 6, "action", &bundle_value); assert(bundles==1);
+    Reset(); c = Make(); c.valid=false; Check(transport,c,2,"action",&bundle_value); assert(bundles==1);
+    Reset(); c = Make(); ensure_ok=false; Check(transport,c,1,"action",&bundle_value); assert(bundles==1);
+    Reset(); c = Make(); intent_ok=false; Check(transport,c,4,"action",&bundle_value); assert(bundles==1);
     Reset(); c = Make(); c.captured_runtime = nullptr; Check(transport, c, 7);
     Reset(); bundle_ok = false; Check(transport, Make(), 8);
     Reset(); field_ok = false; Check(transport, Make(), 9); assert(bundles == 1);
@@ -64,4 +67,5 @@ int main() {
     Reset(); Check(transport, Make(), 5, nullptr); assert(allocations == 0);
     Reset(); c = Make(); void* fallback = &runtime_value; c.captured_runtime = nullptr; c.runtime_slot = &fallback;
     Check(transport, c, 14, "action", &bundle_value);
+    assert(bundles==1); // Extras moved to the Intent; only the options Bundle is dropped here.
 }

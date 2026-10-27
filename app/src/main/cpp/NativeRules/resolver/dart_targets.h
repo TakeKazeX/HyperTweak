@@ -135,7 +135,16 @@ extern const TargetSpec kFolderColumnsTarget;
 extern const TargetSpec kAssistantWidgetTarget;
 extern const TargetSpec kDockFrameTarget;
 extern const TargetSpec kRecentsHapticTarget;
+struct RecentsHapticLayout {
+    uint32_t start = 0, end = 0, update = 0, metrics = 0, number = 0;
+    uint16_t depth = 0, notification_metrics = 0, drag = 0, delta = 0;
+    uint16_t minimum = 0, maximum = 0, pixels = 0;
+    uintptr_t metrics_allocation = 0;
+};
+bool DecodeRecentsHapticLayout(const Image& image, uintptr_t scroll, uintptr_t builder,
+                               uintptr_t update, uintptr_t metrics, RecentsHapticLayout* output);
 extern const TargetSpec kFolderStackTarget;
+size_t FolderStackSiteSpan(const Image& image, unsigned site, uintptr_t offset);
 extern const TargetSpec kWidgetStackTarget;
 extern const TargetSpec kXiaoaiGestureOptionsTarget;
 struct XiaoaiGestureLayout {

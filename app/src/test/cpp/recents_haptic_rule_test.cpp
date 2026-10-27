@@ -49,6 +49,10 @@ int main(int argc, char** argv) {
     assert(!image_bytes.empty());
     dart::Image image{}; assert(dart::ParseImage(image_bytes.data(), &image));
     resolved = dart::ResolveTarget(image, dart::kRecentsHapticTarget);
+    if(!resolved.resolved || !resolved.verified) {
+        for(size_t i=0;i<resolved.site_count;++i) fprintf(stderr,"%s found=%u verified=%u candidates=%u\n",
+            resolved.sites[i].name,resolved.sites[i].found,resolved.sites[i].verified,resolved.sites[i].candidates);
+    }
     assert(resolved.resolved && resolved.verified);
     for (size_t i = 0; i < 4; ++i) assert(resolved.sites[i].candidates == 1);
     DartResolution r{}; assert(ResolveDartSites(nullptr, dart::kRecentsHapticTarget, &r));
@@ -73,11 +77,46 @@ int main(int argc, char** argv) {
     memcpy(image_bytes.data() + spare, image_bytes.data() + first, builder.pattern.size);
     assert(!dart::ResolveTarget(image, dart::kRecentsHapticTarget).resolved);
     memcpy(image_bytes.data() + spare, old.data(), old.size());
+    // Semantic producer discovery survives relocation and follows repaired calls,
+    // including the out-of-line constructor. A duplicated complete producer is ambiguous.
+    const auto body_size=[&](uintptr_t start) {
+        for(size_t i=12;i<1024;i+=4) {
+            uint32_t word=0,restore=0,pop=0;
+            assert(dart::ReadInsn(image,start+i,&word));
+            assert(dart::ReadInsn(image,start+i-4,&pop));
+            assert(dart::ReadInsn(image,start+i-8,&restore));
+            if(word==dart::kDartReturn && pop==dart::kDartPopFrame && restore==dart::kDartRestoreFrame)return i+4;
+        }
+        assert(false);return size_t{0};
+    };
+    for(unsigned index : {2u,3u}) {
+        const auto source=resolved.sites[index].offset;
+        const auto size=body_size(source);
+        std::vector<uint8_t> saved(image_bytes.begin()+spare,image_bytes.begin()+spare+size);
+        std::vector<uint8_t> copy(image_bytes.begin()+source,image_bytes.begin()+source+size);
+        for(size_t i=0;i<size;i+=4) {
+            uint32_t word=0;memcpy(&word,copy.data()+i,4);uintptr_t destination=0;
+            if(!dart::IsBl(word) || !dart::DecodeBlTarget(source+i,word,&destination))continue;
+            if(destination>=source && destination<source+size)destination=spare+destination-source;
+            const int64_t displacement=static_cast<int64_t>(destination)-static_cast<int64_t>(spare+i);
+            word=0x94000000u|(static_cast<uint32_t>(displacement/4)&0x03ffffffu);memcpy(copy.data()+i,&word,4);
+        }
+        memcpy(image_bytes.data()+spare,copy.data(),size);
+        assert(!dart::ResolveTarget(image,dart::kRecentsHapticTarget).resolved);
+        uint32_t original_entry=0;memcpy(&original_entry,image_bytes.data()+source,4);
+        memset(image_bytes.data()+source,0,4);
+        const auto relocated=dart::ResolveTarget(image,dart::kRecentsHapticTarget);
+        assert(relocated.resolved && relocated.verified && relocated.sites[index].offset==spare);
+        Layout moved{};assert(dart::DecodeRecentsHapticLayout(image,relocated.sites[0].offset,relocated.sites[1].offset,
+            relocated.sites[2].offset,relocated.sites[3].offset,&moved));
+        assert(moved.update==decoded.update && moved.metrics==decoded.metrics && moved.delta==decoded.delta);
+        memcpy(image_bytes.data()+source,&original_entry,4);
+        memcpy(image_bytes.data()+spare,saved.data(),size);
+    }
     // A new CID is decoded through the allocator rather than a ROM/CID allowlist.
-    const auto metrics_site = resolved.sites[3].offset;
-    uint32_t instruction; assert(dart::ReadInsn(image, metrics_site + 0xc8, &instruction));
-    uintptr_t stub; assert(dart::DecodeBlTarget(metrics_site + 0xc8, instruction, &stub));
-    auto allocator = Word(image_bytes.data(), stub);
+    uint32_t instruction; assert(dart::ReadInsn(image, decoded.metrics_allocation, &instruction));
+    uintptr_t stub; assert(dart::DecodeBlTarget(decoded.metrics_allocation, instruction, &stub));
+    uint32_t allocator=0;assert(dart::ReadInsn(image,stub,&allocator));
     auto changed = allocator ^ (1u << 17); // Change a CID bit within MOVZ's immediate.
     memcpy(image_bytes.data() + stub, &changed, 4);
     Layout shifted{}; assert(Decode(r, &shifted)); assert(shifted.metrics != decoded.metrics);

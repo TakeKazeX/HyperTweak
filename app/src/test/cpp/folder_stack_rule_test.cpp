@@ -75,14 +75,25 @@ int main(int argc, char** argv) {
     Layout decoded{}; assert(Decode(resolution,&decoded));
     assert(decoded.strategy != decoded.item);
     // Fixture evidence is permitted in tests; production decodes scaled LDR operands.
-    assert(decoded.model_slot==0x3340 && decoded.registry_slot==0x1d00);
-    assert(decoded.layout_id_pool==0xef10 && decoded.preview_id_pool==0xf128 && decoded.typeargs_pool==0x1318);
+    const bool earlier_fixture = decoded.model_slot==0x3340 && decoded.registry_slot==0x1d00 &&
+        decoded.layout_id_pool==0xef10 && decoded.preview_id_pool==0xf128 && decoded.typeargs_pool==0x1318;
+    const bool current_fixture = decoded.model_slot==0x3250 && decoded.registry_slot==0x1cd8 &&
+        decoded.layout_id_pool==0xf240 && decoded.preview_id_pool==0xff68 && decoded.typeargs_pool==0x1318;
+    assert(earlier_fixture || current_fixture);
     assert(dart::VerifyFolderStackIdentity(image,decoded.refresh_id,decoded));
     assert(dart::VerifyFolderStackFrame(reinterpret_cast<uintptr_t>(image_bytes.data())+decoded.refresh_return));
+    // A saved frame slot must match its reload across the native builder call.
+    for (const auto offset : {resolved.sites[7].offset + 0x50}) {
+        uint32_t original = 0; assert(dart::ReadInsn(image, offset, &original));
+        const auto changed = original + (8u << 12u);
+        memcpy(image_bytes.data()+offset, &changed, 4);
+        Layout invalid{}; assert(!Decode(resolution, &invalid));
+        memcpy(image_bytes.data()+offset, &original, 4);
+    }
     // The GetBuilder ID and the normal preview ID both move with their pool slots.
     const auto owner=resolved.sites[7].offset;
     bool moved_id=false;
-    for(size_t i=8;i<dart::kFolderStackTarget.sites[7].pattern.size;i+=4) {
+    for(size_t i=8;i<dart::FolderStackSiteSpan(image,7,owner);i+=4) {
         uint32_t store=0,load=0;assert(dart::ReadInsn(image,owner+i,&store));
         if(store!=0xb8017002u)continue;
         assert(dart::ReadInsn(image,owner+i-4,&load));
@@ -163,13 +174,14 @@ int main(int argc, char** argv) {
     // producer/getter together; a one-sided shift is rejected as a broken relationship.
     std::vector<std::pair<uintptr_t,uint32_t>> shiftedWords;
     for (unsigned siteIndex : {0u,1u}) {
-        const auto& pattern=dart::kFolderStackTarget.sites[siteIndex].pattern;
-        for (size_t i=0;i<pattern.size;i+=4) {
-            uint32_t word=0, mask=0; assert(dart::ReadInsn(image,resolved.sites[siteIndex].offset+i,&word));
-            memcpy(&mask,pattern.mask+i,4);
+        const auto span=dart::FolderStackSiteSpan(image,siteIndex,resolved.sites[siteIndex].offset);
+        for (size_t i=0;i<span;i+=4) {
+            uint32_t word=0; assert(dart::ReadInsn(image,resolved.sites[siteIndex].offset+i,&word));
             const auto kind=word&0xffe00c00u;
-            if ((kind==0xfc400000u || kind==0xf8400000u || kind==0xb8400000u) &&
-                (mask&0x001ff000u)==0u) {
+            const auto shape=word&0xffe00fffu;
+            const bool strategy_field=siteIndex==0 ? shape==0xb8400002u :
+                (kind==0xfc400000u && ((word>>5)&31u)!=29u) || shape==0xf8400040u || shape==0xf8400043u || shape==0xb8400001u;
+            if (strategy_field) {
                 const uintptr_t at=resolved.sites[siteIndex].offset+i;
                 shiftedWords.emplace_back(at,word);
                 const auto shifted=word+(8u<<12u); memcpy(image_bytes.data()+at,&shifted,4);
@@ -196,7 +208,7 @@ int main(int argc, char** argv) {
         const auto shifted=change.second+(8u<<12u); memcpy(image_bytes.data()+change.first,&shifted,4);
     }
     for (const auto& change:shiftedWords) {
-        if (change.first>=resolved.sites[0].offset && change.first<resolved.sites[0].offset+dart::kFolderStackTarget.sites[0].pattern.size) {
+        if (change.first>=resolved.sites[0].offset && change.first<resolved.sites[0].offset+dart::FolderStackSiteSpan(image,0,resolved.sites[0].offset)) {
             memcpy(image_bytes.data()+change.first,&change.second,4);
             Layout inconsistent{}; assert(!Decode(resolution,&inconsistent));
             const auto shifted=change.second+(8u<<12u); memcpy(image_bytes.data()+change.first,&shifted,4);
@@ -212,7 +224,7 @@ int main(int argc, char** argv) {
     std::vector<std::vector<uint8_t>> functions;
     uintptr_t relocated[8]{}; size_t used=0;
     for(unsigned i=0;i<8;++i){
-        const auto size=dart::kFolderStackTarget.sites[i].pattern.size;
+        const auto size=dart::FolderStackSiteSpan(image,i,resolved.sites[i].offset);
         const auto at=resolved.sites[i].offset;
         functions.emplace_back(image_bytes.begin()+at,image_bytes.begin()+at+size);
         relocated[i]=relocation+used; used=(used+size+15u)&~size_t{15u};
@@ -267,7 +279,7 @@ int main(int argc, char** argv) {
     }
     uintptr_t spare=0;
     for(size_t i=0;i<image.load_count;++i) if(image.loads[i].flags & dart::kFlagExec) spare=image.loads[i].end-4096;
-    const auto count=dart::kFolderStackTarget.sites[0].pattern.size;
+    const auto count=dart::FolderStackSiteSpan(image,0,resolved.sites[0].offset);
     std::vector<uint8_t> old(image_bytes.begin()+spare,image_bytes.begin()+spare+count);
     memcpy(image_bytes.data()+spare,image_bytes.data()+resolved.sites[0].offset,count);
     assert(!dart::ResolveTarget(image,dart::kFolderStackTarget).resolved);

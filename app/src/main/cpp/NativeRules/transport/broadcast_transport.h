@@ -36,6 +36,7 @@ public:
     struct Diagnostics {
         uint32_t count = 0, kind = 0, state = 0, result_tag = 0, options_consumed = 0;
     } diagnostics;
+    // Takes ownership of extras, including failures before Intent_set_extras.
     bool Send(const Context&, const char* action, void* extras, uint32_t kind);
 };
 } // namespace hypertweak::native::broadcast

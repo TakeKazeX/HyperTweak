@@ -1171,9 +1171,6 @@ bool SendNativeBroadcast(const char* action, void* extras);
 extern "C" bool HyperTweakNotifyNativeRulePrepared() {
     return SendNativeBroadcast("com.takekazex.hypertweak.action.NATIVE_RULE_PREPARED", nullptr);
 }
-extern "C" bool HyperTweakSendRecentsHaptic() {
-    return SendNativeBroadcast("com.takekazex.hypertweak.action.RECENTS_CARD_HAPTIC", nullptr);
-}
 void AcceptNativeRuleSettings(const hypertweak::native::NativeRuleSettingsSnapshot& snapshot) {
     if (hypertweak::native::ReceiveNativeRuleSettings(snapshot.hidden, snapshot.columns,
             snapshot.contextual, snapshot.revision, snapshot.widgets, snapshot.recents_haptic, snapshot.folder_stack, snapshot.widget_stack, snapshot.xiaoai_options)) {
@@ -1231,6 +1228,25 @@ bool AddBundleI64(void* bundle, const char* key, int64_t value) {
     if (insert == nullptr || !MakeOwnedRString(key, &owned)) return false;
     insert(bundle, &owned, value);
     return true;
+}
+
+extern "C" bool HyperTweakSendRecentsHaptic() {
+    timespec now{};
+    if (clock_gettime(CLOCK_BOOTTIME, &now) != 0 || now.tv_sec < 0 || now.tv_nsec < 0) return false;
+    const uint64_t event = static_cast<uint64_t>(now.tv_sec)*1000000000u + static_cast<uint64_t>(now.tv_nsec);
+    static uint64_t last_event = 0;
+    uint64_t previous = __atomic_load_n(&last_event, __ATOMIC_ACQUIRE);
+    if (event <= previous || event - previous < 70000000u) return true;
+    if (!__atomic_compare_exchange_n(&last_event,&previous,event,false,__ATOMIC_ACQ_REL,__ATOMIC_ACQUIRE)) return true;
+    const auto create = ResolveLauncherSymbol<BundleDefaultFn>("Bundle_default");
+    const auto drop = ResolveLauncherSymbol<BundleDropFn>("Bundle_drop");
+    if (!create || !drop) return false;
+    void* extras = create();
+    if (!extras) return false;
+    if (!AddBundleI64(extras,"hypertweak_haptic_event_time_nanos",static_cast<int64_t>(event))) {
+        drop(extras);return false;
+    }
+    return SendNativeBroadcast("com.takekazex.hypertweak.action.RECENTS_CARD_HAPTIC",extras);
 }
 
 constexpr uintptr_t kBroadcastOptionArmReserved = ~uintptr_t{0};

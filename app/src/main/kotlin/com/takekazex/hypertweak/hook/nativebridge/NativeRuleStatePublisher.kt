@@ -25,7 +25,7 @@ internal class NativeRuleStatePublisher {
     private var revision = 0L
     private var receiverRegistered = false
     private val ledger = NativeSnapshotLedger()
-    private val recentsHaptics = RecentsCardHaptics()
+    private var recentsHaptics = RecentsCardHaptics()
     private var waiting: String? = null
     private var forwarded: NativeRuleStateSnapshot? = null
     @Volatile private var closed = false
@@ -47,7 +47,8 @@ internal class NativeRuleStatePublisher {
             }
             if (intent.action == RecentsCardHaptics.ACTION) {
                 if (SettingsTransport.trusted(context, sentFromPackage, sentFromUid, "com.miui.home") &&
-                    ledger.latest()?.recentsHaptic == true) recentsHaptics.play(context)
+                    ledger.latest()?.recentsHaptic == true) recentsHaptics.play(context,
+                        intent.getLongExtra(RecentsCardHaptics.EVENT_TIME, 0L))
                 return
             }
             if (intent.action == com.takekazex.hypertweak.dock.DockFrameChannel.OFFER) {
@@ -75,6 +76,7 @@ internal class NativeRuleStatePublisher {
             if (closed) return@post
             if (this.context === application && receiverRegistered) return@post
             detachContext()
+            recentsHaptics = RecentsCardHaptics()
             this.context = application
             runCatching {
                 application.registerReceiver(receiver, IntentFilter().apply {
@@ -101,7 +103,7 @@ internal class NativeRuleStatePublisher {
             Preferences.nativeRuleSnapshot()?.let(ledger::offer)
             val snapshot = ledger.latest() ?: run { reportWaiting("authoritative settings snapshot"); return@post }
             waiting = null
-            if (snapshot.recentsHaptic) recentsHaptics.prepare(target) else recentsHaptics.cancelPending()
+            if (snapshot.recentsHaptic) recentsHaptics.prepare(target) else recentsHaptics.reset()
             revision = SystemClock.elapsedRealtimeNanos().coerceAtLeast(revision + 1L)
             val current = revision
             handler.removeCallbacksAndMessages(token)
