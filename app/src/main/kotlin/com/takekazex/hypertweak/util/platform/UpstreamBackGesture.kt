@@ -5,10 +5,10 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 
-/** Installed-package policy; the native layer separately checks the actually loaded owner. */
+/** Installed-package policy, independent of the upstream LSPosed toggle. */
 object UpstreamBackGesture {
     const val PACKAGE = "dev.codex.miuibackgesturehook"
-    // Keep takeover closed until a real package context establishes ownership.
+    // Keep input gated until the host has a real package context.
     @Volatile var installed: Boolean = true
         private set
 

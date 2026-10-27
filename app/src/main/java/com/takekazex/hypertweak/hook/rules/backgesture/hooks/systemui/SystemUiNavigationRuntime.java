@@ -877,6 +877,23 @@ public abstract class SystemUiNavigationRuntime extends SystemUiOpenTransitionRu
         });
     }
 
+    /** Recover an already-created host after package removal or lifting the debug gate. */
+    protected void recoverCurrentSystemUiBackInput(ClassLoader classLoader) {
+        if (!acceptingBackInputInstalls || !acceptingHeadlessNavBarLifecycle
+                || com.takekazex.hypertweak.hook.Preferences.INSTANCE.upstreamBackGestureOwnsInput()) return;
+        Object controller = findNavigationBarControllerFromDependency(classLoader);
+        if (controller == null) return; // Later native lifecycle callbacks remain retryable.
+        reconcileHeadlessNavBarLifecycle(controller, "upstreamGateReleased");
+        try {
+            // The helper owns the live handler in both ordinary and headless navigation modes.
+            Object helper = readField(controller, "mNavBarHelper");
+            Object handler = readField(helper, "mEdgeBackGestureHandler");
+            ensureBackInputInstalledFromHandler(handler, "upstreamGateReleased:liveHelper");
+        } catch (Throwable throwable) {
+            moduleLog(Log.WARN, TAG, "Failed to recover existing back input after upstream gate", throwable);
+        }
+    }
+
     protected Object findNavigationBarControllerFromDependency(ClassLoader classLoader) {
         try {
             Class<?> dependencyClass = Class.forName(

@@ -118,8 +118,10 @@ App records are stored by the existing AppLogStore; LogRepository receives its r
 
 ## Host readiness and semantic repair
 
-Installed `dev.codex.miuibackgesturehook` owns back gestures: `UpstreamBackGesture`
-gates managed callbacks and settings UI without deleting saved preferences; the
+Installed `dev.codex.miuibackgesturehook` deliberately disables overlapping back-gesture
+and contextual-long-press controls and managed callbacks, regardless of the upstream
+LSPosed toggle. Debug → Diagnostics → Disable upstream detection bypasses this managed
+policy through live settings without deleting feature preferences. The
 System Launcher page opens its exported Xposed settings entry. Native load callbacks
 independently detect its mapped payload and yield shared gesture/contextual/Dart-state
 hooks. Independent native rules retain their broadcast metadata and forward through

@@ -2,6 +2,7 @@ package com.takekazex.hypertweak.settings.contract
 
 /** Persisted contract; values remain independent of storage and host implementations. */
 object BackGestureKeys {
+    const val KEY_BACK_GESTURE_UPSTREAM_DETECTION_DISABLED = "back_gesture_upstream_detection_disabled"
     const val KEY_BACK_GESTURE_ENABLED = "back_gesture_enabled"
     const val KEY_BACK_GESTURE_HYPEROS_INDICATOR = "hyperos_indicator_style"
     const val KEY_BACK_GESTURE_INDICATOR_BLUR = "hyperos_indicator_blur"

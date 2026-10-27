@@ -1526,7 +1526,7 @@
     <string name="back_gesture_section">返回手势</string>
     <string name="back_gesture_enabled_title">修复预测性返回手势</string>
     <string name="back_gesture_enabled_summary">调整返回指示器、震动和动画</string>
-    <string name="back_gesture_upstream_summary">检测到 MiuiBackGestureHook，请在上游模块中配置返回手势，避免冲突。</string>
+    <string name="back_gesture_upstream_summary">已安装 MiuiBackGestureHook，为避免冲突，强制禁用本模块返回手势和长按搜屏；上游在 LSPosed 中停用也不解除此限制。</string>
     <string name="back_gesture_open_upstream">打开 MiuiBackGestureHook</string>
     <string name="back_gesture_open_upstream_summary">无需桌面图标，直接进入模块设置</string>
     <string name="back_gesture_upstream_open_failed">无法打开 MiuiBackGestureHook 设置</string>
@@ -1697,4 +1697,6 @@
     <string name="icon_stacked_signal_artwork">信号图标样式</string>
     <string name="icon_stacked_signal_artwork_hyperos3">澎湃 OS 3</string>
     <string name="icon_stacked_signal_artwork_ios27">iOS 27</string>
+    <string name="back_gesture_upstream_detection_disabled_title">关闭上游检测</string>
+    <string name="back_gesture_upstream_detection_disabled_summary">跳过上游模块检测，允许使用本模块返回手势。若上游已在运行，请先在 LSPosed 中停用上游并重启相关宿主。</string>
 </resources>

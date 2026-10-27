@@ -80,7 +80,17 @@ class HookEntry : XposedModule() {
     private val runtimeSettingsReceiver by lazy {
         RuntimeSettingsReceiver(object : (Set<String>, Set<String>) -> Unit {
             override fun invoke(groups: Set<String>, keys: Set<String>) = requestSettingsReload(groups, keys)
-        })
+        }, upstreamPackageChanged = if (isSystemServer || processName == "com.android.systemui") {
+            { context ->
+                if (!generationRetired) {
+                    com.takekazex.hypertweak.util.platform.UpstreamBackGesture.refresh(context)
+                    com.takekazex.hypertweak.hook.runtime.settings.HookSettingsSnapshots.refresh()
+                    DebugLog.i("BackGesture", "upstream package refreshed installed=" +
+                        com.takekazex.hypertweak.util.platform.UpstreamBackGesture.installed)
+                    requestSettingsReload(setOf(RuntimeSettingsGroups.BACK))
+                }
+            }
+        } else null)
     }
     private val systemUiSettings = SystemUiSettingsHost(
         { processName }, { generationRetired }, { packageStates["com.android.systemui"] }, { rootHookers }

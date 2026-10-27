@@ -20,6 +20,11 @@ public abstract class HotReloadHookRuntime extends SystemServerHookRuntime {
         new Handler(context.getMainLooper()).post(() -> {
             if (!acceptingBackInputInstalls || miuiOverviewReceiverContext != context) return;
             ensureContextualSearchStatePreferenceListener(context);
+            if (!com.takekazex.hypertweak.hook.Preferences.INSTANCE.upstreamBackGestureOwnsInput()
+                    && nativeInputMonitors.isEmpty()) {
+                recoverCurrentSystemUiBackInput(runtimeClassLoader);
+            }
+            notifyOverviewVisibilityListener();
             for (NativeBackInputMonitor monitor : nativeInputMonitors.values()) monitor.refreshIndicatorIfIdle();
             publishSystemUiInputArbiterState(context,
                     systemUiInputArbiterMonitorCount.get() > 0, "preferencesRebound");
@@ -248,8 +253,8 @@ public abstract class HotReloadHookRuntime extends SystemServerHookRuntime {
         installSystemServerHooks(loader);
     }
     public void restoreHotReloadState(Object savedState) {
-        if (com.takekazex.hypertweak.util.platform.UpstreamBackGesture.INSTANCE.getInstalled()) {
-            moduleLog(Log.INFO, TAG, "Upstream module present; back input hosts remain detached after hot reload");
+        if (com.takekazex.hypertweak.hook.Preferences.INSTANCE.upstreamBackGestureOwnsInput()) {
+            moduleLog(Log.INFO, TAG, "Upstream package installed; back input hosts remain detached after hot reload");
             return;
         }
         restoreHotReloadInput(savedState);

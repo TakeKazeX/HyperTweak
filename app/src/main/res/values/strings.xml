@@ -1535,7 +1535,7 @@
     <string name="back_gesture_section">Back gesture</string>
     <string name="back_gesture_enabled_title">Fix predictive back gestures</string>
     <string name="back_gesture_enabled_summary">Customize the back indicator, haptics and animation</string>
-    <string name="back_gesture_upstream_summary">MiuiBackGestureHook is installed. Configure back gestures there to avoid conflicts.</string>
+    <string name="back_gesture_upstream_summary">MiuiBackGestureHook is installed. HyperTweak back gestures and long-press search are disabled to avoid conflicts, even if upstream is disabled in LSPosed.</string>
     <string name="back_gesture_open_upstream">Open MiuiBackGestureHook</string>
     <string name="back_gesture_open_upstream_summary">Open the module settings without a launcher icon</string>
     <string name="back_gesture_upstream_open_failed">Unable to open MiuiBackGestureHook settings</string>
@@ -1706,4 +1706,6 @@
     <string name="icon_stacked_signal_artwork">Signal icon style</string>
     <string name="icon_stacked_signal_artwork_hyperos3">HyperOS 3</string>
     <string name="icon_stacked_signal_artwork_ios27">iOS 27</string>
+    <string name="back_gesture_upstream_detection_disabled_title">Disable upstream detection</string>
+    <string name="back_gesture_upstream_detection_disabled_summary">Skip upstream module detection and allow HyperTweak back gestures. If upstream is already running, disable it in LSPosed and restart the affected apps before switching.</string>
 </resources>

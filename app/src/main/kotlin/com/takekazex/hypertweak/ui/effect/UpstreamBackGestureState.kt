@@ -9,14 +9,17 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.currentStateAsState
+import com.takekazex.hypertweak.ui.app.LocalAppSettingsStore
+import com.takekazex.hypertweak.settings.contract.BackGestureKeys
 import com.takekazex.hypertweak.util.platform.UpstreamBackGesture
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-/** Refresh on resume and package changes; unknown remains disabled until the query completes. */
+/** Installed-package gate; unknown stays disabled unless the debug override is enabled. */
 @Composable
 internal fun rememberUpstreamBackGestureInstalled(): Boolean? {
     val context = LocalContext.current
+    val settingsStore = LocalAppSettingsStore.current
     val resumed = LocalLifecycleOwner.current.lifecycle.currentStateAsState().value == Lifecycle.State.RESUMED
     var installed by remember { mutableStateOf<Boolean?>(null) }
     var revision by remember { mutableIntStateOf(0) }
@@ -35,8 +38,12 @@ internal fun rememberUpstreamBackGestureInstalled(): Boolean? {
         context.registerReceiver(receiver, filter, Context.RECEIVER_EXPORTED)
         onDispose { context.unregisterReceiver(receiver) }
     }
-    LaunchedEffect(context, resumed, revision) {
-        if (resumed) installed = withContext(Dispatchers.IO) { UpstreamBackGesture.refresh(context) }
+    LaunchedEffect(context, settingsStore, resumed, revision) {
+        if (resumed) {
+            installed = if (settingsStore.getBoolean(BackGestureKeys.KEY_BACK_GESTURE_UPSTREAM_DETECTION_DISABLED, false)) {
+                false
+            } else withContext(Dispatchers.IO) { UpstreamBackGesture.refresh(context) }
+        }
     }
     return installed
 }

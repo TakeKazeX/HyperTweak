@@ -33,6 +33,21 @@ class BackGestureHostContractTest {
         assertTrue(ancestors.any { cls -> cls.fields.any { it.name == "mView" } })
     }
 
+    @Test fun upstreamRemovalCanRecoverAnExistingHandlerWithoutConstructorReplay() {
+        val host = classes("BACK_GESTURE_SYSTEMUI_APK")
+        val dependency = host.getValue("Lcom/android/systemui/Dependency;")
+        assertTrue(dependency.fields.any { it.name == "sDependency" })
+        assertTrue(dependency.fields.any { it.name == "mNavigationBarController" })
+        val controller = host.getValue("Lcom/android/systemui/navigationbar/NavigationBarControllerImpl;")
+        val helper = host.getValue(controller.fields.single { it.name == "mNavBarHelper" }.type)
+        val handler = host.getValue(helper.fields.single { it.name == "mEdgeBackGestureHandler" }.type)
+        val owners = generateSequence(handler) { it.superclass?.let(host::get) }.toList()
+        val animation = owners.flatMap { it.fields }.single { it.name == "mBackAnimation" }
+        assertTrue(animation.type.startsWith("L"))
+        assertTrue(owners.flatMap { it.methods }.any { it.name == "setBackAnimation" && it.parameterTypes.size == 1 })
+        assertTrue(controller.fields.any { it.name == "mNavigationBars" && it.type == "Landroid/util/SparseArray;" })
+    }
+
     private fun classes(variable: String): Map<String, ClassDef> {
         val file = System.getenv(variable)?.let(::File)
         assumeTrue("Set $variable to run target bytecode validation", file?.isFile == true)

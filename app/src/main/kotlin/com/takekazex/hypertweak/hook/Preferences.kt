@@ -55,7 +55,11 @@ object Preferences {
     })
 
     private val liveBackSettings = BackGestureSettingsLedger()
-    fun backGestureEnabled(): Boolean = !com.takekazex.hypertweak.util.platform.UpstreamBackGesture.installed &&
+    fun upstreamBackGestureOwnsInput(): Boolean =
+        com.takekazex.hypertweak.util.platform.UpstreamBackGesturePolicy.shouldYield(
+            com.takekazex.hypertweak.util.platform.UpstreamBackGesture.installed,
+            backGestureBoolean(BackGestureKeys.KEY_BACK_GESTURE_UPSTREAM_DETECTION_DISABLED, false))
+    fun backGestureEnabled(): Boolean = !upstreamBackGestureOwnsInput() &&
         backGestureBoolean(BackGestureKeys.KEY_BACK_GESTURE_ENABLED, false)
     fun backGestureBoolean(key: String, defaultValue: Boolean): Boolean =
         if (RuntimeSettingsStore.owns(key)) getBoolean(key, defaultValue) else liveBackSettings.latest()?.value(key) ?: runCatching {

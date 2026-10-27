@@ -8,6 +8,10 @@ import com.takekazex.hypertweak.hook.base.BaseHooker
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.hook.rules.backgesture.hooks.core.HookRuntimeCore
 import com.takekazex.hypertweak.util.logging.DebugLog
+import com.takekazex.hypertweak.hook.Preferences
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
+import com.takekazex.hypertweak.settings.contract.BackGestureKeys
+import com.takekazex.hypertweak.util.platform.UpstreamBackGesturePolicy
 import com.takekazex.hypertweak.util.platform.UpstreamBackGesture
 import io.github.libxposed.api.XposedInterface
 import java.lang.reflect.Method
@@ -15,6 +19,9 @@ import java.lang.reflect.Method
 /** One upstream runtime per injected process; hook handles remain owned by BaseHooker. */
 private object BackGestureRuntimeProvider {
     val runtime = BackGestureRuntime()
+    val upstreamDetectionDisabled by hookSetting(false) {
+        Preferences.backGestureBoolean(BackGestureKeys.KEY_BACK_GESTURE_UPSTREAM_DETECTION_DISABLED, false)
+    }
 }
 
 private fun BaseHooker.backGestureRegistrar() = object : HookRuntimeCore.HookRegistrar {
@@ -24,7 +31,8 @@ private fun BaseHooker.backGestureRegistrar() = object : HookRuntimeCore.HookReg
                 id.startsWith("systemui_navigation_bar_controller_") ||
                 id.startsWith("systemui_contextual_search_nav_") ||
                 id == "server_back_navigation_done_cleanup"
-            if (!UpstreamBackGesture.installed &&
+            if (!UpstreamBackGesturePolicy.shouldYield(
+                    UpstreamBackGesture.installed, BackGestureRuntimeProvider.upstreamDetectionDisabled) &&
                 (lifecycle || BackGestureRuntimeProvider.runtime.shouldRunBackGestureHooks())) {
                 hooker.intercept(chain)
             } else chain.proceed()

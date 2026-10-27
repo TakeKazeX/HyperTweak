@@ -22,7 +22,8 @@ internal data class BackGestureSettingsSnapshot(val values: List<Boolean>, val r
             BackGestureKeys.KEY_BACK_GESTURE_ENHANCED_HAPTICS, BackGestureKeys.KEY_BACK_GESTURE_SLIDE_ANIMATION,
             BackGestureKeys.KEY_BACK_GESTURE_CROSS_ACTIVITY_WALLPAPER, BackGestureKeys.KEY_BACK_GESTURE_CROSS_TASK_WALLPAPER,
             PlatformSettingsKeys.KEY_CONTEXTUAL_SEARCH_HAPTICS, BackGestureKeys.KEY_FULLSCREEN_DIRECT_BACK,
-            BackGestureKeys.KEY_BACK_GESTURE_INDICATOR_BLUR, BackGestureKeys.KEY_BACK_GESTURE_HAPTICS_DISABLED)
+            BackGestureKeys.KEY_BACK_GESTURE_INDICATOR_BLUR, BackGestureKeys.KEY_BACK_GESTURE_HAPTICS_DISABLED,
+            BackGestureKeys.KEY_BACK_GESTURE_UPSTREAM_DETECTION_DISABLED)
         fun read(values: Map<String, *>): BackGestureSettingsSnapshot? = runCatching {
             val flags = KEYS.map { key ->
                 val value = values[key]

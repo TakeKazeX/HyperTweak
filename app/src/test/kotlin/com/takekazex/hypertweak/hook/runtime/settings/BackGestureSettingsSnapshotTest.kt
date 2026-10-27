@@ -145,4 +145,18 @@ class BackGestureSettingsSnapshotTest {
         assertFalse(ledger.offer(enabled.copy(revision = 999)))
     }
 
+    @Test fun `upstream detection override migrates off and survives live reset and reload`() {
+        val key = BackGestureKeys.KEY_BACK_GESTURE_UPSTREAM_DETECTION_DISABLED
+        val old = arrayOf<Any>(25L, 3L, *Array(11) { true })
+        val migrated = requireNotNull(BackGestureSettingsSnapshot.restore(old))
+        assertEquals(false, migrated.value(key))
+        val enabled = migrated.mutate(key, true, 26)
+        val ledger = BackGestureSettingsLedger()
+        assertTrue(ledger.offer(requireNotNull(BackGestureSettingsSnapshot.restore(enabled.save()))))
+        assertEquals(true, ledger.latest()!!.value(key))
+        val reset = requireNotNull(BackGestureSettingsSnapshot.read(mapOf("prefs_epoch" to 4L)))
+        assertTrue(ledger.offer(reset))
+        assertEquals(false, ledger.latest()!!.value(key))
+        assertFalse(ledger.offer(enabled))
+    }
 }

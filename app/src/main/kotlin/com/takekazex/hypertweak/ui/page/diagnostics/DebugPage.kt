@@ -2,6 +2,8 @@ package com.takekazex.hypertweak.ui.page.diagnostics
 
 import com.takekazex.hypertweak.ui.components.dialog.HotReloadDialog
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+import com.takekazex.hypertweak.settings.contract.BackGestureKeys
+import androidx.compose.runtime.saveable.rememberSaveable
 
 import android.app.Activity
 import android.annotation.SuppressLint
@@ -70,6 +72,9 @@ fun DebugPage(
     val settingsStore = LocalAppSettingsStore.current
     val scrollBehavior = MiuixScrollBehavior()
     val context = LocalContext.current
+    var upstreamDetectionDisabled by rememberSaveable {
+        mutableStateOf(settingsStore.getBoolean(BackGestureKeys.KEY_BACK_GESTURE_UPSTREAM_DETECTION_DISABLED, false))
+    }
     var recordLogs by remember { mutableStateOf(settingsStore.getBoolean(PlatformSettingsKeys.KEY_RECORD_LOGS, true)) }
     var clipboardReadSucceeded by remember { mutableStateOf<Boolean?>(null) }
     var showHotReloadDialog by remember { mutableStateOf(false) }
@@ -102,6 +107,15 @@ fun DebugPage(
                         },
                         title = stringResource(R.string.debug_record_logs_title),
                         summary = stringResource(R.string.debug_record_logs_summary)
+                    )
+                    SwitchPreference(
+                        title = stringResource(R.string.back_gesture_upstream_detection_disabled_title),
+                        summary = stringResource(R.string.back_gesture_upstream_detection_disabled_summary),
+                        checked = upstreamDetectionDisabled,
+                        onCheckedChange = {
+                            upstreamDetectionDisabled = it
+                            settingsStore.putBoolean(BackGestureKeys.KEY_BACK_GESTURE_UPSTREAM_DETECTION_DISABLED, it)
+                        }
                     )
                     ArrowPreference(
                         title = stringResource(R.string.debug_logs_title),

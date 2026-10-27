@@ -1293,7 +1293,8 @@ public abstract class SystemUiHookRuntime extends SystemUiAnimationRuntime {
     }
 
     protected void installBackInputDriver(Object edgeBackGestureHandler, Object backAnimationImpl) {
-        if (!acceptingBackInputInstalls) {
+        if (!acceptingBackInputInstalls
+                || com.takekazex.hypertweak.hook.Preferences.INSTANCE.upstreamBackGestureOwnsInput()) {
             return;
         }
         try {
