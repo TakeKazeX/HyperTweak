@@ -19,6 +19,36 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class RuntimeSettingsRoutingTest {
+    @Test fun arbitraryKeyboardProcessesReceiveStyleDisableSelectionRemovalAndReset() {
+        val keyboard = "org.example.keyboard"
+        Groups.registerImeTargets(setOf(keyboard))
+        for (process in listOf(keyboard, "$keyboard:ime", "system_server")) {
+            val groups = Groups.forProcess(process)
+            assertTrue(Groups.IME in groups)
+            val target = Groups.target(process)
+            val values = mapOf(
+                PlatformSettingsKeys.KEY_AOSP_IME_ENABLED to true,
+                PlatformSettingsKeys.KEY_AOSP_IME_PACKAGES to setOf(keyboard),
+                PlatformSettingsKeys.KEY_AOSP_IME_RAISE_STYLE to 1,
+                PlatformSettingsKeys.KEY_AOSP_IME_MIUI_IME_LIST to true,
+            )
+            assertEquals(values, Groups.subset(target, values + ("unowned" to true)))
+            val ledger = RuntimeSettingsLedger()
+            assertTrue(ledger.accept(RuntimeSettingsSnapshot.read(1, values, setOf(Groups.IME))!!))
+            val replacement = RuntimeSettingsLedger().also { it.restore(ledger.save()) }
+            assertTrue(replacement.accept(RuntimeSettingsSnapshot.read(2,
+                values + (PlatformSettingsKeys.KEY_AOSP_IME_ENABLED to false) +
+                    (PlatformSettingsKeys.KEY_AOSP_IME_PACKAGES to emptySet<String>()), setOf(Groups.IME))!!))
+            assertEquals(false, replacement.value(PlatformSettingsKeys.KEY_AOSP_IME_ENABLED))
+            assertTrue(replacement.accept(RuntimeSettingsSnapshot.read(3, emptyMap<String, Any>(), setOf(Groups.IME))!!))
+            assertNull(replacement.value(PlatformSettingsKeys.KEY_AOSP_IME_RAISE_STYLE))
+            assertTrue(Groups.IME in Groups.forTarget(target))
+        }
+        assertNull(RuntimeSettingsSnapshot.read(4, mapOf(PlatformSettingsKeys.KEY_AOSP_IME_ENABLED to "true")))
+        assertNull(RuntimeSettingsSnapshot.read(4, mapOf(PlatformSettingsKeys.KEY_AOSP_IME_RAISE_STYLE to 99)))
+        assertNull(RuntimeSettingsSnapshot.read(4, mapOf(PlatformSettingsKeys.KEY_AOSP_IME_PACKAGES to keyboard)))
+    }
+
     @Test fun policySwitchesReachNewProcessesAndRestoreDisableResetAfterUpgrade() {
         val routes = mapOf(
             "com.android.providers.downloads:remote" to PlatformSettingsKeys.KEY_BLOCK_DOWNLOAD_XL_LOG_DIR,
@@ -323,7 +353,7 @@ class RuntimeSettingsRoutingTest {
     @Test fun everyExistingLiveRouteHasExplicitConsumersIncludingScreenshotEditorAndSystemServer() {
         assertEquals(setOf(Groups.SCREENSHOT), Groups.forProcess("com.miui.screenshot"))
         assertEquals(Groups.forProcess("com.miui.screenshot"), Groups.forProcess("com.miui.screenshot:photo_editor"))
-        assertEquals(setOf(Groups.BACK, Groups.DOCK, Groups.VOLUME, Groups.GESTURE_BAR, Groups.FORCE_SCREENSHOT, Groups.DARK_MODE, Groups.NATIVE_PHOTO_PICKER, Groups.NATIVE_FILE_PICKER, Groups.AOSP_INSTALLER,
+        assertEquals(setOf(Groups.IME, Groups.BACK, Groups.DOCK, Groups.VOLUME, Groups.GESTURE_BAR, Groups.FORCE_SCREENSHOT, Groups.DARK_MODE, Groups.NATIVE_PHOTO_PICKER, Groups.NATIVE_FILE_PICKER, Groups.AOSP_INSTALLER,
             Groups.GMS_RESTRICTIONS, Groups.PASSKEY, Groups.FCM, Groups.POLICY_FEATURES),
             Groups.forProcess("system_server", true))
         assertEquals(setOf(Groups.XMSF), Groups.forProcess("com.xiaomi.xmsf:push"))

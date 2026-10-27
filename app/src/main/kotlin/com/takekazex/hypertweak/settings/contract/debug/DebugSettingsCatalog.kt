@@ -16,7 +16,7 @@ internal object DebugSettingsCatalog {
         DebugSetting("aosp_app_info_entry", "Boolean", false),
         DebugSetting("aosp_app_manager_entry", "Boolean", false),
         DebugSetting("aosp_clipboard_editor", "Boolean", false),
-        DebugSetting("aosp_ime_force_all", "Boolean", false),
+        DebugSetting("aosp_ime_force_all", "Unknown", null),
         DebugSetting("aosp_ime_fullscreen", "Boolean", false),
         DebugSetting("aosp_ime_miui_ime_list", "Boolean", false),
         DebugSetting("aosp_ime_nav_bar_end", "String", com.takekazex.hypertweak.settings.contract.ImeLayout.BUTTON_IME_SWITCHER),

@@ -67,6 +67,10 @@ internal object RuntimeSettingsParticipants {
         }
         // Callback policies read refreshed slots. Already-created Settings/download/Bluetooth
         // screens must be reopened; snapshot delivery does not recreate user-owned screens.
+        registerForProcess(RuntimeSettingsGroups.IME) { _ ->
+            if (isSystemServer) com.takekazex.hypertweak.hook.rules.ime.AospImeSystemHooker.refreshSettings()
+            else com.takekazex.hypertweak.hook.rules.ime.AospImeHooker.refreshSettings()
+        }
         registerForProcess(RuntimeSettingsGroups.PASSIVE_POLICIES) { _ -> true }
         registerForProcess(RuntimeSettingsGroups.GOOGLE_APP) { _ ->
             com.takekazex.hypertweak.hook.rules.googleapp.GoogleAppRuntime.refreshSettings()

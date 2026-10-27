@@ -9,11 +9,10 @@ import com.takekazex.hypertweak.hook.Preferences
 // Published on settings acceptance; hook callbacks perform no storage reads.
 private val settingAospImeEnabled by hookSetting(false) { Preferences.getBoolean(PlatformSettingsKeys.KEY_AOSP_IME_ENABLED, false) }
 private val settingAospImeMiuiImeList by hookSetting(false) { Preferences.getBoolean(PlatformSettingsKeys.KEY_AOSP_IME_MIUI_IME_LIST, false) }
-private val settingAospImeForceAll by hookSetting(false) { Preferences.getBoolean(PlatformSettingsKeys.KEY_AOSP_IME_FORCE_ALL, false) }
 private val settingAospImeRaiseStyle by hookSetting(ImeLayout.RAISE_STYLE_AOSP) {
     Preferences.getInt(PlatformSettingsKeys.KEY_AOSP_IME_RAISE_STYLE, ImeLayout.RAISE_STYLE_AOSP)
 }
-private val settingAospImePackages by hookSetting(emptySet<String>()) { Preferences.getStringSet(PlatformSettingsKeys.KEY_AOSP_IME_PACKAGES) }
+private val settingAospImePackages by hookSetting(emptySet<String>()) { Preferences.getStringSet(PlatformSettingsKeys.KEY_AOSP_IME_PACKAGES).map { it.trim() }.filter { it.isNotEmpty() }.toSet() }
 private val settingAospImeNavBarStart by hookSetting(ImeLayout.BUTTON_HIDE_IME) {
     Preferences.getString(PlatformSettingsKeys.KEY_AOSP_IME_NAV_BAR_START, ImeLayout.BUTTON_HIDE_IME)
 }
@@ -36,17 +35,11 @@ object AospImeConfig {
     /** Whether MIUI's keyboard switcher should list every enabled input method. */
     fun showAllImeList(): Boolean = settingAospImeMiuiImeList
 
-    /**
-     * Whether the AOSP bar is forced even on MIUI-customized keyboards (全面屏优化). Without this,
-     * keyboards HyperOS recognizes as MIUI-customized keep their own bottom view.
-     */
-    fun forceAospForAll(): Boolean = settingAospImeForceAll
-
     fun raiseStyle(): Int =
         settingAospImeRaiseStyle
 
     fun selectedPackages(): Set<String> =
-        settingAospImePackages.mapNotNull(::normalize).toSet()
+        settingAospImePackages
 
     /** Accepts either a package name or an `IInputMethod` id of the form `pkg/.Service`. */
     fun isSelectedIme(packageOrId: String?): Boolean {
@@ -54,14 +47,10 @@ object AospImeConfig {
         return packageName in selectedPackages()
     }
 
-    /**
-     * A package is hooked when it is selected and at least one of the two features is on: the AOSP
-     * bar itself, or the "list all keyboards in the switcher" fix (which only needs the side-loaded
-     * MIUI dex hooks).
-     */
+    /** Install dormant hooks in selected keyboards so the master can be enabled live. */
     fun shouldHookImePackage(packageName: String): Boolean {
         val selected = normalize(packageName)?.let { it in selectedPackages() } == true
-        return selected && (isEnabled() || showAllImeList())
+        return selected
     }
 
     fun navBarLayoutStart(): String =

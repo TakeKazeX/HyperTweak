@@ -26,18 +26,20 @@ import java.lang.reflect.Field
  * `addMiuiBottomView` is called unconditionally from `InputMethodService.onCreate` on .19, so it
  * must be neutralized when the AOSP bar is the active bar or the two bars stack.
  */
-object MiuiImeBottomHooker : StaticHooker() {
-    private const val TAG = "MiuiImeBottom"
+class MiuiImeBottomHooker : StaticHooker() {
+    private companion object {
+        const val TAG = "MiuiImeBottom"
 
-    private const val BOTTOM_MANAGER = "com.miui.inputmethod.InputMethodBottomManager"
-    private const val INPUT_METHOD_SERVICE = "android.inputmethodservice.InputMethodService"
+        const val BOTTOM_MANAGER = "com.miui.inputmethod.InputMethodBottomManager"
+        const val INPUT_METHOD_SERVICE = "android.inputmethodservice.InputMethodService"
+
+    }
 
     /** Resolved once at hook time; `getSupportIme` fires on every switcher list request. */
     private var sBottomViewHelperField: Field? by generationState { null }
 
     /** Process-wide `InputMethodManager` fallback when the bottom-view helper is not ready. */
     private var immSingleton: InputMethodManager? by generationState { null }
-    private var immSingletonResolved by generationState { false }
 
     override fun onHook() {
         val bottomManager = BOTTOM_MANAGER.toClassOrNull() ?: run {
@@ -49,24 +51,15 @@ object MiuiImeBottomHooker : StaticHooker() {
             HostAccess.requireDeclaredField(bottomManager, "sBottomViewHelper", accessible = true)
         }.getOrNull()
 
-        // The dex's allowlist is the authoritative "MIUI-customized keyboard" signal on .19,
-        // where InputMethodServiceInjector.isImeSupport(Context) no longer exists.
-        runCatching {
-            val map = HostAccess.requireDeclaredField(bottomManager, "sImeMinVersionSupport", accessible = true)
-                .get(null) as? Map<*, *>
-            if (map != null) {
-                MiuiCustomizedImePackages.update(map.keys.filterIsInstance<String>().toSet())
-            }
-        }.onFailure { DebugLog.d(TAG, "sImeMinVersionSupport not readable: $it") }
-
         hookGetSupportIme(bottomManager)
         hookAddMiuiBottomView(bottomManager)
         hookDeleteNotSupportIme(bottomManager)
+        hookNativeStyle(bottomManager)
     }
 
     /**
      * The switcher popup is built from `getSupportIme()`; the original prunes the enabled list by
-     * `sImeMinVersionSupport`, so replace the result with the full enabled list when the
+     * `sImeMinVersionSupport`, so return a fresh full enabled list before its destructive filter when the
      * "list all keyboards" setting is on. The method is small enough to be AOT-inlined, so it is
      * deoptimized first.
      */
@@ -79,9 +72,9 @@ object MiuiImeBottomHooker : StaticHooker() {
         runCatching {
             deoptimize(method)
             method.hook {
-                after { param ->
+                before { param ->
                     HookFailurePolicy.open(TAG, "getSupportIme", Unit) {
-                        if (!AospImeConfig.showAllImeList()) return@open
+                        if (!listAllActive()) return@open
                         enabledInputMethodList()?.let { param.result = it }
                     }
                 }
@@ -94,8 +87,7 @@ object MiuiImeBottomHooker : StaticHooker() {
     /**
      * OS4.0.0.19 calls `addMiuiBottomView` unconditionally from `InputMethodService.onCreate`, so
      * when the AOSP caption bar is the active bar the MIUI bottom view would stack below it. Skip
-     * the call entirely for that case; when the AOSP bar is not active (master off, or a
-     * MIUI-customized keyboard without the force option) the original runs and the MIUI bottom
+     * the call entirely for that case; when the AOSP bar is not active (master off or HyperOS style) the original runs and the MIUI bottom
      * view remains the bar.
      */
     private fun hookAddMiuiBottomView(bottomManager: Class<*>) {
@@ -128,13 +120,19 @@ object MiuiImeBottomHooker : StaticHooker() {
             method.hook {
                 before { param ->
                     HookFailurePolicy.open(TAG, "addMiuiBottomView", Unit) {
-                        val context = param.args.getOrNull(0) as? Context ?: return@open
+                        val context = param.args.getOrNull(7) as? Context ?: return@open
                         // Suppression is tied to the AOSP *raise* style: under 小米样式 the MIUI
                         // bottom view must come back (it IS the native bar for optimized
                         // keyboards), otherwise neither bar would render at all.
                         if (AospImeHooker.aospRaiseActive(context)) {
                             param.result = null
                         }
+                    }
+                }
+                after { param ->
+                    HookFailurePolicy.open(TAG, "native bottom appearance", Unit) {
+                        val service = param.args.getOrNull(7) as? android.inputmethodservice.InputMethodService ?: return@open
+                        AospImeHooker.onNativeBottomReady(service, bottomManager)
                     }
                 }
             }
@@ -164,12 +162,39 @@ object MiuiImeBottomHooker : StaticHooker() {
 
         runCatching {
             method.hook {
-                before { param -> param.result = null }
+                before { param -> if (listAllActive()) param.result = null }
             }
         }.onFailure {
             DebugLog.hookFailed(TAG, "$listenerName#deleteNotSupportIme()", it)
         }
     }
+
+    private fun hookNativeStyle(bottomManager: Class<*>) {
+        val serviceClass = INPUT_METHOD_SERVICE.toClassOrNull() ?: return
+        HostAccess.declaredMethod(bottomManager, "isImeSupport", serviceClass, accessible = true)?.let { method ->
+            deoptimize(method)
+            method.hook {
+                before { param ->
+                    if (AospImeHooker.miuiStyleActive(param.args.firstOrNull() as? Context)) param.result = true
+                }
+            }
+        }
+        val util = "com.miui.inputmethod.InputMethodUtil".toClassOrNull() ?: return
+        HostAccess.declaredMethod(util, "isMiuiBottomEnabled", Context::class.java, accessible = true)?.let { method ->
+            deoptimize(method)
+            method.hook {
+                before { param ->
+                    // This argument is the phrase module context, not the keyboard context.
+                    HookFailurePolicy.open(TAG, "native bottom enabled", Unit) {
+                        if (AospImeHooker.miuiStyleActive(AospImeHooker.currentServiceContext())) param.result = true
+                    }
+                }
+            }
+        }
+    }
+
+    private fun listAllActive(): Boolean = AospImeConfig.showAllImeList() &&
+        AospImeConfig.isSelectedIme(hookParam.packageName)
 
     private fun enabledInputMethodList(): Any? {
         val bottomViewHelper = runCatching {
@@ -179,7 +204,7 @@ object MiuiImeBottomHooker : StaticHooker() {
             runCatching { mImmFieldOf(helper.javaClass)?.get(helper) }.getOrNull() as? InputMethodManager
         } ?: inputMethodManagerSingleton()
         return inputMethodManager?.let {
-            runCatching { it.enabledInputMethodList }.getOrNull()
+            runCatching { ArrayList(it.enabledInputMethodList) }.getOrNull()
         }
     }
 
@@ -190,8 +215,7 @@ object MiuiImeBottomHooker : StaticHooker() {
      * a process singleton, so its enabled list is the same one the helper would report.
      */
     private fun inputMethodManagerSingleton(): InputMethodManager? {
-        if (immSingletonResolved) return immSingleton
-        immSingletonResolved = true
+        immSingleton?.let { return it }
         immSingleton = runCatching {
             "android.view.inputmethod.InputMethodManager".toClassOrNull()
                 ?.cachedDeclaredMethod("peekInstance", accessible = true)

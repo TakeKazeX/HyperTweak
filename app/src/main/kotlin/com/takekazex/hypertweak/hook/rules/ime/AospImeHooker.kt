@@ -16,7 +16,6 @@ import com.takekazex.hypertweak.hook.base.CompatibleMethodResolver
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
-import com.takekazex.hypertweak.util.platform.StaticFieldWriter
 import java.lang.ref.WeakReference
 import java.lang.reflect.Field
 import java.lang.reflect.Method
@@ -26,17 +25,14 @@ import kotlin.math.max
 import kotlin.math.roundToInt
 
 /**
- * Restores AOSP's full-screen IME navigation bar inside a selected keyboard's own process.
- *
- * HyperOS suppresses the AOSP IME nav bar for keyboards it does not recognise as MIUI-customised,
- * so `InputMethodService.hideImeRenderGesturalNavButtons` returns true and the caption bar collapses
- * to zero height. Forcing `IS_INTERNATIONAL_BUILD` for that one call takes the AOSP branch; the rest
- * restores the bar's height, layout, rounded-corner padding, and dead zone.
- *
- * Ported from Howard20181's Mi_AOSP_IME (GPL-3.0).
+ * Owns AOSP and HyperOS bottom styles in selected keyboard processes, including living services
+ * recovered after an APK replacement. Framework capability checks remain authoritative.
+ * Based on Howard20181's Mi_AOSP_IME (GPL-3.0).
  */
 object AospImeHooker : StaticHooker() {
     private val raise = ImeRaiseController(this, ::aospRaiseActive, ::captionBarHeightPx)
+    private val nativeAppearance = ImeNativeBottomAppearance(this)
+    private val windowPolicy = ImeWindowPolicyController(this)
     private const val TAG = "AospIme"
 
     private const val INPUT_METHOD_SERVICE = "android.inputmethodservice.InputMethodService"
@@ -64,13 +60,6 @@ object AospImeHooker : StaticHooker() {
     /** MIUI can side-load its dex more than once; attach the child hooker per ClassLoader. */
     private val hookedDexLoaders = generationResource(Collections.newSetFromMap(WeakHashMap<ClassLoader, Boolean>())) { it.clear() }
 
-    private var imeSupportMethod: Method? by generationState { null }
-    private var imeSupportResolved by generationState { false }
-
-    /** The injector singleton is process-stable; resolve `getInstance()` once instead of per call. */
-    private var imeInjectorInstance: Any? by generationState { null }
-    private var imeInjectorResolved by generationState { false }
-
     private var navBarServiceField: Field? by generationState { null }
     private var navBarHorizontalField: Field? by generationState { null }
     private var deadZoneSizeMinField: Field? by generationState { null }
@@ -93,8 +82,11 @@ object AospImeHooker : StaticHooker() {
     /** Back buttons already rewired for dismiss-only semantics (dedupes repeat inflations). */
     private val wiredBackViews = generationMainResource(WeakHashMap<View, Boolean>()) { it.clear() }
 
+    @Volatile private var generationAlive = true
+
     override fun onPrepareHotReload() {
-        raise.prepareReload()
+        generationAlive = false
+        HostAccess.onMain { nativeAppearance.retire(); windowPolicy.retire(); raise.prepareReload() }
         HostAccess.onMain {
             insetsView?.get()?.let { view ->
                 runCatching { view.setOnApplyWindowInsetsListener(null) }
@@ -107,45 +99,240 @@ object AospImeHooker : StaticHooker() {
      * The nav bar view and our padded views survive a reload; carry both so ownership of applied
      * padding is not lost across the reload (otherwise stale padding would look foreign).
      */
-    override fun saveHotReloadState(): Any? = ArrayList<Any?>(
-        listOf(insetsView?.get(), raise.saveOwnedViews())
-    )
+    override fun saveHotReloadState(): Any? = HostAccess.onMain {
+        ArrayList<Any?>(listOf(insetsView?.get(), raise.saveOwnedViews(), windowPolicy.saveCaptions()))
+    }
 
-    override fun restoreHotReloadState(state: Any?) {
-        val parts = state as? ArrayList<*> ?: return
+    override fun restoreHotReloadState(state: Any?) = HostAccess.onMain {
+        val parts = state as? ArrayList<*> ?: return@onMain
         (parts.getOrNull(0) as? View)?.let { view ->
             installRoundedCornerInsetsListener(view)
             runCatching { view.requestApplyInsets() }
         }
         raise.restoreOwnedViews(parts.getOrNull(1))
+        windowPolicy.restoreCaptions(parts.getOrNull(2))
     }
 
     override fun onHook() {
+        generationAlive = true
         com.takekazex.hypertweak.hook.rules.ime.prepareAospImeConfigSettings()
-        val barEnabled = AospImeConfig.isEnabled()
-        if (barEnabled) {
-            hookHideImeRenderGesturalNavButtons()
-            hookImeCaptionBarHeight()
-            hookImeCaptionBarInsets()
-            hookSystemInsets()
-            hookRaiseKeyboard()
-            hookInflateLayout()
-            hookOrientationViews()
-            hookDeadZone()
-            hookNavBarBackButtonDismiss()
-        }
-        // The MIUI bottom-view suppression is needed whenever the AOSP bar is on (OS4.0.0.19 calls
-        // addMiuiBottomView unconditionally, so the bar and the MIUI bottom view would stack);
-        // the switcher-list fix needs the dex hooks on their own too.
-        if (AospImeConfig.showAllImeList() || barEnabled) {
-            hookLoadDex()
-        }
+        // Install dormant callbacks too: switching on must work in an existing keyboard process.
+        hookHideImeRenderGesturalNavButtons()
+        hookImeCaptionBarHeight()
+        hookImeCaptionBarInsets()
+        hookSystemInsets()
+        hookRaiseKeyboard()
+        hookInflateLayout()
+        hookOrientationViews()
+        hookDeadZone()
+        hookNavBarBackButtonDismiss()
+        hookLoadDex()
+        hookNativeEligibility()
+        hookServiceLifecycle()
+        hookNavFlags()
+        nativeAppearance.install()
+        windowPolicy.install()
     }
 
     /**
      * `InputMethodBottomManager` lives in the dex MIUI side-loads into the keyboard process, so the
      * hooks on it have to wait for that ClassLoader to exist.
      */
+    private val services = generationMainResource(WeakHashMap<InputMethodService, Boolean>()) { it.clear() }
+    private val nativeFlags = generationMainResource(WeakHashMap<Any, Int>()) { it.clear() }
+    private val appliedLayouts = generationMainResource(WeakHashMap<InputMethodService, String>()) { it.clear() }
+    private var refreshing by generationState { false }
+
+    private fun hookServiceLifecycle() {
+        val type = INPUT_METHOD_SERVICE.toClassOrNull() ?: return
+        HostAccess.declaredMethod(type, "initViews", accessible = true)?.let { method ->
+            deoptimize(method)
+            method.hook {
+                after { param ->
+                    HookFailurePolicy.open(TAG, "capture input service", Unit) {
+                        val service = param.thisObject as? InputMethodService ?: return@open
+                        services[service] = true
+                        // initViews can run during construction; wait until the host completes it.
+                        service.window?.window?.decorView?.post { refreshSettings() }
+                    }
+                }
+            }
+        }
+        HostAccess.declaredMethod(type, "setInputView", View::class.java, accessible = true)?.hook {
+            after { param ->
+                HookFailurePolicy.open(TAG, "native input view changed", Unit) {
+                    (param.thisObject as? InputMethodService)?.let { nativeAppearance.refresh(it) }
+                }
+            }
+        }
+        HostAccess.declaredMethod(type, "onDestroy", accessible = true)?.hook {
+            before { param ->
+                (param.thisObject as? InputMethodService)?.let { service ->
+                    services.remove(service)
+                    appliedLayouts.remove(service)
+                }
+            }
+        }
+    }
+
+    private fun hookNativeEligibility() {
+        val injector = imeInjector() ?: return
+        HostAccess.declaredMethod(injector.javaClass, "isImeSupport", Context::class.java,
+            accessible = true)?.let { method ->
+            deoptimize(method)
+            method.hook {
+                before { param ->
+                    if (miuiStyleActive(param.args.firstOrNull() as? Context)) param.result = true
+                }
+            }
+        }
+    }
+
+    private fun imeInjector(): Any? = INPUT_METHOD_SERVICE_STUB.toClassOrNull()
+        ?.cachedDeclaredMethod("getInstance", accessible = true)?.invoke(null)
+
+    private fun hookNavFlags() {
+        val type = resolveNavBarControllerClass() ?: return
+        HostAccess.declaredMethod(type, "onNavButtonFlagsChanged", Int::class.javaPrimitiveType!!,
+            accessible = true)?.let { method ->
+            deoptimize(method)
+            method.hook {
+                before { param ->
+                    HookFailurePolicy.open(TAG, "nav flags", Unit) {
+                        val controller = param.thisObject
+                        val flags = param.args[0] as? Int ?: return@open
+                        if (!refreshing) nativeFlags[controller] = flags
+                        navBarControllerInstance = controller
+                        val service = navBarServiceField?.get(controller) as? InputMethodService ?: return@open
+                        services[service] = true
+                        if (managed(service)) param.args[0] = if (aospRaiseActive(service)) flags or 1 else flags and 1.inv()
+                    }
+                }
+            }
+        }
+    }
+
+    /** Discover the framework-owned services as well as those seen by this generation's hooks. */
+    private fun discoverServices() {
+        val thread = "android.app.ActivityThread".toClassOrNull()
+            ?.cachedDeclaredMethod("currentActivityThread", accessible = true)?.invoke(null) ?: return
+        val living = HostAccess.read(thread, "mServices") as? Map<*, *> ?: return
+        living.values.filterIsInstance<InputMethodService>().forEach { services[it] = true }
+    }
+
+    override fun recoverHotReloadHosts() { refreshSettings() }
+
+    fun refreshSettings(): Boolean = runCatching {
+        if (!generationAlive || !isHooked) return true
+        HostAccess.onMain {
+            if (refreshing) return@onMain
+            refreshing = true
+            try {
+                discoverServices()
+                val injector = imeInjector()
+                val loader = injector?.let { HostAccess.read(it, "sClassLoader") as? ClassLoader }
+                if (loader != null) attachBottomLoader(loader)
+                services.keys.toList().forEach { service -> refreshService(service, injector, loader) }
+            } finally { refreshing = false }
+        }
+        true
+    }.getOrElse { DebugLog.w(TAG, "live IME refresh failed", it); false }
+
+    private fun attachBottomLoader(loader: ClassLoader) {
+        if (!synchronized(hookedDexLoaders) { hookedDexLoaders.add(loader) }) return
+        try { attach(MiuiImeBottomHooker(), loader) }
+        catch (error: Throwable) {
+            synchronized(hookedDexLoaders) { hookedDexLoaders.remove(loader) }
+            throw error
+        }
+    }
+
+    private fun refreshService(service: InputMethodService, injector: Any?, loader: ClassLoader?) {
+        val root = HostAccess.read(service, "mRootView") as? View ?: return
+        val controller = HostAccess.read(service, "mNavigationBarController") ?: return
+        navBarControllerInstance = controller
+        val layout = "${managed(service)}:${AospImeConfig.raiseStyle()}:${AospImeConfig.navBarLayoutHandle()}:${AospImeConfig.showAllImeList()}"
+        if (appliedLayouts[service] != layout) {
+            // Retire the native bottom's observers/popups before replacing its view. Reuse the
+            // service-owned input view: initViews would discard the keyboard's composition UI.
+            val bottom = loader?.let { runCatching { it.loadClass("com.miui.inputmethod.InputMethodBottomManager") }.getOrNull() }
+            val helper = bottom?.let { HostAccess.requireDeclaredField(it, "sBottomViewHelper", accessible = true).get(null) }
+            if (bottom != null && helper != null) {
+                val previousRoot = HostAccess.read(helper, "mRootView") as? View ?: root
+                val listener = HostAccess.requireDeclaredField(bottom, "sGlobalLayoutListener", accessible = true).get(null)
+                    as? android.view.ViewTreeObserver.OnGlobalLayoutListener
+                if (listener != null && previousRoot.viewTreeObserver.isAlive) previousRoot.viewTreeObserver.removeOnGlobalLayoutListener(listener)
+                HostAccess.requireDeclaredMethod(bottom, "onDestroy", accessible = true).invoke(null)
+                restoreNativeLayoutMutations(service, root)
+            }
+            val areaId = service.resources.getIdentifier("miui_bottom_area", "id", "android")
+            val area = if (areaId != 0) root.findViewById<View>(areaId) as? android.view.ViewGroup else null
+            area?.removeAllViews()
+            if (aospRaiseActive(service)) area?.visibility = View.GONE
+            if (bottom != null) {
+                val util = bottom.classLoader?.loadClass("com.miui.inputmethod.InputMethodUtil")
+                if (util != null) HostAccess.requireDeclaredField(util, "sCanShowMiuiBottom", accessible = true).setBoolean(null, false)
+            }
+            HostAccess.method(controller, "uninstallNavigationBarFrameIfNecessary")?.invoke(controller)
+            val flags = nativeFlags[controller] ?: 6
+            val nativeHidden = HostAccess.method(service, "hideImeRenderGesturalNavButtons", String::class.java)
+                ?.invoke(service, service.packageName) as? Boolean ?: true
+            val wanted = if (aospRaiseActive(service)) flags or 1 else if (nativeHidden) flags and 1.inv() else flags
+            HostAccess.method(controller, "onNavButtonFlagsChanged", Int::class.javaPrimitiveType!!)?.invoke(controller, wanted)
+            if (!aospRaiseActive(service) && injector != null && area != null) {
+                HostAccess.method(injector, "addMiuiBottomView", android.view.LayoutInflater::class.java,
+                    android.view.ViewGroup::class.java, android.view.ViewGroup::class.java, View::class.java,
+                    android.view.ViewGroup::class.java, android.view.inputmethod.InputMethodManager::class.java,
+                    InputMethodService::class.java)?.invoke(injector,
+                    HostAccess.read(service, "mInflater"), HostAccess.read(service, "mFullscreenArea"),
+                    HostAccess.read(service, "mInputFrame"), root, area, HostAccess.read(service, "mImm"), service)
+            }
+            appliedLayouts[service] = layout
+            root.requestApplyInsets()
+            root.requestLayout()
+        }
+        windowPolicy.refresh(service)
+        nativeAppearance.refresh(service)
+        raise.onWindowShownForRaise(service)
+    }
+
+    internal fun prepareNativeInputColor(type: Class<*>) {
+        prepareDexTargets(name = "ime.native-bottom.color.${type.name}",
+            resolve = { nativeAppearance.resolveInputColor(type) },
+            install = { field -> nativeAppearance.publishInputColor(type, field) })
+    }
+
+    internal fun onNativeBottomReady(service: InputMethodService, manager: Class<*>) {
+        nativeAppearance.bind(service, manager)
+    }
+
+    /** Restore only the two layout mutations made by changeViewForMiuiBottom, using this ROM's
+     * own detached input_method layout as the baseline when upgrading without saved state. */
+    @Suppress("ResourceType")
+    private fun restoreNativeLayoutMutations(service: InputMethodService, root: View) {
+        if (service.isFullscreenMode) return
+        val layoutId = service.resources.getIdentifier("input_method", "layout", "android")
+        if (layoutId == 0) return
+        val template = android.view.LayoutInflater.from(service).inflate(layoutId, null)
+        val input = root.findViewById<View>(16908318)
+        val nativeInput = template.findViewById<View>(16908318)
+        val lp = input?.layoutParams as? android.widget.LinearLayout.LayoutParams
+        val baseline = nativeInput?.layoutParams as? android.widget.LinearLayout.LayoutParams
+        if (lp != null && baseline != null && lp.height == 0 && lp.weight == 1f) {
+            lp.height = baseline.height
+            lp.weight = baseline.weight
+            input.layoutParams = lp
+        }
+        val fullscreen = HostAccess.read(service, "mFullscreenArea") as? View ?: return
+        val fullParams = fullscreen.layoutParams as? android.widget.LinearLayout.LayoutParams ?: return
+        if (fullParams.height >= 0) {
+            // InputMethodService.updateFullscreenMode's native non-extract contract.
+            fullParams.height = android.view.ViewGroup.LayoutParams.WRAP_CONTENT
+            fullParams.weight = 0f
+            fullscreen.layoutParams = fullParams
+        }
+    }
+
     private fun hookLoadDex() {
         val moduleManager = INPUT_METHOD_MODULE_MANAGER.toClassOrNull() ?: run {
             DebugLog.hookSkipped(TAG, INPUT_METHOD_MODULE_MANAGER, "class not found")
@@ -171,8 +358,7 @@ object AospImeHooker : StaticHooker() {
                         // loadDex throws for anything that is not a BaseDexClassLoader.
                         if (param.throwable != null) return@open
                         val loader = param.args.getOrNull(0) as? ClassLoader ?: return@open
-                        if (!synchronized(hookedDexLoaders) { hookedDexLoaders.add(loader) }) return@open
-                        attach(MiuiImeBottomHooker, loader)
+                        attachBottomLoader(loader)
                     }
                 }
             }
@@ -184,24 +370,6 @@ object AospImeHooker : StaticHooker() {
     private fun hookHideImeRenderGesturalNavButtons() {
         val serviceClass = INPUT_METHOD_SERVICE.toClassOrNull() ?: run {
             DebugLog.hookSkipped(TAG, INPUT_METHOD_SERVICE, "class not found")
-            return
-        }
-
-        // On OS4.0.0.19 (decompiled from the OTA framework.jar) the method body still reads
-        // `IS_INTERNATIONAL_BUILD`:
-        //   if (IS_INTERNATIONAL_BUILD || TextUtils.isEmpty(inputMethodId) ||
-        //       inputMethodId.contains(TEST_IME_PKG_NAME)) {
-        //       return !canImeRenderGesturalNavButtons();
-        //   }
-        //   return true;
-        // so setting the field (upstream's approach) lets the original method take the
-        // international branch and render the AOSP caption bar, instead of short-circuiting the
-        // return value and bypassing the original's own `canImeRenderGesturalNavButtons()` gate.
-        val internationalBuildField = runCatching {
-            HostAccess.requireDeclaredField(serviceClass, "IS_INTERNATIONAL_BUILD", accessible = true)
-        }.getOrNull()
-        if (internationalBuildField == null) {
-            DebugLog.hookSkipped(TAG, "$INPUT_METHOD_SERVICE#IS_INTERNATIONAL_BUILD", "field not found")
             return
         }
 
@@ -218,29 +386,26 @@ object AospImeHooker : StaticHooker() {
             return
         }
 
+        val properties = "android.os.SystemProperties".toClassOrNull() ?: return
+        val modDevice = HostAccess.requireDeclaredMethod(properties, "get", String::class.java,
+            String::class.java, accessible = true).invoke(null, "ro.product.mod_device", "") as? String ?: ""
+        val nativeInternational = modDevice.contains("_global")
         runCatching {
             deoptimize(method)
             method.hook {
                 before { param ->
                     HookFailurePolicy.open(TAG, "hideImeRenderGesturalNavButtons", Unit) {
-                        val context = (param.thisObject as? Context)?.applicationContext
-                        // No early return when disabled: aospRaiseActive is false then, so the
-                        // branch below uniformly restores the ROM default (false). Leaving the
-                        // field untouched instead would preserve OUR earlier true latch and
-                        // resurrect the bar flow after the master switch is turned off.
-                        //
-                        // The field's only reader is the method being hooked, so flipping it for
-                        // this process cannot leak elsewhere. Write true to take the international
-                        // branch (the original then returns `!canImeRenderGesturalNavButtons()` and
-                        // the caption bar renders); write false back otherwise so the MIUI bottom
-                        // view stays the bar without a process restart.
-                        if (aospRaiseActive(context)) {
-                            if (!internationalBuildField.getBoolean(null)) {
-                                StaticFieldWriter.setBoolean(internationalBuildField, true)
-                            }
-                        } else if (internationalBuildField.getBoolean(null)) {
-                            StaticFieldWriter.setBoolean(internationalBuildField, false)
-                        }
+                        val service = param.thisObject as? InputMethodService ?: return@open
+                        val id = param.args.firstOrNull() as? String
+                        val nativeAosp = nativeInternational || id.isNullOrEmpty() || id.contains("com.android.cts.mock")
+                        // Reconstruct the native branch from its immutable property as well: an
+                        // older APK may have left IS_INTERNATIONAL_BUILD latched true in this host.
+                        if (aospRaiseActive(service) || (!managed(service) && nativeAosp)) {
+                            val canRender = HostAccess.requireDeclaredMethod(serviceClass,
+                                "canImeRenderGesturalNavButtons", accessible = true)
+                                .invoke(null) as? Boolean ?: return@open
+                            param.result = !canRender
+                        } else param.result = true
                     }
                 }
             }
@@ -249,76 +414,15 @@ object AospImeHooker : StaticHooker() {
         }
     }
 
-    /**
-     * Whether the AOSP caption bar is the active bottom bar for this keyboard process:
-     * the bar master is on AND this keyboard is either not a MIUI-customized one or the "force
-     * AOSP on optimized keyboards" option is set. When false, MIUI's own bottom view is the bar
-     * (`addMiuiBottomView` must not be skipped) and the AOSP branch is suppressed.
-     */
-    internal fun aospBarActive(context: Context?): Boolean {
-        if (!AospImeConfig.isEnabled()) return false
-        val ctx = context ?: return true
-        if (!AospImeConfig.forceAospForAll() && isMiuiCustomisedIme(ctx)) return false
-        return true
-    }
+    internal fun managed(context: Context?): Boolean =
+        AospImeConfig.isEnabled() && context != null && AospImeConfig.isSelectedIme(context.packageName)
 
-    /**
-     * Whether the AOSP raise pipeline should act at all: the bar is active AND the user picked the
-     * AOSP raise style. Under 小米样式 nothing may raise the keyboard — not this module's padding,
-     * and crucially not the caption-bar inset injection that inset-honoring keyboards (微信输入法,
-     * Gboard) consume and carve themselves by — so every style-aware hook gates on this.
-     */
-    internal fun aospRaiseActive(context: Context?): Boolean =
-        aospBarActive(context) && AospImeConfig.raiseStyle() == com.takekazex.hypertweak.settings.contract.ImeLayout.RAISE_STYLE_AOSP
+    internal fun aospBarActive(context: Context?): Boolean = managed(context)
 
-    private fun isMiuiCustomisedIme(context: Context): Boolean {
-        // Primary on every OS4 build: InputMethodServiceInjector.isImeSupport(Context). The
-        // injector still ships in miui-framework.jar on OS4.0.0.19 (decompiled from the OTA —
-        // the earlier "gone on .19" claim was wrong) and is usable immediately, before the
-        // side-loaded dex exists, so the first hideImeRenderGesturalNavButtons dispatch sees the
-        // correct customized-keyboard answer instead of a not-yet-populated snapshot.
-        val method = resolveImeSupportMethod()
-        val injector = imeInjector()
-        if (method != null && injector != null) {
-            runCatching { method.invoke(injector, context) as? Boolean }.getOrNull()?.let { return it }
-        }
-        // Secondary snapshot: the dex's sImeMinVersionSupport allowlist, mirrored at loadDex time.
-        // Only authoritative once the dex is loaded (after the first addMiuiBottomView call), so it
-        // must not be the primary signal for the first hideImeRenderGesturalNavButtons dispatch.
-        return MiuiCustomizedImePackages.isCustomized(context.packageName)
-    }
+    internal fun aospRaiseActive(context: Context?): Boolean = managed(context) &&
+        AospImeConfig.raiseStyle() == com.takekazex.hypertweak.settings.contract.ImeLayout.RAISE_STYLE_AOSP
 
-    private fun imeInjector(): Any? {
-        if (imeInjectorResolved) return imeInjectorInstance
-        imeInjectorResolved = true
-        imeInjectorInstance = runCatching {
-            INPUT_METHOD_SERVICE_STUB.toClassOrNull()
-                ?.cachedDeclaredMethod("getInstance", accessible = true)
-                ?.invoke(null)
-        }.getOrNull()
-        return imeInjectorInstance
-    }
-
-    /** `isImeSupport` is private and declared on the injector, not on the stub interface. */
-    private fun resolveImeSupportMethod(): Method? {
-        if (imeSupportResolved) return imeSupportMethod
-        imeSupportResolved = true
-        val injector = imeInjector() ?: return null
-
-        var clazz: Class<*>? = injector.javaClass
-        while (clazz != null) {
-            val current = clazz
-            val found = runCatching {
-                HostAccess.requireDeclaredMethod(current, "isImeSupport", Context::class.java, accessible = true)
-            }.getOrNull()
-            if (found != null) {
-                imeSupportMethod = found
-                return found
-            }
-            clazz = current.superclass
-        }
-        return null
-    }
+    internal fun miuiStyleActive(context: Context?): Boolean = managed(context) && !aospRaiseActive(context)
 
     private fun hookImeCaptionBarHeight() {
         val implClass = resolveNavBarControllerClass() ?: run {
@@ -415,7 +519,7 @@ object AospImeHooker : StaticHooker() {
     }
 
     /** The IME service is the controller's `mService`; `ActivityThread.currentApplication()` is a fallback. */
-    private fun currentServiceContext(): Context? {
+    internal fun currentServiceContext(): Context? {
         navBarControllerInstance?.let { instance ->
             runCatching { navBarServiceField?.get(instance) as? Context }.getOrNull()?.let { return it }
         }
@@ -454,12 +558,8 @@ object AospImeHooker : StaticHooker() {
                 after { param ->
                     HookFailurePolicy.open(TAG, "onWindowShown", Unit) {
                         val service = navBarServiceField?.get(param.thisObject) as? Context ?: return@open
-                        // Gate on the master only. Deactivation paths (style switch, force-all
-                        // off, customized keyboard without force-all) MUST still run: the
-                        // inactive branch of evaluateKeyboardRaise is what withdraws our padding
-                        // and zeroes a stale caption-bar source; gating on aospBarActive here
-                        // would leave that source alive until the keyboard process restarts.
-                        if (!AospImeConfig.isEnabled()) return@open
+                        // Disabled and native-style paths must withdraw any owned AOSP padding.
+                        (service as? InputMethodService)?.let { nativeAppearance.refresh(it) }
                         raise.onWindowShownForRaise(service)
                     }
                 }
@@ -573,6 +673,7 @@ object AospImeHooker : StaticHooker() {
     }
 
     private fun wireBackButtonToDismiss(navBar: View) {
+        if (!aospRaiseActive(navBar.context)) return
         val backButtonId = resolveNavBackId(navBar.resources)
         if (backButtonId == 0) return
         val backButton = navBar.findViewById<View>(backButtonId)
@@ -636,6 +737,7 @@ object AospImeHooker : StaticHooker() {
             method.hook {
                 before { param ->
                     HookFailurePolicy.open(TAG, "inflateLayout", Unit) {
+                        if (!aospRaiseActive(currentServiceContext())) return@open
                         val handle = AospImeConfig.navBarLayoutHandle()
                         if (handle.isNotBlank()) param.args[0] = handle
                     }
@@ -677,7 +779,7 @@ object AospImeHooker : StaticHooker() {
             method.hook {
                 after { param ->
                     HookFailurePolicy.open(TAG, "updateOrientationViews", Unit) {
-                        DebugLog.d(TAG, "updateOrientationViews fired")
+                        if (!aospRaiseActive(currentServiceContext())) return@open
                         val view = navBarHorizontalField?.get(param.thisObject) as? View ?: return@open
                         installRoundedCornerInsetsListener(view)
                         // Pin the frame height too: `updateOrientationViews` runs at inflate time,
@@ -719,6 +821,7 @@ object AospImeHooker : StaticHooker() {
             method.hook {
                 after { param ->
                     HookFailurePolicy.open(TAG, "deadZoneConfigurationChanged", Unit) {
+                        if (!aospRaiseActive(currentServiceContext())) return@open
                         deadZoneSizeMinField?.setInt(param.thisObject, 0)
                     }
                 }

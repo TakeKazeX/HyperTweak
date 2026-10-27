@@ -24,6 +24,9 @@ internal object RuntimeSettingsDefinitions {
     const val NATIVE_PHOTO_PICKER = "system.native_photo_picker"
     // Retain the aggregate group ID so pre-split saved snapshots remain readable.
     const val NATIVE_FILE_PICKER = "system.native_picker"
+    const val IME = "inputmethod.layout"
+    private val imeTargets = java.util.concurrent.CopyOnWriteArraySet<String>(setOf("android"))
+    fun registerImeTargets(packages: Set<String>) { imeTargets.addAll(packages) }
     const val AOSP_INSTALLER = "system.aosp_installer"
     const val AOSP_SYSTEM_UI = "systemui.aosp_restore"
     const val AOSP_SECURITY = "securitycenter.aosp_restore"
@@ -158,7 +161,8 @@ internal object RuntimeSettingsDefinitions {
         PlatformSettingsKeys.KEY_DISABLE_SPATIAL_AUDIO,
         PlatformSettingsKeys.KEY_FORCE_ADAPTIVE_ANC,
     )
-    val strictBooleanKeys = policyKeys + passivePolicyKeys + googleKeys + aospUiKeys + aospSecurityKeys + setOf(
+    val strictBooleanKeys = setOf(PlatformSettingsKeys.KEY_AOSP_IME_ENABLED,
+        PlatformSettingsKeys.KEY_AOSP_IME_MIUI_IME_LIST) + policyKeys + passivePolicyKeys + googleKeys + aospUiKeys + aospSecurityKeys + setOf(
         PlatformSettingsKeys.KEY_AOSP_PACKAGE_INSTALLER,
         PlatformSettingsKeys.KEY_NATIVE_PICKER, PlatformSettingsKeys.KEY_NATIVE_PHOTO_PICKER, PlatformSettingsKeys.KEY_NATIVE_FILE_PICKER,
         PlatformSettingsKeys.KEY_SETTINGS_ONDEVICE_MODEL_ENTRY,
@@ -199,6 +203,11 @@ internal object RuntimeSettingsDefinitions {
     data class Group(val targets: Set<String>, val owns: (String) -> Boolean)
     private val systemUi = setOf("com.android.systemui")
     val groups = linkedMapOf(
+        IME to Group(imeTargets) { it in setOf(
+            PlatformSettingsKeys.KEY_AOSP_IME_ENABLED, PlatformSettingsKeys.KEY_AOSP_IME_PACKAGES,
+            PlatformSettingsKeys.KEY_AOSP_IME_MIUI_IME_LIST, PlatformSettingsKeys.KEY_AOSP_IME_RAISE_STYLE,
+            PlatformSettingsKeys.KEY_AOSP_IME_NAV_BAR_START, PlatformSettingsKeys.KEY_AOSP_IME_NAV_BAR_END,
+        ) },
         POLICY_FEATURES to Group(setOf(
             "android", "com.android.systemui", "com.android.settings",
             "com.android.providers.downloads", "com.miui.guardprovider", "com.milink.service",

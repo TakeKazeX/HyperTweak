@@ -33,6 +33,14 @@ internal data class RuntimeSettingsSnapshot(val revision: Long, val values: Map<
                 com.takekazex.hypertweak.settings.contract.ScreenshotSettingsSnapshot.read(revision, values) == null) return null
             if (RuntimeSettingsGroups.NATIVE in groups && NativeRuleStateSnapshot.read { values } == null) return null
             if (RuntimeSettingsGroups.BACK in groups && BackGestureSettingsSnapshot.read(values) == null) return null
+            val imeStyle = values[PlatformSettingsKeys.KEY_AOSP_IME_RAISE_STYLE]
+            if (imeStyle != null && (imeStyle !is Int || imeStyle !in 0..1)) return null
+            val imePackages = values[PlatformSettingsKeys.KEY_AOSP_IME_PACKAGES]
+            if (imePackages != null && imePackages !is Set<*>) return null
+            for (key in listOf(PlatformSettingsKeys.KEY_AOSP_IME_NAV_BAR_START, PlatformSettingsKeys.KEY_AOSP_IME_NAV_BAR_END)) {
+                val button = values[key]
+                if (button != null && button !is String) return null
+            }
             val predictionLimit = values[PlatformSettingsKeys.KEY_SECURITY_CENTER_DOCK_PREDICT_LIMIT]
             if (predictionLimit != null && (predictionLimit !is Int || predictionLimit !in 0..15)) return null
             for (key in listOf(PlatformSettingsKeys.KEY_SECURITY_CENTER_LOW_BATTERY_MODE,

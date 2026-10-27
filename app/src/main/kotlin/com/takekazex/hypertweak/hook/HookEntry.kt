@@ -826,6 +826,7 @@ class HookEntry : XposedModule() {
         return try {
             val remotePrefs = getRemotePreferences(AppSettingsKeys.NAME)
             Preferences.init(remotePrefs)
+            RuntimeSettingsGroups.registerImeTargets(Preferences.getStringSet(PlatformSettingsKeys.KEY_AOSP_IME_PACKAGES))
             bindRuntimePreferencesListener(remotePrefs)
             requestSettingsReload(RuntimeSettingsGroups.forProcess(processName, isSystemServer))
             DebugLog.d("HookEntry", "processName=$processName loaded remotePrefs groups=${RuntimeSettingsGroups.forProcess(processName, isSystemServer)}")

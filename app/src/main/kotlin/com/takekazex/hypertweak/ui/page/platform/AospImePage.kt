@@ -22,6 +22,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -95,21 +96,18 @@ fun AospImePage(onBack: () -> Unit) {
     val coroutineScope = rememberCoroutineScope()
     val scrollBehavior = MiuixScrollBehavior()
 
-    var enabled by remember {
+    var enabled by rememberSaveable {
         mutableStateOf(settingsStore.getBoolean(PlatformSettingsKeys.KEY_AOSP_IME_ENABLED, false))
     }
-    var miuiImeList by remember {
+    var miuiImeList by rememberSaveable {
         mutableStateOf(settingsStore.getBoolean(PlatformSettingsKeys.KEY_AOSP_IME_MIUI_IME_LIST, false))
     }
-    var forceAospAll by remember {
-        mutableStateOf(settingsStore.getBoolean(PlatformSettingsKeys.KEY_AOSP_IME_FORCE_ALL, false))
-    }
-    var startKey by remember { mutableStateOf(ImeLayout.button(settingsStore.getString(PlatformSettingsKeys.KEY_AOSP_IME_NAV_BAR_START, ImeLayout.BUTTON_HIDE_IME), ImeLayout.BUTTON_HIDE_IME)) }
-    var endKey by remember { mutableStateOf(ImeLayout.button(settingsStore.getString(PlatformSettingsKeys.KEY_AOSP_IME_NAV_BAR_END, ImeLayout.BUTTON_IME_SWITCHER), ImeLayout.BUTTON_IME_SWITCHER)) }
-    var raiseStyle by remember { mutableIntStateOf(settingsStore.getInt(PlatformSettingsKeys.KEY_AOSP_IME_RAISE_STYLE, ImeLayout.RAISE_STYLE_AOSP)) }
+    var startKey by rememberSaveable { mutableStateOf(ImeLayout.button(settingsStore.getString(PlatformSettingsKeys.KEY_AOSP_IME_NAV_BAR_START, ImeLayout.BUTTON_HIDE_IME), ImeLayout.BUTTON_HIDE_IME)) }
+    var endKey by rememberSaveable { mutableStateOf(ImeLayout.button(settingsStore.getString(PlatformSettingsKeys.KEY_AOSP_IME_NAV_BAR_END, ImeLayout.BUTTON_IME_SWITCHER), ImeLayout.BUTTON_IME_SWITCHER)) }
+    var raiseStyle by rememberSaveable { mutableIntStateOf(settingsStore.getInt(PlatformSettingsKeys.KEY_AOSP_IME_RAISE_STYLE, ImeLayout.RAISE_STYLE_AOSP)) }
 
-    var applied by remember { mutableStateOf(settingsStore.getStringSet(PlatformSettingsKeys.KEY_AOSP_IME_PACKAGES)) }
-    var selected by remember { mutableStateOf(applied) }
+    var applied by rememberSaveable { mutableStateOf(settingsStore.getStringSet(PlatformSettingsKeys.KEY_AOSP_IME_PACKAGES)) }
+    var selected by rememberSaveable { mutableStateOf(applied) }
     var applying by remember { mutableStateOf(false) }
 
     var imes by remember { mutableStateOf<List<InstalledIme>>(emptyList()) }
@@ -242,16 +240,7 @@ fun AospImePage(onBack: () -> Unit) {
                             title = stringResource(R.string.ime_list_all_keyboards),
                             summary = stringResource(R.string.ime_list_all_keyboards_summary)
                         )
-                        SwitchPreference(
-                            checked = forceAospAll,
-                            onCheckedChange = {
-                                forceAospAll = it
-                                settingsStore.putBoolean(PlatformSettingsKeys.KEY_AOSP_IME_FORCE_ALL, it)
-                            },
-                            title = stringResource(R.string.ime_force_aosp_title),
-                            summary = stringResource(R.string.ime_force_aosp_summary),
-                            enabled = enabled
-                        )
+
                     }
                 }
             }

@@ -12,20 +12,10 @@ import androidx.core.view.isVisible
 import com.takekazex.hypertweak.hook.base.BaseHooker
 import com.takekazex.hypertweak.hook.base.HookComponent
 import com.takekazex.hypertweak.util.logging.DebugLog
+import java.lang.ref.WeakReference
 import java.lang.reflect.Field
 import java.util.WeakHashMap
 import kotlin.math.roundToInt
-
-/**
- * Restores AOSP's full-screen IME navigation bar inside a selected keyboard's own process.
- *
- * HyperOS suppresses the AOSP IME nav bar for keyboards it does not recognise as MIUI-customised,
- * so `InputMethodService.hideImeRenderGesturalNavButtons` returns true and the caption bar collapses
- * to zero height. Forcing `IS_INTERNATIONAL_BUILD` for that one call takes the AOSP branch; the rest
- * restores the bar's height, layout, rounded-corner padding, and dead zone.
- *
- * Ported from Howard20181's Mi_AOSP_IME (GPL-3.0).
- */
 
 /** Owns input-view padding and caption injection, including upgrade restoration. */
 internal class ImeRaiseController(
@@ -42,9 +32,11 @@ internal class ImeRaiseController(
     }
     private var imeRootField: Field? = null
     private var inputViewField: Field? = null
-    private val paddedViews = WeakHashMap<View, Boolean>()
+    private data class OwnedPadding(val base: Int, val applied: Int)
+    private val paddedViews = WeakHashMap<View, OwnedPadding>()
     private val pendingRaiseChecks = WeakHashMap<View, Boolean>()
-    private val raiseWatchers = WeakHashMap<View, Boolean>()
+    private val raiseWatchers = WeakHashMap<View, View.OnLayoutChangeListener>()
+    private var callbackEpoch = 0
     private val lastRaiseEval = WeakHashMap<View, String>()
     private val captionInjectionState = WeakHashMap<View, Boolean>()
     private val legacySweptRoots = WeakHashMap<View, Boolean>()
@@ -65,15 +57,27 @@ internal class ImeRaiseController(
     fun prepareReload() {
         imeRootField = null
         inputViewField = null
+        callbackEpoch++
         pendingRaiseChecks.clear()
+        raiseWatchers.forEach { (view, listener) -> view.removeOnLayoutChangeListener(listener) }
         raiseWatchers.clear()
         lastRaiseEval.clear()
         captionInjectionState.clear()
         legacySweptRoots.clear()
     }
-    fun saveOwnedViews(): List<View> = paddedViews.keys.filter { paddedViews[it] == true }
+    fun saveOwnedViews(): List<Any> = paddedViews.map { (view, padding) ->
+        arrayOf(view, padding.base, padding.applied)
+    }
     fun restoreOwnedViews(state: Any?) {
-        (state as? List<*>)?.filterIsInstance<View>()?.forEach { paddedViews[it] = true }
+        (state as? List<*>)?.forEach { entry ->
+            if (entry is View) paddedViews[entry] = OwnedPadding(0, entry.paddingBottom)
+            else if (entry is Array<*>) {
+                val view = entry.getOrNull(0) as? View ?: return@forEach
+                val base = entry.getOrNull(1) as? Int ?: return@forEach
+                val applied = entry.getOrNull(2) as? Int ?: return@forEach
+                paddedViews[view] = OwnedPadding(base, applied)
+            }
+        }
     }
     private fun dpToPx(dp: Int, resources: Resources): Int =
         TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, dp.toFloat(), resources.displayMetrics)
@@ -83,8 +87,9 @@ internal class ImeRaiseController(
         installRaiseLayoutWatcher(service, root)
         evaluateKeyboardRaise(service, root)
         // Settle checks: the keyboard may apply or reset its own clearance well after the show.
+        val epoch = callbackEpoch
         for (attempt in 1..RAISE_RECHECK_ATTEMPTS) {
-            root.postDelayed({ evaluateKeyboardRaise(service, root) }, RAISE_RECHECK_DELAY_MS * attempt)
+            root.postDelayed({ if (epoch == callbackEpoch) evaluateKeyboardRaise(service, root) }, RAISE_RECHECK_DELAY_MS * attempt)
         }
     }
 
@@ -96,14 +101,20 @@ internal class ImeRaiseController(
      * [pendingRaiseChecks] so a layout burst triggers at most one posted evaluation.
      */
     private fun installRaiseLayoutWatcher(service: Context, root: View) {
-        if (raiseWatchers.put(root, true) == true) return
-        root.addOnLayoutChangeListener { view, _, _, _, _, _, _, _, _ ->
-            if (pendingRaiseChecks.put(view, true) == true) return@addOnLayoutChangeListener
+        if (raiseWatchers.containsKey(root)) return
+        val epoch = callbackEpoch
+        val serviceRef = WeakReference(service)
+        val listener = View.OnLayoutChangeListener { view, _, _, _, _, _, _, _, _ ->
+            if (epoch != callbackEpoch || pendingRaiseChecks.put(view, true) == true) return@OnLayoutChangeListener
             view.post {
-                pendingRaiseChecks.remove(view)
-                evaluateKeyboardRaise(service, view)
+                if (epoch == callbackEpoch) {
+                    pendingRaiseChecks.remove(view)
+                    serviceRef.get()?.let { evaluateKeyboardRaise(it, view) }
+                }
             }
         }
+        raiseWatchers[root] = listener
+        root.addOnLayoutChangeListener(listener)
     }
 
     private fun findInputMethodRoot(service: Context): View? {
@@ -180,16 +191,15 @@ internal class ImeRaiseController(
         if (root !== view) sweepLegacyRootPadding(root, target)
 
         val currentPb = view.paddingBottom
-        if (currentPb != 0 && paddedViews[view] != true) {
-            DebugLog.d(TAG, "raise: foreign paddingBottom=$currentPb, left alone")
-            return
-        }
+        val owned = paddedViews[view]?.takeIf { it.applied == currentPb }
+        val baseline = owned?.base ?: currentPb
+        val currentExtra = currentPb - baseline
         val contentBottom = deepestVisibleBottom(view)
-        val desiredPb = ImeRaisePolicy.desiredPadding(
-            height = view.height, contentBottom = contentBottom, currentPadding = currentPb,
+        val desiredPb = baseline + ImeRaisePolicy.desiredPadding(
+            height = view.height, contentBottom = contentBottom, currentPadding = currentExtra,
             captionHeight = target, tolerance = dpToPx(RAISE_CLEAR_TOLERANCE_DP, service.resources)
         )
-        val baseContentBottom = contentBottom + currentPb
+        val baseContentBottom = contentBottom + currentExtra
         val barTop = view.height - target
         // Log only evaluations whose numbers actually changed; the layout watcher re-runs this on
         // every relayout, so unconditional logging would flood the log while typing.
@@ -199,12 +209,12 @@ internal class ImeRaiseController(
             DebugLog.i(TAG, "raise eval: $snapshot desired=$desiredPb")
         }
         if (desiredPb == currentPb) {
-            if (desiredPb > 0) paddedViews[view] = true else paddedViews.remove(view)
+            if (desiredPb > baseline) paddedViews[view] = OwnedPadding(baseline, desiredPb) else paddedViews.remove(view)
             return
         }
         runCatching {
             view.setPadding(view.paddingLeft, view.paddingTop, view.paddingRight, desiredPb)
-            if (desiredPb > 0) paddedViews[view] = true else paddedViews.remove(view)
+            if (desiredPb > baseline) paddedViews[view] = OwnedPadding(baseline, desiredPb) else paddedViews.remove(view)
             DebugLog.i(TAG, "keyboard raise $currentPb -> $desiredPb")
         }.onFailure { DebugLog.e(TAG, "evaluateKeyboardRaise failed: $it") }
     }
@@ -213,8 +223,8 @@ internal class ImeRaiseController(
         var withdrew = false
         for (entry in paddedViews.entries.toList()) {
             val view = entry.key
-            if (entry.value && view.paddingBottom != 0) {
-                runCatching { view.setPadding(view.paddingLeft, view.paddingTop, view.paddingRight, 0) }
+            if (view.paddingBottom == entry.value.applied) {
+                runCatching { view.setPadding(view.paddingLeft, view.paddingTop, view.paddingRight, entry.value.base) }
                 withdrew = true
             }
             paddedViews.remove(view)
@@ -253,6 +263,7 @@ internal class ImeRaiseController(
 
     /** Deepest visible descendant bottom edge inside [root], in root coordinates. */
     private fun deepestVisibleBottom(root: View): Int {
+        if (childCount(root) == 0) return root.height - root.paddingBottom
         var best = 0
         val stack = ArrayDeque<Pair<View, Int>>()
         for (index in 0 until childCount(root)) {
@@ -262,8 +273,14 @@ internal class ImeRaiseController(
             val (view, offset) = stack.removeLastOrNull() ?: break
             if (view.visibility != View.VISIBLE || view.width <= 0 || view.height <= 0) continue
             val top = offset + view.top
-            val bottom = top + view.height
-            if (bottom > best) best = bottom
+            val bottom = top + view.height - view.paddingBottom
+            // Wrapper bounds are not key bounds: a full-height container can contain keys
+            // that already clear the caption inset (WeType/Gboard).
+            val hasVisibleChildren = view is ViewGroup && (0 until view.childCount).any {
+                val child = view.getChildAt(it)
+                child.isVisible && child.width > 0 && child.height > 0
+            }
+            if (!hasVisibleChildren && bottom > best) best = bottom
             if (view is ViewGroup) {
                 for (index in 0 until view.childCount) {
                     stack.addLast(view.getChildAt(index) to top)

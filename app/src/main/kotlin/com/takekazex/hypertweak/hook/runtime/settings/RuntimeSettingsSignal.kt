@@ -15,7 +15,15 @@ internal object RuntimeSettingsSignal {
     @Volatile private var context: Context? = null
     private var source: SharedPreferences? = null
     private var acknowledged: RuntimeSettingsSnapshot? = null
-    fun attach(context: Context) { this.context = context.applicationContext ?: context }
+    fun attach(context: Context) {
+        this.context = context.applicationContext ?: context
+        // Include deselected keyboards too, so disable/reset reaches an already running host.
+        val packages = runCatching {
+            context.getSystemService(android.view.inputmethod.InputMethodManager::class.java)
+                ?.inputMethodList.orEmpty().map { it.packageName }.toSet()
+        }.getOrDefault(emptySet())
+        RuntimeSettingsGroups.registerImeTargets(packages)
+    }
     @Synchronized fun bind(prefs: SharedPreferences) {
         if (source === prefs) return
         val values = prefs.all
@@ -63,6 +71,9 @@ internal object RuntimeSettingsSignal {
         main.post {
             val target = context ?: return@post
             val snapshot = synchronized(this) { acknowledged } ?: return@post
+            RuntimeSettingsGroups.registerImeTargets(
+                (snapshot.values[com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys.KEY_AOSP_IME_PACKAGES]
+                    as? Set<*>)?.filterIsInstance<String>()?.toSet().orEmpty())
             val destinations = targetPackage?.let { setOf(it).intersect(RuntimeSettingsGroups.targets) } ?: RuntimeSettingsGroups.targets
             destinations.forEach { destination ->
                 runCatching { SettingsTransport.send(target, RuntimeSettingsProtocol.encode(snapshot, destination)) }

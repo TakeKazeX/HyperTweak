@@ -57,6 +57,7 @@ object AospImeSystemHooker : StaticHooker() {
     private var cachedGestureNav by generationState { false }
 
     private var cachedCurrentIme: String? by generationState { null }
+    private var cachedEnabledImePackages: Set<String> by generationState { emptySet() }
 
     private val imeSettingsLock = Any()
     private var imeSettingsAttached by generationState { false }
@@ -75,13 +76,51 @@ object AospImeSystemHooker : StaticHooker() {
     }
 
     override fun onHook() {
-        if (!AospImeConfig.isEnabled()) {
-            DebugLog.hookSkippedDebug(TAG, "InputMethodManagerService", "disabled")
-            return
-        }
         hookNavButtonFlags()
         hookIsCallingBetweenCustomIme()
     }
+
+    private var serviceInstance: Any? by generationState { null }
+
+    override fun recoverHotReloadHosts() { refreshSettings() }
+
+    fun refreshSettings(): Boolean = runCatching {
+        if (!isHooked) return true
+        val type = IMMS.toClassOrNull() ?: return false
+        val service = serviceInstance ?: run {
+            // OS4 wraps the public binder callback in ZeroJankProxy. The process-local
+            // service retains a unique IMMS owner field and avoids binder/proxy unwrapping.
+            val localServices = "com.android.server.LocalServices".toClassOrNull() ?: return false
+            val internalType = "com.android.server.inputmethod.InputMethodManagerInternal".toClassOrNull() ?: return false
+            val local = HostAccess.requireDeclaredMethod(localServices, "getService", Class::class.java,
+                accessible = true).invoke(null, internalType) ?: return false
+            val owner = HostAccess.cached(local.javaClass, "ime.system.owner", Field::class.java) {
+                local.javaClass.declaredFields.singleOrNull { it.type == type }?.apply { isAccessible = true }
+            }
+            checkNotNull(owner?.get(local)?.takeIf { type.isInstance(it) }) { "Local IME service has no unique IMMS owner" }
+        }
+        serviceInstance = service
+        val lock = "com.android.server.inputmethod.ImfLock".toClassOrNull() ?: return false
+        synchronized(lock) {
+            val context = immsContextField?.get(service) as? Context ?: return false
+            refreshImeSettings(context)
+            val userId = HostAccess.read(service, "mCurrentImeUserId") as? Int ?: return false
+            val userData = HostAccess.method(service, "getUserData", Int::class.javaPrimitiveType!!)?.invoke(service, userId)
+                ?: return false
+            // Older builds overwrote this platform flag with the feature's request. Re-evaluate
+            // its native resource policy before publishing, including disable/reset migrations.
+            val monitor = "com.android.server.inputmethod.InputMethodDrawsNavBarResourceMonitor".toClassOrNull()
+                ?: return false
+            val users = HostAccess.read(service, "mUserManagerInternal") ?: return false
+            val parentId = HostAccess.method(users, "getProfileParentId", Int::class.javaPrimitiveType!!)
+                ?.invoke(users, userId) as? Int ?: userId
+            val native = HostAccess.requireDeclaredMethod(monitor, "evaluate", Context::class.java,
+                Int::class.javaPrimitiveType!!, accessible = true).invoke(null, context, parentId) as? Boolean ?: return false
+            (imeDrawsNavBarField?.get(userData) as? AtomicBoolean)?.set(native)
+            HostAccess.method(service, "sendOnNavButtonFlagsChangedLocked", userData.javaClass)?.invoke(service, userData)
+        }
+        true
+    }.getOrElse { DebugLog.w(TAG, "IME flags refresh failed", it); false }
 
     private fun hookNavButtonFlags() {
         val imms = IMMS.toClassOrNull() ?: run {
@@ -130,13 +169,15 @@ object AospImeSystemHooker : StaticHooker() {
             method.hook {
                 after { param ->
                     HookFailurePolicy.open(TAG, "navButtonFlags", Unit) {
+                        serviceInstance = param.thisObject
                         val flags = param.result as? Int ?: return@open
+                        if (!AospImeConfig.isEnabled() || AospImeConfig.raiseStyle() !=
+                            com.takekazex.hypertweak.settings.contract.ImeLayout.RAISE_STYLE_AOSP) return@open
                         val context = immsContextField?.get(param.thisObject) as? Context ?: return@open
                         val wanted = shouldDrawImeNavBar(context)
+                        if (!wanted) return@open
                         if (wanted == ((flags and FLAG_IME_DRAWS_IME_NAV_BAR) != 0)) return@open
 
-                        // Keep UserData in step, or the next onNavButtonFlagsChanged disagrees.
-                        (imeDrawsNavBarField?.get(param.args.getOrNull(0)) as? AtomicBoolean)?.set(wanted)
                         param.result = if (wanted) {
                             flags or FLAG_IME_DRAWS_IME_NAV_BAR
                         } else {
@@ -178,6 +219,9 @@ object AospImeSystemHooker : StaticHooker() {
                 resolver.registerContentObserver(
                     Settings.Secure.getUriFor(Settings.Secure.DEFAULT_INPUT_METHOD), false, observer
                 )
+                resolver.registerContentObserver(
+                    Settings.Secure.getUriFor(Settings.Secure.ENABLED_INPUT_METHODS), false, observer
+                )
             }.onFailure {
                 DebugLog.w(TAG, "failed to register IME settings observer", it)
             }
@@ -190,6 +234,10 @@ object AospImeSystemHooker : StaticHooker() {
             Settings.Secure.getInt(resolver, "navigation_mode", NAV_BAR_MODE_GESTURAL) ==
                 NAV_BAR_MODE_GESTURAL
         }.getOrDefault(false)
+        cachedEnabledImePackages = runCatching {
+            Settings.Secure.getString(resolver, Settings.Secure.ENABLED_INPUT_METHODS).orEmpty()
+                .split(':').mapNotNull { android.content.ComponentName.unflattenFromString(it.substringBefore(';'))?.packageName }.toSet()
+        }.getOrDefault(emptySet())
         cachedCurrentIme = runCatching {
             Settings.Secure.getString(resolver, Settings.Secure.DEFAULT_INPUT_METHOD)
         }.getOrNull()
@@ -223,14 +271,17 @@ object AospImeSystemHooker : StaticHooker() {
             method.hook {
                 after { param ->
                     HookFailurePolicy.open(TAG, "isCallingBetweenCustomIME", Unit) {
-                        if (param.result == true) return@open
+                        if ((!AospImeConfig.isEnabled() && !AospImeConfig.showAllImeList()) || param.result == true) return@open
                         val context = param.args.getOrNull(0) as? Context ?: return@open
                         val uid = param.args.getOrNull(1) as? Int ?: return@open
                         val targetPackage = param.args.getOrNull(2) as? String ?: return@open
-                        if (!AospImeConfig.isSelectedIme(targetPackage)) return@open
-
+                        attachImeSettingsObserver(context)
+                        // targetPackage is the OTHER keyboard being queried, not the caller.
+                        // Otherwise Android package visibility removes it before the MIUI popup
+                        // even obtains its list. Authenticate the requesting keyboard by UID.
                         val owned = context.packageManager?.getPackagesForUid(uid)
-                        if (owned?.contains(targetPackage) == true) {
+                        if (ImeSwitcherPolicy.mayAccess(targetPackage, cachedEnabledImePackages,
+                                owned?.toSet().orEmpty(), AospImeConfig.selectedPackages())) {
                             param.result = true
                         }
                     }

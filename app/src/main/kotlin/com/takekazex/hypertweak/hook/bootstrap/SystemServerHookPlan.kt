@@ -82,6 +82,6 @@ internal object SystemServerHookPlan {
     }
 
     fun attach(attach: (BaseHooker) -> Unit) {
-        install(AospImeConfig::isEnabled) { attach(it.create()) }
+        install({ true }) { attach(it.create()) }
     }
 }
