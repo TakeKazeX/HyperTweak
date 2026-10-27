@@ -13,11 +13,16 @@ internal class TemplateCoordinator(private val runtime: IslandSessionState) : Te
     private val host get() = runtime.host
 
     override fun acquire(session: IslandSession, request: TemplateWidthRequest) {
-        val areas = host.templateAreas(request.view)
+        val areas = host.templateAreas(request.view).mapNotNull { pair ->
+            val left = pair.left as? View ?: return@mapNotNull null
+            val right = pair.right as? View ?: return@mapNotNull null
+            left to right
+        }
+        // Ordinary content updates can replace area roots without replacing the visible
+        // island. Retire only detached pairs; keep the current pair and its animation.
+        session.template.templateWidths.retain(request.view, areas)
         if (areas.isEmpty()) return
-        areas.forEach { pair ->
-            val left = pair.left as? View ?: return@forEach
-            val right = pair.right as? View ?: return@forEach
+        areas.forEach { (left, right) ->
             when (request.mode) {
                 TemplateSeatMode.CAMERA_RELEASING ->
                     session.template.templateWidths.acquireMedia(request.view, left, right)
@@ -51,6 +56,9 @@ internal class TemplateCoordinator(private val runtime: IslandSessionState) : Te
         val session = runtime.sessionForView(view) ?: return
         runtime.boundary.core(session, IslandFeature.TEMPLATE, "publish rebound template") {
             val owner = session.owner
+            val configurationBound = session.template.configurationBindings.bound(binding)
+            val preserveMain = !configurationBound && runtime.enabled(session) &&
+                runtime.portraitMain(session, view)
             val sideMusic = runtime.enabled(session) && runtime.preferences.threeIslands &&
                 (view in session.slot.extras || host.current(owner, IslandSlot.SMALL) === view) &&
                 view !== host.current(owner, IslandSlot.EXPANDED) && runtime.spectrumTarget(view)
@@ -58,12 +66,21 @@ internal class TemplateCoordinator(private val runtime: IslandSessionState) : Te
             // A hidden/app-return view may already own a side seat. Keep the guard scoped
             // to its summary area roots; main/expanded ownership releases it immediately.
             runtime.spectrum.syncLyricGuard(session)
-            session.scene.portraitContent = null
+            // initBigIslandView also runs on progress updates. Invalidating the last
+            // published main geometry here makes releaseFullPosition reset translationX
+            // before native measurement animates back to the very same destination.
+            // A side binding must not invalidate the main island's geometry either.
+            if (configurationBound || (view === host.current(owner, IslandSlot.BIG) && !preserveMain)) {
+                session.scene.portraitContent = null
+            }
             session.scene.contentSizes.remove(view)
             releaseFullPosition(session, view)
-            if (session.template.configurationBindings.bound(binding)) {
+            if (configurationBound) {
                 DebugLog.d(TAG, "configuration template bound; frame generation invalidated")
                 runtime.relayout.request(session)
+            } else if (preserveMain) {
+                val cutout = runtime.nativeCutoutRead.run { host.fixedCutoutWidth(view) }
+                acquire(session, TemplateWidthRequest(view, cutout, TemplateSeatMode.NORMAL))
             } else if (sideMusic && session.scene.musicSmall === view) {
                 acquire(session, TemplateWidthRequest(view, 0, TemplateSeatMode.CAMERA_RELEASING))
             }

@@ -47,9 +47,10 @@ public class NativeMediaGeometryProbe {
                         case "call":
                             if(args[1].equals("calculateBigIslandWidth")) {
                                 measured[0]=holder[0].getMeasurement().afterMeasure(media,new Object(),new Object(),new Object());
-                                return null;
                             }
-                            if(args[1].equals("updateBigIslandLayout")) {
+                            // The native calculator publishes layout before it returns.
+                            // afterMeasure is only the helper-result hook, not that publication.
+                            if(args[1].equals("calculateBigIslandWidth") || args[1].equals("updateBigIslandLayout")) {
                                 if(measured[0]==null) throw new AssertionError("native publication preceded target measurement");
                                 for(int n=0;n<2;n++) {
                                     roots[n].getLayoutParams().width=measured[0].getWidth();

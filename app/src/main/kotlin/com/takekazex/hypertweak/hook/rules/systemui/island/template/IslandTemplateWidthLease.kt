@@ -95,6 +95,23 @@ internal class IslandTemplateWidthLease {
     }
     private val entries = LinkedHashMap<Any, MutableList<Entry>>()
 
+    /** A content refresh may replace one real/fake pair while the other is still live. */
+    fun retain(owner: Any, areas: List<Pair<View, View>>) {
+        val owned = entries[owner] ?: return
+        val iterator = owned.iterator()
+        while (iterator.hasNext()) {
+            val entry = iterator.next()
+            if (areas.any { (left, right) ->
+                    left === entry.left && right === entry.right &&
+                        left.parent === entry.parent && right.parent === entry.parent
+                }) continue
+            entry.releaseCameraSeat()
+            entry.release()
+            iterator.remove()
+        }
+        if (owned.isEmpty()) entries.remove(owner)
+    }
+
     fun acquire(owner: Any, left: View, right: View, cutoutWidth: Int = 0) =
         acquire(owner, left, right, cutoutWidth, false)
 
