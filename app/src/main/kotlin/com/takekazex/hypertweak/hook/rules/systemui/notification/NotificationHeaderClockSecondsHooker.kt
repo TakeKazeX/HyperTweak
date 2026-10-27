@@ -4,7 +4,12 @@ import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 
 import android.text.format.DateFormat
+import android.graphics.Rect
+import android.os.SystemClock
+import android.view.HapticFeedbackConstants
+import android.view.MotionEvent
 import android.view.View
+import android.view.ViewConfiguration
 import android.widget.TextView
 import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
@@ -12,6 +17,7 @@ import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.util.logging.DebugLog
+import java.lang.ref.WeakReference
 import java.lang.reflect.Method
 import java.util.WeakHashMap
 
@@ -52,9 +58,13 @@ object NotificationHeaderClockSecondsHooker : StaticHooker() {
     private val tickCallbacks = generationMainResource(WeakHashMap<View, Runnable>()) { it.clear() }
     private val expiryCallbacks = generationMainResource(WeakHashMap<View, Runnable>()) { it.clear() }
     private val expiryTokens = generationMainResource(WeakHashMap<View, Long>()) { it.clear() }
-    private val longPressInstalled = generationMainResource(WeakHashMap<View, Boolean>()) { it.clear() }
+    private val trackedClocks = generationMainResource(WeakHashMap<View, Boolean>()) { it.clear() }
     private val temporaryOverrides = generationMainResource(WeakHashMap<View, Boolean>()) { it.clear() }
     private val restoringStock = generationMainResource(WeakHashMap<View, Boolean>()) { it.clear() }
+    private class PendingPress(val clock: WeakReference<TextView>, val gesture: ClockLongPressGesture) {
+        lateinit var callback: Runnable
+    }
+    private val pendingPresses = generationMainResource(WeakHashMap<View, PendingPress>()) { it.clear() }
     private val callbacksLock = Any()
 
     private var persistentHeaderEnabled by generationState { false }
@@ -77,7 +87,7 @@ object NotificationHeaderClockSecondsHooker : StaticHooker() {
         if (retiring) return
         views.filterIsInstance<TextView>().forEach { view ->
             val target = targetOf(view) ?: return@forEach
-            installLongPressListener(view)
+            trackClock(view)
             refresh(view, target, forceStock = true)
         }
     }
@@ -92,7 +102,7 @@ object NotificationHeaderClockSecondsHooker : StaticHooker() {
         persistentHeaderEnabled = next
         HostAccess.onMain {
             if (retiring) return@onMain
-            val views = (tickCallbacks.keys + longPressInstalled.keys + temporaryOverrides.keys)
+            val views = (tickCallbacks.keys + trackedClocks.keys + temporaryOverrides.keys)
                 .filterIsInstance<TextView>().distinct()
             if (next) {
                 views.filter { it.isAttachedToWindow }.forEach { view ->
@@ -114,15 +124,16 @@ object NotificationHeaderClockSecondsHooker : StaticHooker() {
             synchronized(callbacksLock) {
                 tickCallbacks.forEach { (view, callback) -> view.removeCallbacks(callback) }
                 expiryCallbacks.forEach { (view, callback) -> view.removeCallbacks(callback) }
-                val clocks = (tickCallbacks.keys + longPressInstalled.keys).distinct()
+                pendingPresses.forEach { (window, press) -> window.removeCallbacks(press.callback) }
+                pendingPresses.clear()
+                val clocks = (tickCallbacks.keys + trackedClocks.keys).distinct()
                 clocks.forEach { view ->
-                    view.setOnLongClickListener(null)
                     (view as? TextView)?.let(::restoreStock)
                 }
                 tickCallbacks.clear()
                 expiryCallbacks.clear()
                 expiryTokens.clear()
-                longPressInstalled.clear()
+                trackedClocks.clear()
                 temporaryOverrides.clear()
                 restoringStock.clear()
             }
@@ -153,6 +164,25 @@ object NotificationHeaderClockSecondsHooker : StaticHooker() {
         }
         updateTimeMethod = updateTime
         var hookCount = 0
+        // Observe the complete window stream, including moves consumed by the shade parent.
+        // Never claim DOWN, alter the event/result, or make the clock clickable/long-clickable.
+        listOf(
+            "com.android.systemui.statusbar.phone.PhoneStatusBarView",
+            "com.android.systemui.shade.NotificationShadeWindowView"
+        ).forEach { name ->
+            name.toClassOrNull()?.findMethodOrNull {
+                name("dispatchTouchEvent")
+                parameterTypes(MotionEvent::class.java)
+            }?.hook {
+                before { param ->
+                    HookFailurePolicy.open(TAG, "observeClockTouch", Unit) {
+                        val window = param.thisObject as? View ?: return@open
+                        val event = param.args.firstOrNull() as? MotionEvent ?: return@open
+                        observeTouch(window, event)
+                    }
+                }
+            } ?: DebugLog.hookSkipped(TAG, "$name#dispatchTouchEvent(MotionEvent)", "method not found")
+        }
 
         updateTime?.hook {
             after { param ->
@@ -160,7 +190,7 @@ object NotificationHeaderClockSecondsHooker : StaticHooker() {
                     val view = param.thisObject as? TextView ?: return@open
                     if (isRestoringStock(view)) return@open
                     val target = targetOf(view) ?: return@open
-                    installLongPressListener(view)
+                    trackClock(view)
                     refresh(view, target)
                 }
             }
@@ -175,7 +205,7 @@ object NotificationHeaderClockSecondsHooker : StaticHooker() {
                 HookFailurePolicy.open(TAG, "onAttachedToWindow", Unit) {
                     val view = param.thisObject as? TextView ?: return@open
                     val target = targetOf(view) ?: return@open
-                    installLongPressListener(view)
+                    trackClock(view)
                     refresh(view, target)
                 }
             }
@@ -194,9 +224,11 @@ object NotificationHeaderClockSecondsHooker : StaticHooker() {
                     cancelExpiry(view)
                     synchronized(callbacksLock) {
                         temporaryOverrides.remove(view)
-                        longPressInstalled.remove(view)
+                        trackedClocks.remove(view)
                     }
-                    runCatching { view.setOnLongClickListener(null) }
+                    pendingPresses.keys.toList().forEach { window ->
+                        if (pendingPresses[window]?.clock?.get() === view) cancelPress(window)
+                    }
                 }
             }
         }?.also { hookCount++ } ?: DebugLog.hookSkipped(
@@ -254,27 +286,91 @@ object NotificationHeaderClockSecondsHooker : StaticHooker() {
             temporaryOverrides[view] ?: baselineSecondsEnabled(target)
         }
 
-    private fun installLongPressListener(view: TextView) {
-        if (retiring) return
-        val shouldInstall = synchronized(callbacksLock) {
-            if (longPressInstalled.containsKey(view)) {
-                false
-            } else {
-                longPressInstalled[view] = true
-                true
-            }
+    private fun trackClock(view: TextView) {
+        if (retiring || trackedClocks.containsKey(view)) return
+        // The previous generation's setOnLongClickListener(null) leaves LONG_CLICKABLE set.
+        // These stock clock classes install no long-click handler; clear that upgrade residue.
+        if (view.isLongClickable) {
+            view.setOnLongClickListener(null)
+            view.isLongClickable = false
         }
-        if (!shouldInstall) return
+        trackedClocks[view] = true
+    }
 
-        runCatching {
-            view.setOnLongClickListener { clicked ->
-                HookFailurePolicy.open(TAG, "longPress", false) {
-                    handleLongPress(clicked)
+    private fun cancelPress(window: View) {
+        pendingPresses.remove(window)?.let { window.removeCallbacks(it.callback) }
+    }
+
+    private fun observeTouch(window: View, event: MotionEvent) {
+        if (retiring) return
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                cancelPress(window)
+                val bounds = Rect()
+                val rootLocation = IntArray(2)
+                window.rootView.getLocationOnScreen(rootLocation)
+                val clock = trackedClocks.keys.filterIsInstance<TextView>().firstOrNull { view ->
+                    view.rootView === window.rootView && view.isShown && view.alpha > 0f &&
+                        view.getGlobalVisibleRect(bounds) && bounds.apply {
+                            offset(rootLocation[0], rootLocation[1])
+                        }.contains(event.rawX.toInt(), event.rawY.toInt())
+                } ?: return
+                val press = PendingPress(WeakReference(clock), ClockLongPressGesture(
+                    event.x, event.y, ViewConfiguration.get(window.context).scaledTouchSlop.toFloat()
+                ))
+                val windowRef = WeakReference(window)
+                press.callback = Runnable {
+                    HookFailurePolicy.open(TAG, "clockLongPressTimeout", Unit) {
+                        val owner = windowRef.get() ?: return@open
+                        if (pendingPresses[owner] !== press) return@open
+                        pendingPresses.remove(owner)
+                        val target = press.clock.get() ?: return@open
+                        if (!retiring && owner.isAttachedToWindow && target.isShown &&
+                            target.alpha > 0f && target.rootView === owner.rootView && press.gesture.fire()
+                        ) {
+                            if (handleLongPress(target)) finishRecognizedLongPress(target)
+                        }
+                    }
+                }
+                pendingPresses[window] = press
+                if (!window.postDelayed(press.callback, ViewConfiguration.getLongPressTimeout().toLong())) {
+                    cancelPress(window)
                 }
             }
-        }.onFailure {
-            synchronized(callbacksLock) { longPressInstalled.remove(view) }
-            DebugLog.w(TAG, "failed to install clock long-press listener", it)
+            MotionEvent.ACTION_MOVE -> {
+                val press = pendingPresses[window] ?: return
+                if (event.pointerCount != 1) {
+                    cancelPress(window)
+                    return
+                }
+                // Batched motion may leave the slop and return within the same dispatch.
+                for (index in 0 until event.historySize) {
+                    press.gesture.move(event.getHistoricalX(index), event.getHistoricalY(index))
+                }
+                press.gesture.move(event.x, event.y)
+                if (!press.gesture.pending) cancelPress(window)
+            }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL,
+            MotionEvent.ACTION_POINTER_DOWN, MotionEvent.ACTION_POINTER_UP -> cancelPress(window)
+        }
+    }
+
+    private fun finishRecognizedLongPress(view: View) {
+        // The header clock also has a native click listener opening Clock. Cancel only the
+        // child's pressed/tap state after recognition, leaving the window's drag stream intact.
+        // View's native LONG_CLICKABLE path normally does both this and haptics for us.
+        HookFailurePolicy.open(TAG, "cancelClockTap", Unit) {
+            val now = SystemClock.uptimeMillis()
+            val cancel = MotionEvent.obtain(now, now, MotionEvent.ACTION_CANCEL, 0f, 0f, 0)
+            try {
+                view.dispatchTouchEvent(cancel)
+            } finally {
+                cancel.recycle()
+            }
+        }
+        HookFailurePolicy.open(TAG, "clockLongPressHaptic", Unit) {
+            view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+            Unit
         }
     }
 
