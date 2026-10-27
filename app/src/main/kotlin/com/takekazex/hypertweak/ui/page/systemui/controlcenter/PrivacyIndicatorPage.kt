@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.ui.page.systemui.controlcenter
 
+import com.takekazex.hypertweak.ui.components.slider.rememberSliderEdit
+
 import com.takekazex.hypertweak.ui.components.dialog.IntValueDialog
 import com.takekazex.hypertweak.ui.components.dialog.LocalRestartScopeRequest
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
@@ -227,7 +229,8 @@ private fun PrivacyHeaderSection(
 
 @Composable
 private fun PrivacySizeRow(@StringRes title: Int, value: Int, range: IntRange, unit: String, onChange: (Int) -> Unit) {
-    var sliderValue by remember(value) { mutableFloatStateOf(value.coerceIn(range).toFloat()) }
+    val slider = rememberSliderEdit(value.coerceIn(range).toFloat())
+    val sliderValue = slider.value
     var showDialog by rememberSaveable { mutableStateOf(false) }
     ArrowPreference(
         title = stringResource(title),
@@ -236,11 +239,9 @@ private fun PrivacySizeRow(@StringRes title: Int, value: Int, range: IntRange, u
         bottomAction = {
             Slider(
                 value = sliderValue.coerceIn(range.first.toFloat(), range.last.toFloat()),
-                onValueChange = { sliderValue = it },
+                onValueChange = slider::update,
                 onValueChangeFinished = {
-                    val snapped = sliderValue.roundToInt().coerceIn(range)
-                    sliderValue = snapped.toFloat()
-                    onChange(snapped)
+                    slider.finish { it.roundToInt().coerceIn(range).toFloat() }?.let { onChange(it.toInt()) }
                 },
                 valueRange = range.first.toFloat()..range.last.toFloat(),
                 steps = 0,
@@ -256,7 +257,7 @@ private fun PrivacySizeRow(@StringRes title: Int, value: Int, range: IntRange, u
         range = range,
         currentValue = { sliderValue.roundToInt() },
         emptyValue = value,
-        onValueConfirmed = { sliderValue = it.toFloat(); onChange(it) },
+        onValueConfirmed = { slider.sync(it.toFloat()); onChange(it) },
         onDismissRequest = { showDialog = false }
     )
 }

@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.ui.page.systemui.icon
 
+import com.takekazex.hypertweak.ui.components.slider.rememberSliderEdit
+
 import com.takekazex.hypertweak.ui.components.dialog.IntValueDialog
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
@@ -456,8 +458,9 @@ private fun StackedSignalSection(
                 stringResource(R.string.icon_stacked_signal_style_summary)
             ) { onChange(IconSettingsKeys.KEY_ICON_STACKED_ENABLED, it) }
             SliderRow(
-                "${stringResource(R.string.icon_stacked_signal_weight)} · ${(SignalWeight.normalize(weight) * 100).roundToInt()}%",
-                SignalWeight.normalize(weight), 0f, 1f
+                stringResource(R.string.icon_stacked_signal_weight),
+                SignalWeight.normalize(weight), 0f, 1f,
+                valueLabel = { "${(it * 100).roundToInt()}%" }
             ) { onChange(IconSettingsKeys.KEY_ICON_STACKED_WEIGHT, it) }
             // Outside the `if (enabled)` guard on purpose: the rule also drives the two-line
             // control-center carrier block's type glyph, which works without stacked signal.
@@ -814,7 +817,8 @@ private fun NotificationSection(
 @Composable
 private fun NotificationMaxIconsRow(maximum: Int, onValueChange: (Int) -> Unit) {
     val current = NotificationIconLimit.clamp(maximum)
-    var sliderValue by remember(current) { mutableFloatStateOf(current.toFloat()) }
+    val slider = rememberSliderEdit(current.toFloat())
+    val sliderValue = slider.value
     var expanded by remember { mutableStateOf(false) }
     ArrowPreference(
         title = stringResource(R.string.icon_notification_max_value),
@@ -833,8 +837,8 @@ private fun NotificationMaxIconsRow(maximum: Int, onValueChange: (Int) -> Unit) 
                     NotificationIconLimit.MIN.toFloat(),
                     NotificationIconLimit.MAX.toFloat()
                 ),
-                onValueChange = { sliderValue = it },
-                onValueChangeFinished = { onValueChange(sliderValue.roundToInt()) },
+                onValueChange = slider::update,
+                onValueChangeFinished = { slider.finish { it.roundToInt().toFloat() }?.let { onValueChange(it.toInt()) } },
                 valueRange = NotificationIconLimit.MIN.toFloat()..NotificationIconLimit.MAX.toFloat(),
                 steps = NotificationIconLimit.sliderSteps(),
                 showKeyPoints = true,
@@ -1110,12 +1114,14 @@ private fun SlotsSection(
 }
 
 @Composable
-private fun SliderRow(title: String, value: Float, rangeStart: Float, rangeEnd: Float, onValue: (Float) -> Unit) {
+private fun SliderRow(title: String, value: Float, rangeStart: Float, rangeEnd: Float, normalize: (Float) -> Float = { it }, valueLabel: ((Float) -> String)? = null, onValue: (Float) -> Unit) {
+    val slider = rememberSliderEdit(value)
     Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
-        Text(title)
+        Text(valueLabel?.let { "$title · ${it(slider.value)}" } ?: title)
         Slider(
-            value = value.coerceIn(rangeStart, rangeEnd),
-            onValueChange = onValue,
+            value = slider.value.coerceIn(rangeStart, rangeEnd),
+            onValueChange = slider::update,
+            onValueChangeFinished = { slider.finish(normalize)?.let(onValue) },
             valueRange = rangeStart..rangeEnd
         )
     }
@@ -1123,7 +1129,9 @@ private fun SliderRow(title: String, value: Float, rangeStart: Float, rangeEnd: 
 
 @Composable
 private fun IntSliderRow(title: String, value: Int, rangeStart: Int, rangeEnd: Int, onValue: (Int) -> Unit) {
-    SliderRow(title, value.toFloat(), rangeStart.toFloat(), rangeEnd.toFloat()) {
+    SliderRow(title, value.toFloat(), rangeStart.toFloat(), rangeEnd.toFloat(),
+        normalize = { it.roundToInt().coerceIn(rangeStart, rangeEnd).toFloat() },
+        valueLabel = { it.roundToInt().toString() }) {
         onValue(it.roundToInt().coerceIn(rangeStart, rangeEnd))
     }
 }
@@ -1176,7 +1184,7 @@ private fun DuoSignalSection(
                         IconSettingsKeys.KEY_ICON_DUO_PERCENT_SCALE to R.string.icon_duo_percent_scale
                     )
                     components.forEachIndexed { index, (key, title) ->
-                        IntSliderRow("${stringResource(title)} · ${componentPercents[index]}",
+                        IntSliderRow(stringResource(title),
                             componentPercents[index], 50, 150) {
                             onChange(key, it)
                         }
@@ -1199,7 +1207,8 @@ private fun DuoSignalSection(
  */
 @Composable
 private fun DuoSizeRow(sizeDp: Int, onChange: (Int) -> Unit) {
-    var sliderValue by remember(sizeDp) { mutableFloatStateOf(sizeDp.toFloat()) }
+    val slider = rememberSliderEdit(sizeDp.toFloat())
+    val sliderValue = slider.value
     var expanded by remember { mutableStateOf(false) }
     ArrowPreference(
         title = stringResource(R.string.icon_duo_size),
@@ -1218,11 +1227,9 @@ private fun DuoSizeRow(sizeDp: Int, onChange: (Int) -> Unit) {
                     DuoLayout.MIN_ICON_SIZE_DP.toFloat(),
                     DuoLayout.MAX_ICON_SIZE_DP.toFloat()
                 ),
-                onValueChange = { sliderValue = it },
+                onValueChange = slider::update,
                 onValueChangeFinished = {
-                    val snapped = DuoLayout.snapSizeDp(sliderValue)
-                    sliderValue = snapped.toFloat()
-                    onChange(snapped)
+                    slider.finish { DuoLayout.snapSizeDp(it).toFloat() }?.let { onChange(it.toInt()) }
                 },
                 valueRange = DuoLayout.MIN_ICON_SIZE_DP.toFloat()..DuoLayout.MAX_ICON_SIZE_DP.toFloat(),
                 showKeyPoints = true,

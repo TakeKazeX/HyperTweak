@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.ui.page.app
 
+import com.takekazex.hypertweak.ui.components.slider.rememberSliderEdit
+
 import com.takekazex.hypertweak.ui.components.dialog.ScaleDialog
 import com.takekazex.hypertweak.ui.effect.AppScaffold as Scaffold
 import com.takekazex.hypertweak.ui.effect.AppTopAppBar as TopAppBar
@@ -250,7 +252,8 @@ fun AppearancePage(
                     selectedIndex = appBlurMode.coerceIn(0, 2),
                     onSelectedIndexChange = onAppBlurModeChange,
                 )
-                var sliderValue by remember(pageScale) { mutableFloatStateOf(pageScale) }
+                val slider = rememberSliderEdit(pageScale)
+                val sliderValue = slider.value
                 var expanded by remember { mutableStateOf(false) }
                 ArrowPreference(
                     title = stringResource(R.string.appearance_interface_scale),
@@ -263,8 +266,8 @@ fun AppearancePage(
                     bottomAction = {
                         Slider(
                             value = sliderValue,
-                            onValueChange = { sliderValue = it },
-                            onValueChangeFinished = { onPageScaleChange(sliderValue) },
+                            onValueChange = slider::update,
+                            onValueChangeFinished = { slider.finish()?.let(onPageScaleChange) },
                             valueRange = 0.85f..1.15f,
                             showKeyPoints = true,
                             keyPoints = listOf(0.85f, 1f, 1.15f),

@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.ui.page.glass
 
+import com.takekazex.hypertweak.ui.components.slider.rememberSliderEdit
+
 import com.takekazex.hypertweak.ui.components.dialog.AppDialog
 import com.takekazex.hypertweak.ui.components.dialog.IntValueDialog
 import com.takekazex.hypertweak.ui.components.dialog.LocalRestartScopeHandled
@@ -837,7 +839,8 @@ private fun GlassSliderPreference(
     onValueChange: (Float) -> Unit,
     onValueChangeFinished: (Float) -> Unit
 ) {
-    var sliderValue by remember(value) { mutableFloatStateOf(value) }
+    val slider = rememberSliderEdit(value)
+    val sliderValue = slider.value
     var expanded by remember(title) { mutableStateOf(false) }
     var showValueDialog by remember(title) { mutableStateOf(false) }
     ArrowPreference(
@@ -875,10 +878,10 @@ private fun GlassSliderPreference(
             Slider(
                 value = sliderValue.coerceIn(rangeStart, rangeEnd),
                 onValueChange = { newValue ->
-                    sliderValue = newValue.coerceIn(rangeStart, rangeEnd)
-                    onValueChange(sliderValue)
+                    slider.update(newValue.coerceIn(rangeStart, rangeEnd))
+                    onValueChange(slider.value)
                 },
-                onValueChangeFinished = { onValueChangeFinished(sliderValue) },
+                onValueChangeFinished = { slider.finish()?.let(onValueChangeFinished) },
                 valueRange = rangeStart..rangeEnd,
                 showKeyPoints = true,
                 keyPoints = listOf(rangeStart, defaultValue, rangeEnd).distinct(),
@@ -897,9 +900,9 @@ private fun GlassSliderPreference(
         emptyValue = (sliderValue * 100).roundToInt(),
         onValueConfirmed = { percent ->
             val newValue = percent / 100f
-            sliderValue = newValue
+            slider.update(newValue)
             onValueChange(newValue)
-            onValueChangeFinished(newValue)
+            slider.finish()?.let(onValueChangeFinished)
             DebugLog.i("GlassTuner", "numeric editor applied: $title=$percent%")
         },
         onDismissRequest = {

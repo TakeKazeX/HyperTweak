@@ -149,10 +149,10 @@ class ControlCenterCornerHooker(
      * Host values the module replaced, so disabling can put them back. Weak keys: the plugin owns
      * the lifetime of every surface it creates.
      */
-    private val overriddenCorners = java.util.WeakHashMap<View, CornerOverride>()
+    private val overriddenCorners = generationMainResource(java.util.WeakHashMap<View, CornerOverride>()) { it.clear() }
 
     /** Each slider holder's own outline radius before the module replaced it. */
-    private val outlineBaselines = java.util.WeakHashMap<Any, Float>()
+    private val outlineBaselines = generationMainResource(java.util.WeakHashMap<Any, Float>()) { it.clear() }
 
     private typealias CornerOverride = com.takekazex.hypertweak.hook.rules.systemui.controlcenter.CornerOverrideRecord
 
@@ -207,18 +207,15 @@ class ControlCenterCornerHooker(
         val record = overriddenCorners.getOrPut(view) {
             CornerOverride(hostRadius(view), view.background, view.outlineProvider)
         }
-        onHostRebuild(view, record)
+        if (view.background !== record.appliedBackground) {
+            record.hostRadius = hostRadius(view)
+            record.background = view.background
+            record.outlineProvider = view.outlineProvider
+        }
         setDrawableCorner(view, radius)
+        record.appliedBackground = view.background
         applyBlurOutline(view, radius)
         view.invalidateOutline()
-    }
-
-    /**
-     * The host rebuilt this surface's background or outline. Drop the recorded copy (it describes
-     * a drawable the host replaced) and re-capture the host's current value.
-     */
-    private fun onHostRebuild(view: View, record: CornerOverride) {
-        if (record.background !== view.background) record.background = view.background
     }
 
     /**
@@ -228,7 +225,7 @@ class ControlCenterCornerHooker(
     private fun releaseRadius(view: View) {
         val record = overriddenCorners.remove(view) ?: return
         runCatching {
-            record.background?.let { view.background = it }
+            view.background = record.background
             record.outlineProvider?.let { view.outlineProvider = it }
             applyBlurOutline(view, record.hostRadius)
             view.invalidateOutline()
@@ -257,7 +254,8 @@ class ControlCenterCornerHooker(
         // using the same drawable (both brightness and volume use toggle_slider_background /
         // toggle_slider_progress_background; every device-center entry shares
         // external_entry_background). A per-instance copy keeps the override local.
-        val mutated = bg.mutate()
+        val mutated = bg.constantState?.newDrawable(view.resources)?.mutate() ?: return
+        view.background = mutated
         val gradient = mutated as? GradientDrawable
         if (gradient != null) {
             gradient.setCornerRadius(radius)
@@ -296,53 +294,97 @@ class ControlCenterCornerHooker(
         return dp * density
     }
 
+    private val sliderOwners = generationMainResource(java.util.WeakHashMap<Any, Boolean>()) { it.clear() }
+    private val setterBaselines = generationMainResource(java.util.WeakHashMap<Any, Float>()) { it.clear() }
+    private val deviceOwners = generationMainResource(java.util.WeakHashMap<View, Boolean>()) { it.clear() }
+    private var replaying = false
+
+    init {
+        hostRecovery(com.takekazex.hypertweak.hook.base.HostRecoveryPhase.PRESENTATION) { scope ->
+            HostAccess.onMain { discoverExisting(scope.views); applyExisting() }
+        }
+    }
+
     /**
      * Accepted-snapshot refresh. The corner hooks are installed for the plugin session's whole
      * life and read [cornerEnabled] plus the five dp values at render time, so a first enable or
      * a coefficient change no longer needs a new plugin session or a SystemUI restart.
      */
-    fun refreshSettings() {
-        val next = settingCcCornerEnabled
-        val changed = next != cornerEnabled
-        cornerEnabled = next
-        if (!changed) {
-            reapplyExisting()
-            return
+    fun refreshSettings() = HostAccess.onMain {
+        cornerEnabled = settingCcCornerEnabled
+        val views = mutableListOf<View>()
+        fun collect(view: View) {
+            views += view
+            if (view is android.view.ViewGroup) {
+                for (index in 0 until view.childCount) collect(view.getChildAt(index))
+            }
         }
-        if (!next) restoreExisting() else reapplyExisting()
-        Log.i("HyperTweak", "CC corner: applied enabled=" + next + " surfaces=" + overriddenCorners.size)
+        android.view.inspector.WindowInspector.getGlobalWindowViews().forEach(::collect)
+        discoverExisting(views)
+        applyExisting()
     }
 
-    /** Re-applies the committed radius to every surface the module already changed. */
-    private fun reapplyExisting() {
-        if (!cornerEnabled) return
-        overriddenCorners.keys.toList().filter { it.isAttachedToWindow }.forEach { view ->
-            runCatching { overrideRadius(view, liveRadius(radiusKeyFor(view))) }
+    /** Recover native holders even when upgrading from a generation with no feature state. */
+    private fun discoverExisting(views: List<View>) {
+        views.forEach { view ->
+            if (view.javaClass.classLoader === classLoader) {
+                when (view.javaClass.name) {
+                    TILE_CLASS, CARD_CLASS -> setterBaselines.putIfAbsent(view, nativeRadius(view, view))
+                }
+            }
+            // RecyclerView belongs to the plugin loader; holders are not Views.
+            val parent = view.parent as? View ?: return@forEach
+            val getter = HostAccess.publicMethod(parent.javaClass, "getChildViewHolder", View::class.java, accessible = false)
+                ?: return@forEach
+            val holder = runCatching { getter.invoke(parent, view) }.getOrNull() ?: return@forEach
+            if (holder.javaClass.classLoader !== classLoader) return@forEach
+            when (holder.javaClass.name) {
+                SLIDER_CLASS -> sliderOwners[holder] = true
+                MEDIA_CLASS + "\$MediaPlayerViewHolder" -> setterBaselines.putIfAbsent(holder, nativeRadius(holder, view))
+            }
         }
+        views.filter { it.javaClass.name == DEVICE_ENTRY_CLASS && it.javaClass.classLoader === classLoader }
+            .forEach { deviceOwners[it] = true }
     }
 
-    /** Restores every recorded host value; used when the feature is switched off. */
-    private fun restoreExisting() {
+    private fun nativeRadius(owner: Any, root: View): Float =
+        (HostAccess.publicMethod(owner.javaClass, "getCornerRadius", accessible = false)?.invoke(owner) as? Float)
+            ?: hostRadius(root)
+
+    private fun setterKey(owner: Any): String = when (owner.javaClass.name) {
+        TILE_CLASS -> SystemUiSettingsKeys.KEY_CC_CORNER_TILE
+        CARD_CLASS -> SystemUiSettingsKeys.KEY_CC_CORNER_CARD
+        else -> SystemUiSettingsKeys.KEY_CC_CORNER_MEDIA
+    }
+
+    private fun applyExisting() {
+        replaying = true
+        try {
+            deviceOwners.keys.toList().forEach { overrideRadius(it, liveRadius(SystemUiSettingsKeys.KEY_CC_CORNER_DEVICE)) }
+            sliderOwners.keys.toList().forEach { holder ->
+                runCatching { applyToggleSliderCorner(holder, holder.javaClass, liveRadius(SystemUiSettingsKeys.KEY_CC_CORNER_SLIDER)) }
+                    .onFailure { Log.e("HyperTweak", "CC corner: refresh slider", it) }
+            }
+            setterBaselines.entries.toList().forEach { (owner, baseline) ->
+                runCatching {
+                    val radius = liveRadius(setterKey(owner))
+                    getSetCornerRadius(owner.javaClass)?.invoke(owner, if (radius > 0f) radius else baseline)
+                    if (owner is View) {
+                        overrideRadius(owner, radius)
+                        if (owner.javaClass.name == TILE_CLASS) getTileIconView(owner, owner.javaClass)?.let { overrideRadius(it, radius) }
+                    } else if (radius <= 0f) {
+                        mediaRoot(owner)?.let(::releaseRadius)
+                    }
+                }.onFailure { Log.e("HyperTweak", "CC corner: refresh setter", it) }
+            }
+            if (!cornerEnabled) overriddenCorners.keys.toList().forEach(::releaseRadius)
+        } finally { replaying = false }
+    }
+
+    override fun onPrepareHotReload() = HostAccess.onMain {
+        cornerEnabled = false
+        applyExisting()
         overriddenCorners.keys.toList().forEach(::releaseRadius)
-    }
-
-    /** Tracks which preference owns an already-overridden surface, by its class family. */
-    private fun radiusKeyFor(view: View): String = when {
-        // The inner `icon` view of a tile is a plain ImageView; walk up to the tile holder.
-        ancestors(view).any { it.javaClass.name == TILE_CLASS } -> SystemUiSettingsKeys.KEY_CC_CORNER_TILE
-        ancestors(view).any { it.javaClass.name == CARD_CLASS } -> SystemUiSettingsKeys.KEY_CC_CORNER_CARD
-        ancestors(view).any { it.javaClass.name == DEVICE_ENTRY_CLASS } -> SystemUiSettingsKeys.KEY_CC_CORNER_DEVICE
-        else -> SystemUiSettingsKeys.KEY_CC_CORNER_SLIDER
-    }
-
-    /** The view itself and up to a handful of its ancestors, for a class-family lookup. */
-    private fun ancestors(view: View): List<View> = buildList {
-        var node: View? = view
-        repeat(6) {
-            val current = node ?: return@repeat
-            add(current)
-            node = current.parent as? View
-        }
     }
 
     override fun onHook() {
@@ -424,6 +466,7 @@ class ControlCenterCornerHooker(
     }
 
     private fun applyToggleSliderCorner(holder: Any, clz: Class<*>, radius: Float) {
+        sliderOwners[holder] = true
         val binding = runCatching { HostAccess.requirePublicMethod(clz, "getBinding", accessible = false).invoke(holder) }.getOrNull() ?: return
         // This override is the slider TRACK radius only. The vendor gives the track and the white
         // progress fill deliberately different stock radii and derives the fill's rounding from both:
@@ -452,6 +495,10 @@ class ControlCenterCornerHooker(
             }
             return
         }
+        if (!outlineBaselines.containsKey(holder)) {
+            val baseline = HostAccess.publicMethod(clz, "getOutlineRadius", accessible = false)?.invoke(holder) as? Float
+            outlineBaselines[holder] = baseline ?: bindingView(binding, "progressBg")?.let(::hostRadius) ?: 0f
+        }
         for (fieldName in listOf("progressBg", "bionicsProgressBg")) {
             val view = runCatching { HostAccess.requirePublicField(binding.javaClass, fieldName, accessible = false).get(binding) as? View }.getOrNull()
                 ?: runCatching { HostAccess.requirePublicMethod(binding.javaClass, "get$fieldName", accessible = false).invoke(binding) as? View }.getOrNull()
@@ -464,12 +511,6 @@ class ControlCenterCornerHooker(
         // to the user radius is exactly what rounded the white progress.
         val outlineSetter = getSetOutlineRadius(clz)
         if (outlineSetter != null) {
-            if (!outlineBaselines.containsKey(holder)) {
-                // The host's own outline radius before the module replaced it: the track drawable
-                // the vendor just rebuilt is the value the host would have used.
-                val trackView = bindingView(binding, "progressBg")
-                outlineBaselines[holder] = trackView?.let(::hostRadius) ?: 0f
-            }
             runCatching { outlineSetter.invoke(holder, radius) }
         }
         val inner = runCatching { HostAccess.requirePublicField(binding.javaClass, "toggleSliderInner", accessible = false).get(binding) as? View }.getOrNull()
@@ -490,6 +531,7 @@ class ControlCenterCornerHooker(
         val setCorner = getSetCornerRadius(clz) ?: return
         setCorner.hook {
             intercept { chain ->
+                if (!replaying) (chain.args.firstOrNull() as? Float)?.let { setterBaselines[chain.thisObject] = it }
                 val radius = liveRadius(radiusKey)
                 if (radius <= 0f) return@intercept chain.proceed()
                 (chain.thisObject as? View)?.let { view -> overrideRadius(view, radius) }
@@ -552,6 +594,7 @@ class ControlCenterCornerHooker(
         val setCorner = getSetCornerRadius(clz) ?: return
         setCorner.hook {
             intercept { chain ->
+                if (!replaying) (chain.args.firstOrNull() as? Float)?.let { setterBaselines[chain.thisObject] = it }
                 val radius = liveRadius(radiusKey)
                 if (radius <= 0f) return@intercept chain.proceed()
                 (chain.thisObject as? View)?.let { view -> overrideRadius(view, radius) }
@@ -592,6 +635,7 @@ class ControlCenterCornerHooker(
         // inflation and re-applied by the ViewHolder's onConfigurationChanged, so both points
         // re-run the same corner application (GradientDrawable corners + blur round-rect).
         val entryApplier: (View) -> Unit = { view ->
+            deviceOwners[view] = true
             val radius = liveRadius(radiusKey)
             runCatching {
                 if (radius <= 0f) releaseRadius(view) else overrideRadius(view, radius)
@@ -626,6 +670,11 @@ class ControlCenterCornerHooker(
 
     // ─── 4. MediaPlayerController ─────────────────────────────────────────────────────────
 
+    private fun mediaRoot(holder: Any): View? = runCatching {
+        val binding = HostAccess.readDeclared(holder, "binding") ?: return@runCatching null
+        HostAccess.publicMethod(binding.javaClass, "getRoot", accessible = false)?.invoke(binding) as? View
+    }.getOrNull()
+
     private fun hookMediaPlayer(radiusKey: String) {
         // Read at draw time: a committed radius applies to the living plugin session.
         val clz = resolveClass("miui.systemui.controlcenter.panel.main.media.MediaPlayerController") ?: return
@@ -641,9 +690,10 @@ class ControlCenterCornerHooker(
         }.getOrNull() ?: return
         setCornerMethod.hook {
             intercept { chain ->
+                if (!replaying) (chain.args.firstOrNull() as? Float)?.let { setterBaselines[chain.thisObject] = it }
                 val radius = liveRadius(radiusKey)
                 if (radius <= 0f) return@intercept chain.proceed()
-                (chain.thisObject as? View)?.let { view -> overrideRadius(view, radius) }
+                mediaRoot(chain.thisObject)?.let { view -> overrideRadius(view, radius) }
                 chain.proceed(chain.args.toTypedArray().also { args ->
                     if (args.isNotEmpty() && args[0] is Float) args[0] = radius
                 })
@@ -655,11 +705,14 @@ class ControlCenterCornerHooker(
         val updateRadius = findDeclaredMethod(holderClz, "updateRadius", 0)
         updateRadius?.let { method ->
             method.hook {
+                before { param ->
+                    runCatching { mediaRoot(param.thisObject)?.let(::releaseRadius) }
+                        .onFailure { Log.e("HyperTweak", "CC corner: media native radius", it) }
+                }
                 after { param ->
                     val radius = liveRadius(radiusKey)
                     runCatching {
-                        if (radius <= 0f) (param.thisObject as? View)?.let(::releaseRadius)
-                        else setCornerMethod.invoke(param.thisObject, radius)
+                        if (radius <= 0f) mediaRoot(param.thisObject)?.let(::releaseRadius)
                     }.onFailure { t -> Log.e("HyperTweak", "CC corner: media updateRadius", t) }
                 }
             }

@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.ui.page.systemui.notification
 
+import com.takekazex.hypertweak.ui.components.slider.rememberSliderEdit
+
 import com.takekazex.hypertweak.ui.components.dialog.LocalRestartScopeHandled
 import com.takekazex.hypertweak.ui.components.dialog.LocalRestartScopeRequest
 import com.takekazex.hypertweak.ui.components.dialog.restartInProgress
@@ -109,6 +111,7 @@ fun NotificationHeaderPage(onBack: () -> Unit) {
             )
         )
     }
+    val timeScaleSlider = rememberSliderEdit(timeScale)
     var weatherEnabled by remember {
         mutableStateOf(
             settingsStore.getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_WEATHER_ENABLED, false)
@@ -274,20 +277,19 @@ fun NotificationHeaderPage(onBack: () -> Unit) {
                         Text(
                             stringResource(
                                 R.string.notification_header_time_scale,
-                                (timeScale * 100f).roundToInt()
+                                (timeScaleSlider.value * 100f).roundToInt()
                             )
                         )
                         Slider(
-                            value = timeScale,
-                            onValueChange = { value ->
-                                timeScale = (value * 20f).roundToInt() / 20f
-                                settingsStore.putFloat(
-                                    SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_TIME_SCALE,
-                                    timeScale
-                                )
-                                markRestartPending()
+                            value = timeScaleSlider.value,
+                            onValueChange = { timeScaleSlider.update((it * 20f).roundToInt() / 20f) },
+                            onValueChangeFinished = {
+                                timeScaleSlider.finish()?.let { value ->
+                                    timeScale = value
+                                    settingsStore.putFloat(SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_TIME_SCALE, value)
+                                    markRestartPending()
+                                }
                             },
-                            onValueChangeFinished = { },
                             valueRange = NotificationHeaderModel.MIN_TIME_SCALE..
                                 NotificationHeaderModel.MAX_TIME_SCALE,
                             hapticEffect = SliderDefaults.SliderHapticEffect.Step

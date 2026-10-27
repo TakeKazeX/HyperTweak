@@ -17,7 +17,8 @@ internal object CornerOverridePolicy {
 
 /** One surface the module rounded, with the host's own radius and drawable/outline. */
 internal class CornerOverrideRecord(
-    val hostRadius: Float,
+    var hostRadius: Float,
     var background: android.graphics.drawable.Drawable?,
-    val outlineProvider: android.view.ViewOutlineProvider? = null
+    var outlineProvider: android.view.ViewOutlineProvider? = null,
+    var appliedBackground: android.graphics.drawable.Drawable? = background
 )

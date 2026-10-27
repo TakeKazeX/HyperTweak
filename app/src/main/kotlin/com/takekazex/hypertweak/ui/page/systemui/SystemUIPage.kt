@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.ui.page.systemui
 
+import com.takekazex.hypertweak.ui.components.slider.rememberSliderEdit
+
 import com.takekazex.hypertweak.ui.components.dialog.IntValueDialog
 import com.takekazex.hypertweak.ui.components.dialog.LocalRestartScopeHandled
 import com.takekazex.hypertweak.ui.components.dialog.LocalRestartScopeRequest
@@ -152,9 +154,8 @@ fun SystemUIPage(
         )
     }
     var volumeKeySliderExpanded by remember { mutableStateOf(false) }
-    var volumeKeySliderValue by remember(volumeKeyStepCount) {
-        mutableFloatStateOf(volumeKeyStepCount.toFloat())
-    }
+    val volumeKeySlider = rememberSliderEdit(volumeKeyStepCount.toFloat())
+    val volumeKeySliderValue = volumeKeySlider.value
     val displayedVolumeKeyStepCount = volumeKeySliderValue.roundToInt().coerceIn(
         VolumeKeyStepPolicy.MIN_STEPS,
         VolumeKeyStepPolicy.MAX_STEPS
@@ -181,6 +182,8 @@ fun SystemUIPage(
             SystemUiSettingsKeys.KEY_CC_TILE_MESSAGE_DURATION_MS, TileStateMessageDuration.DEFAULT_MS
         )) / 1000f)
     }
+
+    val tileMessageSlider = rememberSliderEdit(tileMessageSeconds)
 
     fun setTileMessageSeconds(value: Float) {
         val milliseconds = TileStateMessageDuration.normalize((value * 1000).roundToInt())
@@ -272,9 +275,9 @@ fun SystemUIPage(
                                     VolumeKeyStepPolicy.MIN_STEPS.toFloat(),
                                     VolumeKeyStepPolicy.MAX_STEPS.toFloat()
                                 ),
-                                onValueChange = { volumeKeySliderValue = it },
+                                onValueChange = volumeKeySlider::update,
                                 onValueChangeFinished = {
-                                    setVolumeKeyStepCount(volumeKeySliderValue.roundToInt())
+                                    volumeKeySlider.finish { it.roundToInt().toFloat() }?.let { setVolumeKeyStepCount(it.toInt()) }
                                 },
                                 valueRange = VolumeKeyStepPolicy.MIN_STEPS.toFloat()..
                                     VolumeKeyStepPolicy.MAX_STEPS.toFloat(),
@@ -453,16 +456,16 @@ fun SystemUIPage(
                         holdDownState = tileMessageDialog,
                         endActions = {
                             Text(stringResource(R.string.cc_tile_message_duration_value,
-                                java.text.DecimalFormat("0.0").format(tileMessageSeconds)),
+                                java.text.DecimalFormat("0.0").format(tileMessageSlider.value)),
                                 color = MiuixTheme.colorScheme.onSurfaceVariantActions)
                         },
                         bottomAction = {
                             Slider(
-                                value = tileMessageSeconds,
+                                value = tileMessageSlider.value,
                                 onValueChange = {
-                                    tileMessageSeconds = TileStateMessageDuration.normalize((it * 1000).roundToInt()) / 1000f
+                                    tileMessageSlider.update(TileStateMessageDuration.normalize((it * 1000).roundToInt()) / 1000f)
                                 },
-                                onValueChangeFinished = { setTileMessageSeconds(tileMessageSeconds) },
+                                onValueChangeFinished = { tileMessageSlider.finish()?.let(::setTileMessageSeconds) },
                                 valueRange = 0f..5f,
                                 steps = 49,
                                 showKeyPoints = true,

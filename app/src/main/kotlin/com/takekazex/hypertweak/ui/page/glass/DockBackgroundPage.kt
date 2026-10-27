@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.ui.page.glass
 
+import com.takekazex.hypertweak.ui.components.slider.rememberSliderEdit
+
 import com.takekazex.hypertweak.ui.components.dialog.IntValueDialog
 import com.takekazex.hypertweak.ui.effect.AppScaffold as Scaffold
 import com.takekazex.hypertweak.ui.effect.AppTopAppBar as TopAppBar
@@ -166,13 +168,15 @@ fun DockBackgroundPage(onBack: () -> Unit) {
 
 @Composable
 internal fun DockSlider(title: String, value: Int, range: IntRange, defaultValue: Int, unit: String, onChange: (Int) -> Unit, summary: String = "") {
+    val slider = rememberSliderEdit(value.toFloat())
     var showEditor by remember(title) { mutableStateOf(false) }
     ArrowPreference(
         title = title, summary = summary,
-        endActions = { Text("$value $unit", color = MiuixTheme.colorScheme.onSurfaceVariantActions) },
+        endActions = { Text("${slider.value.roundToInt()} $unit", color = MiuixTheme.colorScheme.onSurfaceVariantActions) },
         onClick = { showEditor = true },
         bottomAction = {
-            Slider(value = value.toFloat(), onValueChange = { onChange(it.roundToInt()) },
+            Slider(value = slider.value, onValueChange = slider::update,
+                onValueChangeFinished = { slider.finish { it.roundToInt().toFloat() }?.let { onChange(it.toInt()) } },
                 valueRange = range.first.toFloat()..range.last.toFloat(),
                 showKeyPoints = true, keyPoints = listOf(defaultValue.toFloat()))
         }

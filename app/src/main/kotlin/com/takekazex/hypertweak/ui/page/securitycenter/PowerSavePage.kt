@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.ui.page.securitycenter
 
+import com.takekazex.hypertweak.ui.components.slider.rememberSliderEdit
+
 import com.takekazex.hypertweak.ui.components.dialog.IntValueDialog
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
@@ -214,9 +216,10 @@ private fun ThresholdRow(
     onValueChange: (Float) -> Unit,
     onValueSettled: () -> Unit,
 ) {
+    val slider = rememberSliderEdit(value)
     val range = PlatformSettingsKeys.MIN_BATTERY_AUTO_POWER_SAVE_THRESHOLD..
         PlatformSettingsKeys.MAX_BATTERY_AUTO_POWER_SAVE_THRESHOLD
-    val current = { value.roundToInt().coerceIn(range.first, range.last) }
+    val current = { slider.value.roundToInt().coerceIn(range.first, range.last) }
     ArrowPreference(
         title = stringResource(R.string.power_save_auto_threshold_title),
         summary = stringResource(R.string.power_save_auto_threshold_summary),
@@ -230,9 +233,14 @@ private fun ThresholdRow(
         holdDownState = expanded,
         bottomAction = {
             Slider(
-                value = value.coerceIn(range.first.toFloat(), range.last.toFloat()),
-                onValueChange = onValueChange,
-                onValueChangeFinished = onValueSettled,
+                value = slider.value.coerceIn(range.first.toFloat(), range.last.toFloat()),
+                onValueChange = slider::update,
+                onValueChangeFinished = {
+                    slider.finish { it.roundToInt().toFloat() }?.let {
+                        onValueChange(it)
+                        onValueSettled()
+                    }
+                },
                 valueRange = range.first.toFloat()..range.last.toFloat(),
                 steps = range.last - range.first - 1,
                 hapticEffect = SliderDefaults.SliderHapticEffect.Step,
