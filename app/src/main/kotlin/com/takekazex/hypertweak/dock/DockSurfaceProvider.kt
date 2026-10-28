@@ -1,6 +1,7 @@
 package com.takekazex.hypertweak.dock
 
 import com.takekazex.hypertweak.settings.contract.DockConfig
+import com.takekazex.hypertweak.settings.contract.DockGeometry
 
 import android.content.ContentProvider
 import android.content.ContentValues
@@ -27,7 +28,7 @@ import androidx.core.net.toUri
 /** Only system_server may create a host. IPC always enters our main Looper, never WMS's lock. */
 class DockSurfaceProvider : ContentProvider() {
     private val main = Handler(Looper.getMainLooper())
-    private data class Entry(val host: SurfaceControlViewHost, val view: DockMaterialView, val width: Int, val height: Int,
+    private data class Entry(val host: SurfaceControlViewHost, val view: DockMaterialView, val viewportWidth: Int, val viewportHeight: Int,
         val owner: IBinder, val death: IBinder.DeathRecipient, val lease: Long,
         var parcel: SurfaceControlViewHost.SurfacePackage? = null, var active: Boolean = false)
     private val entries = mutableMapOf<String, Entry>() // Main thread only.
@@ -92,9 +93,13 @@ class DockSurfaceProvider : ContentProvider() {
         if (method == "update") {
             val entry = entries[id] ?: return Bundle().apply { putString("error", "Renderer retired") }
             val config = DockConfig.decode(args.getString("config") ?: "") ?: error("Invalid Dock configuration")
-            val radius = args.getFloat("radius")
-            require(radius.isFinite() && radius in 0f..minOf(entry.width, entry.height) / 2f)
-            entry.view.apply(config, args.getBoolean("dark"), radius, crossWindow = entry.active)
+            val bounds = requireNotNull(DockGeometry.resolve(entry.viewportWidth, entry.viewportHeight,
+                entry.view.resources.displayMetrics.density, config)) { "Invalid Dock geometry" }
+            entry.view.layoutParams = FrameLayout.LayoutParams(bounds.width, bounds.height).apply {
+                leftMargin = bounds.x
+                topMargin = bounds.y
+            }
+            entry.view.apply(config, args.getBoolean("dark"), bounds.radius, crossWindow = entry.active)
             return Bundle().apply { putBoolean("updated", true) }
         }
         if (method == "probe") {
@@ -147,7 +152,7 @@ class DockSurfaceProvider : ContentProvider() {
         }
         val host = SurfaceControlViewHost(displayContext, display, Binder())
         val death = IBinder.DeathRecipient { main.post { release(id) } }
-        val entry = Entry(host, view, width, height, owner, death, lease)
+        val entry = Entry(host, view, viewportWidth, viewportHeight, owner, death, lease)
         entries[id] = entry
         view.onMaterialState = { ready -> if (!ready && entries[id] === entry) {
             release(id)

@@ -126,11 +126,11 @@ object DockBackgroundHooker : StaticHooker() {
         offerChannel()
     }
     private data class Entry(val id: String, val parent: Any, val effect: Any, val key: String,
-        var materialKey: com.takekazex.hypertweak.settings.contract.DockMaterialKey,
+        var renderKey: Pair<com.takekazex.hypertweak.settings.contract.DockMaterialKey, com.takekazex.hypertweak.settings.contract.DockBounds>,
         var materialRevision: Long = 0,
         val owner: IBinder = Binder(), var parcel: SurfaceControlViewHost.SurfacePackage? = null,
         var renderer: IBinder? = null, var death: IBinder.DeathRecipient? = null,
-        var captureStarted: Boolean = false, var ready: Boolean = false, var probePending: Boolean = false, var attempts: Int = 0,
+        var captureStarted: Boolean = false, var ready: Boolean = false, var needsProbe: Boolean = true, var probePending: Boolean = false, var attempts: Int = 0,
         var probeAllowed: Boolean = false, var applied: String? = null,
         var bounds: com.takekazex.hypertweak.settings.contract.DockBounds? = null, var frame: Rect = Rect(), var density: Float = 1f,
         var surfaceVisible: Boolean = false, val lease: Long = 0L)
@@ -283,8 +283,8 @@ object DockBackgroundHooker : StaticHooker() {
             DockReflection.call(windowConfig, "getRotation") as? Int
         }.getOrNull()?.takeIf { it in 0..3 } ?: return
         // A foreground application's display rotation is not a desktop host change.
-        val key = "${frame.width()}x${frame.height()}/$bounds/${configuration.densityDpi}/$windowRotation"
-        val materialKey = config.materialKey(dark)
+        val key = "${frame.width()}x${frame.height()}/${configuration.densityDpi}/$windowRotation"
+        val renderKey = config.materialKey(dark) to bounds
         var entry = entries[window]
         if (entry != null && (entry.key != key || entry.parent !== parent || DockReflection.call(entry.effect, "isValid") != true)) {
             retire(window); entry = null
@@ -296,7 +296,7 @@ object DockBackgroundHooker : StaticHooker() {
             DockReflection.call(builder, "setContainerLayer")
             DockReflection.call(builder, "setParent", parent)
             val effect = requireNotNull(DockReflection.call(builder, "build"))
-            entry = Entry(UUID.randomUUID().toString(), parent, effect, key, materialKey, lease = providerLease)
+            entry = Entry(UUID.randomUUID().toString(), parent, effect, key, renderKey, lease = providerLease)
             entries[window] = entry
             val args = Bundle().apply {
                 putLong("lease", entry.lease); putString("config", config.encode()); putInt("width", bounds.width); putInt("height", bounds.height)
@@ -308,8 +308,8 @@ object DockBackgroundHooker : StaticHooker() {
             }
             create(window, entry, args)
         }
-        if (entry.parcel != null && entry.materialKey != materialKey) {
-            entry.materialKey = materialKey
+        if (entry.parcel != null && entry.renderKey != renderKey) {
+            entry.renderKey = renderKey
             val targetEntry = entry
             val materialRevision = ++targetEntry.materialRevision
             val args = Bundle().apply { putLong("lease", targetEntry.lease); putString("config", config.encode()); putBoolean("dark", dark); putFloat("radius", bounds.radius) }
@@ -322,10 +322,17 @@ object DockBackgroundHooker : StaticHooker() {
                 resultHandler?.post { synchronized(wmLock) {
                     reference.get()?.takeIf { !stopped && generation == epoch.get() && entries[it] === targetEntry && targetEntry.materialRevision == materialRevision }?.let {
                         if (result?.getBoolean("updated") != true) fail(it, targetEntry)
-                        else DebugLog.i(TAG, "material applied $materialKey")
+                        else DebugLog.i(TAG, "material applied $renderKey")
                     }
                 } }
             }
+        }
+        // A previously committed texture is not proof of readiness after the
+        // producer was hidden, screen-off or locked. Revalidate on the next resume,
+        // retaining the last committed material while the producer recovers.
+        if (!entry.probeAllowed && presentation.probeTexture) {
+            entry.needsProbe = true
+            entry.attempts = 0
         }
         entry.probeAllowed = presentation.probeTexture
         if (!entry.probeAllowed) entry.attempts = 0
@@ -441,7 +448,7 @@ object DockBackgroundHooker : StaticHooker() {
     }
 
     private fun probe(window: WeakReference<Any>, entry: Entry, generation: Long) {
-        if (!entry.captureStarted || entry.probePending || entry.ready || stopped || !entry.probeAllowed) return
+        if (!entry.captureStarted || entry.probePending || !entry.needsProbe || stopped || !entry.probeAllowed) return
         entry.probePending = true
         val ipcContext = context
         val resultHandler = handler
@@ -451,8 +458,13 @@ object DockBackgroundHooker : StaticHooker() {
                 val target = window.get() ?: return@synchronized
                 if (stopped || epoch.get() != generation || entries[target] !== entry) return@synchronized
                 entry.probePending = false
-                entry.ready = result?.getBoolean("committed") == true && result.getLong("texture") > 0
-                if (entry.ready) { update(target); requestTraversal() }
+                val sampled = result?.getBoolean("committed") == true && result.getLong("texture") > 0
+                if (sampled) {
+                    entry.needsProbe = false
+                    entry.ready = true
+                    update(target)
+                    requestTraversal()
+                }
                 else if (!entry.probeAllowed) entry.attempts = 0 // Resume from WMS, without polling a hidden producer.
                 else if (++entry.attempts < 100) {
                     entry.probePending = true

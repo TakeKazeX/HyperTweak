@@ -5,7 +5,6 @@ import com.takekazex.hypertweak.settings.contract.DockConfig
 import android.content.Context
 import android.graphics.Color
 import android.graphics.Point
-import android.graphics.SurfaceTexture
 import android.graphics.drawable.GradientDrawable
 import android.view.View
 import android.view.ViewOutlineProvider
@@ -15,8 +14,8 @@ import android.widget.FrameLayout
 internal class DockMaterialView(context: Context) : FrameLayout(context) {
     private val tokens by lazy { Tokens.load(context) }
     private var configured = false
-    private var capture = false
-    private data class Spec(val config: DockConfig, val dark: Boolean, val radius: Float, val scale: Float, val crossWindow: Boolean)
+    private val captureSession = DockCaptureSession(this) { if (configured) awaitFrame() }
+    private data class Spec(val config: DockConfig, val dark: Boolean, val radius: Float, val scale: Float)
     private var pending: Spec? = null
     private var applied: Pair<Spec, Pair<Int, Int>>? = null
     private var frameEpoch = 0L
@@ -30,7 +29,7 @@ internal class DockMaterialView(context: Context) : FrameLayout(context) {
         isClickable = false
         addOnLayoutChangeListener { _, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom ->
             if (right - left != oldRight - oldLeft || bottom - top != oldBottom - oldTop) pending?.let { spec ->
-                runCatching { apply(spec.config, spec.dark, spec.radius, spec.scale, spec.crossWindow) }
+                runCatching { apply(spec.config, spec.dark, spec.radius, spec.scale) }
                     .onFailure {
                         com.takekazex.hypertweak.util.logging.DebugLog.w("DockMaterial", "measured material configuration failed", it)
                         post { onMaterialState(false) }
@@ -41,9 +40,11 @@ internal class DockMaterialView(context: Context) : FrameLayout(context) {
 
     fun apply(config: DockConfig, dark: Boolean, radius: Float, scale: Float = 1f, crossWindow: Boolean = false) {
         val style = config.style
-        val spec = Spec(config, dark, radius, scale, crossWindow)
+        val spec = Spec(config, dark, radius, scale)
+        if (crossWindow) captureSession.request()
         pending = spec
         if (width < 1 || height < 1) return // Material/SDF configuration follows the real measured size.
+        captureSession.reconcile()
         if (applied == (spec to (width to height))) return
         check(isAttachedToWindow && isHardwareAccelerated) { "Native material requires an attached hardware ViewRoot" }
         DockReflection.allowOwnViewApis()
@@ -57,19 +58,26 @@ internal class DockMaterialView(context: Context) : FrameLayout(context) {
         clipToOutline = true
         // One RenderNode owns both texture sampling and its material, as in
         // HyperMaterialUtils.applyContainerWithGlass. No parent Gaussian pass or child sampler.
-        if (style == DockConfig.GLASS || configured) DockReflection.call(this, "setMiGlass", FloatArray(42))
-        DockReflection.call(this, "setMiViewMaterialType", 0)
-        DockReflection.call(this, "setMiBackgroundBlendColors", arrayListOf<Point>())
-        DockReflection.call(this, "setMiBackgroundBlurMode", 1)
-        DockReflection.call(this, "setMiViewBlurMode", 1)
+        val styleChanged = !configured || applied?.first?.config?.style != style
+        if (!configured) {
+            DockReflection.call(this, "setMiBackgroundBlurMode", 1)
+            DockReflection.call(this, "setMiViewBlurMode", 1)
+        }
         if (style == DockConfig.GLASS) {
-            DockReflection.call(this, "setMiBackgroundBlurRadius", 0)
-            DockReflection.call(this, "setMiViewMaterialType", 1)
+            if (styleChanged) {
+                DockReflection.call(this, "setMiBackgroundBlurRadius", 0)
+                DockReflection.call(this, "setMiBackgroundBlendColors", arrayListOf<Point>())
+                DockReflection.call(this, "setMiViewMaterialType", 1)
+            }
             DockReflection.call(this, "setMiGlassBlurRadius", blur, blur)
             DockReflection.call(this, "setMiGlass", config.glassShader(token.shader, scale))
             DockReflection.call(this, "setMiGlassSdfMaxSize", width.toFloat(), height.toFloat())
         } else {
-            if (configured) DockReflection.call(this, "setMiGlassBlurRadius", 0, 0)
+            if (styleChanged) {
+                if (configured) DockReflection.call(this, "setMiGlass", FloatArray(42))
+                DockReflection.call(this, "setMiGlassBlurRadius", 0, 0)
+                DockReflection.call(this, "setMiViewMaterialType", 0)
+            }
             DockReflection.call(this, "setMiBackgroundBlurRadius", blur)
             val nativeBlend = if (dark) token.darkBlend else token.lightBlend
             val blend = ArrayList(nativeBlend().map { point ->
@@ -78,68 +86,30 @@ internal class DockMaterialView(context: Context) : FrameLayout(context) {
             })
             DockReflection.call(this, "setMiBackgroundBlendColors", blend)
         }
-        if (crossWindow) enableCapture()
         configured = true
         applied = spec to (width to height)
-        frameCommitted = false
-        val generation = ++frameEpoch
-        viewTreeObserver.registerFrameCommitCallback { post { if (generation == frameEpoch && configured) frameCommitted = true } }
+        awaitFrame()
         onMaterialState(true)
-        invalidate()
-    }
-
-    private var ownCaptureBridge = false
-
-    private fun enableCapture() {
-        if (capture) return
-        if (DockReflection.call(this, "setPassWindowBlurEnabled", true) != true &&
-            !DockReflection.field(this, "mNeedPassWindowBlur").getBoolean(this)) {
-            // OS4 stable moved admission into ViewRootImplStub. Its global policy is not
-            // ours to change. Execute the same native View operations on OUR renderer only.
-            check(context.packageName == "com.takekazex.hypertweak")
-            val root = requireNotNull(DockReflection.call(this, "getViewRootImpl"))
-            val node = requireNotNull(DockReflection.field(this, "mRenderNode").get(this))
-            val enabled = DockReflection.field(this, "mNeedPassWindowBlur")
-            try {
-                DockReflection.call(root, "addTextureView", this)
-                DockReflection.call(node, "setPassWindowBlurEnabled", true)
-                enabled.setBoolean(this, true)
-                ownCaptureBridge = true
-            } catch (error: Throwable) {
-                runCatching { DockReflection.call(root, "clearTextureView", this) }.exceptionOrNull()?.let(error::addSuppressed)
-                runCatching { DockReflection.call(node, "setPassWindowBlurEnabled", false) }.exceptionOrNull()?.let(error::addSuppressed)
-                enabled.setBoolean(this, false)
-                throw error
-            }
-        }
-        capture = true
     }
 
     fun startCapture() {
-        pending?.let { apply(it.config, it.dark, it.radius, it.scale, crossWindow = true) }
+        captureSession.request()
+        pending?.let { apply(it.config, it.dark, it.radius, it.scale) }
     }
 
-    fun textureTimestamp(): Long = if (!configured || !capture) 0 else runCatching {
-        val root = requireNotNull(DockReflection.call(this, "getViewRootImpl"))
-        val texture = DockReflection.field(root, "mSurTex").get(root) as? SurfaceTexture
-        if (texture == null || texture.isReleased || DockReflection.field(root, "mLastSfState").getInt(root) != 1 ||
-            !DockReflection.field(root, "mTextureVis").getBoolean(root)) return@runCatching 0L
-        texture.timestamp
-    }.getOrDefault(0L)
+    private fun awaitFrame() {
+        frameCommitted = false
+        val generation = ++frameEpoch
+        viewTreeObserver.registerFrameCommitCallback {
+            post { if (generation == frameEpoch && configured) frameCommitted = true }
+        }
+        invalidate()
+    }
+
+    fun textureTimestamp(): Long = if (!configured) 0 else captureSession.textureTimestamp()
 
     fun stop() {
-        if (capture) runCatching {
-            if (ownCaptureBridge) {
-                val root = requireNotNull(DockReflection.call(this, "getViewRootImpl"))
-                val node = requireNotNull(DockReflection.field(this, "mRenderNode").get(this))
-                try { DockReflection.call(root, "clearTextureView", this) } finally {
-                    DockReflection.call(node, "setPassWindowBlurEnabled", false)
-                    DockReflection.field(this, "mNeedPassWindowBlur").setBoolean(this, false)
-                }
-            } else DockReflection.call(this, "setPassWindowBlurEnabled", false)
-        }.onFailure { com.takekazex.hypertweak.util.logging.DebugLog.w("DockMaterial", "native capture cleanup failed", it) }
-        ownCaptureBridge = false
-        capture = false
+        captureSession.close()
         configured = false
         pending = null
         applied = null

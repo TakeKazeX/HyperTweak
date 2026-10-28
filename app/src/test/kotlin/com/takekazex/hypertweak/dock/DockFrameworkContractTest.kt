@@ -45,6 +45,22 @@ class DockFrameworkContractTest {
         })
     }
 
+    @Test fun `surface replacement can discard sampling while View still requests blur`() {
+        val root = classes().getValue("Landroid/view/ViewRootImpl;")
+        val has = root.methods.single { it.name == "hasTextureView" }
+        assertEquals(listOf("Landroid/view/View;"), has.parameterTypes.map { it.toString() })
+        assertEquals("Z", has.returnType)
+        val clear = root.methods.single { it.name == "clearPassBlurTextureStateIfNeed" }.references()
+        assertTrue(clear.filterIsInstance<MethodReference>().any {
+            it.definingClass == "Ljava/util/HashMap;" && it.name == "clear"
+        })
+        assertFalse(clear.filterIsInstance<FieldReference>().any {
+            it.definingClass == "Landroid/view/View;" && it.name == "mNeedPassWindowBlur"
+        })
+        assertTrue(root.methods.single { it.name == "updateSurfaceControl" }.references()
+            .filterIsInstance<MethodReference>().any { it.name == "clearPassBlurTextureStateIfNeed" })
+    }
+
     @Test fun `IME root comes from service owned layout rather than a numeric resource ID`() {
         val service = classes().getValue("Landroid/inputmethodservice/InputMethodService;")
         assertEquals("Landroid/view/View;", service.fields.single { it.name == "mRootView" }.type)
