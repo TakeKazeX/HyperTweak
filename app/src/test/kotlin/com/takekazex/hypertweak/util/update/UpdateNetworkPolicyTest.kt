@@ -68,7 +68,7 @@ class UpdateNetworkPolicyTest {
         assertTrue(UpdateNetworkPolicy.isAllowedGithubAssetUrl(good, asset))
 
         // The name inside the URL has to be the asset the metadata named: this is what stops a
-        // rewritten build-info.json from pointing the download at some other file.
+        // rewritten release metadata from pointing the download at some other file.
         assertFalse(UpdateNetworkPolicy.isAllowedGithubAssetUrl(good, "Other.apk"))
         // Path traversal in the asset name would escape the release directory.
         assertFalse(UpdateNetworkPolicy.isAllowedGithubAssetUrl(good, "../../etc/passwd"))

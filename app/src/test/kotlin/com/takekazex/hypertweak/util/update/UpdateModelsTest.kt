@@ -9,7 +9,7 @@ import org.junit.Test
 class UpdateModelsTest {
     /**
      * `wireValue` is persisted in `Preferences` and written by the release workflows into
-     * `build-info.json`, so these strings are a contract shared with the release workflows in
+     * Release body metadata, so these strings are a contract shared with the release workflows in
      * `.github/`.
      */
     @Test

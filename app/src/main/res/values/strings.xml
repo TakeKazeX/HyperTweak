@@ -1416,10 +1416,10 @@
     <string name="update_proxy_url_invalid">Only https addresses are accepted. Reverting to the preset.</string>
     <string name="update_proxy_test">Test proxy</string>
     <string name="update_proxy_testing">Testing proxy…</string>
-    <string name="update_proxy_test_ok">Proxy works for both the API and file downloads</string>
+    <string name="update_proxy_test_ok">Proxy can reach the API and release page (no file downloaded)</string>
     <string name="update_proxy_test_fail_api">Proxy could not reach the GitHub API</string>
-    <string name="update_proxy_test_fail_asset">Proxy could not serve release files</string>
-    <string name="update_proxy_test_fail_both">Proxy could not reach the GitHub API or serve release files</string>
+    <string name="update_proxy_test_fail_asset">Proxy could not reach the release page</string>
+    <string name="update_proxy_test_fail_both">Proxy could not reach the GitHub API or release page</string>
     <string name="update_proxy_fallback">Proxy unavailable, fell back to a direct connection</string>
     <string name="update_section_storage">Storage</string>
     <string name="update_clean_title">Delete downloaded updates</string>

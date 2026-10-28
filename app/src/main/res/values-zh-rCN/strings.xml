@@ -1408,10 +1408,10 @@
     <string name="update_proxy_url_invalid">只接受 https 地址，已回退到预设代理。</string>
     <string name="update_proxy_test">测试代理</string>
     <string name="update_proxy_testing">正在测试代理…</string>
-    <string name="update_proxy_test_ok">代理可用（API 与文件下载均通过）</string>
+    <string name="update_proxy_test_ok">代理可访问 API 与发布页面（未下载文件）</string>
     <string name="update_proxy_test_fail_api">代理无法访问 GitHub API</string>
-    <string name="update_proxy_test_fail_asset">代理无法下载发布文件</string>
-    <string name="update_proxy_test_fail_both">代理既无法访问 GitHub API，也无法下载发布文件</string>
+    <string name="update_proxy_test_fail_asset">代理无法访问发布页面</string>
+    <string name="update_proxy_test_fail_both">代理既无法访问 GitHub API，也无法访问发布页面</string>
     <string name="update_proxy_fallback">代理不可用，已回退官方直连</string>
     <string name="update_section_storage">存储</string>
     <string name="update_clean_title">清理已下载的更新包</string>

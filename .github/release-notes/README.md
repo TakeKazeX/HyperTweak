@@ -59,13 +59,18 @@ See [`v1.8.0.md`](v1.8.0.md) for a complete worked example.
 ## How it is consumed
 
 `release.yml` reads `.github/release-notes/${CURRENT_TAG}.md` while generating
-`build-info.json` and:
+the hidden Release-body metadata and:
 
-1. writes the two sections into `build-info.json` as
+1. writes the two sections into that metadata as
    `notes: { "zh": "...", "en": "..." }` — this field exists **only** for the stable
    channel, never for CI builds; and
 2. uses them as the GitHub Release body, Chinese and English on the same page
    separated by a horizontal rule.
+
+During the migration period, both workflows also publish an identical schema-1
+`build-info.json` attachment for old clients. New clients read only the Release API
+body; do not remove the legacy attachment until users have upgraded. Both transports
+are generated from the same APK metadata, including version, filename and checksum.
 
 The Android client picks the section matching the device language and falls back to
 the other one when only a single section is present, so the update log is never

@@ -43,6 +43,19 @@ object UpdateNetworkPolicy {
             uri.path.startsWith("/repos/$REPOSITORY_OWNER/$REPOSITORY_NAME/")
     }
 
+    fun releasePageUrl(channel: UpdateChannel): String =
+        if (channel == UpdateChannel.CI) "$WEB_BASE/releases/tag/ci-latest"
+        else "$WEB_BASE/releases/latest"
+
+    fun isAllowedReleasePageUrl(url: String): Boolean {
+        val uri = runCatching { URI(url) }.getOrNull() ?: return false
+        return uri.scheme.equals("https", ignoreCase = true) &&
+            uri.host.equals("github.com", ignoreCase = true) && uri.userInfo == null &&
+            uri.port == -1 && uri.query == null && uri.fragment == null &&
+            (uri.path == "/$REPOSITORY_OWNER/$REPOSITORY_NAME/releases/latest" ||
+                uri.path.startsWith("/$REPOSITORY_OWNER/$REPOSITORY_NAME/releases/tag/"))
+    }
+
     fun isAllowedGithubAssetUrl(url: String, assetName: String): Boolean {
         if (assetName.isBlank() || assetName.contains('/') || assetName.contains('\\')) return false
         val uri = runCatching { URI(url) }.getOrNull() ?: return false

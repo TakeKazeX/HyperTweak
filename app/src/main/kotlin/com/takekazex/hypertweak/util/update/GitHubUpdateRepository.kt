@@ -55,6 +55,7 @@ class GitHubUpdateRepository internal constructor(
             )
         }
 
+        var effectiveCall = releaseCall
         val releaseJson = if (
             releaseCall.response.status == HttpURLConnection.HTTP_NOT_FOUND && channel == UpdateChannel.CI
         ) {
@@ -70,6 +71,7 @@ class GitHubUpdateRepository internal constructor(
                     maxBytes = MAX_JSON_BYTES
                 )
             }
+            effectiveCall = stableCall
             if (stableCall.response.status !in 200..299) throw httpException(stableCall.response.status)
             stableCall.response.body.toJsonObject()
         } else if (releaseCall.response.status in 200..299) {
@@ -85,28 +87,11 @@ class GitHubUpdateRepository internal constructor(
         )
         val publishedAt = releaseJson.optString("published_at", "").takeIf(String::isNotBlank)
         val assets = releaseJson.optJSONArray("assets") ?: JSONArray()
-        val metadataAsset = findAsset(assets, "build-info.json")
         val apkAssetFromRelease = findFirstApkAsset(assets)
             ?: throw UpdateException.InvalidMetadata("Release has no APK asset")
-
-        val selectedMode = releaseCall.modeUsed
-        val metadata = if (metadataAsset != null) {
-            if (!UpdateNetworkPolicy.isAllowedGithubAssetUrl(metadataAsset.url, metadataAsset.name)) {
-                throw UpdateException.InvalidMetadata("Metadata asset URL is outside the repository")
-            }
-            val metadataCall = callWithProxyFallback(selectedMode, configuredProxy) { mode ->
-                requestJson(
-                    originalUrl = metadataAsset.url,
-                    mode = mode,
-                    proxy = configuredProxy,
-                    endpoint = Endpoint.ASSET,
-                    maxBytes = MAX_METADATA_BYTES
-                )
-            }
-            metadataCall.response.body.toJsonObject()
-        } else {
-            null
-        }
+        val selectedMode = effectiveCall.modeUsed
+        // The Release API includes the body. Checking never requests a download asset.
+        val metadata = UpdateReleaseMetadata.parse(releaseJson.optString("body", ""))
 
         val apkAssetName = metadata?.optString("apkAsset", "").orEmpty().ifBlank { apkAssetFromRelease.name }
         val apkAsset = findAsset(assets, apkAssetName)
@@ -116,7 +101,10 @@ class GitHubUpdateRepository internal constructor(
         }
 
         val info = if (metadata != null) {
-            parseBuildInfo(
+            val assetJson = (0 until assets.length()).asSequence().mapNotNull(assets::optJSONObject)
+                .first { it.optString("name") == apkAsset.name }
+            UpdateReleaseMetadata.validateAsset(metadata, assetJson)
+            parseReleaseMetadata(
                 metadata = metadata,
                 channel = channel,
                 tagName = releaseTag,
@@ -147,7 +135,7 @@ class GitHubUpdateRepository internal constructor(
         val classified = classify(finalInfo, now)
         UpdateCheckResult(
             state = classified.state,
-            usedProxyFallback = releaseCall.usedFallback,
+            usedProxyFallback = releaseCall.usedFallback || effectiveCall.usedFallback,
             fromCache = false
         )
     }
@@ -204,15 +192,14 @@ class GitHubUpdateRepository internal constructor(
             ).status in 200..299
         }.getOrDefault(false)
 
-        val assetUrl = "${UpdateNetworkPolicy.WEB_BASE}/releases/download/ci-latest/build-info.json"
         val assetOk = runCatching {
             requestBytes(
-                originalUrl = assetUrl,
+                originalUrl = "${UpdateNetworkPolicy.WEB_BASE}/releases/tag/ci-latest",
                 mode = mode,
                 proxy = proxy,
-                endpoint = Endpoint.ASSET,
-                maxBytes = MAX_METADATA_BYTES,
-                extraHeaders = mapOf("Range" to "bytes=0-1000")
+                endpoint = Endpoint.RELEASE_PAGE,
+                maxBytes = 0,
+                headOnly = true
             ).status in 200..299
         }.getOrDefault(false)
         if (apiOk && assetOk) ProxyTestState.Success(usedProxy = true)
@@ -244,7 +231,7 @@ class GitHubUpdateRepository internal constructor(
     private fun fallbackDistance(info: UpdateInfo): Int? =
         info.versionCode?.let { UpdateVersioning.distance(BuildConfig.VERSION_CODE.toLong(), it) }
 
-    private fun parseBuildInfo(
+    private fun parseReleaseMetadata(
         metadata: JSONObject,
         channel: UpdateChannel,
         tagName: String,
@@ -253,11 +240,12 @@ class GitHubUpdateRepository internal constructor(
         apkAsset: Asset
     ): UpdateInfo {
         val schema = metadata.optInt("schema", -1)
-        if (schema != 1) throw UpdateException.InvalidMetadata("Unsupported build-info schema")
+        if (schema != 1) throw UpdateException.InvalidMetadata("Unsupported release metadata schema")
         val versionName = metadata.optString("versionName", "").takeIf(String::isNotBlank)
             ?: throw UpdateException.InvalidMetadata("Missing versionName")
         val versionCode = metadata.longOrNull("versionCode")
             ?: throw UpdateException.InvalidMetadata("Missing versionCode")
+        if (versionCode <= 0) throw UpdateException.InvalidMetadata("Invalid versionCode")
         val apkName = metadata.optString("apkAsset", "")
         if (apkName != apkAsset.name) throw UpdateException.InvalidMetadata("APK asset mismatch")
         val apkSize = metadata.longOrNull("apkSize")
@@ -303,7 +291,7 @@ class GitHubUpdateRepository internal constructor(
         publishedAt: String?,
         apkAsset: Asset
     ): UpdateInfo {
-        val versionName = LEGACY_VERSION_PATTERNS.asSequence()
+        val versionName = UpdateReleaseMetadata.legacyVersionName(apkAsset.name) ?: LEGACY_VERSION_PATTERNS.asSequence()
             .mapNotNull { it.find(apkAsset.name)?.groupValues?.getOrNull(1) }
             .firstOrNull()
             ?: tagName.removePrefix("v").takeIf { it.isNotBlank() }
@@ -312,7 +300,7 @@ class GitHubUpdateRepository internal constructor(
             channel = channel,
             tagName = tagName,
             versionName = versionName,
-            versionCode = null,
+            versionCode = UpdateReleaseMetadata.legacyVersionCode(apkAsset.name),
             commit = null,
             shortCommit = "",
             builtAt = null,
@@ -425,11 +413,16 @@ class GitHubUpdateRepository internal constructor(
         proxy: String,
         endpoint: Endpoint,
         maxBytes: Long,
-        extraHeaders: Map<String, String> = emptyMap()
+        extraHeaders: Map<String, String> = emptyMap(),
+        headOnly: Boolean = false
     ): HttpResponse {
         when (endpoint) {
             Endpoint.API -> if (!UpdateNetworkPolicy.isAllowedApiUrl(originalUrl)) {
                 throw UpdateException.Redirect("API endpoint is not trusted")
+            }
+
+            Endpoint.RELEASE_PAGE -> if (!UpdateNetworkPolicy.isAllowedReleasePageUrl(originalUrl)) {
+                throw UpdateException.Redirect("Release page is not trusted")
             }
 
             Endpoint.ASSET -> {
@@ -453,7 +446,7 @@ class GitHubUpdateRepository internal constructor(
                 connection.instanceFollowRedirects = false
                 connection.connectTimeout = CONNECT_TIMEOUT_MS
                 connection.readTimeout = READ_TIMEOUT_MS
-                connection.requestMethod = "GET"
+                connection.requestMethod = if (headOnly) "HEAD" else "GET"
                 connection.setRequestProperty("User-Agent", "HyperTweak-Update/${BuildConfig.VERSION_NAME}")
                 extraHeaders.forEach { (name, value) -> connection.setRequestProperty(name, value) }
                 val status = try {
@@ -486,7 +479,7 @@ class GitHubUpdateRepository internal constructor(
                         finalUrl = current
                     )
                 }
-                val body = connection.inputStream.use { input -> readLimited(input, maxBytes) }
+                val body = if (headOnly) ByteArray(0) else connection.inputStream.use { input -> readLimited(input, maxBytes) }
                 return HttpResponse(
                     status = status,
                     body = body,
@@ -724,14 +717,13 @@ class GitHubUpdateRepository internal constructor(
 
     private data class CompareResult(val distance: Int, val commits: List<CommitChange>)
 
-    private enum class Endpoint { API, ASSET }
+    private enum class Endpoint { API, ASSET, RELEASE_PAGE }
 
     private companion object {
         const val MAX_REDIRECTS = 3
         const val CONNECT_TIMEOUT_MS = 15_000
         const val READ_TIMEOUT_MS = 30_000
         const val MAX_JSON_BYTES = 2L * 1024L * 1024L
-        const val MAX_METADATA_BYTES = 512L * 1024L
         const val MAX_COMPARE_BYTES = 8L * 1024L * 1024L
         const val MAX_APK_BYTES = 64L * 1024L * 1024L
         const val DOWNLOAD_BUFFER_SIZE = 32 * 1024

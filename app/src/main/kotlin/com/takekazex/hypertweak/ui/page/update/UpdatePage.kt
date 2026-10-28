@@ -199,6 +199,11 @@ fun UpdatePage(
                             icon = MiuixIcons.Refresh,
                             onClick = { manager.checkUpdate(force = true) }
                         )
+                        IconActionRow(
+                            title = stringResource(R.string.update_open_release_page),
+                            icon = MiuixIcons.Forward,
+                            onClick = { manager.openReleasePage() }
+                        )
                         OverlayDropdownPreference(
                             title = stringResource(R.string.update_section_channel),
                             summary = stringResource(channelSummaryRes(channel)),

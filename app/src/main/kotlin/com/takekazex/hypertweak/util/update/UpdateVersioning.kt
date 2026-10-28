@@ -7,7 +7,7 @@ object UpdateVersioning {
     /**
      * The single source of truth for "is there an update" (decision D22).
      *
-     * A release published before `build-info.json` existed carries no `versionCode`, so those are
+     * Historical releases without a version code in metadata or the APK filename are
      * compared by semantic version instead. An equal version code is never an update: Android
      * refuses to install a lower `versionCode`, and offering a same-code rebuild would show the user
      * an "update" that changes nothing.
@@ -27,7 +27,7 @@ object UpdateVersioning {
         (remoteVersionCode - localVersionCode).takeIf { it > 0L }?.coerceAtMost(Int.MAX_VALUE.toLong())?.toInt()
 
     /**
-     * Small semver fallback used only for releases published before build-info.json existed.
+     * Small semver fallback used only for releases published before release metadata existed.
      * It intentionally ignores build metadata and compares prerelease identifiers in the usual
      * semver order; normal releases therefore remain independent of APK file-name formatting.
      */

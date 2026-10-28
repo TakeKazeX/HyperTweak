@@ -358,8 +358,9 @@ class UpdateManager internal constructor(private val activity: ComponentActivity
     }
 
     fun openReleasePage() {
-        val info = currentInfo() ?: return
-        runCatching { activity.startActivity(Intent(Intent.ACTION_VIEW, info.releaseUrl.toUri())) }
+        val url = currentInfo()?.releaseUrl?.takeIf(UpdateNetworkPolicy::isAllowedReleasePageUrl)
+            ?: UpdateNetworkPolicy.releasePageUrl(channel())
+        runCatching { activity.startActivity(Intent(Intent.ACTION_VIEW, url.toUri())) }
     }
 
     fun clearDownloadedUpdates() {
