@@ -72,13 +72,18 @@ For Copy Direct browser routing, set `AICR_APK` to the verified installed AI eng
 running the AICR tests. `AicrPanelDispatchHostContractTest` verifies the unique native AI Panel
 handler reads ToolRequest input before serializing/reporting its EventManager event. An unused
 service parser alone is not evidence of the production dispatch path. The same host test checks
-the native browser allowlist renderer, model and persistent state loader. After `:app:assembleRelease`,
+the native browser allowlist renderer, model and persistent state loader. For isolated
+contract checks, build `:app:assembleContractProbe`, then
 run `python3 app/src/test/android/aicr/run_panel_dispatch_probe.py <local-AICR.apk>
---module-apk <release-HyperTweak.apk> --browsers
+--module-apk <contractProbe-HyperTweak.apk> --browsers
 <current-default-package> [other-installed-browser-packages] --output
 /Users/ink/developer/reverse/research/<task>/probe` to exercise production rewriting with the
 host's actual ToolRequest/Kotlin JSON classes and installed application labels in an isolated
-ART process. The Release APK uses a separate loader with a boot parent: sharing the host
+ART process. Production release has no test-only reflection keep roots. The contractProbe
+variant retains those roots under `src/test/android/aicr/`; never install or publish that APK.
+Its R8 transformations differ from production, so check the actual release artifact and
+device logs separately instead of calling this an exact-release probe.
+The probe APK uses a separate loader with a boot parent: sharing the host
 parent can collide with independently obfuscated class names. It also reports the installed
 browser catalog. The same probe instantiates the installed host's unshown BubbleView,
 executes its actual binder, and measures/draws the title into an offscreen Bitmap. Check

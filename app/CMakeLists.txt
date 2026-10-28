@@ -102,6 +102,8 @@ target_include_directories(${HYPERTWEAK_NATIVE_TARGET} PRIVATE
 
 target_compile_features(${HYPERTWEAK_NATIVE_TARGET} PRIVATE cxx_std_17)
 target_compile_options(${HYPERTWEAK_NATIVE_TARGET} PRIVATE
+    "$<$<AND:$<CONFIG:Release,RelWithDebInfo,MinSizeRel>,$<COMPILE_LANGUAGE:CXX>>:-Oz>"
+    "$<$<AND:$<CONFIG:Release,RelWithDebInfo,MinSizeRel>,$<COMPILE_LANGUAGE:CXX>>:-flto=thin>"
     -fno-exceptions
     -fno-rtti
     -fno-threadsafe-statics
@@ -116,6 +118,8 @@ target_compile_options(${HYPERTWEAK_NATIVE_TARGET} PRIVATE
 )
 
 target_link_options(${HYPERTWEAK_NATIVE_TARGET} PRIVATE
+    "$<$<CONFIG:Release,RelWithDebInfo,MinSizeRel>:-Oz>"
+    "$<$<CONFIG:Release,RelWithDebInfo,MinSizeRel>:-flto=thin>"
     "-Wl,--version-script=${HYPERTWEAK_NATIVE_DIR}/exports.map"
     -Wl,--gc-sections
     -Wl,--no-undefined

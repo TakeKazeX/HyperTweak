@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
-"""Run production presentation/request code with real AICR classes in an isolated ART VM.
+"""Run presentation/request contracts with real AICR classes in an isolated ART VM.
 
-Requires a built Release APK. Does not install APKs, attach to AICR, or operate device UI.
+Requires :app:assembleContractProbe. Production release has no test-only keep roots.
+Does not install APKs, attach to AICR, or operate device UI. This build is not an
+exact production-release R8 artifact and cannot establish release UI acceptance.
 """
 import argparse
 import hashlib
@@ -11,6 +13,7 @@ import shlex
 import shutil
 import subprocess
 import uuid
+import zipfile
 
 
 def run(args, **kwargs):
@@ -26,11 +29,15 @@ def run(args, **kwargs):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("host_apk", type=Path)
-    parser.add_argument("--module-apk", type=Path, required=True)
+    parser.add_argument("--module-apk", type=Path, required=True, help="contractProbe APK; not the installable production release")
     parser.add_argument("--remote-apk", default="/product/priv-app/MIUIAICR/MIUIAICR.apk")
     parser.add_argument("--browsers", nargs="+", required=True, help="Current default first, then other installed browsers")
     parser.add_argument("--output", type=Path, required=True, help="Directory outside the repository")
     args = parser.parse_args()
+    with zipfile.ZipFile(args.module_apk) as apk:
+        marker = b"Lcom/takekazex/hypertweak/hook/rules/aicr/AicrToolRequestAccess;"
+        if not any(marker in apk.read(name) for name in apk.namelist() if name.endswith(".dex")):
+            raise SystemExit("Probe entry was optimized away. Build :app:assembleContractProbe; production release intentionally has no probe keep roots.")
     root = Path(__file__).resolve().parents[5]
     output = args.output.resolve()
     if output == root or root in output.parents:

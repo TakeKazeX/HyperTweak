@@ -1,0 +1,14 @@
+Shared license text
+===================
+
+The complete license at
+META-INF/androidx/annotation/annotation/LICENSE.txt
+is also distributed for these components, whose original license files have
+identical contents:
+
+androidx.collection:collection-ktx
+androidx.collection:collection
+androidx.lifecycle:lifecycle-common
+org.jetbrains.androidx.lifecycle:lifecycle-common
+
+Other third-party license and notice files are retained at their original paths.

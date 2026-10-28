@@ -1,4 +1,6 @@
 import java.io.FileInputStream
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import java.time.Instant
 import java.util.Properties
 
@@ -115,6 +117,10 @@ android {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
+            // Only app-owned dynamic entry points need keeping; see proguard-rules.pro.
+            optimization.keepRules {
+                ignoreFrom("io.github.lingqiqi5211.ezhooktool:hook-xposed-102")
+            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -127,6 +133,13 @@ android {
                 signingConfig = signingConfigs.getByName("debug")
             }
         }
+    }
+
+    buildTypes.create("contractProbe") {
+        initWith(buildTypes.getByName("release"))
+        matchingFallbacks += "release"
+        // Test-only reflection roots never enter the production release APK.
+        proguardFile("src/test/android/aicr/proguard-probe.pro")
     }
 
     compileOptions {
@@ -154,12 +167,24 @@ android {
         }
     }
 
+    androidResources {
+        // Match the app's supported translations; other locales fall back to English.
+        localeFilters += listOf("en", "zh-rCN", "zh-rHK", "zh-rTW")
+    }
+
     packaging {
         // The payload is memory-mapped and patched in place, so it must stay
         // uncompressed and page-aligned inside the APK.
         jniLibs.useLegacyPackaging = false
         resources {
             merges += "META-INF/xposed/*"
+            // These four files are byte-identical to the retained annotation license.
+            excludes += setOf(
+                "META-INF/androidx/collection/collection-ktx/LICENSE.txt",
+                "META-INF/androidx/collection/collection/LICENSE.txt",
+                "META-INF/androidx/lifecycle/lifecycle-common/LICENSE.txt",
+                "META-INF/org/jetbrains/androidx/lifecycle/lifecycle-common/LICENSE.txt"
+            )
         }
     }
 
@@ -182,6 +207,11 @@ android {
 
 androidComponents {
     onVariants { variant ->
+        if (variant.buildType == "release") {
+            // Compress DEX in directly distributed release APKs. ART may extract it
+            // on install/load; native libraries stay stored and page-aligned above.
+            variant.packaging.dex.useLegacyPackaging.set(true)
+        }
         variant.outputs.forEach { output ->
             val mainOutput = output as? com.android.build.api.variant.impl.VariantOutputImpl
             val suffix = if (variant.name == "release" && !file("release.keystore").exists()) "-debug-signed" else ""
@@ -192,6 +222,35 @@ androidComponents {
             val versionName = variant.outputs.first().versionName.get()
             val versionCode = variant.outputs.first().versionCode.get()
             mainOutput?.outputFileName?.set("HyperTweak-v$versionName-$versionCode-${variant.name}$suffix.apk")
+        }
+    }
+}
+
+// R8's proto-to-binary conversion discards link-time encoding flags. Encode the
+// resource archives in their owning task, before APK packaging/alignment/signing.
+// This hook follows the pinned AGP OptimizeResourcesTask contract; recheck on upgrade.
+val resourceEncoder = androidComponents.sdkComponents.sdkDirectory.get()
+    .file("build-tools/${android.buildToolsVersion}/aapt2").asFile
+tasks.withType<com.android.build.gradle.internal.tasks.OptimizeResourcesTask>().configureEach {
+    if (name == "optimizeReleaseResources") {
+        val encoderExecutable = resourceEncoder
+        inputs.file(encoderExecutable).withPropertyName("resourceEncoder")
+        inputs.property("compactResourceEncoding", listOf("--enable-sparse-encoding", "--enable-compact-entries"))
+        doLast("encodeCompactResourceTable") {
+            val owner = this as com.android.build.gradle.internal.tasks.OptimizeResourcesTask
+            val archives = owner.optimizedProcessedRes.get().asFile.listFiles()
+                .orEmpty().filter { it.extension == "ap_" }
+            check(archives.isNotEmpty()) { "No optimized resource archives to encode" }
+            archives.forEach { archive ->
+                val encoded = owner.temporaryDir.resolve(archive.name)
+                val process = ProcessBuilder(
+                    encoderExecutable.absolutePath, "optimize", "--enable-sparse-encoding",
+                    "--enable-compact-entries", "-o", encoded.absolutePath, archive.absolutePath
+                ).redirectErrorStream(true).start()
+                val diagnostics = process.inputStream.bufferedReader().use { it.readText() }
+                check(process.waitFor() == 0) { "Resource encoding failed: $diagnostics" }
+                Files.move(encoded.toPath(), archive.toPath(), StandardCopyOption.REPLACE_EXISTING)
+            }
         }
     }
 }
@@ -236,6 +295,7 @@ dependencies {
 
     // EzHookTool
     implementation("io.github.lingqiqi5211.ezhooktool:core:1.3.1")
+    // Re-audit the filtered consumer contract in proguard-rules.pro when upgrading.
     implementation("io.github.lingqiqi5211.ezhooktool:hook-xposed-102:1.3.1")
 
     // DexKit

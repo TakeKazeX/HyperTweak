@@ -1,69 +1,37 @@
-# libxposed API 102
+# Framework entry, JNI exports and persisted hook identities.
 -dontwarn io.github.libxposed.annotation.**
 -adaptresourcefilecontents META-INF/xposed/java_init.list
-# The entry class name must survive on its own, not via EzHookTool's stricter
-# consumer rule, so drop allowobfuscation while keeping allowoptimization.
 -keep,allowoptimization public class * extends io.github.libxposed.api.XposedModule {
     public <init>();
 }
-
-# The native payload binds its status query and its rule-switch push by JNI name,
-# which R8 cannot rewrite.
-# Without this the release APK would look the symbols up under a renamed class and
-# report the payload as unavailable.
--keep class com.takekazex.hypertweak.hook.NativeRules {
-    native <methods>;
-}
-
-# Hooker simple names double as runtime hook IDs and hot-reload state-map keys
-# (BaseHooker.hookerName = this::class.java.simpleName). Keep them stable across
-# releases so hot-reload state restore and in-place handle replacement still match
-# after a module update; -keepnames still allows unused hookers to be shrunk.
+-keep class com.takekazex.hypertweak.hook.NativeRules { native <methods>; }
 -keepnames class * extends com.takekazex.hypertweak.hook.base.BaseHooker
 
-# BaseHooker rebuilds EzHookTool hookers for API 102 replaceHook during hot reload.
+# API-102 hot-reload reflection into EzHookTool.
 -keepclassmembers class io.github.lingqiqi5211.ezhooktool.xposed.dsl.HookFactory {
     private java.util.List stages;
 }
--keep class io.github.lingqiqi5211.ezhooktool.xposed.dsl.HookFactoryKt {
+-keep,allowoptimization class io.github.lingqiqi5211.ezhooktool.xposed.dsl.HookFactoryKt {
     public static io.github.libxposed.api.XposedInterface$Hooker buildHooker(java.lang.reflect.Executable, java.util.List);
 }
-
-# Keep MainActivity status checker method
--keep class com.takekazex.hypertweak.MainActivity {
+-keepclassmembers,allowoptimization class com.takekazex.hypertweak.MainActivity {
     public boolean isModuleActive();
 }
 
-# IconTunerFlows resolves kotlinx-coroutines classes in the HOST (SystemUI) class loader
-# reflectively by their original names. Release R8 obfuscates the module's bundled
-# kotlinx-coroutines and rewrites Class.forName string constants to the renamed names
-# (StateFlowKt -> z12), which then throw ClassNotFoundException in the host loader and kill
-# every flow-replaced visibility tweak (observed: "before hook failed ... CNFE z12" on all
-# MiuiCellularIconVM getters). Keeping the bundled names unrenamed (plus the runtime name
-# assembly in IconTunerFlows) keeps the host lookup on the original FQN.
--keep class kotlinx.coroutines.flow.** { *; }
--keep class kotlin.Pair
-# Host SystemUI is queried for JavaAdapter's static collector and the returned Job is cancelled
-# through reflection. Keep these names in the module so R8 cannot rewrite the lookup/return path.
--keep class kotlinx.coroutines.Job { *; }
--keep class kotlinx.coroutines.StandaloneCoroutine { *; }
--keep class kotlin.Triple { *; }
--keep class com.takekazex.hypertweak.hook.rules.systemui.icon.HostIconBridge { *; }
+# Guard only host FQNs overlapping bundled types; unused members may be removed.
+# IconTunerFlows also assembles names at runtime to avoid host lookup rewriting.
+-keep,allowshrinking,allowoptimization class kotlinx.coroutines.flow.StateFlowKt { *; }
+-keep,allowshrinking,allowoptimization class kotlinx.coroutines.flow.ReadonlyStateFlow { *; }
+-keep,allowshrinking,allowoptimization class kotlinx.coroutines.flow.StateFlow { *; }
+-keep,allowshrinking,allowoptimization class kotlin.Pair
 
-# Suppress missing class warnings for Java reflection (annotated types are resolved by name).
+# Replacement for the filtered hook-xposed-102:1.3.1 consumer file. All other
+# library helpers use direct calls. Preserve its API-isolation/metadata contract.
+-keep class io.github.lingqiqi5211.ezhooktool.xposed.internal.XposedApiCompat$Api102 { *; }
+-keep class kotlin.Metadata
 -dontwarn java.lang.reflect.AnnotatedType
 
-# Invoked by app_process after the user's two confirmations; no static Java caller exists.
--keep class com.takekazex.hypertweak.root.NotificationBannerBatch {
+# Production app_process entry; invoked after the existing user confirmations.
+-keep,allowoptimization class com.takekazex.hypertweak.root.NotificationBannerBatch {
     public static void main(java.lang.String[]);
 }
-
-# Keep the small host-reflection boundary callable for the isolated Release APK contract probe.
-# Optimization remains enabled so the probe exercises production R8 transformations as well.
--keep,allowoptimization class com.takekazex.hypertweak.hook.rules.aicr.AicrToolRequestAccess { public *; }
--keep,allowoptimization class com.takekazex.hypertweak.hook.rules.aicr.AicrToolRequestAccess$Companion { public *; }
--keep,allowoptimization class com.takekazex.hypertweak.hook.rules.aicr.AicrCopyDirectCueBatch { public *; }
--keep,allowoptimization class com.takekazex.hypertweak.hook.rules.aicr.AicrBrowserCatalog { public *; }
--keep,allowoptimization class com.takekazex.hypertweak.hook.rules.aicr.AicrBrowserCatalog$Browser { public *; }
--keep,allowoptimization class com.takekazex.hypertweak.hook.rules.aicr.AicrBubbleTitleRenderer { public *; }
--keep,allowoptimization class com.takekazex.hypertweak.hook.rules.aicr.AicrBubbleTitleRenderer$Companion { public *; }
