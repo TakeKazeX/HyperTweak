@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="security_center_sidebar_mode">側邊欄入口</string>
+    <string name="security_center_sidebar_native">顯示（原生）</string>
+    <string name="security_center_sidebar_disabled">隱藏並關閉側滑</string>
+    <string name="security_center_sidebar_invisible">隱藏但保留側滑</string>
+    <string name="security_center_sidebar_mode_summary">隱藏螢幕邊緣提示線；保留側滑時，原生觸控區域仍會接收邊緣觸控。</string>
+</resources>

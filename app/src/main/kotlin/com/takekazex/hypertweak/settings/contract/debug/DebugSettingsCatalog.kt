@@ -278,6 +278,7 @@ internal object DebugSettingsCatalog {
         DebugSetting("securitycenter_restore_power_ranking", "Boolean", false),
         DebugSetting("securitycenter_show_berserk_mode", "Boolean", false),
         DebugSetting("securitycenter_show_detailed_power_data", "Boolean", false),
+        DebugSetting("securitycenter_sidebar_mode", "Int", 0),
         DebugSetting("securitycenter_skip_local_su_check", "Boolean", false),
         DebugSetting("settings_gemini_entry", "Boolean", false),
         DebugSetting("settings_global_interface", "Boolean", false),

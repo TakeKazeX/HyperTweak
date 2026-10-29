@@ -55,6 +55,9 @@ fun SecurityCenterPage(
     val settingsStore = LocalAppSettingsStore.current
     val scrollBehavior = MiuixScrollBehavior()
 
+    var sidebarMode by remember {
+        mutableIntStateOf(settingsStore.getInt(PlatformSettingsKeys.KEY_SECURITY_CENTER_SIDEBAR_MODE, 0).takeIf { it in 0..2 } ?: 0)
+    }
     var hideDolbyPopup by remember {
         mutableStateOf(settingsStore.getBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_HIDE_DOLBY_POPUP, false))
     }
@@ -285,6 +288,20 @@ fun SecurityCenterPage(
 
             SmallTitle(stringResource(R.string.security_center_dock_section))
             Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+                OverlayDropdownPreference(
+                    items = listOf(
+                        stringResource(R.string.security_center_sidebar_native),
+                        stringResource(R.string.security_center_sidebar_disabled),
+                        stringResource(R.string.security_center_sidebar_invisible)
+                    ),
+                    selectedIndex = sidebarMode,
+                    onSelectedIndexChange = {
+                        sidebarMode = it
+                        settingsStore.putInt(PlatformSettingsKeys.KEY_SECURITY_CENTER_SIDEBAR_MODE, it)
+                    },
+                    title = stringResource(R.string.security_center_sidebar_mode),
+                    summary = stringResource(R.string.security_center_sidebar_mode_summary)
+                )
                 SwitchPreference(
                     checked = hideGamePopup,
                     onCheckedChange = {

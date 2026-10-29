@@ -13,6 +13,7 @@ import com.takekazex.hypertweak.hook.rules.systemui.notification.NotificationWhi
 import com.takekazex.hypertweak.hook.rules.systemui.StatusBarHideSilentHooker
 import com.takekazex.hypertweak.hook.rules.systemui.FreeformBlurTransitionHooker
 import com.takekazex.hypertweak.hook.rules.securitycenter.AppDetailsIconLaunchHooker
+import com.takekazex.hypertweak.hook.rules.securitycenter.sidebar.SecurityCenterSidebarHooker
 import com.takekazex.hypertweak.hook.rules.securitycenter.sidebar.SecurityCenterPopupHooker
 import com.takekazex.hypertweak.hook.rules.securitycenter.sidebar.SecurityCenterDockHooker
 import com.takekazex.hypertweak.hook.rules.securitycenter.sidebar.SecurityCenterDockHost
@@ -169,6 +170,9 @@ internal object RuntimeSettingsParticipants {
         registerForProcess(RuntimeSettingsGroups.SECURITY_POPUPS) { _ ->
             if (processName == SecurityCenterDockHost.PROCESS) SecurityCenterPopupHooker.refreshSettings() else true
         }
+        registerForProcess(RuntimeSettingsGroups.SECURITY_SIDEBAR) { _ ->
+            if (processName == SecurityCenterDockHost.PROCESS) SecurityCenterSidebarHooker.refreshSettings() else true
+        }
         registerForProcess(RuntimeSettingsGroups.SECURITY_DOCK) { _ ->
             if (processName != SecurityCenterDockHost.PROCESS) true
             else when (SecurityCenterDockHooker.refreshSettings()) {
@@ -283,7 +287,7 @@ internal object RuntimeSettingsParticipants {
             }
         }
         registry.install { id, apply ->
-            if (id == RuntimeSettingsGroups.SECURITY_DOCK || id == RuntimeSettingsGroups.DARK_MODE ||
+            if (id == RuntimeSettingsGroups.SECURITY_SIDEBAR || id == RuntimeSettingsGroups.SECURITY_DOCK || id == RuntimeSettingsGroups.DARK_MODE ||
                 id == RuntimeSettingsGroups.QUICK_SHARE)
                 dispatcher.registerWithRetryBudget(id, 120, apply)
             else dispatcher.register(id, apply)

@@ -46,6 +46,7 @@ internal object RuntimeSettingsDefinitions {
     const val GATED_FEATURES = "features.installation"
     const val APP_DETAILS = "securitycenter.app_details"
     const val SECURITY_POPUPS = "securitycenter.sidebar_popups"
+    const val SECURITY_SIDEBAR = "securitycenter.sidebar"
     const val SECURITY_DOCK = "securitycenter.dock"
     const val SECURITY_CHECKS = "securitycenter.checks"
     const val SECURITY_PRIVACY = "securitycenter.privacy"
@@ -313,6 +314,9 @@ internal object RuntimeSettingsDefinitions {
         APP_DETAILS to Group(setOf("com.miui.securitycenter")) { it == AppSettingsKeys.KEY_APP_DETAILS_ICON_LAUNCH },
         SECURITY_POPUPS to Group(setOf("com.miui.securitycenter")) {
             it == PlatformSettingsKeys.KEY_SECURITY_CENTER_HIDE_DOLBY_POPUP || it == PlatformSettingsKeys.KEY_SECURITY_CENTER_HIDE_GAME_POPUP
+        },
+        SECURITY_SIDEBAR to Group(setOf("com.miui.securitycenter")) {
+            it == PlatformSettingsKeys.KEY_SECURITY_CENTER_SIDEBAR_MODE
         },
         SECURITY_DOCK to Group(setOf("com.miui.securitycenter")) {
             it == PlatformSettingsKeys.KEY_SECURITY_CENTER_DOCK_UNLIMITED_PINNED ||

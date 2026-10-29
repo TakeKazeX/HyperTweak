@@ -1750,4 +1750,9 @@
     <string name="desktop_grid_failed">行列未能应用，请确认选择后重试。</string>
     <string name="desktop_grid_unavailable">未收到桌面状态，请确认模块作用域及原生载荷已更新。</string>
     <string name="desktop_grid_dirty">当前行列选择尚未提交，点击确定后应用。</string>
+    <string name="security_center_sidebar_mode">侧边栏入口</string>
+    <string name="security_center_sidebar_native">显示（原生）</string>
+    <string name="security_center_sidebar_disabled">隐藏并关闭侧滑</string>
+    <string name="security_center_sidebar_invisible">隐藏但保留侧滑</string>
+    <string name="security_center_sidebar_mode_summary">隐藏屏幕边缘提示线；保留侧滑时，原生触摸区域仍会接收边缘触摸。</string>
 </resources>

@@ -1782,4 +1782,9 @@
     <string name="aivs_move">移动</string>
     <string name="aivs_error">目录操作未完成</string>
     <string name="aivs_error_summary">请确认已授予 Root 权限。若存在同名文件、符号链接或目录正在写入，操作会停止并保留未移动内容；处理后可重新检查。</string>
+    <string name="security_center_sidebar_mode">Sidebar handle</string>
+    <string name="security_center_sidebar_native">Show (system default)</string>
+    <string name="security_center_sidebar_disabled">Hide and disable swipe</string>
+    <string name="security_center_sidebar_invisible">Hide and keep swipe</string>
+    <string name="security_center_sidebar_mode_summary">Hide the edge indicator. Keeping swipe preserves the native touch area, which still receives edge touches.</string>
 </resources>

@@ -38,6 +38,7 @@ object PlatformSettingsKeys {
     const val KEY_GUARD_PROVIDER_DISABLE_ENVIRONMENT_CHECK = "guard_provider_disable_environment_check"
     const val KEY_SECURITY_CENTER_DOCK_UNLIMITED_PINNED = "securitycenter_dock_unlimited_pinned"
     const val KEY_SECURITY_CENTER_DOCK_UNLIMITED_PREDICTIONS = "securitycenter_dock_unlimited_predictions"
+    const val KEY_SECURITY_CENTER_SIDEBAR_MODE = "securitycenter_sidebar_mode"
     const val KEY_SECURITY_CENTER_HIDE_DOLBY_POPUP = "securitycenter_hide_dolby_popup"
     const val KEY_SECURITY_CENTER_HIDE_GAME_POPUP = "securitycenter_hide_game_popup"
     const val KEY_SECURITY_CENTER_DOCK_PREDICT_LIMIT = "securitycenter_dock_predict_limit"

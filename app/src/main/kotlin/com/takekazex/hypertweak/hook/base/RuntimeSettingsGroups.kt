@@ -27,6 +27,7 @@ internal object RuntimeSettingsGroups {
     const val GATED_FEATURES = RuntimeSettingsDefinitions.GATED_FEATURES
     const val APP_DETAILS = RuntimeSettingsDefinitions.APP_DETAILS
     const val SECURITY_POPUPS = RuntimeSettingsDefinitions.SECURITY_POPUPS
+    const val SECURITY_SIDEBAR = RuntimeSettingsDefinitions.SECURITY_SIDEBAR
     const val SECURITY_DOCK = RuntimeSettingsDefinitions.SECURITY_DOCK
     const val SECURITY_CHECKS = RuntimeSettingsDefinitions.SECURITY_CHECKS
     const val SECURITY_PRIVACY = RuntimeSettingsDefinitions.SECURITY_PRIVACY
