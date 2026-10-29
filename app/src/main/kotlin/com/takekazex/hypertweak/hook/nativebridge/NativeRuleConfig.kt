@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.nativebridge
 
+import com.takekazex.hypertweak.settings.contract.LauncherDesktopKeys
+
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
@@ -44,9 +46,11 @@ object NativeRuleConfig {
         recentsHaptic: Boolean = Preferences.recentsCardHaptic(),
         folderStack: Boolean = Preferences.folderStackPreview(),
         widgetStack: Boolean = Preferences.androidWidgetStack(),
-        xiaoaiOptions: Boolean = Preferences.xiaoaiGestureOptions()
+        xiaoaiOptions: Boolean = Preferences.xiaoaiGestureOptions(),
+        iconPercent: Int = Preferences.desktopIconPercent()
     ) {
         val contents = buildString {
+            append(LauncherDesktopKeys.KEY_ICON_SIZE_PERCENT).append('=').append(iconPercent).append('\n')
             append(KEY_HIDE_RECENTS_CLEAR)
             append('=')
             append(if (hideRecentsClearButton) '1' else '0')

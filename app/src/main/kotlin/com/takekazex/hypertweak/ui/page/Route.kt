@@ -30,6 +30,7 @@ sealed interface Route : NavKey {
     data object IconOrder : Route
     data object ControlCenterIconRows : Route
     data object GlassTuner : Route
+    data object DesktopIconSize : Route
     data object DockBackground : Route
     data object ExperimentalFeatures : Route
     data object PowerSave : Route
@@ -80,6 +81,7 @@ val Route.saveKey: String
         Route.IconOrder -> "IconOrder"
         Route.ControlCenterIconRows -> "ControlCenterIconRows"
         Route.GlassTuner -> "GlassTuner"
+        Route.DesktopIconSize -> "DesktopIconSize"
         Route.DockBackground -> "DockBackground"
         Route.CameraWatermark -> "CameraWatermark"
         Route.ExperimentalFeatures -> "ExperimentalFeatures"
@@ -125,6 +127,7 @@ fun routeFromSaveKey(key: String): Route? = when (key) {
     "IconOrder" -> Route.IconOrder
     "ControlCenterIconRows" -> Route.ControlCenterIconRows
     "GlassTuner" -> Route.GlassTuner
+    "DesktopIconSize" -> Route.DesktopIconSize
     "DockBackground" -> Route.DockBackground
     "CameraWatermark" -> Route.CameraWatermark
     "ExperimentalFeatures" -> Route.ExperimentalFeatures

@@ -21,7 +21,7 @@ namespace {
 
 // Full scans are permitted only on the preparation worker. Input callbacks do
 // a bounded cache lookup and byte check, then wait for a later input boundary.
-constexpr size_t kMaxCacheEntries = 8u;
+constexpr size_t kMaxCacheEntries = 16u;
 constexpr size_t kImageIdentitySize = kDartIdentitySize;
 struct CacheEntry {
     uint8_t* base;
@@ -238,7 +238,7 @@ bool ResolveDartSites(void* dart_handle, const dart::TargetSpec& spec,
     return true;
 }
 
-bool PrepareDartRuleTargets(void* handle, bool clear_button, bool folder_columns, bool assistant_widgets, bool dock_frame, bool recents_haptic, bool folder_stack, bool widget_stack, bool xiaoai_options) {
+bool PrepareDartRuleTargets(void* handle, bool clear_button, bool folder_columns, bool assistant_widgets, bool dock_frame, bool recents_haptic, bool folder_stack, bool widget_stack, bool xiaoai_options, bool icon_scale) {
     g_allow_scan = true;
     DartResolution result{};
     bool success = true;
@@ -250,6 +250,7 @@ bool PrepareDartRuleTargets(void* handle, bool clear_button, bool folder_columns
     if (folder_stack) success = ResolveDartSites(handle, dart::kFolderStackTarget, &result) && success;
     if (xiaoai_options) success = ResolveDartSites(handle, dart::kXiaoaiGestureOptionsTarget, &result) && success;
     if (widget_stack) success = ResolveDartSites(handle, dart::kWidgetStackTarget, &result) && success;
+    if (icon_scale) success = ResolveDartSites(handle, dart::kIconScaleTarget, &result) && success;
     g_allow_scan = false;
     return success;
 }

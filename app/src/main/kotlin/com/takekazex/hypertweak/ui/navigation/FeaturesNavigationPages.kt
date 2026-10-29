@@ -116,8 +116,12 @@ internal fun NavEntryBuilder.featuresPages(settings: NavigationSettings, navCont
         entry<Route.SystemLauncher> {
             com.takekazex.hypertweak.ui.page.launcher.SystemLauncherPage(
                 onBack = { navController.pop() },
-                onNavigateToDockBackground = { navController.navigateTo(Route.DockBackground) }
+                onNavigateToDockBackground = { navController.navigateTo(Route.DockBackground) },
+                onNavigateToDesktopIconSize = { navController.navigateTo(Route.DesktopIconSize) }
             )
+        }
+        entry<Route.DesktopIconSize> {
+            com.takekazex.hypertweak.ui.page.launcher.DesktopIconSizePage(onBack = { navController.pop() })
         }
         entry<Route.DockBackground> {
             com.takekazex.hypertweak.ui.page.glass.DockBackgroundPage(

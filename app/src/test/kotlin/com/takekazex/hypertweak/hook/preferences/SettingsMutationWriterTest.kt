@@ -237,6 +237,24 @@ class SettingsMutationWriterTest {
         assertEquals(true, cache.persisted[key])
     }
 
+    @Test fun desktopIconCommitRollbackAndDisableRetainAuthoritativeState() = isolated { s, writer ->
+        val key = com.takekazex.hypertweak.settings.contract.LauncherDesktopKeys.KEY_ICON_SIZE_PERCENT
+        writer.patch(mapOf(key to 130), emptySet(), null) {}
+        assertEquals(130, s.local.persisted[key])
+        assertEquals(130, NativeRuleStateSnapshot.read { RuntimeSettingsSignal.lastAcknowledged()!!.values }!!.iconPercent)
+        val acknowledged = RuntimeSettingsSignal.lastAcknowledged()
+        s.remote.shadowBeforeAcknowledgement = true
+        s.remote.rejectNext = true
+        assertTrue(assertThrows(java.util.concurrent.ExecutionException::class.java) { writer.patch(mapOf(key to 150), emptySet(), null) {} }.cause is IllegalStateException)
+        assertEquals(130, s.local.persisted[key])
+        assertEquals(130, s.remote.persisted[key])
+        assertEquals(acknowledged, RuntimeSettingsSignal.lastAcknowledged())
+        assertTrue(assertThrows(java.util.concurrent.ExecutionException::class.java) { writer.patch(mapOf(key to 151), emptySet(), null) {} }.cause is IllegalArgumentException)
+        writer.patch(mapOf(key to -1), emptySet(), null) {}
+        assertEquals(-1, s.remote.persisted[key])
+        assertEquals(-1, NativeRuleStateSnapshot.read { RuntimeSettingsSignal.lastAcknowledged()!!.values }!!.iconPercent)
+    }
+
     @Test fun debugPatchCommitsAndResetRemovesExplicitValues() = isolated { s, writer ->
         val key = SystemUiSettingsKeys.KEY_SLIDER_SHOW_PERCENTAGE
         val first = writer.patch(mapOf(key to true), emptySet(), 10L) { }

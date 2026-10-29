@@ -6,6 +6,7 @@ HYPERTWEAK_NATIVE_1.0 {
         Java_com_takekazex_hypertweak_hook_NativeRules_nativeApplyRuleSwitchesV2;
         Java_com_takekazex_hypertweak_hook_NativeRules_nativeApplyRuleSwitchesV3;
         Java_com_takekazex_hypertweak_hook_NativeRules_nativeApplyRuleSwitchesV4;
+        Java_com_takekazex_hypertweak_hook_NativeRules_nativeApplyRuleSwitchesV5;
     local:
         *;
 };

@@ -550,8 +550,10 @@ const TargetSpec kAssistantWidgetTarget = {
 #include "folder_stack_target.inc"
 #include "widget_stack_target.inc"
 #include "xiaoai_gesture_target.inc"
+#include "icon_scale_target.inc"
 
 const TargetSpec* const kTargetSpecs[] = {
+    &kIconScaleTarget,
     &kRecentsClearButtonTarget,
     &kFolderColumnsTarget,
     &kAssistantWidgetTarget,

@@ -1156,6 +1156,7 @@ bool CaptureNativeRuleSettingsIntent(void* intent, hypertweak::native::NativeRul
     (void)ReadNativeBool(extras, "hypertweak_rule_folder_stack", &output->folder_stack);
     (void)ReadNativeBool(extras, "hypertweak_rule_widget_stack", &output->widget_stack);
     (void)ReadNativeBool(extras, "hypertweak_rule_xiaoai_options", &output->xiaoai_options);
+    (void)ReadNativeI32(extras, "hypertweak_rule_icon_percent", &output->icon_percent);
     bool channel = false;
     if (ReadNativeBool(extras, "hypertweak_rule_dock_channel", &channel) && channel) {
         if (!ReadNativeI32(extras, "hypertweak_rule_dock_port", &output->dock_port) ||
@@ -1173,7 +1174,7 @@ extern "C" bool HyperTweakNotifyNativeRulePrepared() {
 }
 void AcceptNativeRuleSettings(const hypertweak::native::NativeRuleSettingsSnapshot& snapshot) {
     if (hypertweak::native::ReceiveNativeRuleSettings(snapshot.hidden, snapshot.columns,
-            snapshot.contextual, snapshot.revision, snapshot.widgets, snapshot.recents_haptic, snapshot.folder_stack, snapshot.widget_stack, snapshot.xiaoai_options)) {
+            snapshot.contextual, snapshot.revision, snapshot.widgets, snapshot.recents_haptic, snapshot.folder_stack, snapshot.widget_stack, snapshot.xiaoai_options, snapshot.icon_percent)) {
         if (snapshot.dock_channel) (void)hypertweak::native::ConfigureDockFrame(snapshot.dock_port, snapshot.dock_token0, snapshot.dock_token1);
         hypertweak::native::ApplyPreparedNativeRules();
     }

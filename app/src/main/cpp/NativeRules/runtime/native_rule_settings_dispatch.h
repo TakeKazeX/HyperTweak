@@ -12,6 +12,7 @@ struct NativeRuleSettingsSnapshot {
     bool folder_stack = false;
     bool widget_stack = false;
     bool xiaoai_options = false;
+    int32_t icon_percent = -1;
     bool dock_channel = false;
     int32_t dock_port = 0;
     int64_t dock_token0 = 0, dock_token1 = 0;

@@ -131,8 +131,33 @@ during refresh; parent layout ID versus original monochrome ID, foreign-isolate
 isolation, actual compressed-array stores and completion ordering. Verify the original frame is popped before the Dart tail transfer. A successful
 lookup is not a frame repaint: preview refresh timing, opening/closing, clicks and
 drag/drop remain manual device acceptance. Run `native_rule_settings_record_test.cpp`
-under ASan/UBSan for persisted schemas 1–5, disabled defaults on migration and
+under ASan/UBSan for persisted schemas 1–7, disabled defaults on migration and
 invalid-field/checksum rejection.
+
+For desktop icon size changes, run
+`python3 app/src/test/cpp/run_icon_scale_test.py /absolute/path/to/verified/libapp.so`
+under ASan/UBSan. Run `run_icon_scale_gate_abi_test.py <NDK-clang>` and
+`run_icon_scale_scope_abi_test.py <NDK-clang>` from the same directory with Unicorn/pyelftools.
+These exercise production discovery, corrupt/duplicate targets, cross-call rejection,
+relocation, pool/static-slot and field/CID mutations with conflicting producer rejection,
+rollback including null backups, remap/foreign patches, active-grid geometry,
+request caps and disabled original bounds. The ABI runners execute the actual Rust gate
+and Dart initializer shims with hostile clobbering, original continuations, preserved
+registers/SIMD/flags/stacks, and unchanged Dart objects. Run `icon_scale_gate_target_test.cpp`
+against an ELF PT_LOAD-mapped copy of the matching Rust libapp_launcher.so; record its
+original full hash. The old scheduler tail-transfer harness is only legacy ABI coverage;
+the production frame callback observes geometry and never dispatches the old setter.
+Keep queue/settings/snapshot/reset/backup JVM tests, cache/remap checks, lint and release
+artifact checks. Verify real active GridConfig iconSize, not only API acceptance/current
+scale: the provider cache can change while the old Dart clamp still limits rendered size.
+The record remains 20 bytes in
+schema 7; test schemas 1–6 migrating with the size override absent and schema 7's full-width
+checksum. Inspect `home_icon_size_percent`, `hypertweak_rule_icon_percent` and retained JNI
+V1–V5 exports in the release artifact. The preview is approximate and its row/column
+controls do not submit layout changes. Actual ordinary/theme/Dock/folder sizes, disable,
+reset/restore, cold start and orientation remain manual user acceptance. Install the
+validated build and refresh affected processes/native payloads under AGENTS.md standing
+authorization, then inspect logs. Do not automate device UI.
 
 For native launcher preparation/cache/remap changes, also run the host regression harness against the verified target `libapp.so`:
 
@@ -261,7 +286,7 @@ CI tag moving during the build cannot cause a tag-fetch rejection.
 
 ## Device delivery
 
-Trigger: requested installation or device verification. Reuse that authorization throughout the delivery.
+Trigger: implementation changes under AGENTS.md standing delivery authorization, or requested installation/device verification. Honor explicit no-install and review-before-delivery instructions; reuse authorization throughout the delivery.
 
 - Identify the actual APK, requested channel, signing compatibility, connected device, and affected packages. Do not guess an artifact filename or change the signing/channel to make installation succeed.
 - Install with `adb install -r app/build/outputs/apk/release/<actual-apk>` for the requested release artifact.

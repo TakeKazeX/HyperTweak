@@ -147,6 +147,14 @@ extern const TargetSpec kFolderStackTarget;
 size_t FolderStackSiteSpan(const Image& image, unsigned site, uintptr_t offset);
 extern const TargetSpec kWidgetStackTarget;
 extern const TargetSpec kXiaoaiGestureOptionsTarget;
+extern const TargetSpec kIconScaleTarget;
+struct IconScaleLayout {
+    uintptr_t frame_returns[2];
+    uint32_t current, rx_value, double_cid;
+    uintptr_t scope_begin, scope_clamp;
+    uint32_t controller_slot, active_rx, actual_grid_icon, actual_provider, actual_width, actual_size, actual_padding;
+};
+bool DecodeIconScaleLayout(const Image&, const uintptr_t* sites, IconScaleLayout*, const uint8_t* owned_frame = nullptr, const uint8_t* owned_scope = nullptr);
 struct XiaoaiGestureLayout {
     uint32_t cid,context_field,trigger_field,mask_field,entity_field,long_press_pool,double_click_pool;
 };

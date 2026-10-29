@@ -26,6 +26,7 @@ internal class NativeRuleStatePublisher {
     private var receiverRegistered = false
     private val ledger = NativeSnapshotLedger()
     private var recentsHaptics = RecentsCardHaptics()
+    private var iconSize: DesktopIconSizeController? = null
     private var waiting: String? = null
     private var forwarded: NativeRuleStateSnapshot? = null
     @Volatile private var closed = false
@@ -64,7 +65,7 @@ internal class NativeRuleStatePublisher {
                 publish() // The same endpoint offer also rebinds a newly started launcher process.
                 return
             }
-            if (intent.action == Intent.ACTION_BOOT_COMPLETED || intent.action == Intent.ACTION_USER_UNLOCKED) {
+            if (intent.action == Intent.ACTION_BOOT_COMPLETED || intent.action == Intent.ACTION_USER_UNLOCKED || intent.action == Intent.ACTION_CONFIGURATION_CHANGED) {
                 publish()
             }
         }
@@ -78,10 +79,12 @@ internal class NativeRuleStatePublisher {
             detachContext()
             recentsHaptics = RecentsCardHaptics()
             this.context = application
+            iconSize = DesktopIconSizeController(application)
             runCatching {
                 application.registerReceiver(receiver, IntentFilter().apply {
                     addAction(Intent.ACTION_BOOT_COMPLETED)
                     addAction(Intent.ACTION_USER_UNLOCKED)
+                    addAction(Intent.ACTION_CONFIGURATION_CHANGED)
                     addAction(RecentsCardHaptics.ACTION)
                     addAction("com.takekazex.hypertweak.action.NATIVE_RULE_PREPARED")
                     addAction(com.takekazex.hypertweak.dock.DockFrameChannel.OFFER)
@@ -119,6 +122,7 @@ internal class NativeRuleStatePublisher {
     }
 
     private fun send(context: Context, snapshot: NativeRuleStateSnapshot, revision: Long) {
+        iconSize?.submit(snapshot.iconPercent)
         runCatching {
             val intent = Intent("com.android.systemui.fsgesture").setPackage("com.miui.home")
                 // Schema 3 stays readable by a launcher native payload that predates this
@@ -136,6 +140,7 @@ internal class NativeRuleStatePublisher {
                 .putExtra("hypertweak_rule_folder_stack", snapshot.folderStack)
                 .putExtra("hypertweak_rule_widget_stack", snapshot.widgetStack)
                 .putExtra("hypertweak_rule_xiaoai_options", snapshot.xiaoaiOptions)
+                .putExtra("hypertweak_rule_icon_percent", snapshot.iconPercent)
                 .putExtra("sender_uid", Process.myUid())
             if (dockEndpointKnown) intent.putExtra("hypertweak_rule_dock_channel", true)
                 .putExtra("hypertweak_rule_dock_port", dockPort)
@@ -158,6 +163,7 @@ internal class NativeRuleStatePublisher {
 
     private fun detachContext() {
         recentsHaptics.close()
+        iconSize?.close(); iconSize = null
         val old = context
         context = null
         handler.removeCallbacksAndMessages(token)

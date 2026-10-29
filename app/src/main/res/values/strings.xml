@@ -1730,4 +1730,26 @@
     <string name="debug_bundle_ready">Bundle ready · %1$d KiB</string>
     <string name="debug_bundle_share">Share diagnostic bundle</string>
     <string name="debug_bundle_sources">Module sources: %1$d collected, %2$d unavailable. Detailed system-source status is inside the archive.</string>
+    <string name="desktop_icon_title">Desktop icon size</string>
+    <string name="desktop_icon_entry_summary">Preview, adjust and confirm icon sizes</string>
+    <string name="desktop_icon_preview_title">Local preview</string>
+    <string name="desktop_icon_preview_note">Approximate preview. Grid choices below affect only this illustration.</string>
+    <string name="desktop_icon_preview_description">%1$d columns, %2$d rows, preview icon size %3$d percent</string>
+    <string name="desktop_icon_loading">Loading sample app icons…</string>
+    <string name="desktop_icon_preview_legend">Dashed outlines show the 100% reference. Titles keep the same font size.</string>
+    <string name="desktop_icon_sample_app">App</string>
+    <string name="desktop_icon_size">Icon size</string>
+    <string name="desktop_icon_preview_percent">Preview size · %1$d%%</string>
+    <string name="desktop_icon_size_summary">50–150% of the original desktop size, limited by available cell space. Tap to enter a value.</string>
+    <string name="desktop_icon_preview_columns">Preview columns</string>
+    <string name="desktop_icon_preview_rows">Preview rows</string>
+    <string name="desktop_icon_reset_preview">Restore desktop defaults</string>
+    <string name="desktop_icon_override">Custom icon size</string>
+    <string name="desktop_icon_override_summary">Adjustments are saved continuously. Turning this off restores the original desktop size.</string>
+    <string name="desktop_icon_saving">Saving…</string>
+    <string name="desktop_icon_save_failed">Save failed. Your draft is retained; check the module connection and retry.</string>
+    <string name="desktop_icon_saved">Configuration saved. Desktop icon sizes follow the latest setting, within available cell space.</string>
+    <string name="desktop_icon_apply_note">Dragging saves the latest size automatically. Preview rows and columns apply only to this preview.</string>
+    <string name="desktop_icon_discard_title">Discard unsaved changes?</string>
+    <string name="desktop_icon_discard_summary">Changes have not been sent to the desktop.</string>
 </resources>

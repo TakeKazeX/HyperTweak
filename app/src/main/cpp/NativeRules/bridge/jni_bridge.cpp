@@ -11,6 +11,7 @@
 #include "widget_stack_rule.h"
 #include "assistant_widget_rule.h"
 #include "native_config.h"
+#include "icon_scale_rule.h"
 #include "native_rule_runtime.h"
 
 #include <jni.h>
@@ -25,7 +26,7 @@ jstring BuildStatus(JNIEnv* env) {
     snprintf(buffer, sizeof(buffer),
              "clearButton=%s/%s target=0x%zx hits=%u "
              "folderColumns=%d/%s target=0x%zx hits=%u "
-             "assistantWidgets=%d/%s target=0x%zx hits=%u folderStack=%d/%s widgetStack=%d/%s config=%s source=%s",
+             "assistantWidgets=%d/%s target=0x%zx hits=%u folderStack=%d/%s widgetStack=%d/%s iconPercent=%d/%s config=%s source=%s",
              hypertweak::native::ClearButtonHiddenRequested() ? "hide" : "keep",
              hypertweak::native::ClearButtonRuleReason(),
              static_cast<size_t>(hypertweak::native::ClearButtonTargetAddress()),
@@ -42,6 +43,8 @@ jstring BuildStatus(JNIEnv* env) {
              hypertweak::native::FolderStackRuleReason(),
              hypertweak::native::AndroidWidgetStackRequested() ? 1 : 0,
              hypertweak::native::AndroidWidgetStackRuleReason(),
+             hypertweak::native::DesktopIconPercentRequested(),
+             hypertweak::native::DesktopIconScaleReason(),
              hypertweak::native::ConfigChannelPath(),
              hypertweak::native::NativeRuleRuntimeSource());
     return env->NewStringUTF(buffer);
@@ -103,5 +106,14 @@ Java_com_takekazex_hypertweak_hook_NativeRules_nativeApplyRuleSwitchesV4(
         jboolean widgets, jboolean haptic, jboolean stack, jboolean widget_stack, jboolean xiaoai) {
     hypertweak::native::UpdateNativeRuleSettings(hidden == JNI_TRUE, columns, contextual == JNI_TRUE,
         widgets == JNI_TRUE, haptic == JNI_TRUE, stack == JNI_TRUE, widget_stack == JNI_TRUE, xiaoai == JNI_TRUE);
+    hypertweak::native::ApplyPreparedNativeRules();
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_takekazex_hypertweak_hook_NativeRules_nativeApplyRuleSwitchesV5(
+        JNIEnv*, jobject, jboolean hidden, jint columns, jboolean contextual,
+        jboolean widgets, jboolean haptic, jboolean stack, jboolean widget_stack, jboolean xiaoai, jint icon_percent) {
+    hypertweak::native::UpdateNativeRuleSettings(hidden == JNI_TRUE, columns, contextual == JNI_TRUE,
+        widgets == JNI_TRUE, haptic == JNI_TRUE, stack == JNI_TRUE, widget_stack == JNI_TRUE, xiaoai == JNI_TRUE, icon_percent);
     hypertweak::native::ApplyPreparedNativeRules();
 }

@@ -2,6 +2,7 @@
 #include "native_rule_settings_record.h"
 #include <assert.h>
 #include <stdio.h>
+#include <initializer_list>
 using namespace hypertweak::native;
 int main() {
     for (uint32_t schema = 1; schema <= 6; ++schema) {
@@ -9,7 +10,7 @@ int main() {
         record.checksum = NativeRuleSettingsChecksum(record);
         bool migrated = false;
         assert(RestoreNativeRuleSettings(&record, &migrated));
-        assert(record.schema == 6 && migrated == (schema != 6));
+        assert(record.schema == 7 && migrated);
         assert(record.hidden == 1 && record.columns == 5);
         assert((record.options & 8u) == (schema >= 4 ? 8u : 0u));
         assert((record.options & 16u) == (schema >= 5 ? 16u : 0u));
@@ -22,7 +23,7 @@ int main() {
     for (unsigned field = 0; field < 5; ++field) {
         auto broken = good;
         switch (field) {
-            case 0: broken.schema = 7; break;
+            case 0: broken.schema = 8; break;
             case 1: broken.hidden = 2; break;
             case 2: broken.columns = 6; break;
             case 3: broken.options = 64; break;
@@ -36,5 +37,12 @@ int main() {
     oldWithNewBit.checksum = NativeRuleSettingsChecksum(oldWithNewBit);
     bool migrated = false;
     assert(!RestoreNativeRuleSettings(&oldWithNewBit, &migrated));
-    puts("native snapshots: schemas 1-5 migrate with new option disabled, schema 6 roundtrip, invalid fields/checksum rejected");
+    for (unsigned percent : {50u,100u,150u}) {
+        NativeRuleSettingsRecord record{7,0,3,63u | ((percent+1u)<<6u),0};
+        record.checksum=NativeRuleSettingsChecksum(record);
+        assert(RestoreNativeRuleSettings(&record,&migrated) && !migrated);
+        auto corrupt=record; corrupt.options ^= 1u<<12u;
+        assert(!RestoreNativeRuleSettings(&corrupt,&migrated));
+    }
+    puts("native snapshots: schemas 1-6 migrate with icon size disabled, schema 7 roundtrip, invalid fields/checksum rejected");
 }

@@ -102,6 +102,7 @@ internal object DebugSettingsCatalog {
         DebugSetting("hide_lockscreen_date", "Boolean", false),
         DebugSetting("hide_lockscreen_status_bar", "Boolean", false),
         DebugSetting("hide_recents_clear_button", "Boolean", false),
+        DebugSetting("home_icon_size_percent", "Int", -1),
         DebugSetting("hyperos_indicator_blur", "Boolean", false),
         DebugSetting("hyperos_indicator_haptics", "Boolean", false),
         DebugSetting("hyperos_indicator_haptics_enhanced", "Boolean", false),

@@ -9,7 +9,7 @@
 #include <string.h>
 namespace {
 std::atomic<bool> hidden{false}, recents_haptic{false}, folder_stack{false}, widget_stack{false}, xiaoai_options{false};
-std::atomic<int32_t> columns{3};
+std::atomic<int32_t> columns{3}, icon_percent{-1};
 std::atomic<unsigned> queries{0}, preparations{0}, saves{0}, ready{0};
 std::atomic<bool> block{false}, entered{false};
 void Wait(std::atomic<unsigned>& value, unsigned expected) {
@@ -50,6 +50,12 @@ bool AndroidWidgetStackRequested() { return widget_stack.load(); }
 bool ApplyAndroidWidgetStackRule(void*) { return true; }
 const char* AndroidWidgetStackRuleReason() { return "disabled"; }
 void ResetAndroidWidgetStackAfterFork() {}
+void SetDesktopIconPercent(int v) { icon_percent.store(v); }
+int DesktopIconPercentRequested() { return icon_percent.load(); }
+bool DesktopIconScaleNeedsPreparation() { return icon_percent.load()!=-1; }
+bool ApplyDesktopIconScaleRule(void*) { return true; }
+const char* DesktopIconScaleReason() { return "disabled"; }
+void ResetDesktopIconScaleAfterFork() {}
 void SetXiaoaiGestureOptionsEnabled(bool v) { xiaoai_options.store(v); }
 bool XiaoaiGestureOptionsRequested() { return xiaoai_options.load(); }
 bool ApplyXiaoaiGestureOptionsRule(void*) { return true; }
@@ -76,7 +82,7 @@ void InvalidateFailedDartRuleTargets() {}
 void ResetDartRulePreparationAfterFork() {}
 void LockDartRulePreparationForFork() {}
 void UnlockDartRulePreparationAfterFork() {}
-bool PrepareDartRuleTargets(void*, bool, bool, bool, bool, bool, bool, bool, bool) {
+bool PrepareDartRuleTargets(void*, bool, bool, bool, bool, bool, bool, bool, bool, bool) {
     ++preparations;
     entered.store(true);
     while (block.load()) usleep(1000);

@@ -54,7 +54,7 @@ import top.yukonga.miuix.kmp.utils.overScrollVertical
 /** Launcher controls and predictive back gestures (Features → System Launcher). */
 @SuppressLint("LocalContextGetResourceValueCall")
 @Composable
-fun SystemLauncherPage(onBack: () -> Unit, onNavigateToDockBackground: () -> Unit) {
+fun SystemLauncherPage(onBack: () -> Unit, onNavigateToDockBackground: () -> Unit, onNavigateToDesktopIconSize: () -> Unit) {
     val services = LocalAppServices.current
     val settingsStore = LocalAppSettingsStore.current
     val scrollBehavior = MiuixScrollBehavior()
@@ -144,6 +144,8 @@ fun SystemLauncherPage(onBack: () -> Unit, onNavigateToDockBackground: () -> Uni
                             title = stringResource(R.string.settings_recents_card_haptic_title),
                             summary = stringResource(R.string.settings_recents_card_haptic_summary)
                         )
+                        ArrowPreference(title = stringResource(R.string.desktop_icon_title),
+                            summary = stringResource(R.string.desktop_icon_entry_summary), onClick = onNavigateToDesktopIconSize)
                         ArrowPreference(title = stringResource(R.string.dock_title),
                             summary = stringResource(R.string.dock_summary), onClick = onNavigateToDockBackground)
                         SwitchPreference(

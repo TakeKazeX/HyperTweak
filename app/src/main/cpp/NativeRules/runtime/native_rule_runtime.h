@@ -5,9 +5,9 @@ namespace hypertweak::native {
 const char* NativeRuleRuntimeSource();
 void* NativeRuleCurrentDartHandle();
 void ObserveNativeRuleDartLibrary(void* handle);
-bool ReceiveNativeRuleSettings(bool hidden, int32_t columns, bool contextual_search, int64_t revision, bool assistant_widgets = false, bool recents_haptic = false, bool folder_stack = false, bool widget_stack = false, bool xiaoai_options = false);
+bool ReceiveNativeRuleSettings(bool hidden, int32_t columns, bool contextual_search, int64_t revision, bool assistant_widgets = false, bool recents_haptic = false, bool folder_stack = false, bool widget_stack = false, bool xiaoai_options = false, int32_t icon_percent = -1);
 void ApplyPreparedNativeRules();
-void UpdateNativeRuleSettings(bool hidden, int32_t columns, bool contextual_search, bool assistant_widgets = false, bool recents_haptic = false, bool folder_stack = false, bool widget_stack = false, bool xiaoai_options = false);
+void UpdateNativeRuleSettings(bool hidden, int32_t columns, bool contextual_search, bool assistant_widgets = false, bool recents_haptic = false, bool folder_stack = false, bool widget_stack = false, bool xiaoai_options = false, int32_t icon_percent = -1);
 void RequestNativeRulePreparation();
 void NotifyDockFramePreparation();
 void MarkNativeRuntimeInitialized();

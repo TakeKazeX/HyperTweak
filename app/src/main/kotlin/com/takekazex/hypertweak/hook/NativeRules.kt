@@ -88,12 +88,13 @@ object NativeRules {
         recentsHaptic: Boolean = Preferences.recentsCardHaptic(),
         folderStack: Boolean = Preferences.folderStackPreview(),
         widgetStack: Boolean = Preferences.androidWidgetStack(),
-        xiaoaiOptions: Boolean = Preferences.xiaoaiGestureOptions()
+        xiaoaiOptions: Boolean = Preferences.xiaoaiGestureOptions(),
+        iconPercent: Int = Preferences.desktopIconPercent()
     ): Boolean {
         if (!ensureLoaded()) return false
         return try {
             try {
-                nativeApplyRuleSwitchesV4(
+                nativeApplyRuleSwitchesV5(
                     hideRecentsClearButton,
                     openedFolderColumns,
                     contextualSearchLongPress,
@@ -101,14 +102,17 @@ object NativeRules {
                     recentsHaptic,
                     folderStack,
                     widgetStack,
-                    xiaoaiOptions
+                    xiaoaiOptions,
+                    iconPercent
                 )
             } catch (_: UnsatisfiedLinkError) {
                 // A hot APK replacement can leave the old native payload mapped until
                 // launcher refresh. Keep its existing switches usable during that interval.
                 try {
-                    nativeApplyRuleSwitchesV3(hideRecentsClearButton, openedFolderColumns, contextualSearchLongPress,
-                        assistantWidgets, recentsHaptic, folderStack, widgetStack)
+                    try { nativeApplyRuleSwitchesV4(hideRecentsClearButton, openedFolderColumns, contextualSearchLongPress,
+                        assistantWidgets, recentsHaptic, folderStack, widgetStack, xiaoaiOptions) }
+                    catch (_: UnsatisfiedLinkError) { nativeApplyRuleSwitchesV3(hideRecentsClearButton, openedFolderColumns, contextualSearchLongPress,
+                        assistantWidgets, recentsHaptic, folderStack, widgetStack) }
                 } catch (_: UnsatisfiedLinkError) {
                     try {
                         nativeApplyRuleSwitchesV2(hideRecentsClearButton, openedFolderColumns,
@@ -130,6 +134,11 @@ object NativeRules {
     private external fun nativeStatus(): String
 
     // Bound by name, so this class and this method must survive R8 unchanged.
+    private external fun nativeApplyRuleSwitchesV5(
+        hidden: Boolean, columns: Int, contextual: Boolean, widgets: Boolean, haptic: Boolean,
+        stack: Boolean, widgetStack: Boolean, xiaoai: Boolean, iconPercent: Int
+    )
+
     private external fun nativeApplyRuleSwitchesV4(
         hideRecentsClearButton: Boolean, openedFolderColumns: Int, contextualSearchLongPress: Boolean,
         assistantWidgets: Boolean, recentsHaptic: Boolean, folderStack: Boolean, widgetStack: Boolean,
