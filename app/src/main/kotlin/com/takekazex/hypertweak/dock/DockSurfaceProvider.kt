@@ -29,7 +29,7 @@ import androidx.core.net.toUri
 class DockSurfaceProvider : ContentProvider() {
     private val main = Handler(Looper.getMainLooper())
     private data class Entry(val host: SurfaceControlViewHost, val view: DockMaterialView, val viewportWidth: Int, val viewportHeight: Int,
-        val owner: IBinder, val death: IBinder.DeathRecipient, val lease: Long,
+        val owner: IBinder, val death: IBinder.DeathRecipient, val lease: Long, val poses: DockPoseChannel,
         var parcel: SurfaceControlViewHost.SurfacePackage? = null, var active: Boolean = false)
     private val entries = mutableMapOf<String, Entry>() // Main thread only.
     private var lastStatus = "idle"
@@ -112,6 +112,7 @@ class DockSurfaceProvider : ContentProvider() {
             }
         }
         require(method == "create")
+        require(args.getInt("poseProtocol") == DockPoseChannel.PROTOCOL) { "Dock pose protocol changed; reload Java Hook" }
         motionReady = args.getBoolean("motionReady")
         val config = DockConfig.decode(args.getString("config") ?: "") ?: error("Invalid Dock configuration")
         check(config.enabled)
@@ -143,16 +144,30 @@ class DockSurfaceProvider : ContentProvider() {
         // PassBlur/HWUI maps its snapshot in ViewRoot/window coordinates. Keep the
         // capture viewport aligned with the desktop and place the material inside it,
         // instead of asking an externally translated Dock-sized root to sample it.
-        val root = FrameLayout(displayContext).apply {
+        val motionRoot = FrameLayout(displayContext).apply {
+            pivotX = 0f
+            pivotY = 0f
             importantForAccessibility = android.view.View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
             addView(view, FrameLayout.LayoutParams(width, height).apply {
                 leftMargin = x
                 topMargin = y
             })
         }
+        // Keep capture in a stationary desktop viewport. HWUI sees the animated
+        // ancestor RenderNode and maps material sampling through the same transform.
+        val root = FrameLayout(displayContext).apply {
+            importantForAccessibility = android.view.View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
+            addView(motionRoot, FrameLayout.LayoutParams(viewportWidth, viewportHeight))
+        }
+        val poses = DockPoseChannel(main) { pose ->
+            motionRoot.translationX = pose.x
+            motionRoot.translationY = pose.y
+            motionRoot.scaleX = pose.scale
+            motionRoot.scaleY = pose.scale
+        }
         val host = SurfaceControlViewHost(displayContext, display, Binder())
         val death = IBinder.DeathRecipient { main.post { release(id) } }
-        val entry = Entry(host, view, viewportWidth, viewportHeight, owner, death, lease)
+        val entry = Entry(host, view, viewportWidth, viewportHeight, owner, death, lease, poses)
         entries[id] = entry
         view.onMaterialState = { ready -> if (!ready && entries[id] === entry) {
             release(id)
@@ -176,7 +191,7 @@ class DockSurfaceProvider : ContentProvider() {
                 val parcel = requireNotNull(host.surfacePackage)
                 entry.parcel = parcel
                 putParcelable("surface", parcel)
-                putBinder("renderer", Binder())
+                putBinder("renderer", poses)
             }
         } catch (error: Exception) { release(id); throw error }
     }
@@ -184,6 +199,7 @@ class DockSurfaceProvider : ContentProvider() {
     private fun release(id: String) {
         val entry = entries.remove(id) ?: return
         runCatching { entry.owner.unlinkToDeath(entry.death, 0) }
+        entry.poses.close()
         entry.view.stop()
         entry.parcel?.release()
         runCatching { entry.host.release() }.onFailure { DebugLog.w("DockHost", "surface release failed", it) }

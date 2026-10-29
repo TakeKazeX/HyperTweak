@@ -3,7 +3,7 @@ package com.takekazex.hypertweak.dock
 import com.takekazex.hypertweak.settings.contract.DockBounds
 
 internal data class DockPose(val x: Float, val y: Float, val scale: Float) {
-    /** Material stays at its desktop-local position inside the full viewport capture root. */
+    /** Transform the inner viewport View around (0, 0), retaining the material layout offsets. */
     fun inViewport(bounds: DockBounds) = DockPose(x - bounds.x * scale, y - bounds.y * scale, scale)
 
     companion object {

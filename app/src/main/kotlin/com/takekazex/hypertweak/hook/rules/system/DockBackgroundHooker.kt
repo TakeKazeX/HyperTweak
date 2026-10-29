@@ -301,6 +301,7 @@ object DockBackgroundHooker : StaticHooker() {
             val args = Bundle().apply {
                 putLong("lease", entry.lease); putString("config", config.encode()); putInt("width", bounds.width); putInt("height", bounds.height)
                 putInt("viewportWidth", frame.width()); putInt("viewportHeight", frame.height())
+                putInt("poseProtocol", com.takekazex.hypertweak.dock.DockPoseChannel.PROTOCOL)
                 putInt("x", bounds.x); putInt("y", bounds.y)
                 putFloat("radius", bounds.radius); putBoolean("dark", dark); putBinder("owner", entry.owner)
                 putParcelable("configuration", Configuration(configuration))
@@ -357,8 +358,11 @@ object DockBackgroundHooker : StaticHooker() {
         DockReflection.call(transaction, "setLayer", entry.effect, -1)
         val pose = com.takekazex.hypertweak.dock.DockPose.resolve(frame.width(), frame.height(), entry.density, bounds, motion)
             .inViewport(bounds)
-        DockReflection.call(transaction, "setMatrix", entry.effect, pose.scale, 0f, 0f, pose.scale)
-        DockReflection.call(transaction, "setPosition", entry.effect, pose.x, pose.y)
+        // External SurfaceControl motion is invisible to HWUI's window-local
+        // sampling matrix. Move the inner View tree instead, keeping capture fixed.
+        entry.renderer?.let { com.takekazex.hypertweak.dock.DockPoseChannel.send(it, pose) }
+        DockReflection.call(transaction, "setMatrix", entry.effect, 1f, 0f, 0f, 1f)
+        DockReflection.call(transaction, "setPosition", entry.effect, 0f, 0f)
         // The native RenderNode clips the material. Cropping/rounding the viewport here
         // would cut off its bottom-positioned child and change the capture coordinate space.
         DockReflection.call(transaction, "setWindowCrop", entry.effect, frame.width(), frame.height())
@@ -389,6 +393,7 @@ object DockBackgroundHooker : StaticHooker() {
                     runCatching {
                         entry.parcel = parcel
                         entry.renderer = renderer
+                        entry.applied = null // Replay the current pose to the newly attached receiver.
                         val death = IBinder.DeathRecipient { handler?.post {
                             synchronized(wmLock) { if (entries[current] === entry) fail(current, entry) }
                         } }
