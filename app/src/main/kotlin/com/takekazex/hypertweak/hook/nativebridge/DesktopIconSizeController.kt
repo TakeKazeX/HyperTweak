@@ -13,7 +13,7 @@ internal class DesktopIconSizeController(private val context: Context) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val queue = Channel<Int>(Channel.CONFLATED)
     @Volatile private var closed = false
-    private var refreshAfterAttach = true
+    @Volatile private var refreshAfterAttach = true
     private val uri = Uri.parse("content://com.miui.home.launcher.settings")
     private val journal by lazy {
         context.createDeviceProtectedStorageContext().getSharedPreferences("hypertweak_desktop_icon_scale", Context.MODE_PRIVATE)
@@ -33,6 +33,7 @@ internal class DesktopIconSizeController(private val context: Context) {
             }
         }
     }
+    fun refresh() { refreshAfterAttach = true }
     fun submit(percent: Int) { if (!closed) queue.trySend(percent) }
     private fun info(): Bundle = requireNotNull(context.contentResolver.call(uri, "getIconScaleInfo", null, null)) {
         "launcher icon scale information unavailable"

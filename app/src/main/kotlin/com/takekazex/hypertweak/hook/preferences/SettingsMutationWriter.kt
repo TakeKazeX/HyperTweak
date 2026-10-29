@@ -188,6 +188,7 @@ internal class SettingsMutationWriter(private val storage: Storage) {
                                     putBoolean(PlatformSettingsKeys.KEY_FOLDER_STACK_PREVIEW, snapshot.folderStack)
                                     putBoolean(PlatformSettingsKeys.KEY_ANDROID_WIDGET_STACK, snapshot.widgetStack)
                                     putBoolean(PlatformSettingsKeys.KEY_XIAOAI_GESTURE_OPTIONS, snapshot.xiaoaiOptions)
+                                    putInt(LauncherDesktopKeys.KEY_GRID, snapshot.desktopGrid)
                                     putInt(LauncherDesktopKeys.KEY_ICON_SIZE_PERCENT, snapshot.iconPercent)
                                     putLong(PlatformSettingsKeys.KEY_NATIVE_RULE_REVISION, snapshot.revision)
                                     putLong(KEY_PREFS_EPOCH, snapshot.epoch)

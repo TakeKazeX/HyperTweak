@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "icon_scale_scope.h"
 #include "icon_scale_rule.h"
+#include "desktop_grid_rule.h"
 #include "lsposed_hook_backend.h"
 #include "logging.h"
 #include <algorithm>
@@ -43,7 +44,7 @@ bool ApplyDesktopIconScope(uint8_t* base,const dart::IconScaleLayout& layout) {
 }
 extern "C" void HyperTweakIconScopeBounds(double maximum,double minimum,double* values) {
  values[0]=maximum;values[1]=minimum;
- if(!__atomic_load_n(&scope_ready,__ATOMIC_ACQUIRE) || DesktopIconPercentRequested()==-1 ||
+ if(!__atomic_load_n(&scope_ready,__ATOMIC_ACQUIRE) || (DesktopIconPercentRequested()==-1 && !DesktopGridGeometryActive()) ||
     !std::isfinite(minimum) || !std::isfinite(maximum) || minimum>maximum) return;
  values[0]=std::max(maximum,1.0);values[1]=std::min(minimum,0.01);
 }

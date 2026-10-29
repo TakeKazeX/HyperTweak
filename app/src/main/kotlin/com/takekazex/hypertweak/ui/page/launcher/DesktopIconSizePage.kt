@@ -5,6 +5,10 @@ import androidx.lifecycle.Lifecycle
 import com.takekazex.hypertweak.ui.app.LocalAppSettingsStore
 import com.takekazex.hypertweak.ui.app.LocalAppServices
 import com.takekazex.hypertweak.ui.state.DesktopIconSizeWriter
+import com.takekazex.hypertweak.ui.state.DesktopGridWriter
+import com.takekazex.hypertweak.settings.contract.LauncherDesktopKeys
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+import com.takekazex.hypertweak.util.platform.PlatformLevel
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -40,7 +44,7 @@ import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import kotlin.math.roundToInt
 
-/** Changes update the local preview and submit the latest acknowledged native setting live. */
+/** Icon size saves live; grid drafts reach the launcher only through explicit confirmation. */
 @Composable
 internal fun DesktopIconSizePage(onBack: () -> Unit) {
     val context = LocalContext.current
@@ -52,8 +56,13 @@ internal fun DesktopIconSizePage(onBack: () -> Unit) {
     var enabled by rememberSaveable { mutableStateOf((if (write.saving) write.requested else saved) != -1) }
     var seenRevision by remember { mutableLongStateOf(write.revision - if (write.saving) 1 else 0) }
     var progress by rememberSaveable { mutableIntStateOf((if (write.saving) write.requested else saved).let { if (it == -1) DesktopIconPreviewGeometry.DEFAULT_PROGRESS else (it - 50) * 5 }) }
-    var columns by rememberSaveable { mutableIntStateOf(4) }
-    var rows by rememberSaveable { mutableIntStateOf(6) }
+    val gridWrite by DesktopGridWriter.state.collectAsState()
+    var gridSaved by rememberSaveable { mutableIntStateOf(store.launcher.desktopGrid()) }
+    var columns by rememberSaveable { mutableIntStateOf(if (gridSaved == 0) 4 else LauncherDesktopKeys.gridColumns(gridSaved)) }
+    var rows by rememberSaveable { mutableIntStateOf(if (gridSaved == 0) 6 else LauncherDesktopKeys.gridRows(gridSaved)) }
+    var gridDraftDirty by rememberSaveable { mutableStateOf(false) }
+    var folderColumns by rememberSaveable { mutableIntStateOf(store.launcher.openedFolderColumns()) }
+    var folderStack by rememberSaveable { mutableStateOf(store.launcher.folderStackPreview()) }
     var editing by rememberSaveable { mutableStateOf(false) }
     val percent = (DesktopIconPreviewGeometry.relativeScale(progress) * 100).roundToInt()
     fun submit(value: Int) {
@@ -64,11 +73,38 @@ internal fun DesktopIconSizePage(onBack: () -> Unit) {
             }
         }
     }
+    fun cancelGridDraft() {
+        gridSaved = store.launcher.desktopGrid()
+        val code = gridSaved.takeIf { it in 1..12 }
+            ?: gridWrite.status?.observed?.takeIf { it in 1..12 }
+        columns = code?.let(LauncherDesktopKeys::gridColumns) ?: 4
+        rows = code?.let(LauncherDesktopKeys::gridRows) ?: 6
+        gridDraftDirty = false
+    }
+    fun commitGrid(code: Int) {
+        val app = context.applicationContext
+        val previous = store.launcher.desktopGrid()
+        gridDraftDirty = false
+        DesktopGridWriter.submit(code, { value -> store.launcher.commitDesktopGrid(value) },
+            { store.launcher.commitDesktopGrid(previous) }, { services.nativeRules.desktopGridStatus(app) })
+    }
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        gridSaved = store.launcher.desktopGrid()
+        folderColumns = store.launcher.openedFolderColumns()
+        folderStack = store.launcher.folderStackPreview()
+        DesktopGridWriter.refresh { services.nativeRules.desktopGridStatus(context.applicationContext) }
         if (!write.saving) {
             saved = store.launcher.desktopIconPercent()
             enabled = saved != -1
             progress = if (saved == -1) 250 else (saved - 50) * 5
+        }
+    }
+    LaunchedEffect(gridWrite) {
+        if (!gridWrite.saving) gridSaved = store.launcher.desktopGrid()
+        val host = gridWrite.status
+        if (!gridDraftDirty && gridSaved == 0 && host?.restored == true && host.observed in 1..12) {
+            columns = LauncherDesktopKeys.gridColumns(host.observed)
+            rows = LauncherDesktopKeys.gridRows(host.observed)
         }
     }
     LaunchedEffect(write.revision, write.saving) {
@@ -114,9 +150,11 @@ internal fun DesktopIconSizePage(onBack: () -> Unit) {
                             .background(MiuixTheme.colorScheme.surfaceVariant)
                             .semantics { contentDescription = description },
                         update = { it.update(samples.orEmpty(), columns, rows, if (enabled) progress else 250, foreground) })
-                    Spacer(Modifier.height(12.dp))
-                    Text(stringResource(if (samples == null) R.string.desktop_icon_loading else R.string.desktop_icon_preview_legend),
-                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+                    if (samples == null) {
+                        Spacer(Modifier.height(12.dp))
+                        Text(stringResource(R.string.desktop_icon_loading),
+                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+                    }
                 }
             }
             SmallTitle(stringResource(R.string.desktop_icon_size))
@@ -134,23 +172,62 @@ internal fun DesktopIconSizePage(onBack: () -> Unit) {
                             valueRange = 0f..500f, enabled = enabled, showKeyPoints = true, keyPoints = listOf(0f, 250f, 500f),
                             modifier = Modifier.semantics { contentDescription = description })
                     })
+            }
+            SmallTitle(stringResource(R.string.desktop_grid_title))
+            Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
                 OverlayDropdownPreference(title = stringResource(R.string.desktop_icon_preview_columns),
                     items = (4..6).map { it.toString() }, selectedIndex = columns - 4,
-                    onSelectedIndexChange = { columns = it + 4 })
+                    onSelectedIndexChange = { columns = it + 4; gridDraftDirty = true })
                 OverlayDropdownPreference(title = stringResource(R.string.desktop_icon_preview_rows),
                     items = (5..8).map { it.toString() }, selectedIndex = rows - 5,
-                    onSelectedIndexChange = { rows = it + 5 })
-                ArrowPreference(title = stringResource(R.string.desktop_icon_reset_preview), onClick = {
-                    enabled = false; progress = DesktopIconPreviewGeometry.DEFAULT_PROGRESS; columns = 4; rows = 6; submit(-1)
-                })
+                    onSelectedIndexChange = { rows = it + 5; gridDraftDirty = true })
+                if (gridWrite.saveFailed || (gridWrite.status?.stage == 7 && gridWrite.status?.requested == gridSaved)) {
+                    Text(stringResource(R.string.desktop_grid_failed), modifier = Modifier.padding(16.dp),
+                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+                }
+                Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    TextButton(text = stringResource(R.string.desktop_grid_cancel),
+                        modifier = Modifier.weight(1f), enabled = !gridWrite.saving,
+                        onClick = { cancelGridDraft() })
+                    TextButton(text = stringResource(R.string.desktop_grid_confirm),
+                        modifier = Modifier.weight(1f), enabled = !gridWrite.saving,
+                        colors = ButtonDefaults.textButtonColorsPrimary(),
+                        onClick = { commitGrid(LauncherDesktopKeys.gridCode(columns, rows)) })
+                }
             }
-            Text(stringResource(when {
-                write.saving -> R.string.desktop_icon_saving
-                write.revision > 0 && !write.succeeded -> R.string.desktop_icon_save_failed
-                write.revision > 0 && write.succeeded -> R.string.desktop_icon_saved
-                else -> R.string.desktop_icon_apply_note
-            }), modifier = Modifier.padding(24.dp), color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+            if (PlatformLevel.isOs4) {
+                SmallTitle(stringResource(R.string.desktop_folders_title))
+                Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+                    OverlayDropdownPreference(
+                        title = stringResource(R.string.settings_opened_folder_columns_title),
+                        summary = stringResource(R.string.settings_opened_folder_columns_summary),
+                        items = listOf(
+                            stringResource(R.string.settings_opened_folder_columns_default),
+                            stringResource(R.string.settings_opened_folder_columns_four),
+                            stringResource(R.string.settings_opened_folder_columns_five)
+                        ),
+                        selectedIndex = (folderColumns - PlatformSettingsKeys.DEFAULT_OPENED_FOLDER_COLUMNS).coerceIn(0, 2),
+                        onSelectedIndexChange = { index ->
+                            folderColumns = (PlatformSettingsKeys.DEFAULT_OPENED_FOLDER_COLUMNS + index).coerceIn(
+                                PlatformSettingsKeys.MIN_OPENED_FOLDER_COLUMNS, PlatformSettingsKeys.MAX_OPENED_FOLDER_COLUMNS)
+                            store.putInt(PlatformSettingsKeys.KEY_OPENED_FOLDER_COLUMNS, folderColumns)
+                            services.nativeRules.publish(context, store.launcher.hideRecentsClearButton(),
+                                openedFolderColumns = folderColumns)
+                        })
+                    SwitchPreference(
+                        title = stringResource(R.string.settings_folder_stack_preview_title),
+                        summary = stringResource(R.string.settings_folder_stack_preview_summary),
+                        checked = folderStack,
+                        onCheckedChange = {
+                            folderStack = it
+                            store.putBoolean(PlatformSettingsKeys.KEY_FOLDER_STACK_PREVIEW, it)
+                            services.nativeRules.publish(context, store.launcher.hideRecentsClearButton(), folderStack = it)
+                        })
+                }
+            }
             if (write.revision > 0 && !write.saving && !write.succeeded) {
+                Text(stringResource(R.string.desktop_icon_save_failed), modifier = Modifier.padding(24.dp),
+                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
                 TextButton(text = stringResource(R.string.scale_ok), modifier = Modifier.padding(horizontal = 24.dp),
                     onClick = { submit(if (enabled) percent else -1) })
             }

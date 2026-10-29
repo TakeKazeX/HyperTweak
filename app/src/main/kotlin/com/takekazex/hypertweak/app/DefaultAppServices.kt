@@ -28,7 +28,8 @@ internal object DefaultAppServices : AppServicePorts {
         boundService = { XposedServiceManager.currentService?.let(::BoundScopeService) },
         launcherNeeded = {
             val settings = PreferencesAppSettings
-            settings.launcher.hideRecentsClearButton() ||
+            settings.launcher.desktopGrid() != 0 || settings.launcher.desktopIconPercent() != -1 ||
+                settings.launcher.hideRecentsClearButton() ||
                 settings.launcher.openedFolderColumns() != PlatformSettingsKeys.DEFAULT_OPENED_FOLDER_COLUMNS ||
                 settings.backGesture.contextualSearchLongPress() ||
                 (PlatformLevel.isOs4 && settings.getBoolean(PlatformSettingsKeys.KEY_HIDE_GESTURE_BAR_RECENTS, false)) ||
@@ -36,6 +37,7 @@ internal object DefaultAppServices : AppServicePorts {
         }
     )
     override val nativeRules = object : NativeRulePublisher {
+        override suspend fun desktopGridStatus(context: Context) = DesktopGridClient.query(context)
         override fun publish(context: Context, hideRecentsClearButton: Boolean, openedFolderColumns: Int?,
             contextualSearchLongPress: Boolean?, assistantWidgets: Boolean?, recentsHaptic: Boolean?,
             folderStack: Boolean?, widgetStack: Boolean?, xiaoaiOptions: Boolean?) {

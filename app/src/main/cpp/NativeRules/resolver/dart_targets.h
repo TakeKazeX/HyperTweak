@@ -148,6 +148,17 @@ size_t FolderStackSiteSpan(const Image& image, unsigned site, uintptr_t offset);
 extern const TargetSpec kWidgetStackTarget;
 extern const TargetSpec kXiaoaiGestureOptionsTarget;
 extern const TargetSpec kIconScaleTarget;
+extern const TargetSpec kDesktopGridTarget;
+struct DesktopGridLayout {
+ uintptr_t to=0,prepare=0,change=0,apply=0,variable=0,fixed=0,handler=0;
+ uintptr_t rows_window=0,rows_null=0,clamp=0,load=0,migrate=0;
+ uint32_t maximum_field=0,unset_field=0,controller_slot=0,grid_controller_slot=0;
+ uint32_t current=0,selected=0,options=0,list_length=0,list_data=0,array_data=0;
+ uint32_t x=0,y=0,index=0,layout=0,cell_cid=0,grid_x=0,grid_y=0;
+ uint32_t context_x=0,context_y=0,input_rows=0,load_descriptor=0;
+};
+bool DecodeDesktopGridLayout(const Image&,const uintptr_t*,DesktopGridLayout*,const uint8_t* handler=nullptr,const uint8_t* variable=nullptr,const uint8_t* rows=nullptr,const uint8_t* clamp=nullptr);
+
 struct IconScaleLayout {
     uintptr_t frame_returns[2];
     uint32_t current, rx_value, double_cid;

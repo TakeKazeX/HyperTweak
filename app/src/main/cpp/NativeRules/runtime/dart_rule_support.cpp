@@ -250,9 +250,16 @@ bool PrepareDartRuleTargets(void* handle, bool clear_button, bool folder_columns
     if (folder_stack) success = ResolveDartSites(handle, dart::kFolderStackTarget, &result) && success;
     if (xiaoai_options) success = ResolveDartSites(handle, dart::kXiaoaiGestureOptionsTarget, &result) && success;
     if (widget_stack) success = ResolveDartSites(handle, dart::kWidgetStackTarget, &result) && success;
-    if (icon_scale) success = ResolveDartSites(handle, dart::kIconScaleTarget, &result) && success;
+    if (icon_scale) {
+        success = ResolveDartSites(handle, dart::kIconScaleTarget, &result) && success;
+    }
     g_allow_scan = false;
     return success;
+}
+bool PrepareDesktopGridTargets(void* handle) {
+ g_allow_scan=true;DartResolution result{};
+ const bool success=ResolveDartSites(handle,dart::kDesktopGridTarget,&result);
+ g_allow_scan=false;return success;
 }
 void InvalidateFailedDartRuleTargets() {
     pthread_mutex_lock(&g_cache_lock);

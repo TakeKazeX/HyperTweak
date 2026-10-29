@@ -56,6 +56,8 @@ internal object PreferencesAppSettings : AppSettingsStore {
     }
 
     override val launcher = object : LauncherAppSettings {
+        override fun desktopGrid(): Int = Preferences.desktopGrid()
+        override fun commitDesktopGrid(value: Int): Boolean = Preferences.commitDesktopGrid(value)
         override fun desktopIconPercent(): Int = Preferences.desktopIconPercent()
         override fun commitDesktopIconPercent(value: Int): Boolean = Preferences.commitDesktopIconPercent(value)
         override fun openedFolderColumns(): Int = Preferences.openedFolderColumns()

@@ -11,6 +11,8 @@ namespace {
 std::atomic<bool> hidden{false}, recents_haptic{false}, folder_stack{false}, widget_stack{false}, xiaoai_options{false};
 std::atomic<int32_t> columns{3}, icon_percent{-1};
 std::atomic<unsigned> queries{0}, preparations{0}, saves{0}, ready{0};
+std::atomic<int> grid_stage{0};
+std::atomic<unsigned> readbacks{0};
 std::atomic<bool> block{false}, entered{false};
 void Wait(std::atomic<unsigned>& value, unsigned expected) {
     for (unsigned i = 0u; i < 200u && value.load() < expected; ++i) usleep(10000);
@@ -50,6 +52,15 @@ bool AndroidWidgetStackRequested() { return widget_stack.load(); }
 bool ApplyAndroidWidgetStackRule(void*) { return true; }
 const char* AndroidWidgetStackRuleReason() { return "disabled"; }
 void ResetAndroidWidgetStackAfterFork() {}
+void SetDesktopGrid(int) {}
+bool DesktopGridNeedsPreparation(){return false;}
+bool PrepareDesktopGridTargets(void*){return true;}
+bool PrepareDesktopGridLayout(void*){return true;}
+void PrepareDesktopGridStorage(){if(grid_stage.load()==5 && ++readbacks==3)grid_stage.store(0);}
+int DesktopGridReadbackDelay(){return grid_stage.load()==5?20:-1;}
+int DesktopGridStage(){return grid_stage.load();}
+bool ApplyDesktopGridRule(void*){return true;}
+void ResetDesktopGridAfterFork(){}
 void SetDesktopIconPercent(int v) { icon_percent.store(v); }
 int DesktopIconPercentRequested() { return icon_percent.load(); }
 bool DesktopIconScaleNeedsPreparation() { return icon_percent.load()!=-1; }
@@ -148,5 +159,20 @@ int main() {
     assert(!ReceiveNativeRuleSettings(true, 4, false, 109, false, false, false, false, false));
     assert(ReceiveNativeRuleSettings(true, 4, false, 110, false, false, false, false, false));
     Wait(preparations, 11); assert(!xiaoai_options.load());
-    puts("PASS: actual worker sleeps after self-callback, ready inputs stay idle, stale/conflicting revisions rejected, concurrent update drains once, recents haptic, folder stack and widget stack enable/conflict/disable");
+    usleep(200000);
+    const auto before_wake=preparations.load(),before_ready=ready.load();
+    assert(TryNotifyDesktopGridPreparation());
+    Wait(preparations,before_wake+1);Wait(ready,before_ready+1);usleep(200000);
+    assert(preparations.load()==before_wake+1);
+    for(unsigned i=0;i<10000;++i)ApplyPreparedNativeRules();
+    usleep(200000);assert(preparations.load()==before_wake+1);
+    const auto poll_preparations=preparations.load(),poll_ready=ready.load();
+    grid_stage.store(5);
+    assert(TryNotifyDesktopGridPreparation());
+    Wait(readbacks,3);Wait(ready,poll_ready+2);
+    usleep(200000);
+    assert(grid_stage.load()==0 && readbacks.load()==3);
+    assert(preparations.load()==poll_preparations+1);
+    assert(ready.load()==poll_ready+2);
+    puts("PASS: actual worker sleeps after self-callback, ready inputs stay idle, stale/conflicting revisions rejected, concurrent update drains once, recents haptic, folder stack and widget stack enable/conflict/disable; pending migration readback polls finitely without rescans and returns to idle");
 }

@@ -72,6 +72,7 @@ bool ResolveDartSites(void* dart_handle, const dart::TargetSpec& spec,
 
 // Preparation runs off the input thread; Apply only consumes published results.
 bool PrepareDartRuleTargets(void* handle, bool clear_button, bool folder_columns, bool assistant_widgets = false, bool dock_frame = false, bool recents_haptic = false, bool folder_stack = false, bool widget_stack = false, bool xiaoai_options = false, bool icon_scale = false);
+bool PrepareDesktopGridTargets(void* handle);
 void InvalidateFailedDartRuleTargets();
 void ResetDartRulePreparationAfterFork();
 void LockDartRulePreparationForFork();

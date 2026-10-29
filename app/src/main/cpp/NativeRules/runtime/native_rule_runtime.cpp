@@ -7,6 +7,7 @@
 #include "widget_stack_rule.h"
 #include "xiaoai_gesture_rule.h"
 #include "icon_scale_rule.h"
+#include "desktop_grid_rule.h"
 #include "icon_scale_policy.h"
 #include "native_rule_events.h"
 #include "clear_button_rule.h"
@@ -87,7 +88,8 @@ void ApplySettings(const SettingsRecord& record) {
     SetFolderStackEnabled((record.options & 8u) != 0u);
     SetAndroidWidgetStackEnabled((record.options & 16u) != 0u);
     SetXiaoaiGestureOptionsEnabled((record.options & 32u) != 0u);
-    SetDesktopIconPercent(static_cast<int>(record.options >> 6u)-1);
+    SetDesktopIconPercent(static_cast<int>((record.options >> 6u)&255u)-1);
+    SetDesktopGrid(static_cast<int>((record.options>>14u)&15u));
 }
 bool Prepare() {
     NativeRuleLibraryQuery internal_query;
@@ -114,6 +116,7 @@ bool Prepare() {
         g_settings_dirty = false;
         LogInfo("native Preferences snapshot saved=%d", saved ? 1 : 0);
     }
+    PrepareDesktopGridStorage();
     const bool clear = ClearButtonHiddenRequested();
     const bool folder = FolderColumnsRequested() != 3;
     const bool widgets = AssistantWidgetAllowedRequested();
@@ -124,7 +127,7 @@ bool Prepare() {
     const bool stack = FolderStackRequested();
     const bool widget_stack = AndroidWidgetStackRequested();
     const bool xiaoai_options = XiaoaiGestureOptionsRequested();
-    const bool icon_scale = DesktopIconScaleNeedsPreparation();
+    const bool icon_scale = DesktopIconScaleNeedsPreparation() || DesktopGridNeedsPreparation();
     if (!clear && !folder && !widgets && !dock && !haptic && !stack && !widget_stack && !xiaoai_options && !icon_scale) return true;
     if (handle == nullptr) {
         // Fallback for an AOT image loaded before our observer. Keep this one
@@ -136,14 +139,22 @@ bool Prepare() {
         else { dlclose(handle); handle = g_dart_handle; }
         pthread_mutex_unlock(&g_settings_lock);
     }
-    return PrepareDartRuleTargets(handle, clear, folder, widgets, dock, haptic, stack, widget_stack, xiaoai_options, icon_scale);
+    return PrepareDartRuleTargets(handle, clear, folder, widgets, dock, haptic, stack, widget_stack, xiaoai_options, icon_scale) &&
+        (!DesktopGridNeedsPreparation() || (PrepareDesktopGridTargets(handle) && PrepareDesktopGridLayout(handle)));
 }
 void* Run(void*) {
     (void)pthread_setname_np(pthread_self(), "HT-RulePrepare");
     const int fd = __atomic_load_n(&g_wakeup, __ATOMIC_ACQUIRE);
     for (;;) {
         pollfd wake{fd, POLLIN, 0};
-        if (poll(&wake, 1u, -1) < 0) { if (errno == EINTR) continue; break; }
+        const int polled = poll(&wake, 1u, DesktopGridReadbackDelay());
+        if (polled < 0) { if (errno == EINTR) continue; break; }
+        if (polled == 0) {
+            const int before = DesktopGridStage();
+            PrepareDesktopGridStorage();
+            if (DesktopGridStage() != before) (void)HyperTweakNotifyNativeRulePrepared();
+            continue;
+        }
         uint64_t events = 0u;
         const ssize_t count = read(fd, &events, sizeof(events));
         if (count < 0 && (errno == EINTR || errno == EAGAIN)) continue;
@@ -197,8 +208,8 @@ void ObserveNativeRuleDartLibrary(void* handle) {
     pthread_mutex_unlock(&g_settings_lock);
     if (changed) { InvalidateFailedDartRuleTargets(); RequestNativeRulePreparation(); }
 }
-bool ReceiveNativeRuleSettings(bool hidden, int32_t columns, bool contextual_search, int64_t revision, bool assistant_widgets, bool recents_haptic, bool folder_stack, bool widget_stack, bool xiaoai_options, int32_t icon_percent) {
-    if (!HyperTweakIsLauncherProcess() || columns < 3 || columns > 5 || revision < 0 || !ValidIconPercent(icon_percent)) return false;
+bool ReceiveNativeRuleSettings(bool hidden, int32_t columns, bool contextual_search, int64_t revision, bool assistant_widgets, bool recents_haptic, bool folder_stack, bool widget_stack, bool xiaoai_options, int32_t icon_percent, int32_t desktop_grid) {
+    if (!HyperTweakIsLauncherProcess() || columns < 3 || columns > 5 || revision < 0 || !ValidIconPercent(icon_percent) || !ValidDesktopGrid(desktop_grid)) return false;
     pthread_mutex_lock(&g_settings_lock);
     // JNI remains a fallback. The authenticated SystemUI publisher owns live
     // state once available; a stale launcher Java instance cannot overwrite it.
@@ -207,7 +218,7 @@ bool ReceiveNativeRuleSettings(bool hidden, int32_t columns, bool contextual_sea
         return false;
     }
     SettingsRecord next{kNativeRuleSettingsSchema, hidden ? 1u : 0u, columns,
-        (contextual_search ? 1u : 0u) | (assistant_widgets ? 2u : 0u) | (recents_haptic ? 4u : 0u) | (folder_stack ? 8u : 0u) | (widget_stack ? 16u : 0u) | (xiaoai_options ? 32u : 0u) | (static_cast<uint32_t>(icon_percent+1) << 6u), 0u};
+        (contextual_search ? 1u : 0u) | (assistant_widgets ? 2u : 0u) | (recents_haptic ? 4u : 0u) | (folder_stack ? 8u : 0u) | (widget_stack ? 16u : 0u) | (xiaoai_options ? 32u : 0u) | (static_cast<uint32_t>(icon_percent+1) << 6u) | (static_cast<uint32_t>(desktop_grid)<<14u), 0u};
     next.checksum = NativeRuleSettingsChecksum(next);
     const bool changed = !g_received_settings || next.hidden != g_settings.hidden ||
                          next.columns != g_settings.columns || next.options != g_settings.options;
@@ -228,11 +239,12 @@ bool ReceiveNativeRuleSettings(bool hidden, int32_t columns, bool contextual_sea
                 revision > 0 ? "SystemUI" : "JNI");
     }
     pthread_mutex_unlock(&g_settings_lock);
-    if (changed) { InvalidateFailedDartRuleTargets(); RequestNativeRulePreparation(); }
+    if (changed) InvalidateFailedDartRuleTargets();
+    RequestNativeRulePreparation();
     return true;
 }
-void UpdateNativeRuleSettings(bool hidden, int32_t columns, bool contextual_search, bool assistant_widgets, bool recents_haptic, bool folder_stack, bool widget_stack, bool xiaoai_options, int32_t icon_percent) {
-    (void)ReceiveNativeRuleSettings(hidden, columns >= 3 && columns <= 5 ? columns : 3, contextual_search, 0, assistant_widgets, recents_haptic, folder_stack, widget_stack, xiaoai_options, icon_percent);
+void UpdateNativeRuleSettings(bool hidden, int32_t columns, bool contextual_search, bool assistant_widgets, bool recents_haptic, bool folder_stack, bool widget_stack, bool xiaoai_options, int32_t icon_percent, int32_t desktop_grid) {
+    (void)ReceiveNativeRuleSettings(hidden, columns >= 3 && columns <= 5 ? columns : 3, contextual_search, 0, assistant_widgets, recents_haptic, folder_stack, widget_stack, xiaoai_options, icon_percent, desktop_grid);
 }
 void ApplyPreparedNativeRules() {
     if (!HyperTweakIsLauncherProcess() || NativeRuleLibraryQueryActive()) return;
@@ -245,6 +257,7 @@ void ApplyPreparedNativeRules() {
     (void)ApplyFolderStackRule(handle);
     (void)ApplyAndroidWidgetStackRule(handle);
     (void)ApplyXiaoaiGestureOptionsRule(handle);
+    (void)ApplyDesktopGridRule(handle);
     (void)ApplyDesktopIconScaleRule(handle);
     const bool missing = strcmp(ClearButtonRuleReason(), "dart_preparation_pending") == 0 ||
                          strcmp(FolderColumnsRuleReason(), "dart_preparation_pending") == 0 ||
@@ -286,6 +299,13 @@ void RequestNativeRulePreparation() {
     const int fd = __atomic_load_n(&g_wakeup, __ATOMIC_ACQUIRE);
     if (fd >= 0) (void)write(fd, &event, sizeof(event));
 }
+bool TryNotifyDesktopGridPreparation() {
+ const int fd=__atomic_load_n(&g_wakeup,__ATOMIC_ACQUIRE);
+ if(fd<0||pthread_mutex_trylock(&g_settings_lock)!=0)return false;
+ g_gate.Changed();const bool queue=g_gate.Queue(Now());pthread_mutex_unlock(&g_settings_lock);
+ if(queue){const uint64_t event=1u;(void)write(fd,&event,sizeof(event));}
+ return true;
+}
 void NotifyDockFramePreparation() {
     pthread_mutex_lock(&g_settings_lock); g_gate.Changed(); pthread_mutex_unlock(&g_settings_lock);
     InvalidateFailedDartRuleTargets(); RequestNativeRulePreparation();
@@ -297,6 +317,7 @@ void ResetNativeRuleRuntimeAfterFork() {
     ResetAndroidWidgetStackAfterFork();
     ResetXiaoaiGestureOptionsAfterFork();
     ResetDesktopIconScaleAfterFork();
+    ResetDesktopGridAfterFork();
     if (g_wakeup >= 0) close(g_wakeup);
     g_wakeup = -1;
     g_worker_state = 0u;

@@ -22,6 +22,8 @@ internal class NativeRuleStatePublisher {
     private var dockToken1 = 0L
     private var dockOfferVersion = 0L
     private var dockEndpointKnown = false
+    private var gridApplied = -1
+    private var gridNonce = 0L
     private var revision = 0L
     private var receiverRegistered = false
     private val ledger = NativeSnapshotLedger()
@@ -42,6 +44,29 @@ internal class NativeRuleStatePublisher {
     private val receiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             if (closed) return
+
+            if (intent.action == "com.takekazex.hypertweak.action.DESKTOP_GRID_QUERY") {
+                if (!SettingsTransport.trusted(context, sentFromPackage, sentFromUid, SettingsTransport.MODULE)) return
+                val nonce = intent.getLongExtra("nonce", 0)
+                if (nonce <= 0) return
+                gridNonce = nonce
+                publish()
+                return
+            }
+            if (intent.action == "com.takekazex.hypertweak.action.DESKTOP_GRID_NATIVE_STATE") {
+                if (!SettingsTransport.trusted(context, sentFromPackage, sentFromUid, "com.miui.home")) return
+                if (gridNonce <= 0 || intent.getLongExtra("nonce", 0) != gridNonce) return
+                val stage = intent.getLongExtra("stage", -1)
+                val applied = intent.getLongExtra("observed", 0).toInt()
+                if ((stage == 6L || stage == 0L) && applied != gridApplied) {
+                    gridApplied = applied
+                    iconSize?.refresh()
+                    ledger.latest()?.let { iconSize?.submit(it.iconPercent) }
+                }
+                runCatching { SettingsTransport.send(context, Intent("com.takekazex.hypertweak.action.DESKTOP_GRID_STATE")
+                    .setPackage(SettingsTransport.MODULE).putExtras(intent)) }
+                return
+            }
             if (intent.action == "com.takekazex.hypertweak.action.NATIVE_RULE_PREPARED") {
                 if (SettingsTransport.trusted(context, sentFromPackage, sentFromUid, "com.miui.home")) publish()
                 return
@@ -85,6 +110,8 @@ internal class NativeRuleStatePublisher {
                     addAction(Intent.ACTION_BOOT_COMPLETED)
                     addAction(Intent.ACTION_USER_UNLOCKED)
                     addAction(Intent.ACTION_CONFIGURATION_CHANGED)
+                    addAction("com.takekazex.hypertweak.action.DESKTOP_GRID_QUERY")
+                    addAction("com.takekazex.hypertweak.action.DESKTOP_GRID_NATIVE_STATE")
                     addAction(RecentsCardHaptics.ACTION)
                     addAction("com.takekazex.hypertweak.action.NATIVE_RULE_PREPARED")
                     addAction(com.takekazex.hypertweak.dock.DockFrameChannel.OFFER)
@@ -140,6 +167,8 @@ internal class NativeRuleStatePublisher {
                 .putExtra("hypertweak_rule_folder_stack", snapshot.folderStack)
                 .putExtra("hypertweak_rule_widget_stack", snapshot.widgetStack)
                 .putExtra("hypertweak_rule_xiaoai_options", snapshot.xiaoaiOptions)
+                .putExtra("hypertweak_rule_desktop_grid", snapshot.desktopGrid)
+                .putExtra("hypertweak_grid_nonce", gridNonce)
                 .putExtra("hypertweak_rule_icon_percent", snapshot.iconPercent)
                 .putExtra("sender_uid", Process.myUid())
             if (dockEndpointKnown) intent.putExtra("hypertweak_rule_dock_channel", true)

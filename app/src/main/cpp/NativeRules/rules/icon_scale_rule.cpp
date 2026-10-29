@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "icon_scale_rule.h"
+#include "desktop_grid_rule.h"
 #include "icon_scale_policy.h"
 #include "icon_scale_gate.h"
 #include "icon_scale_scope.h"
@@ -75,7 +76,7 @@ bool ApplyDesktopIconScaleRule(void* handle) {
     if (pthread_mutex_trylock(&lock)!=0) return false;
     struct Unlock { ~Unlock(){pthread_mutex_unlock(&lock);} } unlock;
     if (!ApplyDesktopIconGate()) { __atomic_store_n(&reason,"native_icon_gate_pending",__ATOMIC_RELEASE); return false; }
-    if (DesktopIconPercentRequested()==-1 && !hooks[0].target && !hooks[1].target) {
+    if (DesktopIconPercentRequested()==-1 && !DesktopGridNeedsPreparation() && !hooks[0].target && !hooks[1].target) {
         __atomic_store_n(&reason,"disabled",__ATOMIC_RELEASE); return true;
     }
     DartResolution resolution{};
@@ -175,4 +176,16 @@ extern "C" uintptr_t HyperTweakDesktopIconFrame(uintptr_t thread,uintptr_t heap,
     __atomic_store_n(&g_desktop_icon_stage,12u,__ATOMIC_RELAXED);
     return 0;
 }
+extern "C" uintptr_t HyperTweakDesktopGridFrame(uintptr_t thread,uintptr_t heap,uintptr_t null,uintptr_t pool,DesktopGridDispatch* out) {
+ if(!out||!__atomic_load_n(&ready,__ATOMIC_ACQUIRE)||pthread_mutex_trylock(&lock)!=0)return 0;
+ struct Unlock{~Unlock(){pthread_mutex_unlock(&lock);}} unlock;
+ uintptr_t statics=0,sentinel=0,controller=0;
+ memcpy(&statics,reinterpret_cast<void*>(thread+0x78),8);memcpy(&sentinel,reinterpret_cast<void*>(pool+0x40),8);if(!statics)return 0;
+ memcpy(&controller,reinterpret_cast<void*>(statics+layout.controller_slot),8);
+ if(!Object(controller,null,sentinel))return 0;
+ const auto active=Field(controller,layout.active_rx,heap);if(!Object(active,null,sentinel))return 0;
+ const auto grid=Field(active,layout.rx_value,heap);if(!Object(grid,null,sentinel))return 0;
+ return DesktopGridFrame(thread,heap,null,pool,grid,out);
+}
+
 }

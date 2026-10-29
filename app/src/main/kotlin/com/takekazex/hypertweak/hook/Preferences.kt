@@ -817,7 +817,7 @@ object Preferences {
 
     fun putInt(key: String, value: Int) {
         memoInvalidate(key)
-        write(localKey = key, nativeMutation = if (key == PlatformSettingsKeys.KEY_OPENED_FOLDER_COLUMNS || key == LauncherDesktopKeys.KEY_ICON_SIZE_PERCENT) key to value else null,
+        write(localKey = key, nativeMutation = if (key == PlatformSettingsKeys.KEY_OPENED_FOLDER_COLUMNS || key == LauncherDesktopKeys.KEY_ICON_SIZE_PERCENT || key == LauncherDesktopKeys.KEY_GRID) key to value else null,
             runtimeMutation = if (RuntimeSettingsSnapshot.owns(key)) key to value else null) { putInt(key, value) }
     }
 
@@ -894,6 +894,14 @@ object Preferences {
 
     fun commitDockBackground(value: String): Boolean = mutations.commitDockBackground(value)
 
+    fun desktopGrid(): Int = getInt(LauncherDesktopKeys.KEY_GRID, 0).takeIf(LauncherDesktopKeys::validGrid) ?: 0
+    fun commitDesktopGrid(value: Int): Boolean {
+        require(LauncherDesktopKeys.validGrid(value))
+        return runCatching {
+            mutations.patch(mapOf(LauncherDesktopKeys.KEY_GRID to value), emptySet(), null) {}
+            true
+        }.onFailure { SettingsDiagnostics.w("DesktopGrid", "settings commit failed", it) }.getOrDefault(false)
+    }
     fun desktopIconPercent(): Int = getInt(LauncherDesktopKeys.KEY_ICON_SIZE_PERCENT, -1).takeIf(LauncherDesktopKeys::validPercent) ?: -1
 
     fun commitDesktopIconPercent(value: Int): Boolean {

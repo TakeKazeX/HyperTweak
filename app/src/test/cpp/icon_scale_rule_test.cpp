@@ -15,6 +15,8 @@ bool empty_backup=false;
 }
 extern "C" void HyperTweakDesktopIconFrameHook() {}
 namespace hypertweak::native {
+bool DesktopGridNeedsPreparation(){return false;}
+uintptr_t DesktopGridFrame(uintptr_t,uintptr_t,uintptr_t,uintptr_t,uintptr_t,DesktopGridDispatch*){return 0;}
 void LogInfo(const char*,...) {}
 bool ApplyDesktopIconGate() { return true; }
 bool ApplyDesktopIconScope(uint8_t*,const dart::IconScaleLayout&) { return true; }

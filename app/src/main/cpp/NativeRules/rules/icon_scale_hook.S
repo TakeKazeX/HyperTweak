@@ -7,7 +7,7 @@
 .type HyperTweakDesktopIconFrameHook,%function
 HyperTweakDesktopIconFrameHook:
  bti c
- sub sp, sp, #832
+ sub sp, sp, #896
  stp x0, x1, [sp, #0]
  stp x2, x3, [sp, #16]
  stp x4, x5, [sp, #32]
@@ -54,6 +54,13 @@ HyperTweakDesktopIconFrameHook:
  add x5, sp, #808
  bl HyperTweakDesktopIconFrame
  str x0, [sp, #792]
+ mov x0,x26
+ mov x1,x28
+ mov x2,x22
+ mov x3,x27
+ add x4,sp,#832
+ bl HyperTweakDesktopGridFrame
+ str x0,[sp,#880]
  ldr x16, [sp, #768]
  msr nzcv, x16
  ldr x16, [sp, #776]
@@ -92,18 +99,31 @@ HyperTweakDesktopIconFrameHook:
  ldp x26, x27, [sp, #208]
  ldp x28, x29, [sp, #224]
  ldr x30, [sp, #240]
+ ldr x16,[sp,#880]
+ cbnz x16,.Lgrid_dispatch
  ldr x16, [sp, #792]
  cbz x16, .Licon_return
  ldr x1, [sp, #800]
  ldr d0, [sp, #808]
- add sp, sp, #832
+ add sp, sp, #896
  mov x0, x22
  mov x15, x29
  ldp x29, x30, [x15], #16
  br x16
+.Lgrid_dispatch:
+ ldr x1,[sp,#840]
+ ldr x2,[sp,#848]
+ ldr x3,[sp,#856]
+ ldr x5,[sp,#864]
+ ldr x4,[sp,#872]
+ add sp,sp,#896
+ mov x0,x22
+ mov x15,x29
+ ldp x29,x30,[x15],#16
+ br x16
 .Licon_return:
  ldr x16, [sp, #128]
- add sp, sp, #832
+ add sp, sp, #896
  mov x0, x22
  mov x15, x29
  ldp x29, x30, [x15], #16

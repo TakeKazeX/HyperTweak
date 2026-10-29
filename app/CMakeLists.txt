@@ -71,6 +71,8 @@ add_library(${HYPERTWEAK_NATIVE_TARGET} SHARED
     "${HYPERTWEAK_NATIVE_DIR}/runtime/native_config.cpp"
     "${HYPERTWEAK_NATIVE_DIR}/rules/assistant_widget_rule.cpp"
     "${HYPERTWEAK_NATIVE_DIR}/rules/assistant_widget_hook.S"
+    "${HYPERTWEAK_NATIVE_DIR}/rules/desktop_grid_rule.cpp"
+    "${HYPERTWEAK_NATIVE_DIR}/rules/desktop_grid_hook.S"
     "${HYPERTWEAK_NATIVE_DIR}/rules/icon_scale_rule.cpp"
     "${HYPERTWEAK_NATIVE_DIR}/rules/icon_scale_hook.S"
     "${HYPERTWEAK_NATIVE_DIR}/rules/icon_scale_gate.cpp"

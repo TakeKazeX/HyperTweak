@@ -61,6 +61,8 @@ internal class MemoryAppSettings : AppSettingsStore {
     }
 
     override val launcher = object : LauncherAppSettings {
+        override fun desktopIconPercent(): Int = error("Unused page operation: desktopIconPercent")
+        override fun commitDesktopIconPercent(value: Int): Boolean = error("Unused page operation: commitDesktopIconPercent")
         override fun openedFolderColumns(): Int = error("Unused page operation: openedFolderColumns")
         override fun allowAndroidWidgetsToAssistant(): Boolean = error("Unused page operation: allowAndroidWidgetsToAssistant")
         override fun androidWidgetStack(): Boolean = error("Unused page operation: androidWidgetStack")

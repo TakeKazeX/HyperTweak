@@ -23,7 +23,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberCoroutineScope
@@ -67,10 +66,8 @@ fun SystemLauncherPage(onBack: () -> Unit, onNavigateToDockBackground: () -> Uni
     var hideRecentsClearButton by rememberSaveable { mutableStateOf(settingsStore.launcher.hideRecentsClearButton()) }
     var xiaoaiOptions by rememberSaveable { mutableStateOf(settingsStore.launcher.xiaoaiGestureOptions()) }
     var widgetStack by rememberSaveable { mutableStateOf(settingsStore.launcher.androidWidgetStack()) }
-    var folderStack by rememberSaveable { mutableStateOf(settingsStore.launcher.folderStackPreview()) }
     var recentsHaptic by rememberSaveable { mutableStateOf(settingsStore.launcher.recentsCardHaptic()) }
     var assistantWidgets by rememberSaveable { mutableStateOf(settingsStore.launcher.allowAndroidWidgetsToAssistant()) }
-    var openedFolderColumns by rememberSaveable { mutableIntStateOf(settingsStore.launcher.openedFolderColumns()) }
     var backGestureEnabled by rememberSaveable { mutableStateOf(settingsStore.backGesture.backGestureBoolean(BackGestureKeys.KEY_BACK_GESTURE_ENABLED, false)) }
     var hyperosIndicator by rememberSaveable { mutableStateOf(settingsStore.getBoolean(BackGestureKeys.KEY_BACK_GESTURE_HYPEROS_INDICATOR, false)) }
     var indicatorBlur by rememberSaveable { mutableStateOf(settingsStore.getBoolean(BackGestureKeys.KEY_BACK_GESTURE_INDICATOR_BLUR, false)) }
@@ -110,7 +107,7 @@ fun SystemLauncherPage(onBack: () -> Unit, onNavigateToDockBackground: () -> Uni
                     onCheckedChange = {
                         xiaoaiOptions = it
                         settingsStore.putBoolean(PlatformSettingsKeys.KEY_XIAOAI_GESTURE_OPTIONS, it)
-                        services.nativeRules.publish(context, hideRecentsClearButton, openedFolderColumns, xiaoaiOptions = it)
+                        services.nativeRules.publish(context, hideRecentsClearButton, xiaoaiOptions = it)
                     },
                     title = stringResource(R.string.settings_xiaoai_gesture_options_title),
                     summary = stringResource(R.string.settings_xiaoai_gesture_options_summary)
@@ -128,7 +125,7 @@ fun SystemLauncherPage(onBack: () -> Unit, onNavigateToDockBackground: () -> Uni
                             settingsStore.putBoolean(PlatformSettingsKeys.KEY_HIDE_RECENTS_CLEAR_BUTTON, it)
                             // Preferences delivers the live snapshot to the launcher; keep the
                             // legacy file as an inspectable diagnostic copy.
-                            services.nativeRules.publish(context, it, openedFolderColumns)
+                            services.nativeRules.publish(context, it)
                         },
                         title = stringResource(R.string.settings_recents_clear_button_title),
                         summary = stringResource(R.string.settings_recents_clear_button_summary)
@@ -139,7 +136,7 @@ fun SystemLauncherPage(onBack: () -> Unit, onNavigateToDockBackground: () -> Uni
                             onCheckedChange = {
                                 recentsHaptic = it
                                 settingsStore.putBoolean(PlatformSettingsKeys.KEY_RECENTS_CARD_HAPTIC, it)
-                                services.nativeRules.publish(context, hideRecentsClearButton, openedFolderColumns, recentsHaptic = it)
+                                services.nativeRules.publish(context, hideRecentsClearButton, recentsHaptic = it)
                             },
                             title = stringResource(R.string.settings_recents_card_haptic_title),
                             summary = stringResource(R.string.settings_recents_card_haptic_summary)
@@ -153,7 +150,7 @@ fun SystemLauncherPage(onBack: () -> Unit, onNavigateToDockBackground: () -> Uni
                             onCheckedChange = {
                                 assistantWidgets = it
                                 settingsStore.putBoolean(PlatformSettingsKeys.KEY_ALLOW_ANDROID_WIDGETS_TO_ASSISTANT, it)
-                                services.nativeRules.publish(context, hideRecentsClearButton, openedFolderColumns,
+                                services.nativeRules.publish(context, hideRecentsClearButton,
                                     assistantWidgets = it)
                             },
                             title = stringResource(R.string.settings_assistant_android_widgets_title),
@@ -164,48 +161,10 @@ fun SystemLauncherPage(onBack: () -> Unit, onNavigateToDockBackground: () -> Uni
                             onCheckedChange = {
                                 widgetStack = it
                                 settingsStore.putBoolean(PlatformSettingsKeys.KEY_ANDROID_WIDGET_STACK, it)
-                                services.nativeRules.publish(context, hideRecentsClearButton, openedFolderColumns, widgetStack = it)
+                                services.nativeRules.publish(context, hideRecentsClearButton, widgetStack = it)
                             },
                             title = stringResource(R.string.settings_android_widget_stack_title),
                             summary = stringResource(R.string.settings_android_widget_stack_summary)
-                        )
-                        SwitchPreference(
-                            checked = folderStack,
-                            onCheckedChange = {
-                                folderStack = it
-                                settingsStore.putBoolean(PlatformSettingsKeys.KEY_FOLDER_STACK_PREVIEW, it)
-                                services.nativeRules.publish(context, hideRecentsClearButton, openedFolderColumns, folderStack = it)
-                            },
-                            title = stringResource(R.string.settings_folder_stack_preview_title),
-                            summary = stringResource(R.string.settings_folder_stack_preview_summary)
-                        )
-                        OverlayDropdownPreference(
-                            title = stringResource(R.string.settings_opened_folder_columns_title),
-                            summary = stringResource(R.string.settings_opened_folder_columns_summary),
-                            items = listOf(
-                                stringResource(R.string.settings_opened_folder_columns_default),
-                                stringResource(R.string.settings_opened_folder_columns_four),
-                                stringResource(R.string.settings_opened_folder_columns_five)
-                            ),
-                            selectedIndex = (
-                                openedFolderColumns - PlatformSettingsKeys.DEFAULT_OPENED_FOLDER_COLUMNS
-                            ).coerceIn(0, 2),
-                            onSelectedIndexChange = { index ->
-                                openedFolderColumns =
-                                    (PlatformSettingsKeys.DEFAULT_OPENED_FOLDER_COLUMNS + index).coerceIn(
-                                        PlatformSettingsKeys.MIN_OPENED_FOLDER_COLUMNS,
-                                        PlatformSettingsKeys.MAX_OPENED_FOLDER_COLUMNS
-                                    )
-                                settingsStore.putInt(
-                                    PlatformSettingsKeys.KEY_OPENED_FOLDER_COLUMNS,
-                                    openedFolderColumns
-                                )
-                                services.nativeRules.publish(
-                                    context,
-                                    hideRecentsClearButton,
-                                    openedFolderColumns
-                                )
-                            }
                         )
                         ArrowPreference(
                             title = stringResource(R.string.settings_opened_folder_restart_title),

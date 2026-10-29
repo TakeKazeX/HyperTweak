@@ -1,3 +1,4 @@
+#include "desktop_grid_rule.h"
 #include "lsposed_hook_backend.h"
 #include "launcher_process_identity.h"
 #include "dart_mapped_image.h"
@@ -1157,6 +1158,8 @@ bool CaptureNativeRuleSettingsIntent(void* intent, hypertweak::native::NativeRul
     (void)ReadNativeBool(extras, "hypertweak_rule_widget_stack", &output->widget_stack);
     (void)ReadNativeBool(extras, "hypertweak_rule_xiaoai_options", &output->xiaoai_options);
     (void)ReadNativeI32(extras, "hypertweak_rule_icon_percent", &output->icon_percent);
+    (void)ReadNativeI32(extras, "hypertweak_rule_desktop_grid", &output->desktop_grid);
+    (void)ReadNativeI64(extras, "hypertweak_grid_nonce", &output->grid_nonce);
     bool channel = false;
     if (ReadNativeBool(extras, "hypertweak_rule_dock_channel", &channel) && channel) {
         if (!ReadNativeI32(extras, "hypertweak_rule_dock_port", &output->dock_port) ||
@@ -1169,14 +1172,29 @@ bool CaptureNativeRuleSettingsIntent(void* intent, hypertweak::native::NativeRul
     return true;
 }
 bool SendNativeBroadcast(const char* action, void* extras);
+bool AddBundleI64(void* extras, const char* key, int64_t value);
 extern "C" bool HyperTweakNotifyNativeRulePrepared() {
     return SendNativeBroadcast("com.takekazex.hypertweak.action.NATIVE_RULE_PREPARED", nullptr);
 }
 void AcceptNativeRuleSettings(const hypertweak::native::NativeRuleSettingsSnapshot& snapshot) {
     if (hypertweak::native::ReceiveNativeRuleSettings(snapshot.hidden, snapshot.columns,
-            snapshot.contextual, snapshot.revision, snapshot.widgets, snapshot.recents_haptic, snapshot.folder_stack, snapshot.widget_stack, snapshot.xiaoai_options, snapshot.icon_percent)) {
+            snapshot.contextual, snapshot.revision, snapshot.widgets, snapshot.recents_haptic, snapshot.folder_stack, snapshot.widget_stack, snapshot.xiaoai_options, snapshot.icon_percent, snapshot.desktop_grid)) {
         if (snapshot.dock_channel) (void)hypertweak::native::ConfigureDockFrame(snapshot.dock_port, snapshot.dock_token0, snapshot.dock_token1);
         hypertweak::native::ApplyPreparedNativeRules();
+        static int64_t grid_nonce_handled=0;
+        if (snapshot.grid_nonce > grid_nonce_handled && hypertweak::native::TryNotifyDesktopGridPreparation()) grid_nonce_handled=snapshot.grid_nonce;
+        if (snapshot.grid_nonce > 0) {
+            const auto make = ResolveLauncherSymbol<BundleDefaultFn>("Bundle_default");
+            void* extras = make ? make() : nullptr;
+            if (extras) {
+                const bool valid = AddBundleI64(extras,"nonce",snapshot.grid_nonce) &&
+                    AddBundleI64(extras,"stage",hypertweak::native::DesktopGridStage()) &&
+                    AddBundleI64(extras,"requested",hypertweak::native::DesktopGridRequested()) &&
+                    AddBundleI64(extras,"observed",hypertweak::native::DesktopGridObserved());
+                if (valid) SendNativeBroadcast("com.takekazex.hypertweak.action.DESKTOP_GRID_NATIVE_STATE",extras);
+                else if (const auto drop=ResolveLauncherSymbol<BundleDropFn>("Bundle_drop")) drop(extras);
+            }
+        }
     }
 }
 void HookNativeRuleReceiverDispatch(void* receiver, void* context, void* intent) {

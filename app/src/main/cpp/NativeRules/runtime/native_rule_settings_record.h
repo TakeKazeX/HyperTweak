@@ -2,7 +2,7 @@
 #pragma once
 #include <stdint.h>
 namespace hypertweak::native {
-constexpr uint32_t kNativeRuleSettingsSchema = 7u;
+constexpr uint32_t kNativeRuleSettingsSchema = 8u;
 struct NativeRuleSettingsRecord {
     uint32_t schema;
     uint32_t hidden;
@@ -22,7 +22,8 @@ inline bool RestoreNativeRuleSettings(NativeRuleSettingsRecord* record, bool* mi
     if (record->schema < 1u || record->schema > kNativeRuleSettingsSchema ||
         record->hidden > 1u || record->columns < 3 || record->columns > 5 ||
         (record->schema < 7u ? record->options > ((1u << record->schema) - 1u) :
-         ((record->options >> 6u) != 0u && ((record->options >> 6u) < 51u || (record->options >> 6u) > 151u))) ||
+         ((((record->options >> 6u)&255u) != 0u && (((record->options >> 6u)&255u) < 51u || ((record->options >> 6u)&255u) > 151u)) ||
+          (record->schema == 7u ? record->options >> 14u : (record->options >> 14u)>12u))) ||
         record->checksum != NativeRuleSettingsChecksum(*record)) return false;
     if (record->schema != kNativeRuleSettingsSchema) {
         record->schema = kNativeRuleSettingsSchema;

@@ -5,6 +5,8 @@
 using namespace hypertweak::native;
 namespace { int percent=-1;bool fail=false,empty=false;unsigned installs=0,removes=0; }
 namespace hypertweak::native {
+bool grid_active=false;
+bool DesktopGridGeometryActive(){return grid_active;}
 int DesktopIconPercentRequested(){return percent;}
 void LogInfo(const char*,...){}
 }
@@ -27,6 +29,7 @@ int main() {
  assert(ApplyDesktopIconScope(code,layout)&&installs==installed);
  HyperTweakIconScopeBounds(.72,.54,values);assert(values[0]==1&&values[1]==.01);
  percent=-1;HyperTweakIconScopeBounds(.72,.54,values);assert(values[0]==.72&&values[1]==.54);
+ grid_active=true;HyperTweakIconScopeBounds(1,1,values);assert(values[0]==1&&values[1]==.01);grid_active=false;
  percent=150;ResetDesktopIconScopeAfterFork();HyperTweakIconScopeBounds(.72,.54,values);assert(values[0]==.72&&values[1]==.54);
  assert(ApplyDesktopIconScope(code,layout));
  HyperTweakIconScopeBounds(.5,.7,values);assert(values[0]==.5&&values[1]==.7);

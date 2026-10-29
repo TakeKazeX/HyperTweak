@@ -24,11 +24,11 @@ internal class NativeSnapshotLedger {
     }
     @Synchronized fun latest(): NativeRuleStateSnapshot? = current
     @Synchronized fun save(): Array<Any>? = current?.let {
-        arrayOf(it.hidden, it.columns, it.contextualSearch, it.revision, it.epoch, it.assistantWidgets, it.recentsHaptic, it.folderStack, it.widgetStack, it.xiaoaiOptions, it.iconPercent)
+        arrayOf(it.hidden, it.columns, it.contextualSearch, it.revision, it.epoch, it.assistantWidgets, it.recentsHaptic, it.folderStack, it.widgetStack, it.xiaoaiOptions, it.iconPercent, it.desktopGrid)
     }
     fun restore(state: Any?) {
         val values = state as? Array<*> ?: return
-        if (values.size !in 6..11 || values.any { it == null }) return
+        if (values.size !in 6..12 || values.any { it == null }) return
         NativeRuleStateSnapshot.read { mapOf(PlatformSettingsKeys.KEY_HIDE_RECENTS_CLEAR_BUTTON to values[0],
             PlatformSettingsKeys.KEY_OPENED_FOLDER_COLUMNS to values[1], PlatformSettingsKeys.KEY_CONTEXTUAL_SEARCH_LONG_PRESS to values[2],
             PlatformSettingsKeys.KEY_NATIVE_RULE_REVISION to values[3], "prefs_epoch" to values[4], PlatformSettingsKeys.KEY_ALLOW_ANDROID_WIDGETS_TO_ASSISTANT to values[5],
@@ -36,6 +36,7 @@ internal class NativeSnapshotLedger {
             PlatformSettingsKeys.KEY_FOLDER_STACK_PREVIEW to (values.getOrNull(7) ?: false),
             PlatformSettingsKeys.KEY_ANDROID_WIDGET_STACK to (values.getOrNull(8) ?: false),
             PlatformSettingsKeys.KEY_XIAOAI_GESTURE_OPTIONS to (values.getOrNull(9) ?: false),
-            LauncherDesktopKeys.KEY_ICON_SIZE_PERCENT to (values.getOrNull(10) ?: -1)) }?.let(::offer)
+            LauncherDesktopKeys.KEY_ICON_SIZE_PERCENT to (values.getOrNull(10) ?: -1),
+            LauncherDesktopKeys.KEY_GRID to (values.getOrNull(11) ?: 0)) }?.let(::offer)
     }
 }

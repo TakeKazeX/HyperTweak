@@ -50,6 +50,7 @@ object NativeRuleConfig {
         iconPercent: Int = Preferences.desktopIconPercent()
     ) {
         val contents = buildString {
+            append(LauncherDesktopKeys.KEY_GRID).append('=').append(Preferences.desktopGrid()).append('\n')
             append(LauncherDesktopKeys.KEY_ICON_SIZE_PERCENT).append('=').append(iconPercent).append('\n')
             append(KEY_HIDE_RECENTS_CLEAR)
             append('=')
