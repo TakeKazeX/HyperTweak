@@ -8,6 +8,9 @@ import com.takekazex.hypertweak.hook.rules.ime.AospImeHooker
 /** Shared lifecycle stays in HookEntry; each host owns its own installation plan. */
 internal object PackageHookPlan {
     fun steps(packageName: String, processName: String, selectedIme: Boolean = false): List<HookStep> = buildList {
+        if (packageName in com.takekazex.hypertweak.settings.contract.AivsPathPolicy.packages) {
+            hook { com.takekazex.hypertweak.hook.rules.shared.AivsDirectoryHooker }
+        }
         if (selectedIme) hook { AospImeHooker }
         addAll(SystemUiHookPlan.steps(packageName, processName))
         addAll(SettingsAppHookPlan.steps(packageName, processName))

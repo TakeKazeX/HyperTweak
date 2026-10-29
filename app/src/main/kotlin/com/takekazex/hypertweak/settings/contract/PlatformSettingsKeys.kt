@@ -2,6 +2,7 @@ package com.takekazex.hypertweak.settings.contract
 
 /** Persisted contract; values remain independent of storage and host implementations. */
 object PlatformSettingsKeys {
+    const val KEY_AIVS_REDIRECT = "aivs_redirect"
     const val KEY_NATIVE_RULE_REVISION = "native_rules_revision"
     const val KEY_REMOVE_GMS_RESTRICTION = "remove_gms_restriction"
     const val KEY_BLOCK_DOWNLOAD_XL_LOG_DIR = "block_download_xl_log_dir"

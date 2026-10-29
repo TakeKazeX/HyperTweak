@@ -160,6 +160,7 @@ internal object RuntimeSettingsDefinitions {
         PlatformSettingsKeys.KEY_DOWNLOAD_ALWAYS_SHOW_FULL_LINK,
         PlatformSettingsKeys.KEY_DOWNLOAD_HIDE_XL,
         PlatformSettingsKeys.KEY_DOWNLOAD_ADD_NEW_BUTTON,
+        PlatformSettingsKeys.KEY_AIVS_REDIRECT,
         PlatformSettingsKeys.KEY_DISABLE_SPATIAL_AUDIO,
         PlatformSettingsKeys.KEY_FORCE_ADAPTIVE_ANC,
     )
@@ -217,7 +218,7 @@ internal object RuntimeSettingsDefinitions {
         )) { it in policyKeys },
         PASSIVE_POLICIES to Group(setOf(
             "com.android.providers.downloads.ui", "com.android.settings",
-            "com.milink.service", "com.xiaomi.bluetooth",
+            "com.milink.service", "com.xiaomi.bluetooth", "com.miui.voiceassist", "com.xiaomi.finddevice",
         )) { it in passivePolicyKeys },
         GOOGLE_APP to Group(setOf("com.google.android.googlequicksearchbox")) {
             it == PlatformSettingsKeys.KEY_ASK_ABOUT_SCREEN || it == PlatformSettingsKeys.KEY_FULL_SCREEN_TRANSLATE

@@ -2,6 +2,7 @@ system
 com.android.systemui
 com.miui.home
 com.miui.voiceassist
+com.xiaomi.finddevice
 com.lbe.security.miui
 com.miui.screenshot
 com.takekazex.hypertweak

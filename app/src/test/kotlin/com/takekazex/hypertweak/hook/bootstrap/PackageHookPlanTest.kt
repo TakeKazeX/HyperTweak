@@ -26,6 +26,18 @@ class PackageHookPlanTest {
         }
     }
 
+    @Test fun aivsCoversEveryPackageProcessAndReceivesLiveSettings() {
+        for (pkg in com.takekazex.hypertweak.settings.contract.AivsPathPolicy.packages) {
+            for (process in listOf(pkg, "$pkg:remote", "$pkg:core")) {
+                assertTrue(names(PackageHookPlan.steps(pkg, process)).contains("AivsDirectoryHooker"))
+                assertTrue(com.takekazex.hypertweak.hook.base.RuntimeSettingsGroups.forProcess(process)
+                    .contains(com.takekazex.hypertweak.hook.base.RuntimeSettingsGroups.PASSIVE_POLICIES))
+            }
+            assertTrue(com.takekazex.hypertweak.hook.base.RuntimeSettingsGroups.owns(pkg,
+                com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys.KEY_AIVS_REDIRECT))
+        }
+    }
+
     @Test fun userSelectedImePrecedesHostHooksAndUnknownHostsStayEmpty() {
         assertTrue(PackageHookPlan.steps("unknown", "unknown").isEmpty())
         assertEquals(listOf("AospImeHooker"), names(PackageHookPlan.steps("unknown", "unknown", true)))

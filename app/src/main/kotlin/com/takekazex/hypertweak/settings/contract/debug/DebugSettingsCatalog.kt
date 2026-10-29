@@ -4,6 +4,7 @@ package com.takekazex.hypertweak.settings.contract.debug
 internal object DebugSettingsCatalog {
     val entries: Map<String, DebugSetting> = listOf(
         DebugSetting("aicr_copy_direct_default_browser", "Boolean", false),
+        DebugSetting("aivs_redirect", "Boolean", false),
         DebugSetting("allow_android_widgets_to_assistant", "Boolean", false),
         DebugSetting("allow_landscape", "Boolean", false),
         DebugSetting("allow_third_party_theme", "Boolean", false),

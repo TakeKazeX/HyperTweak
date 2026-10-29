@@ -97,6 +97,7 @@
     "package": "com.miui.voiceassist",
     "process": "com.miui.voiceassist",
     "targets": [
+      "AivsDirectoryHooker",
       "RestartBroadcastHooker",
       "XiaoaiGestureHooker"
     ]
@@ -105,6 +106,7 @@
     "package": "com.miui.voiceassist",
     "process": "com.miui.voiceassist:aux",
     "targets": [
+      "AivsDirectoryHooker",
       "RestartBroadcastHooker",
       "XiaoaiGestureHooker"
     ]
@@ -625,6 +627,7 @@
     "package": "com.milink.service",
     "process": "com.milink.service",
     "targets": [
+      "AivsDirectoryHooker",
       "RestartBroadcastHooker",
       "MiLinkHpplayHooker",
       "SpatialAudioBlockerHooker"
@@ -634,6 +637,7 @@
     "package": "com.milink.service",
     "process": "com.milink.service:aux",
     "targets": [
+      "AivsDirectoryHooker",
       "RestartBroadcastHooker",
       "MiLinkHpplayHooker",
       "SpatialAudioBlockerHooker"

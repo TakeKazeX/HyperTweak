@@ -1769,4 +1769,17 @@
     <string name="desktop_icon_theme_custom">自定义颜色</string>
     <string name="desktop_icon_theme_color">单色背景颜色</string>
     <string name="desktop_icon_theme_color_hint">输入 6 位 RGB 十六进制颜色，例如 BBD7FF。</string>
+    <string name="aivs_section">AIVS 文件夹</string>
+    <string name="aivs_redirect_title">重定向 AIVS 文件夹</string>
+    <string name="aivs_redirect_summary">将小爱同学、妙享和查找设备的 SDK 文件夹重定向到 MIUI/AIVS。关闭后新建文件恢复原路径，已移动的文件不会自动移回。正在进行的音频转储需结束后重新开始。</string>
+    <string name="aivs_working">正在处理…</string>
+    <string name="aivs_check">检查并移动旧目录</string>
+    <string name="aivs_empty">未发现旧目录</string>
+    <string name="aivs_moved">旧目录已移动</string>
+    <string name="aivs_move_title">移动现有文件夹？</string>
+    <string name="aivs_move_summary">检测到以下旧目录：\n%1$s\n\n是否移动到内部存储的 MIUI/AIVS 下？同名文件不会覆盖。选择暂不移动仍会保留重定向开关。请先结束蓝牙音频转储。</string>
+    <string name="aivs_skip">暂不移动</string>
+    <string name="aivs_move">移动</string>
+    <string name="aivs_error">目录操作未完成</string>
+    <string name="aivs_error_summary">请确认已授予 Root 权限。若存在同名文件、符号链接或目录正在写入，操作会停止并保留未移动内容；处理后可重新检查。</string>
 </resources>
