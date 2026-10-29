@@ -1,84 +1,54 @@
 package com.takekazex.hypertweak.util
 
+import com.takekazex.hypertweak.util.platform.NativeRootCommand
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
-import java.util.concurrent.TimeUnit
 
-/** Root-only inspection and cleanup of the Download Manager's exact shared-storage log directory. */
+/** Exact shared-storage paths accepted by the provider hook; never delete without confirmation. */
 object DownloadXlStorage {
     const val ROOT_PATH = "/storage/emulated/0/.xlDownload"
+    private val paths = listOf(ROOT_PATH, "/sdcard/.xlDownload")
 
-    /**
-     * Returns null when neither the root shell nor a direct filesystem check can establish the
-     * state. A false result is only produced by a successful root-shell check, avoiding a scoped
-     * storage denial being mistaken for an absent directory.
-     */
+    /** Direct access can prove presence, but scoped-storage denial cannot prove absence. */
     suspend fun directoryExists(): Boolean? = withContext(Dispatchers.IO) {
-        val quotedPath = shellQuote(ROOT_PATH)
-        val rootResult = runRootScript(
-            "if [ -d $quotedPath ]; then echo PRESENT; else echo ABSENT; fi"
-        )
-        when (rootResult?.marker()) {
-            "PRESENT" -> true
-            "ABSENT" -> false
-            else -> if (runCatching { File(ROOT_PATH).isDirectory }.getOrDefault(false)) {
-                true
-            } else {
-                null
-            }
-        }
+        resolvePresence(runRootScript(existenceScript(paths)), paths.any {
+            runCatching { File(it).isDirectory }.getOrDefault(false)
+        })
     }
 
-    /**
-     * Deletes only [ROOT_PATH] and reports whether it is gone. The caller must obtain explicit
-     * confirmation before invoking this method.
-     */
+    /** Only the explicit Delete action may call this; both aliases are checked afterward. */
     suspend fun deleteDirectory(): Boolean? = withContext(Dispatchers.IO) {
-        val quotedPath = shellQuote(ROOT_PATH)
-        val rootResult = runRootScript(
-            "if [ -d $quotedPath ]; then rm -rf $quotedPath; fi\n" +
-                "if [ ! -e $quotedPath ]; then echo DELETED; else echo PRESENT; fi"
-        )
-        when (rootResult?.marker()) {
-            "DELETED" -> true
+        when (runRootScript(deletionScript(paths))) {
+            "DELETED" -> !paths.any {
+                runCatching { File(it).isDirectory }.getOrDefault(false)
+            }
             "PRESENT" -> false
             else -> null
         }
     }
 
-    private fun shellQuote(value: String): String = "'${value.replace("'", "'\\''")}'"
-
-    private fun runRootScript(script: String): RootResult? {
-        return runCatching {
-            val process = Runtime.getRuntime().exec("su")
-            process.outputStream.bufferedWriter().use { writer ->
-                writer.write(script)
-                writer.write("\nexit\n")
-                writer.flush()
-            }
-            if (!process.waitFor(8, TimeUnit.SECONDS)) {
-                process.destroyForcibly()
-                return null
-            }
-            RootResult(
-                exitCode = process.exitValue(),
-                stdout = process.inputStream.bufferedReader().use { it.readText() },
-                stderr = process.errorStream.bufferedReader().use { it.readText() }
-            )
-        }.getOrNull()
+    internal fun resolvePresence(marker: String?, directPresence: Boolean): Boolean? = when {
+        marker == "PRESENT" || directPresence -> true
+        marker == "ABSENT" -> false
+        else -> null
     }
 
-    private data class RootResult(
-        val exitCode: Int,
-        val stdout: String,
-        val stderr: String
-    ) {
-        fun marker(): String? {
-            if (exitCode != 0) return null
-            return stdout.lineSequence()
-                .map(String::trim)
-                .lastOrNull { it.isNotEmpty() }
-        }
+    internal fun existenceScript(targets: List<String>): String =
+        "if " + targets.joinToString(" || ") { "[ -d ${NativeRootCommand.quote(it)} ]" } +
+            "; then echo PRESENT; else echo ABSENT; fi"
+
+    internal fun deletionScript(targets: List<String>): String {
+        val quoted = targets.map(NativeRootCommand::quote)
+        return quoted.joinToString("\n") { "if [ -d $it ]; then rm -rf -- $it || exit 1; fi" } +
+            "\nif " + quoted.joinToString(" && ") { "[ ! -e $it ] && [ ! -L $it ]" } +
+            "; then echo DELETED; else echo PRESENT; fi"
     }
+
+    private fun runRootScript(script: String): String? = runCatching {
+        // Includes the first root authorization prompt, with bounded IO and process retirement.
+        NativeRootCommand.run(script, maxBytes = 4096, timeoutMs = 60_000)
+            .toString(Charsets.UTF_8).lineSequence().map(String::trim)
+            .lastOrNull { it.isNotEmpty() }
+    }.getOrNull()
 }

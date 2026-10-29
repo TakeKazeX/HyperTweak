@@ -12,7 +12,7 @@ import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.settings.contract.LauncherDesktopKeys
 import com.takekazex.hypertweak.ui.app.LocalAppSettingsStore
 import top.yukonga.miuix.kmp.basic.*
-import top.yukonga.miuix.kmp.overlay.OverlayDialog
+import com.takekazex.hypertweak.ui.effect.AppOverlayDialog as OverlayDialog
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
 

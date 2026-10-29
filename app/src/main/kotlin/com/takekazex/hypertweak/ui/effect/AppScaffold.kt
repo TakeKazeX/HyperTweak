@@ -46,7 +46,10 @@ fun AppScaffold(
     val active = ready && topBar != null && LocalAppBlurMode.current != AppBlurMode.Off
     val capturedBackdrop = rememberLayerBackdrop { drawRect(containerColor); drawContent() }
     val backdrop = topBarBackdrop ?: capturedBackdrop
-    CompositionLocalProvider(LocalTopBarBackdrop provides if (active) backdrop else null) {
+    CompositionLocalProvider(
+        LocalAppOverlayHost provides true,
+        LocalTopBarBackdrop provides if (active) backdrop else null,
+    ) {
         top.yukonga.miuix.kmp.basic.Scaffold(
             modifier = modifier,
             topBar = topBar ?: {},

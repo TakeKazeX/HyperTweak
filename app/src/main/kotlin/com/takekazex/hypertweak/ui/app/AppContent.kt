@@ -26,6 +26,8 @@ import com.takekazex.hypertweak.ui.navigation.HyperTweakNavContainer
 import com.takekazex.hypertweak.ui.navigation.NavigationSettings
 import com.takekazex.hypertweak.ui.components.dialog.LocalRestartScopeHandled
 import com.takekazex.hypertweak.ui.components.dialog.LocalRestartScopeRequest
+import com.takekazex.hypertweak.ui.state.DownloadXlCleanup
+import com.takekazex.hypertweak.ui.state.LocalDownloadXlCleanup
 import com.takekazex.hypertweak.ui.page.update.UpdateAvailablePrompt
 import com.takekazex.hypertweak.ui.theme.MiuixSpec2025Adapter
 import com.takekazex.hypertweak.ui.theme.isEffectivelyDark
@@ -68,6 +70,7 @@ internal fun AppContent(
             val hotReloadReport by services.module.hotReloadReportFlow.collectAsState()
 
             val coroutineScope = rememberCoroutineScope()
+            val downloadXlCleanup = remember(coroutineScope) { DownloadXlCleanup(coroutineScope) }
 
             LaunchedEffect(allowLandscape) {
                 activity.requestedOrientation = if (allowLandscape) {
@@ -150,6 +153,7 @@ internal fun AppContent(
 
             CompositionLocalProvider(
                 LocalAppSettingsStore provides store,
+                LocalDownloadXlCleanup provides downloadXlCleanup,
                 LocalAppServices provides services,
                 // A localized ConfigurationContext is not an Activity. Keep Activity-owned
                 // launchers and back dispatch available to navigation entries and windows.

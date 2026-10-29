@@ -1060,6 +1060,7 @@
     <string name="download_manager_xl_dialog_summary">Delete the .xlDownload folder and all files inside it?</string>
     <string name="download_manager_xl_keep">Keep folder</string>
     <string name="download_manager_xl_delete">Delete folder</string>
+    <string name="download_manager_xl_busy">Checking or cleaning .xlDownload… Root authorization may take up to 60 seconds.</string>
     <string name="download_manager_xl_check_failed">Could not check .xlDownload (root access may be unavailable)</string>
     <string name="download_manager_xl_delete_success">.xlDownload folder deleted</string>
     <string name="download_manager_xl_delete_failed">Could not delete .xlDownload</string>

@@ -20,20 +20,16 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.takekazex.hypertweak.R
-import com.takekazex.hypertweak.util.DownloadXlStorage
-import kotlinx.coroutines.launch
+import com.takekazex.hypertweak.ui.state.LocalDownloadXlCleanup
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
@@ -45,7 +41,7 @@ import top.yukonga.miuix.kmp.basic.TextButton
 import com.takekazex.hypertweak.ui.effect.AppTopAppBar as TopAppBar
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
-import top.yukonga.miuix.kmp.overlay.OverlayDialog
+import com.takekazex.hypertweak.ui.effect.AppOverlayDialog as OverlayDialog
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 
@@ -64,32 +60,23 @@ fun DownloadManagerPage(
     onAddNewButtonChange: (Boolean) -> Unit
 ) {
     val context = LocalContext.current
-    val coroutineScope = rememberCoroutineScope()
+    val cleanup = LocalDownloadXlCleanup.current
+    val cleanupState by cleanup.state.collectAsState()
     val scrollBehavior = MiuixScrollBehavior()
-    var showXlDeleteDialog by remember { mutableStateOf(false) }
-    var xlCheckToken by remember { mutableIntStateOf(0) }
+
+    fun checkDirectory() {
+        cleanup.checkAndEnable(onBlockDownloadXlLogDirChange) {
+            Toast.makeText(context, context.getString(R.string.download_manager_xl_check_failed), Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    LaunchedEffect(blockDownloadXlLogDir) {
+        if (!blockDownloadXlLogDir) cleanup.dismiss()
+    }
 
     fun handleBlockDownloadXlLogDirChange(checked: Boolean) {
-        onBlockDownloadXlLogDirChange(checked)
-        xlCheckToken++
-        val token = xlCheckToken
-        if (!checked) {
-            showXlDeleteDialog = false
-            return
-        }
-        coroutineScope.launch {
-            when (DownloadXlStorage.directoryExists()) {
-                true -> if (token == xlCheckToken) showXlDeleteDialog = true
-                false -> Unit
-                null -> if (token == xlCheckToken) {
-                    Toast.makeText(
-                        context,
-                        context.getString(R.string.download_manager_xl_check_failed),
-                        Toast.LENGTH_SHORT
-                    ).show()
-                }
-            }
-        }
+        if (checked) checkDirectory()
+        else cleanup.disable(onBlockDownloadXlLogDirChange)
     }
 
     Scaffold(
@@ -141,47 +128,45 @@ fun DownloadManagerPage(
                     )
                     SwitchPreference(
                         checked = blockDownloadXlLogDir,
+                        enabled = !cleanupState.busy,
                         onCheckedChange = ::handleBlockDownloadXlLogDirChange,
                         title = stringResource(R.string.download_manager_block_xl_title),
-                        summary = stringResource(R.string.download_manager_block_xl_summary)
+                        summary = stringResource(if (cleanupState.busy) R.string.download_manager_xl_busy
+                            else R.string.download_manager_block_xl_summary)
                     )
                 }
             }
 
             Spacer(Modifier.height(48.dp))
         }
-    }
 
-    OverlayDialog(
-        show = showXlDeleteDialog,
-        title = stringResource(R.string.download_manager_xl_dialog_title),
-        summary = stringResource(R.string.download_manager_xl_dialog_summary),
-        onDismissRequest = { showXlDeleteDialog = false },
-        content = {
-            Row(horizontalArrangement = Arrangement.SpaceBetween) {
-                TextButton(
-                    text = stringResource(R.string.download_manager_xl_keep),
-                    onClick = { showXlDeleteDialog = false },
-                    modifier = Modifier.weight(1f)
-                )
-                Spacer(Modifier.width(20.dp))
-                TextButton(
-                    text = stringResource(R.string.download_manager_xl_delete),
-                    onClick = {
-                        showXlDeleteDialog = false
-                        coroutineScope.launch {
-                            val deleted = DownloadXlStorage.deleteDirectory()
-                            val message = when (deleted) {
-                                true -> R.string.download_manager_xl_delete_success
-                                false, null -> R.string.download_manager_xl_delete_failed
+        OverlayDialog(
+            show = cleanupState.confirmDelete,
+            title = stringResource(R.string.download_manager_xl_dialog_title),
+            summary = stringResource(R.string.download_manager_xl_dialog_summary),
+            onDismissRequest = { cleanup.dismiss() },
+            content = {
+                Row(horizontalArrangement = Arrangement.SpaceBetween) {
+                    TextButton(
+                        text = stringResource(R.string.download_manager_xl_keep),
+                        onClick = { cleanup.dismiss() },
+                        modifier = Modifier.weight(1f)
+                    )
+                    Spacer(Modifier.width(20.dp))
+                    TextButton(
+                        text = stringResource(R.string.download_manager_xl_delete),
+                        onClick = {
+                            cleanup.confirm { deleted ->
+                                val message = if (deleted) R.string.download_manager_xl_delete_success
+                                    else R.string.download_manager_xl_delete_failed
+                                Toast.makeText(context, context.getString(message), Toast.LENGTH_SHORT).show()
                             }
-                            Toast.makeText(context, context.getString(message), Toast.LENGTH_SHORT).show()
-                        }
-                    },
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.textButtonColorsPrimary()
-                )
+                        },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.textButtonColorsPrimary()
+                    )
+                }
             }
-        }
-    )
+        )
+    }
 }

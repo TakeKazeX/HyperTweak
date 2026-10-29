@@ -1055,6 +1055,7 @@
     <string name="download_manager_xl_dialog_summary">是否删除 .xlDownload 文件夹及其中的全部文件？</string>
     <string name="download_manager_xl_keep">保留文件夹</string>
     <string name="download_manager_xl_delete">删除文件夹</string>
+    <string name="download_manager_xl_busy">正在检查或清理 .xlDownload… Root 授权最多等待 60 秒。</string>
     <string name="download_manager_xl_check_failed">无法检查 .xlDownload（可能没有 root 权限）</string>
     <string name="download_manager_xl_delete_success">已删除 .xlDownload 文件夹</string>
     <string name="download_manager_xl_delete_failed">无法删除 .xlDownload 文件夹</string>
