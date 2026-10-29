@@ -2,6 +2,10 @@ package com.takekazex.hypertweak.settings.contract
 
 internal object LauncherDesktopKeys {
     const val KEY_ICON_SIZE_PERCENT = "home_icon_size_percent"
+    const val KEY_ICON_THEME_MODE = "home_icon_theme_mode"
+    const val KEY_ICON_THEME_COLOR = "home_icon_theme_color"
+    const val DEFAULT_ICON_COLOR: Int = -4136961 // opaque pale blue
+    fun validIconThemeMode(value: Int) = value in 0..4
     const val KEY_GRID = "home_grid_layout"
     fun validGrid(value: Int) = value in 0..12
     fun gridCode(columns: Int, rows: Int): Int {

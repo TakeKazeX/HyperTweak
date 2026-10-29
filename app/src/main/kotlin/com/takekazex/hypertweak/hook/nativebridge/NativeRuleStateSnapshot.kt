@@ -5,7 +5,7 @@ import com.takekazex.hypertweak.settings.contract.LauncherDesktopKeys
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 internal data class NativeRuleStateSnapshot(val hidden: Boolean, val columns: Int, val contextualSearch: Boolean,
-    val revision: Long = 0, val epoch: Long = 0, val assistantWidgets: Boolean = false, val recentsHaptic: Boolean = false, val folderStack: Boolean = false, val widgetStack: Boolean = false, val xiaoaiOptions: Boolean = false, val iconPercent: Int = -1, val desktopGrid: Int = 0) {
+    val revision: Long = 0, val epoch: Long = 0, val assistantWidgets: Boolean = false, val recentsHaptic: Boolean = false, val folderStack: Boolean = false, val widgetStack: Boolean = false, val xiaoaiOptions: Boolean = false, val iconPercent: Int = -1, val desktopGrid: Int = 0, val iconThemeMode: Int = 0, val iconThemeColor: Int = LauncherDesktopKeys.DEFAULT_ICON_COLOR) {
     fun settingsValues(): Map<String, Any> = mapOf(
         PlatformSettingsKeys.KEY_HIDE_RECENTS_CLEAR_BUTTON to hidden, PlatformSettingsKeys.KEY_OPENED_FOLDER_COLUMNS to columns,
         PlatformSettingsKeys.KEY_CONTEXTUAL_SEARCH_LONG_PRESS to contextualSearch,
@@ -14,6 +14,8 @@ internal data class NativeRuleStateSnapshot(val hidden: Boolean, val columns: In
         PlatformSettingsKeys.KEY_FOLDER_STACK_PREVIEW to folderStack,
         PlatformSettingsKeys.KEY_ANDROID_WIDGET_STACK to widgetStack,
         PlatformSettingsKeys.KEY_XIAOAI_GESTURE_OPTIONS to xiaoaiOptions,
+        LauncherDesktopKeys.KEY_ICON_THEME_MODE to iconThemeMode,
+        LauncherDesktopKeys.KEY_ICON_THEME_COLOR to iconThemeColor,
         LauncherDesktopKeys.KEY_GRID to desktopGrid,
         LauncherDesktopKeys.KEY_ICON_SIZE_PERCENT to iconPercent,
         PlatformSettingsKeys.KEY_NATIVE_RULE_REVISION to revision, "prefs_epoch" to epoch)
@@ -31,6 +33,10 @@ internal data class NativeRuleStateSnapshot(val hidden: Boolean, val columns: In
             val widgetStack = values[PlatformSettingsKeys.KEY_ANDROID_WIDGET_STACK]
             val stack = values[PlatformSettingsKeys.KEY_FOLDER_STACK_PREVIEW]
             val haptic = values[PlatformSettingsKeys.KEY_RECENTS_CARD_HAPTIC]
+            val themeMode = values[LauncherDesktopKeys.KEY_ICON_THEME_MODE]
+            val themeColor = values[LauncherDesktopKeys.KEY_ICON_THEME_COLOR]
+            if ((themeMode != null && themeMode !is Int) || (themeColor != null && themeColor !is Int)) return null
+            if (!LauncherDesktopKeys.validIconThemeMode(themeMode ?: 0)) return null
             val grid = values[LauncherDesktopKeys.KEY_GRID]
             val iconPercent = values[LauncherDesktopKeys.KEY_ICON_SIZE_PERCENT]
             val revision = values[PlatformSettingsKeys.KEY_NATIVE_RULE_REVISION]
@@ -46,7 +52,7 @@ internal data class NativeRuleStateSnapshot(val hidden: Boolean, val columns: In
             val resolvedEpoch = epoch ?: 0L
             if (!LauncherDesktopKeys.validGrid(grid ?: 0) || resolvedRevision < 0L || resolvedEpoch < 0L || resolvedColumns !in 3..5 || !LauncherDesktopKeys.validPercent(iconPercent ?: -1)) return null
             NativeRuleStateSnapshot(hidden ?: false, resolvedColumns, contextual ?: false,
-                resolvedRevision, resolvedEpoch, widgets ?: false, haptic ?: false, stack ?: false, widgetStack ?: false, xiaoaiOptions ?: false, iconPercent ?: -1, grid ?: 0)
+                resolvedRevision, resolvedEpoch, widgets ?: false, haptic ?: false, stack ?: false, widgetStack ?: false, xiaoaiOptions ?: false, iconPercent ?: -1, grid ?: 0, themeMode ?: 0, themeColor ?: LauncherDesktopKeys.DEFAULT_ICON_COLOR)
         }.getOrNull()
     }
 }

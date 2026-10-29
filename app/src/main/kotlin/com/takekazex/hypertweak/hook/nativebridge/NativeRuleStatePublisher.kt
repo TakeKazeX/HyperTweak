@@ -28,6 +28,7 @@ internal class NativeRuleStatePublisher {
     private var receiverRegistered = false
     private val ledger = NativeSnapshotLedger()
     private var recentsHaptics = RecentsCardHaptics()
+    private var iconTheme: LauncherIconThemeController? = null
     private var iconSize: DesktopIconSizeController? = null
     private var waiting: String? = null
     private var forwarded: NativeRuleStateSnapshot? = null
@@ -68,7 +69,10 @@ internal class NativeRuleStatePublisher {
                 return
             }
             if (intent.action == "com.takekazex.hypertweak.action.NATIVE_RULE_PREPARED") {
-                if (SettingsTransport.trusted(context, sentFromPackage, sentFromUid, "com.miui.home")) publish()
+                if (SettingsTransport.trusted(context, sentFromPackage, sentFromUid, "com.miui.home")) {
+                    publish()
+                    iconTheme?.refreshExisting()
+                }
                 return
             }
             if (intent.action == RecentsCardHaptics.ACTION) {
@@ -105,6 +109,8 @@ internal class NativeRuleStatePublisher {
             recentsHaptics = RecentsCardHaptics()
             this.context = application
             iconSize = DesktopIconSizeController(application)
+            iconTheme = runCatching { LauncherIconThemeController(application) }
+                .onFailure { DebugLog.w("LauncherIcons", "icon theme controller unavailable", it) }.getOrNull()
             runCatching {
                 application.registerReceiver(receiver, IntentFilter().apply {
                     addAction(Intent.ACTION_BOOT_COMPLETED)
@@ -150,6 +156,7 @@ internal class NativeRuleStatePublisher {
 
     private fun send(context: Context, snapshot: NativeRuleStateSnapshot, revision: Long) {
         iconSize?.submit(snapshot.iconPercent)
+        iconTheme?.submit(snapshot)
         runCatching {
             val intent = Intent("com.android.systemui.fsgesture").setPackage("com.miui.home")
                 // Schema 3 stays readable by a launcher native payload that predates this
@@ -168,6 +175,7 @@ internal class NativeRuleStatePublisher {
                 .putExtra("hypertweak_rule_widget_stack", snapshot.widgetStack)
                 .putExtra("hypertweak_rule_xiaoai_options", snapshot.xiaoaiOptions)
                 .putExtra("hypertweak_rule_desktop_grid", snapshot.desktopGrid)
+                .putExtra("hypertweak_rule_icon_theme_mode", snapshot.iconThemeMode)
                 .putExtra("hypertweak_grid_nonce", gridNonce)
                 .putExtra("hypertweak_rule_icon_percent", snapshot.iconPercent)
                 .putExtra("sender_uid", Process.myUid())
@@ -191,6 +199,8 @@ internal class NativeRuleStatePublisher {
     }
 
     private fun detachContext() {
+        iconTheme?.close()
+        iconTheme = null
         recentsHaptics.close()
         iconSize?.close(); iconSize = null
         val old = context

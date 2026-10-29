@@ -14,6 +14,7 @@ struct NativeRuleSettingsSnapshot {
     bool xiaoai_options = false;
     int32_t icon_percent = -1;
     int32_t desktop_grid = 0;
+    int32_t icon_theme_mode = 0;
     int64_t grid_nonce = 0;
     bool dock_channel = false;
     int32_t dock_port = 0;

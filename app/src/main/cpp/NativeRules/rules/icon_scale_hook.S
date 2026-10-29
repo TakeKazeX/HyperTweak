@@ -104,7 +104,7 @@ HyperTweakDesktopIconFrameHook:
  ldr x16, [sp, #792]
  cbz x16, .Licon_return
  ldr x1, [sp, #800]
- ldr d0, [sp, #808]
+ // The only managed transfer here adopts the icon settings observer; no FP argument.
  add sp, sp, #896
  mov x0, x22
  mov x15, x29

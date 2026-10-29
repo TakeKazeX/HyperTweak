@@ -124,7 +124,7 @@ internal object RuntimeSettingsDefinitions {
         PlatformSettingsKeys.KEY_WM_DISNEY2, PlatformSettingsKeys.KEY_WM_DISNEY3, PlatformSettingsKeys.KEY_WM_VICTORIA,
         PlatformSettingsKeys.KEY_WM_LCC, PlatformSettingsKeys.KEY_WM_DOWNLOAD_ALL, PlatformSettingsKeys.KEY_WM_CAMERA,
     )
-    private val nativeKeys = setOf(LauncherDesktopKeys.KEY_GRID, LauncherDesktopKeys.KEY_ICON_SIZE_PERCENT, PlatformSettingsKeys.KEY_HIDE_RECENTS_CLEAR_BUTTON, PlatformSettingsKeys.KEY_OPENED_FOLDER_COLUMNS,
+    private val nativeKeys = setOf(LauncherDesktopKeys.KEY_ICON_THEME_MODE, LauncherDesktopKeys.KEY_ICON_THEME_COLOR, LauncherDesktopKeys.KEY_GRID, LauncherDesktopKeys.KEY_ICON_SIZE_PERCENT, PlatformSettingsKeys.KEY_HIDE_RECENTS_CLEAR_BUTTON, PlatformSettingsKeys.KEY_OPENED_FOLDER_COLUMNS,
         PlatformSettingsKeys.KEY_CONTEXTUAL_SEARCH_LONG_PRESS, PlatformSettingsKeys.KEY_ALLOW_ANDROID_WIDGETS_TO_ASSISTANT,
         PlatformSettingsKeys.KEY_NATIVE_RULE_REVISION, PlatformSettingsKeys.KEY_RECENTS_CARD_HAPTIC, PlatformSettingsKeys.KEY_FOLDER_STACK_PREVIEW, PlatformSettingsKeys.KEY_ANDROID_WIDGET_STACK, PlatformSettingsKeys.KEY_XIAOAI_GESTURE_OPTIONS, "prefs_epoch")
     private val aospUiKeys = setOf(

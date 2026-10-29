@@ -151,12 +151,31 @@ Keep queue/settings/snapshot/reset/backup JVM tests, cache/remap checks, lint an
 artifact checks. Verify real active GridConfig iconSize, not only API acceptance/current
 scale: the provider cache can change while the old Dart clamp still limits rendered size.
 The record remains 20 bytes in
-schema 8; test schemas 1–7 migrating with grid override absent, schemas 1–6 with size override absent, and schemas 7–8 full-width checksum. Inspect `home_icon_size_percent`, `hypertweak_rule_icon_percent` and retained JNI
+schema 9; test schemas 1–7 migrating with grid override absent, schemas 1–6 with size override absent, schemas 1–8 with icon-theme overrides absent, and schemas 7–9 full-width checksum. Inspect `home_icon_size_percent`, `hypertweak_rule_icon_percent` and retained JNI
 V1–V5 exports in the release artifact. The preview is approximate and its row/column
 controls remain drafts until explicit Confirm, which submits through the native grid bridge. Actual ordinary/theme/Dock/folder sizes, disable,
 reset/restore, cold start and orientation remain manual user acceptance. Install the
 validated build and refresh affected processes/native payloads under AGENTS.md standing
 authorization, then inspect logs. Do not automate device UI.
+
+For desktop icon theme changes, run `run_icon_theme_test.py <verified-libapp.so>`
+for structural targets, cached-address revalidation, patch rollback, passive disable,
+fork/remap, foreign patch rejection and observer registration. Run
+`run_icon_theme_abi_test.py <NDK-clang>`, `run_icon_scale_test.py <verified-libapp.so>`
+and `run_icon_scale_abi_test.py <NDK-clang>` for native settings updates and the shared
+observer-adoption frame. Include `LauncherIconTheme*`, `Native*`, `RuntimeSettings*`,
+`DebugSetting*` JVM tests, native record migration, lint and release checks;
+regenerate the debug catalog after settings changes. Automatic night icon refresh
+was removed after failed device acceptance. Retired schema-9 bit 21 must migrate
+away without altering theme modes or other native settings; legacy saved arrays
+may retain a fifteenth value, which restore must ignore.
+SystemUI journals original host Settings values before writes; test absence, explicit
+values, failed writes and newer native edits on restoration. Native support bypass
+is feature-local and preserves SDK admission. The existing Dart observer performs
+refresh; no native thread calls Dart. Install the release APK and activate the HYOS
+spawner's new payload as needed, then inspect the actual mapped APK and runtime
+identity. Visible icon colors, theme-source coverage and brightness transitions
+remain user acceptance. Current scope and shape limitations: `docs/DESKTOP_ICON_THEME.md`.
 
 For desktop row/column changes, run `run_desktop_grid_test.py <verified-libapp.so>`
 under ASan/UBSan and `run_desktop_grid_abi_test.py <NDK-clang>` with Unicorn/pyelftools.
@@ -168,7 +187,7 @@ row hints and stock replay, for all 12 combinations (360 cases).
 Also run `run_icon_scale_abi_test.py <NDK-clang>` for the actual frame tail-transfer
 and `run_native_rule_runtime_test.py <NDK-clang++>` on a connected device for the
 Bionic eventfd worker. Keep settings/snapshot/ledger tests, lint and release checks.
-Inspect `home_grid_layout` and schema-8 compatibility. Preparation must decode on the
+Inspect `home_grid_layout` and schemas 8–9 compatibility. Preparation must decode on the
 worker; frame callbacks may retain only primitives and must not do IO or allocate Dart
 objects. A persisted module setting is not host completion: compare live geometry,
 host x/y preferences after native submission/backend synchronization. The DB-layout

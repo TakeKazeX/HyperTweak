@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "icon_scale_rule.h"
+#include "icon_theme_rule.h"
 #include "desktop_grid_rule.h"
 #include "icon_scale_policy.h"
 #include "icon_scale_gate.h"
@@ -50,7 +51,7 @@ void SetDesktopIconPercent(int percent) {
         __atomic_store_n(&g_desktop_icon_stage,0u,__ATOMIC_RELAXED);
 }
 int DesktopIconPercentRequested() { return __atomic_load_n(&requested,__ATOMIC_ACQUIRE); }
-bool DesktopIconScaleNeedsPreparation() { return DesktopIconPercentRequested()!=-1 || __atomic_load_n(&engaged,__ATOMIC_ACQUIRE)!=0; }
+bool DesktopIconScaleNeedsPreparation() { return IconThemeNeedsPreparation() || DesktopIconPercentRequested()!=-1 || __atomic_load_n(&engaged,__ATOMIC_ACQUIRE)!=0; }
 const char* DesktopIconScaleReason() {
     const auto status=__atomic_load_n(&reason,__ATOMIC_ACQUIRE);
     if (std::strcmp(status,"installed")!=0) return status;
@@ -76,7 +77,7 @@ bool ApplyDesktopIconScaleRule(void* handle) {
     if (pthread_mutex_trylock(&lock)!=0) return false;
     struct Unlock { ~Unlock(){pthread_mutex_unlock(&lock);} } unlock;
     if (!ApplyDesktopIconGate()) { __atomic_store_n(&reason,"native_icon_gate_pending",__ATOMIC_RELEASE); return false; }
-    if (DesktopIconPercentRequested()==-1 && !DesktopGridNeedsPreparation() && !hooks[0].target && !hooks[1].target) {
+    if (DesktopIconPercentRequested()==-1 && !IconThemeNeedsPreparation() && !DesktopGridNeedsPreparation() && !hooks[0].target && !hooks[1].target) {
         __atomic_store_n(&reason,"disabled",__ATOMIC_RELEASE); return true;
     }
     DartResolution resolution{};
@@ -174,7 +175,7 @@ extern "C" uintptr_t HyperTweakDesktopIconFrame(uintptr_t thread,uintptr_t heap,
     std::memcpy(&bits,&maximum,8);
     __atomic_store_n(&g_desktop_icon_desired_bits,bits,__ATOMIC_RELAXED);
     __atomic_store_n(&g_desktop_icon_stage,12u,__ATOMIC_RELAXED);
-    return 0;
+    return IconThemeObserverFrame(statics,null,sentinel,receiver);
 }
 extern "C" uintptr_t HyperTweakDesktopGridFrame(uintptr_t thread,uintptr_t heap,uintptr_t null,uintptr_t pool,DesktopGridDispatch* out) {
  if(!out||!__atomic_load_n(&ready,__ATOMIC_ACQUIRE)||pthread_mutex_trylock(&lock)!=0)return 0;

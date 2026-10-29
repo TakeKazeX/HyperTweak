@@ -2,7 +2,7 @@
 #pragma once
 #include <stdint.h>
 namespace hypertweak::native {
-constexpr uint32_t kNativeRuleSettingsSchema = 8u;
+constexpr uint32_t kNativeRuleSettingsSchema = 9u;
 struct NativeRuleSettingsRecord {
     uint32_t schema;
     uint32_t hidden;
@@ -23,9 +23,13 @@ inline bool RestoreNativeRuleSettings(NativeRuleSettingsRecord* record, bool* mi
         record->hidden > 1u || record->columns < 3 || record->columns > 5 ||
         (record->schema < 7u ? record->options > ((1u << record->schema) - 1u) :
          ((((record->options >> 6u)&255u) != 0u && (((record->options >> 6u)&255u) < 51u || ((record->options >> 6u)&255u) > 151u)) ||
-          (record->schema == 7u ? record->options >> 14u : (record->options >> 14u)>12u))) ||
+          (record->schema == 7u ? record->options >> 14u :
+           (record->schema == 8u ? (record->options >> 14u)>12u :
+            (((record->options >> 14u)&15u)>12u || ((record->options >> 18u)&7u)>4u || (record->options >> 22u)!=0u))))) ||
         record->checksum != NativeRuleSettingsChecksum(*record)) return false;
-    if (record->schema != kNativeRuleSettingsSchema) {
+    // Bit 21 belonged to the removed automatic night refresh feature.
+    if (record->schema != kNativeRuleSettingsSchema || (record->options & (1u << 21u))) {
+        record->options &= ~(1u << 21u);
         record->schema = kNativeRuleSettingsSchema;
         record->checksum = NativeRuleSettingsChecksum(*record);
         *migrated = true;

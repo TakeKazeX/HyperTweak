@@ -79,6 +79,8 @@ add_library(${HYPERTWEAK_NATIVE_TARGET} SHARED
     "${HYPERTWEAK_NATIVE_DIR}/rules/icon_scale_gate_hook.S"
     "${HYPERTWEAK_NATIVE_DIR}/rules/icon_scale_scope.cpp"
     "${HYPERTWEAK_NATIVE_DIR}/rules/icon_scale_scope_hook.S"
+    "${HYPERTWEAK_NATIVE_DIR}/rules/icon_theme_rule.cpp"
+    "${HYPERTWEAK_NATIVE_DIR}/rules/icon_theme_hook.S"
     "${HYPERTWEAK_NATIVE_DIR}/rules/xiaoai_gesture_rule.cpp"
     "${HYPERTWEAK_NATIVE_DIR}/rules/xiaoai_gesture_hook.S"
     "${HYPERTWEAK_NATIVE_DIR}/rules/recents_haptic_rule.cpp"

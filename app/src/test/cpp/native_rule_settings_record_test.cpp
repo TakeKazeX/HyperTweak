@@ -10,7 +10,7 @@ int main() {
         record.checksum = NativeRuleSettingsChecksum(record);
         bool migrated = false;
         assert(RestoreNativeRuleSettings(&record, &migrated));
-        assert(record.schema == 8 && migrated);
+        assert(record.schema == kNativeRuleSettingsSchema && migrated);
         assert(record.hidden == 1 && record.columns == 5);
         assert((record.options & 8u) == (schema >= 4 ? 8u : 0u));
         assert((record.options & 16u) == (schema >= 5 ? 16u : 0u));
@@ -23,7 +23,7 @@ int main() {
     for (unsigned field = 0; field < 5; ++field) {
         auto broken = good;
         switch (field) {
-            case 0: broken.schema = 9; break;
+            case 0: broken.schema = 10; break;
             case 1: broken.hidden = 2; break;
             case 2: broken.columns = 6; break;
             case 3: broken.options = 64; break;
@@ -40,14 +40,22 @@ int main() {
     for (unsigned percent : {50u,100u,150u}) {
         NativeRuleSettingsRecord record{7,0,3,63u | ((percent+1u)<<6u),0};
         record.checksum=NativeRuleSettingsChecksum(record);
-        assert(RestoreNativeRuleSettings(&record,&migrated) && migrated && record.schema==8);
+        assert(RestoreNativeRuleSettings(&record,&migrated) && migrated && record.schema==kNativeRuleSettingsSchema);
         auto corrupt=record; corrupt.options ^= 1u<<12u;
         assert(!RestoreNativeRuleSettings(&corrupt,&migrated));
     }
     for(unsigned grid=0;grid<=12;++grid){
         NativeRuleSettingsRecord record{8,0,3,63u|(101u<<6u)|(grid<<14u),0};record.checksum=NativeRuleSettingsChecksum(record);
-        assert(RestoreNativeRuleSettings(&record,&migrated)&&!migrated);
+        assert(RestoreNativeRuleSettings(&record,&migrated)&&migrated);
         record.options|=1u<<31u;record.checksum=NativeRuleSettingsChecksum(record);assert(!RestoreNativeRuleSettings(&record,&migrated));
     }
-    puts("native snapshots: schemas 1-6 migrate with icon size disabled, schema 7 roundtrip, invalid fields/checksum rejected");
+    for(unsigned mode=0;mode<=4;++mode) for(unsigned refresh=0;refresh<=1;++refresh) {
+        NativeRuleSettingsRecord r{9,1,5,63u|(101u<<6u)|(12u<<14u)|(mode<<18u)|(refresh<<21u),0};
+        r.checksum=NativeRuleSettingsChecksum(r);
+        assert(RestoreNativeRuleSettings(&r,&migrated)&&migrated==static_cast<bool>(refresh));
+        assert(!(r.options&(1u<<21u)));
+        auto bad=r;bad.options=(bad.options&~(7u<<18u))|(5u<<18u);bad.checksum=NativeRuleSettingsChecksum(bad);
+        assert(!RestoreNativeRuleSettings(&bad,&migrated));
+    }
+    puts("native snapshots: schemas 1-8 migrate, schema 9 theme modes and retired refresh migration, invalid fields/checksum rejected");
 }

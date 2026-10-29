@@ -27,8 +27,8 @@ with tempfile.TemporaryDirectory(prefix='ht-icon-abi-') as tmp:
     code += [f'movi v{i}.16b, #{100 + i}' for i in range(32)]
     code += ['msr nzcv, xzr', 'msr fpcr, xzr', 'msr fpsr, xzr',
              'adrp x16, enabled', 'ldr x16, [x16, :lo12:enabled]', 'cbz x16, 1f',
-             'adrp x0, host_setter', 'add x0, x0, :lo12:host_setter', 'ret',
-             '1: mov x0, xzr', 'ret', '.global host_setter', 'host_setter: ret', '.global HyperTweakDesktopGridFrame', 'HyperTweakDesktopGridFrame:',
+             'adrp x0, host_observer', 'add x0, x0, :lo12:host_observer', 'ret',
+             '1: mov x0, xzr', 'ret', '.global host_observer', 'host_observer: ret', '.global HyperTweakDesktopGridFrame', 'HyperTweakDesktopGridFrame:',
              'adrp x16, enabled', 'ldr x16,[x16,:lo12:enabled]', 'cmp x16,#2', 'b.ne 2f',
              'adrp x16,host_grid', 'add x16,x16,:lo12:host_grid', 'str x16,[x4]',
              'mov x16,#0x2235', 'str x16,[x4,#8]', 'mov x16,#0x3235', 'str x16,[x4,#16]',
@@ -72,16 +72,16 @@ with tempfile.TemporaryDirectory(prefix='ht-icon-abi-') as tmp:
             before = [machine.reg_read(reg(i)) for i in range(31)]
             vectors = [machine.reg_read(UC_ARM64_REG_Q0 + i) for i in range(32)]
             machine.mem_write(symbols['enabled'], struct.pack('<Q', enabled))
-            machine.emu_start(symbols['HyperTweakDesktopIconFrameHook'], symbols['host_grid'] if enabled == 2 else symbols['host_setter'] if enabled == 1 else stop, count=10000)
+            machine.emu_start(symbols['HyperTweakDesktopIconFrameHook'], symbols['host_grid'] if enabled == 2 else symbols['host_observer'] if enabled == 1 else stop, count=10000)
             for i in range(31):
                 expected = {0: before[22], 15: frame + 16, 29: old_fp, 30: stop}.get(i, before[i])
                 if enabled == 2:
                     expected = {1:0x2235,2:0x3235,3:0x4235,5:0x5235,4:0x6235,16:symbols['host_grid']}.get(i,expected)
                 elif enabled == 1:
-                    expected = {1: 0x1235, 16: symbols['host_setter']}.get(i, expected)
+                    expected = {1: 0x1235, 16: symbols['host_observer']}.get(i, expected)
                 assert machine.reg_read(reg(i)) == expected, (enabled, i)
             for i in range(32):
-                expected = 0x3ff0000000000000 if enabled == 1 and i == 0 else vectors[i]
+                expected = vectors[i]
                 assert machine.reg_read(UC_ARM64_REG_Q0 + i) == expected, (enabled, f'q{i}')
             assert machine.reg_read(UC_ARM64_REG_SP) == native_sp
             assert machine.reg_read(UC_ARM64_REG_NZCV) == nzcv

@@ -817,7 +817,7 @@ object Preferences {
 
     fun putInt(key: String, value: Int) {
         memoInvalidate(key)
-        write(localKey = key, nativeMutation = if (key == PlatformSettingsKeys.KEY_OPENED_FOLDER_COLUMNS || key == LauncherDesktopKeys.KEY_ICON_SIZE_PERCENT || key == LauncherDesktopKeys.KEY_GRID) key to value else null,
+        write(localKey = key, nativeMutation = if (key == LauncherDesktopKeys.KEY_ICON_THEME_MODE || key == LauncherDesktopKeys.KEY_ICON_THEME_COLOR || key == PlatformSettingsKeys.KEY_OPENED_FOLDER_COLUMNS || key == LauncherDesktopKeys.KEY_ICON_SIZE_PERCENT || key == LauncherDesktopKeys.KEY_GRID) key to value else null,
             runtimeMutation = if (RuntimeSettingsSnapshot.owns(key)) key to value else null) { putInt(key, value) }
     }
 

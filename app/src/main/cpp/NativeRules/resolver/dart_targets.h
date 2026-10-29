@@ -148,6 +148,8 @@ size_t FolderStackSiteSpan(const Image& image, unsigned site, uintptr_t offset);
 extern const TargetSpec kWidgetStackTarget;
 extern const TargetSpec kXiaoaiGestureOptionsTarget;
 extern const TargetSpec kIconScaleTarget;
+extern const TargetSpec kIconThemeTarget;
+bool ValidateIconThemeTargets(const Image&,uintptr_t support,uintptr_t refresh,const uint8_t* support_original=nullptr,const uint8_t* refresh_original=nullptr);
 extern const TargetSpec kDesktopGridTarget;
 struct DesktopGridLayout {
  uintptr_t to=0,prepare=0,change=0,apply=0,variable=0,fixed=0,handler=0;
@@ -198,6 +200,9 @@ struct DockTickLayout { uintptr_t site; int receiver, scale, y, value; };
 bool DecodeDockTickLayout(const Image&, uintptr_t, DockTickLayout*);
 struct DockFrameLayout { uintptr_t begin, visible, hidden[2]; int alpha, offset, scale, origin; uint32_t pool, double_cid; };
 bool DecodeDockFrameLayout(const Image&, uintptr_t, DockFrameLayout*);
+
+struct IconThemeObserverLayout { uint32_t static_slot, registered_field, cid; uintptr_t registration; };
+bool DecodeIconThemeObserver(const Image&,uintptr_t owner,uintptr_t bootstrap,uintptr_t refresh,IconThemeObserverLayout*);
 
 extern const TargetSpec* const kTargetSpecs[];
 extern const size_t kTargetSpecCount;

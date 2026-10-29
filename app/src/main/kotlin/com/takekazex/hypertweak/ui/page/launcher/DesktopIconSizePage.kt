@@ -196,6 +196,7 @@ internal fun DesktopIconSizePage(onBack: () -> Unit) {
                 }
             }
             if (PlatformLevel.isOs4) {
+                LauncherIconThemePreferences()
                 SmallTitle(stringResource(R.string.desktop_folders_title))
                 Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
                     OverlayDropdownPreference(

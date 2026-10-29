@@ -1159,6 +1159,7 @@ bool CaptureNativeRuleSettingsIntent(void* intent, hypertweak::native::NativeRul
     (void)ReadNativeBool(extras, "hypertweak_rule_xiaoai_options", &output->xiaoai_options);
     (void)ReadNativeI32(extras, "hypertweak_rule_icon_percent", &output->icon_percent);
     (void)ReadNativeI32(extras, "hypertweak_rule_desktop_grid", &output->desktop_grid);
+    (void)ReadNativeI32(extras, "hypertweak_rule_icon_theme_mode", &output->icon_theme_mode);
     (void)ReadNativeI64(extras, "hypertweak_grid_nonce", &output->grid_nonce);
     bool channel = false;
     if (ReadNativeBool(extras, "hypertweak_rule_dock_channel", &channel) && channel) {
@@ -1178,7 +1179,7 @@ extern "C" bool HyperTweakNotifyNativeRulePrepared() {
 }
 void AcceptNativeRuleSettings(const hypertweak::native::NativeRuleSettingsSnapshot& snapshot) {
     if (hypertweak::native::ReceiveNativeRuleSettings(snapshot.hidden, snapshot.columns,
-            snapshot.contextual, snapshot.revision, snapshot.widgets, snapshot.recents_haptic, snapshot.folder_stack, snapshot.widget_stack, snapshot.xiaoai_options, snapshot.icon_percent, snapshot.desktop_grid)) {
+            snapshot.contextual, snapshot.revision, snapshot.widgets, snapshot.recents_haptic, snapshot.folder_stack, snapshot.widget_stack, snapshot.xiaoai_options, snapshot.icon_percent, snapshot.desktop_grid, snapshot.icon_theme_mode)) {
         if (snapshot.dock_channel) (void)hypertweak::native::ConfigureDockFrame(snapshot.dock_port, snapshot.dock_token0, snapshot.dock_token1);
         hypertweak::native::ApplyPreparedNativeRules();
         static int64_t grid_nonce_handled=0;

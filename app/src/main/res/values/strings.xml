@@ -1758,4 +1758,14 @@
     <string name="desktop_grid_failed">Could not apply the grid. Confirm your selection to retry.</string>
     <string name="desktop_grid_unavailable">No desktop status received. Check module scope and native payload activation.</string>
     <string name="desktop_grid_dirty">Selection has not been submitted. Confirm to apply.</string>
+    <string name="desktop_icon_theme_title">图标配色</string>
+    <string name="desktop_icon_theme_mode">单色图标</string>
+    <string name="desktop_icon_theme_summary">使用桌面原生单色渲染。壁纸模式取系统浅色调色板作为背景，前景沿用桌面，并非完整 Monet 双层配色。跟随桌面会还原先前设置。</string>
+    <string name="desktop_icon_theme_stock">跟随桌面</string>
+    <string name="desktop_icon_theme_unlock">解锁原生设置</string>
+    <string name="desktop_icon_theme_mono">原生单色</string>
+    <string name="desktop_icon_theme_monet">壁纸浅色背景</string>
+    <string name="desktop_icon_theme_custom">自定义颜色</string>
+    <string name="desktop_icon_theme_color">单色背景颜色</string>
+    <string name="desktop_icon_theme_color_hint">输入 6 位 RGB 十六进制颜色，例如 BBD7FF。</string>
 </resources>

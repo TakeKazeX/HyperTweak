@@ -15,6 +15,8 @@ bool empty_backup=false;
 }
 extern "C" void HyperTweakDesktopIconFrameHook() {}
 namespace hypertweak::native {
+bool IconThemeNeedsPreparation(){return false;}
+uintptr_t IconThemeObserverFrame(uintptr_t,uintptr_t,uintptr_t,uintptr_t*){return 0;}
 bool DesktopGridNeedsPreparation(){return false;}
 uintptr_t DesktopGridFrame(uintptr_t,uintptr_t,uintptr_t,uintptr_t,uintptr_t,DesktopGridDispatch*){return 0;}
 void LogInfo(const char*,...) {}

@@ -9,7 +9,7 @@
 #include <string.h>
 namespace {
 std::atomic<bool> hidden{false}, recents_haptic{false}, folder_stack{false}, widget_stack{false}, xiaoai_options{false};
-std::atomic<int32_t> columns{3}, icon_percent{-1};
+std::atomic<int32_t> columns{3}, icon_percent{-1}, icon_theme_mode{0};
 std::atomic<unsigned> queries{0}, preparations{0}, saves{0}, ready{0};
 std::atomic<int> grid_stage{0};
 std::atomic<unsigned> readbacks{0};
@@ -52,6 +52,11 @@ bool AndroidWidgetStackRequested() { return widget_stack.load(); }
 bool ApplyAndroidWidgetStackRule(void*) { return true; }
 const char* AndroidWidgetStackRuleReason() { return "disabled"; }
 void ResetAndroidWidgetStackAfterFork() {}
+void SetIconTheme(int mode){icon_theme_mode.store(mode);}
+bool IconThemeNeedsPreparation(){return icon_theme_mode.load()!=0;}
+bool ApplyIconThemeRule(void*){return true;}
+void ResetIconThemeAfterFork(){}
+const char* IconThemeReason(){return "disabled";}
 void SetDesktopGrid(int) {}
 bool DesktopGridNeedsPreparation(){return false;}
 bool PrepareDesktopGridTargets(void*){return true;}
@@ -93,7 +98,7 @@ void InvalidateFailedDartRuleTargets() {}
 void ResetDartRulePreparationAfterFork() {}
 void LockDartRulePreparationForFork() {}
 void UnlockDartRulePreparationAfterFork() {}
-bool PrepareDartRuleTargets(void*, bool, bool, bool, bool, bool, bool, bool, bool, bool) {
+bool PrepareDartRuleTargets(void*, bool, bool, bool, bool, bool, bool, bool, bool, bool, bool) {
     ++preparations;
     entered.store(true);
     while (block.load()) usleep(1000);
@@ -160,6 +165,12 @@ int main() {
     assert(ReceiveNativeRuleSettings(true, 4, false, 110, false, false, false, false, false));
     Wait(preparations, 11); assert(!xiaoai_options.load());
     usleep(200000);
+    assert(ReceiveNativeRuleSettings(true,4,false,111,false,false,false,false,false,-1,0,3));
+    Wait(preparations,12);assert(icon_theme_mode.load()==3);
+    assert(!ReceiveNativeRuleSettings(true,4,false,111,false,false,false,false,false,-1,0,0));
+    assert(icon_theme_mode.load()==3);
+    assert(ReceiveNativeRuleSettings(true,4,false,112,false,false,false,false,false,-1,0,0));
+    Wait(preparations,13);assert(icon_theme_mode.load()==0);
     const auto before_wake=preparations.load(),before_ready=ready.load();
     assert(TryNotifyDesktopGridPreparation());
     Wait(preparations,before_wake+1);Wait(ready,before_ready+1);usleep(200000);

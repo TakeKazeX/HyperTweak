@@ -11,6 +11,7 @@ internal data class DebugSetting(val key: String, val type: String, val default:
         key.contains("order") || key.contains("custom") || key == DockConfig.KEY || key.contains("spoof_")
     val writable: Boolean get() = type != "Unknown"
     val range: IntRange? get() = when {
+        key == com.takekazex.hypertweak.settings.contract.LauncherDesktopKeys.KEY_ICON_THEME_MODE -> 0..4
         key.startsWith("icon_tuner_slot_") -> 0..4
         key == "opened_folder_columns" -> 3..5
         key in setOf("securitycenter_dock_predict_limit", "statusbar_notif_icon_max") -> 0..15

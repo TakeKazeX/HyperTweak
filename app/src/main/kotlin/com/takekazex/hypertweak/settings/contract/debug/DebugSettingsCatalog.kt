@@ -104,6 +104,8 @@ internal object DebugSettingsCatalog {
         DebugSetting("hide_recents_clear_button", "Boolean", false),
         DebugSetting("home_grid_layout", "Int", 0),
         DebugSetting("home_icon_size_percent", "Int", -1),
+        DebugSetting("home_icon_theme_color", "Int", com.takekazex.hypertweak.settings.contract.LauncherDesktopKeys.DEFAULT_ICON_COLOR),
+        DebugSetting("home_icon_theme_mode", "Int", 0),
         DebugSetting("hyperos_indicator_blur", "Boolean", false),
         DebugSetting("hyperos_indicator_haptics", "Boolean", false),
         DebugSetting("hyperos_indicator_haptics_enhanced", "Boolean", false),
