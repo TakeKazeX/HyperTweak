@@ -1,6 +1,7 @@
 package com.takekazex.hypertweak.ui.page.glass
 
 import com.takekazex.hypertweak.ui.components.slider.rememberSliderEdit
+import com.takekazex.hypertweak.ui.components.slider.SliderEditState
 
 import com.takekazex.hypertweak.ui.components.dialog.IntValueDialog
 import com.takekazex.hypertweak.ui.effect.AppScaffold as Scaffold
@@ -50,6 +51,27 @@ fun DockBackgroundPage(onBack: () -> Unit) {
     var saved by rememberSaveable { mutableStateOf(settingsStore.getString(DockConfig.KEY, DockConfig().encode())) }
     var draft by rememberSaveable { mutableStateOf(DockSettingsWriter.state.value.takeIf { it.saving }?.requested ?: saved) }
     val config = DockConfig.decode(draft) ?: DockConfig()
+    // Share transient drag values with the preview; only change() submits settings.
+    val heightSlider = rememberSliderEdit(config.height.toFloat())
+    val horizontalMarginSlider = rememberSliderEdit(config.horizontalMargin.toFloat())
+    val bottomMarginSlider = rememberSliderEdit(config.bottomMargin.toFloat())
+    val radiusSlider = rememberSliderEdit(config.radius.toFloat())
+    val blurSlider = rememberSliderEdit(config.blur.toFloat())
+    val brightnessSlider = rememberSliderEdit(config.brightness.toFloat())
+    val shadingSlider = rememberSliderEdit(config.shading.toFloat())
+    val opacitySlider = rememberSliderEdit(config.opacity.toFloat())
+    val tintSlider = rememberSliderEdit(config.tint.toFloat())
+    val previewConfig = config.copy(
+        height = heightSlider.value.roundToInt(),
+        horizontalMargin = horizontalMarginSlider.value.roundToInt(),
+        bottomMargin = bottomMarginSlider.value.roundToInt(),
+        radius = radiusSlider.value.roundToInt(),
+        blur = blurSlider.value.roundToInt(),
+        brightness = brightnessSlider.value.roundToInt(),
+        shading = shadingSlider.value.roundToInt(),
+        opacity = opacitySlider.value.roundToInt(),
+        tint = tintSlider.value.roundToInt(),
+    )
     val writeState by DockSettingsWriter.state.collectAsState()
     var seenAcknowledgement by remember { mutableStateOf(writeState.acknowledged) }
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
@@ -108,7 +130,7 @@ fun DockBackgroundPage(onBack: () -> Unit) {
                     if (loading) Text(stringResource(R.string.glass_preview_loading_image), Modifier.padding(16.dp))
                     AndroidView(factory = { DockPreviewView(it) }, update = { view ->
                         view.onNativeState = { nativeReady = it }
-                        view.update(config, dark, image)
+                        view.update(previewConfig, dark, image)
                     }, onRelease = { it.dispose() }, modifier = Modifier.fillMaxWidth().height(220.dp).padding(12.dp))
                     Text(stringResource(if (nativeReady) R.string.dock_preview_icons else R.string.glass_preview_native_unavailable), Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
                     TextButton(text = stringResource(R.string.glass_preview_change_image), onClick = {
@@ -130,29 +152,29 @@ fun DockBackgroundPage(onBack: () -> Unit) {
                 Column {
                     if (selectedTab == 0) {
                         DockSlider(stringResource(R.string.dock_height), config.height, 40..180, 94, "dp",
-                            { change(config.copy(height = it)) })
+                            { change(config.copy(height = it)) }, editState = heightSlider)
                         DockSlider(stringResource(R.string.dock_horizontal), config.horizontalMargin, 0..100, 10, "dp",
-                            { change(config.copy(horizontalMargin = it)) })
+                            { change(config.copy(horizontalMargin = it)) }, editState = horizontalMarginSlider)
                         DockSlider(stringResource(R.string.dock_bottom), config.bottomMargin, 0..160, 36, "dp",
-                            { change(config.copy(bottomMargin = it)) })
+                            { change(config.copy(bottomMargin = it)) }, editState = bottomMarginSlider)
                         DockSlider(stringResource(R.string.dock_radius), config.radius, 0..90, 28, "dp",
-                            { change(config.copy(radius = it)) })
+                            { change(config.copy(radius = it)) }, editState = radiusSlider)
                         TextButton(text = stringResource(R.string.dock_reset), modifier = Modifier.padding(12.dp), onClick = {
                             change(config.copy(height = 94, horizontalMargin = 10, bottomMargin = 36, radius = 28))
                         })
                     } else {
                         DockSlider(stringResource(R.string.dock_blur), config.blur, DockConfig.BLUR_RANGE, DockConfig.DEFAULT_BLUR, "px",
-                            { change(config.copy(blur = it)) })
+                            { change(config.copy(blur = it)) }, editState = blurSlider)
                         if (config.style == DockConfig.GLASS) {
                             DockSlider(stringResource(R.string.dock_brightness), config.brightness, DockConfig.BRIGHTNESS_RANGE, 0, "%",
-                                { change(config.copy(brightness = it)) }, summary = stringResource(R.string.dock_brightness_summary))
+                                { change(config.copy(brightness = it)) }, editState = brightnessSlider, summary = stringResource(R.string.dock_brightness_summary))
                             DockSlider(stringResource(R.string.dock_shading), config.shading, DockConfig.PERCENT_RANGE, 0, "%",
-                                { change(config.copy(shading = it)) }, summary = stringResource(R.string.dock_shading_summary))
+                                { change(config.copy(shading = it)) }, editState = shadingSlider, summary = stringResource(R.string.dock_shading_summary))
                             DockSlider(stringResource(R.string.dock_opacity), config.opacity, DockConfig.PERCENT_RANGE, 100, "%",
-                                { change(config.copy(opacity = it)) }, summary = stringResource(R.string.dock_opacity_summary))
+                                { change(config.copy(opacity = it)) }, editState = opacitySlider, summary = stringResource(R.string.dock_opacity_summary))
                         } else {
                             DockSlider(stringResource(R.string.dock_tint), config.tint, DockConfig.PERCENT_RANGE, 100, "%",
-                                { change(config.copy(tint = it)) })
+                                { change(config.copy(tint = it)) }, editState = tintSlider)
                         }
                         TextButton(text = stringResource(R.string.dock_reset_glass), modifier = Modifier.padding(12.dp), onClick = {
                             change(if (config.style == DockConfig.GLASS) config.copy(blur = DockConfig.DEFAULT_BLUR, opacity = 100, brightness = 0, shading = 0)
@@ -167,8 +189,8 @@ fun DockBackgroundPage(onBack: () -> Unit) {
 }
 
 @Composable
-internal fun DockSlider(title: String, value: Int, range: IntRange, defaultValue: Int, unit: String, onChange: (Int) -> Unit, summary: String = "") {
-    val slider = rememberSliderEdit(value.toFloat())
+internal fun DockSlider(title: String, value: Int, range: IntRange, defaultValue: Int, unit: String, onChange: (Int) -> Unit, summary: String = "", editState: SliderEditState? = null) {
+    val slider = editState ?: rememberSliderEdit(value.toFloat())
     var showEditor by remember(title) { mutableStateOf(false) }
     ArrowPreference(
         title = title, summary = summary,

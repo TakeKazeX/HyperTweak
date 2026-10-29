@@ -1,6 +1,7 @@
 package com.takekazex.hypertweak.ui.page.systemui.icon
 
 import com.takekazex.hypertweak.ui.components.slider.rememberSliderEdit
+import com.takekazex.hypertweak.ui.components.slider.SliderEditState
 
 import com.takekazex.hypertweak.ui.components.dialog.IntValueDialog
 import androidx.compose.runtime.getValue
@@ -205,15 +206,20 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit, onNavig
     // The preview and the 布局 tab read the same left-placement toggles, so the map is built once
     // here instead of inside the section.
     val leftSelected = IconTunerContract.leftPreferenceKeys.associateWith { key -> pref(key, false) }
-    val duoComponentPercents = listOf(
-        pref(IconSettingsKeys.KEY_ICON_DUO_RING_SCALE, 100),
-        pref(IconSettingsKeys.KEY_ICON_DUO_WIFI_SCALE, 100),
-        pref(IconSettingsKeys.KEY_ICON_DUO_CELLULAR_SCALE, 100),
-        pref(IconSettingsKeys.KEY_ICON_DUO_TYPE_SCALE, 100),
-        pref(IconSettingsKeys.KEY_ICON_DUO_DOTS_SCALE, 100),
-        pref(IconSettingsKeys.KEY_ICON_DUO_AIRPLANE_SCALE, 100),
-        pref(IconSettingsKeys.KEY_ICON_DUO_BATTERY_SCALE, 100),
-        pref(IconSettingsKeys.KEY_ICON_DUO_PERCENT_SCALE, 100)
+    // Hoisted drag state feeds both previews without publishing preferences while dragging.
+    val duoComponentSliders = listOf(
+        rememberSliderEdit(pref(IconSettingsKeys.KEY_ICON_DUO_RING_SCALE, 100).toFloat()),
+        rememberSliderEdit(pref(IconSettingsKeys.KEY_ICON_DUO_WIFI_SCALE, 100).toFloat()),
+        rememberSliderEdit(pref(IconSettingsKeys.KEY_ICON_DUO_CELLULAR_SCALE, 100).toFloat()),
+        rememberSliderEdit(pref(IconSettingsKeys.KEY_ICON_DUO_TYPE_SCALE, 100).toFloat()),
+        rememberSliderEdit(pref(IconSettingsKeys.KEY_ICON_DUO_DOTS_SCALE, 100).toFloat()),
+        rememberSliderEdit(pref(IconSettingsKeys.KEY_ICON_DUO_AIRPLANE_SCALE, 100).toFloat()),
+        rememberSliderEdit(pref(IconSettingsKeys.KEY_ICON_DUO_BATTERY_SCALE, 100).toFloat()),
+        rememberSliderEdit(pref(IconSettingsKeys.KEY_ICON_DUO_PERCENT_SCALE, 100).toFloat()),
+    )
+    val duoComponentPercents = duoComponentSliders.map { it.value.roundToInt() }
+    val duoSizeSlider = rememberSliderEdit(
+        pref(IconSettingsKeys.KEY_ICON_DUO_SIZE, DuoLayout.DEFAULT_ICON_SIZE_DP).toFloat()
     )
     val previewModel = buildStatusBarPreview(
         StatusBarPreviewInput(
@@ -234,10 +240,7 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit, onNavig
             },
             stackedEnabled = pref(IconSettingsKeys.KEY_ICON_STACKED_ENABLED, false),
             duoEnabled = pref(IconSettingsKeys.KEY_ICON_DUO_ENABLED, false),
-            duoSizeDp = pref(
-                IconSettingsKeys.KEY_ICON_DUO_SIZE,
-                DuoLayout.DEFAULT_ICON_SIZE_DP
-            ).toFloat(),
+            duoSizeDp = DuoLayout.snapSizeDp(duoSizeSlider.value).toFloat(),
             hideMobileOnWifi = pref(IconSettingsKeys.KEY_ICON_HIDE_MOBILE_ON_WIFI, false),
             hideWifiConnected = pref(IconSettingsKeys.KEY_ICON_HIDE_WIFI_UNAVAILABLE, false),
             showCellularType = !pref(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_TYPE, false),
@@ -312,15 +315,12 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit, onNavig
                     }
                     1 -> {
                         DuoSignalSection(
-                            componentPercents = duoComponentPercents,
+                            componentSliders = duoComponentSliders,
+                            sizeSlider = duoSizeSlider,
                             mirrorAirplane = pref(IconSettingsKeys.KEY_ICON_MIRROR_AIRPLANE, false),
                             enabled = pref(IconSettingsKeys.KEY_ICON_DUO_ENABLED, false),
                             expanded = pref(IconSettingsKeys.KEY_ICON_DUO_EXPANDED, 1),
                             small5GaEnabled = pref(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_SMALL_5GA, false),
-                            sizeDp = pref(
-                                IconSettingsKeys.KEY_ICON_DUO_SIZE,
-                                DuoLayout.DEFAULT_ICON_SIZE_DP
-                            ),
                             onChange = { key, value -> changed(key, value) }
                         )
                         StackedSignalSection(
@@ -1114,8 +1114,8 @@ private fun SlotsSection(
 }
 
 @Composable
-private fun SliderRow(title: String, value: Float, rangeStart: Float, rangeEnd: Float, normalize: (Float) -> Float = { it }, valueLabel: ((Float) -> String)? = null, onValue: (Float) -> Unit) {
-    val slider = rememberSliderEdit(value)
+private fun SliderRow(title: String, value: Float, rangeStart: Float, rangeEnd: Float, normalize: (Float) -> Float = { it }, valueLabel: ((Float) -> String)? = null, editState: SliderEditState? = null, onValue: (Float) -> Unit) {
+    val slider = editState ?: rememberSliderEdit(value)
     Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
         Text(valueLabel?.let { "$title · ${it(slider.value)}" } ?: title)
         Slider(
@@ -1128,25 +1128,26 @@ private fun SliderRow(title: String, value: Float, rangeStart: Float, rangeEnd: 
 }
 
 @Composable
-private fun IntSliderRow(title: String, value: Int, rangeStart: Int, rangeEnd: Int, onValue: (Int) -> Unit) {
+private fun IntSliderRow(title: String, value: Int, rangeStart: Int, rangeEnd: Int, editState: SliderEditState? = null, onValue: (Int) -> Unit) {
     SliderRow(title, value.toFloat(), rangeStart.toFloat(), rangeEnd.toFloat(),
         normalize = { it.roundToInt().coerceIn(rangeStart, rangeEnd).toFloat() },
-        valueLabel = { it.roundToInt().toString() }) {
+        valueLabel = { it.roundToInt().toString() }, editState = editState) {
         onValue(it.roundToInt().coerceIn(rangeStart, rangeEnd))
     }
 }
 
 @Composable
 private fun DuoSignalSection(
-    componentPercents: List<Int>,
+    componentSliders: List<SliderEditState>,
+    sizeSlider: SliderEditState,
     mirrorAirplane: Boolean,
     enabled: Boolean,
     expanded: Int,
-    sizeDp: Int,
     small5GaEnabled: Boolean,
     onChange: (String, Any) -> Unit
 ) {
     SmallTitle(stringResource(R.string.icon_duo_title))
+    val componentPercents = componentSliders.map { it.value.roundToInt() }
     val sizes = DuoSizes(
         ring = DuoSizes.ratio(componentPercents[0]),
         wifi = DuoSizes.ratio(componentPercents[1]),
@@ -1169,7 +1170,7 @@ private fun DuoSignalSection(
                     selectedIndex = expanded.coerceIn(0, 1),
                     onSelectedIndexChange = { onChange(IconSettingsKeys.KEY_ICON_DUO_EXPANDED, it) }
                 )
-                DuoSizeRow(sizeDp) { onChange(IconSettingsKeys.KEY_ICON_DUO_SIZE, it) }
+                DuoSizeRow(sizeSlider) { onChange(IconSettingsKeys.KEY_ICON_DUO_SIZE, it) }
                 var advanced by rememberSaveable { mutableStateOf(false) }
                 TunerSwitch(advanced, stringResource(R.string.icon_duo_advanced)) { advanced = it }
                 if (advanced) {
@@ -1185,7 +1186,7 @@ private fun DuoSignalSection(
                     )
                     components.forEachIndexed { index, (key, title) ->
                         IntSliderRow(stringResource(title),
-                            componentPercents[index], 50, 150) {
+                            componentPercents[index], 50, 150, editState = componentSliders[index]) {
                             onChange(key, it)
                         }
                     }
@@ -1206,8 +1207,8 @@ private fun DuoSignalSection(
  * continuous track to whole dp.
  */
 @Composable
-private fun DuoSizeRow(sizeDp: Int, onChange: (Int) -> Unit) {
-    val slider = rememberSliderEdit(sizeDp.toFloat())
+private fun DuoSizeRow(slider: SliderEditState, onChange: (Int) -> Unit) {
+    val sizeDp = DuoLayout.snapSizeDp(slider.value)
     val sliderValue = slider.value
     var expanded by remember { mutableStateOf(false) }
     ArrowPreference(
