@@ -274,7 +274,7 @@ internal object RuntimeSettingsDefinitions {
         BACK to Group(systemUi + setOf("android", "com.miui.home")) { it in backKeys },
         NATIVE to Group(systemUi + "com.miui.home") { it in nativeKeys },
         DOCK to Group(setOf("android")) { it == DockConfig.KEY },
-        VOLUME to Group(systemUi + "android") { it == PlatformSettingsKeys.KEY_VOLUME_KEY_STEP_COUNT || it == PlatformSettingsKeys.KEY_VOLUME_KEY_STEP_SCOPE },
+        VOLUME to Group(systemUi + "android") { it == PlatformSettingsKeys.KEY_VOLUME_KEY_STEP_ENABLED || it == PlatformSettingsKeys.KEY_VOLUME_KEY_STEP_COUNT || it == PlatformSettingsKeys.KEY_VOLUME_KEY_STEP_SCOPE },
         XMSF to Group(setOf("com.xiaomi.xmsf")) { it == PlatformSettingsKeys.KEY_XMSF_UNLOCK_FOCUS_AUTH },
         // system_server: DisplayPolicy asks for the attach state on every recents transition.
         GESTURE_BAR to Group(setOf("android")) {

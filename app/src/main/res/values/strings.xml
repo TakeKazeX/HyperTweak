@@ -99,16 +99,18 @@
     <string name="volume_key_scope_title">Apply to</string>
     <string name="volume_key_scope_media">Media volume only</string>
     <string name="volume_key_scope_active_stream">Volume stream currently controlled by the keys</string>
+    <string name="volume_key_step_enabled">Custom volume steps</string>
+    <string name="volume_key_step_enabled_summary">Adjust from the current volume by a whole percentage step; turn off to restore system steps</string>
     <string name="volume_key_step_title">Volume key steps</string>
     <plurals name="volume_key_step_summary">
-        <item quantity="one">%1$d press from minimum to maximum, about %2$d%% per press</item>
-        <item quantity="other">%1$d presses from minimum to maximum, about %2$d%% per press</item>
+        <item quantity="one">%1$d reference step, ±%2$d%% per press</item>
+        <item quantity="other">%1$d reference steps, ±%2$d%% per press</item>
     </plurals>
     <plurals name="volume_key_step_value">
         <item quantity="one">%1$d step</item>
         <item quantity="other">%1$d steps</item>
     </plurals>
-    <string name="volume_key_step_dialog_summary">Set the number of key presses from minimum to maximum, from 5 to 100</string>
+    <string name="volume_key_step_dialog_summary">Choose 5–100 reference steps. Each press adds or subtracts 100 ÷ steps, rounded to a whole percent, from the current volume</string>
     <string name="volume_key_step_suffix">steps</string>
     <string name="aosp_volume_dnd">Do Not Disturb</string>
     <string name="appearance_accent_color">Accent Color</string>

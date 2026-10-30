@@ -19,6 +19,22 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class RuntimeSettingsRoutingTest {
+    @Test fun volumeSwitchCountAndScopeReachBothOwnersAcrossDisableAndReset() {
+        val enabled = PlatformSettingsKeys.KEY_VOLUME_KEY_STEP_ENABLED
+        val values = mapOf<String, Any>(enabled to false,
+            PlatformSettingsKeys.KEY_VOLUME_KEY_STEP_COUNT to 20,
+            PlatformSettingsKeys.KEY_VOLUME_KEY_STEP_SCOPE to 0)
+        for (process in listOf("system_server", "com.android.systemui")) {
+            assertEquals(values, Groups.subset(Groups.target(process), values))
+            val ledger = RuntimeSettingsLedger()
+            assertTrue(ledger.accept(RuntimeSettingsSnapshot.read(1, values, setOf(Groups.VOLUME))!!))
+            val restored = RuntimeSettingsLedger().also { it.restore(ledger.save()) }
+            assertEquals(false, restored.value(enabled))
+            assertTrue(restored.accept(RuntimeSettingsSnapshot.read(2, emptyMap<String, Any>(), setOf(Groups.VOLUME))!!))
+            assertNull(restored.value(enabled))
+        }
+    }
+
     @Test fun arbitraryKeyboardProcessesReceiveStyleDisableSelectionRemovalAndReset() {
         val keyboard = "org.example.keyboard"
         Groups.registerImeTargets(setOf(keyboard))

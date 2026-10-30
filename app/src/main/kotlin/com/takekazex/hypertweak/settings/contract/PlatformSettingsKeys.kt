@@ -69,6 +69,7 @@ object PlatformSettingsKeys {
     const val KEY_AOSP_VOLUME_PANEL = "aosp_volume_panel"
     const val KEY_AOSP_VOLUME_HAPTIC_MIUI = "aosp_volume_haptic_miui"
     const val KEY_FORCE_SCREENSHOT = "system_force_screenshot"
+    const val KEY_VOLUME_KEY_STEP_ENABLED = "volume_key_step_enabled"
     const val KEY_VOLUME_KEY_STEP_COUNT = "volume_key_step_count"
     const val KEY_VOLUME_KEY_STEP_SCOPE = "volume_key_step_scope"
     const val DEFAULT_VOLUME_KEY_STEP_COUNT = 15

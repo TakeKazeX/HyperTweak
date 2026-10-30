@@ -14,7 +14,7 @@ import java.lang.reflect.Method
 import java.util.ArrayDeque
 import java.util.concurrent.atomic.AtomicBoolean
 
-/** Changes only AudioService adjustments marked as volume-key input. */
+/** Applies configured increments to local relative adjustments, including app-owned key handling. */
 object VolumeKeyStepsHooker : StaticHooker() {
     // Published on settings acceptance; hook callbacks perform no storage reads.
     private val settingVolumeKeyStepCount by hookSetting(PlatformSettingsKeys.DEFAULT_VOLUME_KEY_STEP_COUNT) {
@@ -24,25 +24,21 @@ object VolumeKeyStepsHooker : StaticHooker() {
         Preferences.getInt(PlatformSettingsKeys.KEY_VOLUME_KEY_STEP_SCOPE, PlatformSettingsKeys.VOLUME_KEY_SCOPE_MEDIA_ONLY)
     }
 
+    private val settingEnabled by hookSetting(true) {
+        Preferences.getBoolean(PlatformSettingsKeys.KEY_VOLUME_KEY_STEP_ENABLED, true)
+    }
+
     override val hookerName = "VolumeKeySteps"
 
     private const val TAG = "VolumeKeySteps"
     private const val AUDIO_SERVICE = "com.android.server.audio.AudioService"
     private const val VOLUME_STREAM_STATE = "com.android.server.audio.AudioService\$VolumeStreamState"
     private const val AUDIO_DEVICE_ATTRIBUTES = "android.media.AudioDeviceAttributes"
-    private const val FLAG_FROM_KEY = 0x1000
-
-    private data class HardwareStepRemainderKey(
-        val stream: Int,
-        val device: Int,
-        val direction: Int
-    )
 
     private class HardwareKeyContext(var adjustmentConsumed: Boolean = false)
     private data class HardwareKeyFrame(val context: HardwareKeyContext?)
 
     private val hardwareKeyFrames = ThreadLocal<ArrayDeque<HardwareKeyFrame>?>()
-    private val hardwareStepRemainders = generationResource(HashMap<HardwareStepRemainderKey, Int>()) { it.clear() }
     private val loggedFirstAppliedStep = generationResource(AtomicBoolean(false)) { it.set(false) }
 
     private var hooksReady by generationState { false }
@@ -97,10 +93,9 @@ object VolumeKeyStepsHooker : StaticHooker() {
         }
 
         val installed = runCatching {
-            // FLAG_FROM_KEY is present on the actual system_server volume-key path. Keep this
-            // context around AudioService.adjustStreamVolume, where the stream and direction are
-            // already resolved, rather than depending on the optional handleVolumeKey entrypoint.
-            adjustStreamVolumeMethod.hook("volume_key_detect_flag_from_key") {
+            // App-handled keys can omit FLAG_FROM_KEY. Observe the resolved relative adjustment
+            // after AudioService has selected its stream; native safety/ringer routing stays intact.
+            adjustStreamVolumeMethod.hook("volume_detect_relative_adjustment") {
                 before { param -> beginHardwareAdjustment(param.args) }
                 after { endHardwareAdjustment() }
             }
@@ -120,7 +115,7 @@ object VolumeKeyStepsHooker : StaticHooker() {
 
         DebugLog.hookRegistered(
             TAG,
-            "AudioService FLAG_FROM_KEY step override steps=${activeConfiguration.steps} scope=${activeConfiguration.scope}"
+            "AudioService relative volume step override steps=${activeConfiguration.steps} scope=${activeConfiguration.scope}"
         )
     }
 
@@ -128,13 +123,10 @@ object VolumeKeyStepsHooker : StaticHooker() {
     fun refreshConfiguration() {
         val configuration = VolumeKeyStepPolicy.configuration(
             settingVolumeKeyStepCount,
-            settingVolumeKeyStepScope
+            settingVolumeKeyStepScope, settingEnabled
         )
         if (configuration != activeConfiguration) {
-            synchronized(hardwareStepRemainders) {
-                hardwareStepRemainders.clear()
-                activeConfiguration = configuration
-            }
+            activeConfiguration = configuration
             loggedFirstAppliedStep.set(false)
             DebugLog.i(TAG, "applied live configuration steps=${configuration.steps} scope=${configuration.scope}")
         }
@@ -145,11 +137,10 @@ object VolumeKeyStepsHooker : StaticHooker() {
         loggedFirstAppliedStep.set(false)
     }
 
+    @Synchronized
     private fun beginHardwareAdjustment(args: Array<Any?>) {
         val direction = args.getOrNull(1) as? Int
-        val flags = args.getOrNull(2) as? Int ?: 0
-        val isVolumeKeyAdjustment = (direction == -1 || direction == 1) &&
-            (flags and FLAG_FROM_KEY) != 0
+        val isVolumeKeyAdjustment = activeConfiguration.enabled && (direction == -1 || direction == 1)
         val stack = hardwareKeyFrames.get()
             ?: ArrayDeque<HardwareKeyFrame>().also(hardwareKeyFrames::set)
         stack.addLast(HardwareKeyFrame(if (isVolumeKeyAdjustment) HardwareKeyContext() else null))
@@ -169,7 +160,7 @@ object VolumeKeyStepsHooker : StaticHooker() {
 
         val stream = streamTypeField.getInt(streamState)
         val configuration = activeConfiguration
-        if (!VolumeKeyStepPolicy.appliesToStream(configuration.scope, stream)) return
+        if (!configuration.enabled || !VolumeKeyStepPolicy.appliesToStream(configuration.scope, stream)) return
 
         val requestedIndex = args.getOrNull(0) as? Int ?: return
         val device = args.getOrNull(1) as? Int ?: return
@@ -180,28 +171,19 @@ object VolumeKeyStepsHooker : StaticHooker() {
         val logicalRange = (maximum - minimum) / 10
         if (direction == 0 || logicalRange <= 0 || current !in minimum..maximum) return
 
-        val key = HardwareStepRemainderKey(stream, device, direction)
-        val boundedStep = synchronized(hardwareStepRemainders) {
-            val result = VolumeKeyStepPolicy.nextDelta(
-                logicalRange,
-                configuration.steps,
-                hardwareStepRemainders[key] ?: 0
-            )
-            val requestedStep = result.delta * 10
-            val bounded = if (direction > 0) {
-                requestedStep.coerceAtMost(maximum - current)
-            } else {
-                -requestedStep.coerceAtMost(current - minimum)
-            }
-            hardwareStepRemainders[key] = result.remainder
-            bounded
-        }
+        // Public AudioManager and the plugin expose whole indices. Use the same representable
+        // percentage increments here (internal AudioService units are tenths) so readback cannot drift by one.
+        val next = VolumeKeyStepPolicy.nextIndex(
+            (current + 5) / 10, (minimum + 9) / 10, maximum / 10,
+            configuration.steps, direction
+        ) * 10
+        val boundedStep = next.coerceIn(minimum, maximum) - current
         context.adjustmentConsumed = true
         args[0] = current + boundedStep
         if (loggedFirstAppliedStep.compareAndSet(false, true)) {
             DebugLog.i(
                 TAG,
-                "applied FLAG_FROM_KEY step stream=$stream delta=${boundedStep / 10} range=$logicalRange steps=${configuration.steps}"
+                "applied relative volume step stream=$stream delta=${boundedStep / 10} range=$logicalRange steps=${configuration.steps}"
             )
         }
     }

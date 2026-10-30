@@ -11,10 +11,8 @@ import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.DynamicHooker
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.settings.contract.VolumeKeyStepPolicy
-import com.takekazex.hypertweak.settings.contract.VolumeKeyStepSequence
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.util.ArrayDeque
-import java.util.WeakHashMap
 
 /** The plugin handles keys by setting an absolute media index, bypassing AudioService key flags. */
 class ControlCenterVolumeKeyHooker : DynamicHooker() {
@@ -26,6 +24,10 @@ class ControlCenterVolumeKeyHooker : DynamicHooker() {
         Preferences.getInt(PlatformSettingsKeys.KEY_VOLUME_KEY_STEP_SCOPE, PlatformSettingsKeys.VOLUME_KEY_SCOPE_MEDIA_ONLY)
     }
 
+    private val settingEnabled by hookSetting(true) {
+        Preferences.getBoolean(PlatformSettingsKeys.KEY_VOLUME_KEY_STEP_ENABLED, true)
+    }
+
     private companion object {
         // Hidden AudioManager flag consumed by AudioService's actual volume-key path.
         const val FLAG_FROM_KEY = 0x1000
@@ -33,7 +35,6 @@ class ControlCenterVolumeKeyHooker : DynamicHooker() {
 
     private data class Frame(val controller: Any, val oldStep: Int?)
     private val frames = ThreadLocal<ArrayDeque<Frame>>()
-    private val sequences = WeakHashMap<Any, VolumeKeyStepSequence>()
 
     override fun onHook() {
         val target = "miui.systemui.controlcenter.panel.main.volume.VolumeSliderController".toClassOrNull()
@@ -45,6 +46,9 @@ class ControlCenterVolumeKeyHooker : DynamicHooker() {
         val remote = HostAccess.requireDeclaredField(target, "miplayDeviceType", accessible = true)
         val tracking = HostAccess.requireDeclaredField(target, "tracking", accessible = true)
         val slider = HostAccess.requireDeclaredMethod(target, "getSlider", accessible = true)
+        val targetValue = HostAccess.requireDeclaredMethod(target, "getTargetValue", accessible = true)
+        val valueToVolume = HostAccess.requireDeclaredMethod(target, "valueToVolume", Int::class.javaPrimitiveType!!, accessible = true)
+        val volumeToValue = HostAccess.requireDeclaredMethod(target, "volumeToValue", Int::class.javaPrimitiveType!!, accessible = true)
         deoptimize(change)
         change.hook("control_center_configured_volume_key_step") {
             before { param ->
@@ -52,23 +56,22 @@ class ControlCenterVolumeKeyHooker : DynamicHooker() {
                 var oldStep: Int? = null
                 HookFailurePolicy.open("ControlCenterVolumeKey", "changeVolume", Unit) {
                     // Remote MiPlay devices own their volume range. Dragging keeps its native path.
-                    if (remote.getInt(controller) != -1 || tracking.getBoolean(controller) ||
+                    if (!settingEnabled || remote.getInt(controller) != -1 || tracking.getBoolean(controller) ||
                         slider.invoke(controller) !is SeekBar) return@open
                     val increase = param.args.firstOrNull() as? Boolean ?: return@open
                     val configuration = VolumeKeyStepPolicy.configuration(
                         settingVolumeKeyStepCount,
-                        settingVolumeKeyStepScope
+                        settingVolumeKeyStepScope, settingEnabled
                     )
-                    val range = maximum.getInt(controller) - minimum.getInt(controller)
-                    if (range <= 0) return@open
-                    val delta = synchronized(sequences) {
-                        sequences.getOrPut(controller) { VolumeKeyStepSequence() }
-                            .next(range, configuration, if (increase) 1 else -1)
-                    }
+                    val currentValue = targetValue.invoke(controller) as? Int ?: return@open
+                    val current = valueToVolume.invoke(controller, currentValue) as? Int ?: return@open
+                    val next = VolumeKeyStepPolicy.nextIndex(current, minimum.getInt(controller),
+                        maximum.getInt(controller), configuration.steps, if (increase) 1 else -1)
+                    val nextValue = volumeToValue.invoke(controller, next) as? Int ?: return@open
                     oldStep = step.getInt(controller)
-                    // Native slider values use 1000 units per public volume index. Override only
-                    // the key call so native animation, haptics, mute and sleep-low-volume remain.
-                    step.setInt(controller, delta * 1000)
+                    // Use the host converters, including its special zero/maximum mapping.
+                    // Keep native animation, feedback, delayed writes and sleep-low-volume rules.
+                    step.setInt(controller, if (increase) nextValue - currentValue else currentValue - nextValue)
                 }
                 val stack = frames.get() ?: ArrayDeque<Frame>().also(frames::set)
                 stack.addLast(Frame(controller, oldStep))
@@ -95,6 +98,7 @@ class ControlCenterVolumeKeyHooker : DynamicHooker() {
             adjust.hook("control_center_media_detail_volume_key") {
                 before { param ->
                     HookFailurePolicy.open("ControlCenterVolumeKey", "media detail adjustment", Unit) {
+                        if (!settingEnabled) return@open
                         val increase = param.args.firstOrNull() as? Boolean ?: return@open
                         val manager = audio.invoke(param.thisObject) as? AudioManager ?: return@open
                         adjustMediaVolumeFromKey(manager, increase)
@@ -107,14 +111,11 @@ class ControlCenterVolumeKeyHooker : DynamicHooker() {
     }
 
     // The public SDK's flag IntDef omits FLAG_FROM_KEY; this SystemUI hook deliberately uses
-    // the platform flag so the downstream AudioService hook applies the configured key step.
+    // the platform flag so the downstream AudioService hook applies the configured relative step.
     @SuppressLint("WrongConstant")
     private fun adjustMediaVolumeFromKey(manager: AudioManager, increase: Boolean) {
         manager.adjustStreamVolume(AudioManager.STREAM_MUSIC,
             if (increase) AudioManager.ADJUST_RAISE else AudioManager.ADJUST_LOWER, FLAG_FROM_KEY)
     }
 
-    override fun onPrepareHotReload() {
-        synchronized(sequences) { sequences.clear() }
-    }
 }

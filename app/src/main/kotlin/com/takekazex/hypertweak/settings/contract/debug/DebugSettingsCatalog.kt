@@ -369,6 +369,7 @@ internal object DebugSettingsCatalog {
         DebugSetting("update_proxy_url", "String", ""),
         DebugSetting("use_floating_bottom_bar", "Boolean", false),
         DebugSetting("volume_key_step_count", "Int", com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys.DEFAULT_VOLUME_KEY_STEP_COUNT),
+        DebugSetting("volume_key_step_enabled", "Boolean", true),
         DebugSetting("volume_key_step_scope", "Int", com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys.VOLUME_KEY_SCOPE_MEDIA_ONLY),
         DebugSetting("wifi_cnss_diag_enabled", "Unknown", null),
         DebugSetting("wifi_tcpdump_enabled", "Unknown", null),

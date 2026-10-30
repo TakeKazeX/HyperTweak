@@ -141,6 +141,9 @@ fun SystemUIPage(
         mutableStateOf(settingsStore.getBoolean(SystemUiSettingsKeys.KEY_HIDE_LOCKSCREEN_DATE, false))
     }
 
+    var volumeKeyStepEnabled by rememberSaveable {
+        mutableStateOf(settingsStore.getBoolean(PlatformSettingsKeys.KEY_VOLUME_KEY_STEP_ENABLED, true))
+    }
     var volumeKeyStepCount by remember {
         mutableIntStateOf(
             settingsStore.getInt(
@@ -245,61 +248,74 @@ fun SystemUIPage(
             SmallTitle(stringResource(R.string.volume_key_section))
             Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
                 Column(Modifier.fillMaxWidth()) {
-                    OverlayDropdownPreference(
-                        title = stringResource(R.string.volume_key_scope_title),
-                        summary = stringResource(if (volumeKeyStepScope == PlatformSettingsKeys.VOLUME_KEY_SCOPE_MEDIA_ONLY) R.string.volume_key_scope_media else R.string.volume_key_scope_active_stream),
-                        showValue = false,
-                        items = listOf(
-                            stringResource(R.string.volume_key_scope_media),
-                            stringResource(R.string.volume_key_scope_active_stream)
-                        ),
-                        selectedIndex = volumeKeyStepScope,
-                        onSelectedIndexChange = ::setVolumeKeyStepScope
-                    )
-                    ArrowPreference(
-                        title = stringResource(R.string.volume_key_step_title),
-                        summary = pluralStringResource(
-                            R.plurals.volume_key_step_summary,
-                            displayedVolumeKeyStepCount,
-                            displayedVolumeKeyStepCount,
-                            (100f / displayedVolumeKeyStepCount).roundToInt()
-                        ),
-                        endActions = {
-                            Text(
-                                text = pluralStringResource(
-                                    R.plurals.volume_key_step_value,
-                                    displayedVolumeKeyStepCount,
-                                    displayedVolumeKeyStepCount
-                                ),
-                                color = MiuixTheme.colorScheme.onSurfaceVariantActions
-                            )
+                    SwitchPreference(
+                        checked = volumeKeyStepEnabled,
+                        onCheckedChange = {
+                            volumeKeyStepEnabled = it
+                            if (!it) volumeKeySliderExpanded = false
+                            settingsStore.putBoolean(PlatformSettingsKeys.KEY_VOLUME_KEY_STEP_ENABLED, it)
+                            settingsStore.flush()
                         },
-                        onClick = { volumeKeySliderExpanded = !volumeKeySliderExpanded },
-                        holdDownState = volumeKeySliderExpanded,
-                        bottomAction = {
-                            Slider(
-                                value = volumeKeySliderValue.coerceIn(
-                                    VolumeKeyStepPolicy.MIN_STEPS.toFloat(),
-                                    VolumeKeyStepPolicy.MAX_STEPS.toFloat()
-                                ),
-                                onValueChange = volumeKeySlider::update,
-                                onValueChangeFinished = {
-                                    volumeKeySlider.finish { it.roundToInt().toFloat() }?.let { setVolumeKeyStepCount(it.toInt()) }
-                                },
-                                valueRange = VolumeKeyStepPolicy.MIN_STEPS.toFloat()..
-                                    VolumeKeyStepPolicy.MAX_STEPS.toFloat(),
-                                steps = VolumeKeyStepPolicy.MAX_STEPS -
-                                    VolumeKeyStepPolicy.MIN_STEPS - 1,
-                                showKeyPoints = true,
-                                keyPoints = listOf(5f, 15f, 100f),
-                                hapticEffect = SliderDefaults.SliderHapticEffect.Step
-                            )
-                        }
+                        title = stringResource(R.string.volume_key_step_enabled),
+                        summary = stringResource(R.string.volume_key_step_enabled_summary)
                     )
+                    if (volumeKeyStepEnabled) {
+                        OverlayDropdownPreference(
+                            title = stringResource(R.string.volume_key_scope_title),
+                            summary = stringResource(if (volumeKeyStepScope == PlatformSettingsKeys.VOLUME_KEY_SCOPE_MEDIA_ONLY) R.string.volume_key_scope_media else R.string.volume_key_scope_active_stream),
+                            showValue = false,
+                            items = listOf(
+                                stringResource(R.string.volume_key_scope_media),
+                                stringResource(R.string.volume_key_scope_active_stream)
+                            ),
+                            selectedIndex = volumeKeyStepScope,
+                            onSelectedIndexChange = ::setVolumeKeyStepScope
+                        )
+                        ArrowPreference(
+                            title = stringResource(R.string.volume_key_step_title),
+                            summary = pluralStringResource(
+                                R.plurals.volume_key_step_summary,
+                                displayedVolumeKeyStepCount,
+                                displayedVolumeKeyStepCount,
+                                VolumeKeyStepPolicy.percentStep(displayedVolumeKeyStepCount)
+                            ),
+                            endActions = {
+                                Text(
+                                    text = pluralStringResource(
+                                        R.plurals.volume_key_step_value,
+                                        displayedVolumeKeyStepCount,
+                                        displayedVolumeKeyStepCount
+                                    ),
+                                    color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                                )
+                            },
+                            onClick = { volumeKeySliderExpanded = !volumeKeySliderExpanded },
+                            holdDownState = volumeKeySliderExpanded,
+                            bottomAction = {
+                                Slider(
+                                    value = volumeKeySliderValue.coerceIn(
+                                        VolumeKeyStepPolicy.MIN_STEPS.toFloat(),
+                                        VolumeKeyStepPolicy.MAX_STEPS.toFloat()
+                                    ),
+                                    onValueChange = volumeKeySlider::update,
+                                    onValueChangeFinished = {
+                                        volumeKeySlider.finish { it.roundToInt().toFloat() }?.let { setVolumeKeyStepCount(it.toInt()) }
+                                    },
+                                    valueRange = VolumeKeyStepPolicy.MIN_STEPS.toFloat()..
+                                        VolumeKeyStepPolicy.MAX_STEPS.toFloat(),
+                                    steps = VolumeKeyStepPolicy.MAX_STEPS -
+                                        VolumeKeyStepPolicy.MIN_STEPS - 1,
+                                    showKeyPoints = true,
+                                    keyPoints = listOf(5f, 15f, 100f),
+                                    hapticEffect = SliderDefaults.SliderHapticEffect.Step
+                                )
+                            }
+                        )
+                    }
                 }
             }
             IntValueDialog(
-                show = volumeKeySliderExpanded,
+                show = volumeKeyStepEnabled && volumeKeySliderExpanded,
                 title = stringResource(R.string.volume_key_step_title),
                 summary = stringResource(R.string.volume_key_step_dialog_summary),
                 suffix = stringResource(R.string.volume_key_step_suffix),

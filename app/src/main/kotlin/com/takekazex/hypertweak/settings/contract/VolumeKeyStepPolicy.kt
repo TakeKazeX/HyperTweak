@@ -1,64 +1,45 @@
 package com.takekazex.hypertweak.settings.contract
 
-import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+internal data class VolumeKeyStepConfiguration(val steps: Int, val scope: Int, val enabled: Boolean)
 
-internal data class VolumeKeyStepConfiguration(
-    val steps: Int,
-    val scope: Int
-)
-
-internal data class VolumeKeyStepDelta(
-    val delta: Int,
-    val remainder: Int
-)
-
-/** Hardware-key step policy shared by system_server and the settings surface. */
+/** Stateless integer percentage increments shared by AudioService and the control-center key controller. */
 internal object VolumeKeyStepPolicy {
     const val MIN_STEPS = 5
     const val MAX_STEPS = 100
 
-    fun configuration(steps: Int, scope: Int): VolumeKeyStepConfiguration =
-        VolumeKeyStepConfiguration(
-            steps = steps.coerceIn(MIN_STEPS, MAX_STEPS),
-            scope = scope.coerceIn(
-                PlatformSettingsKeys.VOLUME_KEY_SCOPE_MEDIA_ONLY,
-                PlatformSettingsKeys.VOLUME_KEY_SCOPE_ACTIVE_STREAM
-            )
-        )
+    fun configuration(steps: Int, scope: Int, enabled: Boolean = true) = VolumeKeyStepConfiguration(
+        steps.coerceIn(MIN_STEPS, MAX_STEPS),
+        scope.coerceIn(PlatformSettingsKeys.VOLUME_KEY_SCOPE_MEDIA_ONLY,
+            PlatformSettingsKeys.VOLUME_KEY_SCOPE_ACTIVE_STREAM),
+        enabled
+    )
 
-    fun appliesToStream(scope: Int, stream: Int): Boolean = when (scope) {
-        PlatformSettingsKeys.VOLUME_KEY_SCOPE_ACTIVE_STREAM -> true
-        else -> stream == STREAM_MUSIC
+    fun appliesToStream(scope: Int, stream: Int): Boolean =
+        scope == PlatformSettingsKeys.VOLUME_KEY_SCOPE_ACTIVE_STREAM || stream == 3
+
+    /** Non-divisors of 100 use the nearest whole percent; endpoints clamp normally. */
+    fun percentStep(steps: Int): Int {
+        val count = steps.coerceIn(MIN_STEPS, MAX_STEPS)
+        return (100 + count / 2) / count
     }
 
-    /** Distributes a logical stream range across exactly [steps] physical-key presses. */
-    fun nextDelta(totalRange: Int, steps: Int, previousRemainder: Int): VolumeKeyStepDelta {
-        val range = totalRange.coerceAtLeast(0)
-        val stepCount = steps.coerceIn(MIN_STEPS, MAX_STEPS)
-        val accumulated = previousRemainder.coerceIn(0, stepCount - 1) + range % stepCount
-        return VolumeKeyStepDelta(
-            delta = range / stepCount + accumulated / stepCount,
-            remainder = accumulated % stepCount
-        )
-    }
-
-    private const val STREAM_MUSIC = 3
-}
-
-/** Remainder state for one controller; a live configuration/range change starts a fresh sequence. */
-internal class VolumeKeyStepSequence {
-    private var configuration: VolumeKeyStepConfiguration? = null
-    private var range = -1
-    private val remainders = HashMap<Int, Int>()
-
-    fun next(totalRange: Int, config: VolumeKeyStepConfiguration, direction: Int): Int {
-        if (configuration != config || range != totalRange) {
-            remainders.clear()
-            configuration = config
-            range = totalRange
+    /**
+     * Add/subtract from the current rounded percentage, including a value selected by dragging.
+     * Project once to a representable public index; never snap to a zero-based stop grid.
+     * Coarse streams advance at least one index because they cannot represent smaller changes.
+     */
+    fun nextIndex(current: Int, minimum: Int, maximum: Int, steps: Int, direction: Int): Int {
+        if (maximum <= minimum || direction == 0) return current
+        val bounded = current.coerceIn(minimum, maximum)
+        val range = maximum.toLong() - minimum
+        val percent = ((bounded.toLong() - minimum) * 100 + range / 2) / range
+        val targetPercent = (percent + if (direction > 0) percentStep(steps) else -percentStep(steps))
+            .coerceIn(0L, 100L)
+        val projected = (minimum + (range * targetPercent + 50) / 100).toInt()
+        return if (direction > 0) {
+            projected.coerceAtLeast((bounded.toLong() + 1).coerceAtMost(maximum.toLong()).toInt())
+        } else {
+            projected.coerceAtMost((bounded.toLong() - 1).coerceAtLeast(minimum.toLong()).toInt())
         }
-        val result = VolumeKeyStepPolicy.nextDelta(totalRange, config.steps, remainders[direction] ?: 0)
-        remainders[direction] = result.remainder
-        return result.delta
     }
 }
