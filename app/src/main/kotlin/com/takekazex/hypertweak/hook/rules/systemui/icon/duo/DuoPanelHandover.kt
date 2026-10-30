@@ -12,6 +12,8 @@ import com.takekazex.hypertweak.presentation.icon.duo.DuoSurface
 import android.content.Context
 import android.graphics.Matrix
 import android.graphics.Picture
+import com.takekazex.hypertweak.hook.rules.systemui.icon.StackedSignalHooker
+import com.takekazex.hypertweak.hook.rules.systemui.icon.signalEndpointVisible
 import android.os.Handler
 import android.os.Looper
 import android.view.View
@@ -56,6 +58,8 @@ internal class DuoPanelHandover(private val host: Host) {
         const val AIRPLANE_SLOT = "airplane"
     }
     private val main = Handler(Looper.getMainLooper())
+    private val statusIconOwners = com.takekazex.hypertweak.hook.rules.systemui.icon.SignalTargetOwnership<View>()
+    private val stackedOwners = com.takekazex.hypertweak.hook.rules.systemui.icon.SignalTargetOwnership<View>()
     private fun read(target: Any, name: String) = HostAccess.read(target, name)
     private fun ancestor(view: View, name: String) = HostAccess.ancestor(view, name)
     private val panelMatrix = Matrix()
@@ -114,6 +118,7 @@ internal class DuoPanelHandover(private val host: Host) {
         settingCcCarrierTwoLine
 
     fun clearSignalMotions(binding: DuoBinding) {
+        binding.stackedSignalMotion.clear()
         if (binding.dotsInMotion) {
             binding.dotsInMotion = false
             binding.view.icon.hideSignalDots = hideExpandedDots(binding)
@@ -138,9 +143,23 @@ internal class DuoPanelHandover(private val host: Host) {
         if (root == null || content == null || picture == null || content.airplaneMode) {
             clearSignalMotions(binding); return
         }
+        val rows = if (dots) home.view.icon.signalDotRows() else content.cellularSignalRows
+        // Without carrier replacements the real endpoint is one complete stacked slot.
+        val stacked = if (rows.none { ControlCenterCarrierBlockHooker.signalHandoverTarget(expanded.icons, it.subId) != null })
+            StackedSignalHooker.duoSignalTarget(expanded.icons) else null
+        if (stacked != null) {
+            binding.signalMotions.values.forEach { it.clear() }; binding.signalMotions.clear()
+            binding.signalTargets.values.forEach { ControlCenterCarrierBlockHooker.releaseDuoTarget(it, binding) }
+            binding.signalTargets.clear()
+            val ready = binding.stackedSignalMotion.update(root, home.view, home.view.icon, stacked,
+                rows.indices.mapNotNull { host.rowMorph(binding.battery.context, it, rows.size) },
+                host.signalBars(binding.battery.context), host.panelProgress, stackedOwners)
+            applySignalMasks(binding, dots, if (ready) rows.indices.toSet() else emptySet(), dots && ready)
+            return
+        }
+        binding.stackedSignalMotion.clear()
         val used = HashSet<Int>()
         val hidden = HashSet<Int>()
-        val rows = if (dots) home.view.icon.signalDotRows() else content.cellularSignalRows
         var dotsReady = false
         rows.forEachIndexed { index, row ->
             val carrier = ControlCenterCarrierBlockHooker.signalHandoverTarget(expanded.icons, row.subId)
@@ -171,6 +190,10 @@ internal class DuoPanelHandover(private val host: Host) {
             binding.signalMotions.remove(subId)?.clear()
             binding.signalTargets.remove(subId)?.let { ControlCenterCarrierBlockHooker.releaseDuoTarget(it, binding) }
         }
+        applySignalMasks(binding, dots, hidden, dotsReady)
+    }
+
+    private fun applySignalMasks(binding: DuoBinding, dots: Boolean, hidden: Set<Int>, dotsReady: Boolean) {
         if (binding.dotsInMotion != dotsReady) {
             binding.dotsInMotion = dotsReady
             binding.view.icon.hideSignalDots = hideExpandedDots(binding)
@@ -194,7 +217,7 @@ internal class DuoPanelHandover(private val host: Host) {
             for (i in 0 until group.childCount) {
                 val child = group.getChildAt(i)
                 if (read(child, "subId") == subId) {
-                    return child.findViewById<View>(id)?.takeIf { it.isVisible && it.width > 0 }
+                    return child.findViewById<View>(id)?.takeIf { signalEndpointVisible(it, root) }
                 }
                 if (child is ViewGroup) find(child)?.let { return it }
             }
@@ -225,6 +248,7 @@ internal class DuoPanelHandover(private val host: Host) {
     }
 
     fun clearPanelMotion(binding: DuoBinding) {
+        binding.statusIconsMotion.clear()
         binding.powerMotion.clear()
         clearNetworkMotion(binding)
         clearAirplaneMotion(binding)
@@ -287,6 +311,7 @@ internal class DuoPanelHandover(private val host: Host) {
         val powerProgress = if (expanded.active && host.expandedStyle == DuoExpandedStyle.KEEP_DUO &&
             networkTarget != null && host.panelProgress >= 1f) binding.networkMotionProgress else host.panelProgress
         updatePowerMotion(binding, home, expanded, proxyRoot, target, expandedRoot, powerProgress)
+        if (root != null) updateStatusIcons(binding, home, expanded, root, powerProgress)
         updateSignalMotions(binding, home, expanded, root)
         if (root != null) updateAirplaneMotion(binding, home.view, expanded, root, content, host.panelProgress)
         if (networkTarget == null || root == null) {
@@ -321,6 +346,14 @@ internal class DuoPanelHandover(private val host: Host) {
             binding.view.icon.hideNetwork = hidden
             binding.view.invalidate()
         }
+    }
+
+    private fun updateStatusIcons(binding: DuoBinding, home: DuoBinding, expanded: DuoBinding,
+                                  root: ViewGroup, progress: Float) {
+        // Left clones have a separate source window and controller; never take their endpoint twice.
+        binding.statusIconsMotion.excludedSlots =
+            com.takekazex.hypertweak.hook.rules.systemui.icon.left.LeftContainerHooker.homeOwnedSlots()
+        binding.statusIconsMotion.update(root, home.icons, binding.icons, expanded.icons, progress, statusIconOwners)
     }
 
     private fun updatePowerMotion(binding: DuoBinding, home: DuoBinding, expanded: DuoBinding,
@@ -386,6 +419,9 @@ internal class DuoPanelHandover(private val host: Host) {
                     if (home != null && proxyRoot != null && expandedRoot != null)
                         updatePowerMotion(binding, home, expanded, proxyRoot, expanded.view, expandedRoot, value)
                 }
+                if (expanded != null) host.bindings().firstOrNull { it.view === source }?.let { home ->
+                    updateStatusIcons(binding, home, expanded, root, value)
+                }
                 val hidden = binding.panelMotion.update(root, source, target, content, color,
                     value, host.small5GaEnabled, host.componentSizes, nativeWifi)
                 if (binding.view.icon.hideNetwork != hidden) {
@@ -404,8 +440,9 @@ internal class DuoPanelHandover(private val host: Host) {
 
     private fun nativeNetworkView(binding: DuoBinding, wifi: Boolean): View? {
         fun byId(root: View, name: String): View? = binding.networkIds[name]?.takeIf { it != 0 }
-            ?.let { root.findViewById<View>(it) }?.takeIf { it.isVisible && it.width > 0 }
+            ?.let { root.findViewById<View>(it) }?.takeIf { signalEndpointVisible(it, binding.icons) }
         if (wifi) return byId(binding.icons, "wifi_signal")
+        StackedSignalHooker.duoTypeTarget(binding.icons)?.let { return it }
         val group = binding.icons as? ViewGroup ?: return null
         for (i in 0 until group.childCount) {
             val child = group.getChildAt(i)

@@ -54,4 +54,17 @@ class LeftVisibilityPolicyTest {
                 if (shown && !island && !(showing && hide)) assertTrue(home.visible || keyguard.visible)
             }
     }
+
+    @Test fun homeFadeDoesNotDiscardAnActiveMeasuredHandoverSource() {
+        for (state in listOf(LeftVisibilityPolicy.Result.VISIBLE, LeftVisibilityPolicy.Result.HOST_HIDDEN)) {
+            assertTrue(LeftVisibilityPolicy.handoverSource(state,true,false,false,false))
+            assertFalse(LeftVisibilityPolicy.handoverSource(state,false,false,false,false))
+            assertFalse(LeftVisibilityPolicy.handoverSource(state,true,false,true,false))
+            assertFalse(LeftVisibilityPolicy.handoverSource(state,true,false,false,true))
+        }
+        for (state in listOf(LeftVisibilityPolicy.Result.RELEASE,LeftVisibilityPolicy.Result.OTHER_SURFACE,
+            LeftVisibilityPolicy.Result.LOCKSCREEN_HIDDEN,LeftVisibilityPolicy.Result.ISLAND)) {
+            assertFalse(LeftVisibilityPolicy.handoverSource(state,true,false,false,false))
+        }
+    }
 }

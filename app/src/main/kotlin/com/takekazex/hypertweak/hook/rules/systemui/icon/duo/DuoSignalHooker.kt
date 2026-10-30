@@ -131,6 +131,11 @@ object DuoSignalHooker : StaticHooker() {
         override val epoch get() = DuoSignalHooker.epoch
         override fun refresh() = DuoSignalHooker.refresh()
     }, main)
+    /** Called before a newly migrated left clone starts borrowing its control-center endpoint. */
+    internal fun releaseLeftStatusIcons(slots: Set<String>) {
+        bindings.values.toList().forEach { it.statusIconsMotion.excludedSlots = slots }
+    }
+
     private val bindings = generationMainResource(IdentityHashMap<View, DuoBinding>()) { it.clear() }
     private var enabled by generationState { false }
     private var standardEnabled by generationState { false }

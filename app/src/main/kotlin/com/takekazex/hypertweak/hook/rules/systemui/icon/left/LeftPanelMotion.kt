@@ -1,25 +1,20 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon.left
 
-import com.takekazex.hypertweak.hook.rules.systemui.icon.PanelSourceGlyph
 import android.graphics.Canvas
 import android.graphics.ColorFilter
+import android.graphics.Matrix
 import android.graphics.PixelFormat
+import android.graphics.RectF
 import android.graphics.drawable.Drawable
 import android.view.View
 import android.view.ViewGroup
-import com.takekazex.hypertweak.hook.rules.systemui.icon.duo.DuoPanelGeometry
+import com.takekazex.hypertweak.hook.rules.systemui.icon.PanelGlyphFrame
+import com.takekazex.hypertweak.hook.rules.systemui.icon.PanelGlyphTravel
+import com.takekazex.hypertweak.hook.rules.systemui.icon.signalEndpointVisible
 import com.takekazex.hypertweak.util.logging.DebugLog
 import kotlin.math.abs
 
-/**
- * Carries one left-placed StatusBarIconView through the shade hand-over.
- *
- * This deliberately follows [com.takekazex.hypertweak.hook.rules.systemui.icon.duo.DuoPanelMotion]:
- * the host's real expansion fraction is the only clock, the intermediate image lives in a
- * ViewGroupOverlay, and the native endpoint is revealed only after the overlay has drawn. The
- * source view is drawn directly so its StatusBarIconView tint/scale/drawable pipeline is retained;
- * no bitmap snapshot or second host child is introduced.
- */
+/** Retains the left clone's actual ink even while the native HOME window fades out. */
 internal class LeftPanelMotion(private val onFrameStateChanged: () -> Unit) {
     private var host: ViewGroup? = null
     private var source: View? = null
@@ -27,167 +22,76 @@ internal class LeftPanelMotion(private val onFrameStateChanged: () -> Unit) {
     private var savedTargetAlpha = 1f
     private var appliedTargetAlpha = 1f
     private var holdTargetUntilReady = false
-    private val location = IntArray(2)
-    private var centerX = 0f
-    private var centerY = 0f
-    private var drawWidth = 0f
-    private var drawHeight = 0f
-    private var layerAlpha = 255
     private var frameReady = false
     private var drawFailed = false
-
+    private var progress = 0f
+    private val sourceFrame = PanelGlyphFrame()
+    private val targetFrame = PanelGlyphFrame()
+    private val travel = PanelGlyphTravel()
+    private val from = RectF()
+    private val to = RectF()
+    private val matrix = Matrix()
+    private val inverse = Matrix()
     private val layer = object : Drawable() {
         override fun draw(canvas: Canvas) {
-            val view = source
-            if (view == null || drawFailed || (layerAlpha <= 0 && frameReady) || drawWidth <= 0f || drawHeight <= 0f ||
-                view.width <= 0 || view.height <= 0
-            ) return
-
-            val outerSave = canvas.save()
+            if (source == null || drawFailed || frameReady && progress >= 1f) return
+            val save = canvas.saveLayerAlpha(null, if (frameReady) 255 else 0)
             try {
-                canvas.translate(centerX - drawWidth / 2f, centerY - drawHeight / 2f)
-                PanelSourceGlyph.draw(canvas, view, drawWidth, drawHeight, layerAlpha)
+                travel.draw(canvas, sourceFrame, targetFrame, from, to, progress)
                 if (!frameReady) {
                     frameReady = true
-                    notifyFrameState(view)
+                    val owner = host
+                    owner?.post { if (host === owner) onFrameStateChanged() }
+                    owner?.postInvalidateOnAnimation()
                 }
             } catch (error: Throwable) {
-                drawFailed = true
-                frameReady = false
-                restoreTarget()
-                // Restore the module-owned source on failure without starting a retry loop.
-                view.alpha = 1f
-                host?.postInvalidateOnAnimation()
+                drawFailed = true; frameReady = false
+                restoreTarget(); source?.alpha = 1f
                 DebugLog.w("IconTuner", "left icon transition drawing failed", error)
-            } finally {
-                canvas.restoreToCount(outerSave)
-            }
+            } finally { canvas.restoreToCount(save) }
         }
-
         override fun setAlpha(alpha: Int) = Unit
         override fun setColorFilter(colorFilter: ColorFilter?) = Unit
-
-        @Deprecated("Deprecated in Java")
-        override fun getOpacity() = PixelFormat.TRANSLUCENT
+        @Deprecated("Deprecated in Java") override fun getOpacity() = PixelFormat.TRANSLUCENT
     }
 
-    /**
-     * Updates the overlay from the left clone to the selected real control-center endpoint.
-     * Returns true only after one complete overlay draw, matching DuoPanelMotion's fail-open rule.
-     */
-    fun update(
-        root: ViewGroup,
-        source: View,
-        target: View,
-        progress: Float,
-        parkedTargetAlpha: Float? = null
-    ): Boolean {
+    fun update(root: ViewGroup, source: View, target: View, progress: Float,
+               parkedTargetAlpha: Float? = null): Boolean {
         if (!root.isAttachedToWindow || !source.isAttachedToWindow || !target.isAttachedToWindow ||
             root.width <= 0 || root.height <= 0 || source.width <= 0 || source.height <= 0 ||
-            target.width <= 0 || target.height <= 0
-        ) {
-            clear()
-            return false
-        }
-
-        if (host !== root) {
-            clear()
-            runCatching {
-                root.overlay.add(layer)
-                host = root
-            }.onFailure {
-                drawFailed = true
-                DebugLog.w("IconTuner", "left icon transition overlay unavailable", it)
-                return false
-            }
-        }
-        if (this.source !== source) {
-            this.source = source
-            frameReady = false
-            drawFailed = false
-        }
+            !signalEndpointVisible(target, root) || !progress.isFinite()) { clear(); return false }
+        if (host !== root) { clear(); host = root; root.overlay.add(layer) }
+        if (this.source !== source) { this.source = source; frameReady = false; drawFailed = false }
         if (this.target !== target) {
-            restoreTarget()
-            this.target = target
+            restoreTarget(); this.target = target
             savedTargetAlpha = parkedTargetAlpha ?: target.alpha
-            appliedTargetAlpha = target.alpha
-            holdTargetUntilReady = parkedTargetAlpha != null
+            appliedTargetAlpha = target.alpha; holdTargetUntilReady = parkedTargetAlpha != null
+            frameReady = false
         } else if (parkedTargetAlpha != null) {
-            // A target parked by the closed-but-still-visible panel must stay hidden until this
-            // overlay has drawn once. The saved value is the host value to restore at the endpoint.
-            savedTargetAlpha = parkedTargetAlpha
-            holdTargetUntilReady = true
+            savedTargetAlpha = parkedTargetAlpha; holdTargetUntilReady = true
         }
-        if (abs(target.alpha - appliedTargetAlpha) > .001f) {
-            // The host changed the endpoint while we owned it; start from that new value and do not
-            // restore an obsolete alpha when the hand-over is released.
-            savedTargetAlpha = target.alpha
-        }
-
-        val clamped = progress.coerceIn(0f, 1f)
+        if (abs(target.alpha - appliedTargetAlpha) > .001f) savedTargetAlpha = target.alpha
+        if (!sourceFrame.captureView(source) || !targetFrame.captureView(target)) { clear(); return false }
+        matrix.reset(); root.transformMatrixToGlobal(matrix)
+        if (!matrix.invert(inverse)) { clear(); return false }
+        from.set(sourceFrame.ink); matrix.reset(); source.transformMatrixToGlobal(matrix); matrix.mapRect(from); inverse.mapRect(from)
+        to.set(targetFrame.ink); matrix.reset(); target.transformMatrixToGlobal(matrix); matrix.mapRect(to); inverse.mapRect(to)
+        this.progress = progress.coerceIn(0f, 1f)
         val ready = frameReady && !drawFailed
-        appliedTargetAlpha = if (ready) {
-            savedTargetAlpha * DuoPanelGeometry.handoff(clamped)
-        } else if (holdTargetUntilReady) {
-            0f
-        } else {
-            savedTargetAlpha
-        }
+        // One moving image through the full drag; do not reveal a stationary endpoint at 75%.
+        appliedTargetAlpha = if (ready) savedTargetAlpha * LeftHandover.destinationAlpha(this.progress)
+            else if (holdTargetUntilReady) 0f else savedTargetAlpha
         target.alpha = appliedTargetAlpha
-
-        centerOnScreen(source)
-        val sourceX = location[0] + source.width / 2f
-        val sourceY = location[1] + source.height / 2f
-        centerOnScreen(target)
-        val targetX = location[0] + target.width / 2f
-        val targetY = location[1] + target.height / 2f
-        root.getLocationOnScreen(location)
-        centerX = DuoPanelGeometry.mix(sourceX, targetX, clamped) - location[0]
-        centerY = DuoPanelGeometry.mix(sourceY, targetY, clamped) - location[1]
-        drawWidth = DuoPanelGeometry.mix(source.width.toFloat(), target.width.toFloat(), clamped)
-        drawHeight = DuoPanelGeometry.mix(source.height.toFloat(), target.height.toFloat(), clamped)
-        // Validate drawing in a transparent first frame. Until that succeeds only the source
-        // clone is visible; then the owner masks it and exposes this layer in one UI update.
-        layerAlpha = if (ready) DuoPanelGeometry.overlayAlpha(clamped) else 0
-        layer.setBounds(0, 0, root.width, root.height)
-        // The source view may have received a new StatusBarIcon payload without changing geometry.
-        // Invalidate every host progress update so the overlay always draws the current glyph.
-        layer.invalidateSelf()
+        layer.setBounds(0, 0, root.width, root.height); layer.invalidateSelf()
         return ready
     }
-
-    private fun notifyFrameState(view: View) {
-        val owner = host ?: return
-        owner.post {
-            if (host === owner && source === view) onFrameStateChanged()
-        }
-        owner.postInvalidateOnAnimation()
-    }
-
-    private fun centerOnScreen(view: View) {
-        view.getLocationOnScreen(location)
-    }
-
     private fun restoreTarget() {
-        target?.let { endpoint ->
-            if (abs(endpoint.alpha - appliedTargetAlpha) < .001f) endpoint.alpha = savedTargetAlpha
-        }
-        target = null
-        holdTargetUntilReady = false
+        target?.let { if (abs(it.alpha - appliedTargetAlpha) < .001f) it.alpha = savedTargetAlpha }
+        target = null; holdTargetUntilReady = false
     }
-
     fun clear() {
-        restoreTarget()
-        host?.overlay?.remove(layer)
-        host = null
-        source = null
-        holdTargetUntilReady = false
-        frameReady = false
-        drawFailed = false
-        centerX = 0f
-        centerY = 0f
-        drawWidth = 0f
-        drawHeight = 0f
-        layerAlpha = 255
+        restoreTarget(); host?.overlay?.remove(layer)
+        host = null; source = null; frameReady = false; drawFailed = false
+        from.setEmpty(); to.setEmpty()
     }
 }

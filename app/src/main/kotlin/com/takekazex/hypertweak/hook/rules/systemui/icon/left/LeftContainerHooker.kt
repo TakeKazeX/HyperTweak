@@ -81,7 +81,9 @@ object LeftContainerHooker : StaticHooker() {
         override val panelVisible get() = LeftContainerHooker.panelVisible
         override val panelProgress get() = LeftContainerHooker.panelProgress
         override fun sourceClones() = synchronized(states) {
-            states.values.firstOrNull { !it.isKeyguard && visibility(it).visible && sourceHostDrawn(it) }?.clones
+            states.values.firstOrNull { !it.isKeyguard && LeftVisibilityPolicy.handoverSource(
+                visibility(it), panelVisible || panelProgress > 0f, sourceHostDrawn(it), keyguardShowing(), it.islandShowing)
+            }?.clones
         }
         override fun restoreSources() = synchronized(states) {
             states.values.forEach { state ->
@@ -734,9 +736,9 @@ object LeftContainerHooker : StaticHooker() {
      * Carries every selected icon through the same hand-over as Duo's middle Wi-Fi glyph.
      *
      * The host rows remain untouched geometrically. One overlay per slot draws the already tinted
-     * left clone from its real screen position to the real expanded endpoint; duplicate fake-row
-     * copies are alpha-suppressed only after the overlay has produced a frame. The last quarter fades
-     * the overlay out while the endpoint fades in, exactly like `DuoPanelMotion`.
+     * left clone from its actual ink position to the expanded endpoint; duplicate fake-row copies
+     * are alpha-suppressed only after the overlay has produced a frame. The moving glyph owns the
+     * entire drag, then the native endpoint resumes at full arrival.
      */
     internal fun onShadeSwitchStarted(controlCenterVisible: Boolean) {
         if (!active) return
@@ -1003,15 +1005,16 @@ object LeftContainerHooker : StaticHooker() {
                 needsOverlayRefresh = true
             }
         }
-        if (needsOverlayRefresh) IconManagerHooker.republishMergedLists()
-        // The hand-over runs per frame from the host's expansion callback; re-applying it here
-        // repairs whatever a dropped frame left behind. While the shade owns the top of the screen
-        // the hand-over is forced to its open endpoint, which is also all the fallback there is on a
-        // build where the per-frame callback could not be resolved.
+        if (needsOverlayRefresh) {
+            com.takekazex.hypertweak.hook.rules.systemui.icon.duo.DuoSignalHooker.releaseLeftStatusIcons(homeOwnedSlots())
+            IconManagerHooker.republishMergedLists()
+        }
+        // A repair tick must retain a held partial drag. The coarse fully-open signal is only a
+        // fallback on hosts where the per-frame expansion callback could not be resolved.
         shadeFullyOpen = readShadeFullyOpen(
             synchronized(states) { states.values.firstOrNull { !it.isKeyguard }?.barRoot }
         )
-        handover.applyHandoverGuarded(if (shadeFullyOpen) 1f else panelProgress)
+        handover.applyHandoverGuarded(LeftHandover.repairProgress(panelProgress, panelProgressHooked, shadeFullyOpen))
     }
 
     // ─── Capture / container ─────────────────────────────────────────────────────

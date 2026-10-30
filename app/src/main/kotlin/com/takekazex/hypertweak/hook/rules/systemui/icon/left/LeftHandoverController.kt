@@ -5,7 +5,6 @@ import android.os.Handler
 import android.os.Looper
 import android.view.View
 import android.view.ViewGroup
-import androidx.core.view.isVisible
 import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.util.WeakHashMap
@@ -88,7 +87,7 @@ internal class LeftHandoverController(private val host: Host) {
             val target = targets.firstOrNull { it.parentRowClass() == CC_STATUS_ROW_CLASS }
                 ?: targets.firstOrNull { it.parentRowClass() == CC_QS_HEADER_CLASS }
                 ?: targets.firstOrNull()
-            if (!clone.isAttachedToWindow || !clone.isShown || clone.width <= 0 || clone.height <= 0 ||
+            if (!clone.isAttachedToWindow || clone.visibility != View.VISIBLE || clone.width <= 0 || clone.height <= 0 ||
                 target == null
             ) {
                 if (clone.alpha != 1f) clone.alpha = 1f
@@ -159,7 +158,7 @@ internal class LeftHandoverController(private val host: Host) {
 
     /** Candidate endpoint must be attached, visible, and measured. */
     private fun isUsableDestination(view: View): Boolean =
-        view.isAttachedToWindow && view.isVisible && view.width > 0 && view.height > 0
+        view.isAttachedToWindow && com.takekazex.hypertweak.hook.rules.systemui.icon.signalEndpointVisible(view, view.rootView)
 
     /** The row class is resolved from the captured ancestor rather than from an icon name. */
     private fun View.parentRowClass(): String? =

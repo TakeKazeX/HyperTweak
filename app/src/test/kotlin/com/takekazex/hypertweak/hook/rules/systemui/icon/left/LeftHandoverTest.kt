@@ -11,17 +11,17 @@ class LeftHandoverTest {
         assertEquals(1f, LeftHandover.travel(1f), 0f)
     }
 
-    @Test fun overlayStaysOpaqueUntilTheLastQuarter() {
+    @Test fun overlayStaysOpaqueUntilFullArrival() {
         assertEquals(1f, LeftHandover.overlayFraction(0f), 0f)
         assertEquals(1f, LeftHandover.overlayFraction(0.75f), 0f)
-        assertTrue(LeftHandover.overlayFraction(0.9f) in 0f..1f)
+        assertEquals(1f, LeftHandover.overlayFraction(0.99f), 0f)
         assertEquals(0f, LeftHandover.overlayFraction(1f), 0f)
     }
 
-    @Test fun nativeEndpointTakesOverOnlyDuringTheLastQuarter() {
+    @Test fun nativeEndpointTakesOverOnlyAtFullArrival() {
         assertEquals(0f, LeftHandover.destinationAlpha(0f), 0f)
         assertEquals(0f, LeftHandover.destinationAlpha(0.75f), 0f)
-        assertTrue(LeftHandover.destinationAlpha(0.9f) in 0f..1f)
+        assertEquals(0f, LeftHandover.destinationAlpha(0.99f), 0f)
         assertEquals(1f, LeftHandover.destinationAlpha(1f), 0f)
     }
 
@@ -45,5 +45,12 @@ class LeftHandoverTest {
         assertEquals(1f, LeftHandover.overlayFraction(-1f), 0f)
         assertEquals(0f, LeftHandover.overlayFraction(2f), 0f)
         assertEquals(1f, LeftHandover.destinationAlpha(2f), 0f)
+    }
+
+    @Test fun repairTickCannotForceAPartialNativeDragToTheEndpoint() {
+        assertEquals(.42f, LeftHandover.repairProgress(.42f,true,true), 0f)
+        assertEquals(.42f, LeftHandover.repairProgress(.42f,true,false), 0f)
+        assertEquals(1f, LeftHandover.repairProgress(.42f,false,true), 0f)
+        assertEquals(.42f, LeftHandover.repairProgress(.42f,false,false), 0f)
     }
 }

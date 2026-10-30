@@ -26,6 +26,8 @@ internal class DuoBinding(val battery: View, val parent: ViewGroup, val icons: V
     val powerMotion = DuoPowerMotion(battery.context)
     val panelMotion = DuoPanelMotion(battery.context)
     val airplaneMotion = DuoPanelMotion(battery.context, airplaneOnly = true)
+    val statusIconsMotion = DuoStatusIconsMotion()
+    val stackedSignalMotion = DuoStackedSignalMotion()
     val signalMotions = HashMap<Int, SignalRowMotion>()
     val signalTargets = HashMap<Int, View>()
     val signalSourceBounds = RectF()

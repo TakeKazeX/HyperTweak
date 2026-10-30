@@ -73,6 +73,9 @@ public final class DuoNetworkProbe {
         checkTintRefresh(context,cl);
         int bars=checkBars(context,cl);
         DuoTransportProbe.run(context,cl,output+".transport.png");
+        DuoStackedEndpointProbe.run(context,cl,output+".stacked.png");
+        DuoStatusIconsProbe.run(context,cl,output+".others.png");
+        DuoLeftIconsProbe.run(context,cl,output+".left.png");
         try(FileOutputStream out=new FileOutputStream(output)){sheet.compress(Bitmap.CompressFormat.PNG,100,out);}
         System.out.println("PASS network_travel_cases="+cases+" normal_stacked_morph_cases="+bars+" center_style_cases=3 component_tint_refresh_cases=1");
     }

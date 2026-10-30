@@ -35,6 +35,8 @@ internal class PanelGlyphFrame {
     private var solid = false
     private var reportedFailure = false
 
+    fun invalidateView() { viewKey = null }
+
     fun captureView(view: View, crop: RectF? = null): Boolean {
         val image = view as? ImageView
         val text = view as? TextView

@@ -522,6 +522,26 @@ object StackedSignalHooker : StaticHooker() {
         }
     }
 
+    private fun duoSlot(container: android.view.View, slot: String): android.widget.ImageView? {
+        val found = ArrayList<android.widget.ImageView>()
+        fun visit(view: android.view.View) {
+            if (view.visibility != android.view.View.VISIBLE) return
+            if (view is android.widget.ImageView && HostAccess.read(view, "mSlot") == slot &&
+                signalEndpointVisible(view, container)) found += view
+            if (view is android.view.ViewGroup) for (i in 0 until view.childCount) visit(view.getChildAt(i))
+        }
+        visit(container)
+        return found.singleOrNull()
+    }
+    internal fun duoSignalTarget(container: android.view.View): StackedSignalTarget? {
+        val published = publishedSignalPicture ?: return null
+        val rows = publishedSignalRows
+        if (rows.isEmpty() || rows.size != published.morphs.size) return null
+        val view = duoSlot(container, SLOT_STACKED) ?: return null
+        return StackedSignalTarget(view, rows, published.splitFraction, published.morphs.map { it.source })
+    }
+    internal fun duoTypeTarget(container: android.view.View): android.view.View? = duoSlot(container, SLOT_STACKED_TYPE)
+
     private fun hasPublishedReplacement(): Boolean = iconBridge?.owns(SLOT_STACKED) == true
 
     private fun restoreNative() {

@@ -18,4 +18,10 @@ internal object LeftVisibilityPolicy {
         island -> Result.ISLAND
         else -> Result.VISIBLE
     }
+
+    /** The shade may fade/hide HOME after taking its place; its measured clone remains the source. */
+    fun handoverSource(result: Result, panelActive: Boolean, hostDrawn: Boolean,
+                       keyguardShowing: Boolean, island: Boolean): Boolean =
+        !keyguardShowing && !island && (result.visible && hostDrawn ||
+            panelActive && (result == Result.VISIBLE || result == Result.HOST_HIDDEN))
 }
