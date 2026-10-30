@@ -427,12 +427,27 @@ internal fun AppContent(
                         powerButtonAction = action
                         settings.storage.powerButton.setPowerButtonAction(action)
                     },
-                    sliderShowPercentage = sliderShowPercentage,
-                    onSliderShowPercentageChange = { checked ->
-                        markTweaked(SystemUiSettingsKeys.KEY_SLIDER_SHOW_PERCENTAGE, checked)
-                        sliderShowPercentage = checked
-                        settings.storage.putBoolean(SystemUiSettingsKeys.KEY_SLIDER_SHOW_PERCENTAGE, checked)
+                    sliderDisplayMode = sliderDisplayMode,
+                    onSliderDisplayModeChange = { value ->
+                        sliderDisplayMode = value
+                        settings.storage.putInt(SystemUiSettingsKeys.KEY_SLIDER_DISPLAY_MODE, value)
                     },
+                    sliderValueMode = sliderValueMode,
+                    onSliderValueModeChange = { value ->
+                        sliderValueMode = value
+                        settings.storage.putInt(SystemUiSettingsKeys.KEY_SLIDER_VALUE_MODE, value)
+                    },
+                    sliderPopupStyle = sliderPopupStyle,
+                    onSliderPopupStyleChange = { value ->
+                        sliderPopupStyle = value
+                        settings.storage.putInt(SystemUiSettingsKeys.KEY_SLIDER_POPUP_STYLE, value)
+                    },
+                    sliderPopupPosition = sliderPopupPosition,
+                    onSliderPopupPositionChange = { value ->
+                        sliderPopupPosition = value
+                        settings.storage.putInt(SystemUiSettingsKeys.KEY_SLIDER_POPUP_POSITION, value)
+                    },
+
                     sliderSamePercentageStyle = sliderSamePercentageStyle,
                     onSliderSamePercentageChange = { checked ->
                         markTweaked(SystemUiSettingsKeys.KEY_SLIDER_SAME_PERCENTAGE_STYLE, checked)

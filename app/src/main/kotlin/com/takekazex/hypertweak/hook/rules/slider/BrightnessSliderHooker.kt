@@ -67,10 +67,19 @@ class BrightnessSliderHooker(
     override fun onHook() {
         val clzBrightnessSlider = parent.resolveClass("miui.systemui.controlcenter.panel.main.brightness.BrightnessSliderController")
 
+        clzBrightnessSlider?.declaredMethods?.firstOrNull { it.name == "onUnbindViewHolder" }?.let { method ->
+            method.hook { before { param -> SliderHookHelper.releaseSlider(param.thisObject) } }
+        }
+
         clzBrightnessSlider?.declaredMethods?.firstOrNull { it.name == "onBindViewHolder" }?.let { method ->
             method.hook {
                 after { param ->
-                    if (parent.showPercentageEnabled) {
+                    runCatching {
+                        val holder = findHolder(param.thisObject) ?: return@runCatching
+                        val text = getTopTextFromHolder(holder) ?: return@runCatching
+                        refreshViewCache(param.thisObject, holder, text)
+                    }
+                    if (parent.policy.controlCenter(true)) {
                         runCatching {
                             val holder = findHolder(param.thisObject) ?: return@runCatching
                             val topText = getTopTextFromHolder(holder) ?: return@runCatching
@@ -90,7 +99,7 @@ class BrightnessSliderHooker(
         clzBrightnessSlider?.declaredMethods?.firstOrNull { it.name == "updateIconProgress" }?.let { method ->
             method.hook {
                 after { param ->
-                    if (parent.showPercentageEnabled) {
+                    if (parent.policy.controlCenter(true)) {
                         updatePercentageText(param.thisObject, "BrightnessSliderController")
                     }
                 }
@@ -114,6 +123,7 @@ class BrightnessSliderHooker(
                     }
 
                     val result = chain.proceed()
+                    if (!parent.policy.controlCenter(true)) return@intercept result
 
                     runCatching {
                         val holder = HostAccess.requirePublicMethod(thisObject.javaClass, "getHolder", accessible = false).invoke(thisObject) ?: return@runCatching
@@ -125,7 +135,7 @@ class BrightnessSliderHooker(
                             ?: runCatching { getOrCacheViewGetTopTextMethod(binding.javaClass)?.invoke(binding) as? TextView }.getOrNull()
                             ?: return@runCatching
 
-                        val sameStyle = parent.sameStyleEnabled
+                        val sameStyle = parent.policy.controlCenter(true) && parent.sameStyleEnabled
                         if (sameStyle && isBlurSupported(topText.context)) {
                             if (inMirrorArg) {
                                 topText.chooseBackgroundBlurContainer(mirrorBlurProvider)
@@ -150,6 +160,7 @@ class BrightnessSliderHooker(
         clzBrightnessAnimator?.declaredMethods?.firstOrNull { it.name == "calculateViewValues" }?.let { method ->
             method.hook {
                 after { param ->
+                    if (!parent.policy.controlCenter(true)) return@after
                     runCatching {
                         val thisObject = param.thisObject
                         val fromView = getOrCacheAnimatorFromViewField(thisObject.javaClass)?.get(thisObject) ?: return@runCatching
@@ -172,6 +183,7 @@ class BrightnessSliderHooker(
         clzBrightnessAnimator?.declaredMethods?.firstOrNull { it.name == "frameCallback" }?.let { method ->
             method.hook {
                 after { param ->
+                    if (!parent.policy.controlCenter(true)) return@after
                     runCatching {
                         val thisObject = param.thisObject
                         val bounds = animatorBounds[thisObject] ?: return@runCatching
@@ -195,10 +207,13 @@ class BrightnessSliderHooker(
 
         // ─── BrightnessPanelSliderDelegate (Expanded Brightness) ────────────────
         val clzBrightnessPanelDelegate = parent.resolveClass("miui.systemui.controlcenter.panel.secondary.brightness.BrightnessPanelSliderDelegate")
+        clzBrightnessPanelDelegate?.declaredMethods?.filter { it.name in setOf("prepareShow", "updateIconProgress") }?.forEach { method ->
+            method.hook { before { param -> SliderHookHelper.trackExpandedBrightness(param.thisObject) } }
+        }
         clzBrightnessPanelDelegate?.declaredMethods?.firstOrNull { it.name == "prepareShow" }?.let { method ->
             method.hook {
                 after { param ->
-                    if (parent.showPercentageEnabled) {
+                    if (parent.policy.controlCenter(true)) {
                         runCatching {
                             val thisObject = param.thisObject
                             val binding = getOrCacheDelegateBindingField(thisObject.javaClass)?.get(thisObject) ?: return@runCatching
@@ -221,7 +236,7 @@ class BrightnessSliderHooker(
         clzBrightnessPanelDelegate?.declaredMethods?.filter { it.name == "updateIconProgress" }?.forEach { method ->
             method.hook {
                 after { param ->
-                    if (parent.showPercentageEnabled) {
+                    if (parent.policy.controlCenter(true)) {
                         runCatching {
                             val thisObject = param.thisObject
                             val binding = getOrCacheDelegateBindingField(thisObject.javaClass)?.get(thisObject) ?: return@runCatching

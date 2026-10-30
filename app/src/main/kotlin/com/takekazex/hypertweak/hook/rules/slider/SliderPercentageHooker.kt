@@ -1,6 +1,14 @@
 package com.takekazex.hypertweak.hook.rules.slider
 
-import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
+import com.takekazex.hypertweak.settings.contract.SliderPercentagePolicy
+import com.takekazex.hypertweak.hook.base.HostAccess
+import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
+import android.view.View
+import android.view.ViewGroup
+import android.view.inspector.WindowInspector
+import android.widget.SeekBar
+import java.lang.reflect.Field
+import java.lang.reflect.Modifier
 
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 
@@ -14,21 +22,17 @@ class SliderPercentageHooker(
     private val pluginApkPath: String = ""
 ) : DynamicHooker(), SliderSession {
     // Published on settings acceptance; hook callbacks perform no storage reads.
-    private val settingSliderShowPercentage by hookSetting(false) {
-        Preferences.getBoolean(SystemUiSettingsKeys.KEY_SLIDER_SHOW_PERCENTAGE, false)
-    }
-    private val settingSliderSamePercentageStyle by hookSetting(false) {
-        Preferences.getBoolean(SystemUiSettingsKeys.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false)
+    private val settingPolicy by hookSetting(SliderPercentagePolicy()) {
+        SliderPercentagePolicy.read(Preferences::getBoolean, Preferences::getInt)
     }
 
-
     @Volatile
-    override var showPercentageEnabled: Boolean = false
+    override var policy = SliderPercentagePolicy()
         private set
 
-    @Volatile
-    override var sameStyleEnabled: Boolean = false
-        private set
+    override val sameStyleEnabled: Boolean get() = policy.unifiedColor
+
+    private var volumeHooker: VolumeSliderHooker? = null
 
     private val resolvedPluginClasses by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
         if (pluginContext == null || pluginApkPath.isEmpty()) emptyMap() else DexRuntime.resolveClasses(
@@ -128,7 +132,50 @@ class SliderPercentageHooker(
     }
 
     override fun onPrepareHotReload() {
-        SliderHookHelper.clearHotReloadCaches()
+        HostAccess.onMain {
+            SliderHookHelper.policy = SliderPercentagePolicy()
+            SliderHookHelper.applyCommittedState()
+            SliderHookHelper.clearHotReloadCaches()
+            volumeHooker = null
+        }
+    }
+
+    private fun recoverExisting(views: List<View>) {
+        val types = listOfNotNull(
+            resolveClass("miui.systemui.controlcenter.panel.main.brightness.BrightnessSliderController"),
+            resolveClass("miui.systemui.controlcenter.panel.main.volume.VolumeSliderController"),
+            resolveClass("miui.systemui.controlcenter.panel.secondary.brightness.BrightnessPanelSliderDelegate"),
+            resolveClass("com.android.systemui.miui.volume.VolumePanelViewController")
+        )
+        views.filterIsInstance<SeekBar>().forEach { slider ->
+            runCatching {
+                val listener = HostAccess.declaredField(SeekBar::class.java,
+                    "mOnSeekBarChangeListener", accessible = true)?.get(slider) ?: return@runCatching
+                val ownerField = HostAccess.cached(listener.javaClass,
+                    "slider.percentage.listenerOwner", Field::class.java) {
+                    listener.javaClass.declaredFields.filter { it.type in types && !Modifier.isStatic(it.modifiers) }
+                        .singleOrNull()?.let { HostAccess.declaredField(listener.javaClass, it.name, accessible = true) }
+                } ?: return@runCatching
+                val owner = ownerField.get(listener) ?: return@runCatching
+                when {
+                    owner.javaClass.name.endsWith("VolumePanelViewController") -> volumeHooker?.captureController(owner)
+                    owner.javaClass.name.endsWith("BrightnessPanelSliderDelegate") -> SliderHookHelper.trackExpandedBrightness(owner)
+                    else -> {
+                        val holder = SliderHookHelper.findHolder(owner) ?: return@runCatching
+                        val text = SliderHookHelper.getTopTextFromHolder(holder) ?: return@runCatching
+                        SliderHookHelper.refreshViewCache(owner, holder, text)
+                    }
+                }
+            }.onFailure { android.util.Log.w("HyperTweak", "Cannot recover slider percentage host", it) }
+        }
+    }
+
+    private fun windowViews(): List<View> = buildList {
+        fun collect(view: View) {
+            add(view)
+            if (view is ViewGroup) for (index in 0 until view.childCount) collect(view.getChildAt(index))
+        }
+        WindowInspector.getGlobalWindowViews().forEach(::collect)
     }
 
     /**
@@ -136,29 +183,38 @@ class SliderPercentageHooker(
      * the session lifetime and every render reads these switches, so a first enable no longer
      * waits for the next plugin load and a disable releases the percentage rendering in place.
      */
-    fun refreshSettings() {
-        val show = settingSliderShowPercentage
-        val sameStyle = settingSliderSamePercentageStyle
-        val changed = show != showPercentageEnabled || sameStyle != sameStyleEnabled
-        showPercentageEnabled = show
-        sameStyleEnabled = sameStyle
+    fun refreshSettings() = HostAccess.onMain {
+        val next = settingPolicy
+        val sameStyle = next.unifiedColor
+        val changed = next != policy
+        policy = next
+        SliderHookHelper.policy = next
         SliderHookHelper.sameStyleEnabled = sameStyle
         if (changed) {
+            recoverExisting(windowViews())
             SliderHookHelper.onSettingsChanged()
             // Existing holders: render the percentage now, or restore the host's own label.
-            SliderHookHelper.applyCommittedState(show || sameStyle)
+            SliderHookHelper.applyCommittedState()
+            volumeHooker?.refreshSettings()
         }
-        android.util.Log.i("HyperTweak", "SliderPercentage: applied show=$show sameStyle=$sameStyle changed=$changed")
+        android.util.Log.i("HyperTweak", "SliderPercentage: applied policy=$next sameStyle=$sameStyle changed=$changed")
     }
 
     override fun onHook() {
-        showPercentageEnabled = settingSliderShowPercentage
-        sameStyleEnabled = settingSliderSamePercentageStyle
+        policy = settingPolicy
+        SliderHookHelper.policy = policy
         SliderHookHelper.sameStyleEnabled = sameStyleEnabled
         // The plugin session owns these hooks for its whole life; the master switch is read at
         // render time, so a later enable does not need a new plugin session or a restart.
         attach(BrightnessSliderHooker(this))
-        attach(VolumeSliderHooker(this))
+        volumeHooker = VolumeSliderHooker(this).also { attach(it) }
         attach(CommonSliderHooker(this))
+        hostRecovery(HostRecoveryPhase.PRESENTATION) { scope ->
+            HostAccess.onMain {
+                recoverExisting(scope.views)
+                SliderHookHelper.applyCommittedState()
+                volumeHooker?.refreshSettings()
+            }
+        }
     }
 }

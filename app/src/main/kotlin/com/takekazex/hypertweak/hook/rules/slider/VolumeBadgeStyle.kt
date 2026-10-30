@@ -1,317 +1,248 @@
 package com.takekazex.hypertweak.hook.rules.slider
 
-import com.takekazex.hypertweak.hook.base.cachedPublicMethod
-import com.takekazex.hypertweak.hook.base.HostAccess
 import android.content.Context
 import android.content.res.Configuration
-import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.view.View
 import android.widget.TextView
-import androidx.core.graphics.toColorInt
-import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.ACTIVE_BLUE_COLOR
-import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.getSliderTextColor
-import com.takekazex.hypertweak.hook.rules.slider.SliderHookHelper.putTag
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.reflect.Method
 
-/**
- * Material treatment of the collapsed volume-dialog percentage badge.
- *
- * 材质风格 has two system modes — 清透磨砂 (`material_style=0`, classic blur) and 柔光玻璃
- * (`material_style=1`, bionics) — and the badge is the small percentage capsule floating above the
- * side volume panel, so it has to be painted from the same material state as the panel surface it
- * sits on rather than a fixed colour.
- */
-internal enum class VolumeBadgeSurface {
-    /** 柔光玻璃: the volume panel's bionics glass token paints the capsule. */
-    GLASS,
+internal enum class VolumeBadgeSurface { FLAT, FROST, GLASS }
 
-    /** 清透磨砂 (or bionics while power save suppresses glass): the panel's blend colour does. */
-    FROST,
-
-    /** Background material is off: the neutral capsule keeps the percentage readable. */
-    FLAT,
-}
+internal data class VolumeBadgePalette(val background: Int, val stroke: Int, val text: Int)
 
 internal object VolumeBadgePolicy {
-    /**
-     * [advancedMaterialEffective] and [glassEnabled] mirror what the host itself asks
-     * (`Util.isAdvancedMaterialEffective` / `Util.isBionicsAdvancedMaterialEnabled`), so the badge
-     * follows whichever style the volume panel around it is using. Bionics with glass suppressed by
-     * power save falls through to [VolumeBadgeSurface.FROST], exactly like the panel's own surfaces.
-     */
-    fun surface(advancedMaterialEffective: Boolean, glassEnabled: Boolean): VolumeBadgeSurface = when {
-        !advancedMaterialEffective -> VolumeBadgeSurface.FLAT
-        glassEnabled -> VolumeBadgeSurface.GLASS
-        else -> VolumeBadgeSurface.FROST
+    fun surface(style: Int): VolumeBadgeSurface = when (style) {
+        1 -> VolumeBadgeSurface.FROST
+        2 -> VolumeBadgeSurface.GLASS
+        else -> VolumeBadgeSurface.FLAT
     }
 
-    /**
-     * Whether a collapsed volume column may show its percentage. The expanded dialog always shows
-     * it; the control-center main page shows it only in the default style, because that page
-     * supplies its own percentage styling for 统一风格.
-     */
-    fun visible(expanded: Boolean, inControlCenterMainPage: Boolean, sameStyle: Boolean): Boolean =
-        expanded || (inControlCenterMainPage && !sameStyle)
-}
-
-/**
- * Paints the collapsed percentage badge from the volume panel's current material state.
- *
- * The host paints its own volume-panel surfaces through `Util.setMiViewBackgroundStyle`, which
- * delegates to `miui.systemui.util.MiBackgroundStyle` and picks the bionics glass token for
- * 柔光玻璃 or the blend token for 清透磨砂. The badge reuses that single funnel with the volume
- * panel's own *collapsed slider* tokens (`VolumeColumnRes.getSliderBlendColor` + the collapsed glass
- * token), so the capsule reads as a small mate of the panel strip it floats above, in whichever
- * style — and in any future host style — the panel itself is using. The host's own badge recipe is
- * blend-only and never requests the glass token, which is why the badge stopped following 柔光玻璃
- * before this styler existed.
- *
- * Every host contract is resolved lazily, cached per host class loader (a hot reload replaces the
- * loader and [clear] drops the stale handles), and missing on unsupported builds: a missing
- * contract degrades the capsule to [VolumeBadgeSurface.FLAT] instead of failing the volume panel.
- */
-internal class VolumeBadgeStyler(private val tag: String) {
-    private companion object {
-        const val HOST_UTIL = "com.android.systemui.miui.volume.Util"
-        const val HOST_VOLUME_COLUMN_RES = "com.android.systemui.miui.volume.VolumeColumnRes"
-        const val HOST_BACKGROUND_STYLE = "miui.systemui.util.MiBackgroundStyle"
-        const val HOST_BLUR_COMPAT = "miui.systemui.util.MiBlurCompat"
-
-        const val METHOD_ADVANCED_MATERIAL = "isAdvancedMaterialEffective"
-        const val METHOD_GLASS_ENABLED = "isBionicsAdvancedMaterialEnabled"
-        const val METHOD_BACKGROUND_STYLE = "setMiViewBackgroundStyle"
-        const val METHOD_SLIDER_BLEND_COLOR = "getSliderBlendColor"
-        const val METHOD_RADIUS = "getRadius"
-        const val METHOD_BLUR_MODE = "setMiViewBlurModeCompat"
-        const val METHOD_COLLAPSED_GLASS_TOKEN = "getVOLUMPANEL_COLLAPSED_CLOSED_GLASS_TOKEN"
-
-        /** Blur mode the collapsed volume-panel surfaces use (see the host's `VolumeColumn`). */
-        const val COLLAPSED_BLUR_MODE = 1
-
-        /** Fallback capsule radius when the host resource is unreadable; a pill for the 20dp badge. */
-        const val FALLBACK_RADIUS_DP = 20f
-
-        val DARK_BADGE_BG_COLOR = "#3A3A3C".toColorInt()
-        val LIGHT_BADGE_BG_COLOR = "#E5E5E5".toColorInt()
-        val DARK_BADGE_STROKE_COLOR = "#33FFFFFF".toColorInt()
-        val LIGHT_BADGE_STROKE_COLOR = "#33000000".toColorInt()
-    }
-
-    private class HostHandles(
-        val advancedMaterialEffective: Method?,
-        val glassEnabled: Method?,
-        val backgroundStyle: Method?,
-        val backgroundStyleInstance: Any?,
-        val sliderBlendColor: Method?,
-        val radius: Method?,
-        val blurMode: Method?,
-        val collapsedGlassToken: Method?,
+    /** Native SRC_OVER blend over the blurred sample, deliberately independent of fixed host tokens. */
+    fun frostBlend(dark: Boolean): IntArray = intArrayOf(
+        if (dark) 0xB3202020.toInt() else 0xB3FFFFFF.toInt(),
+        3 // BlendModeToken.SRC_OVER.value, verified in the current plugin.
     )
 
-    @Volatile
-    private var cachedLoader: ClassLoader? = null
+    fun palette(dark: Boolean): VolumeBadgePalette = if (dark) {
+        VolumeBadgePalette(0xFF3A3A3C.toInt(), 0x33FFFFFF, 0xB3FFFFFF.toInt())
+    } else {
+        VolumeBadgePalette(0xFFE5E5E5.toInt(), 0x33000000, 0xB3000000.toInt())
+    }
+}
 
-    @Volatile
-    private var cachedHandles: HostHandles? = null
+/** Explicit materials scoped to the percentage view, independent of the host's global mode. */
+internal class VolumeBadgeStyler(private val tag: String) {
+    private class HostHandles(
+        val clearGlass: Method?, val blend: Method?,
+        val mode: Method?, val glassToken: Method?, val openGlassToken: Method?,
+        val materialType: Method?, val glassParams: Method?, val glassLight: Method?, val glassCompat: Method?, val glassMode: Int?,
+        val nativeBlur: Method?, val nativeBlurRadius: Method?, val blurOutline: Method?,
+        val labelWidth: Method?, val labelHeight: Int?, val buttonBackground: Method?
+    )
 
-    @Volatile
+    private data class Appearance(
+        val style: Int, val night: Int, val density: Int, val expanded: Boolean,
+        val drawable: android.graphics.drawable.Drawable?, val applied: VolumeBadgeSurface
+    )
+    private val appearances = java.util.WeakHashMap<View, Appearance>()
+    private val nativeTypeface = Typeface.create("MiSans-Medium", Typeface.NORMAL)
     private var lastSurface: VolumeBadgeSurface? = null
+    private var lastNight: Boolean? = null
+    fun clear() { lastSurface = null; lastNight = null; appearances.clear() }
 
-    fun clear() {
-        cachedLoader = null
-        cachedHandles = null
-        lastSurface = null
+    /** Use the super-volume label's dimensions, including when recovering an older generation. */
+    fun restoreNativeSize(background: View, loader: ClassLoader) {
+        val metadata = handles(loader) ?: return
+        val width = call(metadata.labelWidth, null, background.context) as? Int ?: return
+        val heightId = metadata.labelHeight ?: return
+        val height = background.resources.getDimensionPixelSize(heightId)
+        val params = background.layoutParams ?: return
+        if (width > 0 && height > 0 && (params.width != width || params.height != height)) {
+            params.width = width
+            params.height = height
+            background.layoutParams = params
+        }
     }
 
-    /**
-     * Applies the capsule background to the badge's outer view. Returns the treatment that actually
-     * landed, which is [VolumeBadgeSurface.FLAT] whenever a host contract is unavailable.
-     */
-    fun applyCapsule(
-        background: View,
-        expanded: Boolean,
-        hostLoader: ClassLoader,
-    ): VolumeBadgeSurface {
-        val context = background.context
-        val handles = handles(hostLoader)
-        val radius = capsuleRadius(context, handles)
-
-        val advancedMaterial = invokeBoolean(handles.advancedMaterialEffective, context)
-        val glassEnabled = advancedMaterial && invokeBoolean(handles.glassEnabled, context)
-        val requested = VolumeBadgePolicy.surface(advancedMaterial, glassEnabled)
-
-        val materialApplied = requested != VolumeBadgeSurface.FLAT &&
-            paintMaterial(background, handles, expanded, requested, radius)
-        if (!materialApplied) {
-            paintNeutralCapsule(background, context, radius)
+    fun applyCapsule(background: View, expanded: Boolean, hostLoader: ClassLoader, style: Int): VolumeBadgeSurface {
+        val config = background.resources.configuration
+        val night = nightMode(background.context)
+        val previous = appearances[background]
+        if (previous != null && previous.style == style && previous.night == night &&
+            previous.density == config.densityDpi && previous.expanded == expanded && previous.drawable === background.background) {
+            return previous.applied
         }
-
-        val applied = if (materialApplied) requested else VolumeBadgeSurface.FLAT
-        if (applied != lastSurface) {
+        val handles = handles(hostLoader)
+        // Native collapsed buttons use half their own height, not the volume column radius.
+        // Apply that same shape rule to the native 20dp label instead of importing a 40dp button.
+        val radius = (background.layoutParams?.height?.takeIf { it > 0 } ?: background.height).coerceAtLeast(1) / 2f
+        // Release the previous material before switching, including glass -> blur/ordinary.
+        clearMaterial(background, handles)
+        val requested = VolumeBadgePolicy.surface(style)
+        val applied = if (requested != VolumeBadgeSurface.FLAT && paintMaterial(background, handles, requested, radius)) {
+            requested
+        } else {
+            paintNeutralCapsule(background, radius, handles)
+            VolumeBadgeSurface.FLAT
+        }
+        appearances[background] = Appearance(style, night, config.densityDpi, expanded, background.background, applied)
+        val dark = night == Configuration.UI_MODE_NIGHT_YES
+        if (lastSurface != applied || lastNight != dark) {
             lastSurface = applied
-            DebugLog.d(tag, "volume badge material=$applied")
+            lastNight = dark
+            val params = background.layoutParams as? android.view.ViewGroup.MarginLayoutParams
+            DebugLog.i(tag, "volume badge material=$applied dark=$dark size=" + params?.width + "x" + params?.height + " top=" + params?.topMargin + " end=" + params?.marginEnd)
         }
         return applied
     }
 
-    /** Bold theme colour, or the slider accent while 统一风格 is on. */
-    fun applyTextStyle(text: TextView, sameStyle: Boolean) {
-        text.typeface = Typeface.DEFAULT_BOLD
-        val color = if (sameStyle) ACTIVE_BLUE_COLOR else getSliderTextColor(text.context)
-        if (sameStyle) {
-            putTag(text, "sliderType", "VolumePanelViewController")
-        }
-        withColorOverride {
-            runCatching { text.setTextColor(color) }
-        }
+    fun restoreNativeFont(text: TextView) {
+        if (text.typeface != nativeTypeface) text.typeface = nativeTypeface
     }
 
-    /**
-     * Drops the text view's own background so only the outer capsule paints the material, keeping
-     * the layout padding the capsule relies on.
-     */
+    fun invalidateAppearance(view: View) { appearances.remove(view) }
+
+    fun applyTextStyle(text: TextView, sameStyle: Boolean) {
+        restoreNativeFont(text)
+        val color = if (sameStyle) SliderHookHelper.ACTIVE_BLUE_COLOR else VolumeBadgePolicy.palette(isDark(text.context)).text
+        withColorOverride { text.setTextColor(color) }
+    }
+
     fun detachTextBackground(text: TextView) {
-        val paddingLeft = text.paddingLeft
-        val paddingTop = text.paddingTop
-        val paddingRight = text.paddingRight
-        val paddingBottom = text.paddingBottom
+        val padding = intArrayOf(text.paddingLeft, text.paddingTop, text.paddingRight, text.paddingBottom)
+        clearMaterial(text, handles(text.context.classLoader))
         text.background = null
         text.backgroundTintList = null
-        text.setPadding(paddingLeft, paddingTop, paddingRight, paddingBottom)
+        text.setPadding(padding[0], padding[1], padding[2], padding[3])
     }
 
-    private fun paintMaterial(
-        view: View,
-        handles: HostHandles,
-        expanded: Boolean,
-        surface: VolumeBadgeSurface,
-        radius: Float,
-    ): Boolean {
-        val blendToken = invokeStatic(
-            handles.sliderBlendColor,
-            expanded,
-            false,
-            surface == VolumeBadgeSurface.GLASS,
-        ) ?: return false
-        val glassToken = if (surface == VolumeBadgeSurface.GLASS) {
-            invokeOnInstance(handles.collapsedGlassToken, handles.backgroundStyleInstance) ?: return false
-        } else {
-            null
+    fun clearMaterial(view: View) {
+        appearances.remove(view)
+        clearMaterial(view, handles(view.context.classLoader))
+    }
+
+    private fun clearMaterial(view: View, handles: HostHandles?) {
+        call(handles?.clearGlass, null, view)
+        view.clearMiBlur()
+    }
+
+    private fun paintMaterial(view: View, handles: HostHandles?, surface: VolumeBadgeSurface, radius: Float): Boolean {
+        if (handles == null) return false
+        return runCatching {
+            // RingerButtonHelper.applyCollapsedStyle clears the Drawable before applying material.
+            view.background = null
+            view.backgroundTintList = null
+            val outline = handles.blurOutline ?: return false
+            outline.invoke(null, view, radius)
+            val mode = handles.mode ?: return false
+            if (mode.invoke(null, view, 1) != true) return false
+            if (surface == VolumeBadgeSurface.FROST) {
+                val colors = VolumeBadgePolicy.frostBlend(isDark(view.context))
+                val blend = handles.blend ?: return false
+                // Same path as MiuiVolumeDialogMotion's native advanced-material attach listener.
+                val nativeBlur = handles.nativeBlur ?: return false
+                val blurRadius = call(handles.nativeBlurRadius, null, view.context) as? Int ?: return false
+                nativeBlur.invoke(null, view, blurRadius, false)
+                blend.invoke(null, view, colors)
+            } else {
+                val nativeStyle = handles.materialType?.declaringClass ?: return false
+                val instance = HostAccess.requirePublicField(nativeStyle, "INSTANCE", accessible = false).get(null)
+                val token = call(handles.glassToken, instance) ?: return false
+                val open = call(handles.openGlassToken, instance) ?: return false
+                val light = call(handles.glassLight, instance) ?: return false
+                // The native button's progress=0, unpressed branch computes 42 entries, including
+                // MAIN_PANEL_LIGHT_PARAMS. getToBionicsParams() only populates the first 37.
+                val params = call(handles.glassParams, instance, 0f, token, open, false, 0f, light) as? FloatArray ?: return false
+                val material = handles.materialType
+                val glassMode = handles.glassMode ?: return false
+                val glass = handles.glassCompat ?: return false
+                material.invoke(instance, view, glassMode)
+                glass.invoke(instance, view, params)
+            }
+            true
+        }.onFailure { DebugLog.w(tag, "Cannot apply volume percentage material=$surface", it) }.getOrDefault(false)
+    }
+
+    private fun paintNeutralCapsule(view: View, radius: Float, handles: HostHandles?) {
+        // Also clean a partially applied unsupported material before the fallback.
+        clearMaterial(view, handles)
+        val nativeBackground = call(handles?.buttonBackground, null, false, true, false) as? Int
+        if (nativeBackground != null && nativeBackground != 0) {
+            // Plugin wrappers can retain a stale night configuration; use current application mode.
+            val configuration = Configuration(view.resources.configuration).apply {
+                uiMode = (uiMode and Configuration.UI_MODE_NIGHT_MASK.inv()) or nightMode(view.context)
+            }
+            val drawable = runCatching {
+                // Keep the plugin's AssetManager: a wrapped Context's base may be SystemUI.
+                @Suppress("DEPRECATION")
+                val resources = android.content.res.Resources(view.resources.assets, view.resources.displayMetrics, configuration)
+                resources.getDrawable(nativeBackground, null)?.mutate()
+            }.getOrNull()
+            if (drawable != null) {
+                // Keep the native button's selector/colours while sizing its capsule to this label.
+                (drawable as? GradientDrawable)?.cornerRadius = radius
+                view.background = drawable
+                view.backgroundTintList = null
+                return
+            }
         }
-
-        // Transparent rounded background: the blur outline follows the drawable, like the host's
-        // own miui_super_volume_view_transparent.
-        view.background = transparentCapsule(radius)
-        view.backgroundTintList = null
-        invokeStatic(handles.blurMode, view, COLLAPSED_BLUR_MODE)
-        return invokeStaticUnit(handles.backgroundStyle, view, COLLAPSED_BLUR_MODE, blendToken, glassToken)
-    }
-
-    private fun paintNeutralCapsule(view: View, context: Context, radius: Float) {
-        val isDark = isDarkTheme(context)
-        view.background = GradientDrawable().apply {
-            shape = GradientDrawable.RECTANGLE
-            setColor(if (isDark) DARK_BADGE_BG_COLOR else LIGHT_BADGE_BG_COLOR)
-            cornerRadius = radius
-            setStroke(
-                context.resources.displayMetrics.density.toInt().coerceAtLeast(1),
-                if (isDark) DARK_BADGE_STROKE_COLOR else LIGHT_BADGE_STROKE_COLOR,
-            )
+        val colors = VolumeBadgePolicy.palette(isDark(view.context))
+        view.background = capsule(radius, colors.background).apply {
+            setStroke(view.resources.displayMetrics.density.toInt().coerceAtLeast(1), colors.stroke)
         }
         view.backgroundTintList = null
     }
 
-    private fun transparentCapsule(radius: Float) = GradientDrawable().apply {
+    private fun capsule(radius: Float, color: Int) = GradientDrawable().apply {
         shape = GradientDrawable.RECTANGLE
-        setColor(Color.TRANSPARENT)
+        setColor(color)
         cornerRadius = radius
     }
 
-    private fun capsuleRadius(context: Context, handles: HostHandles): Float {
-        val fromHost = invokeStatic(handles.radius, context) as? Int
-        return fromHost?.toFloat() ?: (FALLBACK_RADIUS_DP * context.resources.displayMetrics.density)
-    }
+    // A themed plugin wrapper may retain its own Configuration. Read the running application's
+    // system configuration for both the cache key and the actual blend/text palette.
+    private fun nightMode(context: Context): Int =
+        (context.applicationContext ?: context).resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
+    private fun isDark(context: Context) = nightMode(context) == Configuration.UI_MODE_NIGHT_YES
+    private fun call(method: Method?, owner: Any?, vararg args: Any?): Any? =
+        method?.let { runCatching { it.invoke(owner, *args) }.getOrNull() }
 
-    private fun isDarkTheme(context: Context): Boolean =
-        (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==
-            Configuration.UI_MODE_NIGHT_YES
-
-    private fun invokeBoolean(method: Method?, vararg args: Any?): Boolean =
-        invokeStatic(method, *args) as? Boolean ?: false
-
-    private fun invokeStatic(method: Method?, vararg args: Any?): Any? =
-        method?.let { runCatching { it.invoke(null, *args) }.getOrNull() }
-
-    /** For host methods returning nothing, where a successful call is the only signal. */
-    private fun invokeStaticUnit(method: Method?, vararg args: Any?): Boolean {
-        if (method == null) return false
-        return runCatching { method.invoke(null, *args) }.isSuccess
-    }
-
-    private fun invokeOnInstance(method: Method?, instance: Any?): Any? {
-        if (method == null || instance == null) return null
-        return runCatching { method.invoke(instance) }.getOrNull()
-    }
-
-    /**
-     * Resolves the host contracts once per host class loader. The host loader is stable for the
-     * lifetime of a hooker, so a plain cache plus [clear] on hot reload is enough; a different loader
-     * (plugin re-attach) re-resolves instead of reusing stale handles.
-     */
-    private fun handles(hostLoader: ClassLoader): HostHandles {
-        cachedHandles?.let { if (cachedLoader === hostLoader) return it }
-        return synchronized(this) {
-            cachedHandles?.let { if (cachedLoader === hostLoader) return@synchronized it }
-            resolveHandles(hostLoader).also {
-                cachedLoader = hostLoader
-                cachedHandles = it
-            }
+    /** Cached metadata uses exact parameter types from the loaded plugin, never name/arity alone. */
+    private fun handles(loader: ClassLoader): HostHandles? = runCatching {
+        val style = loader.loadClass("miui.systemui.util.MiBackgroundStyle")
+        HostAccess.cached(style, "slider.percentage.materialHandles", HostHandles::class.java) {
+            val blur = loader.loadClass("miui.systemui.util.MiBlurCompat")
+            val buttons = loader.loadClass("com.android.systemui.miui.volume.RingerButtonRes")
+            val util = loader.loadClass("com.android.systemui.miui.volume.Util")
+            val dialogRes = loader.loadClass("com.android.systemui.miui.volume.MiuiVolumeDialogRes")
+            val bionics = loader.loadClass("miui.systemui.util.BionicsToken")
+            val light = loader.loadClass("miui.systemui.util.LightParams")
+            val dimensions = loader.loadClass("com.android.systemui.miui.volume.R\$dimen")
+            val mode = loader.loadClass("miui.systemui.util.MaterialMode\$Bionics")
+            val modeInstance = HostAccess.requirePublicField(mode, "INSTANCE", accessible = false).get(null)
+            val glassMode = HostAccess.publicMethod(mode, "getValue", accessible = false)?.invoke(modeInstance) as? Int
+            HostHandles(
+                HostAccess.publicMethod(style, "clearBionicsMaterial", View::class.java, accessible = false),
+                HostAccess.publicMethod(blur, "setMiBackgroundBlendColors", View::class.java, IntArray::class.java, accessible = false),
+                HostAccess.publicMethod(blur, "setMiViewBlurModeCompat", View::class.java, Int::class.javaPrimitiveType!!, accessible = false),
+                HostAccess.publicMethod(style, "getVOLUMPANEL_COLLAPSED_CLOSED_GLASS_TOKEN", accessible = false),
+                HostAccess.publicMethod(style, "getVOLUMPANEL_COLLAPSED_OPEN_GLASS_TOKEN", accessible = false),
+                HostAccess.publicMethod(style, "setMiViewMaterialType", View::class.java, Int::class.javaPrimitiveType!!, accessible = false),
+                HostAccess.declaredMethod(style, "calculateGlassParams", Float::class.javaPrimitiveType!!, bionics, bionics, Boolean::class.javaPrimitiveType!!, Float::class.javaPrimitiveType!!, light, accessible = true),
+                HostAccess.publicMethod(style, "getMAIN_PANEL_LIGHT_PARAMS", accessible = false),
+                HostAccess.declaredMethod(style, "setMiGlassCompat", View::class.java, FloatArray::class.java, accessible = true),
+                glassMode,
+                HostAccess.publicMethod(util, "setMiBgBlur", View::class.java, Int::class.javaPrimitiveType!!, Boolean::class.javaPrimitiveType!!, accessible = false),
+                HostAccess.publicMethod(dialogRes, "getBlandBlurRadius", Context::class.java, accessible = false),
+                HostAccess.publicMethod(blur, "setBlurOutlineRoundRect", View::class.java, Float::class.javaPrimitiveType!!, accessible = false),
+                HostAccess.publicMethod(dialogRes, "getSuperVolumeWidth", Context::class.java, accessible = false),
+                HostAccess.requirePublicField(dimensions, "miui_super_volume_text_height_collapsed", accessible = false).getInt(null),
+                HostAccess.publicMethod(buttons, "getButtonBgId", Boolean::class.javaPrimitiveType!!, Boolean::class.javaPrimitiveType!!, Boolean::class.javaPrimitiveType!!, accessible = false)
+            )
         }
-    }
-
-    private fun resolveHandles(hostLoader: ClassLoader): HostHandles {
-        val backgroundStyleClass = loadClass(hostLoader, HOST_BACKGROUND_STYLE)
-        return HostHandles(
-            advancedMaterialEffective = publicMethod(hostLoader, HOST_UTIL, METHOD_ADVANCED_MATERIAL, Context::class.java),
-            glassEnabled = publicMethod(hostLoader, HOST_UTIL, METHOD_GLASS_ENABLED, Context::class.java),
-            backgroundStyle = publicMethodByNameAndArity(hostLoader, HOST_UTIL, METHOD_BACKGROUND_STYLE, 4),
-            backgroundStyleInstance = backgroundStyleClass?.let {
-                runCatching { HostAccess.requirePublicField(it, "INSTANCE", accessible = false).get(null) }.getOrNull()
-            },
-            sliderBlendColor = publicMethodByNameAndArity(hostLoader, HOST_VOLUME_COLUMN_RES, METHOD_SLIDER_BLEND_COLOR, 3),
-            radius = publicMethod(hostLoader, HOST_VOLUME_COLUMN_RES, METHOD_RADIUS, Context::class.java),
-            blurMode = publicMethodByNameAndArity(hostLoader, HOST_BLUR_COMPAT, METHOD_BLUR_MODE, 2),
-            collapsedGlassToken = publicMethodByNameAndArity(hostLoader, HOST_BACKGROUND_STYLE, METHOD_COLLAPSED_GLASS_TOKEN, 0),
-        )
-    }
-
-    private fun loadClass(classLoader: ClassLoader, className: String): Class<*>? =
-        runCatching { classLoader.loadClass(className) }.getOrNull()
-
-    private fun publicMethod(
-        classLoader: ClassLoader,
-        className: String,
-        name: String,
-        vararg parameterTypes: Class<*>,
-    ): Method? = runCatching {
-        loadClass(classLoader, className)?.cachedPublicMethod(name, *parameterTypes, accessible = false)
-    }.getOrNull()
-
-    /**
-     * Host signatures carry plugin/theme types (`ColorBlendToken`, `BionicsToken`) that cannot be
-     * named from the module's class loader, so those lookups match on name and arity instead.
-     */
-    private fun publicMethodByNameAndArity(
-        classLoader: ClassLoader,
-        className: String,
-        name: String,
-        arity: Int,
-    ): Method? = runCatching {
-        loadClass(classLoader, className)
-            ?.methods
-            ?.firstOrNull { it.name == name && it.parameterTypes.size == arity }
     }.getOrNull()
 }

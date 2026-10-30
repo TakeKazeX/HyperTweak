@@ -56,7 +56,10 @@ internal class AppSettingsState(val storage: AppSettingsStore) {
     var contextualSearchHaptics by settings.preference { storage.getBoolean(PlatformSettingsKeys.KEY_CONTEXTUAL_SEARCH_HAPTICS, false) }
     var contextualSearchLongPress by settings.preference { storage.backGesture.contextualSearchLongPress() }
     var hideLauncherIcon by settings.preference { storage.getBoolean(AppSettingsKeys.KEY_HIDE_LAUNCHER_ICON, false) }
-    var sliderShowPercentage by settings.preference { storage.getBoolean(SystemUiSettingsKeys.KEY_SLIDER_SHOW_PERCENTAGE, false) }
+    var sliderDisplayMode by settings.preference { storage.getInt(SystemUiSettingsKeys.KEY_SLIDER_DISPLAY_MODE, (if (storage.getBoolean(SystemUiSettingsKeys.KEY_SLIDER_SHOW_PERCENTAGE, false)) 3 else 0)).coerceIn(0, 3) }
+    var sliderValueMode by settings.preference { storage.getInt(SystemUiSettingsKeys.KEY_SLIDER_VALUE_MODE, 2).coerceIn(0, 2) }
+    var sliderPopupStyle by settings.preference { storage.getInt(SystemUiSettingsKeys.KEY_SLIDER_POPUP_STYLE, 0).coerceIn(0, 2) }
+    var sliderPopupPosition by settings.preference { storage.getInt(SystemUiSettingsKeys.KEY_SLIDER_POPUP_POSITION, 1).coerceIn(0, 1) }
     var sliderSamePercentageStyle by settings.preference { storage.getBoolean(SystemUiSettingsKeys.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false) }
     var ccEditEnabled by settings.preference { storage.getBoolean(SystemUiSettingsKeys.KEY_CC_EDIT_ENABLED, false) }
     var paModelSpoofEnabled by settings.preference { storage.getBoolean(PlatformSettingsKeys.KEY_PA_MODEL_SPOOF, false) }
@@ -129,7 +132,6 @@ internal class AppSettingsState(val storage: AppSettingsStore) {
             SystemUiSettingsKeys.KEY_NOTIFICATION_ABSOLUTE_TIME -> notificationAbsoluteTime
             PlatformSettingsKeys.KEY_HIDE_GESTURE_BAR -> hideGestureBar
             SystemUiSettingsKeys.KEY_GESTURE_BAR_RAISE_LAYOUT -> gestureBarRaiseLayout
-            SystemUiSettingsKeys.KEY_SLIDER_SHOW_PERCENTAGE -> sliderShowPercentage
             SystemUiSettingsKeys.KEY_SLIDER_SAME_PERCENTAGE_STYLE -> sliderSamePercentageStyle
             PlatformSettingsKeys.KEY_SHOW_IN_SETTINGS -> showInSettings
             PlatformSettingsKeys.KEY_SHOW_GOOGLE_SERVICES_IN_SETTINGS -> showGoogleServicesInSettings

@@ -49,6 +49,8 @@ for p in sorted(SRC.rglob('*.kt')):
         rank = 0 if '/ui/' in str(p) else 1
         if key not in reads or rank < reads[key][2]: reads[key] = (typ,default,rank)
 # Reviewed defaults for settings read through shared helper loops/migration readers.
+# Missing display mode inherits the legacy boolean; the fresh-install default is off.
+reads['SystemUiSettingsKeys.KEY_SLIDER_DISPLAY_MODE'] = ('Int', '0', 0)
 for key in keys:
     if key.startswith('IconSettingsKeys.KEY_ICON_LEFT_'): reads.setdefault(key,('Boolean','false',0))
     if key.startswith('SystemUiSettingsKeys.KEY_CC_CORNER_') and key != 'SystemUiSettingsKeys.KEY_CC_CORNER_ENABLED': reads[key]=('Float','0f',0)

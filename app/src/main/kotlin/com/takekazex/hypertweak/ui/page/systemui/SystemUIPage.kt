@@ -96,8 +96,15 @@ fun SystemUIPage(
     onLockscreenAllNotificationsChange: (Boolean) -> Unit,
     lockscreenKeepNotifications: Boolean,
     onLockscreenKeepNotificationsChange: (Boolean) -> Unit,
-    sliderShowPercentage: Boolean,
-    onSliderShowPercentageChange: (Boolean) -> Unit,
+    sliderDisplayMode: Int,
+    onSliderDisplayModeChange: (Int) -> Unit,
+    sliderValueMode: Int,
+    onSliderValueModeChange: (Int) -> Unit,
+    sliderPopupStyle: Int,
+    onSliderPopupStyleChange: (Int) -> Unit,
+    sliderPopupPosition: Int,
+    onSliderPopupPositionChange: (Int) -> Unit,
+
     sliderSamePercentageStyle: Boolean,
     onSliderSamePercentageChange: (Boolean) -> Unit,
     hideGestureBar: Boolean,
@@ -474,18 +481,47 @@ fun SystemUIPage(
                             )
                         }
                     )
-                    SwitchPreference(
-                        checked = sliderShowPercentage,
-                        onCheckedChange = onSliderShowPercentageChange,
-                        title = stringResource(R.string.tweaks_slider_show_percentage_title),
-                        summary = stringResource(R.string.tweaks_slider_show_percentage_summary)
+                }
+            }
+
+            SmallTitle(stringResource(R.string.tweaks_slider_show_percentage_title))
+            Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+                Column(Modifier.fillMaxWidth()) {
+                    OverlayDropdownPreference(
+                        title = stringResource(R.string.slider_percentage_display),
+                        items = listOf(stringResource(R.string.slider_percentage_off), stringResource(R.string.slider_percentage_cc_only), stringResource(R.string.slider_percentage_popup_only), stringResource(R.string.slider_percentage_both)),
+                        selectedIndex = sliderDisplayMode,
+                        onSelectedIndexChange = onSliderDisplayModeChange
                     )
-                    SwitchPreference(
-                        checked = sliderSamePercentageStyle && sliderShowPercentage,
-                        onCheckedChange = onSliderSamePercentageChange,
-                        title = stringResource(R.string.tweaks_unify_percentage_style_title),
-                        summary = stringResource(R.string.tweaks_unify_percentage_style_summary),
-                        enabled = sliderShowPercentage
+                    OverlayDropdownPreference(
+                        title = stringResource(R.string.slider_percentage_values),
+                        summary = stringResource(R.string.slider_percentage_values_summary),
+                        items = listOf(stringResource(R.string.slider_percentage_brightness_only), stringResource(R.string.slider_percentage_volume_only), stringResource(R.string.slider_percentage_both)),
+                        selectedIndex = sliderValueMode,
+                        onSelectedIndexChange = onSliderValueModeChange,
+                        enabled = sliderDisplayMode == 1 || sliderDisplayMode == 3
+                    )
+                    OverlayDropdownPreference(
+                        title = stringResource(R.string.slider_percentage_color),
+                        items = listOf(stringResource(R.string.slider_percentage_normal), stringResource(R.string.slider_percentage_unified)),
+                        selectedIndex = if (sliderSamePercentageStyle) 1 else 0,
+                        onSelectedIndexChange = { onSliderSamePercentageChange(it == 1) },
+                        enabled = sliderDisplayMode != 0
+                    )
+                    OverlayDropdownPreference(
+                        title = stringResource(R.string.slider_percentage_popup_style),
+                        summary = stringResource(R.string.slider_percentage_popup_style_summary),
+                        items = listOf(stringResource(R.string.slider_percentage_normal), stringResource(R.string.slider_percentage_blur), stringResource(R.string.slider_percentage_glass)),
+                        selectedIndex = sliderPopupStyle,
+                        onSelectedIndexChange = onSliderPopupStyleChange,
+                        enabled = sliderDisplayMode in 2..3 && sliderPopupPosition == 1
+                    )
+                    OverlayDropdownPreference(
+                        title = stringResource(R.string.slider_percentage_popup_position),
+                        items = listOf(stringResource(R.string.slider_percentage_inside), stringResource(R.string.slider_percentage_outside)),
+                        selectedIndex = sliderPopupPosition,
+                        onSelectedIndexChange = onSliderPopupPositionChange,
+                        enabled = sliderDisplayMode in 2..3
                     )
                 }
             }

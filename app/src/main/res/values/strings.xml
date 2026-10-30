@@ -1787,4 +1787,23 @@
     <string name="security_center_sidebar_disabled">Hide and disable swipe</string>
     <string name="security_center_sidebar_invisible">Hide and keep swipe</string>
     <string name="security_center_sidebar_mode_summary">Hide the edge indicator. Keeping swipe preserves the native touch area, which still receives edge touches.</string>
+    <string name="slider_percentage_display">Display</string>
+    <string name="slider_percentage_values">Control center values</string>
+    <string name="slider_percentage_color">Color</string>
+    <string name="slider_percentage_popup_position">Popup volume percentage</string>
+    <string name="slider_percentage_off">Off</string>
+    <string name="slider_percentage_cc_only">Control center only</string>
+    <string name="slider_percentage_popup_only">Volume popup only</string>
+    <string name="slider_percentage_both">Show both</string>
+    <string name="slider_percentage_brightness_only">Brightness only</string>
+    <string name="slider_percentage_volume_only">Volume only</string>
+    <string name="slider_percentage_normal">Normal</string>
+    <string name="slider_percentage_unified">Unified color</string>
+    <string name="slider_percentage_inside">Inside</string>
+    <string name="slider_percentage_outside">Outside</string>
+    <string name="slider_percentage_popup_style">Popup volume percentage style</string>
+    <string name="slider_percentage_blur">Advanced blur</string>
+    <string name="slider_percentage_glass">Soft glass</string>
+    <string name="slider_percentage_popup_style_summary">Applies to the outside percentage background; inside shows text only</string>
+    <string name="slider_percentage_values_summary">Only affects control center; the enabled volume popup always shows volume percentage</string>
 </resources>

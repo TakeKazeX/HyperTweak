@@ -18,11 +18,13 @@ class CommonSliderHooker(
             updateBlendBlurMethod?.let { method ->
                 method.hook {
                     after { param ->
-                        if (parent.showPercentageEnabled) {
+                        if (parent.policy.display != 0) {
                             runCatching {
                                 val topText = getTopTextFromHolder(param.thisObject) ?: return@runCatching
-                                val sliderType = getTag(topText, "sliderType") as? String
-                                applyTopTextStyle(topText, force = true, sliderType = sliderType)
+                                val sliderType = getTag(topText, "sliderType") as? String ?: return@runCatching
+                                if (parent.policy.controlCenter(sliderType.contains("Brightness"))) {
+                                    applyTopTextStyle(topText, force = true, sliderType = sliderType)
+                                }
                             }
                         }
                     }

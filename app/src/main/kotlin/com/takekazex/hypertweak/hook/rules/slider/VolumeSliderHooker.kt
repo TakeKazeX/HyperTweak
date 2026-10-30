@@ -1,6 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.slider
 
 import com.takekazex.hypertweak.hook.base.HostAccess
+import com.takekazex.hypertweak.hook.base.ViewVisibilityRouter
 import android.util.Log
 import android.view.View
 import android.widget.TextView
@@ -31,17 +32,196 @@ class VolumeSliderHooker(
     // Cache textView → stream mapping to avoid expensive column search in updateSuperVolumeText
     private val textViewToStreamCache = generationMainResource(java.util.WeakHashMap<TextView, Int>()) { it.clear() }
 
+    private val controllers = generationMainResource(java.util.WeakHashMap<Any, Boolean>()) { it.clear() }
+    private data class TextState(val text: CharSequence, val colors: android.content.res.ColorStateList, val typeface: android.graphics.Typeface?)
+    private data class ViewState(
+        val visibility: Int, val alpha: Float, val text: TextState?,
+        val background: android.graphics.drawable.Drawable?, val tint: android.content.res.ColorStateList?,
+        val padding: IntArray,
+        val topMargin: Int?, val marginEnd: Int?, val width: Int?, val height: Int?
+    )
+    private val nativeViews = generationMainResource(java.util.WeakHashMap<View, ViewState>()) { it.clear() }
+    private class PercentageOwner(owner: Any, val column: Boolean) {
+        val instance = java.lang.ref.WeakReference(owner)
+    }
+    private val percentageOwners = generationMainResource(java.util.WeakHashMap<View, PercentageOwner>()) { it.clear() }
+    private var replaying by generationState { false }
+    private var renderBadge by generationState<((Any) -> Unit)?> { null }
+
+    private fun inControlCenter(controller: Any): Boolean =
+        runCatching { HostAccess.readDeclared(controller, "isControlCenterPanel") as? Boolean ?: false }.getOrDefault(false)
+
+    private fun enabled(controller: Any): Boolean = !replaying && parent.policy.volumePanel(inControlCenter(controller))
+
+    private fun shouldSuppress(view: View): Boolean {
+        if (replaying) return false
+        val record = percentageOwners[view] ?: return false
+        val owner = record.instance.get() ?: return false
+        val inCC = if (record.column) {
+            runCatching { HostAccess.publicMethod(owner.javaClass, "isInCCMainPage", accessible = false)?.invoke(owner) as? Boolean }.getOrNull() ?: false
+        } else inControlCenter(owner)
+        return parent.policy.suppressVolumePanel(inCC)
+    }
+
+    private fun trackPercentage(view: View?, owner: Any, column: Boolean = false) {
+        if (view == null || replaying) return
+        capture(view)
+        percentageOwners[view] = PercentageOwner(owner, column)
+    }
+
+    private fun suppressExcluded(controller: Any) {
+        if (replaying) return
+        captureController(controller)
+        percentageOwners.entries.toList().forEach { (view, _) ->
+            if (shouldSuppress(view)) {
+                view.visibility = View.GONE
+                view.alpha = 0f
+            }
+        }
+    }
+
+    private fun capture(view: View?) {
+        if (view == null || nativeViews.containsKey(view)) return
+        nativeViews[view] = ViewState(view.visibility, view.alpha, (view as? TextView)?.let { TextState(it.text, it.textColors, it.typeface) },
+            view.background, view.backgroundTintList, intArrayOf(view.paddingLeft, view.paddingTop, view.paddingRight, view.paddingBottom),
+            (view.layoutParams as? android.view.ViewGroup.MarginLayoutParams)?.topMargin,
+            (view.layoutParams as? android.view.ViewGroup.MarginLayoutParams)?.marginEnd,
+            view.layoutParams?.width, view.layoutParams?.height)
+    }
+
+    fun captureController(controller: Any) {
+        if (replaying) return
+        controllers[controller] = true
+        val badge = HostAccess.readDeclared(controller, "mSuperVolumeBg") as? View
+        // Repair dimensions left by the earlier generation before taking a new native baseline.
+        badge?.let { badgeStyler.restoreNativeSize(it, requireNotNull(controller.javaClass.classLoader)) }
+        trackPercentage(badge, controller)
+        val text = HostAccess.readDeclared(controller, "mSuperVolume") as? TextView
+        text?.let(badgeStyler::restoreNativeFont)
+        trackPercentage(text, controller)
+        (HostAccess.readDeclared(controller, "mColumns") as? List<*>)?.filterNotNull()?.forEach {
+            trackPercentage(HostAccess.readDeclared(it, "superVolume") as? View, controller)
+        }
+    }
+
+    private fun restoreViews() {
+        nativeViews.forEach { (view, state) ->
+            view.visibility = state.visibility
+            view.alpha = state.alpha
+            view.background = state.background
+            view.backgroundTintList = state.tint
+            view.setPadding(state.padding[0], state.padding[1], state.padding[2], state.padding[3])
+            badgeStyler.clearMaterial(view)
+            val params = view.layoutParams
+            if (params != null) {
+                state.width?.let { params.width = it }
+                state.height?.let { params.height = it }
+                if (params is android.view.ViewGroup.MarginLayoutParams) {
+                    state.topMargin?.let { params.topMargin = it }
+                    state.marginEnd?.let { params.marginEnd = it }
+                }
+                view.layoutParams = params
+            }
+            if (view is TextView) state.text?.let {
+                view.text = it.text
+                view.setTextColor(it.colors)
+                view.typeface = it.typeface
+            }
+        }
+        nativeViews.clear()
+    }
+
+    private fun updateNativeOuterGeometry(controller: Any) {
+        if (!enabled(controller) || inControlCenter(controller) || !parent.policy.outside) return
+        val badge = HostAccess.readDeclared(controller, "mSuperVolumeBg") as? View ?: return
+        badgeStyler.restoreNativeSize(badge, requireNotNull(controller.javaClass.classLoader))
+        val volume = HostAccess.readDeclared(controller, "mVolumeView") ?: return
+        val motion = HostAccess.readDeclared(volume, "mMotion") ?: return
+        // Same call made by the host's show pre-draw callback: computes top/end margins using
+        // its display metrics, insets and current expansion state. Never copy laid-out .top.
+        HostAccess.declaredMethod(motion.javaClass, "updateSuperVolumeState", accessible = true)?.invoke(motion)
+    }
+
+    private fun stylePercentageText(text: TextView, unified: Boolean, inside: Boolean, inCC: Boolean, expanded: Boolean = false) {
+        capture(text)
+        // Inner percentages are always bare text. Material selection belongs to the outer capsule.
+        badgeStyler.detachTextBackground(text)
+        val params = text.layoutParams as? android.view.ViewGroup.MarginLayoutParams
+        val nativeTop = nativeViews[text]?.topMargin
+        if (inside && params != null && nativeTop != null) {
+            val offset = if (!inCC && !expanded && !parent.policy.outside) {
+                (12f * text.resources.displayMetrics.density).toInt()
+            } else 0
+            val top = nativeTop + offset
+            if (params.topMargin != top) {
+                params.topMargin = top
+                text.layoutParams = params
+            }
+        }
+        text.alpha = 1f
+        badgeStyler.applyTextStyle(text, unified)
+    }
+
+    fun refreshSettings() = HostAccess.onMain {
+        replaying = true
+        try { restoreViews() } finally { replaying = false }
+        controllers.keys.toList().forEach { controller ->
+            runCatching {
+                // Re-run the native renderer first with overrides suspended, then apply the new policy.
+                replaying = true
+                HostAccess.declaredMethod(controller.javaClass, "initSuperVolumeColor", accessible = true)?.invoke(controller)
+                val columns = (HostAccess.readDeclared(controller, "mColumns") as? List<*>)?.filterNotNull().orEmpty()
+                columns.forEach { column ->
+                    HostAccess.declaredMethod(controller.javaClass, "updateVolumeColumnH", column.javaClass, accessible = true)?.invoke(controller, column)
+                }
+                replaying = false
+                captureController(controller)
+                columns.forEach { column ->
+                    HostAccess.declaredMethod(controller.javaClass, "updateVolumeColumnH", column.javaClass, accessible = true)?.invoke(controller, column)
+                }
+                renderBadge?.invoke(controller)
+                suppressExcluded(controller)
+            }.onFailure { Log.e(TAG, "Cannot refresh existing volume panel", it) }
+            replaying = false
+        }
+    }
+
     override fun onPrepareHotReload() {
+        HostAccess.onMain {
+            replaying = true
+            restoreViews()
+            controllers.keys.toList().forEach { controller ->
+                runCatching { HostAccess.declaredMethod(controller.javaClass, "initSuperVolumeColor", accessible = true)?.invoke(controller) }
+            }
+        }
+        renderBadge = null
         badgeStyler.clear()
     }
 
     override fun onHook() {
+        // Native column updates and dialog animations both own these same reused percentage views.
+        // The shared router enforces only excluded scopes; active scopes keep their normal animations.
+        ViewVisibilityRouter.visibility(this, before = { view, _ ->
+            if (shouldSuppress(view)) View.GONE else null
+        })
+        ViewVisibilityRouter.alpha(this, before = { view, _ ->
+            if (shouldSuppress(view)) 0f else null
+        })
         val clzVolumeSlider = parent.resolveClass("miui.systemui.controlcenter.panel.main.volume.VolumeSliderController")
+
+        clzVolumeSlider?.declaredMethods?.firstOrNull { it.name == "onUnbindViewHolder" }?.let { method ->
+            method.hook { before { param -> SliderHookHelper.releaseSlider(param.thisObject) } }
+        }
 
         clzVolumeSlider?.declaredMethods?.firstOrNull { it.name == "onBindViewHolder" }?.let { method ->
             method.hook {
                 after { param ->
-                    if (parent.showPercentageEnabled) {
+                    runCatching {
+                        val holder = findHolder(param.thisObject) ?: return@runCatching
+                        val text = getTopTextFromHolder(holder) ?: return@runCatching
+                        refreshViewCache(param.thisObject, holder, text)
+                    }
+                    if (parent.policy.controlCenter(false)) {
                         runCatching {
                             val holder = findHolder(param.thisObject) ?: return@runCatching
                             val topText = getTopTextFromHolder(holder) ?: return@runCatching
@@ -59,7 +239,7 @@ class VolumeSliderHooker(
         clzVolumeSlider?.declaredMethods?.firstOrNull { it.name == "updateIconProgress" }?.let { method ->
             method.hook {
                 after { param ->
-                    if (parent.showPercentageEnabled) {
+                    if (parent.policy.controlCenter(false)) {
                         updatePercentageText(param.thisObject, "VolumeSliderController")
                     }
                 }
@@ -69,7 +249,7 @@ class VolumeSliderHooker(
         clzVolumeSlider?.declaredMethods?.firstOrNull { it.name == "syncSystemVolume" }?.let { method ->
             method.hook {
                 after { param ->
-                    if (parent.showPercentageEnabled) {
+                    if (parent.policy.controlCenter(false)) {
                         val controller = param.thisObject
                         runCatching {
                             val topText = getTag(controller, "cached_topText") as? TextView
@@ -100,7 +280,7 @@ class VolumeSliderHooker(
         }?.let { method ->
             method.hook {
                 after { param ->
-                    if (parent.showPercentageEnabled) {
+                    if (parent.policy.controlCenter(false)) {
                         val isOriginalVolumeCallback = param.args[1] as Boolean
                         if (!isOriginalVolumeCallback) {
                             val controller = param.thisObject
@@ -127,12 +307,38 @@ class VolumeSliderHooker(
 
         // ─── VolumeColumn initColumn ───────────────────────────────────────────
         val clzVolumeColumn = parent.resolveClass("com.android.systemui.miui.volume.VolumeColumn")
+        clzVolumeColumn?.declaredMethods?.singleOrNull {
+            it.name == "setSuperVolumeParma" && it.parameterCount == 0
+        }?.let { method ->
+            method.hook {
+                after { param ->
+                    runCatching {
+                        val text = HostAccess.readDeclared(param.thisObject, "superVolume") as? TextView ?: return@runCatching
+                        val layout = text.layoutParams as? android.view.ViewGroup.MarginLayoutParams ?: return@runCatching
+                        // The host has just recomputed the real margin for this configuration.
+                        nativeViews[text]?.let { nativeViews[text] = it.copy(topMargin = layout.topMargin) }
+                    }
+                }
+            }
+        }
+
         clzVolumeColumn?.declaredMethods?.firstOrNull { method ->
             method.name == "initColumn" && method.parameterTypes.size == 6
         }?.let { method ->
             method.hook {
                 after { param ->
-                    if (parent.showPercentageEnabled) {
+                    runCatching {
+                        val text = HostAccess.readDeclared(param.thisObject, "superVolume") as? View
+                        trackPercentage(text, param.thisObject, column = true)
+                        if (text != null && shouldSuppress(text)) {
+                            text.visibility = View.GONE
+                            text.alpha = 0f
+                        }
+                    }
+                    val columnInCC = runCatching {
+                        HostAccess.requirePublicMethod(param.thisObject.javaClass, "isInCCMainPage", accessible = false).invoke(param.thisObject) as? Boolean
+                    }.getOrNull() ?: false
+                    if (!replaying && parent.policy.volumePanel(columnInCC)) {
                         val sameStyle = parent.sameStyleEnabled
                         val isExpanded = param.args[5] as? Boolean ?: false
                         val thisObject = param.thisObject
@@ -140,11 +346,11 @@ class VolumeSliderHooker(
                             HostAccess.requirePublicMethod(thisObject.javaClass, "isInCCMainPage", accessible = false).invoke(thisObject) as Boolean
                         }.getOrDefault(true)
                         
-                        val shouldShow = VolumeBadgePolicy.visible(isExpanded, isInCCMainPage, sameStyle)
+                        val shouldShow = parent.policy.innerVolume(isExpanded, isInCCMainPage)
                         runCatching {
                             val superVolume = HostAccess.requireDeclaredField(thisObject.javaClass, "superVolume", accessible = true).get(thisObject) as? TextView ?: return@runCatching
                             superVolume.visibility = if (shouldShow) View.VISIBLE else View.INVISIBLE
-                            badgeStyler.applyTextStyle(superVolume, sameStyle)
+                            stylePercentageText(superVolume, sameStyle, inside = true, inCC = isInCCMainPage, expanded = isExpanded)
                         }
                     }
                 }
@@ -153,6 +359,15 @@ class VolumeSliderHooker(
 
         // ─── VolumePanelViewController ─────────────────────────────────────────
         val clzVolumeViewController = parent.resolveClass("com.android.systemui.miui.volume.VolumePanelViewController")
+
+        clzVolumeViewController?.declaredMethods?.filter {
+            it.name in setOf("initPanelView", "showVolumePanelH", "updateVolumeColumnH", "updateSuperVolumeView", "updateSuperVolumeText")
+        }?.forEach { method ->
+            method.hook {
+                before { param -> runCatching { captureController(param.thisObject) } }
+                after { param -> runCatching { suppressExcluded(param.thisObject) } }
+            }
+        }
 
         // Track whether badge theme has been applied since last show, to avoid re-applying on every update
         var badgeThemeApplied = false
@@ -174,7 +389,7 @@ class VolumeSliderHooker(
                 }?.let { method ->
                     method.hook {
                         before { param ->
-                            if (parent.showPercentageEnabled) {
+                            if (!replaying && parent.policy.volumePanel(HostAccess.readDeclared(param.thisObject, "isControlCenterPanel") as? Boolean ?: false)) {
                                 val view = param.thisObject
                                 val isExpanded = runCatching {
                                     HostAccess.requirePublicMethod(view.javaClass, "isExpanded", accessible = false).invoke(view) as Boolean
@@ -183,7 +398,7 @@ class VolumeSliderHooker(
                                     HostAccess.requirePublicMethod(view.javaClass, "inCCMainPage", accessible = false).invoke(view) as Boolean
                                 }.getOrNull()
                                 if (inCCMainPage != true) {
-                                    param.args[0] = !isExpanded
+                                    param.args[0] = !isExpanded && parent.policy.outside
                                 }
                             }
                         }
@@ -194,29 +409,33 @@ class VolumeSliderHooker(
         }
 
         /**
-         * Applies the badge's appearance from the current system material state: the capsule is
-         * painted by [badgeStyler] with the volume panel's own material tokens (柔光玻璃 /
-         * 清透磨砂), the percentage text follows 统一风格, and both views follow the expanded state.
-         * Host material state is read on every call, so a 材质风格 switch is picked up on the next
-         * panel show and at the host's material-change boundary.
+         * Native label geometry and font with a locally selected material branch. Glass reuses
+         * the shortcut button's complete calculation including light parameters; frost retains
+         * theme-aware native blur. Global material mode never overrides this selection.
          */
-        fun applyBadgeAppearance(thisObject: Any) {
-            if (!parent.showPercentageEnabled) return
+        fun applyBadgeAppearance(thisObject: Any, forceMaterial: Boolean = false) {
+            if (!enabled(thisObject)) return
             runCatching {
 
                 val badgeBg = HostAccess.readDeclared(thisObject, "mSuperVolumeBg") as? View ?: return@runCatching
                 val badgeText = HostAccess.readDeclared(thisObject, "mSuperVolume") as? TextView ?: return@runCatching
                 val expanded = HostAccess.readDeclared(thisObject, "mExpanded") as Boolean
+                updateNativeOuterGeometry(thisObject)
+                if (forceMaterial) badgeStyler.invalidateAppearance(badgeBg)
 
                 // Only the outer capsule paints the material; the text stays transparent.
                 badgeStyler.detachTextBackground(badgeText)
                 // Class.classLoader is annotated @RecentlyNullable; a live host instance always has one.
-                badgeStyler.applyCapsule(badgeBg, expanded, requireNotNull(thisObject.javaClass.classLoader))
+                badgeStyler.applyCapsule(badgeBg, expanded, requireNotNull(thisObject.javaClass.classLoader), parent.policy.popupStyle)
                 badgeStyler.applyTextStyle(badgeText, parent.sameStyleEnabled)
 
-                val badgeVisibility = if (expanded) View.GONE else View.VISIBLE
+                val badgeVisibility = if (parent.policy.outerVolume(expanded, inControlCenter(thisObject))) View.VISIBLE else View.GONE
                 badgeBg.visibility = badgeVisibility
                 badgeText.visibility = badgeVisibility
+                if (badgeVisibility == View.VISIBLE) {
+                    badgeBg.alpha = 1f
+                    badgeText.alpha = 1f
+                }
 
                 hookSuperVolumeVisibilityFallback(thisObject)
             }.onFailure { t ->
@@ -224,10 +443,22 @@ class VolumeSliderHooker(
             }
         }
 
+        renderBadge = { controller ->
+            val active = HostAccess.readDeclared(controller, "mActiveStream") as? Int
+            if (active != null) {
+                HostAccess.declaredMethod(controller.javaClass, "updateSuperVolumeText", TextView::class.java, Int::class.javaPrimitiveType!!, accessible = true)
+                    ?.let { method ->
+                        val text = HostAccess.readDeclared(controller, "mSuperVolume") as? TextView
+                        if (text != null) method.invoke(controller, text, active)
+                    }
+            }
+            applyBadgeAppearance(controller)
+        }
+
         // Helper: update badge text with the active stream's current percentage
 
         fun updateBadgeText(thisObject: Any, activeStream: Int) {
-            if (!parent.showPercentageEnabled) return
+            if (!enabled(thisObject)) return
             runCatching {
 
                 val mState = HostAccess.readDeclared(thisObject, "mState") ?: return
@@ -254,7 +485,7 @@ class VolumeSliderHooker(
         clzVolumeViewController?.declaredMethods?.firstOrNull { it.name == "initSuperVolumeColor" }?.let { method ->
             method.hook {
                 after { param ->
-                    applyBadgeAppearance(param.thisObject)
+                    applyBadgeAppearance(param.thisObject, forceMaterial = true)
                 }
             }
         }
@@ -265,7 +496,20 @@ class VolumeSliderHooker(
             method.hook {
                 after { param ->
                     badgeThemeApplied = false
-                    applyBadgeAppearance(param.thisObject)
+                    refreshSettings()
+                }
+            }
+        }
+
+        // Native configuration changes include UI_MODE; it may dismiss/recreate the dialog.
+        // Repaint surviving views now, and the normal bind/show paths cover new instances.
+        clzVolumeViewController?.declaredMethods?.singleOrNull {
+            it.name == "onConfigChanged" && it.parameterTypes.contentEquals(arrayOf(Int::class.javaPrimitiveType))
+        }?.let { method ->
+            method.hook {
+                after {
+                    badgeThemeApplied = false
+                    refreshSettings()
                 }
             }
         }
@@ -290,7 +534,7 @@ class VolumeSliderHooker(
         }?.let { method ->
             method.hook {
                 after { param ->
-                    if (parent.showPercentageEnabled) {
+                    if (enabled(param.thisObject)) {
                         runCatching {
                             val thisObject = param.thisObject
 
@@ -323,17 +567,17 @@ class VolumeSliderHooker(
                                 if (columnSuperVolume != null) {
                                     setPercentIfChanged(columnSuperVolume, pct)
                                     val isControlCenter = (HostAccess.readDeclared(thisObject, "isControlCenterPanel") as? Boolean) ?: false
-                                    val shouldShowInner = VolumeBadgePolicy.visible(mExpanded, isControlCenter, sameStyleVolume)
+                                    val shouldShowInner = parent.policy.innerVolume(mExpanded, isControlCenter)
                                     columnSuperVolume.visibility = if (shouldShowInner) View.VISIBLE else View.INVISIBLE
                                     if (shouldShowInner) {
-                                        badgeStyler.applyTextStyle(columnSuperVolume, sameStyleVolume)
+                                        stylePercentageText(columnSuperVolume, sameStyleVolume, inside = true, inCC = isControlCenter, expanded = mExpanded)
                                     } else {
                                         // Badge not visible — skip expensive theme work
                                         badgeThemeApplied = false
                                     }
                                 }
 
-                                if (!mExpanded) {
+                                if (!mExpanded && !inControlCenter(thisObject) && parent.policy.outside) {
                                     if (stream == activeStream) {
                                         val mSuperVolume = HostAccess.readDeclared(thisObject, "mSuperVolume") as? TextView
                                         if (mSuperVolume != null) {
@@ -364,7 +608,7 @@ class VolumeSliderHooker(
         }?.let { method ->
             method.hook {
                 after { param ->
-                    if (parent.showPercentageEnabled) {
+                    if (enabled(param.thisObject)) {
                         runCatching {
                             val thisObject = param.thisObject
                             val column = param.args[0] ?: return@runCatching
@@ -376,7 +620,7 @@ class VolumeSliderHooker(
                             if (superVolume != null) {
                                 val sameStyleVolume = parent.sameStyleEnabled
                                 val isControlCenter = (HostAccess.readDeclared(thisObject, "isControlCenterPanel") as? Boolean) ?: false
-                                val shouldShowInner = VolumeBadgePolicy.visible(mExpanded, isControlCenter, sameStyleVolume)
+                                val shouldShowInner = parent.policy.innerVolume(mExpanded, isControlCenter)
                                 superVolume.visibility = if (shouldShowInner) View.VISIBLE else View.INVISIBLE
                             }
                         }
@@ -390,7 +634,7 @@ class VolumeSliderHooker(
                 intercept { chain ->
                     val param = chain.args
                     val thisObject = chain.thisObject
-                    if (parent.showPercentageEnabled) {
+                    if (enabled(thisObject)) {
                         val textView = param[0] as? TextView
                         if (textView != null) {
                             val skipped = runCatching {
@@ -445,11 +689,11 @@ class VolumeSliderHooker(
                                     val mExpanded = HostAccess.readDeclared(thisObject, "mExpanded") as Boolean
                                     val sameStyleSuper = parent.sameStyleEnabled
                                     textView.visibility = if (textView === mSuperVolume) {
-                                        if (mExpanded && sameStyleSuper) View.GONE else View.VISIBLE
+                                        if (parent.policy.outerVolume(mExpanded, inControlCenter(thisObject))) View.VISIBLE else View.GONE
                                     } else {
-                                        if (mExpanded) View.VISIBLE else View.INVISIBLE
+                                        if (parent.policy.innerVolume(mExpanded, inControlCenter(thisObject))) View.VISIBLE else View.INVISIBLE
                                     }
-                                    badgeStyler.applyTextStyle(textView, sameStyleSuper)
+                                    stylePercentageText(textView, sameStyleSuper, inside = textView !== mSuperVolume, inCC = inControlCenter(thisObject), expanded = mExpanded)
                                     true
                                 } else {
                                     false
@@ -468,6 +712,7 @@ class VolumeSliderHooker(
         clzVolumeViewController?.declaredMethods?.firstOrNull { it.name == "updateSuperVolumeViewColor" }?.let { method ->
             method.hook {
                 intercept { chain ->
+                    if (!enabled(chain.thisObject)) return@intercept chain.proceed()
                     if (!badgeThemeApplied) {
                         applyBadgeAppearance(chain.thisObject)
                         badgeThemeApplied = true
@@ -486,7 +731,7 @@ class VolumeSliderHooker(
         }?.let { method ->
             method.hook {
                 before { param ->
-                    if (parent.showPercentageEnabled) {
+                    if (enabled(param.thisObject)) {
                         val view = param.thisObject
                         val isExpanded = runCatching {
                             HostAccess.requirePublicMethod(view.javaClass, "isExpanded", accessible = false).invoke(view) as Boolean
@@ -495,7 +740,7 @@ class VolumeSliderHooker(
                             HostAccess.requirePublicMethod(view.javaClass, "inCCMainPage", accessible = false).invoke(view) as Boolean
                         }.getOrNull()
                         if (inCCMainPage != true) {
-                            param.args[0] = !isExpanded
+                            param.args[0] = !isExpanded && parent.policy.outside
                         }
                     }
                 }

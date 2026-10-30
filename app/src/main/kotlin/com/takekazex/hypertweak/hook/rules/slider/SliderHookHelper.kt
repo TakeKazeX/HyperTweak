@@ -77,6 +77,8 @@ inline fun withColorOverride(block: () -> Unit) {
 // ─── Shared Slider Hooker Helper ───────────────────────────────────────────
 
 object SliderHookHelper {
+    var policy = com.takekazex.hypertweak.settings.contract.SliderPercentagePolicy()
+
     val tags = WeakHashMap<Any, HashMap<String, Any?>>()
 
     @Volatile
@@ -104,23 +106,32 @@ object SliderHookHelper {
     private val liveSliders = java.util.WeakHashMap<Any, SliderRecord>()
 
     private class SliderRecord(
-        val controller: Any,
+        val controllerRef: java.lang.ref.WeakReference<Any>,
         val type: String,
-        var topText: TextView?,
+        topText: TextView?,
         /** The host's own label visibility/typeface before the module showed the percentage. */
         var originalVisibility: Int?,
-        var originalTypeface: android.graphics.Typeface?
-    )
+        var originalTypeface: android.graphics.Typeface?,
+        val originalText: CharSequence,
+        val originalColors: android.content.res.ColorStateList,
+        val originalActivated: Boolean,
+        val originalSelected: Boolean,
+        var sliderRef: java.lang.ref.WeakReference<SeekBar>? = null
+    ) {
+        private var textRef = java.lang.ref.WeakReference(topText)
+        var topText: TextView?
+            get() = textRef.get()
+            set(value) { textRef = java.lang.ref.WeakReference(value) }
+    }
 
     /** Remembers the slider a bind just touched; used by [applyCommittedState]. */
     fun trackSlider(sliderController: Any, type: String, topText: TextView) {
         val record = liveSliders[sliderController]
-        if (record == null) {
-            liveSliders[sliderController] = SliderRecord(sliderController, type, topText,
-                topText.visibility, topText.typeface)
+        if (record == null || record.topText !== topText) {
+            liveSliders[sliderController] = SliderRecord(java.lang.ref.WeakReference(sliderController), type, topText,
+                topText.visibility, topText.typeface, topText.text, topText.textColors, topText.isActivated, topText.isSelected)
         } else {
-            // The holder view can be recycled; the visibility/typeface baseline stays with the
-            // controller, but the text view reference follows the current holder.
+            // Keep the baseline until this controller receives a different holder view.
             record.topText = topText
             if (record.originalVisibility == null) record.originalVisibility = topText.visibility
             if (record.originalTypeface == null) record.originalTypeface = topText.typeface
@@ -132,32 +143,58 @@ object SliderHookHelper {
      * on the current holder, disabled restores the host's own visibility and weight. The caller
      * passes the resolved switch value so this file never reads preferences on the render path.
      */
-    fun applyCommittedState(showPercentage: Boolean) {
+    fun applyCommittedState() {
         liveSliders.values.toList().forEach { record ->
-            val view = record.topText ?: getTag(record.controller, "cached_topText") as? TextView
+            val controller = record.controllerRef.get() ?: return@forEach
+            val view = record.topText ?: getTag(controller, "cached_topText") as? TextView
             if (view == null || !view.isAttachedToWindow) return@forEach
-            if (showPercentage) {
-                trackSlider(record.controller, record.type, view)
+            restoreTopText(record, view)
+            if (policy.controlCenter(record.type.contains("Brightness"))) {
+                trackSlider(controller, record.type, view)
                 initTopText(view)
-                updatePercentageText(record.controller, record.type)
-            } else {
-                restoreTopText(record, view)
+                if (record.type == "ExpandedBrightness") {
+                    record.sliderRef?.get()?.let { slider ->
+                        calcBrightnessPercent(slider)?.let { setPercentIfChanged(view, it) }
+                        applyTopTextStyle(view, force = true, sliderType = "BrightnessSliderController")
+                    }
+                } else updatePercentageText(controller, record.type)
             }
         }
     }
 
+    fun trackExpandedBrightness(controller: Any) {
+        runCatching {
+            val binding = HostAccess.readDeclared(controller, "binding") ?: return@runCatching
+            val toggle = HostAccess.requirePublicField(binding.javaClass, "toggleSlider", accessible = true).get(binding) ?: return@runCatching
+            val text = HostAccess.requirePublicField(toggle.javaClass, "topText", accessible = true).get(toggle) as? TextView ?: return@runCatching
+            val slider = HostAccess.requirePublicField(toggle.javaClass, "slider", accessible = true).get(toggle) as? SeekBar ?: return@runCatching
+            trackSlider(controller, "ExpandedBrightness", text)
+            liveSliders[controller]?.sliderRef = java.lang.ref.WeakReference(slider)
+        }.onFailure { Log.w("HyperTweak", "Cannot track expanded brightness", it) }
+    }
+
     /** Puts one label back exactly as the host left it before the percentage was shown. */
     private fun restoreTopText(record: SliderRecord, view: TextView) {
+        val controller = record.controllerRef.get() ?: return
         record.originalTypeface?.let { view.typeface = it }
         record.originalVisibility?.let { if (view.visibility != it) view.visibility = it }
+        view.text = record.originalText
+        view.setTextColor(record.originalColors)
+        view.isActivated = record.originalActivated
+        view.isSelected = record.originalSelected
         view.clearMiBlur()
-        removeTag(record.controller, "cached_topText")
-        removeTag(record.controller, "cached_slider")
+        removeTag(controller, "cached_topText")
+        removeTag(controller, "cached_slider")
     }
 
     /** One settings generation changed: controller caches are dropped, live holders re-applied. */
     fun onSettingsChanged() {
         tags.clear()
+    }
+
+    fun releaseSlider(controller: Any) {
+        liveSliders.remove(controller)?.let { record -> record.topText?.let { restoreTopText(record, it) } }
+        invalidateHolderViews(controller)
     }
 
     /** Drops the cached holder views for a controller so a recycled ViewHolder re-resolves them. */
@@ -174,6 +211,8 @@ object SliderHookHelper {
      * a half-populated pair.
      */
     fun refreshViewCache(sliderController: Any, holder: Any, topText: TextView) {
+        val type = if (sliderController.javaClass.name.contains("Brightness")) "BrightnessSliderController" else "VolumeSliderController"
+        trackSlider(sliderController, type, topText)
         val slider = resolveSliderFromHolder(holder)
         if (slider != null) {
             putTag(sliderController, "cached_topText", topText)
@@ -247,6 +286,7 @@ object SliderHookHelper {
         isBlurSupportedMethod = null
         isBlurSupportedMethodLoaded = false
         clearActiveColorCache()
+        liveSliders.clear()
         holderMethodCache.clear()
     }
 
@@ -506,8 +546,8 @@ object SliderHookHelper {
             var slider = getTag(sliderController, "cached_slider") as? SeekBar
 
             if (topText == null || slider == null) {
-                val holder = findHolder(sliderController)
-                    ?: throw NullPointerException("Could not find holder via any known method")
+                // Material/progress callbacks also run while the native controller is unbound.
+                val holder = findHolder(sliderController) ?: return@runCatching
 
                 topText = getTopTextFromHolder(holder)
                     ?: throw NullPointerException("topText view not found in holder")

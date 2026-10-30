@@ -1755,4 +1755,23 @@
     <string name="security_center_sidebar_disabled">隐藏并关闭侧滑</string>
     <string name="security_center_sidebar_invisible">隐藏但保留侧滑</string>
     <string name="security_center_sidebar_mode_summary">隐藏屏幕边缘提示线；保留侧滑时，原生触摸区域仍会接收边缘触摸。</string>
+    <string name="slider_percentage_display">显示</string>
+    <string name="slider_percentage_values">控制中心数值</string>
+    <string name="slider_percentage_color">颜色</string>
+    <string name="slider_percentage_popup_position">弹出音量条百分比</string>
+    <string name="slider_percentage_off">关闭</string>
+    <string name="slider_percentage_cc_only">仅控制中心</string>
+    <string name="slider_percentage_popup_only">仅弹出音量条</string>
+    <string name="slider_percentage_both">两个都显示</string>
+    <string name="slider_percentage_brightness_only">仅亮度</string>
+    <string name="slider_percentage_volume_only">仅音量</string>
+    <string name="slider_percentage_normal">普通</string>
+    <string name="slider_percentage_unified">统一颜色</string>
+    <string name="slider_percentage_inside">显示在内</string>
+    <string name="slider_percentage_outside">显示在外</string>
+    <string name="slider_percentage_popup_style">弹出音量百分比样式</string>
+    <string name="slider_percentage_blur">高级模糊</string>
+    <string name="slider_percentage_glass">柔光玻璃</string>
+    <string name="slider_percentage_popup_style_summary">仅对显示在外的百分比背景生效；显示在内时仅显示文字</string>
+    <string name="slider_percentage_values_summary">仅影响控制中心；弹出音量条启用后始终显示音量百分比</string>
 </resources>
