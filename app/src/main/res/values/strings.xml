@@ -1515,7 +1515,7 @@
     <string name="settings_notification_absolute_time_summary">Show Now for the first 30 seconds, then the time and a date when needed</string>
     <string name="icon_cc_rows_title">Control Center Icon Rows</string>
     <string name="icon_cc_rows_entry_summary">Choose the first or second row for each status icon</string>
-    <string name="icon_cc_rows_summary">Use with the two-line layout; battery stays in the first row. Restart SystemUI to apply</string>
+    <string name="icon_cc_rows_summary">Dual SIMs use the configured rows; a single SIM uses one row. Battery stays in the first row. Restart SystemUI to apply</string>
     <string name="icon_cc_row_first">First row</string>
     <string name="icon_cc_row_second">Second row</string>
     <string name="appearance_global_blur">Global blur</string>

@@ -235,7 +235,7 @@ internal class CarrierPresentation(private val host: Host, private val rowRender
             val row = parts.row
             val top = tops.getValue(parts.slot)
             // Align actual carrier bounds as well as header constraints. A hidden SIM must not
-            // leave the surviving row centered inside the reserved two-row canvas.
+            // leave the surviving row centered inside the header canvas.
             if (row.top != top) row.layout(row.left, top, row.right, top + row.height)
         }
         // Record our writes too, so the next unchanged pre-draw is a cheap comparison.
@@ -251,6 +251,7 @@ internal class CarrierPresentation(private val host: Host, private val rowRender
         inputs.add(geometry.firstCenter.toBits())
         inputs.add(geometry.secondCenter.toBits())
         inputs.add(geometry.minimumHeight)
+        inputs.add(geometry.rowCount)
         inputs.add(block.layout.minimumHeight)
         inputs.add(block.layout.gravity)
         for (index in block.rows.indices) {

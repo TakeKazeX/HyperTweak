@@ -55,16 +55,35 @@ class TwoRowIconLayoutTest {
     private fun positions(items: List<TwoRowIconLayout.Item>, rtl: Boolean = false) =
         TwoRowIconLayout.positions(items, upperRight = 100f, lowerRight = 124f, spacing = 4f, rtl = rtl)
 
-    @Test fun oneRemainingSimStillReservesBothRowsAndBatteryAnchor() {
+    @Test fun oneSimCollapsesHeightButKeepsTheBatteryAnchorAcrossSimChanges() {
         val dual = TwoRowIconLayout.geometry(listOf(24, 24), 24, 3, paddingTop = 2, paddingBottom = 2)
         val single = TwoRowIconLayout.geometry(listOf(24), 24, 3, paddingTop = 2, paddingBottom = 2)
-        assertEquals(dual, single)
-        assertEquals(14f, single.firstCenter, 0f)
-        assertEquals(41f, single.secondCenter, 0f)
-        assertEquals(55, single.minimumHeight)
-        assertTrue(single.secondCenter + 12 <= single.minimumHeight)
-        val largeFont = TwoRowIconLayout.geometry(listOf(24, 40), 24, 3)
-        assertTrue(largeFont.secondCenter + 20 <= largeFont.minimumHeight)
+        assertEquals(2, dual.rowCount)
+        assertEquals(55, dual.minimumHeight)
+        assertEquals(1, single.rowCount)
+        assertEquals(28, single.minimumHeight)
+        assertEquals(dual.firstCenter, single.firstCenter, 0f)
+        assertEquals(single.firstCenter, single.secondCenter, 0f)
+        repeat(3) {
+            assertEquals(single, TwoRowIconLayout.geometry(listOf(24), 24, 3, 2, 2))
+            assertEquals(dual, TwoRowIconLayout.geometry(listOf(24, 24), 24, 3, 2, 2))
+        }
+        val largeFont = TwoRowIconLayout.geometry(listOf(40), 24, 3, 2, 2)
+        assertEquals(44, largeFont.minimumHeight)
+        assertTrue(largeFont.firstCenter + 20 <= largeFont.minimumHeight)
+    }
+
+    @Test fun simCountOwnsRowsEvenBeforeNativeVisibilityAndMeasurementCatchUp() {
+        val oneSim = TwoRowIconLayout.geometry(listOf(24, 24), 24, 3, rowCount = 1)
+        assertEquals(1, oneSim.rowCount)
+        assertEquals(24, oneSim.minimumHeight)
+        val twoSims = TwoRowIconLayout.geometry(listOf(24), 24, 3, rowCount = 2)
+        assertEquals(2, twoSims.rowCount)
+        assertEquals(51, twoSims.minimumHeight)
+        val empty = TwoRowIconLayout.geometry(emptyList(), 24, 3)
+        assertEquals(1, empty.rowCount)
+        assertEquals(24, empty.minimumHeight)
+        assertEquals(empty.firstCenter, empty.secondCenter, 0f)
     }
 
     @Test fun disablingEitherSimKeepsTheRemainingCarrierAtTheFirstAnchor() {
@@ -82,9 +101,10 @@ class TwoRowIconLayoutTest {
             val tops = TwoRowIconLayout.carrierRowTops(listOf(slot to 24), geometry)
             assertEquals(0, tops.getValue(slot))
             assertEquals(geometry.firstCenter, tops.getValue(slot) + 12f, 0f)
-            assertTrue(tops.getValue(slot) + 12f < geometry.minimumHeight / 2f)
+            assertEquals(24, geometry.minimumHeight)
         }
-        val dual = TwoRowIconLayout.carrierRowTops(listOf(0 to 24, 1 to 24), geometry)
+        val dual = TwoRowIconLayout.carrierRowTops(listOf(0 to 24, 1 to 24),
+            TwoRowIconLayout.geometry(listOf(24, 24), 24, 3))
         assertEquals(mapOf(0 to 0, 1 to 27), dual)
     }
 

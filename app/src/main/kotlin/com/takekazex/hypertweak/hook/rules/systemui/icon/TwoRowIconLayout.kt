@@ -19,15 +19,20 @@ internal object TwoRowIconLayout {
         return Anchors(right, right + batteryWidth, center, center + rowSpacing)
     }
 
-    data class Geometry(val firstCenter: Float, val secondCenter: Float, val minimumHeight: Int)
+    data class Geometry(val firstCenter: Float, val secondCenter: Float, val minimumHeight: Int,
+                        val rowCount: Int)
 
-    /** SIM count changes content, never the two-row header's reserved geometry. */
+    /** Keep only the rows needed by the current SIM set, with one fallback row while empty. */
     fun geometry(visibleRowHeights: List<Int>, fallbackHeight: Int, gap: Int,
-                 paddingTop: Int = 0, paddingBottom: Int = 0): Geometry {
+                 paddingTop: Int = 0, paddingBottom: Int = 0,
+                 rowCount: Int = visibleRowHeights.size): Geometry {
         val height = maxOf(visibleRowHeights.maxOrNull() ?: 0, fallbackHeight, 1)
         val spacing = gap.coerceAtLeast(0)
         val first = paddingTop + height / 2f
-        return Geometry(first, first + height + spacing, paddingTop + paddingBottom + height * 2 + spacing)
+        val count = rowCount.coerceIn(1, 2)
+        val second = if (count == 2) first + height + spacing else first
+        return Geometry(first, second,
+            paddingTop + paddingBottom + height * count + spacing * (count - 1), count)
     }
 
     /** Pin each visible carrier to the same anchors as the battery and status icons. */

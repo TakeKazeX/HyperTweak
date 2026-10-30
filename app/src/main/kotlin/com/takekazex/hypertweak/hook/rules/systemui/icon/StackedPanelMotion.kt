@@ -20,7 +20,6 @@ internal class StackedPanelMotion(private val callback: Any) {
     private var fakeRow: View? = null
     private var sourceView: ImageView? = null
     private var statusContainer: View? = null
-    private var signalId = 0
     private val motions = HashMap<Int, SignalRowMotion>()
     private val targets = HashMap<Int, View>()
     private val masked = IdentityHashMap<View, Float>()
@@ -50,7 +49,7 @@ internal class StackedPanelMotion(private val callback: Any) {
         val nextRoot = expanded.rootView as? ViewGroup ?: return
         if (root !== nextRoot || observer?.isAlive != true) {
             clearLayers(); observer?.takeIf { it.isAlive }?.removeOnPreDrawListener(listener)
-            sourceView = null; statusContainer = null; signalId = 0
+            sourceView = null; statusContainer = null
             root = nextRoot; observer = nextRoot.viewTreeObserver.also { it.addOnPreDrawListener(listener) }
         }
         expandedRow = expanded
@@ -77,13 +76,12 @@ internal class StackedPanelMotion(private val callback: Any) {
             ?: find(expanded) { it.javaClass.name.endsWith(".MiuiStatusIconContainer") }
                 ?.also { statusContainer = it }
             ?: run { statusContainer = null; clearLayers(); return }
-        if (signalId == 0) signalId = host.resources.getIdentifier(
-            "mobile_signal", "id", host.context.packageName
-        )
+        // Only carrier rows need per-SIM travel. Without those endpoints the host already
+        // translates/crossfades the complete stacked slot in its fake and expanded rows.
+        // Native per-SIM holders are GONE while stacking is enabled, even if their children
+        // retain stale positive dimensions; they must never become hand-over targets.
         val endpoints = rows.map { row ->
             ControlCenterCarrierBlockHooker.signalHandoverTarget(container, row.subId)
-                ?: find(container) { read(it, "subId") == row.subId }
-                    ?.findViewById<View>(signalId)?.takeIf { it.isVisible && it.width > 0 }
         }
         if (endpoints.any { it == null }) { clearLayers(); return }
         val drawable = source.drawable ?: run { clearLayers(); return }
@@ -120,7 +118,7 @@ internal class StackedPanelMotion(private val callback: Any) {
         }
         if (allReady) {
             // Only duplicate status-slot images are hidden. The home source remains available for
-            // coordinate measurement; native per-SIM targets belong to their row overlays.
+            // coordinate measurement; carrier targets belong to their row overlays.
             val copies = listOfNotNull(expandedRow, fakeRow).flatMap { row ->
                 collect(row) { read(it, "mSlot") == "stacked_mobile_icon" }
             }
@@ -151,7 +149,7 @@ internal class StackedPanelMotion(private val callback: Any) {
         clearLayers()
         observer?.takeIf { it.isAlive }?.removeOnPreDrawListener(listener)
         observer = null; root = null; expandedRow = null; fakeRow = null
-        sourceView = null; statusContainer = null; signalId = 0
+        sourceView = null; statusContainer = null
     }
     private fun read(owner: Any, name: String): Any? = HostAccess.read(owner, name)
     private fun find(view: View, predicate: (View) -> Boolean): View? {

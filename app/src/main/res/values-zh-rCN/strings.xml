@@ -1506,7 +1506,7 @@
     <string name="settings_notification_absolute_time_summary">前 30 秒显示“现在”，之后显示具体时刻，跨日时附带日期</string>
     <string name="icon_cc_rows_title">控制中心图标分排</string>
     <string name="icon_cc_rows_entry_summary">选择各个状态图标显示在第一排或第二排</string>
-    <string name="icon_cc_rows_summary">双层布局下生效，电池固定在第一排；重启系统界面后生效</string>
+    <string name="icon_cc_rows_summary">双卡按配置分排，单卡自动合并为一排，电池固定在第一排；重启系统界面后生效</string>
     <string name="icon_cc_row_first">第一排</string>
     <string name="icon_cc_row_second">第二排</string>
     <string name="appearance_global_blur">全局模糊</string>

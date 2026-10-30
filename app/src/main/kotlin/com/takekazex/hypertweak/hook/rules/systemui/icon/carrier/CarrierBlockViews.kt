@@ -115,8 +115,8 @@ internal class CarrierBlock(
     val keyguardSeparatorState = keyguardSeparator?.let(::CarrierViewState)
     var compact = false
     var geometry: TwoRowIconLayout.Geometry? = null
-    val geometryInputs = CarrierLayoutInputs(4 + rows.size * 3)
-    val presentationInputs = CarrierLayoutInputs(5 + rows.size * 9)
+    val geometryInputs = CarrierLayoutInputs(5 + rows.size * 3)
+    val presentationInputs = CarrierLayoutInputs(6 + rows.size * 9)
     var presentationValid = false
     var observer: ViewTreeObserver? = null
     var preDraw: ViewTreeObserver.OnPreDrawListener? = null

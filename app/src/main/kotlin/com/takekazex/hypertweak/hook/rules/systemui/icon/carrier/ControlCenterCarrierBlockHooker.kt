@@ -106,6 +106,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         override val statusBarId get() = ControlCenterCarrierBlockHooker.statusBarId
         override val fakeStatusBarId get() = ControlCenterCarrierBlockHooker.fakeStatusBarId
         override val wifiSignalId get() = ControlCenterCarrierBlockHooker.wifiSignalId
+        override val mobileSignalId get() = ControlCenterCarrierBlockHooker.mobileSignalId
         override val mobileTypeId get() = ControlCenterCarrierBlockHooker.mobileTypeId
         override val mobileGroupId get() = ControlCenterCarrierBlockHooker.mobileGroupId
         override fun blocks(): Collection<CarrierBlock> = blocks.values
@@ -183,6 +184,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
     private var wifiSignalId by generationState { 0 }
     private var mobileGroupId by generationState { 0 }
     private var mobileTypeId by generationState { 0 }
+    private var mobileSignalId by generationState { 0 }
 
     private var leftTextField: Field? by generationState { null }
     private var rightTextField: Field? by generationState { null }
@@ -458,6 +460,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         wifiSignalId = id(resources, "wifi_signal")
         mobileGroupId = id(resources, "mobile_group")
         mobileTypeId = id(resources, "mobile_type")
+        mobileSignalId = id(resources, "mobile_signal")
     }
 
     private fun id(resources: android.content.res.Resources, name: String): Int =
@@ -819,6 +822,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         inputs.add((3 * layout.resources.displayMetrics.density).roundToInt())
         inputs.add(layout.paddingTop)
         inputs.add(layout.paddingBottom)
+        inputs.add(mobileState.subscriptionOrder.size)
         for (index in block.rows.indices) {
             val parts = block.rows[index]
             inputs.add(if (parts.row.isVisible) 1 else 0)
@@ -829,7 +833,8 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
             val measured = block.rows.filter { it.row.isVisible }.map { it.row.measuredHeight }
             val rowHeight = maxOf(inputs[0],
                 block.rows.maxOfOrNull { it.networkSlot.layoutParams.height.coerceAtLeast(0) } ?: 0)
-            block.geometry = TwoRowIconLayout.geometry(measured, rowHeight, inputs[1], inputs[2], inputs[3])
+            block.geometry = TwoRowIconLayout.geometry(measured, rowHeight, inputs[1], inputs[2], inputs[3],
+                rowCount = mobileState.subscriptionOrder.size.takeIf { it > 0 } ?: measured.size)
         }
         return block.geometry
     }

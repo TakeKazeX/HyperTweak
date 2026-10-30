@@ -405,8 +405,10 @@ object IconPositionHooker : StaticHooker() {
             !ControlCenterHeaderHooker.secondRowStatusIconsEnabled(container.context)
         ) return false
         val layoutFrom = runCatching { layoutFromField?.getInt(container) }.getOrNull()
+        // A single SIM uses the host's ordinary one-row layout and overflow policy. Keep the
+        // saved row overrides untouched; two SIMs reacquire the split layout automatically.
         return IconSlotPolicy.ownsTwoLineControlCenterRow(layoutFrom) &&
-            isControlCenterContainer(container)
+            isControlCenterContainer(container) && controlCenterRowGeometry(container)?.rowCount == 2
     }
 
     private fun restoreTwoLineOverflowStates(container: ViewGroup, access: HostRowStateAccess) {

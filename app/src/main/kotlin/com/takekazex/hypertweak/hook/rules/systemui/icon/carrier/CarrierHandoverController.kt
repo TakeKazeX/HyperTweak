@@ -18,6 +18,7 @@ internal class CarrierHandoverController(private val host: Host) {
         val statusBarId: Int
         val fakeStatusBarId: Int
         val wifiSignalId: Int
+        val mobileSignalId: Int
         val mobileTypeId: Int
         val mobileGroupId: Int
         fun blocks(): Collection<CarrierBlock>
@@ -28,7 +29,14 @@ internal class CarrierHandoverController(private val host: Host) {
     private val main = Handler(Looper.getMainLooper())
     private fun readInt(target: Any, name: String): Int? = runCatching { HostAccess.read(target, name) as? Int }.getOrNull()
     fun ownsTarget(view: View) = view in duoTargets
-    fun retireTarget(view: View) { duoTargets.retire(view) }
+    fun retireTarget(view: View) {
+        if (motions.containsKey(view)) {
+            // Removing a row can stop its last pre-draw; release the overlay/source now.
+            // Other living rows reapply their source masks on the next pre-draw.
+            releaseHandover()
+        }
+        duoTargets.retire(view)
+    }
     fun retire() {
         motions.values.forEach(CarrierTypeMotion::clear)
         motions.clear()
@@ -58,7 +66,7 @@ internal class CarrierHandoverController(private val host: Host) {
     }
 
     /**
-     * Carries the trailing network glyph through the same hand-over as Duo's middle Wi-Fi layer:
+     * Carries native signal and trailing network glyphs through the same hand-over as Duo's middle Wi-Fi layer:
      * expansion moves the native status-bar source into the label row. Appearance opacity follows
      * the host fake-row/carrier-layout crossfade, preserving the source palette while dragging.
      * The source copy is alpha-suppressed only after the overlay has produced a frame.
@@ -101,7 +109,11 @@ internal class CarrierHandoverController(private val host: Host) {
             } else IconHostPorts.positions.clearLowerRow()
             for (parts in block.rows) {
                 val model = parts.model ?: continue
-                val entries = ArrayList<Pair<ImageView, View?>>(2)
+                val entries = ArrayList<Pair<ImageView, View?>>(3)
+                if (parts.cellularReady && parts.signal.drawable != null) {
+                    entries += parts.signal to sourceGlyph(block, wifi = false,
+                        subId = model.subId, signal = true)
+                }
                 parts.wifiBitmap?.takeIf { parts.wifiReady }?.let {
                     entries += parts.wifi to sourceGlyph(block, wifi = true, subId = null)
                 }
@@ -114,12 +126,12 @@ internal class CarrierHandoverController(private val host: Host) {
                     if (target in duoTargets || target.visibility != View.VISIBLE || target.width <= 0 || target.height <= 0) continue
                     if (source == null) {
                         motions.remove(target)?.clear()
-                        parts.networkFade.lease(target, false)
+                        leaseNetwork(parts, target, false)
                         continue
                     }
                     val root = target.rootView as? ViewGroup ?: continue
                     val motion = motions[target] ?: CarrierTypeMotion().also { motions[target] = it }
-                    parts.networkFade.lease(target, true)
+                    leaseNetwork(parts, target, true)
                     val ready = motion.update(root, source, target, clamped, sourceAppearanceAlpha(source))
                     used += target
                     sources += source
@@ -136,7 +148,7 @@ internal class CarrierHandoverController(private val host: Host) {
                 motion.clear()
                 val parts = host.rowFor(view)
                 if (view !in duoTargets) {
-                    if (parts != null) parts.networkFade.lease(view as ImageView, false)
+                    if (parts != null) leaseNetwork(parts, view as ImageView, false)
                     else view.alpha = 0f
                 }
                 true
@@ -145,11 +157,15 @@ internal class CarrierHandoverController(private val host: Host) {
         restoreEndpoints(sources)
     }
 
+    private fun leaseNetwork(parts: CarrierRowParts, target: ImageView, active: Boolean) {
+        if (target === parts.wifi || target === parts.type) parts.networkFade.lease(target, active)
+    }
+
     fun releaseHandover() {
         IconHostPorts.positions.clearLowerRow()
         motions.forEach { (view, motion) ->
             motion.clear()
-            host.rowFor(view)?.networkFade?.lease(view as ImageView, false)
+            host.rowFor(view)?.let { leaseNetwork(it, view as ImageView, false) }
         }
         motions.clear()
         restoreEndpoints()
@@ -167,7 +183,7 @@ internal class CarrierHandoverController(private val host: Host) {
      * status bar inside the shade header (`ControlCenterFakeStatusIcons`), which carries the same
      * bound icons as the home bar.
      */
-    private fun sourceGlyph(block: CarrierBlock, wifi: Boolean, subId: Int?): View? {
+    private fun sourceGlyph(block: CarrierBlock, wifi: Boolean, subId: Int?, signal: Boolean = false): View? {
         if (host.fakeStatusBarId == 0) return null
         val header = block.layout.parent as? ViewGroup ?: return null
         // The fake row is the visible stand-in while the panel is dragged.
@@ -175,7 +191,7 @@ internal class CarrierHandoverController(private val host: Host) {
         if (fakeRow != null && fakeRow.isAttachedToWindow &&
             !SignalHandoverEvents.shade.hasActiveProxy(fakeRow)
         ) {
-            glyphIn(fakeRow, wifi, subId)?.let { return it }
+            glyphIn(fakeRow, wifi, subId, signal)?.let { return it }
         }
         // The expanded row has its own palette. If the status-bar mirror is unavailable,
         // leave the native appearance transition in charge instead of inventing a source color.
@@ -192,10 +208,15 @@ internal class CarrierHandoverController(private val host: Host) {
         return 1f
     }
 
-    private fun glyphIn(row: ViewGroup, wifi: Boolean, subId: Int?): View? {
+    private fun glyphIn(row: ViewGroup, wifi: Boolean, subId: Int?, signal: Boolean): View? {
         if (wifi) return row.findViewById<View>(host.wifiSignalId)?.takeIf(::isUsable)
         val group = mobileGroup(row, subId ?: return null) ?: return null
-        return group.findViewById<View>(host.mobileTypeId)?.takeIf(::isUsable)
+        // Stacked/Duo routes can hide a whole native holder while its child still has stale
+        // geometry. Let their existing signal motion own that case instead of replaying it.
+        if (signal && !group.isShown) return null
+        val id = if (signal) host.mobileSignalId else host.mobileTypeId
+        if (id == 0) return null
+        return group.findViewById<View>(id)?.takeIf(::isUsable)
     }
 
     private fun mobileGroup(root: ViewGroup, subId: Int): ViewGroup? {
