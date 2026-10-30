@@ -23,12 +23,14 @@ import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.presentation.icon.duo.DuoBattery
 import com.takekazex.hypertweak.presentation.icon.duo.DuoContent
 import com.takekazex.hypertweak.presentation.icon.duo.DuoDrawable
+import com.takekazex.hypertweak.presentation.icon.duo.DuoSignalRow
 import com.takekazex.hypertweak.presentation.icon.duo.DuoSizes
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /** Uses the production drawable, so settings previews cannot silently diverge from its geometry. */
 @Composable
-internal fun DuoSignalPreview(small5GaEnabled: Boolean = false, sizes: DuoSizes = DuoSizes(), mirrorAirplane: Boolean = false) {
+internal fun DuoSignalPreview(small5GaEnabled: Boolean = false, sizes: DuoSizes = DuoSizes(), mirrorAirplane: Boolean = false,
+    topPercent: Boolean = false, dualDots: Boolean = false, cellularDots: Boolean = false) {
     val foreground = MiuixTheme.colorScheme.onSurface.toArgb()
     val description = stringResource(R.string.icon_duo_preview)
     val context = LocalContext.current
@@ -36,15 +38,19 @@ internal fun DuoSignalPreview(small5GaEnabled: Boolean = false, sizes: DuoSizes 
         val repository = IconSvgRepository(context)
         repository.loadSignalSingle(SignalSvgStyle.HYPEROS3).getOrNull()?.document to repository.loadSignalStacked(SignalSvgStyle.HYPEROS3).getOrNull()?.document
     }
-    val icons = remember(context, small5GaEnabled, artwork, sizes, mirrorAirplane) {
+    val icons = remember(context, small5GaEnabled, artwork, sizes, mirrorAirplane, topPercent, dualDots, cellularDots) {
         listOf(
-            DuoContent(DuoBattery(80, false, false), 4, null, 4, false, false),
+            DuoContent(DuoBattery(100, false, false), 4, null, 4, false, false,
+                cellularSignalRows = listOf(DuoSignalRow(1, 0, 4), DuoSignalRow(2, 1, 2)), activeDataSubId = 1),
             DuoContent(DuoBattery(65, true, false), null, "5G", 3, false, false, cellularSignalLevels = listOf(3, 2)),
             DuoContent(DuoBattery(15, false, false), null, "4G", 2, false, false),
             DuoContent(DuoBattery(45, false, true), null, "5GA", 4, false, false),
-            DuoContent(DuoBattery(75, false, false), 3, null, 0, false, false, airplaneMode = true)
+            DuoContent(DuoBattery(75, false, false), null, null, 0, false, false, airplaneMode = true)
         ).map { state ->
             DuoDrawable(context).apply {
+                showTopPercent = topPercent
+                dualSignalDots = dualDots
+                this.cellularDots = cellularDots
                 this.mirrorAirplane = mirrorAirplane
                 this.sizes = sizes
                 this.small5GaEnabled = small5GaEnabled

@@ -320,6 +320,10 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit, onNavig
                             mirrorAirplane = pref(IconSettingsKeys.KEY_ICON_MIRROR_AIRPLANE, false),
                             enabled = pref(IconSettingsKeys.KEY_ICON_DUO_ENABLED, false),
                             expanded = pref(IconSettingsKeys.KEY_ICON_DUO_EXPANDED, 1),
+                            topPercent = pref(IconSettingsKeys.KEY_ICON_DUO_TOP_PERCENT, false),
+                            cellularDots = pref(IconSettingsKeys.KEY_ICON_DUO_CELLULAR_DOTS, false),
+                            dualDots = pref(IconSettingsKeys.KEY_ICON_DUO_DUAL_DOTS, false),
+                            clickExpand = pref(IconSettingsKeys.KEY_ICON_DUO_CLICK_EXPAND, true),
                             small5GaEnabled = pref(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_SMALL_5GA, false),
                             onChange = { key, value -> changed(key, value) }
                         )
@@ -1143,6 +1147,10 @@ private fun DuoSignalSection(
     mirrorAirplane: Boolean,
     enabled: Boolean,
     expanded: Int,
+    topPercent: Boolean,
+    dualDots: Boolean,
+    cellularDots: Boolean,
+    clickExpand: Boolean,
     small5GaEnabled: Boolean,
     onChange: (String, Any) -> Unit
 ) {
@@ -1158,7 +1166,7 @@ private fun DuoSignalSection(
         battery = DuoSizes.ratio(componentPercents[6]),
         percent = DuoSizes.ratio(componentPercents[7])
     )
-    DuoSignalPreview(small5GaEnabled, sizes, mirrorAirplane)
+    DuoSignalPreview(small5GaEnabled, sizes, mirrorAirplane, topPercent, dualDots, cellularDots)
     Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
         Column(Modifier.fillMaxWidth()) {
             TunerSwitch(enabled, stringResource(R.string.icon_duo_enabled),
@@ -1170,6 +1178,18 @@ private fun DuoSignalSection(
                     selectedIndex = expanded.coerceIn(0, 1),
                     onSelectedIndexChange = { onChange(IconSettingsKeys.KEY_ICON_DUO_EXPANDED, it) }
                 )
+                OverlayDropdownPreference(
+                    title = stringResource(R.string.icon_duo_cellular_style),
+                    items = listOf(stringResource(R.string.icon_duo_cellular_bars), stringResource(R.string.icon_duo_cellular_dots)),
+                    selectedIndex = if (cellularDots) 1 else 0,
+                    onSelectedIndexChange = { onChange(IconSettingsKeys.KEY_ICON_DUO_CELLULAR_DOTS, it == 1) }
+                )
+                TunerSwitch(topPercent, stringResource(R.string.icon_duo_top_percent),
+                    stringResource(R.string.icon_duo_top_percent_summary)) { onChange(IconSettingsKeys.KEY_ICON_DUO_TOP_PERCENT, it) }
+                TunerSwitch(dualDots, stringResource(R.string.icon_duo_dual_dots),
+                    stringResource(R.string.icon_duo_dual_dots_summary)) { onChange(IconSettingsKeys.KEY_ICON_DUO_DUAL_DOTS, it) }
+                TunerSwitch(clickExpand, stringResource(R.string.icon_duo_click_expand),
+                    stringResource(R.string.icon_duo_click_expand_summary)) { onChange(IconSettingsKeys.KEY_ICON_DUO_CLICK_EXPAND, it) }
                 DuoSizeRow(sizeSlider) { onChange(IconSettingsKeys.KEY_ICON_DUO_SIZE, it) }
                 var advanced by rememberSaveable { mutableStateOf(false) }
                 TunerSwitch(advanced, stringResource(R.string.icon_duo_advanced)) { advanced = it }

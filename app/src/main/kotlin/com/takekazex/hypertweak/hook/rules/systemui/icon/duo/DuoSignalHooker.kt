@@ -57,6 +57,10 @@ object DuoSignalHooker : StaticHooker() {
     private val settingIconCellularTypeSmall5ga by hookSetting(false) {
         Preferences.getBoolean(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_SMALL_5GA, false)
     }
+    private val settingDuoTopPercent by hookSetting(false) { Preferences.getBoolean(IconSettingsKeys.KEY_ICON_DUO_TOP_PERCENT, false) }
+    private val settingDuoCellularDots by hookSetting(false) { Preferences.getBoolean(IconSettingsKeys.KEY_ICON_DUO_CELLULAR_DOTS, false) }
+    private val settingDuoDualDots by hookSetting(false) { Preferences.getBoolean(IconSettingsKeys.KEY_ICON_DUO_DUAL_DOTS, false) }
+    private val settingDuoClickExpand by hookSetting(true) { Preferences.getBoolean(IconSettingsKeys.KEY_ICON_DUO_CLICK_EXPAND, true) }
     private val settingIconDuoEnabled by hookSetting(false) { Preferences.getBoolean(IconSettingsKeys.KEY_ICON_DUO_ENABLED, false) }
     private val settingIconDuoExpanded by hookSetting(1) { Preferences.getInt(IconSettingsKeys.KEY_ICON_DUO_EXPANDED, 1) }
     private val settingIconDuoSize by hookSetting(DuoLayout.DEFAULT_ICON_SIZE_DP) {
@@ -97,6 +101,8 @@ object DuoSignalHooker : StaticHooker() {
         override fun bindings(): Collection<DuoBinding> = bindings.values
         override fun owns(binding: DuoBinding) = bindings[binding.battery] === binding
         override fun slotIndex(subId: Int) = slotIndices[subId]
+        override fun rowMorph(context: Context, row: Int, rows: Int) = signalArtwork.rowMorph(context, row, rows)
+        override fun signalBars(context: Context) = signalArtwork.signalBars(context)
         override fun destinationSignal(context: Context, level: Int): Picture? =
             signalArtwork.loadCellularSignalAssets(context)?.let { IconSvgRenderer.signalPicture(it.single, listOf(level)) }
     })
@@ -317,6 +323,7 @@ object DuoSignalHooker : StaticHooker() {
 
     /** Reuses the SystemUI Duo renderer inside MIUI AOD's own process and battery container. */
     internal fun createAodDuoView(context: Context): View = DuoIconView(context).apply {
+        icon.topIndicatorsEnabled = false
         iconSizeDp = DuoLayout.safeSizeDp(
             settingIconDuoSize.toFloat()
         )
@@ -465,6 +472,13 @@ object DuoSignalHooker : StaticHooker() {
         }
         binding.view.visibility = View.GONE
         binding.view.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_YES
+        binding.view.setOnClickListener { _ ->
+            if (enabled && standardEnabled && binding.active && settingDuoClickExpand &&
+                binding.surface == DuoSurface.HOME && !panelVisible) {
+                binding.controlCenterClick?.expand()
+            }
+        }
+        binding.view.isClickable = false
         try { parent.addView(binding.view, parent.indexOfChild(battery) + 1) } catch (error: Throwable) {
             bindings.remove(battery)
             throw error
@@ -502,9 +516,10 @@ object DuoSignalHooker : StaticHooker() {
         if (parent.width <= 0 || parent.height <= 0) return
         val box = DuoLayout.box(parent.width, parent.height, parent.paddingLeft, parent.paddingTop,
             parent.paddingRight, parent.paddingBottom,
-            DuoLayout.iconSizePx(view.resources.displayMetrics.density, view.iconSizeDp),
+            view.desiredIconSidePx(),
             view.paddingStart + view.paddingEnd + view.leadingPercentSlotWidthPx(),
-            parent.layoutDirection == View.LAYOUT_DIRECTION_RTL)
+            parent.layoutDirection == View.LAYOUT_DIRECTION_RTL,
+            preserveSourceHeight = view.sourceIconSidePx != null)
         view.measure(View.MeasureSpec.makeMeasureSpec(box.width, View.MeasureSpec.EXACTLY),
             View.MeasureSpec.makeMeasureSpec(box.height, View.MeasureSpec.EXACTLY))
         if (view.left != box.left || view.top != box.top || view.width != box.width || view.height != box.height)
@@ -517,6 +532,15 @@ object DuoSignalHooker : StaticHooker() {
         try {
             expandedStyle = if (settingIconDuoExpanded == 0)
                 DuoExpandedStyle.KEEP_DUO else DuoExpandedStyle.RESTORE_NATIVE
+            binding.view.setClickTarget(if (standardEnabled && settingDuoClickExpand &&
+                binding.surface == DuoSurface.HOME && binding.controlCenterClick != null)
+                ancestor(binding.battery, "com.android.systemui.statusbar.phone.MiuiPhoneStatusBarView") else null)
+            binding.view.sourceIconSidePx = if (binding.surface == DuoSurface.COLLAPSED_PROXY) {
+                bindings.values.firstOrNull {
+                    it.active && it.surface == DuoSurface.HOME && it.view.isLaidOut &&
+                        it.view.display?.displayId == binding.view.display?.displayId
+                }?.view?.drawnIconSidePx()
+            } else null
             val battery = binding.battery
             if (binding.active && batteryLayoutField?.get(binding.parent) !== binding.view) binding.failed = true
             if (!enabled && binding.keyguardRoot != null) {
@@ -592,6 +616,10 @@ object DuoSignalHooker : StaticHooker() {
                 return
             }
             binding.rowPhase = decision.phase
+            binding.view.icon.topIndicatorsEnabled = aod == null
+            binding.view.icon.showTopPercent = aod == null && settingDuoTopPercent
+            binding.view.icon.cellularDots = aod == null && settingDuoCellularDots
+            binding.view.icon.dualSignalDots = aod == null && settingDuoDualDots
             binding.view.icon.sizes = componentSizes
             binding.view.icon.foreground = foreground(binding)
             binding.view.icon.nativeWifi = nativeWifiGlyph(binding)
@@ -618,12 +646,21 @@ object DuoSignalHooker : StaticHooker() {
                     container = percentContainer,
                     value = percentView,
                     mark = percentMark,
-                    fallbackText = percent?.toString()
+                    fallbackText = percent?.toString(),
+                    hideMark = true
                 )
             }
-            binding.view.icon.hideSignalDots = binding.dotsInMotion || panelHandover.hideExpandedDots(binding)
-            if (aod == null) binding.view.submit(content, small5GaEnabled,
-                signalArtwork.renderCellularSignal(battery.context, content))
+            binding.view.icon.hideSignalDots = panelHandover.hideExpandedDots(binding)
+            if (aod == null) {
+                // Keep the same SIM artwork available on either side of a transport switch.
+                val cellular = content.copy(wifiLevel = null)
+                binding.view.transportBars = signalArtwork.signalBars(battery.context)
+                binding.view.transportRows = cellular.cellularSignalLevels.take(2).indices.mapNotNull {
+                    signalArtwork.rowMorph(battery.context, it, cellular.cellularSignalLevels.size.coerceAtMost(2))
+                }
+                binding.view.submit(content, small5GaEnabled,
+                    signalArtwork.renderCellularSignal(battery.context, cellular))
+            }
             binding.view.contentDescription = buildString {
                 append(battery.contentDescription?.toString().orEmpty())
                 if (content.airplaneMode) {
@@ -947,6 +984,8 @@ object DuoSignalHooker : StaticHooker() {
         binding.expiry?.let(main::removeCallbacks)
         binding.expiry = null
         binding.missingSince = -1L
+        binding.view.setClickTarget(null)
+        binding.view.sourceIconSidePx = null
         binding.view.finishTransition()
         setPrivacyInset(binding, 0)
         binding.view.translationX = 0f

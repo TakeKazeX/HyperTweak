@@ -1774,4 +1774,13 @@
     <string name="slider_percentage_glass">柔光玻璃</string>
     <string name="slider_percentage_popup_style_summary">仅对显示在外的百分比背景生效；显示在内时仅显示文字</string>
     <string name="slider_percentage_values_summary">仅影响控制中心；弹出音量条启用后始终显示音量百分比</string>
+    <string name="icon_duo_top_percent">在顶部显示电池百分比</string>
+    <string name="icon_duo_top_percent_summary">显示不带 % 的电量数字；充电时在数字旁显示闪电</string>
+    <string name="icon_duo_dual_dots">双卡显示八个信号点</string>
+    <string name="icon_duo_dual_dots_summary">连接 Wi-Fi 时，两张可显示的 SIM 各占一排四点</string>
+    <string name="icon_duo_click_expand">点击展开控制中心</string>
+    <string name="icon_duo_click_expand_summary">点击解锁状态栏中的三合一图标打开控制中心</string>
+    <string name="icon_duo_cellular_style">中间蜂窝信号样式</string>
+    <string name="icon_duo_cellular_bars">普通堆叠信号</string>
+    <string name="icon_duo_cellular_dots">信号圆点（单卡四点、双卡八点）</string>
 </resources>

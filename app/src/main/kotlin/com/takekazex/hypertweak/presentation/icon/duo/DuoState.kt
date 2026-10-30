@@ -46,6 +46,14 @@ data class DuoContent(
 }
 
 object DuoPolicy {
+    /** The dot and handoff renderers consume the same per-subscription rows. */
+    fun dotRows(state: DuoContent?, dual: Boolean): List<DuoSignalRow> {
+        if (state == null || state.airplaneMode || state.wifiLevel == null) return emptyList()
+        if (dual && state.cellularSignalRows.size > 1) return state.cellularSignalRows.take(2)
+        return listOf(DuoSignalRow(state.activeDataSubId ?: -1, -1,
+            if (state.noService) -1 else state.mobileLevel))
+    }
+
     fun leadingPercent(surface: DuoSurface, style: DuoExpandedStyle, requested: Boolean): Boolean =
         requested && style != DuoExpandedStyle.KEEP_DUO &&
             (surface == DuoSurface.COLLAPSED_PROXY || surface == DuoSurface.EXPANDED)

@@ -36,6 +36,18 @@ enum class DuoRenderLayer { COMPOSITE, POWER_TRACK }
 
 class DuoDrawable(context: Context, private val layer: DuoRenderLayer = DuoRenderLayer.COMPOSITE) : Drawable() {
     private val airplaneDrawable = if (layer == DuoRenderLayer.POWER_TRACK) null else AirplaneGlyph.loadGlyph(context)
+    var showTopPercent = false
+        set(value) { if (field != value) { field = value; invalidateSelf() } }
+    var topIndicatorsEnabled = true
+        set(value) { if (field != value) { field = value; invalidateSelf() } }
+    /** Power handover keeps its arc but draws the moving header independently. */
+    var hideTopIndicators = false
+    var topGapProgress = 0f
+    var cellularDots = false
+        set(value) { if (field != value) { field = value; invalidateSelf() } }
+    var dualSignalDots = false
+        set(value) { if (field != value) { field = value; invalidateSelf() } }
+    var hiddenDotRows: Set<Int> = emptySet()
     var mirrorAirplane = false
         set(value) { if (field != value) { field = value; invalidateSelf() } }
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -44,6 +56,7 @@ class DuoDrawable(context: Context, private val layer: DuoRenderLayer = DuoRende
         typeface = Typeface.create(Typeface.create("sans-serif", Typeface.NORMAL), 800, false)
         textAlign = Paint.Align.CENTER
     }
+    private val headerRenderer = DuoTopRenderer()
     private val networkSuffixPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val path = Path()
     private val track = RectF()
@@ -51,7 +64,7 @@ class DuoDrawable(context: Context, private val layer: DuoRenderLayer = DuoRende
     private val batteryBounds = Rect()
     private val signalPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private var opacity = 255
-    private var dotsKey: Triple<Int, Boolean, Float>? = null
+    private var dotsKey: DotKey? = null
     private var dotsPicture: Picture? = null
     private var signalFilterColor = Int.MIN_VALUE
     private var signalColorFilter: PorterDuffColorFilter? = null
@@ -90,6 +103,9 @@ class DuoDrawable(context: Context, private val layer: DuoRenderLayer = DuoRende
         val cellular = !networkOnly && !batteryOnly && state.wifiLevel == null &&
             state.hasCellularSignal
         val compactRing = !networkOnly
+        val top = if (!networkOnly && !batteryOnly && !hidePowerTrack && topIndicatorsEnabled)
+            headerRenderer.measure(state.battery.percent, showTopPercent, state.battery.charging, sizes)
+        else null
         val save = canvas.save()
         try {
             canvas.translate(
@@ -104,16 +120,19 @@ class DuoDrawable(context: Context, private val layer: DuoRenderLayer = DuoRende
                     scale(COMPACT_RING_SCALE, COMPACT_RING_SCALE)
                     translate(-CENTER, -CENTER)
                 }
-                if (!networkOnly && !hidePowerTrack) drawPowerTrack(this, state)
+                if (!networkOnly && !hidePowerTrack) {
+                    drawPowerTrack(this, state, top?.geometry)
+                    if (top != null && !hideTopIndicators) headerRenderer.draw(this, top, foreground, opacity)
+                }
                 if (layer == DuoRenderLayer.POWER_TRACK) return@withSave
                 if (batteryOnly) {
                     drawInnerBattery(this)
                 } else if (state.airplaneMode && state.wifiLevel == null) {
-                    if (!hideAirplane && !hideNetwork) drawAirplane(this)
+                    if (networkOnly && !hideAirplane && !hideNetwork) drawAirplane(this)
                 } else {
                     if (state.wifiLevel != null && !hideNetwork) {
                         drawWifi(this, state.wifiLevel)
-                    } else if (cellular) {
+                    } else if (cellular && !cellularDots) {
                         drawCellularSignal(this, state)
                     } else if (networkOnly && !hideNetwork) {
                         drawNetworkLabel(this, state, CENTER)
@@ -122,7 +141,8 @@ class DuoDrawable(context: Context, private val layer: DuoRenderLayer = DuoRende
             }
 
             if (layer == DuoRenderLayer.POWER_TRACK) return
-            if (state.airplaneMode && state.wifiLevel != null && !batteryOnly && !networkOnly) {
+            if (cellular && cellularDots && !hideNetwork) drawSignalDots(canvas)
+            if (state.airplaneMode && !batteryOnly && !networkOnly) {
                 if (!hideAirplane) canvas.withSave {
                     translate(0f, LABEL_CENTER_Y - CENTER)
                     scale(.58f, .58f, CENTER, CENTER)
@@ -132,7 +152,7 @@ class DuoDrawable(context: Context, private val layer: DuoRenderLayer = DuoRende
                 drawNetworkLabel(canvas, state, LABEL_CENTER_Y)
             } else if (!cellular && !batteryOnly && !networkOnly &&
                 state.wifiLevel != null && !hideSignalDots) {
-                drawSignalDots(canvas, state)
+                drawSignalDots(canvas)
             }
         } finally {
             canvas.restoreToCount(save)
@@ -140,17 +160,17 @@ class DuoDrawable(context: Context, private val layer: DuoRenderLayer = DuoRende
     }
 
     /** Reserve ring first, then the charged portion of the same arc on top. */
-    private fun drawPowerTrack(canvas: Canvas, state: DuoContent) = canvas.withSave {
+    private fun drawPowerTrack(canvas: Canvas, state: DuoContent, top: DuoTopGeometry.Header?) = canvas.withSave {
         scale(sizes.ring, sizes.ring, CENTER, CENTER)
-        drawPowerTrackUnscaled(this, state)
+        drawPowerTrackUnscaled(this, state, top)
     }
 
-    private fun drawPowerTrackUnscaled(canvas: Canvas, state: DuoContent) {
+    private fun drawPowerTrackUnscaled(canvas: Canvas, state: DuoContent, top: DuoTopGeometry.Header?) {
         paint.style = Paint.Style.STROKE
         paint.strokeWidth = TRACK_STROKE
         track.set(CENTER - TRACK_RADIUS, CENTER - TRACK_RADIUS, CENTER + TRACK_RADIUS, CENTER + TRACK_RADIUS)
         colorOf(foreground, TRACK_RESERVE)
-        canvas.drawArc(track, TRACK_START, TRACK_SWEEP, false, paint)
+        drawTrackArcs(canvas, 1f, top)
         val percent = state.battery.percent.coerceIn(0, 100)
         if (percent == 0) return
         colorOf(when (state.battery.tone) {
@@ -160,8 +180,69 @@ class DuoDrawable(context: Context, private val layer: DuoRenderLayer = DuoRende
             BatteryTone.LOW -> Color.rgb(255, 69, 58)
             BatteryTone.POWER_SAVE -> Color.rgb(255, 204, 0)
         })
-        canvas.drawArc(track, TRACK_START, TRACK_SWEEP * percent / 100f, false, paint)
+        drawTrackArcs(canvas, percent / 100f, top)
     }
+
+    private fun drawTrackArcs(canvas: Canvas, fraction: Float, top: DuoTopGeometry.Header?) {
+        if (top == null || topGapProgress >= 1f) {
+            canvas.drawArc(track, TRACK_START, TRACK_SWEEP * fraction, false, paint)
+            return
+        }
+        val halfGap = top.halfGapDegrees * (1f - topGapProgress.coerceIn(0f, 1f))
+        val halfSweep = 270f - halfGap - TRACK_START
+        val sweep = halfSweep * 2f * fraction
+        canvas.drawArc(track, TRACK_START, minOf(sweep, halfSweep), false, paint)
+        if (sweep > halfSweep) {
+            canvas.drawArc(track, 270f + halfGap, sweep - halfSweep, false, paint)
+        }
+    }
+
+    /** Header-only drawing in the authored viewport, for the finger-driven percentage path. */
+    fun drawTopIndicators(canvas: Canvas) {
+        val state = content ?: return
+        val top = headerRenderer.measure(state.battery.percent, showTopPercent, state.battery.charging, sizes) ?: return
+        canvas.withSave {
+            translate(CENTER, COMPACT_RING_CENTER_Y)
+            scale(COMPACT_RING_SCALE, COMPACT_RING_SCALE)
+            translate(-CENTER, -CENTER)
+            headerRenderer.draw(this, top, foreground, opacity)
+        }
+    }
+
+    fun topIndicatorViewportBounds(out: RectF): Boolean {
+        val state = content ?: return false
+        val top = headerRenderer.measure(state.battery.percent, showTopPercent, state.battery.charging, sizes)?.geometry
+            ?: return false
+        val cy = COMPACT_RING_CENTER_Y + (top.centerY - CENTER) * COMPACT_RING_SCALE
+        val halfWidth = top.width * COMPACT_RING_SCALE / 2f
+        val halfHeight = top.height * COMPACT_RING_SCALE / 2f
+        out.set(CENTER - halfWidth, cy - halfHeight, CENTER + halfWidth, cy + halfHeight)
+        return true
+    }
+
+    fun signalDotRows(): List<DuoSignalRow> {
+        val state = content
+        if (cellularDots && state != null && state.wifiLevel == null && !state.airplaneMode) {
+            return state.cellularSignalRows.take(2).ifEmpty {
+                state.cellularSignalLevels.take(2).mapIndexed { i, level -> DuoSignalRow(-1 - i, i, level) }
+            }
+        }
+        return DuoPolicy.dotRows(state, dualSignalDots)
+    }
+    private val centerDots get() = cellularDots && content?.wifiLevel == null
+    private fun centralDotScale() = COMPACT_RING_SCALE * sizes.cellular
+
+
+    private fun dotX(index: Int, rows: Int): Float = if (centerDots)
+        CENTER + (index - 1.5f) * DUAL_DOT_COLUMN_PITCH * centralDotScale()
+        else if (rows == 1) SIGNAL_DOT_X[index] else CENTER + (index - 1.5f) * DUAL_DOT_COLUMN_PITCH
+    private fun dotY(index: Int, row: Int, rows: Int): Float = if (centerDots)
+        COMPACT_RING_CENTER_Y + (CELL_SIGNAL_CENTER_Y - CENTER) * COMPACT_RING_SCALE +
+            (row - (rows - 1) / 2f) * DUAL_DOT_ROW_PITCH * centralDotScale()
+        else if (rows == 1) SIGNAL_DOT_Y[index] else DUAL_DOT_TOP + row * DUAL_DOT_ROW_PITCH
+    private fun dotRadius(rows: Int): Float = (if (centerDots) DUAL_DOT_RADIUS * centralDotScale()
+        else if (rows == 1) SIGNAL_DOT_RADIUS else DUAL_DOT_RADIUS) *
+        sizes.dots.coerceAtMost(if (rows == 1 && !centerDots) 1.5f else 1.2f)
 
     /**
      * Wi-Fi strength climbs from the centre mark outward: level 0 keeps the reserve outline,
@@ -260,6 +341,7 @@ class DuoDrawable(context: Context, private val layer: DuoRenderLayer = DuoRende
     private fun drawNetworkLabelUnscaled(canvas: Canvas, state: DuoContent, centerY: Float) {
         val label = state.networkLabel.orEmpty()
         if (label.isEmpty()) return
+        paint.textAlign = Paint.Align.CENTER
         paint.style = Paint.Style.FILL
         colorOf(foreground)
         paint.textSize = LABEL_TEXT_SIZE
@@ -304,16 +386,20 @@ class DuoDrawable(context: Context, private val layer: DuoRenderLayer = DuoRende
     }
 
     fun signalDotsPicture(): Picture? {
-        val state = content?.takeIf { it.wifiLevel != null } ?: return null
-        val key = Triple(state.mobileLevel, state.noService, sizes.dots)
+        val rows = signalDotRows()
+        if (rows.isEmpty()) return null
+        val key = DotKey(rows, sizes.dots, centerDots, sizes.cellular)
         if (dotsKey != key || dotsPicture == null) {
             val dotPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE }
             dotsPicture = Picture().apply {
                 val canvas = beginRecording(VIEWPORT.toInt(), VIEWPORT.toInt())
                 try {
-                    for (index in 0 until SIGNAL_DOT_COUNT) {
-                        dotPaint.alpha = if (!state.noService && index < state.mobileLevel) 255 else (255 * SIGNAL_DOT_RESERVE).toInt()
-                        canvas.drawCircle(SIGNAL_DOT_X[index], SIGNAL_DOT_Y[index], SIGNAL_DOT_RADIUS * sizes.dots, dotPaint)
+                    rows.forEachIndexed { rowIndex, row ->
+                        for (index in 0 until SIGNAL_DOT_COUNT) {
+                            dotPaint.alpha = if (index < row.level) 255 else (255 * SIGNAL_DOT_RESERVE).toInt()
+                            canvas.drawCircle(dotX(index, rows.size), dotY(index, rowIndex, rows.size),
+                                dotRadius(rows.size), dotPaint)
+                        }
                     }
                 } finally { endRecording() }
             }
@@ -322,11 +408,35 @@ class DuoDrawable(context: Context, private val layer: DuoRenderLayer = DuoRende
         return dotsPicture
     }
 
-    fun signalDotsBounds(pictureCrop: RectF, localBounds: RectF): Boolean {
-        if (bounds.isEmpty || content?.wifiLevel == null) return false
-        pictureCrop.set(SIGNAL_DOT_X.first() - SIGNAL_DOT_RADIUS * sizes.dots,
-            SIGNAL_DOT_Y.minOrNull()!! - SIGNAL_DOT_RADIUS * sizes.dots,
-            SIGNAL_DOT_X.last() + SIGNAL_DOT_RADIUS * sizes.dots, SIGNAL_DOT_Y.maxOrNull()!! + SIGNAL_DOT_RADIUS * sizes.dots)
+    private data class DotKey(val rows: List<DuoSignalRow>, val dots: Float, val center: Boolean, val cellular: Float)
+    private var morphBars: DuoSignalBars? = null
+    private var morphKey: DotKey? = null
+    private var dotMorphs: List<DuoDotMorph> = emptyList()
+
+    fun signalDotMorph(row: Int, bars: DuoSignalBars): DuoDotMorph? {
+        val rows = signalDotRows()
+        if (row !in rows.indices) return null
+        val key = DotKey(rows, sizes.dots, centerDots, sizes.cellular)
+        if (morphBars !== bars || morphKey != key) {
+            morphBars = bars
+            morphKey = key
+            dotMorphs = rows.mapIndexed { rowIndex, signal ->
+                DuoDotMorph((0 until SIGNAL_DOT_COUNT).map { index ->
+                    DuoMorphDot(dotX(index, rows.size), dotY(index, rowIndex, rows.size), dotRadius(rows.size),
+                        if (index < signal.level) 1f else SIGNAL_DOT_RESERVE)
+                }, bars, signal.level)
+            }
+        }
+        return dotMorphs[row]
+    }
+
+    fun signalDotsBounds(pictureCrop: RectF, localBounds: RectF, row: Int = 0): Boolean {
+        val rows = signalDotRows().size
+        if (bounds.isEmpty || row !in 0 until rows) return false
+        val radius = dotRadius(rows)
+        val ys = (0 until SIGNAL_DOT_COUNT).map { dotY(it, row, rows) }
+        pictureCrop.set(dotX(0, rows) - radius, ys.min() - radius,
+            dotX(SIGNAL_DOT_COUNT - 1, rows) + radius, ys.max() + radius)
         val side = min(bounds.width(), bounds.height()).toFloat()
         val scale = side / VIEWPORT
         localBounds.set(pictureCrop.left * scale, pictureCrop.top * scale,
@@ -446,13 +556,15 @@ class DuoDrawable(context: Context, private val layer: DuoRenderLayer = DuoRende
         error("Host battery drawing is unavailable")
     }
 
-    /** Four Wi-Fi-mode data-SIM levels; the two outer dots ride higher along the ring's lower arc. */
-    private fun drawSignalDots(canvas: Canvas, state: DuoContent) {
+    /** The same per-SIM geometry feeds center cellular dots and lower Wi-Fi signal dots. */
+    private fun drawSignalDots(canvas: Canvas) {
         paint.style = Paint.Style.FILL
-        for (index in 0 until SIGNAL_DOT_COUNT) {
-            val lit = !state.noService && index < state.mobileLevel
-            colorOf(foreground, if (lit) 1f else SIGNAL_DOT_RESERVE)
-            canvas.drawCircle(SIGNAL_DOT_X[index], SIGNAL_DOT_Y[index], SIGNAL_DOT_RADIUS * sizes.dots, paint)
+        val rows = signalDotRows()
+        rows.forEachIndexed { rowIndex, row ->
+            if (rowIndex !in hiddenDotRows) for (index in 0 until SIGNAL_DOT_COUNT) {
+                colorOf(foreground, if (index < row.level) 1f else SIGNAL_DOT_RESERVE)
+                canvas.drawCircle(dotX(index, rows.size), dotY(index, rowIndex, rows.size), dotRadius(rows.size), paint)
+            }
         }
     }
 
@@ -479,7 +591,11 @@ class DuoDrawable(context: Context, private val layer: DuoRenderLayer = DuoRende
 
         /** Ring: outer diameter 31.2u. Rounded caps leave an apparent ~110-degree bottom gap. */
         const val TRACK_RADIUS = 14.6f
-        const val TRACK_STROKE = 2.20f
+        const val TRACK_STROKE = 2.45f
+        const val DUAL_DOT_COLUMN_PITCH = 3.6f
+        const val DUAL_DOT_ROW_PITCH = 3.1f
+        const val DUAL_DOT_TOP = 22.7f
+        const val DUAL_DOT_RADIUS = 1.1f
         const val TRACK_START = 149f
         const val TRACK_SWEEP = 242f
         const val TRACK_RESERVE = 0.20f

@@ -6,7 +6,6 @@ import com.takekazex.hypertweak.presentation.icon.duo.DuoContent
 import com.takekazex.hypertweak.presentation.icon.duo.DuoExpandedStyle
 import com.takekazex.hypertweak.presentation.icon.duo.DuoNetworkDestination
 import com.takekazex.hypertweak.presentation.icon.duo.DuoPolicy
-import com.takekazex.hypertweak.presentation.icon.duo.DuoSignalRow
 import com.takekazex.hypertweak.presentation.icon.duo.DuoSizes
 import com.takekazex.hypertweak.presentation.icon.duo.DuoSurface
 
@@ -49,6 +48,8 @@ internal class DuoPanelHandover(private val host: Host) {
         fun owns(binding: DuoBinding): Boolean
         fun slotIndex(subId: Int): Int?
         fun destinationSignal(context: Context, level: Int): Picture?
+        fun rowMorph(context: Context, row: Int, rows: Int): com.takekazex.hypertweak.presentation.icon.duo.SignalBarMorph?
+        fun signalBars(context: Context): com.takekazex.hypertweak.presentation.icon.duo.DuoSignalBars?
     }
     private companion object {
         const val TAG = "DuoSignal"
@@ -122,6 +123,7 @@ internal class DuoPanelHandover(private val host: Host) {
         binding.signalMotions.clear()
         binding.signalTargets.values.forEach { ControlCenterCarrierBlockHooker.releaseDuoTarget(it, binding) }
         binding.signalTargets.clear()
+        binding.view.icon.hiddenDotRows = emptySet()
         if (binding.view.icon.hiddenSignalRows.isNotEmpty()) {
             binding.view.icon.hiddenSignalRows = emptySet()
             binding.view.invalidate()
@@ -131,20 +133,19 @@ internal class DuoPanelHandover(private val host: Host) {
     private fun updateSignalMotions(binding: DuoBinding, home: DuoBinding, expanded: DuoBinding, root: ViewGroup?) {
         val content = home.view.icon.content
         val wifi = content?.wifiLevel != null
-        val picture = if (wifi) home.view.icon.signalDotsPicture() else home.view.icon.cellularSignalPicture
+        val dots = wifi || home.view.icon.cellularDots
+        val picture = if (dots) home.view.icon.signalDotsPicture() else home.view.icon.cellularSignalPicture
         if (root == null || content == null || picture == null || content.airplaneMode) {
             clearSignalMotions(binding); return
         }
         val used = HashSet<Int>()
         val hidden = HashSet<Int>()
-        val rows = if (wifi) content.activeDataSubId?.let { id ->
-            listOf(DuoSignalRow(id, host.slotIndex(id) ?: -1, if (content.noService) -1 else content.mobileLevel))
-        }.orEmpty() else content.cellularSignalRows
+        val rows = if (dots) home.view.icon.signalDotRows() else content.cellularSignalRows
         var dotsReady = false
         rows.forEachIndexed { index, row ->
             val carrier = ControlCenterCarrierBlockHooker.signalHandoverTarget(expanded.icons, row.subId)
             val target = carrier ?: nativeSignalView(expanded, row.subId) ?: return@forEachIndexed
-            val hasBounds = if (wifi) home.view.icon.signalDotsBounds(binding.signalPictureCrop, binding.signalSourceBounds)
+            val hasBounds = if (dots) home.view.icon.signalDotsBounds(binding.signalPictureCrop, binding.signalSourceBounds, index)
                 else home.view.icon.signalRowBounds(index, binding.signalPictureCrop, binding.signalSourceBounds)
             if (!hasBounds) return@forEachIndexed
             if (binding.signalTargets[row.subId] !== target) {
@@ -154,10 +155,15 @@ internal class DuoPanelHandover(private val host: Host) {
                 binding.signalTargets[row.subId] = target
             }
             val motion = binding.signalMotions.getOrPut(row.subId) { SignalRowMotion() }
-            val destinationPicture = if (wifi) host.destinationSignal(binding.battery.context, row.level) else null
+            val destinationPicture = if (dots) host.destinationSignal(binding.battery.context, row.level) else null
+            val dotMorph = if (dots) host.signalBars(binding.battery.context)?.let {
+                home.view.icon.signalDotMorph(index, it)
+            } else null
             if (motion.update(root, home.view, binding.signalSourceBounds, target, picture,
-                    binding.signalPictureCrop, binding.view.icon.foreground, host.panelProgress, destinationPicture)) {
-                if (wifi) dotsReady = true else hidden += index
+                    binding.signalPictureCrop, binding.view.icon.foreground, host.panelProgress, destinationPicture, roundDotSource = dots, dotMorph = dotMorph,
+                    barMorph = if (!dots) host.rowMorph(binding.battery.context, index, rows.size) else null)) {
+                if (dots) dotsReady = true
+                hidden += index
             }
             used += row.subId
         }
@@ -167,7 +173,12 @@ internal class DuoPanelHandover(private val host: Host) {
         }
         if (binding.dotsInMotion != dotsReady) {
             binding.dotsInMotion = dotsReady
-            binding.view.icon.hideSignalDots = dotsReady || hideExpandedDots(binding)
+            binding.view.icon.hideSignalDots = hideExpandedDots(binding)
+            binding.view.invalidate()
+        }
+        val dotRows = if (dots) hidden else emptySet()
+        if (binding.view.icon.hiddenDotRows != dotRows) {
+            binding.view.icon.hiddenDotRows = dotRows
             binding.view.invalidate()
         }
         if (binding.view.icon.hiddenSignalRows != hidden) {
@@ -214,6 +225,7 @@ internal class DuoPanelHandover(private val host: Host) {
     }
 
     fun clearPanelMotion(binding: DuoBinding) {
+        binding.powerMotion.clear()
         clearNetworkMotion(binding)
         clearAirplaneMotion(binding)
     }
@@ -257,26 +269,34 @@ internal class DuoPanelHandover(private val host: Host) {
             clearPanelMotion(binding)
             return
         }
-        positionProxy(binding, proxyRoot, home.view, target, expandedRoot, host.panelProgress)
-        updateSignalMotions(binding, home, expanded, proxyRoot.rootView as? ViewGroup)
         val content = binding.view.icon.content
         binding.view.icon.nativeWifi = home.view.icon.nativeWifi
         if (content == null) { clearPanelMotion(binding); return }
         val root = proxyRoot.rootView as? ViewGroup
-        if (root != null) updateAirplaneMotion(binding, home.view, expanded, root, content, host.panelProgress)
-        if (content.airplaneMode && content.wifiLevel == null) return
         val wifi = content.wifiLevel != null
         val destination = DuoPolicy.networkDestination(
             host.expandedStyle,
             ControlCenterCarrierBlockHooker.ownsNetwork(expanded.icons, wifi)
         )
-        val networkTarget = when (destination) {
+        val networkTarget = if (content.airplaneMode && !wifi) null else when (destination) {
             DuoNetworkDestination.NONE -> null
             DuoNetworkDestination.CARRIER -> ControlCenterCarrierBlockHooker.duoHandoverTarget(
                 expanded.icons, wifi, host.mobile.activeDataSubId)
             DuoNetworkDestination.NATIVE -> nativeNetworkView(expanded, wifi)
         }
-        if (networkTarget == null || root == null) { clearNetworkMotion(binding); return }
+        val powerProgress = if (expanded.active && host.expandedStyle == DuoExpandedStyle.KEEP_DUO &&
+            networkTarget != null && host.panelProgress >= 1f) binding.networkMotionProgress else host.panelProgress
+        updatePowerMotion(binding, home, expanded, proxyRoot, target, expandedRoot, powerProgress)
+        updateSignalMotions(binding, home, expanded, root)
+        if (root != null) updateAirplaneMotion(binding, home.view, expanded, root, content, host.panelProgress)
+        if (networkTarget == null || root == null) {
+            clearNetworkMotion(binding)
+            if (host.panelProgress >= 1f) {
+                clearPanelMotion(binding)
+                binding.panelArrival.arrive()
+            }
+            return
+        }
         if (host.panelProgress >= 1f && binding.networkMotionProgress >= 1f) return
         val carrierTarget = networkTarget.takeIf { destination == DuoNetworkDestination.CARRIER }
         if (binding.carrierTarget !== carrierTarget) clearNetworkMotion(binding)
@@ -301,6 +321,15 @@ internal class DuoPanelHandover(private val host: Host) {
             binding.view.icon.hideNetwork = hidden
             binding.view.invalidate()
         }
+    }
+
+    private fun updatePowerMotion(binding: DuoBinding, home: DuoBinding, expanded: DuoBinding,
+                                  proxyRoot: View, target: View, expandedRoot: View, progress: Float) {
+        positionProxy(binding, proxyRoot, home.view, target, expandedRoot, progress)
+        val root = proxyRoot.rootView as? ViewGroup
+        if (root != null && expanded.active && host.expandedStyle == DuoExpandedStyle.KEEP_DUO) {
+            binding.powerMotion.update(root, home.view, binding.view, expanded.view, expandedRoot, progress)
+        } else binding.powerMotion.clear()
     }
 
     private fun updateAirplaneMotion(binding: DuoBinding, source: View, expanded: DuoBinding,
@@ -348,6 +377,15 @@ internal class DuoPanelHandover(private val host: Host) {
                 val expanded = host.bindings().firstOrNull { it.surface == DuoSurface.EXPANDED &&
                     it.parent.rootView === binding.parent.rootView }
                 if (expanded != null) updateAirplaneMotion(binding, source, expanded, root, content, value)
+                if (expanded?.active == true && host.expandedStyle == DuoExpandedStyle.KEEP_DUO) {
+                    val home = host.bindings().firstOrNull { it.view === source }
+                    val proxyRoot = ancestor(binding.view,
+                        "com.android.systemui.controlcenter.phone.widget.ControlCenterFakeStatusIcons")
+                    val expandedRoot = ancestor(expanded.view,
+                        "com.android.systemui.controlcenter.phone.widget.ControlCenterStatusBarIcon")
+                    if (home != null && proxyRoot != null && expandedRoot != null)
+                        updatePowerMotion(binding, home, expanded, proxyRoot, expanded.view, expandedRoot, value)
+                }
                 val hidden = binding.panelMotion.update(root, source, target, content, color,
                     value, host.small5GaEnabled, host.componentSizes, nativeWifi)
                 if (binding.view.icon.hideNetwork != hidden) {

@@ -25,6 +25,22 @@ class DuoLayoutTest {
         assertEquals(2, box.top)
     }
 
+    @Test fun collapsedCopyKeepsSourceSizeInBothTallerAndShorterRows() {
+        val source = DuoLayout.box(100, 26, 0, 0, 0, 0, 32, 4, false)
+        for (parentHeight in listOf(20, 26, 40)) {
+            for (rtl in listOf(false, true)) {
+                val copy = DuoLayout.box(100, parentHeight, 0, 0, 0, 0,
+                    source.height, 4, rtl, preserveSourceHeight = true)
+                assertEquals(source.height, copy.height)
+                assertEquals(source.width, copy.width)
+                assertEquals(parentHeight, copy.top * 2 + copy.height)
+                assertEquals(if (rtl) 0 else 100 - copy.width, copy.left)
+            }
+        }
+        // Releasing the source override restores normal host height constraints.
+        assertEquals(20, DuoLayout.box(100, 20, 0, 0, 0, 0, 32, 4, false).height)
+    }
+
     @Test fun iconSizeClampsAndScalesTheBoxEdge() {
         assertEquals(26f, DuoLayout.safeSizeDp(Float.NaN))
         assertEquals(16f, DuoLayout.safeSizeDp(1f))

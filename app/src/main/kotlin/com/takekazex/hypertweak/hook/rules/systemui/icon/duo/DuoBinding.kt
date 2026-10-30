@@ -15,6 +15,7 @@ internal class DuoBinding(val battery: View, val parent: ViewGroup, val icons: V
                       val surface: DuoSurface, val keyguardRoot: View?,
                       panelInitiallySettled: Boolean) {
     val view = DuoIconView(battery.context)
+    val controlCenterClick by lazy { DuoControlCenterClick.resolve(battery.context) }
     var observer: ViewTreeObserver? = null
     var preDraw: ViewTreeObserver.OnPreDrawListener? = null
     var hostHideBattery = false
@@ -22,6 +23,7 @@ internal class DuoBinding(val battery: View, val parent: ViewGroup, val icons: V
     var privacyView: View? = null
     val privacyRect = RectF()
     var privacyInset = 0
+    val powerMotion = DuoPowerMotion(battery.context)
     val panelMotion = DuoPanelMotion(battery.context)
     val airplaneMotion = DuoPanelMotion(battery.context, airplaneOnly = true)
     val signalMotions = HashMap<Int, SignalRowMotion>()

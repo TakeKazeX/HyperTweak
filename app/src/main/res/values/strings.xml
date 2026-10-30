@@ -1806,4 +1806,13 @@
     <string name="slider_percentage_glass">Soft glass</string>
     <string name="slider_percentage_popup_style_summary">Applies to the outside percentage background; inside shows text only</string>
     <string name="slider_percentage_values_summary">Only affects control center; the enabled volume popup always shows volume percentage</string>
+    <string name="icon_duo_top_percent">Battery level above the ring</string>
+    <string name="icon_duo_top_percent_summary">Show the number without %; a lightning bolt appears beside it while charging</string>
+    <string name="icon_duo_dual_dots">Eight signal dots with two SIMs</string>
+    <string name="icon_duo_dual_dots_summary">On Wi-Fi, show one row of four dots for each visible SIM</string>
+    <string name="icon_duo_click_expand">Tap to open Control Center</string>
+    <string name="icon_duo_click_expand_summary">Tap the three-in-one icon in the unlocked status bar</string>
+    <string name="icon_duo_cellular_style">Center cellular signal</string>
+    <string name="icon_duo_cellular_bars">Stacked signal bars</string>
+    <string name="icon_duo_cellular_dots">Signal dots (4 per SIM)</string>
 </resources>

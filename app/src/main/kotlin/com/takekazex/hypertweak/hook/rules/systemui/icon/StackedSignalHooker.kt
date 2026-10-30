@@ -170,14 +170,32 @@ object StackedSignalHooker : StaticHooker() {
 
     /** All mutable reducer state is consumed on the main looper. */
 
-    private data class PublishedSignalPicture(val picture: Picture, val splitFraction: Float)
+    private data class PublishedSignalPicture(val picture: Picture, val splitFraction: Float,
+        val morphs: List<com.takekazex.hypertweak.presentation.icon.duo.SignalBarMorph>)
 
     private data class SignalAssets(
         val bindingGeneration: Long,
         val style: SignalSvgStyle,
         val single: IconSvgSnapshot,
-        val stacked: IconSvgSnapshot
-    )
+        val stacked: IconSvgSnapshot,
+        val destination: IconSvgSnapshot?
+    ) {
+        var morphKey: Pair<Int, Float>? = null
+        var morphs: List<com.takekazex.hypertweak.presentation.icon.duo.SignalBarMorph> = emptyList()
+        fun morphs(rows: Int, weight: Float): List<com.takekazex.hypertweak.presentation.icon.duo.SignalBarMorph> {
+            val destination = destination ?: return emptyList()
+            val key = rows to weight
+            if (morphKey != key) {
+                morphKey = key
+                morphs = runCatching { (0 until rows).map { row ->
+                    com.takekazex.hypertweak.presentation.icon.duo.SignalBarMorph.create(
+                        if (rows > 1) stacked.document else single.document, destination.document,
+                        row, rows, style.stackedSplitFraction, weight)
+                } }.getOrDefault(emptyList())
+            }
+            return morphs
+        }
+    }
 
     /** Called by HookEntry once SystemUI's application context is available. */
     fun onPackageReady(context: Context) {
@@ -273,7 +291,7 @@ object StackedSignalHooker : StaticHooker() {
                             !(hideMobileOnWifi && source.signalState.wifiConnected)
                     }
                     motion.update(publishedSignalRows, drawable?.picture, param.args.firstOrNull() as? Float,
-                        param.args.firstOrNull() as? Boolean, drawable?.splitFraction)
+                        param.args.firstOrNull() as? Boolean, drawable?.splitFraction, drawable?.morphs.orEmpty())
                 }.onFailure { motion.clear(); DebugLog.w(TAG, "stacked signal handoff unavailable", it) }
             } }
         }
@@ -494,12 +512,12 @@ object StackedSignalHooker : StaticHooker() {
             if (renderRows.size > 1) assets.stacked.document else assets.single.document,
             renderRows.map { it.level }, SIGNAL_ALPHA_BG, SIGNAL_ALPHA_ERROR,
             weight = settingIconStackedWeight),
-            assets.style.stackedSplitFraction) else null
+            assets.style.stackedSplitFraction, assets.morphs(renderRows.size, settingIconStackedWeight)) else null
         renderTypeSlot(state, bridge)
         if (panelMotions.isNotEmpty()) {
             val commands = publishedSignalPicture
             panelMotions.values.forEach { motion ->
-                runCatching { motion.update(renderRows, commands?.picture, null, null, commands?.splitFraction) }.onFailure { motion.clear() }
+                runCatching { motion.update(renderRows, commands?.picture, null, null, commands?.splitFraction, commands?.morphs.orEmpty()) }.onFailure { motion.clear() }
             }
         }
     }
@@ -556,7 +574,8 @@ object StackedSignalHooker : StaticHooker() {
         val stacked = repository.loadSignalStacked(ticket.style)
             .onFailure { DebugLog.w(TAG, "stacked signal SVG unavailable", it) }.getOrNull()
             ?: return null
-        return SignalAssets(ticket.generation, ticket.style, single, stacked)
+        return SignalAssets(ticket.generation, ticket.style, single, stacked,
+            repository.loadSignalSingle(SignalSvgStyle.HYPEROS3).getOrNull())
     }
 
     private fun renderTypeSlot(state: MobileSignalState, bridge: HostIconBridge) {

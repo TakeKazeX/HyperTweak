@@ -55,8 +55,10 @@ internal object DuoLayout {
         (safeSizeDp(sizeDp) * density).roundToInt().coerceAtLeast(1)
 
     fun box(parentWidth: Int, parentHeight: Int, leftPadding: Int, topPadding: Int,
-            rightPadding: Int, bottomPadding: Int, desired: Int, gap: Int, rtl: Boolean): Box {
-        val height = minOf(desired, (parentHeight - topPadding - bottomPadding).coerceAtLeast(0))
+            rightPadding: Int, bottomPadding: Int, desired: Int, gap: Int, rtl: Boolean, preserveSourceHeight: Boolean = false): Box {
+        // The control-center copy follows the HOME glyph, not its independent host row height.
+        val height = if (preserveSourceHeight) desired else
+            minOf(desired, (parentHeight - topPadding - bottomPadding).coerceAtLeast(0))
         val width = minOf(height + gap, (parentWidth - leftPadding - rightPadding).coerceAtLeast(0))
         return Box(if (rtl) leftPadding else parentWidth - rightPadding - width,
             topPadding + (parentHeight - topPadding - bottomPadding - height) / 2, width, height)

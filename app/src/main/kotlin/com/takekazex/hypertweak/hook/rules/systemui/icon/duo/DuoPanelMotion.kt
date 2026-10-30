@@ -10,6 +10,10 @@ import com.takekazex.hypertweak.presentation.icon.duo.DuoSizes
 import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
 
 import android.content.Context
+import com.takekazex.hypertweak.hook.rules.systemui.icon.PanelGlyphFrame
+import com.takekazex.hypertweak.hook.rules.systemui.icon.PanelGlyphTravel
+import android.graphics.Matrix
+import android.graphics.RectF
 import android.graphics.Canvas
 import android.graphics.ColorFilter
 import android.graphics.PixelFormat
@@ -33,7 +37,15 @@ internal class DuoPanelMotion(context: Context, private val airplaneOnly: Boolea
     private var wifiArtwork: NativeWifiDrawable? = null
     private var savedAlpha = 1f
     private var appliedAlpha = 1f
-    private val location = IntArray(2)
+    private val sourceFrame = PanelGlyphFrame()
+    private val targetFrame = PanelGlyphFrame()
+    private val travel = PanelGlyphTravel()
+    private val from = RectF()
+    private val to = RectF()
+    private val matrix = Matrix()
+    private val rootMatrix = Matrix()
+    private val inverseRoot = Matrix()
+    private var sourceKey: List<Any?>? = null
     private val glyph = DuoDrawable(context).apply {
         networkOnly = true
         mirrorAirplane = settingIconMirrorAirplane
@@ -41,27 +53,16 @@ internal class DuoPanelMotion(context: Context, private val airplaneOnly: Boolea
     private var x = 0f
     private var y = 0f
     private var side = 0f
+    private var motionProgress = 0f
     private var layerAlpha = 255
     private var frameReady = false
     private var drawFailed = false
     private val layer = object : Drawable() {
         override fun draw(canvas: Canvas) {
-            if (drawFailed || side <= 0f || this@DuoPanelMotion.layerAlpha <= 0) return
+            if (drawFailed || side <= 0f) return
             val count = canvas.save()
             try {
-                canvas.translate(x - side / 2f, y - side / 2f)
-                val wifi = wifiArtwork
-                if (wifi != null) {
-                    wifi.setBounds(0, 0, side.toInt(), side.toInt())
-                    wifi.alpha = this@DuoPanelMotion.layerAlpha
-                    wifi.foreground = glyph.foreground
-                    wifi.draw(canvas)
-                } else {
-                    glyph.setBounds(0, 0, side.toInt(), side.toInt())
-                    // Drawable.opacity is a PixelFormat, not the overlay's 0..255 alpha.
-                    glyph.alpha = this@DuoPanelMotion.layerAlpha
-                    glyph.draw(canvas)
-                }
+                if (layerAlpha > 0) travel.draw(canvas, sourceFrame, targetFrame, from, to, motionProgress, keepSource = airplaneOnly)
                 if (!frameReady) {
                     frameReady = true
                     host?.postInvalidateOnAnimation()
@@ -111,35 +112,53 @@ internal class DuoPanelMotion(context: Context, private val airplaneOnly: Boolea
             drawFailed = false
         }
         if (abs(native.alpha - appliedAlpha) > .001f) savedAlpha = native.alpha
-        val handoff = DuoPanelGeometry.handoff(progress)
-        // Do not hide either endpoint until the overlay has actually drawn successfully.
-        appliedAlpha = savedAlpha * if (frameReady && !drawFailed) handoff else 1f
-        if (native.alpha != appliedAlpha) native.alpha = appliedAlpha
-        source.getLocationOnScreen(location)
-        val sourceSide = min(source.width, source.height).toFloat()
-        val sourceX = location[0] + source.width - source.paddingRight - sourceSide / 2f
-        val sourceY = location[1] + if ((airplaneOnly && content.wifiLevel != null) || (content.wifiLevel == null && content.networkLabel != null))
-            sourceSide * DuoDrawable.LABEL_CENTER_Y / DuoDrawable.VIEWPORT else
-            sourceSide * DuoDrawable.COMPACT_RING_CENTER_Y / DuoDrawable.VIEWPORT
-        native.getLocationOnScreen(location)
-        val targetX = location[0] + native.width / 2f
-        val targetY = location[1] + native.height / 2f
-        root.getLocationOnScreen(location)
-        x = DuoPanelGeometry.mix(sourceX, targetX, progress) - location[0]
-        y = DuoPanelGeometry.mix(sourceY, targetY, progress) - location[1]
-        // Network artwork occupies roughly half the 32-unit viewport.
-        side = DuoPanelGeometry.mix(min(source.width, source.height).toFloat() *
-            (if (airplaneOnly) (if (content.wifiLevel != null) .58f else DuoDrawable.COMPACT_RING_SCALE) * sizes.airplane
-                else if (content.wifiLevel != null) DuoDrawable.COMPACT_RING_SCALE * sizes.wifi *
-                    (if (usesNativeWifi) DuoDrawable.NATIVE_WIFI_SIZE / DuoDrawable.VIEWPORT else 1f)
-                else sizes.type),
-            min(native.width, native.height) * (if (usesNativeWifi) 1f else 1.7f), progress)
-        layerAlpha = DuoPanelGeometry.overlayAlpha(progress)
+        val p = progress.coerceIn(0f, 1f)
+        val sourceView = source as? DuoIconView
+        val sourceSide = (sourceView?.drawnIconSidePx() ?: min(source.width, source.height)).toFloat()
+        val sourceTop = ((source.height - sourceSide.toInt()) / 2).toFloat()
+        val sourceLeft = if (source.layoutDirection == View.LAYOUT_DIRECTION_RTL) source.paddingLeft.toFloat()
+            else source.width - source.paddingRight - sourceSide
+        val factor = if (airplaneOnly) .58f * sizes.airplane else if (content.wifiLevel != null)
+            DuoDrawable.COMPACT_RING_SCALE * sizes.wifi * (if (usesNativeWifi) DuoDrawable.NATIVE_WIFI_SIZE / DuoDrawable.VIEWPORT else 1f)
+            else sizes.type
+        val boxSide = sourceSide * factor
+        val cx = sourceLeft + sourceSide / 2f
+        val cy = sourceTop + sourceSide * (if (airplaneOnly || content.wifiLevel == null) DuoDrawable.LABEL_CENTER_Y
+            else DuoDrawable.COMPACT_RING_CENTER_Y) / DuoDrawable.VIEWPORT
+        glyph.mirrorAirplane = settingIconMirrorAirplane
         glyph.content = rendered
         glyph.foreground = color
         glyph.small5GaEnabled = small5GaEnabled
+        val key = listOf(rendered, color, small5GaEnabled, artwork, artwork?.revision, glyph.mirrorAirplane)
+        if (sourceKey != key) {
+            sourceKey = key
+            if (!sourceFrame.capture(128, 128) { canvas ->
+                if (artwork != null) {
+                    artwork.setBounds(0, 0, 128, 128); artwork.alpha = 255; artwork.foreground = color; artwork.draw(canvas)
+                } else { glyph.setBounds(0, 0, 128, 128); glyph.alpha = 255; glyph.draw(canvas) }
+            }) { clear(); return false }
+        }
+        if (!targetFrame.captureView(native)) { clear(); return false }
+        from.set(sourceFrame.ink)
+        val sourceScale = boxSide / 128f
+        from.set(cx - boxSide / 2f + from.left * sourceScale, cy - boxSide / 2f + from.top * sourceScale,
+            cx - boxSide / 2f + from.right * sourceScale, cy - boxSide / 2f + from.bottom * sourceScale)
+        matrix.reset(); source.transformMatrixToGlobal(matrix); matrix.mapRect(from)
+        to.set(targetFrame.ink)
+        matrix.reset(); native.transformMatrixToGlobal(matrix); matrix.mapRect(to)
+        rootMatrix.reset(); root.transformMatrixToGlobal(rootMatrix)
+        if (!rootMatrix.invert(inverseRoot)) { clear(); return false }
+        inverseRoot.mapRect(from); inverseRoot.mapRect(to)
+        x = from.left; y = from.top; side = from.width()
+        motionProgress = p
+        // Keep native artwork hidden until the matched endpoint. A separate native fade would
+        // expose a full-sized destination behind the moving glyph.
+        val handoff = if (p >= 1f) 1f else 0f
+        appliedAlpha = savedAlpha * if (frameReady && !drawFailed) handoff else 1f
+        if (native.alpha != appliedAlpha) native.alpha = appliedAlpha
+        layerAlpha = if (p >= 1f) 0 else 255
         layer.setBounds(0, 0, root.width, root.height)
-        if (contentChanged || previousX != x || previousY != y || previousSide != side || previousOpacity != layerAlpha)
+        if (contentChanged || previousX != x || previousY != y || previousSide != side || previousOpacity != layerAlpha || motionProgress > 0f)
             layer.invalidateSelf()
         return frameReady && !drawFailed
     }
@@ -153,6 +172,7 @@ internal class DuoPanelMotion(context: Context, private val airplaneOnly: Boolea
         host?.overlay?.remove(layer)
         host = null
         wifiArtwork = null
+        sourceKey = null
         frameReady = false
         drawFailed = false
     }

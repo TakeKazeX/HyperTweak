@@ -68,6 +68,34 @@ internal class DuoSignalArtwork {
                 weight = settingIconStackedWeight)
         }.onFailure { DebugLog.w(TAG, "cellular signal vector recording failed", it) }.getOrNull()
     }
-    fun retire() { cellularSignalAssets = null; aodCellularPictures.clear() }
+    private var morphResolved = false
+    private var morphBars: com.takekazex.hypertweak.presentation.icon.duo.DuoSignalBars? = null
+    fun signalBars(context: Context): com.takekazex.hypertweak.presentation.icon.duo.DuoSignalBars? {
+        if (!morphResolved) {
+            val assets = loadCellularSignalAssets(context) ?: return null
+            morphResolved = true
+            morphBars = runCatching {
+                com.takekazex.hypertweak.presentation.icon.duo.DuoSignalBars.fromDocument(assets.single)
+            }.onFailure { DebugLog.w(TAG, "signal morph SVG contract unavailable", it) }.getOrNull()
+        }
+        return morphBars
+    }
+
+    private var rowMorphKey: Pair<Int, Float>? = null
+    private var rowMorphs: List<com.takekazex.hypertweak.presentation.icon.duo.SignalBarMorph> = emptyList()
+    fun rowMorph(context: Context, row: Int, rows: Int): com.takekazex.hypertweak.presentation.icon.duo.SignalBarMorph? {
+        val assets = loadCellularSignalAssets(context) ?: return null
+        val key = rows to settingIconStackedWeight
+        if (rowMorphKey != key) {
+            rowMorphKey = key
+            rowMorphs = runCatching { (0 until rows).map { index ->
+                com.takekazex.hypertweak.presentation.icon.duo.SignalBarMorph.create(
+                    if (rows > 1) assets.stacked else assets.single, assets.single, index, rows, .632f, settingIconStackedWeight)
+            } }.onFailure { DebugLog.w(TAG, "cellular row morph unavailable", it) }.getOrDefault(emptyList())
+        }
+        return rowMorphs.getOrNull(row)
+    }
+
+    fun retire() { rowMorphKey = null; rowMorphs = emptyList(); morphResolved = false; morphBars = null; cellularSignalAssets = null; aodCellularPictures.clear() }
     private companion object { const val TAG = "DuoSignal" }
 }

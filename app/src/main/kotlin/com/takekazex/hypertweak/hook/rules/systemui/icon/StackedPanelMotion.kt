@@ -29,6 +29,7 @@ internal class StackedPanelMotion(private val callback: Any) {
     private var progress = 0f
     private var rows: List<DuoSignalRow> = emptyList()
     private var picture: Picture? = null
+    private var barMorphs: List<com.takekazex.hypertweak.presentation.icon.duo.SignalBarMorph> = emptyList()
     private var splitFraction: Float? = null
     private val crop = RectF()
     private val sourceBounds = RectF()
@@ -37,8 +38,9 @@ internal class StackedPanelMotion(private val callback: Any) {
         true
     }
 
-    fun update(nextRows: List<DuoSignalRow>, commands: Picture?, fraction: Float?, showing: Boolean?, stackedSplitFraction: Float?) {
-        rows = nextRows; picture = commands; splitFraction = stackedSplitFraction
+    fun update(nextRows: List<DuoSignalRow>, commands: Picture?, fraction: Float?, showing: Boolean?, stackedSplitFraction: Float?,
+               morphs: List<com.takekazex.hypertweak.presentation.icon.duo.SignalBarMorph> = emptyList()) {
+        rows = nextRows; picture = commands; splitFraction = stackedSplitFraction; barMorphs = morphs
         fraction?.takeIf { it.isFinite() }?.let { progress = it.coerceIn(0f, 1f); if (it > 0f) visible = true }
         showing?.let { visible = it }
         if (!visible || picture == null || rows.isEmpty()) { clear(); return }
@@ -113,7 +115,7 @@ internal class StackedPanelMotion(private val callback: Any) {
             // module bitmap's actual ImageView filter, so reconstructing a tint here is lossy.
             val ready = motions.getOrPut(row.subId) { SignalRowMotion() }.update(host, source,
                 sourceBounds, target, commands, crop, color = 0, progress = progress,
-                sourceGlyph = source, sourceAppearanceAlpha = appearance.alpha)
+                sourceGlyph = source, sourceAppearanceAlpha = if (barMorphs.getOrNull(index) == null) appearance.alpha else null, barMorph = barMorphs.getOrNull(index))
             allReady = allReady && ready
         }
         if (allReady) {
