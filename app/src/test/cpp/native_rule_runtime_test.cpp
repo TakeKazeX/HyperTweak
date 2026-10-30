@@ -14,6 +14,9 @@ std::atomic<unsigned> queries{0}, preparations{0}, saves{0}, ready{0};
 std::atomic<int> grid_stage{0};
 std::atomic<unsigned> readbacks{0};
 std::atomic<bool> block{false}, entered{false};
+std::atomic<bool> reject_optional{false};
+std::atomic<int> grid_requested{0};
+std::atomic<unsigned> grid_targets{0},grid_layouts{0};
 void Wait(std::atomic<unsigned>& value, unsigned expected) {
     for (unsigned i = 0u; i < 200u && value.load() < expected; ++i) usleep(10000);
     assert(value.load() >= expected);
@@ -57,10 +60,10 @@ bool IconThemeNeedsPreparation(){return icon_theme_mode.load()!=0;}
 bool ApplyIconThemeRule(void*){return true;}
 void ResetIconThemeAfterFork(){}
 const char* IconThemeReason(){return "disabled";}
-void SetDesktopGrid(int) {}
-bool DesktopGridNeedsPreparation(){return false;}
-bool PrepareDesktopGridTargets(void*){return true;}
-bool PrepareDesktopGridLayout(void*){return true;}
+void SetDesktopGrid(int value) {grid_requested.store(value);}
+bool DesktopGridNeedsPreparation(){return grid_requested.load()!=0;}
+bool PrepareDesktopGridTargets(void*){++grid_targets;return true;}
+bool PrepareDesktopGridLayout(void*){++grid_layouts;return true;}
 void PrepareDesktopGridStorage(){if(grid_stage.load()==5 && ++readbacks==3)grid_stage.store(0);}
 int DesktopGridReadbackDelay(){return grid_stage.load()==5?20:-1;}
 int DesktopGridStage(){return grid_stage.load();}
@@ -102,7 +105,7 @@ bool PrepareDartRuleTargets(void*, bool, bool, bool, bool, bool, bool, bool, boo
     ++preparations;
     entered.store(true);
     while (block.load()) usleep(1000);
-    return true;
+    return !reject_optional.load();
 }
 bool ReadNativeRecord(const char*, void*, size_t) { return false; }
 bool WriteNativeRecord(const char*, const void*, size_t) { ++saves; return true; }
@@ -185,5 +188,24 @@ int main() {
     assert(grid_stage.load()==0 && readbacks.load()==3);
     assert(preparations.load()==poll_preparations+1);
     assert(ready.load()==poll_ready+2);
+    // A failed optional contract cannot short-circuit grid preparation or hide
+    // the partial completion from apply boundaries. It must still sleep idle.
+    reject_optional.store(true);
+    const auto partial_preparations=preparations.load(),partial_ready=ready.load();
+    assert(ReceiveNativeRuleSettings(true,4,false,113,false,false,false,false,false,-1,8,1));
+    Wait(preparations,partial_preparations+1);Wait(ready,partial_ready+1);
+    assert(grid_targets.load()==1&&grid_layouts.load()==1);
+    usleep(1200000);
+    assert(preparations.load()==partial_preparations+1&&ready.load()==partial_ready+1);
+    ApplyPreparedNativeRules(); // A real external boundary allows one bounded retry.
+    Wait(preparations,partial_preparations+2);Wait(ready,partial_ready+2);
+    assert(grid_targets.load()==2&&grid_layouts.load()==2);
+    reject_optional.store(false);
+    assert(ReceiveNativeRuleSettings(true,4,false,114,false,false,false,false,false,-1,8,0));
+    Wait(preparations,partial_preparations+3);Wait(ready,partial_ready+3);
+    usleep(200000);
+    for(unsigned i=0;i<10000;++i)ApplyPreparedNativeRules();
+    usleep(200000);assert(preparations.load()==partial_preparations+3);
+    puts("PASS: rejected optional feature leaves grid metadata and partial-completion ACK available; failure stays idle and retries only at an external boundary");
     puts("PASS: actual worker sleeps after self-callback, ready inputs stay idle, stale/conflicting revisions rejected, concurrent update drains once, recents haptic, folder stack and widget stack enable/conflict/disable; pending migration readback polls finitely without rescans and returns to idle");
 }

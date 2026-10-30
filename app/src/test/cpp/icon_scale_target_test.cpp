@@ -30,20 +30,41 @@ int main(int argc,char** argv) {
         // Metamorphic inputs exercise operand adaptation, not another build table.
         auto find=[&](const BytePattern& pattern){uintptr_t at=0;uint32_t count=0;assert(FindUniqueBytes(image,pattern,&at,&count));return at;};
         auto call=[&](uintptr_t at){uint32_t word=0;memcpy(&word,bytes.data()+at,4);uintptr_t target=0;assert(IsBl(word)&&DecodeBlTarget(at,word,&target));return target;};
-        const auto notify=call(sites[1]+76),active=call(notify+16),grid=call(active+96),description=find(fixture::kIconActualDescription),
+        const auto notify=call(sites[1]+76),active=call(notify+16),description=find(fixture::kIconActualDescription),
             produce=find(fixture::kIconActualProduce),calc=find(fixture::kIconSizeCalc);
+        const bool inlined=MatchBytes(image,active,fixture::kIconInlineActive,kFlagRead|kFlagExec);
+        uintptr_t grid=0;
+        if(inlined) {
+            uintptr_t candidates[64]{};size_t stored=0;uint32_t total=0,matched=0;
+            assert(CollectBytes(image,fixture::kIconCurrentGrid,candidates,64,&stored,&total)&&total<=64);
+            for(size_t i=0;i<stored;++i) {
+                uint32_t slot=0,field=0;ReadInsn(image,candidates[i]+16,&slot);ReadInsn(image,candidates[i]+76,&field);
+                if(((slot>>10)&4095u)*8u==layout.controller_slot&&((field>>12)&511u)==layout.active_rx&&call(candidates[i]+84)==sites[2]) {grid=candidates[i];++matched;}
+            }
+            assert(matched==1);
+        } else grid=call(active+96);
+        if(inlined) {
+            uint32_t second_slot=0;ReadInsn(image,active+84,&second_slot);
+            const auto conflicting_slot=second_slot^(1u<<10);
+            memcpy(bytes.data()+active+84,&conflicting_slot,4);
+            assert(!DecodeIconScaleLayout(image,sites,&layout));
+            memcpy(bytes.data()+active+84,&second_slot,4);
+            assert(DecodeIconScaleLayout(image,sites,&layout));
+        }
         std::vector<std::pair<uintptr_t,uint32_t>> changes;
         auto patch=[&](uintptr_t at,uint32_t mask,uint32_t value){uint32_t old=0;memcpy(&old,bytes.data()+at,4);changes.push_back({at,old});auto word=(old&~mask)|value;memcpy(bytes.data()+at,&word,4);};
         auto field=[&](uintptr_t at,uint32_t value){patch(at,0x1ffu<<12,value<<12);};
         const auto expected=layout;
         for(auto at:{sites[1]+20,layout.scope_begin+60,layout.scope_begin+148,layout.scope_begin+352,calc+20})field(at,0x33);
         field(sites[2]+60,0x23);field(grid+76,0x3b);
-        for(auto at:{active+100,notify+228})field(at,0x7b);
-        for(auto at:{active+108,notify+236,description+488,produce+48})field(at,0x4f);
+        if(inlined)field(active+160,0x3b);
+        for(auto at:{active+(inlined?176:100),notify+228})field(at,0x7b);
+        for(auto at:{active+(inlined?184:108),notify+236,description+488,produce+48})field(at,0x4f);
         for(auto at:{notify+548,calc+12})field(at,0x3b);
         for(auto at:{description+200,produce+24})field(at,0x37);
         for(auto at:{description+296,produce+32})field(at,0x3f);
         for(auto at:{active+20,grid+16,notify+44,notify+128})patch(at,0xfffu<<10,((expected.controller_slot+16)/8)<<10);
+        if(inlined)patch(active+84,0xfffu<<10,((expected.controller_slot+16)/8)<<10);
         const auto header=((expected.double_cid+1)<<12)|0x15cu;
         for(auto at:{sites[1]+52,layout.scope_begin+384}) {
             patch(at,0xffffu<<5,(header&0xffffu)<<5);patch(at+4,0xffffu<<5,(header>>16u)<<5);

@@ -50,8 +50,21 @@ HyperTweakRecentsScrollHook:
  add x16, x16, :lo12:g_recents_haptic_enabled
  ldar w16, [x16]
  cbz w16, 1f
+ adrp x16, g_recents_haptic_closure
+ add x16, x16, :lo12:g_recents_haptic_closure
+ ldar w16, [x16]
+ cbz w16, 2f
+ // Verified closure entry: arguments are on the Dart stack. The trampoline
+ // replays only the original prologue, leaving the managed BL at its real PC.
+ ldr x0, [x15, #8]
+ ldur w0, [x0, #0x17]
+ add x0, x0, x28, lsl #32
+ ldr x1, [x15]
+ b 3f
+2:
  mov x0, x1
  mov x1, x2
+3:
  mov x2, x28
  mov x3, x22
  bl HyperTweakObserveRecentsScroll

@@ -18,6 +18,7 @@ with tempfile.TemporaryDirectory(prefix='ht-recents-abi-') as tmp:
     stub = root / 'stub.S'
     text = ['.data', '.balign 8', '.global g_recents_haptic_enabled',
             'g_recents_haptic_enabled: .word 1', '.balign 8',
+            '.global g_recents_haptic_closure', 'g_recents_haptic_closure: .word 0', '.balign 8',
             '.global g_recents_haptic_original', 'g_recents_haptic_original: .xword original',
             '.global arguments', 'arguments: .zero 32', '.global hits', 'hits: .xword 0',
             '.text', '.global HyperTweakObserveRecentsScroll', 'HyperTweakObserveRecentsScroll:',
@@ -37,7 +38,7 @@ with tempfile.TemporaryDirectory(prefix='ht-recents-abi-') as tmp:
         elf = ELFFile(stream)
         symbols = {s.name: s['st_value'] for s in elf.get_section_by_name('.symtab').iter_symbols()}
         segments = [(s['p_vaddr'], s['p_memsz'], s.data()) for s in elf.iter_segments() if s['p_type'] == 'PT_LOAD']
-    for enabled in (False, True):
+    for enabled, closure in ((False, False), (True, False), (False, True), (True, True)):
         machine = Uc(UC_ARCH_ARM64, UC_MODE_ARM)
         pages = set()
         for address, size, data in segments:
@@ -57,11 +58,17 @@ with tempfile.TemporaryDirectory(prefix='ht-recents-abi-') as tmp:
         machine.reg_write(UC_ARM64_REG_NZCV, 0xA0000000)
         machine.reg_write(UC_ARM64_REG_FPCR, 0x400000)
         machine.reg_write(UC_ARM64_REG_FPSR, 1)
+        if closure:
+            machine.reg_write(reg(15), 0x50001000)
+            machine.reg_write(reg(28), 0)
+            machine.mem_write(0x50001000, struct.pack('<QQ', 0x50000401, 0x50000201))
+            machine.mem_write(0x50000201+0x17, struct.pack('<I', 0x50000301))
         for i in range(32):
             machine.reg_write(UC_ARM64_REG_Q0 + i, (i + 1) * 0x10101010101010101010101010101)
         before = [machine.reg_read(reg(i)) for i in range(31)]
         vector = [machine.reg_read(UC_ARM64_REG_Q0 + i) for i in range(32)]
         machine.mem_write(symbols['g_recents_haptic_enabled'], struct.pack('<I', enabled))
+        machine.mem_write(symbols['g_recents_haptic_closure'], struct.pack('<I', closure))
         machine.emu_start(symbols['HyperTweakRecentsScrollHook'], stop, count=10000)
         for i in range(31):
             assert machine.reg_read(reg(i)) == (symbols['original'] if i == 16 else before[i]), f'x{i}'
@@ -72,5 +79,6 @@ with tempfile.TemporaryDirectory(prefix='ht-recents-abi-') as tmp:
         assert vector == [machine.reg_read(UC_ARM64_REG_Q0 + i) for i in range(32)]
         assert int.from_bytes(machine.mem_read(symbols['hits'], 8), 'little') == enabled
         if enabled:
-            assert struct.unpack('<QQQQ', machine.mem_read(symbols['arguments'], 32)) == (before[1], before[2], before[28], before[22])
+            expected=(0x50000301,0x50000401,before[28],before[22]) if closure else (before[1],before[2],before[28],before[22])
+            assert struct.unpack('<QQQQ', machine.mem_read(symbols['arguments'], 32)) == expected
 print('production recents observer: enabled/disabled, arguments, registers, SIMD, SP, NZCV, FPCR/FPSR passed')

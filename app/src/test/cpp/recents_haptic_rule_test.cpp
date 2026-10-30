@@ -57,6 +57,17 @@ int main(int argc, char** argv) {
     for (size_t i = 0; i < 4; ++i) assert(resolved.sites[i].candidates == 1);
     DartResolution r{}; assert(ResolveDartSites(nullptr, dart::kRecentsHapticTarget, &r));
     Layout decoded{}; assert(Decode(r, &decoded));
+    assert(decoded.observer_entry&&decoded.closure_entry==(decoded.observer_entry!=resolved.sites[0].offset));
+    if(decoded.closure_entry) {
+        // The shared function must remain untouched; only StackList's own
+        // paired closure may feed its state/widget layout to the observer.
+        assert(decoded.observer_entry+40==resolved.sites[1].offset);
+        uint32_t call=0;assert(dart::ReadInsn(image,decoded.observer_entry+24,&call));
+        const auto wrong=0x94000000u;
+        memcpy(image_bytes.data()+decoded.observer_entry+24,&wrong,4);
+        Layout rejected{};assert(!Decode(r,&rejected));
+        memcpy(image_bytes.data()+decoded.observer_entry+24,&call,4);
+    }
     assert(decoded.start != decoded.update && decoded.end != decoded.start);
     for (size_t i = 0; i < 4; ++i) {
         const auto offset = resolved.sites[i].offset + (i == 0 ? 16 : 0);
@@ -73,6 +84,22 @@ int main(int argc, char** argv) {
     for (size_t i = 0; i < image.load_count; ++i)
         if (image.loads[i].flags & dart::kFlagExec) spare = image.loads[i].end - 2048;
     assert(spare && spare != duplicate);
+    // Both lazy and constant receiver dispatches keep one unique scroll entry.
+    // A copied entry is ambiguous even though its call operands can relocate.
+    const auto scroll=resolved.sites[0].offset;
+    uint32_t scroll_receiver=0;assert(dart::ReadInsn(image,scroll+36,&scroll_receiver));
+    const auto scroll_size=scroll_receiver==0xf9403f40u?size_t{152}:size_t{92};
+    std::vector<uint8_t> scroll_saved(image_bytes.begin()+spare,image_bytes.begin()+spare+scroll_size);
+    memcpy(image_bytes.data()+spare,image_bytes.data()+scroll,scroll_size);
+    assert(!dart::ResolveTarget(image,dart::kRecentsHapticTarget).resolved);
+    memcpy(image_bytes.data()+spare,scroll_saved.data(),scroll_size);
+    if(scroll_size==92) {
+        uint32_t receiver=0;memcpy(&receiver,image_bytes.data()+scroll+68,4);
+        const auto different_receiver=receiver^(1u<<10);
+        memcpy(image_bytes.data()+scroll+68,&different_receiver,4);
+        assert(!dart::ResolveTarget(image,dart::kRecentsHapticTarget).resolved);
+        memcpy(image_bytes.data()+scroll+68,&receiver,4);
+    }
     std::vector<uint8_t> old(image_bytes.begin() + spare, image_bytes.begin() + spare + builder.pattern.size);
     memcpy(image_bytes.data() + spare, image_bytes.data() + first, builder.pattern.size);
     assert(!dart::ResolveTarget(image, dart::kRecentsHapticTarget).resolved);
@@ -161,7 +188,7 @@ int main(int argc, char** argv) {
     number(pixels, 7, -160); number(delta, 7, NAN);
     HyperTweakObserveRecentsScroll(state, notification, heap, null); assert(signals == 3);
     // Foreign patches are preserved; a remapped original can be repaired.
-    auto site = reinterpret_cast<void*>(r.Find("scroll"));
+    auto site = image_bytes.data()+layout.observer_entry;
     memset(site, 0xb6, 16); assert(!ApplyRecentsHapticRule(nullptr)); assert(removes == 0);
     memcpy(site, original, 16); assert(ApplyRecentsHapticRule(nullptr)); assert(removes == 1 && installs == 2);
     puts("recents target, ambiguity, CID, gesture, generation and hook ownership checks passed");

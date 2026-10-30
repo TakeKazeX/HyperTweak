@@ -114,6 +114,9 @@ notification samples, disable/re-enable and patch ownership/remap handling.
 Run `run_recents_haptic_abi_test.py <NDK-clang>` with Unicorn and pyelftools for
 the production observer's enabled/disabled state and complete register/FP state.
 Actual card-switch timing and haptic strength remain manual device acceptance.
+When changing notification dispatch discovery, exercise both lazy-instance and
+constant-receiver shapes. Reject duplicate entries across either family and
+inconsistent constant receivers; retain the real entry ABI.
 
 For stacked-folder preview changes, compile `folder_stack_rule_test.cpp` with
 `dart_image.cpp`, `dart_targets.cpp` and `dart_resolution_cache.cpp` under ASan/UBSan against the verified external
@@ -141,7 +144,9 @@ under ASan/UBSan. Run `run_icon_scale_gate_abi_test.py <NDK-clang>` and
 These exercise production discovery, corrupt/duplicate targets, cross-call rejection,
 relocation, pool/static-slot and field/CID mutations with conflicting producer rejection,
 rollback including null backups, remap/foreign patches, active-grid geometry,
-request caps and disabled original bounds. The ABI runners execute the actual Rust gate
+request caps and disabled original bounds. Cover both out-of-line and inlined current-grid getters,
+including conflicting singleton slots and matching Rx/geometry field mutations.
+The ABI runners execute the actual Rust gate
 and Dart initializer shims with hostile clobbering, original continuations, preserved
 registers/SIMD/flags/stacks, and unchanged Dart objects. Run `icon_scale_gate_target_test.cpp`
 against an ELF PT_LOAD-mapped copy of the matching Rust libapp_launcher.so; record its
@@ -182,8 +187,12 @@ under ASan/UBSan and `run_desktop_grid_abi_test.py <NDK-clang>` with Unicorn/pye
 The former checks corrupt/duplicate contracts, field conflicts, journal gating, async
 preview/cache-rebuild/apply ordering, old-DB-suffix-independent readback, cold-start
 reflow, queued requests, bounded rollback and patch ownership.
-The latter executes the real ComputePipeline input/row/clamp assembly, including null
-row hints and stock replay, for all 12 combinations (360 cases).
+Run resolver/rule regressions against both the original
+and rewritten compiler shapes (inlined apply, compact variable calculation,
+changed copy temporaries and expanded loader); preview geometry must agree with
+an independent live-geometry consumer. The ABI runner executes the real
+ComputePipeline input/row/clamp assembly, including null row hints and stock
+replay, for all 12 combinations (360 cases).
 Also run `run_icon_scale_abi_test.py <NDK-clang>` for the actual frame tail-transfer
 and `run_native_rule_runtime_test.py <NDK-clang++>` on a connected device for the
 Bionic eventfd worker. Keep settings/snapshot/ledger tests, lint and release checks.
@@ -203,6 +212,9 @@ python3 app/src/test/cpp/run_dart_rule_cache_test.py /absolute/path/to/verified/
 ```
 
 It covers cache identity and corruption, relocation, readiness/input deferral, repeated application, remap recovery, preservation of another owner's patch, and the event-generation gate including self-generated library notifications. The executable and compiler output are temporary; target artifacts remain outside the repository.
+Worker preparation changes also require the Bionic runtime regression below: a rejected
+optional contract must leave grid target/layout preparation and partial-completion ACK
+available, with idle sleep, bounded external retries and settings-generation recovery.
 
 For Android-widget-stack target or shim changes, compile `widget_stack_target_test.cpp`
 with `dart_image.cpp` / `dart_targets.cpp` / `dart_resolution_cache.cpp` under ASan/UBSan

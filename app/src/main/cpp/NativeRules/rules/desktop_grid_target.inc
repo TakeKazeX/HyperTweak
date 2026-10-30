@@ -1,17 +1,40 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "desktop_grid_patterns.inc"
+#include "desktop_grid_compiler_shapes.inc"
 namespace {
 #define GRID_SITE(Name) bool FindGrid##Name(const Image& image,uintptr_t* at,uint32_t* count) {return FindUniqueBytes(image,kGrid##Name,at,count);}
 GRID_SITE(Create) GRID_SITE(Change)
-GRID_SITE(Apply) GRID_SITE(Variable) GRID_SITE(Fixed) GRID_SITE(Lookup)
+GRID_SITE(Fixed) GRID_SITE(Lookup)
 #undef GRID_SITE
+bool FindGridShapes(const Image& image,const BytePattern& first,const BytePattern& second,uintptr_t* at,uint32_t* count) {
+ const BytePattern patterns[]={first,second};*count=0;
+ for(const auto& pattern:patterns) {
+  uintptr_t offsets[16]{};size_t stored=0;uint32_t total=0;
+  if(!CollectBytes(image,pattern,offsets,16,&stored,&total)||total>16)return false;
+  for(size_t i=0;i<stored;++i){*at=offsets[i];++*count;}
+ }
+ return *count==1;
+}
+bool FindGridApply(const Image& image,uintptr_t* at,uint32_t* count) {return FindGridShapes(image,kGridApply,kGridInlineApply,at,count);}
+bool FindGridVariable(const Image& image,uintptr_t* at,uint32_t* count) {return FindGridShapes(image,kGridVariable,kGridCompactVariable,at,count);}
 bool GridCall(const Image&,uintptr_t,uintptr_t*);
 bool FindGridTo(const Image& image,uintptr_t* at,uint32_t* count){
- uintptr_t bridge=0,target=0,hide=0,apply=0;
- if(!FindUniqueBytes(image,kGridExit,&bridge,count)||!GridCall(image,bridge+24,&target)||!MatchBytes(image,target,kGridTo,kFlagRead|kFlagExec))return false;
- if(!GridCall(image,bridge+44,&hide)||!MatchBytes(image,hide,kGridHide,kFlagRead|kFlagExec)||!FindGridApply(image,&apply,count))return false;
+ uintptr_t init=0,hide=0,apply=0;
+ if(!FindUniqueBytes(image,kGridOnInit,&init,count)||!FindUniqueBytes(image,kGridHide,&hide,count))return false;
+ uintptr_t offsets[32]{};size_t stored=0;uint32_t total=0;
+ if(!CollectBytes(image,kGridTo,offsets,32,&stored,&total)||total>32)return false;
+ uint32_t store=0;ReadInsn(image,init+56,&store);
+ if((store&0xffc003ffu)!=0xf9000001u)return false;
+ *count=0;
+ for(size_t i=0;i<stored;++i) {
+  uint32_t load=0;ReadInsn(image,offsets[i]+16,&load);
+  if((load&0xffc003ffu)!=0xf9400000u||((load>>10)&4095u)!=((store>>10)&4095u))continue;
+  *at=offsets[i];++*count;
+ }
+ if(*count!=1)return false;
+ uint32_t matches=0;if(!FindGridApply(image,&apply,&matches))return false;
  uintptr_t call=0;if(!GridCall(image,hide+236,&call)||call!=apply)return false;
- *at=target;*count=1;return true;
+ return true;
 }
 bool FindGridPrepare(const Image& image,uintptr_t* at,uint32_t* count){
  uintptr_t create=0;uint32_t matches=0;
@@ -31,7 +54,7 @@ bool FindGridPrepare(const Image& image,uintptr_t* at,uint32_t* count){
 const SiteSpec kGridSites[]={
  {"to",{},FindGridTo,true,kGridTo,0}, {"prepare",{},FindGridPrepare,true,kGridPrepare,0},
  {"create",{},FindGridCreate,true,kGridCreate,0}, {"change",{},FindGridChange,true,kGridChange,0},
- {"apply",{},FindGridApply,true,kGridApply,0}, {"variable",{},FindGridVariable,true,kGridVariable,0},
+ {"apply",{},FindGridApply,true,{kGridApply.bytes,kGridApply.mask,8},0}, {"variable",{},FindGridVariable,true,{kGridVariable.bytes,kGridVariable.mask,16},0},
  {"fixed",{},FindGridFixed,true,kGridFixed,0}, {"lookup",{},FindGridLookup,true,kGridLookup,0},
 };
 uint32_t GridWord(const Image& image,uintptr_t at){uint32_t word=0;ReadInsn(image,at,&word);return word;}
@@ -53,6 +76,9 @@ bool DecodeDesktopGridLayout(const Image& image,const uintptr_t* sites,DesktopGr
   return FindUniqueBytes(image,search,at,&matches)&&verify(*at,pattern,original,begin);
  };
  for(unsigned i=0;i<8;++i)if(!verify(sites[i],kGridSites[i].verify,i==5?variable:i==6?rows:nullptr,i==6?32:0))return false;
+ const bool inline_apply=verify(sites[4],kGridInlineApply);
+ if(!inline_apply&&!verify(sites[4],kGridApply))return false;
+ if(!verify(sites[5],kGridVariable,variable)&&!verify(sites[5],kGridCompactVariable,variable))return false;
  DesktopGridLayout v{};uintptr_t call=0,other=0,prepare_current=0,legacy_cal=0,init=0,clamp_begin=0,values=0,copy=0,current=0,caller=0;uint32_t count=0;uint8_t rt=0,rn=0;uint32_t imm=0;
  if(!IsLdrImm(GridWord(image,sites[0]+16),&rt,&rn,&imm)||rt!=0||rn!=0)return false;
  v.controller_slot=imm*8u;
@@ -64,7 +90,11 @@ bool DecodeDesktopGridLayout(const Image& image,const uintptr_t* sites,DesktopGr
  v.current=GridField(GridWord(image,prepare_current+84));v.selected=GridField(GridWord(image,prepare_current+376));
  if(v.current!=GridField(GridWord(image,prepare_current+100))||v.current!=GridField(GridWord(image,sites[4]+68))||v.selected!=GridField(GridWord(image,sites[4]+32))||v.selected!=GridField(GridWord(image,sites[3]+664)))return false;
  v.grid_x=GridField(GridWord(image,prepare_current+200));v.grid_y=GridField(GridWord(image,prepare_current+316));
- if(v.grid_x!=GridField(GridWord(image,sites[4]+0x2ac))||v.grid_y!=GridField(GridWord(image,sites[4]+0x308)))return false;
+ if(inline_apply) {
+  uintptr_t description=0;
+  if(!FindUniqueBytes(image,kGridDescription,&description,&count)||
+     v.grid_x!=GridField(GridWord(image,description+0x104))||v.grid_y!=GridField(GridWord(image,description+0x150)))return false;
+ } else if(v.grid_x!=GridField(GridWord(image,sites[4]+0x2ac))||v.grid_y!=GridField(GridWord(image,sites[4]+0x308)))return false;
  v.options=GridField(GridWord(image,sites[7]));v.list_length=GridField(GridWord(image,sites[7]+8));v.list_data=GridField(GridWord(image,sites[7]+16));v.array_data=GridField(GridWord(image,sites[7]+40));
  v.x=GridField(GridWord(image,sites[2]+48));v.y=GridField(GridWord(image,sites[2]+40));v.index=GridField(GridWord(image,sites[2]+56));v.layout=GridField(GridWord(image,sites[2]+64));
  if(v.x!=GridField(GridWord(image,sites[4]+96))||v.y!=GridField(GridWord(image,sites[4]+112))||v.index!=GridField(GridWord(image,sites[7]+52))||v.layout!=GridField(GridWord(image,sites[4]+128)))return false;
@@ -78,19 +108,34 @@ bool DecodeDesktopGridLayout(const Image& image,const uintptr_t* sites,DesktopGr
  const auto guard0=GridWord(image,legacy_cal+0x3b4),guard1=GridWord(image,legacy_cal+0xc84);
  if((guard0&0xffc003ffu)!=0xf100003fu||(guard1&0xffc003ffu)!=0xf100001fu||((guard0>>10)&4095u)!=v.cell_cid||((guard1>>10)&4095u)!=v.cell_cid)return false;
  if(!find_owned(kGridHandler,0,handler,&v.handler)||!GridCall(image,v.handler+0x8c,&call)||call!=sites[6]||!GridCall(image,v.handler+0x9c,&call)||call!=sites[5]||!GridCall(image,v.handler+0xa8,&values)||!verify(values,kGridValues))return false;
- if(!GridCall(image,values+0x714,&copy)||!verify(copy,kGridCopy))return false;
+ if(!GridCall(image,values+0x714,&copy))return false;
+ const bool spilled_copy=verify(copy,kGridSpilledCopy);
+ if(!spilled_copy&&!verify(copy,kGridCopy))return false;
  v.context_x=GridField(GridWord(image,sites[5]+0x3c));v.context_y=GridField(GridWord(image,copy+0x71c));
- if(v.context_x!=GridField(GridWord(image,sites[6]+0x4c))||v.context_x!=GridField(GridWord(image,copy+0x6fc))||v.context_x!=GridField(GridWord(image,copy+0x8d0))||v.context_y!=GridField(GridWord(image,copy+0x8d8)))return false;
+ if(v.context_x!=GridField(GridWord(image,sites[6]+0x4c))||v.context_x!=GridField(GridWord(image,copy+0x6fc))||v.context_x!=GridField(GridWord(image,copy+(spilled_copy?0x8e8:0x8d0)))||v.context_y!=GridField(GridWord(image,copy+(spilled_copy?0x8f0:0x8d8))))return false;
  v.input_rows=GridField(GridWord(image,sites[6]+0x20));v.rows_window=sites[6]+0x20;
  uint32_t row_word=rows?0:GridWord(image,v.rows_window),row_branch=rows?0:GridWord(image,v.rows_window+12);
  if(rows){memcpy(&row_word,rows,4);memcpy(&row_branch,rows+12,4);}
  if((row_word&0xffe00fffu)!=0xb8400003u||(row_branch&0xff00001fu)!=0x54000000u)return false;
  v.input_rows=GridField(row_word);const int64_t delta=static_cast<int32_t>(row_branch<<8)>>11;v.rows_null=static_cast<uintptr_t>(static_cast<int64_t>(v.rows_window+12)+delta);
  if(!Contains(image,v.rows_null,4,kFlagRead|kFlagExec)||!IsBl(GridWord(image,v.rows_null)))return false;
- if(!GridCall(image,sites[2]+248,&v.load)||!GridCall(image,sites[3]+340,&call)||call!=v.load||!verify(v.load,kGridLoad))return false;
- if(GridWord(image,v.load+0xa0c)!=0x7100681fu||!GridCall(image,v.load+0xa18,&call))return false;
- if(!GridCall(image,v.load+0x120c,&v.migrate)||!verify(v.migrate,kGridMigrate))return false;
- if(!GridCall(image,sites[4]+0x2a8,&current)||!verify(current,kGridCurrent))return false;
+ if(!GridCall(image,sites[2]+248,&v.load)||!GridCall(image,sites[3]+340,&call)||call!=v.load)return false;
+ const bool expanded_load=verify(v.load,kGridExpandedLoad);
+ if(!expanded_load&&!verify(v.load,kGridLoad))return false;
+ if(GridWord(image,v.load+(expanded_load?0xa94:0xa0c))!=0x7100681fu||!GridCall(image,v.load+(expanded_load?0xaa0:0xa18),&call))return false;
+ if(!GridCall(image,v.load+(expanded_load?0x1330:0x120c),&v.migrate)||!verify(v.migrate,kGridMigrate))return false;
+ if(inline_apply) {
+  // The apply body inlines currentConfig. Recover its separate getter by the
+  // same controller slot and Rx field, rejecting any duplicate consumer.
+  uintptr_t offsets[64]{};size_t stored=0;uint32_t total=0,matched=0;
+  if(!CollectBytes(image,kGridCurrent,offsets,64,&stored,&total)||total>64)return false;
+  for(size_t i=0;i<stored;++i) {
+   if(GridWord(image,offsets[i]+16)!=GridWord(image,sites[4]+0x250)||
+      GridField(GridWord(image,offsets[i]+76))!=GridField(GridWord(image,sites[4]+0x2cc)))continue;
+   current=offsets[i];++matched;
+  }
+  if(matched!=1)return false;
+ } else if(!GridCall(image,sites[4]+0x2a8,&current)||!verify(current,kGridCurrent))return false;
  if(!IsLdrImm(GridWord(image,current+16),&rt,&rn,&imm)||rt!=0||rn!=0)return false;v.grid_controller_slot=imm*8u;
  if(!FindUniqueBytes(image,kGridLoadCaller,&caller,&count)||!GridCall(image,caller+0x130,&call)||call!=v.load||!IsLdrImm(GridWord(image,caller+0x12c),&rt,&rn,&imm)||rt!=4||rn!=27)return false;v.load_descriptor=imm*8u;
  // Keep the preference loader from truncating six columns back to five. This

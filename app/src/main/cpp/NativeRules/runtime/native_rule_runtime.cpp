@@ -141,8 +141,12 @@ bool Prepare() {
         else { dlclose(handle); handle = g_dart_handle; }
         pthread_mutex_unlock(&g_settings_lock);
     }
-    return PrepareDartRuleTargets(handle, clear, folder, widgets, dock, haptic, stack, widget_stack, xiaoai_options, icon_scale, IconThemeNeedsPreparation()) &&
-        (!DesktopGridNeedsPreparation() || (PrepareDesktopGridTargets(handle) && PrepareDesktopGridLayout(handle)));
+    const bool rules_ready=PrepareDartRuleTargets(handle, clear, folder, widgets, dock, haptic, stack, widget_stack, xiaoai_options, icon_scale, IconThemeNeedsPreparation());
+    // Optional contracts fail independently. A rejected theme must not prevent
+    // preparing the grid's own verified targets and metadata on this worker.
+    const bool grid_ready=!DesktopGridNeedsPreparation() ||
+        (PrepareDesktopGridTargets(handle) && PrepareDesktopGridLayout(handle));
+    return rules_ready&&grid_ready;
 }
 void* Run(void*) {
     (void)pthread_setname_np(pthread_self(), "HT-RulePrepare");
@@ -166,9 +170,11 @@ void* Run(void*) {
         pthread_mutex_unlock(&g_settings_lock);
         const bool success = Prepare();
         pthread_mutex_lock(&g_settings_lock);
-        const bool notify = success && g_gate.generation == g_gate.running_generation;
+        const bool notify = g_gate.generation == g_gate.running_generation;
         g_gate.Complete(Now(), success);
         pthread_mutex_unlock(&g_settings_lock);
+        // Publish partial completion too: apply boundaries independently reject
+        // unavailable contracts. Aggregate failure must not starve ready rules.
         // One completion acknowledgement per preparation, outside the internal loader-query
         // scope. SystemUI replays its latest ACK on the existing receiver boundary so first
         // activation does not depend on another touch, arbitrary delay or host restart.

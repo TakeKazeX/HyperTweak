@@ -140,6 +140,8 @@ struct RecentsHapticLayout {
     uint16_t depth = 0, notification_metrics = 0, drag = 0, delta = 0;
     uint16_t minimum = 0, maximum = 0, pixels = 0;
     uintptr_t metrics_allocation = 0;
+    uintptr_t observer_entry = 0;
+    bool closure_entry = false;
 };
 bool DecodeRecentsHapticLayout(const Image& image, uintptr_t scroll, uintptr_t builder,
                                uintptr_t update, uintptr_t metrics, RecentsHapticLayout* output);

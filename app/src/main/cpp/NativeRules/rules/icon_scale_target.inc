@@ -51,8 +51,26 @@ bool DecodeIconScaleLayout(const Image& image,const uintptr_t* sites,IconScaleLa
  if(returns!=2)return false;
  uintptr_t notify=0,active=0,current_grid=0,description=0,produce=0,size_calc=0,call=0;uint32_t count=0;
  if(!IconCall(image,provider+76,&notify)||!MatchBytes(image,notify,kIconNotifyHead,kFlagRead|kFlagExec)||
-    !IconCall(image,notify+16,&active)||!MatchBytes(image,active,kIconActiveProvider,kFlagRead|kFlagExec)||
-    !IconCall(image,active+96,&current_grid)||!MatchBytes(image,current_grid,kIconCurrentGrid,kFlagRead|kFlagExec)||
+    !IconCall(image,notify+16,&active))return false;
+ const bool inlined=MatchBytes(image,active,kIconInlineActive,kFlagRead|kFlagExec);
+ if(inlined) {
+  // Two lazy singleton reads must agree, and the inlined getter must read the
+  // same Rx slot as the independently located, out-of-line currentConfig.
+  if(IconWord(image,active+20)!=IconWord(image,active+84)||
+     !IconCall(image,active+172,&call)||call!=rx)return false;
+  uintptr_t candidates[64]{};size_t stored=0;uint32_t total=0,matched=0;
+  if(!CollectBytes(image,kIconCurrentGrid,candidates,64,&stored,&total)||total>64)return false;
+  for(size_t i=0;i<stored;++i) {
+   const auto candidate=candidates[i];
+   if(IconWord(image,candidate+16)!=IconWord(image,active+20)||
+      IconField(IconWord(image,candidate+76))!=IconField(IconWord(image,active+160))||
+      !IconCall(image,candidate+84,&call)||call!=rx)continue;
+   current_grid=candidate;++matched;
+  }
+  if(matched!=1)return false;
+ } else if(!MatchBytes(image,active,kIconActiveProvider,kFlagRead|kFlagExec)||
+           !IconCall(image,active+96,&current_grid))return false;
+ if(!MatchBytes(image,current_grid,kIconCurrentGrid,kFlagRead|kFlagExec)||
     !IconCall(image,current_grid+84,&call)||call!=rx||
     !FindUniqueBytes(image,kIconActualDescription,&description,&count)||
     !FindUniqueBytes(image,kIconActualProduce,&produce,&count)||
@@ -68,7 +86,7 @@ bool DecodeIconScaleLayout(const Image& image,const uintptr_t* sites,IconScaleLa
     (IconWord(image,notify+236)&0xffe00fffu)!=0xb8400023u||IconWord(image,notify+240)!=0x8b1c8063u||
     (IconWord(image,notify+548)&0xffe00fffu)!=0xfc400000u)return false;
  next.active_rx=IconField(IconWord(image,current_grid+76));
- next.actual_grid_icon=IconField(IconWord(image,active+100));next.actual_provider=IconField(IconWord(image,active+108));
+ next.actual_grid_icon=IconField(IconWord(image,active+(inlined?176:100)));next.actual_provider=IconField(IconWord(image,active+(inlined?184:108)));
  next.actual_width=IconField(IconWord(image,notify+548));next.actual_size=IconField(IconWord(image,description+200));next.actual_padding=IconField(IconWord(image,description+296));
  if(next.actual_grid_icon!=IconField(IconWord(image,notify+228))||
     next.actual_provider!=IconField(IconWord(image,notify+236))||next.actual_provider!=IconField(IconWord(image,description+488))||

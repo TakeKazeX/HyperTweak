@@ -47,10 +47,22 @@ int main(int argc,char** argv){
  for(unsigned i=0;i<8;++i){const auto at=resolved.sites[i].offset;const auto saved=image_bytes[at];image_bytes[at]^=0xff;const auto bad=dart::ResolveTarget(image,dart::kDesktopGridTarget);assert(!bad.resolved||!bad.verified);image_bytes[at]=saved;}
  uintptr_t sites[8]{};for(unsigned i=0;i<8;++i)sites[i]=resolved.sites[i].offset;
  dart::DesktopGridLayout decoded{};assert(dart::DecodeDesktopGridLayout(image,sites,&decoded));
+ // Preview reads and the independent live-geometry consumer must agree.
+ uint32_t prepare_word=0;uintptr_t prepare_current=0;
+ assert(dart::ReadInsn(image,sites[1]+20,&prepare_word)&&dart::DecodeBlTarget(sites[1]+20,prepare_word,&prepare_current));
+ uint32_t geometry_field=0;assert(dart::ReadInsn(image,prepare_current+200,&geometry_field));
+ const auto conflicting_geometry=geometry_field^(4u<<12u);
+ memcpy(image_bytes.data()+prepare_current+200,&conflicting_geometry,4);
+ assert(!dart::DecodeDesktopGridLayout(image,sites,&decoded));
+ memcpy(image_bytes.data()+prepare_current+200,&geometry_field,4);
+ assert(dart::DecodeDesktopGridLayout(image,sites,&decoded));
  // A field producer cannot diverge from its consumer, even when its opcode still matches.
  const auto field_at=decoded.clamp+4;uint32_t field_word=0;memcpy(&field_word,image_bytes.data()+field_at,4);const auto changed=field_word^(4u<<12u);memcpy(image_bytes.data()+field_at,&changed,4);assert(!dart::DecodeDesktopGridLayout(image,sites,&decoded));memcpy(image_bytes.data()+field_at,&field_word,4);
  // Shape-compatible operands must still preserve the input/output relationships.
- for(const auto at:{decoded.variable+0x3c,decoded.load+0x120c}){
+ uintptr_t migrate_call=0;unsigned migrate_calls=0;
+ for(size_t offset=0;offset<8192;offset+=4){uint32_t word=0;uintptr_t target=0;if(dart::ReadInsn(image,decoded.load+offset,&word)&&dart::IsBl(word)&&dart::DecodeBlTarget(decoded.load+offset,word,&target)&&target==decoded.migrate){migrate_call=decoded.load+offset;++migrate_calls;}}
+ assert(migrate_calls==1);
+ for(const auto at:{decoded.variable+0x3c,migrate_call}){
   uint32_t before=0;memcpy(&before,image_bytes.data()+at,4);
   const uint32_t corrupt=at==decoded.variable+0x3c?before^(4u<<12u):0x94000000u;
   memcpy(image_bytes.data()+at,&corrupt,4);dart::DesktopGridLayout rejected{};

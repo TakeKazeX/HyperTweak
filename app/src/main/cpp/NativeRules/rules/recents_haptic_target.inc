@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Verified instruction contracts, not launcher version/address tables.
+#include "recents_haptic_build.inc"
 namespace {
 const uint32_t kScrollWords[] = {
     0x0u, 0x0u, 0x0u, 0x0u,
@@ -25,6 +26,18 @@ const uint32_t kScrollMasks[] = {
     0xffffffffu, 0xfc000000u, 0xffffffffu, 0xffffffffu,
     0xffffffffu, 0xffffffffu,
 };
+// Constant-receiver form of the same start/end notification dispatch.
+constexpr uint32_t kStaticScrollWords[]={
+ 0xa9bf79fdu,0xaa0f03fdu,0xd10021efu,0xf85ff040u,0xd34c7c00u,0xf81f83a0u,0xd2827fd1u,0xeb11001fu,
+ 0x54000081u,0x91438f61u,0xf945e421u,0x97f28cacu,0xf85f83a0u,0xd2827f71u,0xeb11001fu,0x54000081u,
+ 0x91438f61u,0xf945e421u,0x97f28de3u,0x9100c2c0u,0xaa1d03efu,0xa8c179fdu,0xd65f03c0u,
+};
+constexpr uint32_t kStaticScrollMasks[]={
+ 0xffffffffu,0xffffffffu,0xffffffffu,0xffffffffu,0xffffffffu,0xffffffffu,0xffe0001fu,0xffffffffu,
+ 0xffffffffu,0xffc003ffu,0xffc003ffu,0xfc000000u,0xffffffffu,0xffe0001fu,0xffffffffu,0xffffffffu,
+ 0xffc003ffu,0xffc003ffu,0xfc000000u,0xffffffffu,0xffffffffu,0xffffffffu,0xffffffffu,
+};
+const BytePattern kStaticScroll{reinterpret_cast<const uint8_t*>(kStaticScrollWords),reinterpret_cast<const uint8_t*>(kStaticScrollMasks),sizeof(kStaticScrollWords)};
 const uint32_t kBuilderWords[] = {
     0xa9bf79fdu, 0xaa0f03fdu, 0xd100a1efu, 0xf94013a0u,
     0xb8417001u, 0x8b1c8021u, 0xb840f020u, 0x8b1c8000u,
@@ -277,8 +290,27 @@ bool FindHapticUpdate(const Image& image,uintptr_t* output,uint32_t* candidates)
 bool FindHapticMetrics(const Image& image,uintptr_t* output,uint32_t* candidates) {
     return FindHapticContract(image,kMetricsSeedPattern,HapticMetricsContract,output,candidates);
 }
+bool StaticScrollContract(const Image& image,uintptr_t at) {
+    return MatchBytes(image,at,kStaticScroll,kFlagRead|kFlagExec) &&
+        HapticWord(image,at+36)==HapticWord(image,at+64) &&
+        HapticWord(image,at+40)==HapticWord(image,at+68);
+}
+bool FindHapticScroll(const Image& image,uintptr_t* out,uint32_t* candidates) {
+    const BytePattern lazy{reinterpret_cast<const uint8_t*>(kScrollWords),reinterpret_cast<const uint8_t*>(kScrollMasks),sizeof(kScrollWords)};
+    uintptr_t offsets[16]{};size_t count=0;uint32_t total=0;
+    *candidates=0;
+    const BytePattern patterns[]={lazy,kStaticScroll};
+    for(const auto& pattern:patterns) {
+        if(!CollectBytes(image,pattern,offsets,16,&count,&total)||total>16)return false;
+        for(size_t i=0;i<count;++i) {
+            if(pattern.bytes==kStaticScroll.bytes&&!StaticScrollContract(image,offsets[i]))continue;
+            *out=offsets[i];++*candidates;
+        }
+    }
+    return *candidates==1;
+}
 const SiteSpec kRecentsHapticSites[] = {
-{"scroll", {reinterpret_cast<const uint8_t*>(kScrollWords),reinterpret_cast<const uint8_t*>(kScrollMasks),sizeof(kScrollWords)},nullptr,true,{reinterpret_cast<const uint8_t*>(kScrollEntry),nullptr,sizeof(kScrollEntry)},0},
+{"scroll", {},FindHapticScroll,true,{reinterpret_cast<const uint8_t*>(kScrollEntry),nullptr,sizeof(kScrollEntry)},0},
 {"builder", {reinterpret_cast<const uint8_t*>(kBuilderWords),reinterpret_cast<const uint8_t*>(kBuilderMasks),sizeof(kBuilderWords)},nullptr,true,{reinterpret_cast<const uint8_t*>(kBuilderWords),reinterpret_cast<const uint8_t*>(kBuilderMasks),sizeof(kBuilderWords)},0},
 {"update", {},FindHapticUpdate,true,kUpdateSeedPattern,0},
 {"metrics", {},FindHapticMetrics,true,kMetricsSeedPattern,0},
@@ -287,13 +319,29 @@ const SiteSpec kRecentsHapticSites[] = {
 const TargetSpec kRecentsHapticTarget = {"recents_card_haptic", "libapp.so", kRecentsHapticSites, 4};
 bool DecodeRecentsHapticLayout(const Image& image,uintptr_t scroll,uintptr_t builder,
                               uintptr_t update,uintptr_t metrics,RecentsHapticLayout* output) {
-    if(!output || !MatchBytes(image,scroll,{reinterpret_cast<const uint8_t*>(kScrollWords),reinterpret_cast<const uint8_t*>(kScrollMasks),sizeof(kScrollWords)},kFlagRead|kFlagExec) ||
+    if(!output || (!MatchBytes(image,scroll,{reinterpret_cast<const uint8_t*>(kScrollWords),reinterpret_cast<const uint8_t*>(kScrollMasks),sizeof(kScrollWords)},kFlagRead|kFlagExec) && !StaticScrollContract(image,scroll)) ||
         !MatchBytes(image,builder,kRecentsHapticSites[1].pattern,kFlagRead|kFlagExec))return false;
     HapticUpdate u{};HapticMetrics m{};
     if(!HapticUpdateContract(image,update,&u) || !HapticMetricsContract(image,metrics,&m))return false;
     RecentsHapticLayout result{};
     result.start=(HapticWord(image,scroll+0x18)>>5)&0xffffu;
-    result.end=(HapticWord(image,scroll+0x54)>>5)&0xffffu;
+    result.end=(HapticWord(image,scroll+(StaticScrollContract(image,scroll)?0x34:0x54))>>5)&0xffffu;
+    result.observer_entry=scroll;
+    if(StaticScrollContract(image,scroll)) {
+        // The compiler merged receiver-independent handlers. Observe only the
+        // StackList closure paired with its verified build and item builder.
+        uintptr_t build=0;uint32_t count=0;
+        if(!FindUniqueBytes(image,kHapticBuild,&build,&count))return false;
+        const auto thunk=build+kHapticBuild.size;
+        const uint32_t words[]={0xa9bf79fdu,0xaa0f03fdu,0xf9400fa0u,0xb8417001u,0x8b1c8021u,0xf9400ba2u};
+        for(unsigned i=0;i<6;++i)if(HapticWord(image,thunk+i*4)!=words[i])return false;
+        uintptr_t call=0;
+        if(thunk+40!=builder||!IsBl(HapticWord(image,thunk+24))||
+           !DecodeBlTarget(thunk+24,HapticWord(image,thunk+24),&call)||call!=scroll||
+           HapticWord(image,thunk+28)!=kDartRestoreFrame||HapticWord(image,thunk+32)!=kDartPopFrame||
+           HapticWord(image,thunk+36)!=kDartReturn)return false;
+        result.observer_entry=thunk;result.closure_entry=true;
+    }
     result.update=u.cid;result.metrics=m.cid;result.number=u.number;
     result.depth=u.depth;result.notification_metrics=u.metrics;result.drag=u.drag;result.delta=u.delta;
     result.minimum=m.minimum;result.maximum=m.maximum;result.pixels=m.pixels;result.metrics_allocation=m.allocation;

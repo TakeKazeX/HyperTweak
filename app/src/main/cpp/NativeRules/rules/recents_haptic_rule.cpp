@@ -10,6 +10,7 @@
 extern "C" {
 __attribute__((visibility("hidden"))) uint32_t g_recents_haptic_enabled = 0;
 __attribute__((visibility("hidden"))) void* g_recents_haptic_original = nullptr;
+__attribute__((visibility("hidden"))) uint32_t g_recents_haptic_closure = 0;
 void HyperTweakRecentsScrollHook();
 bool HyperTweakSendRecentsHaptic();
 }
@@ -17,6 +18,7 @@ namespace hypertweak::native {
 namespace {
 pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 void* target = nullptr;
+void* scroll_source = nullptr;
 uint8_t* base = nullptr;
 uint8_t original[16]{}, patch[16]{};
 const char* reason = "disabled";
@@ -58,8 +60,8 @@ bool ApplyRecentsHapticRule(void* handle) {
     if (!ResolveDartSites(handle, dart::kRecentsHapticTarget, &resolution)) {
         __atomic_store_n(&reason, resolution.reason, __ATOMIC_RELEASE); return false;
     }
-    void* next = reinterpret_cast<void*>(resolution.Find("scroll"));
-    if (target == next && base == resolution.base && memcmp(next, patch, 16) == 0) {
+    void* source = reinterpret_cast<void*>(resolution.Find("scroll"));
+    if (scroll_source == source && target && base == resolution.base && memcmp(target, patch, 16) == 0) {
         __atomic_store_n(&reason, "installed", __ATOMIC_RELEASE); return true;
     }
     if (!resolution.MatchVerify("scroll")) {
@@ -69,6 +71,7 @@ bool ApplyRecentsHapticRule(void* handle) {
     if (!Decode(resolution, &next_layout)) {
         __atomic_store_n(&reason, "layout_rejected", __ATOMIC_RELEASE); return false;
     }
+    void* next=resolution.base+next_layout.observer_entry;
     if (target != nullptr) {
         // Only repair a remapped original at the same image/address. A different
         // image or another owner's patch must never inherit our old trampoline.
@@ -79,14 +82,16 @@ bool ApplyRecentsHapticRule(void* handle) {
         target = nullptr;
     }
     layout = next_layout;
+    __atomic_store_n(&g_recents_haptic_closure,layout.closure_entry?1u:0u,__ATOMIC_RELEASE);
     memcpy(original, next, 16);
     if (InstallInlineHook(next, reinterpret_cast<void*>(HyperTweakRecentsScrollHook),
                           &g_recents_haptic_original) != kHookSuccess || g_recents_haptic_original == nullptr) {
         __atomic_store_n(&reason, "hook_failed", __ATOMIC_RELEASE); return false;
     }
-    target = next; base = resolution.base; memcpy(patch, target, 16);
+    target = next; scroll_source = source; base = resolution.base; memcpy(patch, target, 16);
     __atomic_store_n(&reason, "installed", __ATOMIC_RELEASE);
-    LogInfo("recents card haptic installed start=%u update=%u end=%u metrics=%u", layout.start, layout.update, layout.end, layout.metrics);
+    LogInfo("recents card haptic installed entry=%s start=%u update=%u end=%u metrics=%u",
+            layout.closure_entry?"closure":"direct",layout.start,layout.update,layout.end,layout.metrics);
     return true;
 }
 extern "C" void HyperTweakObserveRecentsScroll(uintptr_t state, uintptr_t notification, uintptr_t heap, uintptr_t null) {
