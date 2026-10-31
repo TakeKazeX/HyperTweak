@@ -19,6 +19,7 @@ import kotlin.math.roundToInt
 internal class DuoStatusIconsMotion {
     var excludedSlots: Set<String> = emptySet()
         set(value) {
+            if (field == value) return
             field = value
             value.forEach { slot -> entries.remove(slot)?.copies?.forEach(::release) }
             layer.invalidateSelf()
@@ -40,6 +41,7 @@ internal class DuoStatusIconsMotion {
     private val masks = java.util.IdentityHashMap<View, Alpha>()
     private val entries = LinkedHashMap<String, Entry>()
     private var progress = 0f
+    private var drawKey: List<Any?>? = null
     private var failed = false
     private var reportedFailure = false
     private val matrix = Matrix()
@@ -120,7 +122,11 @@ internal class DuoStatusIconsMotion {
         entries.keys.retainAll(usedSlots)
         masks.keys.toList().filter { it !in usedViews }.forEach(::release)
         layer.setBounds(0, 0, root.width, root.height)
-        layer.invalidateSelf()
+        val nextKey = listOf(progress, root.width, root.height, entries.map { (slot, entry) ->
+            listOf(slot, entry.source.revision, entry.target.revision, entry.hasSource, entry.hasTarget,
+                RectF(entry.from), RectF(entry.to), entry.opacity)
+        })
+        if (drawKey != nextKey) { drawKey = nextKey; layer.invalidateSelf() }
     }
 
     private fun bounds(view: View, ink: RectF, out: RectF) {
@@ -134,7 +140,7 @@ internal class DuoStatusIconsMotion {
     private fun restoreMasks() { masks.keys.toList().forEach(::release) }
     fun clear() {
         restoreMasks(); host?.overlay?.remove(layer)
-        host = null; ownership = null; entries.clear(); failed = false
+        host = null; ownership = null; entries.clear(); failed = false; drawKey = null
     }
 
     companion object {

@@ -58,6 +58,7 @@ internal class SignalRowMotion {
     private val nextDestination = RectF()
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
     private var tint = 0
+    private var filterTint: Int? = null
     private var layerAlpha = 255
     private val matrix = Matrix()
     private val rootMatrix = Matrix()
@@ -132,6 +133,8 @@ internal class SignalRowMotion {
             ready = false; failed = false
         }
         if (abs(native.alpha - appliedAlpha) > .001f) savedAlpha = native.alpha
+        val sourceRevision = sourceFrame.revision
+        val targetRevision = targetFrame.revision
         val glyphDrawable = sourceGlyph?.drawable
         val glyphFilter = sourceGlyph?.colorFilter
         val glyphTint = sourceGlyph?.imageTintList?.let { it.getColorForState(sourceGlyph.drawableState, it.defaultColor) }
@@ -147,12 +150,6 @@ internal class SignalRowMotion {
         sourceCrop.set(sourceLocal)
         picture = commands
         crop.set(pictureCrop)
-        if (sourceGlyph != null || barMorph != null) {
-            // The bound view owns its real filter/tint. A second SRC_IN would replace that color.
-            paint.colorFilter = null
-        } else if (tint != color || paint.colorFilter == null) {
-            paint.colorFilter = PorterDuffColorFilter(color, PorterDuff.Mode.SRC_IN)
-        }
         tint = color
         start.set(sourceLocal)
         matrix.reset(); source.transformMatrixToGlobal(matrix); matrix.mapRect(start)
@@ -179,7 +176,21 @@ internal class SignalRowMotion {
                     }) { clear(); return false }
                 }
             }
+        }
+        if (barMorph != null || sourceGlyph == null) {
             if (!targetFrame.captureView(native)) { clear(); return false }
+        }
+        if (sourceGlyph != null || barMorph != null) {
+            paint.colorFilter = null
+            filterTint = null
+        } else {
+            // Dot/fallback contours are white masks. Their geometry already follows p; the
+            // filter must follow the native endpoint too, rather than hold HOME black until p=1.
+            val nextTint = targetFrame.blendFrom(color, progress.coerceIn(0f, 1f))
+            if (filterTint != nextTint) {
+                paint.colorFilter = PorterDuffColorFilter(nextTint, PorterDuff.Mode.SRC_IN)
+                filterTint = nextTint
+            }
         }
         matrix.reset(); native.transformMatrixToGlobal(matrix); matrix.mapRect(end)
         val p = progress.coerceIn(0f, 1f)
@@ -202,7 +213,7 @@ internal class SignalRowMotion {
             (it.coerceIn(0f, 1f) * 255).toInt()
         } ?: ((1f - handoff) * 255f).toInt()
         val nextShape = if (targetCommands != null || dotMorph != null || barMorph != null) p else 0f
-        val needsDraw = changed || endpointsChanged || destination != nextDestination || layerAlpha != nextAlpha || shapeFraction != nextShape || !ready
+        val needsDraw = sourceRevision != sourceFrame.revision || targetRevision != targetFrame.revision || changed || endpointsChanged || destination != nextDestination || layerAlpha != nextAlpha || shapeFraction != nextShape || !ready
         destination.set(nextDestination)
         layerAlpha = nextAlpha
         destinationPicture = targetCommands
@@ -224,7 +235,7 @@ internal class SignalRowMotion {
     fun clear() {
         restoreTarget(); host?.overlay?.remove(layer); host = null
         picture = null; destinationPicture = null; shapeFraction = 0f; roundDotSource = false; ready = false; failed = false
-        sourceGlyph = null; sourceDrawable = null; sourceFilter = null; sourceTint = null; sourceStateHash = 0
+        sourceGlyph = null; sourceDrawable = null; sourceFilter = null; sourceTint = null; sourceStateHash = 0; filterTint = null
         sourceCrop.setEmpty(); dotMorph = null; barMorph = null; frameKey = null; sourceDestination.setEmpty(); targetDestination.setEmpty()
     }
 }

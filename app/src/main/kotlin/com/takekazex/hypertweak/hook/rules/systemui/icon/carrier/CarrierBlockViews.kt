@@ -80,7 +80,7 @@ internal class CarrierRowParts(
 }
 
 internal data class CarrierRowRenderState(
-    val model: CarrierRowModel, val art: CarrierArtwork, val tint: Int,
+    val model: CarrierRowModel, val art: CarrierArtwork,
     val densityDpi: Int, val fontScale: Float, val rtl: Boolean,
     val iconHeight: Int, val carrier: String, val badgeText: String,
     val single: Boolean, val roaming: Boolean, val keepType: Boolean,

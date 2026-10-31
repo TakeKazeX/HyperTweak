@@ -179,7 +179,7 @@ internal class DuoPanelHandover(private val host: Host) {
                 home.view.icon.signalDotMorph(index, it)
             } else null
             if (motion.update(root, home.view, binding.signalSourceBounds, target, picture,
-                    binding.signalPictureCrop, binding.view.icon.foreground, host.panelProgress, destinationPicture, roundDotSource = dots, dotMorph = dotMorph,
+                    binding.signalPictureCrop, home.view.icon.foreground, host.panelProgress, destinationPicture, roundDotSource = dots, dotMorph = dotMorph,
                     barMorph = if (!dots) host.rowMorph(binding.battery.context, index, rows.size) else null)) {
                 if (dots) dotsReady = true
                 hidden += index

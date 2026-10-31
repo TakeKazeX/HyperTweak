@@ -25,6 +25,7 @@ internal class LeftPanelMotion(private val onFrameStateChanged: () -> Unit) {
     private var frameReady = false
     private var drawFailed = false
     private var progress = 0f
+    private var drawKey: List<Any?>? = null
     private val sourceFrame = PanelGlyphFrame()
     private val targetFrame = PanelGlyphFrame()
     private val travel = PanelGlyphTravel()
@@ -82,7 +83,10 @@ internal class LeftPanelMotion(private val onFrameStateChanged: () -> Unit) {
         appliedTargetAlpha = if (ready) savedTargetAlpha * LeftHandover.destinationAlpha(this.progress)
             else if (holdTargetUntilReady) 0f else savedTargetAlpha
         target.alpha = appliedTargetAlpha
-        layer.setBounds(0, 0, root.width, root.height); layer.invalidateSelf()
+        layer.setBounds(0, 0, root.width, root.height)
+        val nextKey = listOf(sourceFrame.revision, targetFrame.revision, RectF(from), RectF(to),
+            this.progress, ready, root.width, root.height)
+        if (drawKey != nextKey) { drawKey = nextKey; layer.invalidateSelf() }
         return ready
     }
     private fun restoreTarget() {
@@ -92,6 +96,7 @@ internal class LeftPanelMotion(private val onFrameStateChanged: () -> Unit) {
     fun clear() {
         restoreTarget(); host?.overlay?.remove(layer)
         host = null; source = null; frameReady = false; drawFailed = false
+        drawKey = null
         from.setEmpty(); to.setEmpty()
     }
 }

@@ -5,6 +5,9 @@ import android.graphics.Canvas
 import android.graphics.ColorFilter
 import android.graphics.PixelFormat
 import android.graphics.drawable.Drawable
+import android.graphics.drawable.Animatable
+import android.graphics.drawable.BitmapDrawable
+import android.widget.ImageView
 import android.view.View
 import android.view.ViewGroup
 import com.takekazex.hypertweak.util.logging.DebugLog
@@ -36,6 +39,7 @@ internal class CarrierTypeMotion {
     private var glyphAlpha = 255
     private var frameReady = false
     private var drawFailed = false
+    private var drawKey: List<Any?>? = null
 
     private val layer = object : Drawable() {
         override fun draw(canvas: Canvas) {
@@ -120,8 +124,19 @@ internal class CarrierTypeMotion {
         // Expansion moves the glyph; it must not select the control-center palette or fade clock.
         glyphAlpha = (CarrierHandover.overlayFraction(sourceAppearanceAlpha) * 255).toInt()
         layer.setBounds(0, 0, root.width, root.height)
-        // The binder can change the source drawable/tint without moving it, so always invalidate.
-        layer.invalidateSelf()
+        // Native signal/type/Wi-Fi binders replace the drawable or its ImageView tint. Track
+        // those changes as well as geometry: invalidating every pre-draw feeds itself forever
+        // when the finger holds the panel between endpoints.
+        val image = source as? ImageView
+        val drawable = image?.drawable
+        val nextKey = listOf(source, target, centerX, centerY, drawWidth, drawHeight, glyphAlpha,
+            root.width, root.height, drawable, (drawable as? BitmapDrawable)?.bitmap?.generationId,
+            drawable?.level, drawable?.alpha, drawable?.colorFilter, image?.colorFilter,
+            image?.imageTintList, image?.imageAlpha, source.drawableState.contentHashCode(), frameReady)
+        if (drawKey != nextKey || image == null || drawable is Animatable && drawable.isRunning) {
+            drawKey = nextKey
+            layer.invalidateSelf()
+        }
         return frameReady && !drawFailed
     }
 
@@ -139,6 +154,7 @@ internal class CarrierTypeMotion {
         source = null
         frameReady = false
         drawFailed = false
+        drawKey = null
         centerX = 0f
         centerY = 0f
         drawWidth = 0f

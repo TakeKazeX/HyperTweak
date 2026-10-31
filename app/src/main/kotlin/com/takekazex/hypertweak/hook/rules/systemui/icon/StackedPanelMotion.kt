@@ -43,7 +43,7 @@ internal class StackedPanelMotion(private val callback: Any) {
         rows = nextRows; picture = commands; splitFraction = stackedSplitFraction; barMorphs = morphs
         fraction?.takeIf { it.isFinite() }?.let { progress = it.coerceIn(0f, 1f); if (it > 0f) visible = true }
         showing?.let { visible = it }
-        if (!visible || picture == null || rows.isEmpty()) { clear(); return }
+        if (!visible || progress <= 0f || progress >= 1f || picture == null || rows.isEmpty()) { clear(); return }
         val owner = read(callback, "this\$0") ?: return
         val lazyHeader = read(owner, "headerController") ?: return
         val header = HostAccess.publicMethod(lazyHeader.javaClass, "get", accessible = false)?.invoke(lazyHeader) ?: return

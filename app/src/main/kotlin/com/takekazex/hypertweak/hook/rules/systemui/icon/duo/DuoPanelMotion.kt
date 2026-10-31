@@ -45,6 +45,7 @@ internal class DuoPanelMotion(context: Context, private val airplaneOnly: Boolea
     private val matrix = Matrix()
     private val rootMatrix = Matrix()
     private val inverseRoot = Matrix()
+    private var drawKey: List<Any?>? = null
     private var sourceKey: List<Any?>? = null
     private val glyph = DuoDrawable(context).apply {
         networkOnly = true
@@ -101,9 +102,6 @@ internal class DuoPanelMotion(context: Context, private val airplaneOnly: Boolea
         val usesNativeWifi = !airplaneOnly && content.wifiLevel != null && nativeWifi?.isReady() == true
         val artwork = nativeWifi.takeIf { usesNativeWifi }
         val rendered = if (airplaneOnly) content.copy(wifiLevel = null) else content
-        val previousX = x; val previousY = y; val previousSide = side; val previousOpacity = layerAlpha
-        val contentChanged = glyph.content != rendered || glyph.foreground != color ||
-            glyph.small5GaEnabled != small5GaEnabled || wifiArtwork !== artwork || host !== root || target !== native
         if (host !== root) { clear(); host = root; root.overlay.add(layer) }
         wifiArtwork = artwork
         if (target !== native) {
@@ -158,8 +156,9 @@ internal class DuoPanelMotion(context: Context, private val airplaneOnly: Boolea
         if (native.alpha != appliedAlpha) native.alpha = appliedAlpha
         layerAlpha = if (p >= 1f) 0 else 255
         layer.setBounds(0, 0, root.width, root.height)
-        if (contentChanged || previousX != x || previousY != y || previousSide != side || previousOpacity != layerAlpha || motionProgress > 0f)
-            layer.invalidateSelf()
+        val nextKey = listOf(sourceFrame.revision, targetFrame.revision, RectF(from), RectF(to),
+            motionProgress, layerAlpha, frameReady, root.width, root.height)
+        if (drawKey != nextKey) { drawKey = nextKey; layer.invalidateSelf() }
         return frameReady && !drawFailed
     }
 
@@ -173,6 +172,7 @@ internal class DuoPanelMotion(context: Context, private val airplaneOnly: Boolea
         host = null
         wifiArtwork = null
         sourceKey = null
+        drawKey = null
         frameReady = false
         drawFailed = false
     }

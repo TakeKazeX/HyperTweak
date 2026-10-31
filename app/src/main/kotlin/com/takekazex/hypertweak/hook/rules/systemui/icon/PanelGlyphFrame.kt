@@ -8,12 +8,12 @@ import android.graphics.Picture
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffColorFilter
 import android.graphics.RectF
+import android.graphics.drawable.BitmapDrawable
 import android.view.View
 import android.widget.ImageView
 import android.widget.TextView
 import androidx.core.graphics.ColorUtils
 import androidx.core.graphics.createBitmap
-import androidx.core.graphics.get
 import kotlin.math.abs
 import kotlin.math.ceil
 import kotlin.math.min
@@ -27,6 +27,10 @@ internal class PanelGlyphFrame {
         private set
     private var bitmap: Bitmap? = null
     private var sampleScale = 1f
+    private var samples = IntArray(0)
+    private var nextSamples = IntArray(0)
+    private var recordedWidth = 0
+    private var recordedHeight = 0
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val fitted = RectF()
     private var viewKey: List<Any?>? = null
@@ -39,15 +43,23 @@ internal class PanelGlyphFrame {
 
     fun captureView(view: View, crop: RectF? = null): Boolean {
         val image = view as? ImageView
+        val drawable = image?.drawable
+        val bitmapDrawable = drawable as? BitmapDrawable
         val text = view as? TextView
         val key = listOf(view, view.width, view.height, view.paddingLeft, view.paddingTop,
-            view.paddingRight, view.paddingBottom, image?.drawable, (image?.drawable as? android.graphics.drawable.BitmapDrawable)?.bitmap, image?.drawable?.level, image?.drawable?.alpha, image?.colorFilter,
+            view.paddingRight, view.paddingBottom, drawable, bitmapDrawable?.bitmap, drawable?.level, drawable?.alpha, bitmapDrawable?.bitmap?.generationId, image?.colorFilter,
             image?.drawable?.colorFilter, image?.imageTintList, image?.imageAlpha,
             view.drawableState.contentHashCode(), text?.text?.toString(), text?.textSize,
             text?.typeface, text?.letterSpacing, text?.currentTextColor, text?.includeFontPadding,
-            text?.gravity, text?.baseline, image?.scaleType, crop?.let(::RectF))
+            text?.gravity, text?.baseline, image?.scaleType, image?.imageTintMode,
+            image?.imageMatrix?.let { matrix -> FloatArray(9).also(matrix::getValues).toList() },
+            drawable?.bounds?.let { android.graphics.Rect(it) }, crop?.let(::RectF))
         // Drawable tint/paint can mutate in place without changing resource identity.
-        if (key == viewKey && !view.isDirty) return !ink.isEmpty
+        // Alpha-masked endpoints can stay dirty indefinitely because their parent skips drawing
+        // them. A plain bitmap's generation plus ImageView appearance fully identifies its ink.
+        val staticBitmap = image?.javaClass == ImageView::class.java && drawable?.javaClass == BitmapDrawable::class.java &&
+            image.background == null && image.foreground == null
+        if (key == viewKey && (staticBitmap || !view.isDirty)) return !ink.isEmpty
         viewKey = key
         return capture(view.width, view.height, crop) { view.draw(it) }
     }
@@ -78,10 +90,18 @@ internal class PanelGlyphFrame {
             ?: createBitmap(w, h).also { bitmap = it }
         pixels.eraseColor(Color.TRANSPARENT)
         Canvas(pixels).apply { scale(sampleScale, sampleScale); drawPicture(picture) }
+        if (nextSamples.size != w * h) nextSamples = IntArray(w * h)
+        pixels.getPixels(nextSamples, 0, w, 0, 0, w, h)
+        val changed = recordedWidth != width || recordedHeight != height || !samples.contentEquals(nextSamples)
+        val previous = samples
+        samples = nextSamples
+        nextSamples = previous
+        recordedWidth = width
+        recordedHeight = height
         var left = w; var top = h; var right = -1; var bottom = -1
         peak = 0
         for (y in 0 until h) for (x in 0 until w) {
-            val color = pixels[x, y]
+            val color = samples[y * w + x]
             val alpha = Color.alpha(color)
             if (alpha <= 8) continue
             left = minOf(left, x); top = minOf(top, y); right = maxOf(right, x); bottom = maxOf(bottom, y)
@@ -91,17 +111,19 @@ internal class PanelGlyphFrame {
         ink.set(left / sampleScale, top / sampleScale, (right + 1) / sampleScale, (bottom + 1) / sampleScale)
         solid = true
         for (y in top..bottom) for (x in left..right) {
-            val c = pixels[x, y]
+            val c = samples[y * w + x]
             if (Color.alpha(c) > 24 && (abs(Color.red(c) - Color.red(rgb)) > 5 ||
                 abs(Color.green(c) - Color.green(rgb)) > 5 || abs(Color.blue(c) - Color.blue(rgb)) > 5)) solid = false
         }
-        revision++
+        // Dirty masked views may be recorded again without any visible change. Such a capture
+        // must not schedule another overlay frame (which would keep the source dirty again).
+        if (changed) revision++
         return true
     }
 
     fun colorAt(x: Float, y: Float): Int = bitmap?.let {
-        it[(x * sampleScale).toInt().coerceIn(0, it.width - 1),
-            (y * sampleScale).toInt().coerceIn(0, it.height - 1)]
+        samples[(y * sampleScale).toInt().coerceIn(0, it.height - 1) * it.width +
+            (x * sampleScale).toInt().coerceIn(0, it.width - 1)]
     } ?: Color.TRANSPARENT
 
     fun sameShape(other: PanelGlyphFrame): Boolean {
@@ -130,6 +152,9 @@ internal class PanelGlyphFrame {
             canvas.drawPicture(picture)
         } finally { canvas.restoreToCount(save) }
     }
+
+    fun blendFrom(color: Int, progress: Float): Int =
+        ColorUtils.blendARGB(color, (rgb and 0x00ffffff) or (peak shl 24), progress)
 
     fun blendedColor(other: PanelGlyphFrame, progress: Float) = ColorUtils.blendARGB(rgb, other.rgb, progress)
 }

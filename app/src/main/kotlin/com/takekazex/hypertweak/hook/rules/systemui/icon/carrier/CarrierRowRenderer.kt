@@ -83,25 +83,16 @@ internal class CarrierRowRenderer {
         parts.row.visibility = View.VISIBLE
         val tint = runCatching { parts.carrierText.currentTextColor }.getOrDefault(0xFFFFFFFF.toInt())
         val context = parts.row.context
-        val density = context.resources.displayMetrics.density
         val densityDpi = context.resources.displayMetrics.densityDpi
         val fontScale = context.resources.configuration.fontScale
         val rtl = context.resources.configuration.layoutDirection == View.LAYOUT_DIRECTION_RTL
-        val state = CarrierRowRenderState(model, art, tint, densityDpi, fontScale, rtl,
+        val state = CarrierRowRenderState(model, art, densityDpi, fontScale, rtl,
             iconHeightPx(context), parts.carrierText.text.toString(), parts.badge.text.toString(),
             input.mobileState.subscriptionOrder.size == 1,
             input.mobileState.subscriptions[model.networkSubId]?.roaming == true, input.keepTypeOnWifi, input.typeConfig, input.showBadge,
             parts.carrierText.typeface, parts.carrierText.textSize)
+        syncTint(parts)
         if (parts.rendered == state) return
-        parts.badge.setTextColor(tint)
-        parts.airplaneText.setTextColor(tint)
-        if (parts.badgeTint != tint || parts.badgeDensity != density) {
-            parts.badgeDrawable.cornerRadius = 2 * density
-            parts.badgeDrawable.setStroke(density.roundToInt().coerceAtLeast(1), tint)
-            parts.badgeTint = tint
-            parts.badgeDensity = density
-        }
-        if (parts.badge.background !== parts.badgeDrawable) parts.badge.background = parts.badgeDrawable
 
         // In expanded Duo mode the battery ring stays on its own; the network type and Wi-Fi return
         // to the carrier row alongside each SIM's signal.
@@ -154,6 +145,24 @@ internal class CarrierRowRenderer {
             if (!parts.typeSuppressed) model.typeText?.let { append(", ").append(it) }
             if (wifiBitmap != null) append(", Wi-Fi")
         }
+    }
+
+    /** Palette changes follow the host in the same pre-draw, without rebuilding artwork/layout. */
+    fun syncTint(parts: CarrierRowParts) {
+        val tint = parts.carrierText.currentTextColor
+        val density = parts.row.resources.displayMetrics.density
+        if (parts.badgeTint == tint && parts.badgeDensity == density) return
+        parts.badge.setTextColor(tint)
+        parts.airplaneText.setTextColor(tint)
+        val colors = ColorStateList.valueOf(tint)
+        parts.signal.imageTintList = colors
+        parts.wifi.imageTintList = colors
+        parts.type.imageTintList = colors
+        parts.badgeDrawable.cornerRadius = 2 * density
+        parts.badgeDrawable.setStroke(density.roundToInt().coerceAtLeast(1), tint)
+        parts.badgeTint = tint
+        parts.badgeDensity = density
+        if (parts.badge.background !== parts.badgeDrawable) parts.badge.background = parts.badgeDrawable
     }
 
     /** One measured trailing position for cellular type and Wi-Fi, including the dual-display option. */

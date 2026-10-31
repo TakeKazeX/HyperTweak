@@ -46,6 +46,7 @@ internal class DuoStackedSignalMotion {
     private var failed = false
     private var reportedFailure = false
     private var progress = 0f
+    private var drawKey: List<Any?>? = null
     private val matrix = Matrix()
     private val inverse = Matrix()
     private val crop = RectF()
@@ -116,7 +117,6 @@ internal class DuoStackedSignalMotion {
         while (rows.size < count) rows += Row()
         while (rows.size > count) rows.removeAt(rows.lastIndex)
         var position = 0
-        val targetDirty = target.view.isDirty
         fun destination(row: Row, index: Int): Boolean {
             val view = target.view
             val drawable = view.drawable ?: return false
@@ -125,7 +125,6 @@ internal class DuoStackedSignalMotion {
             val top = row.targetLocal.top; val height = row.targetLocal.height()
             row.targetLocal.top = top + height * if (target.rows.size > 1 && index == 1) target.split else 0f
             row.targetLocal.bottom = top + height * if (target.rows.size > 1 && index == 0) target.split else 1f
-            if (targetDirty) row.target.invalidateView()
             if (!row.target.captureView(view, row.targetLocal)) return false
             row.to.set(row.targetLocal); matrix.reset(); view.transformMatrixToGlobal(matrix)
             matrix.mapRect(row.to); inverse.mapRect(row.to)
@@ -175,7 +174,12 @@ internal class DuoStackedSignalMotion {
         progress = fraction.coerceIn(0f, 1f)
         appliedAlpha = if (ready && progress < 1f) 0f else savedAlpha
         target.view.alpha = appliedAlpha
-        layer.setBounds(0, 0, root.width, root.height); layer.invalidateSelf()
+        layer.setBounds(0, 0, root.width, root.height)
+        val nextKey = listOf(progress, ready, root.width, root.height, rows.map { row ->
+            listOf(row.source.revision, row.target.revision, RectF(row.from), RectF(row.to),
+                RectF(row.sourceLocal), RectF(row.targetLocal), row.geometry)
+        })
+        if (drawKey != nextKey) { drawKey = nextKey; layer.invalidateSelf() }
         return ready
     }
     fun clear() {
@@ -183,6 +187,6 @@ internal class DuoStackedSignalMotion {
             if (abs(view.alpha - appliedAlpha) < .001f) view.alpha = savedAlpha
             ownership?.release(view, this)
         }
-        host?.overlay?.remove(layer); host = null; endpoint = null; ownership = null; rows.clear(); ready = false; failed = false
+        host?.overlay?.remove(layer); host = null; endpoint = null; ownership = null; rows.clear(); ready = false; failed = false; drawKey = null
     }
 }

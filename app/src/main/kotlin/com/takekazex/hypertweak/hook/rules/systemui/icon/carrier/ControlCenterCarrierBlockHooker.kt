@@ -937,6 +937,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         block.observer = block.layout.viewTreeObserver
         block.preDraw = ViewTreeObserver.OnPreDrawListener {
             runCatching {
+                if (block.compact) block.rows.forEach(rowRenderer::syncTint)
                 presentation.updateRowGeometry(block)
                 ControlCenterHeaderHooker.updateCarrierLayout(block.layout, geometryOnly = true)
                 syncMask(block)
