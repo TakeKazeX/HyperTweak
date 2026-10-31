@@ -82,6 +82,13 @@ internal object NotificationHeaderMotionModel {
 
     fun remainingClipHeight(headerHeight: Float, scrollY: Int): Float =
         max(0f, headerHeight - scrollY.coerceAtLeast(0))
+
+    /** The shared mask must return to its native height as the notification header fades out. */
+    fun clipHeight(nativeHeight: Float, extraHeight: Int, scrollY: Int, notificationAlpha: Float): Float {
+        val alpha = if (notificationAlpha.isFinite()) notificationAlpha.coerceIn(0f, 1f) else 0f
+        val notificationHeight = remainingClipHeight(nativeHeight + extraHeight.coerceAtLeast(0), scrollY)
+        return nativeHeight + (notificationHeight - nativeHeight) * alpha
+    }
 }
 
 internal object NotificationHeaderGeometryModel {

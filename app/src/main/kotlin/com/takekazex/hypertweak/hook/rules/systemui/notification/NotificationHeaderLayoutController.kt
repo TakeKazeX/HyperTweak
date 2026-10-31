@@ -35,7 +35,10 @@ internal class NotificationHeaderLayoutController(
         val dateAlignment: Int,
         val timeAlignment: Int,
         val timeScale: Float
-    )
+    ) {
+        val adjustsVerticalGeometry: Boolean
+            get() = dateAboveTime || timeScale != NotificationHeaderModel.DEFAULT_TIME_SCALE
+    }
 
     data class Views(
         val time: View,
@@ -75,7 +78,8 @@ internal class NotificationHeaderLayoutController(
         var latestInsets: WindowInsets? = null,
         var horizontalClockMode: Int? = null,
         var clockTextSnapshot: ClockTextSnapshot? = null,
-        var clockLayoutListener: View.OnLayoutChangeListener? = null
+        var clockLayoutListener: View.OnLayoutChangeListener? = null,
+        var appliedOptions: Options? = null
     ) {
         val layouts = WeakHashMap<View, LayoutSnapshot>()
         val fontPadding = WeakHashMap<TextView, Boolean>()
@@ -113,7 +117,8 @@ internal class NotificationHeaderLayoutController(
 
     fun rootFor(view: View): ViewGroup? = rootsByView[view]
 
-    fun isCustomPortrait(root: ViewGroup): Boolean = sessions[root]?.mode == Mode.PORTRAIT
+    fun isCustomPortrait(root: ViewGroup): Boolean =
+        sessions[root]?.mode == Mode.PORTRAIT && options.adjustsVerticalGeometry
 
     fun notificationPaddingExtra(root: ViewGroup): Int = sessions[root]?.let {
         (it.notificationReserveHeight - it.stockHeaderHeight).coerceAtLeast(0)
@@ -152,6 +157,11 @@ internal class NotificationHeaderLayoutController(
         session.latestInsets = insets ?: root.rootWindowInsets
 
         val targetMode = resolveMode(root.context)
+        // Returning a single option to default must release its old constraints even while
+        // another option (for example alignment) keeps the header session alive.
+        if (session.mode == targetMode && session.appliedOptions != options) {
+            restoreOwnedState(session)
+        }
         if (session.mode != targetMode) {
             if (session.mode != Mode.UNINITIALIZED) restoreOwnedState(session)
             session.stockHeaderHeight = root.layoutParams?.height ?: session.stockHeaderHeight
@@ -161,6 +171,7 @@ internal class NotificationHeaderLayoutController(
             root.translationY = session.originalTranslationY
             session.mode = targetMode
         }
+        session.appliedOptions = options
 
         when (targetMode) {
             Mode.PORTRAIT -> applyPortrait(session)
@@ -474,6 +485,10 @@ internal class NotificationHeaderLayoutController(
     private fun measureNotificationReserveHeight(session: Session): Boolean {
         val root = session.root
         val previousHeight = session.notificationReserveHeight
+        if (!options.adjustsVerticalGeometry) {
+            session.notificationReserveHeight = session.stockHeaderHeight
+            return previousHeight != session.notificationReserveHeight
+        }
         val baseTimeSize = dimension(root, "shade_header_notification_clock_text_size")
         val dateSize = dimension(root, "shade_header_notification_date_text_size")
         var estimatedHeight = session.stockHeaderHeight
@@ -513,7 +528,7 @@ internal class NotificationHeaderLayoutController(
     /** Keeps the date and clock apart after SystemUI applies its animated scale and translation. */
     private fun maintainDateTimeSeparation(session: Session): Boolean {
         clearDateTimeSeparation(session)
-        if (options.hideDate || options.hideTime) return false
+        if (!options.adjustsVerticalGeometry || options.hideDate || options.hideTime) return false
 
         val time = session.views.time
         val date = session.views.date
@@ -709,10 +724,12 @@ internal class NotificationHeaderLayoutController(
 
     private fun applyRootMotion(session: Session) {
         val target = if (session.mode == Mode.PORTRAIT) {
-            NotificationHeaderMotionModel.rootTranslationY(
-                session.stretchTranslationY,
-                session.notificationScrollY
-            )
+            if (options.adjustsVerticalGeometry) {
+                NotificationHeaderMotionModel.rootTranslationY(
+                    session.stretchTranslationY,
+                    session.notificationScrollY
+                )
+            } else session.stretchTranslationY
         } else {
             session.originalTranslationY
         }

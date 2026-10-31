@@ -107,6 +107,24 @@ class NotificationHeaderModelTest {
     }
 
     @Test
+    fun largeNotificationClockCannotExtendControlCenterMask() {
+        assertEquals(600f, NotificationHeaderMotionModel.clipHeight(300f, 300, 0, 1f), 0f)
+        assertEquals(450f, NotificationHeaderMotionModel.clipHeight(300f, 300, 0, 0.5f), 0f)
+        assertEquals(300f, NotificationHeaderMotionModel.clipHeight(300f, 300, 0, 0f), 0f)
+        // A scrolled notification must not collapse the Control Center mask either.
+        assertEquals(0f, NotificationHeaderMotionModel.clipHeight(300f, 300, 800, 1f), 0f)
+        assertEquals(300f, NotificationHeaderMotionModel.clipHeight(300f, 300, 800, 0f), 0f)
+        assertEquals(600f, NotificationHeaderMotionModel.clipHeight(300f, 300, 0, 1f), 0f)
+    }
+
+    @Test
+    fun invalidNotificationVisibilityLeavesNativeMask() {
+        assertEquals(300f, NotificationHeaderMotionModel.clipHeight(300f, 300, 0, Float.NaN), 0f)
+        assertEquals(300f, NotificationHeaderMotionModel.clipHeight(300f, 300, 0, -1f), 0f)
+        assertEquals(600f, NotificationHeaderMotionModel.clipHeight(300f, 300, 0, 2f), 0f)
+    }
+
+    @Test
     fun safeInsetIsConvertedFromWindowCoordinatesOnce() {
         assertEquals(96, NotificationHeaderGeometryModel.safeTopMargin(96, 0))
         assertEquals(24, NotificationHeaderGeometryModel.safeTopMargin(96, 72))

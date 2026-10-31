@@ -16,8 +16,10 @@ import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.hook.base.HostAccess
+import com.takekazex.hypertweak.hook.base.ViewVisibilityRouter
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.reflect.Field
+import java.lang.reflect.Method
 import java.util.IdentityHashMap
 import java.util.WeakHashMap
 import java.util.concurrent.CountDownLatch
@@ -78,12 +80,14 @@ object NotificationHeaderHooker : StaticHooker() {
 
     private val main = Handler(Looper.getMainLooper())
     private val clockSizing = NotificationHeaderClockSizing(::field, ::read,
-        resolveClass = { it.toClassOrNull() }, timeScale = { timeScale })
+        resolveClass = { it.toClassOrNull() }, timeScale = { timeScale },
+        reportFailure = { DebugLog.w(TAG, "clock size restore failed", it) })
     private val layoutController = NotificationHeaderLayoutController(
         hostUsesVerticalMode = clockSizing::isVerticalMode,
         hostUsesLandscapeMode = clockSizing::isLandscapeMode
     ) { stage, error -> DebugLog.w(TAG, "$stage failed", error) }
     private val shadeHeaderHeightAnimators = generationMainResource(WeakHashMap<Any, Boolean>()) { it.clear() }
+    private val appliedClipHeights = generationMainResource(WeakHashMap<Any, Float>()) { it.clear() }
     private val notificationTopPaddingControllers = generationMainResource(WeakHashMap<Any, Boolean>()) { it.clear() }
     private val resettingHeaders = generationMainResource(IdentityHashMap<ViewGroup, Int>()) { it.clear() }
     private val notificationTopPaddingRefreshDepth = ThreadLocal<Int>()
@@ -98,16 +102,16 @@ object NotificationHeaderHooker : StaticHooker() {
     private var timeScale by generationState { NotificationHeaderModel.DEFAULT_TIME_SCALE }
     private var restoring by generationState { false }
     private var generatedCallbacks: NotificationHeaderCallbacks.GeneratedCallbacks? by generationState { null }
+    private var clipAnimatorUpdate: Method? by generationState { null }
 
     override fun saveHotReloadState(): Any = HostAccess.onMain {
-        listOf(layoutController.roots(), clockSizing.controllerSizes.keys.toList(),
+        listOf(NotificationHeaderRegistry.headerRoots(), clockSizing.controllers(),
             shadeHeaderHeightAnimators.keys.toList(), notificationTopPaddingControllers.keys.toList())
     }
 
     override fun restoreHotReloadState(state: Any?) {
         val saved = state as? List<*> ?: return
         HostAccess.onMain {
-            if (!hasHeaderWork()) return@onMain
             (saved.getOrNull(1) as? List<*>)?.filterNotNull()?.forEach(clockSizing::applyClockSize)
             (saved.getOrNull(2) as? List<*>)?.filterNotNull()?.forEach { shadeHeaderHeightAnimators[it] = true }
             (saved.getOrNull(3) as? List<*>)?.filterNotNull()?.forEach { notificationTopPaddingControllers[it] = true }
@@ -121,7 +125,6 @@ object NotificationHeaderHooker : StaticHooker() {
         val roots = (views.filterIsInstance<ViewGroup>().filter { it.javaClass.name == HEADER_CLASS } +
             listOfNotNull(combined?.let { read(it, "notificationHeaderView") as? ViewGroup }) +
             layoutController.roots()).distinct()
-        if (!hasHeaderWork()) return roots
         component?.let { host ->
             HostAccess.provider(host, "shadeHeaderHeightAnimatorProvider")?.let {
                 shadeHeaderHeightAnimators[it] = true
@@ -134,12 +137,12 @@ object NotificationHeaderHooker : StaticHooker() {
         roots.forEach { root ->
             guarded("existing header layout") {
                 // Include the cached header while detached so its next attachment uses current options.
-                layoutController.apply(root, root.rootWindowInsets)
+                if (hasHeaderWork()) layoutController.apply(root, root.rootWindowInsets)
                 applyHeader(root)
             }
         }
         component?.let { HostAccess.provider(it, "notificationHeaderExpandControllerProvider") }
-            ?.let(::replayExpansion)
+            ?.takeIf { hasHeaderWork() }?.let(::replayExpansion)
         syncShadeHeaderClipHeight()
         refreshNotificationTopPadding()
         DebugLog.i(TAG, "hot reload header hosts=${roots.size} sizeControllers=${clockSizing.controllerSizes.size}")
@@ -189,13 +192,14 @@ object NotificationHeaderHooker : StaticHooker() {
         val work = hasHeaderWork()
         main.post {
             guarded("settings refresh") {
-                val roots = layoutController.roots()
+                val roots = (layoutController.roots() + NotificationHeaderRegistry.headerRoots()).distinct()
                 if (!work) {
                     // Release everything this module owns in the header before the native values
                     // are applied; the sessions are dropped so the next enable rebuilds them.
                     layoutController.restoreAll()
-                    clockSizing.controllerSizes.keys.toList().forEach { guarded("restore expansion") { replayExpansion(it) } }
-                    clockSizing.controllerSizes.clear()
+                    val sizedControllers = clockSizing.controllerSizes.keys.toList()
+                    clockSizing.restore()
+                    sizedControllers.forEach { guarded("restore expansion") { replayExpansion(it) } }
                     roots.forEach { guarded("restore header host") {
                         updateCarrierFromHost(it)
                         it.requestLayout()
@@ -204,7 +208,7 @@ object NotificationHeaderHooker : StaticHooker() {
                     refreshNotificationTopPadding()
                 } else {
                     roots.forEach { guarded("header settings apply") { layoutController.apply(it, it.rootWindowInsets); applyHeader(it) } }
-                    clockSizing.controllerSizes.keys.toList().forEach { guarded("clock size apply") { clockSizing.applyClockSize(it); replayExpansion(it) } }
+                    clockSizing.controllers().forEach { guarded("clock size apply") { clockSizing.applyClockSize(it); replayExpansion(it) } }
                     refreshNotificationTopPadding()
                 }
             }
@@ -226,16 +230,19 @@ object NotificationHeaderHooker : StaticHooker() {
             shadeHeaderHeightAnimators.keys.toList().forEach(::restoreShadeHeaderClipHeight)
             refreshNotificationTopPadding()
             headerRoots.forEach(::updateCarrierFromHost)
+            val sizedControllers = clockSizing.controllerSizes.keys.toList()
             clockSizing.restore()
-            clockSizing.controllerSizes.keys.toList().forEach { guarded("restore native expansion") { replayExpansion(it) } }
-            clockSizing.controllerSizes.clear()
+            sizedControllers.forEach { guarded("restore native expansion") { replayExpansion(it) } }
+            clockSizing.clear()
             shadeHeaderHeightAnimators.clear()
+            appliedClipHeights.clear()
             notificationTopPaddingControllers.clear()
             resettingHeaders.clear()
             notificationTopPaddingRefreshDepth.remove()
             notificationClockPositionDepth.remove()
             clockSizing.clearConfigMethods()
             generatedCallbacks = null
+            clipAnimatorUpdate = null
         }
         if (Looper.myLooper() == Looper.getMainLooper()) {
             restore()
@@ -309,6 +316,14 @@ object NotificationHeaderHooker : StaticHooker() {
             DebugLog.hookSkipped(TAG, HEADER_CLASS, "class not found")
             return
         }
+        // Native CombinedHeaderController writes this alpha for direct panel opening and each
+        // notification/Control Center handover frame. Reuse the shared framework subscription.
+        ViewVisibilityRouter.alpha(this, headerClass, after = { view ->
+            val root = view as? ViewGroup
+            if (!restoring && root != null && layoutController.contains(root)) {
+                guarded("notification mask visibility") { syncShadeHeaderClipHeight() }
+            }
+        })
         val lifecycleMethods = listOf(
             "onFinishInflate" to false,
             "onAttachedToWindow" to false,
@@ -429,7 +444,7 @@ object NotificationHeaderHooker : StaticHooker() {
 
     private fun applyHeader(root: ViewGroup) {
         com.takekazex.hypertweak.hook.rules.systemui.notification.NotificationHeaderRegistry.noteHeaderRoot(root)
-        if (!root.isAttachedToWindow || resettingHeaders.containsKey(root)) return
+        if (!hasHeaderWork() || !root.isAttachedToWindow || resettingHeaders.containsKey(root)) return
         layoutController.apply(root, root.rootWindowInsets)
         val time = layoutController.views(root)?.time as? TextView ?: return
         // Text/content and measured width can settle after the lifecycle/resource callback.
@@ -552,7 +567,7 @@ object NotificationHeaderHooker : StaticHooker() {
                 method.hook {
                     after { param -> guarded("shade header clip height") {
                         shadeHeaderHeightAnimators[param.thisObject] = true
-                        syncShadeHeaderClipHeight(param.thisObject)
+                        syncShadeHeaderClipHeight(param.thisObject, nativeUpdated = true)
                     } }
                 }
             }
@@ -562,31 +577,37 @@ object NotificationHeaderHooker : StaticHooker() {
         shadeHeaderHeightAnimators.keys.toList().forEach(::syncShadeHeaderClipHeight)
     }
 
-    private fun syncShadeHeaderClipHeight(heightAnimator: Any) {
+    private fun syncShadeHeaderClipHeight(heightAnimator: Any, nativeUpdated: Boolean = false) {
         val shadeLazy = read(heightAnimator, "shadeHeaderController") ?: return
-        val shadeController = shadeLazy.javaClass.methods.firstOrNull {
-            it.name == "get" && it.parameterCount == 0
-        }?.invoke(shadeLazy) ?: return
-        val current = shadeController.javaClass.methods.firstOrNull {
-            it.name == "getCurrent" && it.parameterCount == 0
-        }?.invoke(shadeController) ?: return
+        val shadeController = invokeNoArgs(shadeLazy, "get") ?: return
+        val current = invokeNoArgs(shadeController, "getCurrent") ?: return
         if (current.javaClass.name != COMBINED_HEADER_CLASS) return
         val root = read(current, "notificationHeaderView") as? ViewGroup ?: return
-        val headerHeight = current.javaClass.methods.firstOrNull {
-            it.name == "getHeight" && it.parameterCount == 0
-        }?.invoke(current) as? Number ?: return
+        val headerHeight = invokeNoArgs(current, "getHeight") as? Number ?: return
         val isCustomPortrait = layoutController.isCustomPortrait(root)
         val extraHeight = if (isCustomPortrait) layoutController.notificationPaddingExtra(root) else 0
         val scrollOffset = if (isCustomPortrait) layoutController.scrollY(root) else 0
-        val targetHeight = NotificationHeaderMotionModel.remainingClipHeight(
-            headerHeight.toFloat() + extraHeight,
-            scrollOffset
+        val targetHeight = NotificationHeaderMotionModel.clipHeight(
+            headerHeight.toFloat(), extraHeight, scrollOffset,
+            if (isCustomPortrait && !restoring && root.visibility == View.VISIBLE) root.alpha else 0f
         )
+        val previous = appliedClipHeights[heightAnimator]
+        val nativeHeight = headerHeight.toFloat()
+        if (targetHeight == nativeHeight && previous == null) return
+        // Native updateAnimateHeight can either reset the animator or skip its write when its
+        // cached height is unchanged. Keep ownership until we have restored our own correction.
+        if (targetHeight == previous && !nativeUpdated) return
         val animator = read(heightAnimator, "animator") ?: return
-        val update = animator.javaClass.methods.firstOrNull {
-            it.name == "update" && it.parameterCount == 3
-        } ?: return
+        val update = clipAnimatorUpdate?.takeIf { it.declaringClass.isInstance(animator) }
+            ?: animator.javaClass.methods.singleOrNull {
+                it.name == "update" && it.returnType == Void.TYPE &&
+                    it.parameterTypes.map { parameter -> parameter.name } == listOf(
+                        "float", "miuix.animation.base.AnimConfig", "boolean"
+                    )
+            }?.also { clipAnimatorUpdate = it } ?: return
         update.invoke(animator, targetHeight, null, false)
+        if (targetHeight == nativeHeight) appliedClipHeights.remove(heightAnimator)
+        else appliedClipHeights[heightAnimator] = targetHeight
     }
 
     private fun restoreShadeHeaderClipHeight(heightAnimator: Any) {

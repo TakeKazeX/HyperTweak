@@ -14,6 +14,7 @@ internal class NotificationHeaderClockSizing(
     private val read: (Any, String) -> Any?,
     private val resolveClass: (String) -> Class<*>?,
     private val timeScale: () -> Float,
+    private val reportFailure: (Throwable) -> Unit,
 ) {
     private companion object { const val MIUI_CONFIGS_CLASS = "com.miui.utils.configs.MiuiConfigs" }
     data class ControllerSizeState(
@@ -23,10 +24,18 @@ internal class NotificationHeaderClockSizing(
     )
 
     val controllerSizes = WeakHashMap<Any, ControllerSizeState>()
+    private val knownControllers = WeakHashMap<Any, Boolean>()
+    fun controllers(): List<Any> = knownControllers.keys.toList()
+
     private var verticalModeMethod: Method? = null
     private var landscapeModeMethod: Method? = null
     @Suppress("DiscouragedApi")
     fun applyClockSize(controller: Any) {
+        knownControllers[controller] = true
+        if (timeScale() == NotificationHeaderModel.DEFAULT_TIME_SCALE) {
+            controllerSizes.remove(controller)?.let { restore(controller, it) }
+            return
+        }
         val bigField = field(controller.javaClass, "bigTimeSize") ?: return
         val shadeField = field(controller.javaClass, "shadeHeaderNotificationClockTextSize") ?: return
         val flipField = field(controller.javaClass, "qsControlHeaderClockFlipSize") ?: return
@@ -93,15 +102,21 @@ internal class NotificationHeaderClockSizing(
         }?.apply { isAccessible = true }
 
     fun restore() {
-            controllerSizes.forEach { (controller, state) ->
-                runCatching {
-                    field(controller.javaClass, "bigTimeSize")?.setInt(controller, state.bigTimeSize)
-                    field(controller.javaClass, "shadeHeaderNotificationClockTextSize")
-                        ?.setInt(controller, state.shadeSize)
-                    field(controller.javaClass, "qsControlHeaderClockFlipSize")
-                        ?.setInt(controller, state.flipSize)
-                }
-            }
+        controllerSizes.forEach { (controller, state) ->
+            runCatching { restore(controller, state) }.onFailure(reportFailure)
+        }
+        controllerSizes.clear()
+    }
+
+    private fun restore(controller: Any, state: ControllerSizeState) {
+        field(controller.javaClass, "bigTimeSize")?.setInt(controller, state.bigTimeSize)
+        field(controller.javaClass, "shadeHeaderNotificationClockTextSize")?.setInt(controller, state.shadeSize)
+        field(controller.javaClass, "qsControlHeaderClockFlipSize")?.setInt(controller, state.flipSize)
+    }
+
+    fun clear() {
+        controllerSizes.clear()
+        knownControllers.clear()
     }
     fun clearConfigMethods() { verticalModeMethod = null; landscapeModeMethod = null }
 }
