@@ -30,7 +30,8 @@ class DockSurfaceProvider : ContentProvider() {
     private val main = Handler(Looper.getMainLooper())
     private data class Entry(val host: SurfaceControlViewHost, val view: DockMaterialView, val viewportWidth: Int, val viewportHeight: Int,
         val owner: IBinder, val death: IBinder.DeathRecipient, val lease: Long, val poses: DockPoseChannel,
-        var parcel: SurfaceControlViewHost.SurfacePackage? = null, var active: Boolean = false)
+        var parcel: SurfaceControlViewHost.SurfacePackage? = null, var active: Boolean = false,
+        var pose: DockPose? = null, var poseCount: Long = 0, var poseAppliedAt: Long = 0, val motionRoot: FrameLayout)
     private val entries = mutableMapOf<String, Entry>() // Main thread only.
     private var lastStatus = "idle"
     private var motionReady = false
@@ -57,7 +58,19 @@ class DockSurfaceProvider : ContentProvider() {
     }
 
     private fun execute(method: String, id: String?, args: Bundle): Bundle {
-        if (method == "diagnostics") return Bundle().apply { putString("status", lastStatus); putInt("hosts", entries.size); putBoolean("motion", motionReady) }
+        if (method == "diagnostics") return Bundle().apply {
+            putString("status", lastStatus); putInt("hosts", entries.size); putBoolean("motion", motionReady)
+            entries.values.singleOrNull()?.let { entry ->
+                putLong("poseCount", entry.poseCount)
+                putLong("poseAgeMs", (android.os.SystemClock.elapsedRealtimeNanos() - entry.poseAppliedAt) / 1_000_000)
+                entry.pose?.let { pose ->
+                    putFloat("poseX", pose.x); putFloat("poseY", pose.y); putFloat("poseScale", pose.scale)
+                }
+                putFloat("viewX", entry.motionRoot.translationX); putFloat("viewY", entry.motionRoot.translationY)
+                putFloat("viewScale", entry.motionRoot.scaleX)
+                putInt("viewWidth", entry.view.width); putInt("viewHeight", entry.view.height)
+            }
+        }
         if (method == "settings") return Bundle().apply {
             val encoded = com.takekazex.hypertweak.hook.Preferences.getString(DockConfig.KEY, DockConfig().encode())
             putString("config", requireNotNull(DockConfig.decode(encoded)) { "Invalid saved Dock configuration" }.encode())
@@ -164,10 +177,11 @@ class DockSurfaceProvider : ContentProvider() {
             motionRoot.translationY = pose.y
             motionRoot.scaleX = pose.scale
             motionRoot.scaleY = pose.scale
+            entries[id]?.let { entry -> entry.pose = pose; entry.poseCount++; entry.poseAppliedAt = android.os.SystemClock.elapsedRealtimeNanos() }
         }
         val host = SurfaceControlViewHost(displayContext, display, Binder())
         val death = IBinder.DeathRecipient { main.post { release(id) } }
-        val entry = Entry(host, view, viewportWidth, viewportHeight, owner, death, lease, poses)
+        val entry = Entry(host, view, viewportWidth, viewportHeight, owner, death, lease, poses, motionRoot = motionRoot)
         entries[id] = entry
         view.onMaterialState = { ready -> if (!ready && entries[id] === entry) {
             release(id)

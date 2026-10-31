@@ -240,7 +240,13 @@ No APK hash allowlist, version mapping, or obfuscated member table is used. Miss
 contracts prevent save enrollment. `SCREENSHOT_APK` runs bytecode and renamed/duplicate/missing
 contract tests against a real APK. `FRAMEWORK_JAR` checks Dock native capture and IME root contracts.
 The Dock host uses only its own ViewRoot/RenderNode sampling state when the platform rejects
-its cross-window blur admission; it never edits the global admission policy. IME raising obtains
+its cross-window blur admission; it never edits the global admission policy. WMS retains an
+unstable provider connection for each Dock renderer lease to preserve Android's dependency
+accounting; retirement releases it on the IPC worker. Vendor Greeze policy separately receives
+our live renderer lease while the screen is interactive and unlocked, since it cannot see a
+windowless child Surface's producer UID through ordinary window accounting. Screen-off,
+lock, disable and retirement release that protection; no other application UID is changed.
+IME raising obtains
 the current layout from `InputMethodService.mRootView`, without private resource integers.
 
 Screenshot clipboard copying has its own `ScreenshotClipboardHooker`, independent of frame resolution.

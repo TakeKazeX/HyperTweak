@@ -2,6 +2,7 @@ package com.takekazex.hypertweak.hook.rules.system
 
 import android.annotation.SuppressLint
 import android.content.BroadcastReceiver
+import android.content.ContentProviderClient
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
@@ -55,6 +56,7 @@ object DockBackgroundHooker : StaticHooker() {
     private var handler: Handler? by generationState { null }
     private var wmLock: Any by generationState { Any() }
     private val entries = WeakHashMap<Any, Entry>() // WMS global lock only.
+    private val rendererVisibility = com.takekazex.hypertweak.dock.DockRendererVisibility()
     private val observed = WeakHashMap<Any, DockRecoveryPolicy>()
     private var receiver: BroadcastReceiver? by generationState { null }
     private var displays: DisplayManager? by generationState { null }
@@ -129,6 +131,7 @@ object DockBackgroundHooker : StaticHooker() {
         var renderKey: Pair<com.takekazex.hypertweak.settings.contract.DockMaterialKey, com.takekazex.hypertweak.settings.contract.DockBounds>,
         var materialRevision: Long = 0,
         val owner: IBinder = Binder(), var parcel: SurfaceControlViewHost.SurfacePackage? = null,
+        var provider: ContentProviderClient? = null, var rendererUid: Int = -1,
         var renderer: IBinder? = null, var death: IBinder.DeathRecipient? = null,
         var captureStarted: Boolean = false, var ready: Boolean = false, var needsProbe: Boolean = true, var probePending: Boolean = false, var attempts: Int = 0,
         var probeAllowed: Boolean = false, var applied: String? = null,
@@ -159,7 +162,37 @@ object DockBackgroundHooker : StaticHooker() {
                 if (observed.isEmpty()) setChannel(false)
             } }
         }
+        hookRendererFreezeVisibility()
         recoverExistingWindows()
+    }
+
+    private fun hookRendererFreezeVisibility() {
+        // Current vendor policy does not count a windowless child Surface as its
+        // producer UID's window, even with an active system provider dependency.
+        // Publish only our live renderer on an awake/unlocked screen; never take WMS's lock here.
+        runCatching {
+            val policy = requireNotNull("com.miui.server.greeze.power.PolicyMaker".toClassOrNull())
+            val allowFreeze = policy.getDeclaredMethod("isAllowFreeze", Int::class.javaPrimitiveType)
+            check(allowFreeze.returnType == Int::class.javaPrimitiveType)
+            val deny = policy.getDeclaredField("CANNOT_FREEZE").apply { isAccessible = true }.getInt(null)
+            val reported = java.util.concurrent.atomic.AtomicBoolean()
+            allowFreeze.hook("dock_renderer_freeze_policy") {
+                before { param ->
+                    if (!stopped && rendererVisibility.protects(param.args.firstOrNull() as? Int ?: -1)) {
+                        param.result = deny
+                        if (reported.compareAndSet(false, true)) DebugLog.i(TAG, "Greeze recognizes visible Dock renderer")
+                    }
+                }
+            }
+            val service = requireNotNull("com.miui.server.greeze.GreezeManagerService".toClassOrNull())
+            val visible = service.getDeclaredMethod("isAppShowOnWindows", Int::class.javaPrimitiveType)
+            check(visible.returnType == Boolean::class.javaPrimitiveType)
+            visible.hook("dock_renderer_window_visibility") {
+                before { param ->
+                    if (!stopped && rendererVisibility.protects(param.args.firstOrNull() as? Int ?: -1)) param.result = true
+                }
+            }
+        }.onFailure { DebugLog.w(TAG, "windowless renderer freezer visibility unavailable", it) }
     }
 
     private fun bootstrap(window: Any) {
@@ -344,6 +377,11 @@ object DockBackgroundHooker : StaticHooker() {
         // WMS owns parent visibility, including screen-off/lock and app transitions.
         // The child only follows native Hotseat visibility, never an earlier power gate.
         entry.surfaceVisible = presentation.showLayer
+        // Sidebar/overlay transitions can hide Home's window or Hotseat briefly
+        // while the same renderer must keep receiving the return animation.
+        // Protect the owned lease for the interactive/unlocked screen session,
+        // not only texture-probe eligibility at one point in that transition.
+        rendererVisibility.update(entry.id, entry.rendererUid, entry.renderer != null && interactive && !locked)
         if (schedulePose) scheduleFrame()
     }
 
@@ -377,15 +415,30 @@ object DockBackgroundHooker : StaticHooker() {
         val ipcContext = context
         val resultHandler = handler ?: return
         worker.execute {
-            val reply = ipc("create", entry.id, args, ipcContext)
+            // Keep an unstable provider connection for the renderer's entire lease.
+            // The windowless host is invisible to ActivityManager's visible-window
+            // accounting. Closing the last provider connection at ready lets the
+            // module become background/freezable while its Surface stays on screen.
+            // Unstable ownership preserves provider importance without a stable
+            // provider-death dependency from system_server to the module process.
+            val provider = runCatching { ipcContext?.contentResolver?.acquireUnstableContentProviderClient(uri) }
+                .onFailure { DebugLog.w(TAG, "renderer provider connection failed", it) }.getOrNull()
+            val rendererUid = runCatching {
+                ipcContext?.packageManager?.getApplicationInfo(SettingsTransport.MODULE, 0)?.uid ?: -1
+            }.onFailure { DebugLog.w(TAG, "renderer UID unavailable", it) }.getOrDefault(-1)
+            val reply = runCatching { provider?.call("create", entry.id, Bundle(args)) }
+                .onFailure { DebugLog.w(TAG, "material IPC create failed", it) }.getOrNull()
             val parcel = reply?.getParcelable("surface", SurfaceControlViewHost.SurfacePackage::class.java)
             val renderer = reply?.getBinder("renderer")
             resultHandler.post {
                 synchronized(wmLock) {
                     val current = windowRef.get()
                     if (current == null || stopped || generation != epoch.get() || entries[current] !== entry) {
-                        parcel?.release(); releaseRemote(entry.id, ipcContext, entry.lease); return@synchronized
+                        parcel?.release(); releaseRemote(entry.id, ipcContext, entry.lease, provider); return@synchronized
                     }
+                    entry.provider = provider
+                    entry.rendererUid = rendererUid
+                    entry.parcel = parcel
                     if (parcel == null || renderer == null) {
                         DebugLog.w(TAG, "material host unavailable: ${reply?.getString("error")}")
                         fail(current, entry); return@synchronized
@@ -434,7 +487,7 @@ object DockBackgroundHooker : StaticHooker() {
                 }
                 requestRefresh()
             }.also { posted ->
-                if (!posted) { parcel?.release(); releaseRemote(entry.id, ipcContext, entry.lease) }
+                if (!posted) { parcel?.release(); releaseRemote(entry.id, ipcContext, entry.lease, provider) }
             }
         }
     }
@@ -507,6 +560,7 @@ object DockBackgroundHooker : StaticHooker() {
     }
     private fun retire(window: Any) {
         val entry = entries.remove(window) ?: return
+        rendererVisibility.remove(entry.id)
         entry.death?.let { death -> runCatching { entry.renderer?.unlinkToDeath(death, 0) } }
         runCatching {
             val transaction = newTransaction()
@@ -515,10 +569,22 @@ object DockBackgroundHooker : StaticHooker() {
         }.onFailure { DebugLog.w(TAG, "owned surface cleanup failed", it) }
         entry.parcel?.release()
         runCatching { DockReflection.call(entry.effect, "release") }
-        releaseRemote(entry.id, lease = entry.lease)
+        releaseRemote(entry.id, lease = entry.lease, provider = entry.provider)
+        entry.provider = null
     }
-    private fun releaseRemote(id: String, ipcContext: Context? = context, lease: Long = providerLease) {
-        val cleanup = Runnable { ipc("release", id, Bundle().apply { putLong("lease", lease) }, ipcContext) }
+    private fun releaseRemote(id: String, ipcContext: Context? = context, lease: Long = providerLease,
+        provider: ContentProviderClient? = null) {
+        val cleanup = Runnable {
+            try {
+                val args = Bundle().apply { putLong("lease", lease) }
+                if (provider == null) ipc("release", id, args, ipcContext)
+                else runCatching { provider.call("release", id, args) }
+                    .onFailure { DebugLog.w(TAG, "leased renderer release failed", it) }
+            } finally {
+                runCatching { provider?.close() }
+                    .onFailure { DebugLog.w(TAG, "renderer provider disconnect failed", it) }
+            }
+        }
         if (worker.isShutdown) Thread(cleanup, "HT-DockRetire").apply { isDaemon = true }.start()
         else worker.execute(cleanup)
     }
@@ -566,6 +632,7 @@ object DockBackgroundHooker : StaticHooker() {
     }
     override fun onPrepareHotReload() {
         stopped = true
+        rendererVisibility.close()
         epoch.incrementAndGet()
         setChannel(false)
         frameDriver?.close()
