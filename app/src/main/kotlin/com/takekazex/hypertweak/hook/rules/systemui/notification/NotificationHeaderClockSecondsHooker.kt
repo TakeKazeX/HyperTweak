@@ -5,6 +5,8 @@ import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 
 import android.text.format.DateFormat
 import android.graphics.Rect
+import android.os.Handler
+import android.os.Looper
 import android.os.SystemClock
 import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
@@ -24,16 +26,20 @@ import java.util.WeakHashMap
 /**
  * Adds seconds to the status-bar clock or to the large clock at the top of the expanded notification
  * shade. The long-press mode is temporary: it lasts at most five minutes and does not modify the
- * persistent notification-shade setting.
+ * persistent clock settings.
  *
  * The stock OS4 clock updates from KeyguardUpdateMonitor's minute-level callback. The hook keeps
- * the normal MiuiClock rendering intact, then refreshes only the selected clock once per second
+ * the normal MiuiClock rendering intact, then refreshes each enabled clock once per second
  * while its view is attached.
  */
 object NotificationHeaderClockSecondsHooker : StaticHooker() {
     // Published on settings acceptance; hook callbacks perform no storage reads.
     private val settingNotificationHeaderClockSeconds by hookSetting(false) {
         Preferences.getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_CLOCK_SECONDS, false)
+    }
+
+    private val settingStatusBarClockSeconds by hookSetting(false) {
+        Preferences.getBoolean(SystemUiSettingsKeys.KEY_STATUS_BAR_CLOCK_SECONDS, false)
     }
 
     init {
@@ -56,10 +62,19 @@ object NotificationHeaderClockSecondsHooker : StaticHooker() {
     }
 
     private val tickCallbacks = generationMainResource(WeakHashMap<View, Runnable>()) { it.clear() }
-    private val expiryCallbacks = generationMainResource(WeakHashMap<View, Runnable>()) { it.clear() }
-    private val expiryTokens = generationMainResource(WeakHashMap<View, Long>()) { it.clear() }
+    private val expiryHandler = generationMainResource(Handler(Looper.getMainLooper())) {
+        it.removeCallbacksAndMessages(null)
+    }
+    private var temporarySeconds by generationState { ClockSecondsPolicy(TEMPORARY_SECONDS_TIMEOUT_MS) }
+    private val expiryCallback = Runnable {
+        HookFailurePolicy.open(TAG, "temporaryExpiry", Unit) {
+            if (retiring) return@open
+            temporarySeconds.clear()
+            refreshTrackedClocks()
+            DebugLog.d(TAG, "temporary clock seconds expired")
+        }
+    }
     private val trackedClocks = generationMainResource(WeakHashMap<View, Boolean>()) { it.clear() }
-    private val temporaryOverrides = generationMainResource(WeakHashMap<View, Boolean>()) { it.clear() }
     private val restoringStock = generationMainResource(WeakHashMap<View, Boolean>()) { it.clear() }
     private class PendingPress(val clock: WeakReference<TextView>, val gesture: ClockLongPressGesture) {
         lateinit var callback: Runnable
@@ -77,7 +92,7 @@ object NotificationHeaderClockSecondsHooker : StaticHooker() {
 
     private var statusBarClockId by generationState { 0 }
 
-    private var nextExpiryToken = 0L
+    private var persistentStatusBarEnabled by generationState { false }
 
     @Volatile
     private var retiring = false
@@ -93,29 +108,23 @@ object NotificationHeaderClockSecondsHooker : StaticHooker() {
     }
 
     /**
-     * Accepted-snapshot refresh. Enabling starts the header clock without a second restart;
-     * disabling stops the tick and restores the stock clock on the existing header views.
+     * Apply each clock's accepted baseline live, preserving any active shared temporary mode.
      */
     fun refreshSettings() {
-        val next = settingNotificationHeaderClockSeconds
-        val changed = next != persistentHeaderEnabled
-        persistentHeaderEnabled = next
         HostAccess.onMain {
             if (retiring) return@onMain
-            val views = (tickCallbacks.keys + trackedClocks.keys + temporaryOverrides.keys)
-                .filterIsInstance<TextView>().distinct()
-            if (next) {
-                views.filter { it.isAttachedToWindow }.forEach { view ->
-                    targetOf(view)?.let { refresh(view, it, forceStock = true) }
-                }
-            } else if (changed) {
-                views.forEach { view ->
-                    cancelTick(view)
-                    restoreStock(view)
-                }
-            }
+            persistentHeaderEnabled = settingNotificationHeaderClockSeconds
+            persistentStatusBarEnabled = settingStatusBarClockSeconds
+            refreshTrackedClocks()
+            DebugLog.i(TAG, "settings applied persistentHeader=$persistentHeaderEnabled, " +
+                "persistentStatusBar=$persistentStatusBarEnabled")
         }
-        DebugLog.i(TAG, "settings applied persistentHeader=" + persistentHeaderEnabled)
+    }
+
+    private fun refreshTrackedClocks() {
+        (tickCallbacks.keys + trackedClocks.keys).filterIsInstance<TextView>().distinct().forEach { view ->
+            targetOf(view)?.let { refresh(view, it, forceStock = true) }
+        }
     }
 
     override fun onPrepareHotReload() {
@@ -123,7 +132,8 @@ object NotificationHeaderClockSecondsHooker : StaticHooker() {
         HostAccess.onMain {
             synchronized(callbacksLock) {
                 tickCallbacks.forEach { (view, callback) -> view.removeCallbacks(callback) }
-                expiryCallbacks.forEach { (view, callback) -> view.removeCallbacks(callback) }
+                expiryHandler.removeCallbacksAndMessages(null)
+                temporarySeconds.clear()
                 pendingPresses.forEach { (window, press) -> window.removeCallbacks(press.callback) }
                 pendingPresses.clear()
                 val clocks = (tickCallbacks.keys + trackedClocks.keys).distinct()
@@ -131,12 +141,10 @@ object NotificationHeaderClockSecondsHooker : StaticHooker() {
                     (view as? TextView)?.let(::restoreStock)
                 }
                 tickCallbacks.clear()
-                expiryCallbacks.clear()
-                expiryTokens.clear()
                 trackedClocks.clear()
-                temporaryOverrides.clear()
                 restoringStock.clear()
             }
+            persistentStatusBarEnabled = false
             persistentHeaderEnabled = false
             clockClass = null
             headerClockClass = null
@@ -147,6 +155,7 @@ object NotificationHeaderClockSecondsHooker : StaticHooker() {
 
     override fun onHook() {
         retiring = false
+        persistentStatusBarEnabled = settingStatusBarClockSeconds
         persistentHeaderEnabled = settingNotificationHeaderClockSeconds
 
         val resolvedClockClass = CLOCK_CLASS.toClassOrNull() ?: run {
@@ -221,9 +230,7 @@ object NotificationHeaderClockSecondsHooker : StaticHooker() {
                     val view = param.thisObject as? View ?: return@open
                     if (targetOf(view) == null) return@open
                     cancelTick(view)
-                    cancelExpiry(view)
                     synchronized(callbacksLock) {
-                        temporaryOverrides.remove(view)
                         trackedClocks.remove(view)
                     }
                     pendingPresses.keys.toList().forEach { window ->
@@ -238,6 +245,7 @@ object NotificationHeaderClockSecondsHooker : StaticHooker() {
         )
 
         if (hookCount == 0) {
+            persistentStatusBarEnabled = false
             persistentHeaderEnabled = false
             clockClass = null
             headerClockClass = null
@@ -278,13 +286,13 @@ object NotificationHeaderClockSecondsHooker : StaticHooker() {
         }
     }
 
-    private fun baselineSecondsEnabled(target: ClockTarget): Boolean =
-        target == ClockTarget.NOTIFICATION_HEADER && persistentHeaderEnabled
+    private fun baselineSecondsEnabled(target: ClockTarget): Boolean = when (target) {
+        ClockTarget.STATUS_BAR -> persistentStatusBarEnabled
+        ClockTarget.NOTIFICATION_HEADER -> persistentHeaderEnabled
+    }
 
-    private fun isSecondsEnabled(view: View, target: ClockTarget): Boolean =
-        synchronized(callbacksLock) {
-            temporaryOverrides[view] ?: baselineSecondsEnabled(target)
-        }
+    private fun isSecondsEnabled(target: ClockTarget): Boolean =
+        temporarySeconds.enabled(baselineSecondsEnabled(target), SystemClock.uptimeMillis())
 
     private fun trackClock(view: TextView) {
         if (retiring || trackedClocks.containsKey(view)) return
@@ -376,37 +384,21 @@ object NotificationHeaderClockSecondsHooker : StaticHooker() {
 
     private fun handleLongPress(view: View): Boolean {
         val target = targetOf(view) ?: return false
-        val textView = view as? TextView ?: return false
         if (retiring || !view.isAttachedToWindow) return false
-
-        val currentlyEnabled = isSecondsEnabled(view, target)
-        val baseline = baselineSecondsEnabled(target)
-        val newOverride = !currentlyEnabled
-        synchronized(callbacksLock) {
-            if (newOverride == baseline) {
-                temporaryOverrides.remove(view)
-            } else {
-                temporaryOverrides[view] = newOverride
-            }
+        temporarySeconds.toggle(baselineSecondsEnabled(target), SystemClock.uptimeMillis())
+        expiryHandler.removeCallbacks(expiryCallback)
+        if (temporarySeconds.isActive(SystemClock.uptimeMillis())) {
+            expiryHandler.postDelayed(expiryCallback, TEMPORARY_SECONDS_TIMEOUT_MS)
         }
-
-        if (newOverride == baseline) {
-            cancelExpiry(view)
-        } else {
-            scheduleExpiry(view)
-        }
-        refresh(textView, target, forceStock = true)
-        DebugLog.d(
-            TAG,
-            "long press ${target.name.lowercase()}: seconds=$newOverride, temporary=" +
-                (newOverride != baseline)
-        )
+        refreshTrackedClocks()
+        DebugLog.d(TAG, "long press ${target.name.lowercase()}: shared temporary seconds=" +
+            temporarySeconds.isActive(SystemClock.uptimeMillis()))
         return true
     }
 
     private fun refresh(view: TextView, target: ClockTarget, forceStock: Boolean = false) {
         if (retiring || !view.isAttachedToWindow) return
-        if (isSecondsEnabled(view, target)) {
+        if (isSecondsEnabled(target)) {
             renderSeconds(view)
             schedule(view)
         } else {
@@ -452,7 +444,7 @@ object NotificationHeaderClockSecondsHooker : StaticHooker() {
     private fun schedule(view: View) {
         if (retiring) return
         val target = targetOf(view)
-        if (target == null || !view.isAttachedToWindow || !isSecondsEnabled(view, target)) {
+        if (target == null || !view.isAttachedToWindow || !isSecondsEnabled(target)) {
             cancelTick(view)
             return
         }
@@ -462,7 +454,7 @@ object NotificationHeaderClockSecondsHooker : StaticHooker() {
                 HookFailurePolicy.open(TAG, "secondTick", Unit) {
                     val currentTarget = targetOf(view)
                     if (retiring || !view.isAttachedToWindow || currentTarget == null ||
-                        !isSecondsEnabled(view, currentTarget)
+                        !isSecondsEnabled(currentTarget)
                     ) {
                         cancelTick(view)
                         return@open
@@ -480,45 +472,6 @@ object NotificationHeaderClockSecondsHooker : StaticHooker() {
 
     private fun cancelTick(view: View) {
         val callback = synchronized(callbacksLock) { tickCallbacks.remove(view) } ?: return
-        runCatching { view.removeCallbacks(callback) }
-    }
-
-    private fun scheduleExpiry(view: View) {
-        if (retiring || !view.isAttachedToWindow) return
-        val token: Long
-        val callback: Runnable
-        synchronized(callbacksLock) {
-            expiryCallbacks[view]?.let { runCatching { view.removeCallbacks(it) } }
-            token = ++nextExpiryToken
-            expiryTokens[view] = token
-            callback = Runnable {
-                val isCurrent = synchronized(callbacksLock) {
-                    if (expiryTokens[view] != token) {
-                        false
-                    } else {
-                        expiryTokens.remove(view)
-                        expiryCallbacks.remove(view)
-                        temporaryOverrides.remove(view)
-                        true
-                    }
-                }
-                if (!isCurrent) return@Runnable
-                HookFailurePolicy.open(TAG, "temporaryExpiry", Unit) {
-                    val target = targetOf(view) ?: return@open
-                    refresh(view as TextView, target, forceStock = true)
-                    DebugLog.d(TAG, "temporary clock seconds expired")
-                }
-            }
-            expiryCallbacks[view] = callback
-        }
-        view.postDelayed(callback, TEMPORARY_SECONDS_TIMEOUT_MS)
-    }
-
-    private fun cancelExpiry(view: View) {
-        val callback = synchronized(callbacksLock) {
-            expiryTokens.remove(view)
-            expiryCallbacks.remove(view)
-        } ?: return
         runCatching { view.removeCallbacks(callback) }
     }
 

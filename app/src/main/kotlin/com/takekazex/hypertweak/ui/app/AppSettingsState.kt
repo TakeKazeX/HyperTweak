@@ -37,6 +37,7 @@ internal class AppSettingsState(val storage: AppSettingsStore) {
     var hideFingerprintAppAuth by settings.preference { storage.fingerprint.hideFingerprintAppAuthEnabled() }
     var hideLockscreenStatusBar by settings.preference { storage.getBoolean(SystemUiSettingsKeys.KEY_HIDE_LOCKSCREEN_STATUS_BAR, false) }
     var notificationHeaderClockSeconds by settings.preference { storage.getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_CLOCK_SECONDS, false) }
+    var statusBarClockSeconds by settings.preference { storage.getBoolean(SystemUiSettingsKeys.KEY_STATUS_BAR_CLOCK_SECONDS, false) }
     var notificationMonetTextColor by settings.preference { storage.getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_MONET_TEXT_COLOR, false) }
     var notificationAbsoluteTime by settings.preference { storage.getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_ABSOLUTE_TIME, false) }
     var notificationFontWeight by settings.preference { storage.getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_FONT_WEIGHT, false) }
@@ -127,6 +128,7 @@ internal class AppSettingsState(val storage: AppSettingsStore) {
             SystemUiSettingsKeys.KEY_LOCKSCREEN_ALL_NOTIFICATIONS -> lockscreenAllNotifications
             SystemUiSettingsKeys.KEY_LOCKSCREEN_KEEP_NOTIFICATIONS -> lockscreenKeepNotifications
             SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_CLOCK_SECONDS -> notificationHeaderClockSeconds
+            SystemUiSettingsKeys.KEY_STATUS_BAR_CLOCK_SECONDS -> statusBarClockSeconds
             SystemUiSettingsKeys.KEY_NOTIFICATION_MONET_TEXT_COLOR -> notificationMonetTextColor
             SystemUiSettingsKeys.KEY_NOTIFICATION_FONT_WEIGHT -> notificationFontWeight
             SystemUiSettingsKeys.KEY_NOTIFICATION_ABSOLUTE_TIME -> notificationAbsoluteTime

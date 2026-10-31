@@ -1817,4 +1817,6 @@
     <string name="icon_duo_cellular_style">Center cellular signal</string>
     <string name="icon_duo_cellular_bars">Stacked signal bars</string>
     <string name="icon_duo_cellular_dots">Signal dots (4 per SIM)</string>
+    <string name="settings_status_bar_clock_seconds_title">Show Seconds On Status Bar Clock</string>
+    <string name="settings_status_bar_clock_seconds_summary">Always show seconds on the status bar clock</string>
 </resources>

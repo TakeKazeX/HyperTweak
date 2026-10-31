@@ -346,6 +346,12 @@ internal fun AppContent(
                         hideLockscreenStatusBar = checked
                         settings.storage.putBoolean(SystemUiSettingsKeys.KEY_HIDE_LOCKSCREEN_STATUS_BAR, checked)
                     },
+                    statusBarClockSeconds = statusBarClockSeconds,
+                    onStatusBarClockSecondsChange = { checked ->
+                        markTweaked(SystemUiSettingsKeys.KEY_STATUS_BAR_CLOCK_SECONDS, checked)
+                        statusBarClockSeconds = checked
+                        settings.storage.putBoolean(SystemUiSettingsKeys.KEY_STATUS_BAR_CLOCK_SECONDS, checked)
+                    },
                     notificationHeaderClockSeconds = notificationHeaderClockSeconds,
                     onNotificationHeaderClockSecondsChange = { checked ->
                         markTweaked(SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_CLOCK_SECONDS, checked)

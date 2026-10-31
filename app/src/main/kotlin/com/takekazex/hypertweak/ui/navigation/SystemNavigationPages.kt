@@ -37,6 +37,8 @@ internal fun NavEntryBuilder.systemPages(settings: NavigationSettings, navContro
         }
         entry<Route.SystemUi> {
             SystemUIPage(
+                statusBarClockSeconds = statusBarClockSeconds,
+                onStatusBarClockSecondsChange = onStatusBarClockSecondsChange,
                 onBack = { navController.pop() },
                 immediateMonetRefresh = immediateMonetRefresh,
                 onImmediateMonetRefreshChange = onImmediateMonetRefreshChange,

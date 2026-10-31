@@ -68,6 +68,8 @@ class NavigationSettings(
     val onHideFingerprintAppAuthChange: (Boolean) -> Unit,
     val hideLockscreenStatusBar: Boolean,
     val onHideLockscreenStatusBarChange: (Boolean) -> Unit,
+    val statusBarClockSeconds: Boolean,
+    val onStatusBarClockSecondsChange: (Boolean) -> Unit,
     val notificationHeaderClockSeconds: Boolean,
     val onNotificationHeaderClockSecondsChange: (Boolean) -> Unit,
     val notificationMonetTextColor: Boolean,

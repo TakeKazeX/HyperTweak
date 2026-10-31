@@ -87,10 +87,13 @@ class SystemUiLiveSettingsRoutingTest {
         // The review found this key owned by HEADER while its callback was registered under
         // NOTIFICATION_TEXT, so a seconds-only snapshot never reached it. Ownership and the
         // application callback must live in the same domain.
-        val key = SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_CLOCK_SECONDS
-        assertEquals(setOf(Groups.HEADER), Groups.affected(key))
-        assertTrue(key in SystemUiLiveSettings.HEADER_KEYS)
-        assertFalse(key in SystemUiLiveSettings.NOTIFICATION_TEXT_KEYS)
+        for (key in setOf(SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_CLOCK_SECONDS,
+            SystemUiSettingsKeys.KEY_STATUS_BAR_CLOCK_SECONDS)) {
+            assertEquals(setOf(Groups.HEADER), Groups.affected(key))
+            assertTrue(key in SystemUiLiveSettings.HEADER_KEYS)
+            assertFalse(key in SystemUiLiveSettings.NOTIFICATION_TEXT_KEYS)
+            assertEquals(mapOf(key to true), Groups.subset(systemUi, mapOf(key to true)))
+        }
         assertTrue(Groups.forProcess(systemUi).contains(Groups.HEADER))
     }
 

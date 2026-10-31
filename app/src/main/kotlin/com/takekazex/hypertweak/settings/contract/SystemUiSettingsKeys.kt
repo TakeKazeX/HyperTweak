@@ -12,6 +12,7 @@ object SystemUiSettingsKeys {
     const val KEY_LOCKSCREEN_BOTTOM_TEXT = "lockscreen_bottom_text"
     const val KEY_LOCKSCREEN_BOTTOM_TEXT_MODE = "lockscreen_bottom_text_mode"
     const val KEY_LOCKSCREEN_BOTTOM_TEXT_MASK = "lockscreen_bottom_text_mask"
+    const val KEY_STATUS_BAR_CLOCK_SECONDS = "status_bar_clock_seconds"
     const val KEY_NOTIFICATION_HEADER_CLOCK_SECONDS = "notification_header_clock_seconds"
     const val KEY_NOTIFICATION_HEADER_HIDE_CARRIER = "notification_header_hide_carrier"
     const val KEY_NOTIFICATION_HEADER_HIDE_TIME = "notification_header_hide_time"

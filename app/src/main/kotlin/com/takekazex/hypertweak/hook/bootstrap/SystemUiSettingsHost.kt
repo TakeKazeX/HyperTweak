@@ -43,7 +43,12 @@ internal class SystemUiSettingsHost(
     private val packageState: () -> HotReloadPackageState?,
     private val liveHookers: () -> Collection<BaseHooker>
 ) {
-    private companion object { const val KEY_HEADER_CLOCK_SECONDS = "notification_header_clock_seconds" }
+    private companion object {
+        val CLOCK_SECONDS_KEYS = setOf(
+            SystemUiSettingsKeys.KEY_STATUS_BAR_CLOCK_SECONDS,
+            SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_CLOCK_SECONDS
+        )
+    }
     fun iconHookers(): List<BaseHooker> = listOf(
         CellularIconHooker, WifiIconHooker, HideCellularIconHooker, IconManagerHooker,
         IconPositionHooker, AirplaneIconHooker, IconSlotTintHooker, IgnoreSysIconSettingsHooker,
@@ -78,12 +83,12 @@ internal class SystemUiSettingsHost(
 
     /**
      * Applies a committed header snapshot. Each key is routed to the hooker that owns it: the
-     * clock-seconds key changes the header clock, the layout keys rebuild the header rows, and the
+     * clock-seconds keys refresh both clocks, the layout keys rebuild the header rows, and the
      * weather keys refresh the date suffix. An empty key set (resync/resume) runs all of them.
      */
     fun applyHeaderSettings(keys: Set<String>) {
         if (keys.isNotEmpty() && keys.none { it in SystemUiLiveSettings.HEADER_KEYS }) return
-        val layoutKeys = SystemUiLiveSettings.HEADER_KEYS - KEY_HEADER_CLOCK_SECONDS
+        val layoutKeys = SystemUiLiveSettings.HEADER_KEYS - CLOCK_SECONDS_KEYS
         val weatherKeys = setOf(
             SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_WEATHER_ENABLED,
             SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_WEATHER_REGION,
@@ -91,8 +96,8 @@ internal class SystemUiSettingsHost(
         )
         if (keys.isEmpty() || keys.any { it in layoutKeys }) NotificationHeaderHooker.refreshSettings()
         if (keys.isEmpty() || keys.any { it in weatherKeys }) NotificationHeaderWeatherHooker.refreshSettings()
-        // The clock-seconds key belongs to this domain too; a seconds-only snapshot must reach it.
-        if (keys.isEmpty() || KEY_HEADER_CLOCK_SECONDS in keys) {
+        // Both clock settings belong here; a seconds-only snapshot must reach the clock hooker.
+        if (keys.isEmpty() || keys.any { it in CLOCK_SECONDS_KEYS }) {
             NotificationHeaderClockSecondsHooker.refreshSettings()
         }
     }

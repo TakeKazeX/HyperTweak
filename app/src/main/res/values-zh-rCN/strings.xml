@@ -1785,4 +1785,6 @@
     <string name="icon_duo_cellular_style">中间蜂窝信号样式</string>
     <string name="icon_duo_cellular_bars">普通堆叠信号</string>
     <string name="icon_duo_cellular_dots">信号圆点（单卡四点、双卡八点）</string>
+    <string name="settings_status_bar_clock_seconds_title">状态栏时钟显示秒钟</string>
+    <string name="settings_status_bar_clock_seconds_summary">在状态栏时钟上常驻显示秒钟</string>
 </resources>

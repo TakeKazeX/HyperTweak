@@ -75,6 +75,8 @@ import top.yukonga.miuix.kmp.utils.overScrollVertical
 @SuppressLint("LocalContextGetResourceValueCall")
 @Composable
 fun SystemUIPage(
+    statusBarClockSeconds: Boolean,
+    onStatusBarClockSecondsChange: (Boolean) -> Unit,
     onBack: () -> Unit,
     immediateMonetRefresh: Boolean,
     onImmediateMonetRefreshChange: (Boolean) -> Unit,
@@ -360,6 +362,14 @@ fun SystemUIPage(
             SmallTitle(stringResource(R.string.settings_system_ui_section_status_bar))
             Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
                 Column(Modifier.fillMaxWidth()) {
+                    if (PlatformLevel.isOs4) {
+                        SwitchPreference(
+                            checked = statusBarClockSeconds,
+                            onCheckedChange = onStatusBarClockSecondsChange,
+                            title = stringResource(R.string.settings_status_bar_clock_seconds_title),
+                            summary = stringResource(R.string.settings_status_bar_clock_seconds_summary)
+                        )
+                    }
                     ArrowPreference(
                         title = stringResource(R.string.settings_icon_tuner),
                         summary = stringResource(R.string.settings_icon_tuner_summary),

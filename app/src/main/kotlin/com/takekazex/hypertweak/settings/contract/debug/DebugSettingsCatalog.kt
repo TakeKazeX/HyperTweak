@@ -292,6 +292,7 @@ internal object DebugSettingsCatalog {
         DebugSetting("show_in_settings", "Boolean", false),
         DebugSetting("stacked_s_type_roaming", "Boolean", false),
         DebugSetting("stacked_s_type_weight_val", "Unknown", null),
+        DebugSetting("status_bar_clock_seconds", "Boolean", false),
         DebugSetting("statusbar_hide_carrier_hd", "Boolean", false),
         DebugSetting("statusbar_hide_carrier_one", "Boolean", false),
         DebugSetting("statusbar_hide_carrier_two", "Boolean", false),

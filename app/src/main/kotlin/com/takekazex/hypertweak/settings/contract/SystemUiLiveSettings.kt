@@ -13,10 +13,11 @@ import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 internal object SystemUiLiveSettings {
     /**
      * Notification header layout, size and weather (NotificationHeaderHooker + Weather), plus the
-     * header clock seconds. The seconds key lives here because the same participant applies it:
+     * status-bar/header clock seconds. The same participant applies both seconds keys:
      * a key may only be owned by the domain whose callback handles its change.
      */
     val HEADER_KEYS = setOf(
+        SystemUiSettingsKeys.KEY_STATUS_BAR_CLOCK_SECONDS,
         SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_CLOCK_SECONDS,
         SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_HIDE_CARRIER,
         SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_HIDE_TIME,
