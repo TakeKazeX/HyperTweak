@@ -43,6 +43,7 @@ class DuoDrawable(context: Context, private val layer: DuoRenderLayer = DuoRende
     /** Power handover keeps its arc but draws the moving header independently. */
     var hideTopIndicators = false
     var topGapProgress = 0f
+    var topGapEndHalfDegrees: Float? = null
     var cellularDots = false
         set(value) { if (field != value) { field = value; invalidateSelf() } }
     var dualSignalDots = false
@@ -82,6 +83,8 @@ class DuoDrawable(context: Context, private val layer: DuoRenderLayer = DuoRende
     var networkOnly = false
     var hideAirplane = false
     var hideNetwork = false
+    /** Expanded SystemUI keeps a top bolt; independent AOD artwork retains its battery policy. */
+    var chargingBoltOnTop = false
     var batteryOnly = false
         set(value) { if (field != value) { field = value; invalidateSelf() } }
     var hideSignalDots = false
@@ -103,8 +106,9 @@ class DuoDrawable(context: Context, private val layer: DuoRenderLayer = DuoRende
         val cellular = !networkOnly && !batteryOnly && state.wifiLevel == null &&
             state.hasCellularSignal
         val compactRing = !networkOnly
-        val top = if (!networkOnly && !batteryOnly && !hidePowerTrack && topIndicatorsEnabled)
-            headerRenderer.measure(state.battery.percent, showTopPercent, state.battery.charging, sizes)
+        val top = if (!networkOnly && (!batteryOnly || chargingBoltOnTop && state.battery.charging) &&
+            !hidePowerTrack && topIndicatorsEnabled)
+            headerRenderer.measure(state.battery.percent, showTopPercent && !batteryOnly, state.battery.charging, sizes)
         else null
         val save = canvas.save()
         try {
@@ -184,11 +188,12 @@ class DuoDrawable(context: Context, private val layer: DuoRenderLayer = DuoRende
     }
 
     private fun drawTrackArcs(canvas: Canvas, fraction: Float, top: DuoTopGeometry.Header?) {
-        if (top == null || topGapProgress >= 1f) {
+        if (top == null || topGapProgress >= 1f && topGapEndHalfDegrees == null) {
             canvas.drawArc(track, TRACK_START, TRACK_SWEEP * fraction, false, paint)
             return
         }
-        val halfGap = top.halfGapDegrees * (1f - topGapProgress.coerceIn(0f, 1f))
+        val p = topGapProgress.coerceIn(0f, 1f)
+        val halfGap = top.halfGapDegrees * (1f - p) + (topGapEndHalfDegrees ?: 0f) * p
         val halfSweep = 270f - halfGap - TRACK_START
         val sweep = halfSweep * 2f * fraction
         canvas.drawArc(track, TRACK_START, minOf(sweep, halfSweep), false, paint)
@@ -198,26 +203,51 @@ class DuoDrawable(context: Context, private val layer: DuoRenderLayer = DuoRende
     }
 
     /** Header-only drawing in the authored viewport, for the finger-driven percentage path. */
-    fun drawTopIndicators(canvas: Canvas) {
+    fun drawTopIndicators(canvas: Canvas, drawNumber: Boolean = true, drawBolt: Boolean = true) {
         val state = content ?: return
         val top = headerRenderer.measure(state.battery.percent, showTopPercent, state.battery.charging, sizes) ?: return
         canvas.withSave {
             translate(CENTER, COMPACT_RING_CENTER_Y)
             scale(COMPACT_RING_SCALE, COMPACT_RING_SCALE)
             translate(-CENTER, -CENTER)
-            headerRenderer.draw(this, top, foreground, opacity)
+            headerRenderer.draw(this, top, foreground, opacity, drawNumber, drawBolt)
         }
     }
 
-    fun topIndicatorViewportBounds(out: RectF): Boolean {
+    /** Number-only ink slot: the independently animated bolt must not shift its travel origin. */
+    fun topNumberViewportBounds(out: RectF): Boolean {
+        if (!showTopPercent) return false
         val state = content ?: return false
-        val top = headerRenderer.measure(state.battery.percent, showTopPercent, state.battery.charging, sizes)?.geometry
+        val layout = headerRenderer.measure(state.battery.percent, showTopPercent, state.battery.charging, sizes)
             ?: return false
+        val top = layout.geometry
         val cy = COMPACT_RING_CENTER_Y + (top.centerY - CENTER) * COMPACT_RING_SCALE
-        val halfWidth = top.width * COMPACT_RING_SCALE / 2f
+        val glyphScale = layout.glyphScale * top.scale * COMPACT_RING_SCALE
+        val left = CENTER - top.width * COMPACT_RING_SCALE / 2f + layout.inkLeft * glyphScale
+        val width = layout.inkWidth * glyphScale
         val halfHeight = top.height * COMPACT_RING_SCALE / 2f
-        out.set(CENTER - halfWidth, cy - halfHeight, CENTER + halfWidth, cy + halfHeight)
+        out.set(left, cy - halfHeight, left + width, cy + halfHeight)
         return true
+    }
+
+    /** Bolt positions share the header's ink geometry, including the optional number's width. */
+    fun chargingBoltViewportBounds(out: RectF): Boolean {
+        val state = content ?: return false
+        if (!state.battery.charging) return false
+        val top = headerRenderer.measure(state.battery.percent, showTopPercent && !batteryOnly, true, sizes)!!.geometry
+        val scale = top.scale * COMPACT_RING_SCALE
+        val cx = CENTER + (top.rawWidth / 2f - DuoTopGeometry.BOLT_WIDTH / 2f) * scale
+        val cy = COMPACT_RING_CENTER_Y + (top.centerY - CENTER) * COMPACT_RING_SCALE
+        out.set(cx - DuoTopGeometry.BOLT_WIDTH * scale / 2f, cy - DuoTopGeometry.BOLT_HEIGHT * scale / 2f,
+            cx + DuoTopGeometry.BOLT_WIDTH * scale / 2f, cy + DuoTopGeometry.BOLT_HEIGHT * scale / 2f)
+        return true
+    }
+
+    private val chargingBolt = DuoBoltArtwork.path()
+    fun drawChargingBolt(canvas: Canvas) = canvas.withSave {
+        paint.style = Paint.Style.FILL
+        colorOf(foreground)
+        drawPath(chargingBolt, paint)
     }
 
     fun signalDotRows(): List<DuoSignalRow> {
@@ -248,7 +278,16 @@ class DuoDrawable(context: Context, private val layer: DuoRenderLayer = DuoRende
      * Wi-Fi strength climbs from the centre mark outward: level 0 keeps the reserve outline,
      * 1 lights the centre mark, 2 adds the inner arc, and 3 or more adds the outer arc.
      */
+    val compactWifiScale get() = if (signalDotRows().size > 1) .94f else 1f
+    val compactWifiOffsetY get() = if (signalDotRows().size > 1) -.9f else 0f
+
     private fun drawWifi(canvas: Canvas, rawLevel: Int) = canvas.withSave {
+        // Two SIM rows occupy more of the lower opening. Give both native and fallback Wi-Fi
+        // the same smaller footprint, leaving the user's relative size control intact.
+        if (!networkOnly) {
+            translate(0f, compactWifiOffsetY)
+            scale(compactWifiScale, compactWifiScale, CENTER, CENTER)
+        }
         scale(sizes.wifi, sizes.wifi, CENTER, CENTER)
         drawWifiUnscaled(this, rawLevel)
     }
@@ -628,8 +667,9 @@ class DuoDrawable(context: Context, private val layer: DuoRenderLayer = DuoRende
         const val NATIVE_WIFI_SIZE = 16f
         const val LABEL_CENTER_Y = 25.0f
 
-        const val COMPACT_RING_SCALE = 0.90f
-        const val COMPACT_RING_CENTER_Y = 14.8f
+        // Leave real headroom for the bolt above the arc, with the full path inside the viewport.
+        const val COMPACT_RING_SCALE = 0.86f
+        const val COMPACT_RING_CENTER_Y = 16f
         const val CELL_SIGNAL_SIZE = 18f
         const val CELL_SIGNAL_CENTER_Y = 15.0f
 

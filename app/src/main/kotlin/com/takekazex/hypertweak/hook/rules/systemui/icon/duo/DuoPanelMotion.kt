@@ -112,17 +112,19 @@ internal class DuoPanelMotion(context: Context, private val airplaneOnly: Boolea
         if (abs(native.alpha - appliedAlpha) > .001f) savedAlpha = native.alpha
         val p = progress.coerceIn(0f, 1f)
         val sourceView = source as? DuoIconView
+        val wifiScale = sourceView?.icon?.compactWifiScale ?: 1f
+        val wifiOffsetY = sourceView?.icon?.compactWifiOffsetY ?: 0f
         val sourceSide = (sourceView?.drawnIconSidePx() ?: min(source.width, source.height)).toFloat()
         val sourceTop = ((source.height - sourceSide.toInt()) / 2).toFloat()
         val sourceLeft = if (source.layoutDirection == View.LAYOUT_DIRECTION_RTL) source.paddingLeft.toFloat()
             else source.width - source.paddingRight - sourceSide
         val factor = if (airplaneOnly) .58f * sizes.airplane else if (content.wifiLevel != null)
-            DuoDrawable.COMPACT_RING_SCALE * sizes.wifi * (if (usesNativeWifi) DuoDrawable.NATIVE_WIFI_SIZE / DuoDrawable.VIEWPORT else 1f)
+            DuoDrawable.COMPACT_RING_SCALE * wifiScale * sizes.wifi * (if (usesNativeWifi) DuoDrawable.NATIVE_WIFI_SIZE / DuoDrawable.VIEWPORT else 1f)
             else sizes.type
         val boxSide = sourceSide * factor
         val cx = sourceLeft + sourceSide / 2f
         val cy = sourceTop + sourceSide * (if (airplaneOnly || content.wifiLevel == null) DuoDrawable.LABEL_CENTER_Y
-            else DuoDrawable.COMPACT_RING_CENTER_Y) / DuoDrawable.VIEWPORT
+            else DuoDrawable.COMPACT_RING_CENTER_Y + wifiOffsetY * DuoDrawable.COMPACT_RING_SCALE) / DuoDrawable.VIEWPORT
         glyph.mirrorAirplane = settingIconMirrorAirplane
         glyph.content = rendered
         glyph.foreground = color

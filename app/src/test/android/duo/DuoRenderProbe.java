@@ -36,10 +36,10 @@ public final class DuoRenderProbe {
         Constructor<?> content = Arrays.stream(contentType.getConstructors()).filter(c -> c.getParameterCount() == 10).findFirst().get();
         Constructor<?> row = cl.loadClass(P + "DuoSignalRow").getConstructor(int.class, int.class, int.class);
         List<?> rows = Arrays.asList(row.newInstance(1, 0, 4), row.newInstance(2, 1, 2));
-        String[] labels = {"charging / bolt only", "charging / 60 + bolt", "23 / dual SIM", "96 / LTE", "normal / no number", "100 + bolt / dual SIM", "airplane / offline", "23 / single SIM"};
-        int[] percentages = {60, 60, 23, 96, 80, 100, 75, 23};
+        String[] labels = {"charging / bolt only", "charging / 60 + bolt", "23 / dual SIM", "96 / LTE", "normal / no number", "100 + bolt / dual SIM", "airplane / offline", "23 / single SIM", "85 / bolt + Wi-Fi / dual SIM", "85 + bolt / Wi-Fi / dual SIM"};
+        int[] percentages = {60, 60, 23, 96, 80, 100, 75, 23, 85, 85};
         int cellW = 180, cellH = 176;
-        Bitmap sheet = Bitmap.createBitmap(cellW * 4, cellH * 2, Bitmap.Config.ARGB_8888);
+        Bitmap sheet = Bitmap.createBitmap(cellW * 4, cellH * ((labels.length + 3) / 4), Bitmap.Config.ARGB_8888);
         Canvas sheetCanvas = new Canvas(sheet);
         sheetCanvas.drawColor(Color.rgb(18, 18, 20));
         Paint label = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -48,9 +48,9 @@ public final class DuoRenderProbe {
         Object trackLayer = Enum.valueOf((Class) layerType, "POWER_TRACK");
         for (int i = 0; i < labels.length; i++) {
             Drawable icon = (Drawable) drawableType.getConstructor(Context.class, layerType).newInstance(context, layer);
-            boolean charge = i == 0 || i == 1 || i == 5;
-            boolean number = i != 0 && i != 4;
-            boolean dual = i == 2 || i == 5;
+            boolean charge = i == 0 || i == 1 || i == 5 || i == 8 || i == 9;
+            boolean number = i != 0 && i != 4 && i != 8;
+            boolean dual = i == 2 || i == 5 || i == 8 || i == 9;
             boolean flight = i == 6;
             Object state = content.newInstance(battery.newInstance(percentages[i], charge, false, null),
                 i == 3 || flight ? null : Integer.valueOf(4), i == 3 ? "LTE" : null, 4, false, false,
@@ -100,24 +100,27 @@ public final class DuoRenderProbe {
                 float scale = (Float) geometryType.getMethod("getScale").invoke(geometry);
                 float numberWidth = (Float) geometryType.getMethod("getNumberWidth").invoke(geometry) * scale;
                 float centerY = (Float) geometryType.getMethod("getCenterY").invoke(geometry);
-                float left = (16f - width / 2f) * .9f + 1.6f;
-                float top = (centerY - height / 2f - 16f) * .9f + 14.8f;
+                RectF numberBounds = new RectF();
+                if (!(Boolean) drawableType.getMethod("topNumberViewportBounds", RectF.class).invoke(icon, numberBounds))
+                    throw new AssertionError("Missing number-only ink bounds");
+                float left = numberBounds.left;
+                float top = numberBounds.top;
                 int minX = 128, minY = 128, maxX = -1, maxY = -1;
                 int x0 = Math.max(0, (int) Math.floor(left * 4f));
-                int x1 = Math.min(128, (int) Math.ceil((left + numberWidth * .9f) * 4f));
+                int x1 = Math.min(128, (int) Math.ceil(numberBounds.right * 4f));
                 int y0 = Math.max(0, (int) Math.floor(top * 4f));
-                int y1 = Math.min(128, (int) Math.ceil((top + height * .9f) * 4f));
+                int y1 = Math.min(128, (int) Math.ceil((top + height * .86f) * 4f));
                 for (int y = y0; y < y1; y++) for (int x = x0; x < x1; x++) {
                     if (Color.alpha(bitmap.getPixel(x, y)) > 128) {
                         minX = Math.min(minX, x); maxX = Math.max(maxX, x);
                         minY = Math.min(minY, y); maxY = Math.max(maxY, y);
                     }
                 }
-                int minimumInkHeight = (int) Math.floor(height * .9f * 4f) - 1;
+                int minimumInkHeight = (int) Math.floor(height * .86f * 4f) - 1;
                 if (i == 2 && numberWidth / height < 1.2f) throw new AssertionError("Digits are unnaturally narrow");
                 if (maxY - minY + 1 < minimumInkHeight) throw new AssertionError("Number ink is too small: " + labels[i] + " bounds=" + minX + "," + minY + ".." + maxX + "," + maxY + " crop=" + x0 + "," + y0 + ".." + x1 + "," + y1);
-                float expectedX = (left + numberWidth * .9f / 2f) * 4f;
-                float expectedY = (14.8f + (centerY - 16f) * .9f) * 4f;
+                float expectedX = numberBounds.centerX() * 4f;
+                float expectedY = (16f + (centerY - 16f) * .86f) * 4f;
                 if (Math.abs((minX + maxX) / 2f + .5f - expectedX) > 2f ||
                     Math.abs((minY + maxY) / 2f + .5f - expectedY) > 2f) throw new AssertionError("Header ink is off-center: " + labels[i]);
                 typographyCases++;
@@ -159,7 +162,7 @@ public final class DuoRenderProbe {
             drawableType.getMethod("setShowTopPercent", boolean.class).invoke(ring, showNumber);
             Bitmap bitmap = Bitmap.createBitmap(128, 128, Bitmap.Config.ARGB_8888);
             ring.setBounds(0, 0, 128, 128); ring.draw(new Canvas(bitmap));
-            if (Color.alpha(bitmap.getPixel(64, 7)) == 0) throw new AssertionError("Expanded top ring has a gap");
+            if (Color.alpha(bitmap.getPixel(64, 14)) == 0) throw new AssertionError("Expanded top ring has a gap");
             int[] pixels = new int[128 * 128]; bitmap.getPixels(pixels, 0, 128, 0, 0, 128, 128);
             if (previousPixels != null && !Arrays.equals(previousPixels, pixels)) throw new AssertionError("Expanded ring depends on compact number setting");
             previousPixels = pixels;
@@ -252,22 +255,83 @@ public final class DuoRenderProbe {
             }
             motionCases++;
         }
-        // Charging arcs are green, so opaque white ink isolates the number/bolt here.
-        // Catch line-height interpolation that makes intermediate numerals larger than both endpoints.
-        int[] textHeights = new int[5];
-        for (int frame = 0; frame < 5; frame++) {
-            int minY = 192, maxY = -1;
-            for (int y = frame == 4 ? 148 : 0; y < 192; y++) for (int x = 0; x < 192; x++) {
-                int pixel = forwardFrames[frame][y * 192 + x];
-                if (Color.alpha(pixel) > 180 && Color.red(pixel) > 235 && Color.green(pixel) > 235 && Color.blue(pixel) > 235) {
-                    minY = Math.min(minY, y); maxY = Math.max(maxY, y);
-                }
+        // Number-only travel must keep the collapsed ink origin when the ring size changes.
+        Drawable expandedIcon = (Drawable) viewType.getMethod("getIcon").invoke(expanded);
+        Class<?> sizesType = cl.loadClass(P + "DuoSizes");
+        Object oldExpandedSizes = drawableType.getMethod("getSizes").invoke(expandedIcon);
+        Object largerRing = sizesType.getConstructor(float.class,float.class,float.class,float.class,
+            float.class,float.class,float.class,float.class).newInstance(1.3f,1f,1f,1f,1f,1f,1f,1f);
+        drawableType.getMethod("setSizes", sizesType).invoke(expandedIcon, largerRing);
+        RectF sourceNumber = new RectF(), destinationPercent = new RectF();
+        drawableType.getMethod("topNumberViewportBounds", RectF.class).invoke(homeIcon, sourceNumber);
+        viewType.getMethod("belowPercentBounds", RectF.class).invoke(expanded, destinationPercent);
+        if (sourceNumber.centerX() >= 16f) throw new AssertionError("Number origin includes charging bolt");
+        java.lang.reflect.Field textXField = motionType.getDeclaredField("textX"), textYField = motionType.getDeclaredField("textY"),
+            headerField = motionType.getDeclaredField("header");
+        for (java.lang.reflect.Field field : new java.lang.reflect.Field[]{textXField,textYField,headerField}) field.setAccessible(true);
+        int percentTravelCases = 0;
+        for (int direction : new int[]{android.view.View.LAYOUT_DIRECTION_LTR, android.view.View.LAYOUT_DIRECTION_RTL}) {
+            copy.setLayoutDirection(direction);
+            int[][] heldFrames = new int[21][];
+            for (int step = 0; step <= 40; step++) {
+                int index = step <= 20 ? step : 40 - step;
+                float fraction = index / 20f, size = 64 + 16*fraction;
+                float stretchX = (float)Math.sin(Math.PI*fraction)*5, stretchY = (float)Math.sin(Math.PI*fraction)*7;
+                float x = 16 + 48*fraction + stretchX, cy = 48 + 88*fraction + stretchY;
+                prepare.invoke(motion, home, copy, expanded, new RectF(16,16,80,80),
+                    new RectF(x,cy-size/2,x+size,cy+size/2),new RectF(64,96,144,176),fraction);
+                RectF actualSource = (RectF) headerField.get(motion);
+                if (!sourceNumber.equals(actualSource)) throw new AssertionError("Moving ring changed the source number layout");
+                float expectedX = (16+sourceNumber.centerX()*2)*(1-fraction)+(64+destinationPercent.centerX())*fraction+stretchX;
+                float expectedY = (16+sourceNumber.centerY()*2)*(1-fraction)+(96+destinationPercent.centerY())*fraction+stretchY;
+                if (Math.abs(textXField.getFloat(motion)-expectedX)>.002f || Math.abs(textYField.getFloat(motion)-expectedY)>.002f)
+                    throw new AssertionError("Number missed its direct below-percent path at " + fraction);
+                Bitmap frame = Bitmap.createBitmap(192,192,Bitmap.Config.ARGB_8888);
+                motionType.getMethod("drawFrame",Canvas.class).invoke(motion,new Canvas(frame));
+                int[] pixels = new int[192*192]; frame.getPixels(pixels,0,192,0,0,192,192);
+                if (heldFrames[index]!=null && !Arrays.equals(heldFrames[index],pixels)) throw new AssertionError("Percentage hold/reversal differs");
+                heldFrames[index]=pixels; percentTravelCases++;
             }
-            textHeights[frame] = maxY - minY + 1;
+            motionType.getMethod("clear").invoke(motion);
         }
-        int maxEndpointInk = Math.max(textHeights[0], textHeights[4]);
-        for (int height : textHeights) if (height <= 0 || height > maxEndpointInk + 2)
-            throw new AssertionError("Moving percentage overshoots endpoint ink: " + Arrays.toString(textHeights));
+        drawableType.getMethod("setSizes", sizesType).invoke(expandedIcon, oldExpandedSizes);
+        copy.setLayoutDirection(android.view.View.LAYOUT_DIRECTION_LTR);
+        System.out.println("PASS charging_percent_travel_cases=" + percentTravelCases);
+        // The charging bolt is opaque and centered over the expanded ring's top opening, independently of percent.
+        RectF boltBounds = new RectF();
+        if (!(Boolean) drawableType.getMethod("chargingBoltViewportBounds", RectF.class).invoke(expandedIcon, boltBounds))
+            throw new AssertionError("Missing expanded charging bolt");
+        if (Math.abs(boltBounds.centerX() - 16f) > .001f || Math.abs(boltBounds.centerY() - 3.444f) > .001f)
+            throw new AssertionError("Expanded bolt is off-center: " + boltBounds);
+        // A number-less source must retain a complete bolt, and each held/reversed fraction is deterministic.
+        drawableType.getMethod("setShowTopPercent", boolean.class).invoke(homeIcon, false);
+        for (int direction : new int[]{android.view.View.LAYOUT_DIRECTION_LTR, android.view.View.LAYOUT_DIRECTION_RTL}) {
+            copy.setLayoutDirection(direction);
+            int[][] boltFrames = new int[21][];
+            for (int step = 0; step <= 40; step++) {
+                int index = step <= 20 ? step : 40 - step;
+                float fraction = index / 20f;
+                float right = 80 + 64 * fraction, cy = 48 + 88 * fraction;
+                prepare.invoke(motion, home, copy, expanded, new RectF(16,16,80,80),
+                    new RectF(direction == android.view.View.LAYOUT_DIRECTION_RTL ? 16 + 48*fraction : right-64,
+                        cy-32, direction == android.view.View.LAYOUT_DIRECTION_RTL ? 80 + 48*fraction : right,
+                        cy+32), new RectF(64,96,144,176), fraction);
+                Bitmap frame = Bitmap.createBitmap(192,192,Bitmap.Config.ARGB_8888);
+                motionType.getMethod("drawFrame", Canvas.class).invoke(motion, new Canvas(frame));
+                int[] pixels = new int[192*192]; frame.getPixels(pixels,0,192,0,0,192,192);
+                if (boltFrames[index] != null && !Arrays.equals(boltFrames[index],pixels))
+                    throw new AssertionError("Bolt reversal changed at " + fraction + " rtl=" + direction);
+                boltFrames[index] = pixels;
+                int white = 0;
+                float bx = 48 + 56*fraction, by = 22.888f + (104.61f-22.888f)*fraction;
+                for (int y = Math.max(0,(int)by-10); y < Math.min(192,(int)by+11); y++)
+                    for (int x = Math.max(0,(int)bx-9); x < Math.min(192,(int)bx+10); x++) {
+                        int pixel = pixels[y*192+x];
+                        if (Color.alpha(pixel)>230 && Color.red(pixel)>240 && Color.blue(pixel)>240) white++;
+                    }
+                if (white < 15) throw new AssertionError("Charging bolt disappeared at " + fraction);
+            }
+        }
         motionType.getMethod("clear").invoke(motion);
         try (FileOutputStream out = new FileOutputStream(args[1] + ".motion.png")) { motionSheet.compress(Bitmap.CompressFormat.PNG, 100, out); }
         Class<?> dotsRendererType = cl.loadClass("com.takekazex.hypertweak.hook.rules.systemui.icon.duo.DuoDotHandoverRenderer");
@@ -383,8 +447,9 @@ public final class DuoRenderProbe {
         for (int index = 0; index < 5; index++) dotCanvas.drawText("progress " + index / 4f, index * 144 + 72, 152, label);
         try (FileOutputStream out = new FileOutputStream(args[1] + ".dots.png")) { dotSheet.compress(Bitmap.CompressFormat.PNG, 100, out); }
         try (FileOutputStream out = new FileOutputStream(args[1])) { sheet.compress(Bitmap.CompressFormat.PNG, 100, out); }
+        DuoHeaderAlignmentProbe.run(context, cl, args[1] + ".headers.png");
         DuoNetworkProbe.run(context, cl, args[1] + ".network.png");
-        System.out.println("PASS dot_ownership_cases=" + ownershipCases + " dot_round_cases=" + dotRoundCases + " dot_travel_cases=" + dotTravelCases + " power_motion_cases=" + motionCases + " proxy_height_cases=3 proxy_restore_cases=1 actual_renderer_cases=8 expanded_ring_cases=2 per_sim_picture_crop_cases=" + passed + " composite_live_layer_cases=" + layerCases + " label_centering_cases=" + labelCases + " number_ink_cases=" + typographyCases);
+        System.out.println("PASS dot_ownership_cases=" + ownershipCases + " dot_round_cases=" + dotRoundCases + " dot_travel_cases=" + dotTravelCases + " power_motion_cases=" + motionCases + " proxy_height_cases=3 proxy_restore_cases=1 actual_renderer_cases=" + labels.length + " expanded_ring_cases=2 per_sim_picture_crop_cases=" + passed + " composite_live_layer_cases=" + layerCases + " label_centering_cases=" + labelCases + " number_ink_cases=" + typographyCases);
     }
     private static void assertFourRoundComponents(Bitmap bitmap) {
         for (android.graphics.Rect bounds : components(bitmap)) {

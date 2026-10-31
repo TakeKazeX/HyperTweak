@@ -11,6 +11,7 @@ import androidx.core.graphics.withSave
 internal class DuoTopRenderer {
     private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         typeface = Typeface.create(Typeface.create("sans-serif", Typeface.NORMAL), 700, false)
+        fontFeatureSettings = "tnum"
         textSize = REFERENCE_TEXT_SIZE
         textAlign = Paint.Align.LEFT
         style = Paint.Style.FILL
@@ -25,19 +26,19 @@ internal class DuoTopRenderer {
     private val bolt = DuoBoltArtwork.path()
 
     data class Layout(val geometry: DuoTopGeometry.Header, val text: String,
-                      val glyphScale: Float, val inkLeft: Int, val inkCenterY: Float)
+                      val glyphScale: Float, val inkLeft: Int, val inkWidth: Int, val inkCenterY: Float)
 
     fun measure(percent: Int, number: Boolean, charging: Boolean, sizes: DuoSizes): Layout? {
         if (!number && !charging) return null
         val text = if (number) percent.toString() else ""
         textPaint.getTextBounds(text, 0, text.length, ink)
         val glyphScale = numberGlyphScale
-        val geometry = DuoTopGeometry.header(number, charging, ink.width() * glyphScale,
+        val geometry = DuoTopGeometry.header(number, charging, textPaint.measureText(text) * glyphScale,
             sizes.percent, sizes.ring) ?: return null
-        return Layout(geometry, text, glyphScale, ink.left, (ink.top + ink.bottom) / 2f)
+        return Layout(geometry, text, glyphScale, ink.left, ink.width(), (ink.top + ink.bottom) / 2f)
     }
 
-    fun draw(canvas: Canvas, layout: Layout, foreground: Int, opacity: Int) = canvas.withSave {
+    fun draw(canvas: Canvas, layout: Layout, foreground: Int, opacity: Int, drawNumber: Boolean = true, drawBolt: Boolean = true) = canvas.withSave {
         val geometry = layout.geometry
         translate(DuoDrawable.CENTER, geometry.centerY)
         scale(geometry.scale, geometry.scale)
@@ -46,14 +47,14 @@ internal class DuoTopRenderer {
         if (geometry.number) {
             textPaint.color = foreground
             textPaint.alpha = alpha
-            withSave {
+            if (drawNumber) withSave {
                 translate(x, 0f)
                 scale(layout.glyphScale, layout.glyphScale)
-                drawText(layout.text, -layout.inkLeft.toFloat(), -layout.inkCenterY, textPaint)
+                drawText(layout.text, 0f, -layout.inkCenterY, textPaint)
             }
             x += geometry.numberWidth + if (geometry.bolt) DuoTopGeometry.NUMBER_BOLT_GAP else 0f
         }
-        if (geometry.bolt) {
+        if (geometry.bolt && drawBolt) {
             boltPaint.color = foreground
             boltPaint.alpha = alpha
             translate(x + DuoTopGeometry.BOLT_WIDTH / 2f, 0f)

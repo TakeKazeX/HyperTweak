@@ -44,6 +44,7 @@ def main():
             ['/system/bin/app_process', '/', 'DuoRenderProbe', remote + '/module.apk', remote + '/duo-render.png'])
         result = run(adb + ['shell', command], timeout=45)
         run(adb + ['pull', remote + '/duo-render.png', output / 'duo-render.png'])
+        run(adb + ['pull', remote + '/duo-render.png.headers.png', output / 'duo-header-alignment.png'])
         run(adb + ['pull', remote + '/duo-render.png.motion.png', output / 'duo-power-motion.png'])
         run(adb + ['pull', remote + '/duo-render.png.dots.png', output / 'duo-dot-motion.png'])
         run(adb + ['pull', remote + '/duo-render.png.network.png', output / 'duo-network-motion.png'])

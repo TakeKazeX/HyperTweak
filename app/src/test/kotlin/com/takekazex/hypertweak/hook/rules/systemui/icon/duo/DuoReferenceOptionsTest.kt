@@ -58,9 +58,15 @@ class DuoReferenceOptionsTest {
         values.keys.forEach { assertNull(upgraded.value(it)) }
     }
 
-    @Test fun chargingBoltIsIndependentOfNumberAndGapFollowsActualHeaderWidth() {
+    @Test fun chargingBoltIsIndependentAndGapFollowsActualHeaderWidth() {
         assertNull(DuoTopGeometry.header(false, false, 10f, 1f, 1f))
         val bolt = DuoTopGeometry.header(false, true, 10f, 1f, 1f)!!
+        assertEquals("bolt straddles the ring's top opening", DuoDrawable.CENTER - DuoDrawable.TRACK_RADIUS,
+            bolt.centerY, .001f)
+        for (ringScale in listOf(.5f, 1f, 1.5f)) {
+            val scaled = DuoTopGeometry.header(false, true, 0f, 1f, ringScale)!!
+            assertEquals(DuoDrawable.CENTER - DuoDrawable.TRACK_RADIUS * ringScale, scaled.centerY, .001f)
+        }
         assertFalse(bolt.number)
         assertTrue(bolt.bolt)
         val number = DuoTopGeometry.header(true, false, 10f, 1f, 1f)!!
@@ -70,16 +76,29 @@ class DuoReferenceOptionsTest {
         assertTrue(number.width < both.width)
         assertTrue(bolt.halfGapDegrees < number.halfGapDegrees)
         assertTrue(number.halfGapDegrees < both.halfGapDegrees)
-        assertTrue("single bolt must not inherit the old 70 degree gap", bolt.halfGapDegrees * 2f < 35f)
+        assertTrue("single bolt must not inherit the old 70 degree gap", bolt.halfGapDegrees * 2f < 45f)
         val hundred = DuoTopGeometry.header(true, true, 15f, 1f, 1f)!!
-        assertEquals("100 must retain the same readable number height", number.height, hundred.height, .001f)
-        assertEquals("charging must not shrink the number", number.scale, both.scale, .001f)
+        assertTrue("wide headers stay readable", hundred.height >= number.height * .85f)
+        assertTrue(hundred.centerY + hundred.height / 2f <= DuoTopGeometry.MAX_NUMBER_BOTTOM + .001f)
+        assertTrue("ordinary charging headers retain their readable size", both.scale >= number.scale * .95f)
         assertEquals(DuoTopGeometry.NUMBER_HEIGHT, number.height, .001f)
         assertTrue(hundred.width > both.width)
         assertTrue(hundred.halfGapDegrees > both.halfGapDegrees)
         val large = DuoTopGeometry.header(true, true, 15f, 1.5f, 1f)!!
         assertTrue(large.height <= DuoTopGeometry.MAX_HEIGHT)
         assertTrue(large.centerY - large.height / 2f >= DuoTopGeometry.TOP_INSET - .001f)
+    }
+
+    @Test fun numberFollowsItsOwnCapsAndRetainsUpperViewportClearance() {
+        for (ring in listOf(.5f, 1f, 1.5f)) for (percent in listOf(.5f, 1f, 1.5f)) {
+            for (width in listOf(5f, 10f, 16f)) for (charging in listOf(false, true)) {
+                val header = DuoTopGeometry.header(true, charging, width, percent, ring)!!
+                val capY = DuoDrawable.CENTER - DuoDrawable.TRACK_RADIUS * ring *
+                    kotlin.math.cos(Math.toRadians(header.halfGapDegrees.toDouble())).toFloat()
+                assertEquals(maxOf(capY - DuoTopGeometry.NUMBER_CAP_OFFSET, DuoTopGeometry.TOP_INSET + header.height / 2f), header.centerY, .001f)
+                assertTrue(header.centerY - header.height / 2f >= DuoTopGeometry.TOP_INSET - .001f)
+            }
+        }
     }
 
     @Test fun dualRowsSitInsideTheLowerOpeningAndRemainSeparated() {

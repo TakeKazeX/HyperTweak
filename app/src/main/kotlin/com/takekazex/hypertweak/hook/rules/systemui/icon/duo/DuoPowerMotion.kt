@@ -12,6 +12,7 @@ import android.view.ViewGroup
 import androidx.core.graphics.ColorUtils
 import com.takekazex.hypertweak.presentation.icon.duo.DuoDrawable
 import com.takekazex.hypertweak.presentation.icon.duo.DuoRenderLayer
+import com.takekazex.hypertweak.presentation.icon.duo.DuoTopGeometry
 import com.takekazex.hypertweak.util.logging.DebugLog
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -19,12 +20,19 @@ import kotlin.math.roundToInt
 /** One moving power arc; HOME and the expanded battery are distinct drawing endpoints. */
 internal class DuoPowerMotion(context: Context) {
     private val ring = DuoDrawable(context, DuoRenderLayer.POWER_TRACK).apply { hideTopIndicators = true }
-    private val battery = DuoDrawable(context).apply { batteryOnly = true; hidePowerTrack = true }
+    private val sourceHeader = DuoDrawable(context, DuoRenderLayer.POWER_TRACK)
+    private val battery = DuoDrawable(context).apply { batteryOnly = true; chargingBoltOnTop = true; hidePowerTrack = true }
     private val sourceRect = RectF()
     private val proxyRect = RectF()
     private val targetRect = RectF()
     private val header = RectF()
     private val percent = RectF()
+    private val sourceBolt = RectF()
+    private val targetBolt = RectF()
+    private var charging = false
+    private var boltX = 0f
+    private var boltY = 0f
+    private var boltHeight = 0f
     private val matrix = Matrix()
     private val inverseRoot = Matrix()
     private val vector = FloatArray(2)
@@ -61,9 +69,18 @@ internal class DuoPowerMotion(context: Context) {
                 ring.draw(canvas)
                 if (progress > .75f) battery.draw(canvas)
             } finally { canvas.restoreToCount(save) }
+            if (charging) {
+                val save = canvas.save()
+                try {
+                    canvas.translate(boltX, boltY)
+                    val scale = boltHeight / DuoTopGeometry.BOLT_HEIGHT
+                    canvas.scale(scale, scale)
+                    ring.drawChargingBolt(canvas)
+                } finally { canvas.restoreToCount(save) }
+            }
             val handoff = DuoPanelGeometry.handoff(progress)
             if (hasHeader) drawTextPart(canvas, header, textHeight / header.height(),
-                ((1f - handoff) * 255f).roundToInt()) { ring.drawTopIndicators(it) }
+                ((1f - handoff) * 255f).roundToInt()) { sourceHeader.drawTopIndicators(it, drawBolt = false) }
             if (hasPercent) drawTextPart(canvas, percent, textHeight / percent.height(),
                 ((if (hasHeader) handoff else progress) * 255f).roundToInt()) { target?.drawBelowPercent(it) }
             if (!ready) { ready = true; root?.postInvalidateOnAnimation() }
@@ -149,14 +166,17 @@ internal class DuoPowerMotion(context: Context) {
         ring.topGapProgress = progress
         ring.sizes = home.icon.sizes.copy(ring = DuoPanelGeometry.mix(home.icon.sizes.ring, expanded.icon.sizes.ring, progress))
         ring.foreground = ColorUtils.blendARGB(home.icon.foreground, expanded.icon.foreground, progress)
+        sourceHeader.content = home.icon.content
+        sourceHeader.showTopPercent = home.icon.showTopPercent
+        sourceHeader.sizes = home.icon.sizes
+        sourceHeader.foreground = ring.foreground
         ring.setBounds(0, 0, DuoDrawable.VIEWPORT.toInt(), DuoDrawable.VIEWPORT.toInt())
         battery.content = expanded.icon.content
         battery.sizes = expanded.icon.sizes
         battery.foreground = expanded.icon.foreground
         battery.innerBatteryDrawable = expanded.icon.innerBatteryDrawable
-        battery.alpha = (DuoPanelGeometry.handoff(progress) * 255f).roundToInt()
         battery.bounds = ring.bounds
-        hasHeader = home.icon.topIndicatorsEnabled && ring.topIndicatorViewportBounds(header)
+        hasHeader = home.icon.topIndicatorsEnabled && sourceHeader.topNumberViewportBounds(header)
         hasPercent = expanded.belowPercentBounds(percent)
         val sourceScale = sourceSide / DuoDrawable.VIEWPORT
         val targetScale = targetSide / expanded.drawnIconSidePx()
@@ -171,6 +191,23 @@ internal class DuoPowerMotion(context: Context) {
         val sourceHeight = if (hasHeader) header.height() * sourceScale else 0f
         textHeight = DuoPanelGeometry.mix(sourceHeight,
             if (hasPercent) percent.height() * targetScale else sourceHeight, progress)
+        charging = home.icon.topIndicatorsEnabled && home.icon.chargingBoltViewportBounds(sourceBolt) &&
+            expanded.icon.chargingBoltViewportBounds(targetBolt)
+        battery.alpha = (DuoPanelGeometry.handoff(progress) * 255f).roundToInt()
+        ring.topGapEndHalfDegrees = if (charging) DuoTopGeometry.header(false, true, 0f,
+            expanded.icon.sizes.percent, expanded.icon.sizes.ring)?.halfGapDegrees else null
+        if (charging) {
+            // Re-evaluate only from the current fraction and proxy pose: holds and reversal have no clock lag.
+            val targetViewportScale = targetSide / DuoDrawable.VIEWPORT
+            val correctionX = proxyEnd - DuoPanelGeometry.mix(sourceEnd, targetEnd, progress)
+            val correctionY = proxyRect.centerY() - DuoPanelGeometry.mix(sourceRect.centerY(), targetRect.centerY(), progress)
+            boltX = DuoPanelGeometry.mix(sourceRect.left + sourceBolt.centerX() * sourceScale,
+                targetRect.left + targetBolt.centerX() * targetViewportScale, progress) + correctionX
+            boltY = DuoPanelGeometry.mix(sourceRect.top + sourceBolt.centerY() * sourceScale,
+                targetRect.top + targetBolt.centerY() * targetViewportScale, progress) + correctionY
+            boltHeight = DuoPanelGeometry.mix(sourceBolt.height() * sourceScale,
+                targetBolt.height() * targetViewportScale, progress)
+        }
         home.powerInMotion = ready
         copy.powerInMotion = ready
         expanded.powerInMotion = ready

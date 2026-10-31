@@ -210,6 +210,7 @@ internal class DuoIconView(context: Context) : View(context) {
         val nextDrawable = drawable.takeIf { enabled }
         val changed = icon.batteryOnly != enabled || icon.innerBatteryDrawable !== nextDrawable
         icon.batteryOnly = enabled
+        icon.chargingBoltOnTop = enabled
         icon.innerBatteryDrawable = nextDrawable
         if (changed) invalidate()
     }
@@ -284,6 +285,7 @@ internal class DuoIconView(context: Context) : View(context) {
         runCatching {
             // The ring is stable; only network representations crossfade.
             ring.batteryOnly = icon.batteryOnly
+            ring.chargingBoltOnTop = icon.chargingBoltOnTop
             ring.topIndicatorsEnabled = icon.topIndicatorsEnabled
             ring.showTopPercent = icon.showTopPercent
             ring.sizes = icon.sizes
@@ -305,6 +307,7 @@ internal class DuoIconView(context: Context) : View(context) {
                     dualSignalDots = icon.dualSignalDots
                     cellularDots = icon.cellularDots
                     batteryOnly = icon.batteryOnly
+                    chargingBoltOnTop = icon.chargingBoltOnTop
                     innerBatteryDrawable = icon.innerBatteryDrawable
                     bounds = icon.bounds
                     foreground = icon.foreground
