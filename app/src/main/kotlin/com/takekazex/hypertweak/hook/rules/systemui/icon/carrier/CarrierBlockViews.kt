@@ -4,6 +4,7 @@ import com.takekazex.hypertweak.hook.rules.systemui.icon.MobileTypeConfig
 import com.takekazex.hypertweak.hook.rules.systemui.icon.TwoRowIconLayout
 import com.takekazex.hypertweak.presentation.icon.IconSvgSnapshot
 
+import android.graphics.Typeface
 import android.graphics.Bitmap
 import android.graphics.drawable.GradientDrawable
 import android.text.TextUtils
@@ -83,7 +84,8 @@ internal data class CarrierRowRenderState(
     val densityDpi: Int, val fontScale: Float, val rtl: Boolean,
     val iconHeight: Int, val carrier: String, val badgeText: String,
     val single: Boolean, val roaming: Boolean, val keepType: Boolean,
-    val config: MobileTypeConfig, val badge: Boolean
+    val config: MobileTypeConfig, val badge: Boolean,
+    val typeface: Typeface?, val textSizePx: Float
 )
 
 /** Reused primitive comparison storage; local captured counters otherwise allocate on R8. */

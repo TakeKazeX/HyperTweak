@@ -133,11 +133,9 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
     private val installed = generationResource(AtomicBoolean(false)) { it.set(false) }
     private val artLock = Any()
 
-    /** Use the regular network-type size, not the former compact 11sp variant. */
+    /** Carrier rows supply their live host typography; these values are fallback only. */
     private var typeConfig by generationState { MobileTypeConfig(
-        textSizeSp = 14f,
-        weight = 630,
-        singleWeight = 400,
+        textSizeSp = 13f,
         paddingStartSp = 1f,
         paddingEndSp = 1f
     ) }

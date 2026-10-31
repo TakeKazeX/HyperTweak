@@ -90,7 +90,8 @@ internal class CarrierRowRenderer {
         val state = CarrierRowRenderState(model, art, tint, densityDpi, fontScale, rtl,
             iconHeightPx(context), parts.carrierText.text.toString(), parts.badge.text.toString(),
             input.mobileState.subscriptionOrder.size == 1,
-            input.mobileState.subscriptions[model.networkSubId]?.roaming == true, input.keepTypeOnWifi, input.typeConfig, input.showBadge)
+            input.mobileState.subscriptions[model.networkSubId]?.roaming == true, input.keepTypeOnWifi, input.typeConfig, input.showBadge,
+            parts.carrierText.typeface, parts.carrierText.textSize)
         if (parts.rendered == state) return
         parts.badge.setTextColor(tint)
         parts.airplaneText.setTextColor(tint)
@@ -133,7 +134,10 @@ internal class CarrierRowRenderer {
                         context.resources.displayMetrics.density, fontScale),
                     densityDpi = densityDpi,
                     fontScale = fontScale,
-                    rtl = rtl
+                    rtl = rtl,
+                    // Inherit the live host typography, including Xiaomi font/weight changes.
+                    hostTypeface = parts.carrierText.typeface,
+                    hostTextSizePx = parts.carrierText.textSize
                 )
             }.onFailure { DebugLog.w(TAG, "carrier type render failed", it) }.getOrNull()
         }

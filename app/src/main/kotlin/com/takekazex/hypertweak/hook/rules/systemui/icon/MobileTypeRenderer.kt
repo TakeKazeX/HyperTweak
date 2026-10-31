@@ -19,7 +19,7 @@ import kotlin.math.ceil
 object MobileTypeRenderer {
     private const val MAX_CACHE_ENTRIES = 32
 
-    private val cache = object : LruCache<String, Bitmap>(MAX_CACHE_ENTRIES) {}
+    private val cache = object : LruCache<List<Any?>, Bitmap>(MAX_CACHE_ENTRIES) {}
 
     fun render(
         output: MobileTypeOutput,
@@ -27,14 +27,17 @@ object MobileTypeRenderer {
         iconHeightPx: Int,
         densityDpi: Int = 0,
         fontScale: Float = 1f,
-        rtl: Boolean = false
+        rtl: Boolean = false,
+        hostTypeface: Typeface? = null,
+        hostTextSizePx: Float? = null
     ): Bitmap? {
         if (output.text.isBlank()) return null
         val safe = config.safe()
         val height = iconHeightPx.coerceIn(1, 512)
         val density = if (densityDpi > 0) densityDpi / 160f else height / 20f
         val safeFontScale = fontScale.takeIf(Float::isFinite)?.coerceIn(0.5f, 3f) ?: 1f
-        val textSizePx = (safe.textSizeSp * density * safeFontScale).coerceIn(1f, 256f)
+        val textSizePx = (hostTextSizePx?.takeIf { it.isFinite() && it > 0f }
+            ?: (safe.textSizeSp * density * safeFontScale)).coerceIn(1f, 256f)
         val padStart = (safe.paddingStartSp * density).coerceIn(0f, 512f)
         val padEnd = (safe.paddingEndSp * density).coerceIn(0f, 512f)
         val key = listOf(
@@ -49,8 +52,9 @@ object MobileTypeRenderer {
             padEnd,
             safe.verticalOffsetSp * density,
             rtl,
-            safe.small5GaEnabled
-        ).joinToString("|")
+            safe.small5GaEnabled,
+            hostTypeface
+        )
         synchronized(cache) { cache.get(key)?.let { return it } }
 
         val weight = if (output.isSingle) safe.singleWeight else safe.weight
@@ -70,7 +74,7 @@ object MobileTypeRenderer {
         val paint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.WHITE
             textSize = textSizePx
-            typeface = Typeface.create(Typeface.create(family, Typeface.NORMAL), weight, false)
+            typeface = hostTypeface ?: Typeface.create(Typeface.create(family, Typeface.NORMAL), weight, false)
             textScaleX = textScale
             textAlign = if (rtl) Paint.Align.RIGHT else Paint.Align.LEFT
         }
