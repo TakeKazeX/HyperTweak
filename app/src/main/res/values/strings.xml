@@ -1819,6 +1819,13 @@
     <string name="icon_duo_cellular_dots">Signal dots (4 per SIM)</string>
     <string name="settings_status_bar_clock_seconds_title">Show Seconds On Status Bar Clock</string>
     <string name="settings_status_bar_clock_seconds_summary">Always show seconds on the status bar clock</string>
+    <string name="community_title">Xiaomi Community</string>
+    <string name="community_block">Filter module entries from feedback</string>
+    <string name="community_block_summary">Remove HyperTweak and HyperCeiler entries from the abnormal-app list when creating feedback. Requires Xiaomi Community scope; other detection and uploads are unaffected.</string>
+    <string name="community_modify">Change feedback model</string>
+    <string name="community_modify_summary">Only changes the model in newly created feedback data. Requires Xiaomi Community scope. Existing feedback must be created again; account, push and system identity keep their original values.</string>
+    <string name="community_model">Feedback model</string>
+    <string name="community_model_empty">Leave blank to keep the original model</string>
     <string name="feature_scope_missing">Scope not enabled</string>
     <string name="feature_scope_missing_summary">The scope for %1$s is not enabled. Related features are unavailable.\n%2$s</string>
     <string name="feature_scope_ignore">Ignore</string>

@@ -11,6 +11,9 @@ internal object PackageHookPlan {
         if (packageName in com.takekazex.hypertweak.settings.contract.AivsPathPolicy.packages) {
             hook { com.takekazex.hypertweak.hook.rules.shared.AivsDirectoryHooker }
         }
+        if (packageName == com.takekazex.hypertweak.settings.contract.CommunitySettings.PACKAGE) {
+            hook { com.takekazex.hypertweak.hook.rules.community.CommunityHooker }
+        }
         if (selectedIme) hook { AospImeHooker }
         addAll(SystemUiHookPlan.steps(packageName, processName))
         addAll(SettingsAppHookPlan.steps(packageName, processName))

@@ -45,5 +45,6 @@
         <!-- Theme Manager (com.android.thememanager). The third-party-theme switch hooks this
              process, so it must be in the declared scope for LSPosed to inject the module. -->
         <item>com.android.thememanager</item>
+        <item>com.xiaomi.vipaccount</item>
     </string-array>
 </resources>

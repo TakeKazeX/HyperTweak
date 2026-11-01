@@ -217,6 +217,7 @@ internal object RuntimeSettingsParticipants {
         registerForProcess(RuntimeSettingsGroups.SETTINGS_AI) { _ ->
             HyperOsAiEntriesHooker.refreshSettings()
         }
+        registerForProcess(RuntimeSettingsGroups.COMMUNITY) { _ -> true }
         registerForProcess(RuntimeSettingsGroups.SHARE_PANEL) { _ ->
             SharePanelHooker.refreshSettings()
             true

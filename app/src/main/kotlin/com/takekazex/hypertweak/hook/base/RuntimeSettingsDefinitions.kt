@@ -57,6 +57,7 @@ internal object RuntimeSettingsDefinitions {
     const val OFFLINE_CONFIG = "carrier.offline_config"
     const val XIAOAI_GESTURES = "xiaoai.gesture_input"
     const val SETTINGS_AI = "settings.hyperos_ai"
+    const val COMMUNITY = "community.feedback"
     const val SHARE_PANEL = "intentresolver.share_panel"
     /** Keyguard/AOD surface: SystemUI's keyguard battery row plus the AOD plugin rows. */
     const val AOD = "systemui.aod"
@@ -166,7 +167,8 @@ internal object RuntimeSettingsDefinitions {
         PlatformSettingsKeys.KEY_DISABLE_SPATIAL_AUDIO,
         PlatformSettingsKeys.KEY_FORCE_ADAPTIVE_ANC,
     )
-    val strictBooleanKeys = setOf(PlatformSettingsKeys.KEY_AOSP_IME_ENABLED,
+    val strictBooleanKeys = setOf(com.takekazex.hypertweak.settings.contract.CommunitySettingsKeys.KEY_COMMUNITY_BLOCK_DETECTION,
+        com.takekazex.hypertweak.settings.contract.CommunitySettingsKeys.KEY_COMMUNITY_DEVICE_MODIFY, PlatformSettingsKeys.KEY_AOSP_IME_ENABLED,
         PlatformSettingsKeys.KEY_AOSP_IME_MIUI_IME_LIST) + policyKeys + passivePolicyKeys + googleKeys + aospUiKeys + aospSecurityKeys + setOf(
         PlatformSettingsKeys.KEY_AOSP_PACKAGE_INSTALLER,
         PlatformSettingsKeys.KEY_NATIVE_PICKER, PlatformSettingsKeys.KEY_NATIVE_PHOTO_PICKER, PlatformSettingsKeys.KEY_NATIVE_FILE_PICKER,
@@ -294,6 +296,9 @@ internal object RuntimeSettingsDefinitions {
         XIAOAI_GESTURES to Group(setOf("com.miui.voiceassist")) { it == PlatformSettingsKeys.KEY_XIAOAI_GESTURE_OPTIONS },
         SETTINGS_AI to Group(setOf("com.android.settings")) {
             it == PlatformSettingsKeys.KEY_SETTINGS_ONDEVICE_MODEL_ENTRY || it == PlatformSettingsKeys.KEY_SETTINGS_GEMINI_ENTRY
+        },
+        COMMUNITY to Group(setOf(com.takekazex.hypertweak.settings.contract.CommunitySettings.PACKAGE)) {
+            it in com.takekazex.hypertweak.settings.contract.CommunitySettings.keys
         },
         SHARE_PANEL to Group(setOf("com.android.intentresolver")) { it == PlatformSettingsKeys.KEY_SHARE_PANEL_SHOW_ALL },
         // Presence-deciding switches. These keys make a hooker install or disappear, so the owning

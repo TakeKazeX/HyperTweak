@@ -38,6 +38,7 @@ internal object RuntimeSettingsGroups {
     const val OFFLINE_CONFIG = RuntimeSettingsDefinitions.OFFLINE_CONFIG
     const val XIAOAI_GESTURES = RuntimeSettingsDefinitions.XIAOAI_GESTURES
     const val SETTINGS_AI = RuntimeSettingsDefinitions.SETTINGS_AI
+    const val COMMUNITY = RuntimeSettingsDefinitions.COMMUNITY
     const val SHARE_PANEL = RuntimeSettingsDefinitions.SHARE_PANEL
     const val AOD = RuntimeSettingsDefinitions.AOD
     const val KEYGUARD = RuntimeSettingsDefinitions.KEYGUARD

@@ -76,6 +76,7 @@ fun PurificationPage(
                 "com.android.intentresolver", "com.xiaomi.aicr", "com.xiaomi.trustservice",
                 "com.miui.guardprovider", "com.android.phone", "com.xiaomi.phone"
             )
+            CommunitySection()
             AivsDirectorySection()
             DarkModeScheduleSection()
             SharePanelSection()

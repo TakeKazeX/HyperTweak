@@ -1787,6 +1787,13 @@
     <string name="icon_duo_cellular_dots">信号圆点（单卡四点、双卡八点）</string>
     <string name="settings_status_bar_clock_seconds_title">状态栏时钟显示秒钟</string>
     <string name="settings_status_bar_clock_seconds_summary">在状态栏时钟上常驻显示秒钟</string>
+    <string name="community_title">小米社区</string>
+    <string name="community_block">过滤反馈中的模块条目</string>
+    <string name="community_block_summary">构造反馈时移除异常应用列表中的 HyperTweak 和 HyperCeiler 条目。需启用小米社区作用域；不拦截其他检测或上传。</string>
+    <string name="community_modify">修改反馈机型</string>
+    <string name="community_modify_summary">仅修改新构造反馈数据的 model。需启用小米社区作用域；已有反馈需重新创建，账号、推送和系统机型保持原值。</string>
+    <string name="community_model">反馈机型</string>
+    <string name="community_model_empty">留空保留原机型</string>
     <string name="feature_scope_missing">未启用作用域</string>
     <string name="feature_scope_missing_summary">未启用%1$s的作用域，相关功能不可用。\n%2$s</string>
     <string name="feature_scope_ignore">忽略</string>
