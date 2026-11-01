@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="security_center_force_gunsight">强制解锁准星辅助</string>
+    <string name="security_center_force_gunsight_summary">切换后请重新打开工具箱。无对应能力的机型可能仅显示入口，无法实际生效。</string>
+    <string name="security_center_force_macro">强制解锁自动连招</string>
+    <string name="security_center_force_macro_summary">切换后请重新打开工具箱。需系统连招应用及服务；不支持的机型可能仅显示入口。跳过游戏模型限制；自动执行仍需在系统应用中选用连招。</string>
+</resources>

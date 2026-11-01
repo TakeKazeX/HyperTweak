@@ -26,6 +26,7 @@ internal object RuntimeSettingsGroups {
     const val GESTURE_BAR_UI = RuntimeSettingsDefinitions.GESTURE_BAR_UI
     const val GATED_FEATURES = RuntimeSettingsDefinitions.GATED_FEATURES
     const val APP_DETAILS = RuntimeSettingsDefinitions.APP_DETAILS
+    const val SECURITY_GAMEBOOSTER = RuntimeSettingsDefinitions.SECURITY_GAMEBOOSTER
     const val SECURITY_POPUPS = RuntimeSettingsDefinitions.SECURITY_POPUPS
     const val SECURITY_SIDEBAR = RuntimeSettingsDefinitions.SECURITY_SIDEBAR
     const val SECURITY_DOCK = RuntimeSettingsDefinitions.SECURITY_DOCK

@@ -18,6 +18,30 @@ class SecurityCenterRuntimeSettingsTest {
         Keys.KEY_KEEP_REFRESH_RATE_IN_POWER_SAVE, Keys.KEY_KEEP_HAPTIC_FEEDBACK_IN_POWER_SAVE,
         Keys.KEY_KEEP_SYSTEM_SOUNDS_IN_POWER_SAVE, Keys.KEY_KEEP_WAKEUP_GESTURES_IN_POWER_SAVE)
 
+    @Test fun gameBoosterSwitchesMigrateDisableAndResetIndependently() {
+        val gun = Keys.KEY_SECURITY_CENTER_FORCE_UNLOCK_GUNSIGHT
+        val macro = Keys.KEY_SECURITY_CENTER_FORCE_UNLOCK_MACRO
+        val groups = setOf(Groups.SECURITY_GAMEBOOSTER)
+        for (key in listOf(gun, macro)) {
+            assertEquals(groups, Groups.affected(key))
+            assertNull(RuntimeSettingsSnapshot.read(1, mapOf(key to "true"), groups))
+        }
+        for (process in listOf("com.miui.securitycenter", "com.miui.securitycenter:ui", "com.miui.securitycenter.remote"))
+            assertTrue(Groups.SECURITY_GAMEBOOSTER in Groups.forProcess(process))
+        assertFalse(Groups.SECURITY_GAMEBOOSTER in Groups.forProcess("com.miui.securitycore"))
+        val ledger = RuntimeSettingsLedger().also { it.restore(arrayOf<Any>(1L, hashMapOf("icon_duo_enabled" to true))) }
+        assertTrue(ledger.accept(RuntimeSettingsSnapshot.read(2, mapOf(gun to true, macro to true), groups)!!))
+        val replacement = RuntimeSettingsLedger().also { it.restore(ledger.save()) }
+        assertEquals(true, replacement.value(gun))
+        assertEquals(true, replacement.value(macro))
+        assertTrue(replacement.accept(RuntimeSettingsSnapshot.read(3, mapOf(gun to false, macro to true), groups)!!))
+        assertEquals(false, replacement.value(gun))
+        assertEquals(true, replacement.value(macro))
+        assertTrue(replacement.accept(RuntimeSettingsSnapshot.read(4, emptyMap<String, Any>(), groups)!!))
+        assertNull(replacement.value(gun))
+        assertNull(replacement.value(macro))
+    }
+
     @Test fun routesEveryOwnerToItsExecutingPackagesAndManifestProcesses() {
         val center = "com.miui.securitycenter"
         privacy.forEach { assertEquals(setOf(Groups.SECURITY_PRIVACY), Groups.affected(it)) }

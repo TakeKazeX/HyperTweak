@@ -58,6 +58,12 @@ fun SecurityCenterPage(
     var sidebarMode by remember {
         mutableIntStateOf(settingsStore.getInt(PlatformSettingsKeys.KEY_SECURITY_CENTER_SIDEBAR_MODE, 0).takeIf { it in 0..2 } ?: 0)
     }
+    var forceGunsight by rememberSaveable {
+        mutableStateOf(settingsStore.getBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_FORCE_UNLOCK_GUNSIGHT, false))
+    }
+    var forceMacro by rememberSaveable {
+        mutableStateOf(settingsStore.getBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_FORCE_UNLOCK_MACRO, false))
+    }
     var hideDolbyPopup by remember {
         mutableStateOf(settingsStore.getBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_HIDE_DOLBY_POPUP, false))
     }
@@ -319,6 +325,24 @@ fun SecurityCenterPage(
                     },
                     title = stringResource(R.string.security_center_hide_dolby_popup),
                     summary = stringResource(R.string.security_center_hide_dolby_popup_summary)
+                )
+                SwitchPreference(
+                    checked = forceGunsight,
+                    onCheckedChange = {
+                        forceGunsight = it
+                        settingsStore.putBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_FORCE_UNLOCK_GUNSIGHT, it)
+                    },
+                    title = stringResource(R.string.security_center_force_gunsight),
+                    summary = stringResource(R.string.security_center_force_gunsight_summary)
+                )
+                SwitchPreference(
+                    checked = forceMacro,
+                    onCheckedChange = {
+                        forceMacro = it
+                        settingsStore.putBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_FORCE_UNLOCK_MACRO, it)
+                    },
+                    title = stringResource(R.string.security_center_force_macro),
+                    summary = stringResource(R.string.security_center_force_macro_summary)
                 )
                 SwitchPreference(
                     checked = dockUnlimited,

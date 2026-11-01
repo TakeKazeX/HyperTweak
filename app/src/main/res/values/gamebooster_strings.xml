@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="security_center_force_gunsight">Force unlock crosshair assistance</string>
+    <string name="security_center_force_gunsight_summary">Reopen the toolbox after changing this setting. Devices without the required capability may show an entry that does not work.</string>
+    <string name="security_center_force_macro">Force unlock automatic combos</string>
+    <string name="security_center_force_macro_summary">Reopen the toolbox after changing this setting. Requires the system combo app and service; unsupported devices may only show the entry. Bypasses game model restrictions; select a combo in the system app to use automatic execution.</string>
+</resources>

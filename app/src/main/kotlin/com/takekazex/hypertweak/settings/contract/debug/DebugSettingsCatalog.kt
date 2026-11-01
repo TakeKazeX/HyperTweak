@@ -271,6 +271,8 @@ internal object DebugSettingsCatalog {
         DebugSetting("securitycenter_dock_predict_limit", "Int", 8),
         DebugSetting("securitycenter_dock_unlimited_pinned", "Boolean", false),
         DebugSetting("securitycenter_dock_unlimited_predictions", "Boolean", false),
+        DebugSetting("securitycenter_force_unlock_gunsight", "Boolean", false),
+        DebugSetting("securitycenter_force_unlock_macro", "Boolean", false),
         DebugSetting("securitycenter_front_camera_assistant_entry", "Boolean", false),
         DebugSetting("securitycenter_hide_dolby_popup", "Boolean", false),
         DebugSetting("securitycenter_hide_game_popup", "Boolean", false),

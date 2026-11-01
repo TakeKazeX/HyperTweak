@@ -45,6 +45,7 @@ internal object RuntimeSettingsDefinitions {
     /** Switches that decide whether a hooker is installed at all, not just how it behaves. */
     const val GATED_FEATURES = "features.installation"
     const val APP_DETAILS = "securitycenter.app_details"
+    const val SECURITY_GAMEBOOSTER = "securitycenter.gamebooster"
     const val SECURITY_POPUPS = "securitycenter.sidebar_popups"
     const val SECURITY_SIDEBAR = "securitycenter.sidebar"
     const val SECURITY_DOCK = "securitycenter.dock"
@@ -174,6 +175,8 @@ internal object RuntimeSettingsDefinitions {
         PlatformSettingsKeys.KEY_FORCE_SCREENSHOT, PlatformSettingsKeys.KEY_DARK_MODE_IMMEDIATE_SCHEDULE,
         PlatformSettingsKeys.KEY_SECURITY_CENTER_HIDE_DOLBY_POPUP,
         PlatformSettingsKeys.KEY_SECURITY_CENTER_HIDE_GAME_POPUP,
+        PlatformSettingsKeys.KEY_SECURITY_CENTER_FORCE_UNLOCK_GUNSIGHT,
+        PlatformSettingsKeys.KEY_SECURITY_CENTER_FORCE_UNLOCK_MACRO,
         PlatformSettingsKeys.KEY_SECURITY_CENTER_DOCK_UNLIMITED_PINNED,
         PlatformSettingsKeys.KEY_SECURITY_CENTER_DOCK_UNLIMITED_PREDICTIONS,
         PlatformSettingsKeys.KEY_SECURITY_CENTER_PRIVACY_CALL_ENTRY,
@@ -312,6 +315,10 @@ internal object RuntimeSettingsDefinitions {
                 it in powerSaveKeys
         },
         APP_DETAILS to Group(setOf("com.miui.securitycenter")) { it == AppSettingsKeys.KEY_APP_DETAILS_ICON_LAUNCH },
+        SECURITY_GAMEBOOSTER to Group(setOf("com.miui.securitycenter")) {
+            it == PlatformSettingsKeys.KEY_SECURITY_CENTER_FORCE_UNLOCK_GUNSIGHT ||
+                it == PlatformSettingsKeys.KEY_SECURITY_CENTER_FORCE_UNLOCK_MACRO
+        },
         SECURITY_POPUPS to Group(setOf("com.miui.securitycenter")) {
             it == PlatformSettingsKeys.KEY_SECURITY_CENTER_HIDE_DOLBY_POPUP || it == PlatformSettingsKeys.KEY_SECURITY_CENTER_HIDE_GAME_POPUP
         },

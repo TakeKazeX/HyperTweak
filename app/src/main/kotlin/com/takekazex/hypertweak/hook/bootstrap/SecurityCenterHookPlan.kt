@@ -17,6 +17,7 @@ import com.takekazex.hypertweak.hook.rules.securitycenter.battery.PowerSaveOverr
 import com.takekazex.hypertweak.hook.rules.securitycenter.sidebar.SecurityCenterDockHooker
 import com.takekazex.hypertweak.hook.rules.securitycenter.sidebar.SecurityCenterDockHost
 import com.takekazex.hypertweak.hook.rules.securitycenter.sidebar.SecurityCenterSidebarHooker
+import com.takekazex.hypertweak.hook.rules.securitycenter.sidebar.SecurityCenterGameBoosterHooker
 import com.takekazex.hypertweak.hook.rules.securitycenter.sidebar.SecurityCenterPopupHooker
 import com.takekazex.hypertweak.hook.rules.securitycenter.privacy.SecurityCenterPrivacyEntriesHooker
 import com.takekazex.hypertweak.hook.rules.securitycenter.SecurityCenterSafetyChecksHooker
@@ -65,6 +66,9 @@ internal object SecurityCenterHookPlan {
                     hook { LbeClipboardToastHooker }
                     if (processName == packageName || processName == "$packageName.cache" || processName == "$packageName.remote") {
                         hook { SecurityCenterSafetyChecksHooker }
+                    }
+                    if (SecurityCenterGameBoosterHooker.ownsProcess(processName)) {
+                        hook { SecurityCenterGameBoosterHooker }
                     }
                     if (processName == SecurityCenterDockHost.PROCESS) {
                         hook { SecurityCenterDockHooker }

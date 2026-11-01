@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="security_center_force_gunsight">強制解鎖準星輔助</string>
+    <string name="security_center_force_gunsight_summary">切換後請重新開啟工具箱。無對應能力的機型可能僅顯示入口，無法實際生效。</string>
+    <string name="security_center_force_macro">強制解鎖自動連招</string>
+    <string name="security_center_force_macro_summary">切換後請重新開啟工具箱。需系統連招應用程式及服務；不支援的機型可能僅顯示入口。略過遊戲模型限制；自動執行仍需在系統應用程式中選用連招。</string>
+</resources>
