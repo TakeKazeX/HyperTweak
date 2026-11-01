@@ -1,11 +1,13 @@
 package com.takekazex.hypertweak.hook.bootstrap
 
 /** Candidate owners are verified against the living Application, UID and loader by HookEntry. */
-internal object SecurityHostRecovery {
+internal object AppHostRecovery {
     fun owner(process: String, systemServer: Boolean): String? {
         if (systemServer) return null
         val base = process.substringBefore(':')
-        if (base in setOf("com.miui.securitycenter", "com.miui.securitycore", "com.lbe.security.miui") &&
+        if (base in setOf("com.miui.securitycenter", "com.miui.securitycore", "com.lbe.security.miui",
+                com.takekazex.hypertweak.settings.contract.CommunitySettings.PACKAGE,
+                com.takekazex.hypertweak.settings.contract.MarketSettingsKeys.PACKAGE) &&
             (process == base || process.startsWith("$base:") && process.length > base.length + 1)) return base
         return when (process) {
             "com.miui.securitycenter.remote", "com.miui.securitycenter.cache",

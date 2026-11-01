@@ -1798,4 +1798,25 @@
     <string name="feature_scope_missing_summary">未启用%1$s的作用域，相关功能不可用。\n%2$s</string>
     <string name="feature_scope_ignore">忽略</string>
     <string name="feature_scope_rejected">未恢复作用域，相关功能仍不可用。</string>
+    <string name="market_title">应用商店</string>
+    <string name="market_options">净化选项</string>
+    <string name="market_splash">跳过开屏广告</string>
+    <string name="market_splash_summary">拦截启动、回前台及应用详情页的开屏广告。</string>
+    <string name="market_detail">隐藏详情页推广</string>
+    <string name="market_detail_summary">隐藏详情页推荐、横幅和下载来源推广。</string>
+    <string name="market_video">隐藏应用介绍视频</string>
+    <string name="market_video_summary">单独隐藏应用详情页顶部的介绍视频。</string>
+    <string name="market_search_suggest">关闭搜索建议广告</string>
+    <string name="market_search_suggest_summary">请求不含广告的搜索建议，实际结果取决于服务端。</string>
+    <string name="market_home">拦截首页推荐弹窗</string>
+    <string name="market_home_summary">拦截首次启动及回流应用推荐弹窗。</string>
+    <string name="market_update">隐藏更新和下载页推荐</string>
+    <string name="market_update_summary">移除推荐应用，保留已安装应用更新和下载任务。</string>
+    <string name="market_mine">隐藏我的页推广</string>
+    <string name="market_mine_summary">关闭我的页推荐实验和果园入口。</string>
+    <string name="market_push_dialog">拦截推送引导弹窗</string>
+    <string name="market_push_dialog_summary">同时拦截开启通知权限和开启更新推送两类引导。</string>
+    <string name="market_marketing_icon">禁用营销图标</string>
+    <string name="market_marketing_icon_summary">关闭后续营销图标支持判断；已替换的桌面图标可能需要刷新。</string>
+    <string name="market_live_summary">开关实时应用于后续请求和页面构建。已有内容请重新进入页面刷新。所有选项默认关闭。</string>
 </resources>

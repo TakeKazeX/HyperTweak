@@ -68,9 +68,17 @@ internal fun NavEntryBuilder.featuresPages(settings: NavigationSettings, navCont
                 onBack = { navController.pop() }
             )
         }
+        entry<Route.Market> {
+            com.takekazex.hypertweak.ui.page.market.MarketPage(onBack = { navController.pop() })
+        }
+        entry<Route.Community> {
+            com.takekazex.hypertweak.ui.page.platform.CommunityPage(onBack = { navController.pop() })
+        }
         entry<Route.Purification> {
             PurificationPage(
                 onBack = { navController.pop() },
+                onNavigateToMarket = { navController.navigateTo(Route.Market) },
+                onNavigateToCommunity = { navController.navigateTo(Route.Community) },
                 disableVideoRingback = disableVideoRingback,
                 onDisableVideoRingbackChange = onDisableVideoRingbackChange,
                 disableMiTrustRiskMonitoring = disableMiTrustRiskMonitoring,

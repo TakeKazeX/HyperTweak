@@ -22,6 +22,8 @@ sealed interface Route : NavKey {
     data object MediaCard : Route
     data object NotificationHeader : Route
     data object DownloadManager : Route
+    data object Market : Route
+    data object Community : Route
     data object Purification : Route
     data object SuperIsland : Route
     data object GoogleServices : Route
@@ -73,6 +75,8 @@ val Route.saveKey: String
         Route.MediaCard -> "MediaCard"
         Route.NotificationHeader -> "NotificationHeader"
         Route.DownloadManager -> "DownloadManager"
+        Route.Market -> "Market"
+        Route.Community -> "Community"
         Route.Purification -> "Purification"
         Route.SuperIsland -> "SuperIsland"
         Route.GoogleServices -> "GoogleServices"
@@ -119,6 +123,8 @@ fun routeFromSaveKey(key: String): Route? = when (key) {
     "MediaCard" -> Route.MediaCard
     "NotificationHeader" -> Route.NotificationHeader
     "DownloadManager" -> Route.DownloadManager
+    "Market" -> Route.Market
+    "Community" -> Route.Community
     "Purification" -> Route.Purification
     "SuperIsland" -> Route.SuperIsland
     "GoogleServices" -> Route.GoogleServices

@@ -52,6 +52,7 @@ for p in sorted(SRC.rglob('*.kt')):
 # Missing display mode inherits the legacy boolean; the fresh-install default is off.
 reads['SystemUiSettingsKeys.KEY_SLIDER_DISPLAY_MODE'] = ('Int', '0', 0)
 for key in keys:
+    if key.startswith('MarketSettingsKeys.KEY_MARKET_'): reads[key] = ('Boolean','false',0)
     if key.startswith('IconSettingsKeys.KEY_ICON_LEFT_'): reads.setdefault(key,('Boolean','false',0))
     if key.startswith('SystemUiSettingsKeys.KEY_CC_CORNER_') and key != 'SystemUiSettingsKeys.KEY_CC_CORNER_ENABLED': reads[key]=('Float','0f',0)
     if key.startswith('PlatformSettingsKeys.KEY_KEEP_') or key.endswith(('KEY_NATIVE_PHOTO_PICKER','KEY_NATIVE_FILE_PICKER')): reads.setdefault(key,('Boolean','false',0))

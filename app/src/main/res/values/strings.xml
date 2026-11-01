@@ -1830,4 +1830,25 @@
     <string name="feature_scope_missing_summary">The scope for %1$s is not enabled. Related features are unavailable.\n%2$s</string>
     <string name="feature_scope_ignore">Ignore</string>
     <string name="feature_scope_rejected">Scope was not restored. Related features remain unavailable.</string>
+    <string name="market_title">GetApps</string>
+    <string name="market_options">Purification options</string>
+    <string name="market_splash">Skip splash ads</string>
+    <string name="market_splash_summary">Block launch, foreground and app-detail splash ads.</string>
+    <string name="market_detail">Hide detail promotions</string>
+    <string name="market_detail_summary">Hide recommendations, banners and download-source ads.</string>
+    <string name="market_video">Hide app introduction videos</string>
+    <string name="market_video_summary">Hide the video at the top of app details independently of other promotions.</string>
+    <string name="market_search_suggest">Disable search suggestion ads</string>
+    <string name="market_search_suggest_summary">Request search suggestions without ads; server behavior may vary.</string>
+    <string name="market_home">Block home recommendation dialogs</string>
+    <string name="market_home_summary">Block first-launch and return recommendation prompts.</string>
+    <string name="market_update">Hide update and download recommendations</string>
+    <string name="market_update_summary">Remove recommended apps while keeping installed-app updates and download tasks.</string>
+    <string name="market_mine">Hide Mine promotions</string>
+    <string name="market_mine_summary">Disable recommendation experiments and the orchard entry.</string>
+    <string name="market_push_dialog">Block push prompts</string>
+    <string name="market_push_dialog_summary">Block both notification permission recall and update-push prompts.</string>
+    <string name="market_marketing_icon">Disable marketing icons</string>
+    <string name="market_marketing_icon_summary">Prevent future custom-icon support checks; existing launcher icons may require refresh.</string>
+    <string name="market_live_summary">Changes apply live to subsequent requests and page creation. Reopen pages to refresh existing content. All options default off.</string>
 </resources>

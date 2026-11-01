@@ -27,7 +27,8 @@ internal fun CommunitySection() {
     var editing by rememberSaveable { mutableStateOf(false) }
     var draft by rememberSaveable { mutableStateOf("") }
     val lifecycle = LocalLifecycleOwner.current.lifecycle.currentStateAsState().value
-    LaunchedEffect(lifecycle) {
+    val debugRevision by com.takekazex.hypertweak.util.diagnostics.DebugSettingsEvents.revision.collectAsState()
+    LaunchedEffect(lifecycle, debugRevision) {
         if (lifecycle == Lifecycle.State.RESUMED) {
             block = store.getBoolean(CommunitySettingsKeys.KEY_COMMUNITY_BLOCK_DETECTION, false)
             modify = store.getBoolean(CommunitySettingsKeys.KEY_COMMUNITY_DEVICE_MODIFY, false)

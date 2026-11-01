@@ -60,6 +60,8 @@
         <package android:name="com.android.mms" />
         <package android:name="com.android.browser" />
         <package android:name="com.xiaomi.xmsf" />
+        <package android:name="com.xiaomi.market" />
+        <package android:name="com.xiaomi.vipaccount" />
         <package android:name="com.android.providers.downloads" />
         <package android:name="com.android.providers.downloads.ui" />
         <!-- Both phone packages are in `xposed_scope`, so the restart picker renders a row for each;

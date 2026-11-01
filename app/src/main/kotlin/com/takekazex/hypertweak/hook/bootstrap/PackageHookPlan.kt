@@ -14,6 +14,9 @@ internal object PackageHookPlan {
         if (packageName == com.takekazex.hypertweak.settings.contract.CommunitySettings.PACKAGE) {
             hook { com.takekazex.hypertweak.hook.rules.community.CommunityHooker }
         }
+        if (packageName == com.takekazex.hypertweak.settings.contract.MarketSettingsKeys.PACKAGE && processName == packageName) {
+            hook { com.takekazex.hypertweak.hook.rules.market.MarketHooker }
+        }
         if (selectedIme) hook { AospImeHooker }
         addAll(SystemUiHookPlan.steps(packageName, processName))
         addAll(SettingsAppHookPlan.steps(packageName, processName))

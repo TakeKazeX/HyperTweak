@@ -57,6 +57,7 @@ internal object RuntimeSettingsDefinitions {
     const val OFFLINE_CONFIG = "carrier.offline_config"
     const val XIAOAI_GESTURES = "xiaoai.gesture_input"
     const val SETTINGS_AI = "settings.hyperos_ai"
+    const val MARKET = "market.purification"
     const val COMMUNITY = "community.feedback"
     const val SHARE_PANEL = "intentresolver.share_panel"
     /** Keyguard/AOD surface: SystemUI's keyguard battery row plus the AOD plugin rows. */
@@ -167,7 +168,7 @@ internal object RuntimeSettingsDefinitions {
         PlatformSettingsKeys.KEY_DISABLE_SPATIAL_AUDIO,
         PlatformSettingsKeys.KEY_FORCE_ADAPTIVE_ANC,
     )
-    val strictBooleanKeys = setOf(com.takekazex.hypertweak.settings.contract.CommunitySettingsKeys.KEY_COMMUNITY_BLOCK_DETECTION,
+    val strictBooleanKeys = com.takekazex.hypertweak.settings.contract.MarketSettingsKeys.keys + setOf(com.takekazex.hypertweak.settings.contract.CommunitySettingsKeys.KEY_COMMUNITY_BLOCK_DETECTION,
         com.takekazex.hypertweak.settings.contract.CommunitySettingsKeys.KEY_COMMUNITY_DEVICE_MODIFY, PlatformSettingsKeys.KEY_AOSP_IME_ENABLED,
         PlatformSettingsKeys.KEY_AOSP_IME_MIUI_IME_LIST) + policyKeys + passivePolicyKeys + googleKeys + aospUiKeys + aospSecurityKeys + setOf(
         PlatformSettingsKeys.KEY_AOSP_PACKAGE_INSTALLER,
@@ -296,6 +297,9 @@ internal object RuntimeSettingsDefinitions {
         XIAOAI_GESTURES to Group(setOf("com.miui.voiceassist")) { it == PlatformSettingsKeys.KEY_XIAOAI_GESTURE_OPTIONS },
         SETTINGS_AI to Group(setOf("com.android.settings")) {
             it == PlatformSettingsKeys.KEY_SETTINGS_ONDEVICE_MODEL_ENTRY || it == PlatformSettingsKeys.KEY_SETTINGS_GEMINI_ENTRY
+        },
+        MARKET to Group(setOf(com.takekazex.hypertweak.settings.contract.MarketSettingsKeys.PACKAGE)) {
+            it in com.takekazex.hypertweak.settings.contract.MarketSettingsKeys.keys
         },
         COMMUNITY to Group(setOf(com.takekazex.hypertweak.settings.contract.CommunitySettings.PACKAGE)) {
             it in com.takekazex.hypertweak.settings.contract.CommunitySettings.keys

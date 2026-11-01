@@ -3,6 +3,7 @@ package com.takekazex.hypertweak.ui.components.scope
 import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -39,18 +40,22 @@ internal fun MissingScopeCard(vararg packages: String) {
     var refreshKey by remember { mutableIntStateOf(0) }
     var busy by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
-    val prompts by produceState<List<ScopePrompt>>(emptyList(), targets, service, lifecycle, refreshKey) {
-        // Unknown service state is not evidence that an application is missing from scope.
-        value = emptyList()
-        if (service == null || lifecycle != Lifecycle.State.RESUMED) return@produceState
-        val live = services.scopes.currentScope() ?: return@produceState
+    // NavDisplay can dispose a covered entry and recreate it at STARTED during predictive back.
+    // Save package names in the entry state so the revealed page keeps its verified card too.
+    var missingPackages by rememberSaveable(*packages) { mutableStateOf(emptyList<String>()) }
+    LaunchedEffect(targets, service, lifecycle, refreshKey) {
+        // Predictive back lowers the entry lifecycle before the gesture commits. Keep the last
+        // verified snapshot while paused, disconnected or querying, including a cancelled gesture.
+        // Unknown service state is not evidence that the scope changed.
+        if (service == null || lifecycle != Lifecycle.State.RESUMED) return@LaunchedEffect
+        val live = services.scopes.currentScope() ?: return@LaunchedEffect
         val ignored = withContext(Dispatchers.IO) { services.scopePrompts.ignoredIds() }
-        value = targets.filterNot { target ->
+        missingPackages = targets.filterNot { target ->
             target in live || (target == "system" && live.any { it == "android" || it == "system_server" })
-        }.map { ScopePrompt(ScopePromptAction.RESTORE, it) }.filterNot { it.id in ignored }
+        }.filterNot { ScopePrompt(ScopePromptAction.RESTORE, it).id in ignored }
     }
 
-    prompts.forEach { prompt ->
+    missingPackages.map { ScopePrompt(ScopePromptAction.RESTORE, it) }.forEach { prompt ->
         key(prompt.id) {
             val appName by produceState(prompt.packageName, prompt.packageName, configuration) {
                 value = withContext(Dispatchers.IO) {

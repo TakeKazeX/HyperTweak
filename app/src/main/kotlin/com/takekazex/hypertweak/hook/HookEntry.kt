@@ -1,6 +1,6 @@
 package com.takekazex.hypertweak.hook
 
-import com.takekazex.hypertweak.hook.bootstrap.SecurityHostRecovery
+import com.takekazex.hypertweak.hook.bootstrap.AppHostRecovery
 import com.takekazex.hypertweak.hook.bootstrap.SystemUiSettingsHost
 import com.takekazex.hypertweak.hook.nativebridge.NativeRuleStatePublisher
 import com.takekazex.hypertweak.hook.preferences.RuntimeSettingsPreferences
@@ -406,7 +406,7 @@ class HookEntry : XposedModule() {
         ProcessLogging.bind()
         DebugLog.setProcessTag(processName)
         DebugLog.bindXposed(this)
-        val restoredState = HotReloadState.restore(param.savedInstanceState) ?: recoverSecurityHostState()
+        val restoredState = HotReloadState.restore(param.savedInstanceState) ?: recoverAppHostState()
         nativePublisher()?.restoreSnapshot(restoredState?.hookerStates?.get("HyperTweak.NativeSettings"))
         RuntimeSettingsStore.restore(restoredState?.hookerStates?.get("HyperTweak.RuntimeSettings")
             ?: (restoredState?.hookerStates?.get("HyperTweak.NativeSettings") as? Array<*>)?.getOrNull(2))
@@ -517,8 +517,8 @@ class HookEntry : XposedModule() {
     }
 
     /** An older module may have no package snapshot; recover only an already living verified host. */
-    private fun recoverSecurityHostState(): HotReloadTargetState? {
-        val owner = SecurityHostRecovery.owner(processName, isSystemServer) ?: return null
+    private fun recoverAppHostState(): HotReloadTargetState? {
+        val owner = AppHostRecovery.owner(processName, isSystemServer) ?: return null
         return runCatching {
             val app = Class.forName("android.app.ActivityThread")
                 .getMethod("currentApplication").invoke(null) as? android.app.Application
@@ -527,7 +527,7 @@ class HookEntry : XposedModule() {
             if (app.packageName != owner || info.packageName != owner ||
                 info.uid != android.os.Process.myUid() || info.sourceDir.isNullOrBlank()
             ) return@runCatching null
-            DebugLog.i("HookEntry", "recovering live security host without prior state package=$owner process=$processName")
+            DebugLog.i("HookEntry", "recovering live app host without prior state package=$owner process=$processName")
             HotReloadTargetState(
                 processName = processName,
                 isSystemServer = false,
@@ -542,7 +542,7 @@ class HookEntry : XposedModule() {
                     appContext = app,
                 )),
             )
-        }.onFailure { DebugLog.w("HookEntry", "state-free security host recovery failed process=$processName", it) }
+        }.onFailure { DebugLog.w("HookEntry", "state-free app host recovery failed process=$processName", it) }
             .getOrNull()
     }
 

@@ -34,6 +34,8 @@ import com.takekazex.hypertweak.ui.effect.AppTopAppBar as TopAppBar
 @Composable
 fun PurificationPage(
     onBack: () -> Unit,
+    onNavigateToMarket: () -> Unit,
+    onNavigateToCommunity: () -> Unit,
     disableVideoRingback: Boolean,
     onDisableVideoRingbackChange: (Boolean) -> Unit,
     disableMiTrustRiskMonitoring: Boolean,
@@ -71,12 +73,30 @@ fun PurificationPage(
         ) {
             Spacer(Modifier.height(padding.calculateTopPadding() + 8.dp))
             MissingScopeCard(
-                "com.xiaomi.vipaccount", "com.miui.voiceassist", "com.milink.service",
+                "com.miui.voiceassist", "com.milink.service",
                 "com.xiaomi.finddevice", "com.android.settings", "system",
                 "com.android.intentresolver", "com.xiaomi.aicr", "com.xiaomi.trustservice",
                 "com.miui.guardprovider", "com.android.phone", "com.xiaomi.phone"
             )
-            CommunitySection()
+            Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+                Column {
+                    top.yukonga.miuix.kmp.preference.ArrowPreference(
+                        title = stringResource(R.string.market_title),
+                        startAction = {
+                            com.takekazex.hypertweak.ui.page.home.ApplicationIcon(
+                                packageName = "com.xiaomi.market", modifier = Modifier.padding(end = 6.dp),
+                                contentDescription = stringResource(R.string.market_title))
+                        }, onClick = onNavigateToMarket)
+                    top.yukonga.miuix.kmp.preference.ArrowPreference(
+                        title = stringResource(R.string.community_title),
+                        startAction = {
+                            com.takekazex.hypertweak.ui.page.home.ApplicationIcon(
+                                packageName = "com.xiaomi.vipaccount", modifier = Modifier.padding(end = 6.dp),
+                                contentDescription = stringResource(R.string.community_title))
+                        }, onClick = onNavigateToCommunity)
+                }
+            }
+
             AivsDirectorySection()
             DarkModeScheduleSection()
             SharePanelSection()

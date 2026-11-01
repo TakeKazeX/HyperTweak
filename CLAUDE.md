@@ -40,7 +40,11 @@ Kotlin sources: `app/src/main/kotlin/com/takekazex/hypertweak/`.
 
 Features → Purification & optimization (`Route.Purification`, `ui/page/platform/PurificationPage.kt`)
 contains the Copy Direct default-browser switch plus the MiTrust / GuardProvider / MiLink /
-video-ringback switches with their original MainActivity callbacks. Copy Direct resolves the
+video-ringback switches with their original MainActivity callbacks. App-specific GetApps and
+Xiaomi Community settings open independent `Route.Market` / `Route.Community` child pages
+with their own scope guidance and application icons on the parent entries. GetApps uses nine default-off policies at
+validated request/presentation boundaries; introduction video is independent of detail promotions.
+See `docs/MARKET_IMPLEMENTATION_20261101.md` for contracts and cached-page limitations. Copy Direct resolves the
 system default browser and its PackageManager application label for each new cue batch; the
 native application highlight range, title, application icon and web Intent are rewritten
 together in a copied ToolRequest at the real AI Panel dispatch boundary, before EventManager
