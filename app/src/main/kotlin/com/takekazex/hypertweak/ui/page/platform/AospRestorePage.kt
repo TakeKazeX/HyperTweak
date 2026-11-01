@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.ui.page.platform
 
+import com.takekazex.hypertweak.ui.components.scope.MissingScopeCard
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import androidx.compose.foundation.layout.Column
@@ -104,6 +105,7 @@ fun AospRestorePage(
                 .verticalScroll(rememberScrollState())
         ) {
             Spacer(Modifier.height(padding.calculateTopPadding() + 8.dp))
+            MissingScopeCard("com.android.settings", "system", "com.android.systemui", "com.miui.securitycenter", "com.miui.securitycore", "com.android.photopicker")
 
             SmallTitle(stringResource(R.string.aosp_section_system))
             Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {

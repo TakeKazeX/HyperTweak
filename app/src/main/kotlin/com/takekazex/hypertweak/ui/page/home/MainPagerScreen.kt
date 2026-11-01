@@ -258,9 +258,8 @@ fun MainPagerScreen(
                 ),
                 userScrollEnabled = false,
                 pageNestedScrollConnection = PagerGestureNestedScrollConnection,
-                // 1 keeps the adjacent tab pre-composed for a smooth swipe without keeping ALL three
-                // tabs alive: with 2, Home's scope-prompt scans kept running while the user sat on
-                // the Tweaks/Settings tabs.
+                // Keep the adjacent tab pre-composed for a smooth swipe without keeping all
+                // three tabs alive.
                 beyondViewportPageCount = 1
             ) { page ->
                 val isCurrent = page == pagerState.currentPage

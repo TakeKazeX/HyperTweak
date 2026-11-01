@@ -1787,4 +1787,8 @@
     <string name="icon_duo_cellular_dots">信号圆点（单卡四点、双卡八点）</string>
     <string name="settings_status_bar_clock_seconds_title">状态栏时钟显示秒钟</string>
     <string name="settings_status_bar_clock_seconds_summary">在状态栏时钟上常驻显示秒钟</string>
+    <string name="feature_scope_missing">未启用作用域</string>
+    <string name="feature_scope_missing_summary">未启用%1$s的作用域，相关功能不可用。\n%2$s</string>
+    <string name="feature_scope_ignore">忽略</string>
+    <string name="feature_scope_rejected">未恢复作用域，相关功能仍不可用。</string>
 </resources>

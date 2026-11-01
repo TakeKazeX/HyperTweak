@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.ui.page.platform
 
+import com.takekazex.hypertweak.ui.components.scope.MissingScopeCard
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import androidx.compose.foundation.ScrollState
@@ -69,6 +70,12 @@ fun PurificationPage(
                 .verticalScroll(scrollState)
         ) {
             Spacer(Modifier.height(padding.calculateTopPadding() + 8.dp))
+            MissingScopeCard(
+                "com.xiaomi.vipaccount", "com.miui.voiceassist", "com.milink.service",
+                "com.xiaomi.finddevice", "com.android.settings", "system",
+                "com.android.intentresolver", "com.xiaomi.aicr", "com.xiaomi.trustservice",
+                "com.miui.guardprovider", "com.android.phone", "com.xiaomi.phone"
+            )
             AivsDirectorySection()
             DarkModeScheduleSection()
             SharePanelSection()

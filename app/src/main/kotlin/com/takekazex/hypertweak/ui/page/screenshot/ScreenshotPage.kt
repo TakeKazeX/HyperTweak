@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.ui.page.screenshot
 
+import com.takekazex.hypertweak.ui.components.scope.MissingScopeCard
 import com.takekazex.hypertweak.settings.contract.ScreenshotSettingsKeys
 
 import androidx.compose.foundation.layout.*
@@ -52,6 +53,7 @@ fun ScreenshotPage(onBack: () -> Unit) {
             .overScrollVertical().nestedScroll(behavior.nestedScrollConnection)
             .verticalScroll(rememberScrollState())) {
             Spacer(Modifier.height(padding.calculateTopPadding() + 8.dp))
+            MissingScopeCard("com.miui.screenshot")
             Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
                 Column {
                     SwitchPreference(

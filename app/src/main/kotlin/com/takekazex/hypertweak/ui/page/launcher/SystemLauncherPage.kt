@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.ui.page.launcher
 
+import com.takekazex.hypertweak.ui.components.scope.MissingScopeCard
 import com.takekazex.hypertweak.ui.components.dialog.LocalRestartScopeHandled
 import com.takekazex.hypertweak.ui.components.dialog.restartInProgress
 import com.takekazex.hypertweak.ui.app.LocalAppServices
@@ -99,6 +100,7 @@ fun SystemLauncherPage(onBack: () -> Unit, onNavigateToDockBackground: () -> Uni
                 .verticalScroll(rememberScrollState())
         ) {
             Spacer(Modifier.height(padding.calculateTopPadding() + 8.dp))
+            MissingScopeCard("com.miui.home", "com.miui.voiceassist")
 
             SmallTitle(stringResource(R.string.settings_xiaoai_section))
             Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {

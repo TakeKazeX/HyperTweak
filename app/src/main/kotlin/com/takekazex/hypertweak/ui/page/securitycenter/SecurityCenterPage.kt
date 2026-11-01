@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.ui.page.securitycenter
 
+import com.takekazex.hypertweak.ui.components.scope.MissingScopeCard
 import com.takekazex.hypertweak.ui.page.glass.DockSlider
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
@@ -216,6 +217,7 @@ fun SecurityCenterPage(
                 Modifier.height(padding.calculateTopPadding() + 8.dp)
             )
 
+            MissingScopeCard("com.miui.securitycenter", "com.miui.securitycore", "com.android.contacts")
             SmallTitle(stringResource(R.string.security_center_app_details_section))
             Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
                 SwitchPreference(

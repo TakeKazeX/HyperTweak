@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.ui.page.camera
 
+import com.takekazex.hypertweak.ui.components.scope.MissingScopeCard
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -92,6 +93,7 @@ fun CameraWatermarkUnlockPage(onBack: () -> Unit) {
                     .nestedScroll(scrollBehavior.nestedScrollConnection)
                     .verticalScroll(rememberScrollState())
             ) {
+                MissingScopeCard(if (selectedTab == 0) "com.android.camera" else "com.miui.mediaeditor")
                 when (selectedTab.coerceIn(0, tabs.lastIndex)) {
                     0 -> CameraUnlockContent(
                         modifier = Modifier.fillMaxWidth(),

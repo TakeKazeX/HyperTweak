@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.ui.page.systemui
 
+import com.takekazex.hypertweak.ui.components.scope.MissingScopeCard
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -78,6 +79,7 @@ fun SuperIslandPage(
                 .verticalScroll(scrollState)
         ) {
             Spacer(Modifier.height(padding.calculateTopPadding() + 8.dp))
+            MissingScopeCard("com.android.systemui", "com.xiaomi.xmsf")
 
             SmallTitle(text = stringResource(R.string.tweaks_focus_notification_title))
             Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {

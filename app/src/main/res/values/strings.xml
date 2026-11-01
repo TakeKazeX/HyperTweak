@@ -1819,4 +1819,8 @@
     <string name="icon_duo_cellular_dots">Signal dots (4 per SIM)</string>
     <string name="settings_status_bar_clock_seconds_title">Show Seconds On Status Bar Clock</string>
     <string name="settings_status_bar_clock_seconds_summary">Always show seconds on the status bar clock</string>
+    <string name="feature_scope_missing">Scope not enabled</string>
+    <string name="feature_scope_missing_summary">The scope for %1$s is not enabled. Related features are unavailable.\n%2$s</string>
+    <string name="feature_scope_ignore">Ignore</string>
+    <string name="feature_scope_rejected">Scope was not restored. Related features remain unavailable.</string>
 </resources>

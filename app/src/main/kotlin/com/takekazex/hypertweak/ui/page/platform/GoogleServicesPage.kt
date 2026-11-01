@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.ui.page.platform
 
+import com.takekazex.hypertweak.ui.components.scope.MissingScopeCard
 import android.annotation.SuppressLint
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -79,6 +80,10 @@ fun GoogleServicesPage(
                 .verticalScroll(rememberScrollState())
         ) {
             Spacer(Modifier.height(padding.calculateTopPadding() + 8.dp))
+            MissingScopeCard(
+                "com.android.settings", "com.google.android.gms", "com.google.android.googlequicksearchbox",
+                "system", "com.miui.securitycenter", "com.xiaomi.scanner", "com.miui.powerkeeper"
+            )
 
             SmallTitle(stringResource(R.string.google_services_title))
             Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {

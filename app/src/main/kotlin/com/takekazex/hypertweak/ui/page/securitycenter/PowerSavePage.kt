@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.ui.page.securitycenter
 
+import com.takekazex.hypertweak.ui.components.scope.MissingScopeCard
 import com.takekazex.hypertweak.ui.components.slider.rememberSliderEdit
 
 import com.takekazex.hypertweak.ui.components.dialog.IntValueDialog
@@ -91,6 +92,7 @@ fun PowerSavePage(onBack: () -> Unit) {
             // The top bar is transparent and content scrolls beneath it, so the first item has to
             // clear its height explicitly (same as the other second-level pages).
             Spacer(Modifier.height(padding.calculateTopPadding() + 8.dp))
+            MissingScopeCard("com.miui.securitycenter", "com.android.systemui")
 
             SmallTitle(stringResource(R.string.power_save_override_section_features))
             Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {

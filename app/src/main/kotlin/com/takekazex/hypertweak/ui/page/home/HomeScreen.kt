@@ -3,7 +3,6 @@ package com.takekazex.hypertweak.ui.page.home
 import com.takekazex.hypertweak.ui.components.dialog.HotReloadDialog
 import com.takekazex.hypertweak.ui.components.dialog.RestartScopeDialog
 import com.takekazex.hypertweak.ui.app.LocalAppServices
-import android.annotation.SuppressLint
 import android.os.Build
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -22,7 +21,6 @@ import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import com.takekazex.hypertweak.ui.effect.AppScaffold as Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TextButton
 import com.takekazex.hypertweak.ui.effect.AppTopAppBar as TopAppBar
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -41,20 +39,13 @@ import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.Extension
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.WarningAmber
-import android.widget.Toast
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.BuildConfig
 import com.takekazex.hypertweak.settings.contract.HotReloadReport
 import com.takekazex.hypertweak.util.restart.RestartScopeSelection
-import com.takekazex.hypertweak.util.scope.ScopePrompt
-import com.takekazex.hypertweak.util.scope.ScopePromptAction
-import com.takekazex.hypertweak.util.scope.ScopeManager
 import com.takekazex.hypertweak.util.device.deviceModel
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
 
 @Composable
@@ -202,8 +193,6 @@ fun HomeScreenContent(
                 }
             }
 
-            ScopeWarningCard()
-            LauncherScopeSuggestionCard()
 
             // SmallTitle - proper 28dp left indent like miuix
             SmallTitle(text = stringResource(R.string.home_diagnostics_title))
@@ -310,164 +299,6 @@ fun HomeScreenContent(
             onHotReload = onHotReload,
             onRestartScopes = onRestartAllScopes
         )
-    }
-}
-
-/**
- * Names the required scopes the user has removed in LSPosed.
- *
- * The module declares `staticScope=false` so it can request scope for input methods at runtime,
- * which also makes the whole list user-editable — a removed entry silently disables whatever
- * depends on it, so surface it rather than letting the feature look broken.
- */
-@SuppressLint("LocalContextGetResourceValueCall")
-@Composable
-private fun ScopeWarningCard() {
-    val services = LocalAppServices.current
-    val context = LocalContext.current
-    val service by services.module.connection.collectAsState()
-    var refreshKey by remember { mutableIntStateOf(0) }
-    val missing by produceState<Set<String>?>(initialValue = null, service, refreshKey) {
-        value = if (service == null) null else services.scopes.missingRequiredScope(context)
-    }
-    val ignoredIds by produceState(initialValue = emptySet<String>(), refreshKey) {
-        value = withContext(Dispatchers.IO) { services.scopePrompts.ignoredIds() }
-    }
-    val prompts = (missing ?: return)
-        .sorted()
-        .map { ScopePrompt(ScopePromptAction.RESTORE, it) }
-        .filterNot { it.id in ignoredIds }
-    if (prompts.isEmpty()) return
-
-    val scope = rememberCoroutineScope()
-
-    SmallTitle(text = stringResource(R.string.home_scope_title))
-    Card(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)
-    ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            prompts.forEach { prompt ->
-                key(prompt.id) {
-                    BasicComponent(
-                        title = friendlyProcessName(context, prompt.packageName),
-                        summary = prompt.packageName,
-                        startAction = {
-                            Icon(
-                                imageVector = Icons.Rounded.WarningAmber,
-                                modifier = Modifier.padding(end = 6.dp),
-                                contentDescription = stringResource(R.string.home_scope_missing),
-                                tint = Color(0xFFFFB300)
-                            )
-                        }
-                    )
-                }
-            }
-            ArrowPreference(
-                title = stringResource(R.string.home_scope_restore),
-                summary = stringResource(R.string.home_scope_restore_summary),
-                onClick = {
-                    scope.launch {
-                        when (val result = services.scopes.request(prompts.map { it.packageName }.toSet())) {
-                            is ScopeManager.Result.Failed ->
-                                Toast.makeText(context, result.message, Toast.LENGTH_LONG).show()
-                            ScopeManager.Result.ServiceUnavailable ->
-                                Toast.makeText(
-                                    context,
-                                    context.getString(R.string.home_scope_service_unavailable),
-                                    Toast.LENGTH_SHORT
-                                ).show()
-                            is ScopeManager.Result.Applied, ScopeManager.Result.NoChange -> refreshKey++
-                            is ScopeManager.Result.Rejected -> Unit
-                        }
-                    }
-                }
-            )
-            TextButton(
-                text = stringResource(R.string.home_scope_ignore),
-                onClick = {
-                    services.scopePrompts.ignoreAll(prompts)
-                    refreshKey++
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 48.dp)
-            )
-        }
-    }
-}
-
-/**
- * The launcher is not part of the static recommended scope, but the two native launcher rules
- * (recents clear button, opened-folder columns) patch Dart code inside the launcher process, so
- * the module has to be scoped there to hand the payload their preference. Recommend it only while
- * one of those rules is on; nothing else needs the launcher.
- */
-@SuppressLint("LocalContextGetResourceValueCall")
-@Composable
-private fun LauncherScopeSuggestionCard() {
-    val services = LocalAppServices.current
-    val context = LocalContext.current
-    val service by services.module.connection.collectAsState()
-    var refreshKey by remember { mutableIntStateOf(0) }
-    val recommendation by produceState<ScopePrompt?>(initialValue = null, service, refreshKey) {
-        value = if (service == null) null else services.scopes.launcherScopeRecommendation()
-    }
-    val ignoredIds by produceState(initialValue = emptySet<String>(), refreshKey) {
-        value = withContext(Dispatchers.IO) { services.scopePrompts.ignoredIds() }
-    }
-    val prompt = recommendation ?: return
-    if (prompt.id in ignoredIds) return
-
-    val scope = rememberCoroutineScope()
-
-    SmallTitle(text = stringResource(R.string.home_scope_title))
-    Card(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)
-    ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            BasicComponent(
-                title = friendlyProcessName(context, prompt.packageName),
-                summary = prompt.packageName,
-                startAction = {
-                    Icon(
-                        imageVector = Icons.Rounded.WarningAmber,
-                        modifier = Modifier.padding(end = 6.dp),
-                        contentDescription = stringResource(R.string.home_scope_missing),
-                        tint = Color(0xFFFFB300)
-                    )
-                }
-            )
-            ArrowPreference(
-                title = stringResource(R.string.home_scope_restore),
-                summary = stringResource(R.string.home_scope_restore_summary),
-                onClick = {
-                    scope.launch {
-                        when (val result = services.scopes.request(setOf(prompt.packageName))) {
-                            is ScopeManager.Result.Failed ->
-                                Toast.makeText(context, result.message, Toast.LENGTH_LONG).show()
-                            ScopeManager.Result.ServiceUnavailable ->
-                                Toast.makeText(
-                                    context,
-                                    context.getString(R.string.home_scope_service_unavailable),
-                                    Toast.LENGTH_SHORT
-                                ).show()
-                            is ScopeManager.Result.Applied, ScopeManager.Result.NoChange -> refreshKey++
-                            is ScopeManager.Result.Rejected -> Unit
-                        }
-                    }
-                }
-            )
-            TextButton(
-                text = stringResource(R.string.home_scope_ignore),
-                onClick = {
-                    services.scopePrompts.ignore(prompt)
-                    refreshKey++
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 48.dp)
-            )
-        }
     }
 }
 

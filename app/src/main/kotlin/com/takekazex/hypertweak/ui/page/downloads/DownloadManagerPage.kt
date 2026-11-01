@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.ui.page.downloads
 
+import com.takekazex.hypertweak.ui.components.scope.MissingScopeCard
 import android.annotation.SuppressLint
 import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
@@ -104,6 +105,7 @@ fun DownloadManagerPage(
                 .verticalScroll(rememberScrollState())
         ) {
             Spacer(Modifier.height(padding.calculateTopPadding() + 8.dp))
+            MissingScopeCard("com.android.providers.downloads", "com.android.providers.downloads.ui")
 
             SmallTitle(text = stringResource(R.string.download_manager_section_general))
             Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {

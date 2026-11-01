@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.ui.page.systemui
 
+import com.takekazex.hypertweak.ui.components.scope.MissingScopeCard
 import com.takekazex.hypertweak.ui.components.slider.rememberSliderEdit
 
 import com.takekazex.hypertweak.ui.components.dialog.IntValueDialog
@@ -234,6 +235,7 @@ fun SystemUIPage(
                 .verticalScroll(rememberScrollState())
         ) {
             Spacer(Modifier.height(padding.calculateTopPadding() + 8.dp))
+            MissingScopeCard("com.android.systemui", "system", "com.miui.aod", "com.android.settings", "com.lbe.security.miui")
 
             SmallTitle(stringResource(R.string.settings_system_ui_section_general))
             Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
