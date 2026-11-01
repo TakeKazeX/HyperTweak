@@ -139,9 +139,8 @@ fun ExperimentalFeaturesPage(
 
             // AON visual-perception / air-gesture unlocks: reveal Settings entries that the device
             // hides behind `config_aon_*` resource gates (see VisualPerceptionSettingsHooker).
-            // These act on the next Settings UI refresh in the same process; the toggles force the
-            // Settings-side capability checks only — runtime sensor gates in system_server are
-            // separate (see docs/FEATURE_DETAIL.md).
+            // Shared snapshots update system-server controllers and rebuild cached Settings
+            // preference trees with saved state on the next resume.
             SmallTitle(stringResource(R.string.settings_unlock_visual_perception_title))
             Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
                 Column(Modifier.fillMaxWidth()) {

@@ -172,7 +172,16 @@ authentication, gesture-bar surfaces, security/offline checks, Security Center p
 warnings, cross-package clipboard and bubble notifications, and the SystemUI domains added
 by the 2026-10-22 live-settings audit (`systemui.aod`, `.keyguard`, `.notification_header`,
 `.notification_text`, `.media_card`, `.control_center_plugin`, `.glass`, `.lockscreen`,
-`.power_save`). Participants re-derive policies on living hosts; optional hooks use the
+`.power_save`). The 2026-11-01 completion adds `system.power_button`,
+`system.experimental_capabilities`, `camera.configuration`, `systemui.monet` and
+`settings.module_entry`. Power entry hooks remain installed for first enable; native AON
+controllers refresh on their own handlers, and PWM capability caches restore the vendor flag.
+Cached Settings/camera screens rebuild with native saved state on their next resume; the
+structurally resolved recording-state reader prevents camera recreation during recording.
+Camera registry additions and watermark cache entries have explicit retirement ownership.
+Notification-header, resize, bottom-text and camera settings no longer mark ordinary edits
+as pending restarts. See `docs/LIVE_SETTINGS_COMPLETION_20261101.md` for contracts and boundaries.
+Participants re-derive policies on living hosts; optional hooks use the
 managed on-demand installation lifecycle. The keyguard battery row uses `AodKeyguardPolicy`: an
 explicit host phase from `MiuiFullAodManager.isDozing` (`mToLockScreen` alone is not a dozing flag) keeps the native row in every
 lit/unknown state, and only the accepted ordinary Duo switch replaces it; AOD options apply

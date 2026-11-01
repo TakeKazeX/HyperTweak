@@ -21,6 +21,11 @@ import com.takekazex.hypertweak.settings.contract.DockConfig
 
 /** Key predicates and process ownership. IDs remain in RuntimeSettingsGroups. */
 internal object RuntimeSettingsDefinitions {
+    const val POWER_BUTTON = "system.power_button"
+    const val EXPERIMENTAL_CAPABILITIES = "system.experimental_capabilities"
+    const val CAMERA = "camera.configuration"
+    const val MONET = "systemui.monet"
+    const val MODULE_ENTRY = "settings.module_entry"
     const val ICONS = "systemui.icons"
     const val ISLANDS = "systemui.islands"
     const val NATIVE_PHOTO_PICKER = "system.native_photo_picker"
@@ -168,7 +173,14 @@ internal object RuntimeSettingsDefinitions {
         PlatformSettingsKeys.KEY_DISABLE_SPATIAL_AUDIO,
         PlatformSettingsKeys.KEY_FORCE_ADAPTIVE_ANC,
     )
-    val strictBooleanKeys = com.takekazex.hypertweak.settings.contract.MarketSettingsKeys.keys + setOf(com.takekazex.hypertweak.settings.contract.CommunitySettingsKeys.KEY_COMMUNITY_BLOCK_DETECTION,
+    private val experimentalKeys = setOf(
+        PlatformSettingsKeys.KEY_UNLOCK_MORE_VISUAL_PERCEPTION,
+        PlatformSettingsKeys.KEY_UNLOCK_MORE_AON_GESTURES,
+        PlatformSettingsKeys.KEY_UNLOCK_ADAPTIVE_REFRESH_PRO
+    )
+    val strictBooleanKeys = com.takekazex.hypertweak.settings.contract.CameraSettingsKeys.booleanKeys +
+        experimentalKeys + setOf(PlatformSettingsKeys.KEY_POWER_BUTTON_CTS,
+            PlatformSettingsKeys.KEY_SHOW_IN_SETTINGS, SystemUiSettingsKeys.KEY_IMMEDIATE_MONET_REFRESH) + com.takekazex.hypertweak.settings.contract.MarketSettingsKeys.keys + setOf(com.takekazex.hypertweak.settings.contract.CommunitySettingsKeys.KEY_COMMUNITY_BLOCK_DETECTION,
         com.takekazex.hypertweak.settings.contract.CommunitySettingsKeys.KEY_COMMUNITY_DEVICE_MODIFY, PlatformSettingsKeys.KEY_AOSP_IME_ENABLED,
         PlatformSettingsKeys.KEY_AOSP_IME_MIUI_IME_LIST) + policyKeys + passivePolicyKeys + googleKeys + aospUiKeys + aospSecurityKeys + setOf(
         PlatformSettingsKeys.KEY_AOSP_PACKAGE_INSTALLER,
@@ -213,6 +225,15 @@ internal object RuntimeSettingsDefinitions {
     data class Group(val targets: Set<String>, val owns: (String) -> Boolean)
     private val systemUi = setOf("com.android.systemui")
     val groups = linkedMapOf(
+        POWER_BUTTON to Group(setOf("android", "com.google.android.googlequicksearchbox")) {
+            it == PlatformSettingsKeys.KEY_POWER_BUTTON_ACTION || it == PlatformSettingsKeys.KEY_POWER_BUTTON_CTS
+        },
+        EXPERIMENTAL_CAPABILITIES to Group(setOf("android", "com.android.settings")) { it in experimentalKeys },
+        CAMERA to Group(setOf("com.android.camera")) {
+            it in com.takekazex.hypertweak.settings.contract.CameraSettingsKeys.keys
+        },
+        MONET to Group(systemUi) { it == SystemUiSettingsKeys.KEY_IMMEDIATE_MONET_REFRESH },
+        MODULE_ENTRY to Group(setOf("com.android.settings")) { it == PlatformSettingsKeys.KEY_SHOW_IN_SETTINGS },
         IME to Group(imeTargets) { it in setOf(
             PlatformSettingsKeys.KEY_AOSP_IME_ENABLED, PlatformSettingsKeys.KEY_AOSP_IME_PACKAGES,
             PlatformSettingsKeys.KEY_AOSP_IME_MIUI_IME_LIST, PlatformSettingsKeys.KEY_AOSP_IME_RAISE_STYLE,

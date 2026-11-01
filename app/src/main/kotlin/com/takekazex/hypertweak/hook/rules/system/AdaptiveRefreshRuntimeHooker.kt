@@ -1,28 +1,13 @@
 package com.takekazex.hypertweak.hook.rules.system
 
+import com.takekazex.hypertweak.util.platform.StaticFieldWriter
+import com.takekazex.hypertweak.hook.base.HookFailurePolicy
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.StaticHooker
-import com.takekazex.hypertweak.util.logging.DebugLog
 
-/**
- * Opens the system_server-side gate for the 自适应刷新率Pro (Mimotion PWM) mode.
- *
- * `com.android.server.display.DisplayFeatureManagerService` (miui-services.jar) bakes
- * `static final MIMOTION_PWM_SUPPORTED` at class load from
- * `SystemProperties.getBoolean("ro.display.enable_pwm_switch", false)` and only runs its boot-time
- * `setDimmingMode()` (reading `Settings.Secure mimotion_pwm_enable` and pushing displayfeature
- * effect 20 = SCREEN_Dimming_Mode) when that static is true. On builds where the vendor prop is
- * unset the service therefore never re-applies a saved mode after reboot.
- *
- * Forcing the same prop read to true when [Preferences.unlockAdaptiveRefreshPro] is on makes the
- * static field initialise true on the next system_server start, so `setDimmingMode()` re-applies
- * whatever mode the user left in Secure (2 = PWM on). The Settings row itself is handled by
- * [com.takekazex.hypertweak.hook.rules.settings.AdaptiveRefreshSettingsHooker]; toggling it while
- * running already pushes effect 20 through the binder immediately, this hook only restores it after
- * a reboot. Per-call preference read: attach-time value decides the boot that follows, so the
- * change is effective from the **next reboot** after the module switch is on.
- */
+/** Updates the native cached PWM capability and restores the vendor value on disable/retirement. */
 object AdaptiveRefreshRuntimeHooker : StaticHooker() {
     // Published on settings acceptance; hook callbacks perform no storage reads.
     private val settingUnlockAdaptiveRefreshPro by hookSetting(false) { Preferences.unlockAdaptiveRefreshPro() }
@@ -30,31 +15,44 @@ object AdaptiveRefreshRuntimeHooker : StaticHooker() {
     private const val TAG = "AdaptiveRefreshRuntime"
     private const val PROP_PWM_SWITCH = "ro.display.enable_pwm_switch"
 
+    private var supportField: java.lang.reflect.Field? by generationState { null }
+    private var nativeSupport by generationState { false }
+    private var hostType: Class<*>? by generationState { null }
+
     override fun onHook() {
-        val systemProperties = "android.os.SystemProperties".toClassOrNull() ?: return
-        val method = systemProperties.declaredMethods.firstOrNull {
-            it.name == "getBoolean" &&
-                it.parameterTypes.contentEquals(
-                    arrayOf(String::class.java, java.lang.Boolean.TYPE)
-                ) &&
-                it.returnType == java.lang.Boolean.TYPE
-        } ?: run {
-            DebugLog.w(TAG, "SystemProperties.getBoolean(String, boolean) not found; skipped")
-            return
-        }
-        deoptimize(method)
-        method.hook("adaptive_refresh_runtime_gate") { after { param ->
-            val key = param.args.getOrNull(0) as? String ?: return@after
-            if (key != PROP_PWM_SWITCH) return@after
-            if (param.result == true) return@after
-            runCatching {
-                if (settingUnlockAdaptiveRefreshPro) {
-                    param.result = true
-                }
-            }.onFailure { t ->
-                DebugLog.w(TAG, "failed to force $PROP_PWM_SWITCH in system_server", t)
+        val props = Class.forName("android.os.SystemProperties", true, classLoader)
+        nativeSupport = HostAccess.requireDeclaredMethod(
+            props, "getBoolean", String::class.java, Boolean::class.javaPrimitiveType, accessible = true
+        ).invoke(null, PROP_PWM_SWITCH, false) as? Boolean ?: false
+        val type = Class.forName("com.android.server.display.DisplayFeatureManagerService", true, classLoader)
+        val field = HostAccess.requireDeclaredField(type, "MIMOTION_PWM_SUPPORTED", accessible = true)
+        require(field.type == Boolean::class.javaPrimitiveType && java.lang.reflect.Modifier.isStatic(field.modifiers))
+        supportField = field
+        hostType = type
+        // These are all non-clinit readers in the verified host image.
+        type.declaredMethods.filter { it.name in setOf("setDimmingMode") }.forEach { deoptimize(it) }
+        refreshSettings()
+    }
+
+    fun refreshSettings(): Boolean = HookFailurePolicy.open(TAG, "refresh PWM capability", false) {
+        val field = supportField ?: return@open false
+        val desired = nativeSupport || settingUnlockAdaptiveRefreshPro
+        StaticFieldWriter.setBoolean(field, desired)
+        val type = hostType ?: return@open false
+        val service = SystemServiceHosts.binderOwner(classLoader, "displayfeature", type)
+        if (service != null && desired) {
+            val handler = HostAccess.read(service, "mHandler") as? android.os.Handler
+                ?: return@open false
+            HostAccess.onHandler(handler) {
+                HostAccess.requireDeclaredMethod(type, "setDimmingMode", accessible = true).invoke(service)
             }
-        } }
-        DebugLog.i(TAG, "armed $PROP_PWM_SWITCH -> true for DisplayFeatureManagerService boot-time dimming mode")
+        }
+        field.getBoolean(null) == desired
+    }
+
+    override fun recoverHotReloadHosts() { refreshSettings() }
+
+    override fun onPrepareHotReload() {
+        supportField?.let { StaticFieldWriter.setBoolean(it, nativeSupport) }
     }
 }

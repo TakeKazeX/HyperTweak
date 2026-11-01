@@ -223,7 +223,8 @@ object Preferences {
     fun setPowerButtonAction(action: Int) {
         memoInvalidate(PlatformSettingsKeys.KEY_POWER_BUTTON_ACTION)
         memoInvalidate(PlatformSettingsKeys.KEY_POWER_BUTTON_CTS)
-        write {
+        write(runtimeChanges = mapOf(PlatformSettingsKeys.KEY_POWER_BUTTON_ACTION to action,
+            PlatformSettingsKeys.KEY_POWER_BUTTON_CTS to false)) {
             putInt(PlatformSettingsKeys.KEY_POWER_BUTTON_ACTION, action)
             remove(PlatformSettingsKeys.KEY_POWER_BUTTON_CTS)
         }
@@ -252,7 +253,8 @@ object Preferences {
     fun setCameraLegendaryMomentMode(mode: String) {
         memoInvalidate(CameraSettingsKeys.KEY_CAMERA_LEGENDARY_MOMENT_MODE)
         memoInvalidate(CameraSettingsKeys.KEY_CAMERA_LEGENDARY_MOMENT)
-        write {
+        write(runtimeChanges = mapOf(CameraSettingsKeys.KEY_CAMERA_LEGENDARY_MOMENT_MODE to mode,
+            CameraSettingsKeys.KEY_CAMERA_LEGENDARY_MOMENT to false)) {
             putString(CameraSettingsKeys.KEY_CAMERA_LEGENDARY_MOMENT_MODE, mode)
             remove(CameraSettingsKeys.KEY_CAMERA_LEGENDARY_MOMENT)
         }

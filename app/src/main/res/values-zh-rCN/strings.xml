@@ -1270,7 +1270,7 @@
     <string name="camera_unlock_custom_dialog_summary">留空则使用本机信息</string>
     <string name="camera_unlock_custom_ok">确定</string>
     <string name="camera_unlock_note_scope">需先在模块作用域中启用相机应用</string>
-    <string name="camera_unlock_note_restart">部分选项修改后需要重启相机才能生效</string>
+    <string name="camera_unlock_note_restart">修改自动生效，缓存选项在重新进入相机时刷新，不打断正在进行的拍摄。</string>
     <string name="camera_unlock_note_exif">照片 EXIF 与水印始终使用本机真实的品牌与型号</string>
     <string name="camera_unlock_notes">说明</string>
     <string name="camera_unlock_title">相机解锁</string>

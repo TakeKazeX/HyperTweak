@@ -126,6 +126,27 @@ object ImmediateMonetRefreshHooker : StaticHooker() {
         }
     }
 
+    fun refreshSettings(): Boolean = HostAccess.onMain {
+        if (!isEnabled()) return@onMain true
+        HookFailurePolicy.open(SCOPE, "apply pending wallpaper colors", false) {
+            val controller = resolveController() ?: return@open false
+            val handle = handleWallpaperColorsMethod ?: return@open false
+            val user = currentUserId(controller) ?: return@open false
+            if (isFashionGallerySource(controller, WallpaperManager.FLAG_SYSTEM)) return@open true
+            listOfNotNull(controllerStore?.let { it to controller }, miuiStore?.let { it to null })
+                .forEach { (store, owner) ->
+                    val colors = (store.colorsField.get(owner) as? SparseArray<*>)?.get(user) as? WallpaperColors
+                    val flags = (store.flagsField.get(owner) as? SparseIntArray)?.get(user) ?: 0
+                    if (colors != null && flags and WALLPAPER_FLAGS != 0) {
+                        flushIfCurrent(store, owner, controller, handle, colors, flags, user)
+                    }
+                }
+            true
+        }
+    }
+
+    override fun recoverHotReloadHosts() { refreshSettings() }
+
     private fun hookThemeOverlayListener(controllerType: Class<*>): Boolean {
         val callback = themeOverlayCallback ?: return false
         listenerControllerField = uniqueFieldByType(callback.declaringClass, controllerType)

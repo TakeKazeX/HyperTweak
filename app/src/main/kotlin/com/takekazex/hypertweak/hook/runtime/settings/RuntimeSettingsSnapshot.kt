@@ -33,6 +33,10 @@ internal data class RuntimeSettingsSnapshot(val revision: Long, val values: Map<
                 com.takekazex.hypertweak.settings.contract.ScreenshotSettingsSnapshot.read(revision, values) == null) return null
             if (RuntimeSettingsGroups.NATIVE in groups && NativeRuleStateSnapshot.read { values } == null) return null
             if (RuntimeSettingsGroups.BACK in groups && BackGestureSettingsSnapshot.read(values) == null) return null
+            val powerAction = values[PlatformSettingsKeys.KEY_POWER_BUTTON_ACTION]
+            if (powerAction != null && (powerAction !is Int || powerAction !in 0..3)) return null
+            val cameraKeys = com.takekazex.hypertweak.settings.contract.CameraSettingsKeys
+            if (cameraKeys.stringKeys.any { values[it]?.let { value -> value !is String } == true }) return null
             val imeStyle = values[PlatformSettingsKeys.KEY_AOSP_IME_RAISE_STYLE]
             if (imeStyle != null && (imeStyle !is Int || imeStyle !in 0..1)) return null
             val imePackages = values[PlatformSettingsKeys.KEY_AOSP_IME_PACKAGES]

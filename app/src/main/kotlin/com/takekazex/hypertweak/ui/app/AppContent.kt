@@ -426,10 +426,8 @@ internal fun AppContent(
                     },
                     powerButtonAction = powerButtonAction,
                     onPowerButtonActionChange = { action ->
-                        // System-server hooks: no restart scope exists, so no markTweaked; the
-                        // hookers read the action live at dispatch time, so switching actions (or
-                        // off) applies immediately once the hooks are installed. Turning the
-                        // feature on from disabled still needs a reboot for the hooks to install.
+                        // The committed snapshot reaches the retained power-key hooks and
+                        // re-aligns the default assistant in the living system_server.
                         powerButtonAction = action
                         settings.storage.powerButton.setPowerButtonAction(action)
                     },
@@ -490,7 +488,6 @@ internal fun AppContent(
                     },
                     showInSettings = showInSettings,
                     onShowInSettingsChange = { checked ->
-                        markTweaked(PlatformSettingsKeys.KEY_SHOW_IN_SETTINGS, checked)
                         showInSettings = checked
                         settings.storage.putBoolean(PlatformSettingsKeys.KEY_SHOW_IN_SETTINGS, checked)
                     },

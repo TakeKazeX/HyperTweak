@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.system
 
+import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.HostAccess
 import android.content.Context
 import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
@@ -37,6 +38,24 @@ object AonGestureFeatureHooker : StaticHooker() {
     // Published on settings acceptance; hook callbacks perform no storage reads.
     private val settingUnlockMoreAonGestures by hookSetting(false) { Preferences.unlockMoreAonGestures() }
 
+    private var retired by generationState { false }
+
+    fun refreshSettings(): Boolean = HookFailurePolicy.open(TAG, "refresh living AON gestures", false) {
+        val type = Class.forName("com.android.server.tof.ContactlessGestureService", false, classLoader)
+        val service = SystemServiceHosts.binderOwner(classLoader, "tof", type) ?: return@open true
+        val host = HostAccess.read(service, "mContactlessGestureController") ?: return@open true
+        if (!isAonController(host)) return@open true
+        val handler = HostAccess.read(host, "mHandler") as? android.os.Handler ?: return@open false
+        HostAccess.onHandler(handler) {
+            HostAccess.requireDeclaredMethod(host.javaClass.superclass!!, "updateSupprotFeature", accessible = true).invoke(host)
+            HostAccess.requireDeclaredMethod(host.javaClass, "notifyAonEventChangeIfNeeded", accessible = true).invoke(host)
+        }
+        true
+    }
+
+    override fun recoverHotReloadHosts() { refreshSettings() }
+    override fun onPrepareHotReload() { retired = true; refreshSettings() }
+
     private const val TAG = "AonGestureFeature"
     private const val CONTROLLER_CLASS = "com.android.server.tof.ContactlessGestureController"
     private const val AON_CONTROLLER_NAME = "com.android.server.tof.AONGestureController"
@@ -52,6 +71,7 @@ object AonGestureFeatureHooker : StaticHooker() {
     private const val SECURE_DOUBLE_PRESS = "miui_aon_double_press"
 
     override fun onHook() {
+        retired = false
         val clazz = CONTROLLER_CLASS.toClassOrNull() ?: return
         val update = clazz.declaredMethods.firstOrNull {
             it.name == "updateSupprotFeature" && it.parameterTypes.isEmpty()
@@ -67,13 +87,13 @@ object AonGestureFeatureHooker : StaticHooker() {
         deoptimize(current)
         update.hook("aon_gesture_support_features") { after { param ->
             val host = param.thisObject
-            if (!isAonController(host) || !settingUnlockMoreAonGestures) return@after
+            if (!isAonController(host) || (retired || !settingUnlockMoreAonGestures)) return@after
             runCatching { restoreEnabledFeatures(host) }
                 .onFailure { t -> DebugLog.w(TAG, "failed to restore AON gesture features", t) }
         } }
         current.hook("aon_gesture_app_mask") { after { param ->
             val host = param.thisObject
-            if (!isAonController(host) || !settingUnlockMoreAonGestures) return@after
+            if (!isAonController(host) || (retired || !settingUnlockMoreAonGestures)) return@after
             runCatching {
                 val base = param.result as? Int ?: return@after
                 param.result = base or

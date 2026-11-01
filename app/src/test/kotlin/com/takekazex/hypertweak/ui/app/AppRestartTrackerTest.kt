@@ -75,7 +75,7 @@ class AppRestartTrackerTest {
         val tracker = AppRestartTracker(store, AppSettingsState(MemoryAppSettings()))
         for (key in listOf(SystemUiSettingsKeys.KEY_HIDE_LOCKSCREEN_STATUS_BAR,
             SystemUiSettingsKeys.KEY_CC_EDIT_ENABLED, PlatformSettingsKeys.KEY_THREE_ISLANDS,
-            PlatformSettingsKeys.KEY_XMSF_UNLOCK_FOCUS_AUTH)) {
+            PlatformSettingsKeys.KEY_XMSF_UNLOCK_FOCUS_AUTH, PlatformSettingsKeys.KEY_SHOW_IN_SETTINGS)) {
             tracker.markTweaked(key, true)
             assertFalse(store.values.containsKey("tweak_baseline_$key"))
         }

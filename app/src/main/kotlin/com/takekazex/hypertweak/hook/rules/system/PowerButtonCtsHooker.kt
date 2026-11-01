@@ -62,9 +62,7 @@ import java.util.concurrent.atomic.AtomicLong
  * one) — but only while SystemUI's `AssistManager` can actually launch the selected assistant; see
  * [DefaultAssistantHooker] for the HyperOS state that breaks it and for the direct-launch fallback
  * used otherwise. The action is read live at dispatch time, so switching between actions (or off)
- * takes effect without a reboot once the hooks are installed; turning the feature on from disabled
- * still needs a reboot for those hooks (and the CTS bridge gate in
- * `ContextualSearchSystemHooker`) to install. The power-long-press haptic has no preference: it
+ * and first enable take effect without a reboot; the power and CTS entry hooks remain installed. The power-long-press haptic has no preference: it
  * fires whenever a custom action is bound.
  */
 object PowerButtonCtsHooker : StaticHooker() {
@@ -135,10 +133,7 @@ object PowerButtonCtsHooker : StaticHooker() {
     private var systemContextCache: Context? by generationState { null }
 
     override fun onHook() {
-        if (settingPowerButtonAction == PlatformSettingsKeys.POWER_BUTTON_ACTION_DISABLED) {
-            DebugLog.hookSkippedDebug(SCOPE, "power button long press", "action disabled")
-            return
-        }
+        // Keep the entry points installed: a first enable must work in the living system_server.
         // The MIUI layer is the one that owns the key on this baseline; its hook is installed
         // first so the AOSP hooks stay the fallback rather than the primary.
         observeMiuiGestureDispatcher()

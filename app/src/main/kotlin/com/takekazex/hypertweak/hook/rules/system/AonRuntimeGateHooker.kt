@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.system
 
+import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
@@ -23,11 +24,31 @@ import com.takekazex.hypertweak.util.logging.DebugLog
  * builds a drifted id simply never matches and the hook is a no-op (original behaviour).
  *
  * Effect is gated by the 解锁更多主动视觉感知 preference read per call; values apply from the next
- * boot of system_server (both controllers read the resource once during their construction).
+ * settings change by refreshing the existing native controllers on their owning handlers.
  */
 object AonRuntimeGateHooker : StaticHooker() {
     // Published on settings acceptance; hook callbacks perform no storage reads.
     private val settingUnlockMoreVisualPerception by hookSetting(false) { Preferences.unlockMoreVisualPerception() }
+
+    private var retired by generationState { false }
+    private val nativeRead = ThreadLocal<Boolean>()
+
+    private fun nativeBoolean(context: android.content.Context, id: Int): Boolean {
+        nativeRead.set(true)
+        return try { context.resources.getBoolean(id) } finally { nativeRead.remove() }
+    }
+
+    fun refreshSettings(): Boolean = HookFailurePolicy.open(TAG, "refresh living AON hosts", false) {
+        AonLiveHosts.refresh(classLoader, !retired && settingUnlockMoreVisualPerception, ::nativeBoolean)
+        true
+    }
+
+    override fun recoverHotReloadHosts() { refreshSettings() }
+
+    override fun onPrepareHotReload() {
+        retired = true
+        refreshSettings()
+    }
 
     private const val TAG = "AonRuntimeGate"
 
@@ -43,6 +64,23 @@ object AonRuntimeGateHooker : StaticHooker() {
     private val visualPerceptionIds = intArrayOf(ID_ANTI_BURN, ID_AON_SCREEN_OFF, ID_AON_SCREEN_ON)
 
     override fun onHook() {
+        retired = false
+        // Initialized controllers retain their native observers. Keep their registration funnels
+        // inert when the module is disabled on an unsupported device, including delayed callbacks.
+        val anti = "com.android.server.sensors.AntiburnScreenController".toClassOrNull()
+        anti?.declaredMethods?.filter { it.parameterCount == 0 && it.name in setOf(
+            "registerActivityChangeListener", "registerBroadCastListener", "registerSensorManager",
+            "registerFoldStateListener", "startScheduler", "registerAonFaceListener"
+        ) }?.forEach { method ->
+            deoptimize(method)
+            method.hook { before { param ->
+                HookFailurePolicy.open(TAG, "anti-burn capability", Unit) {
+                    val context = HostAccess.read(param.thisObject, "mContext") as? android.content.Context ?: return@open
+                    if ((retired || !settingUnlockMoreVisualPerception) && !nativeBoolean(context, ID_ANTI_BURN)) param.result = null
+                }
+            } }
+        }
+
         val resources = "android.content.res.Resources".toClassOrNull() ?: return
         val method = runCatching {
             HostAccess.requireDeclaredMethod(resources, "getBoolean", Int::class.javaPrimitiveType, accessible = false)
@@ -53,7 +91,7 @@ object AonRuntimeGateHooker : StaticHooker() {
             if (id !in visualPerceptionIds) return@after
             if (param.result == true) return@after
             runCatching {
-                if (settingUnlockMoreVisualPerception) {
+                if (!retired && nativeRead.get() != true && settingUnlockMoreVisualPerception) {
                     param.result = true
                 }
             }.onFailure { t ->

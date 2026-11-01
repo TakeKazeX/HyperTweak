@@ -54,6 +54,37 @@ internal object RuntimeSettingsParticipants {
     fun install(dispatcher: SettingsReloadDispatcher, processName: String, isSystemServer: Boolean, actions: Actions) {
         val registry = SettingsParticipantRegistry(RuntimeSettingsGroups.forProcess(processName, isSystemServer))
         fun registerForProcess(id: String, apply: (Set<String>) -> Boolean) = registry.register(id, apply)
+        registerForProcess(RuntimeSettingsGroups.POWER_BUTTON) { _ ->
+            if (isSystemServer) com.takekazex.hypertweak.hook.rules.system.DefaultAssistantHooker.applyAlignment()
+            true
+        }
+        registerForProcess(RuntimeSettingsGroups.EXPERIMENTAL_CAPABILITIES) { keys ->
+            val platform = com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+            fun changed(key: String) = keys.isEmpty() || key in keys
+            if (isSystemServer) {
+                val visual = !changed(platform.KEY_UNLOCK_MORE_VISUAL_PERCEPTION) ||
+                    com.takekazex.hypertweak.hook.rules.system.AonRuntimeGateHooker.refreshSettings()
+                val gestures = !changed(platform.KEY_UNLOCK_MORE_AON_GESTURES) ||
+                    com.takekazex.hypertweak.hook.rules.system.AonGestureFeatureHooker.refreshSettings()
+                val display = !changed(platform.KEY_UNLOCK_ADAPTIVE_REFRESH_PRO) ||
+                    com.takekazex.hypertweak.hook.rules.system.AdaptiveRefreshRuntimeHooker.refreshSettings()
+                visual && gestures && display
+            } else {
+                val display = !changed(platform.KEY_UNLOCK_ADAPTIVE_REFRESH_PRO) ||
+                    com.takekazex.hypertweak.hook.rules.settings.AdaptiveRefreshSettingsHooker.refreshSettings()
+                val pages = com.takekazex.hypertweak.hook.rules.settings.ExperimentalSettingsRefreshHooker.refreshSettings()
+                display && pages
+            }
+        }
+        registerForProcess(RuntimeSettingsGroups.CAMERA) { _ ->
+            com.takekazex.hypertweak.hook.rules.camera.CameraRuntimeSettingsHooker.refreshSettings()
+        }
+        registerForProcess(RuntimeSettingsGroups.MONET) { _ ->
+            com.takekazex.hypertweak.hook.rules.systemui.ImmediateMonetRefreshHooker.refreshSettings()
+        }
+        registerForProcess(RuntimeSettingsGroups.MODULE_ENTRY) { _ ->
+            com.takekazex.hypertweak.hook.rules.module.SettingsHooker.refreshSettings()
+        }
         registerForProcess(RuntimeSettingsGroups.POLICY_FEATURES) { _ ->
             var applied = true
             actions.hookers().forEach { hooker ->

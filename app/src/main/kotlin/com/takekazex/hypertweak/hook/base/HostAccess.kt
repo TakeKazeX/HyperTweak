@@ -9,8 +9,10 @@ import java.util.concurrent.TimeUnit
 internal object HostAccess {
     private val main = Handler(Looper.getMainLooper())
 
-    fun <T> onMain(action: () -> T): T {
-        if (Looper.myLooper() == Looper.getMainLooper()) return action()
+    fun <T> onMain(action: () -> T): T = onHandler(main, action)
+
+    fun <T> onHandler(handler: Handler, action: () -> T): T {
+        if (Looper.myLooper() == handler.looper) return action()
         val done = CountDownLatch(1)
         var result: Result<T>? = null
         val state = java.util.concurrent.atomic.AtomicInteger(0)
@@ -18,10 +20,10 @@ internal object HostAccess {
             if (!state.compareAndSet(0, 1)) return@Runnable
             try { result = runCatching(action) } finally { done.countDown() }
         }
-        check(main.post(task)) { "Host main looper is unavailable" }
+        check(handler.post(task)) { "Host main looper is unavailable" }
         if (!done.await(5, TimeUnit.SECONDS)) {
             state.compareAndSet(0, 2)
-            main.removeCallbacks(task)
+            handler.removeCallbacks(task)
             error("Host main-thread action timed out; an already running action may finish")
         }
         return checkNotNull(result).getOrThrow()

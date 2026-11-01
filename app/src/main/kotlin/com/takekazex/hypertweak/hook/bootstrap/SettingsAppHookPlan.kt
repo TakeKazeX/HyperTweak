@@ -23,6 +23,7 @@ internal object SettingsAppHookPlan {
         when (packageName) {
             "com.android.settings" -> {
                 // Flip Settings' process-local MIUI build flags before its own classes initialize.
+                hook { com.takekazex.hypertweak.hook.rules.settings.ExperimentalSettingsRefreshHooker }
                 hook { GlobalSettingsInterfaceHooker }
                 hook { RestartBroadcastHooker }
                 hook { SettingsHooker }

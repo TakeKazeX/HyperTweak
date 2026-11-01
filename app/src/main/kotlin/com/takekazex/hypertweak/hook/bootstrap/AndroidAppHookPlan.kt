@@ -41,6 +41,7 @@ internal object AndroidAppHookPlan {
                 // the attention service from the module's restart picker without root.
             }
             "com.android.camera" -> {
+                hook { com.takekazex.hypertweak.hook.rules.camera.CameraRuntimeSettingsHooker }
                 // Runs before Camera.onCreate; the after-hook preserves model-config initialization
                 // while suppressing only the APK/device mismatch exit guard when opted in.
                 hook { CameraDeviceMismatchHooker }

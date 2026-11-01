@@ -1275,7 +1275,7 @@
     <string name="camera_unlock_custom_dialog_summary">Leave empty to use the device\'s own value</string>
     <string name="camera_unlock_custom_ok">OK</string>
     <string name="camera_unlock_note_scope">Enable the camera app in the module scope first</string>
-    <string name="camera_unlock_note_restart">Some options need a camera restart to take effect</string>
+    <string name="camera_unlock_note_restart">Changes apply automatically; cached options refresh when you return to the camera. Active captures continue.</string>
     <string name="camera_unlock_note_exif">Photo EXIF and the watermark always use this device\'s real brand and model</string>
     <string name="camera_unlock_notes">Notes</string>
     <string name="camera_unlock_title">Camera Unlock</string>

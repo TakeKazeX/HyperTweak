@@ -63,6 +63,41 @@ object CameraImpersonationHooker : StaticHooker() {
     private val disabledWidgetReceiverNames = AtomicReference<Set<String>?>(null)
     private val disabledWidgetReceiverNamesLock = Any()
 
+    private var refreshWatermarkCache: (() -> Unit)? by generationState { null }
+
+    private val ownedModeEntries = generationMainResource(java.util.WeakHashMap<SparseArray<Any?>, CameraModeEntryOwnership>()) { it.clear() }
+
+    fun refreshSettings() { refreshWatermarkCache?.invoke() }
+
+    fun refreshModeRegistries() = synchronized(ownedModeEntries) {
+        ownedModeEntries.keys.toList().forEach { registry ->
+            ensureCameraModeRegistry(registry, legendaryMomentUnlock(), settingCameraLegendaryExtraModes)
+        }
+    }
+
+    override fun onPrepareHotReload() {
+        HostAccess.onMain {
+            restoreWatermarkCaches()
+            synchronized(ownedModeEntries) {
+                ownedModeEntries.forEach { (registry, entries) -> entries.restore(emptySet(), registry::get, registry::remove) }
+                ownedModeEntries.clear()
+            }
+        }
+        refreshWatermarkCache = null
+    }
+
+    private data class WatermarkCache(val field: java.lang.reflect.Field, val native: Any?,
+        var labels: Pair<String, String>? = null, var applied: Any? = null)
+
+    private val originalWatermarkEntries = generationMainResource(java.util.WeakHashMap<Any, WatermarkCache>()) { it.clear() }
+
+    private fun restoreWatermarkCaches() {
+        synchronized(originalWatermarkEntries) {
+            originalWatermarkEntries.forEach { (holder, original) -> original.field.set(holder, original.native) }
+            originalWatermarkEntries.clear()
+        }
+    }
+
     override fun onHook() {
         com.takekazex.hypertweak.hook.rules.camera.prepareCameraWatermarkBrandSettings()
         com.takekazex.hypertweak.hook.rules.camera.prepareCameraMasterLiveHooksSettings()
@@ -218,25 +253,28 @@ object CameraImpersonationHooker : StaticHooker() {
         outer.isAccessible = true
         entry.isAccessible = true
         val constructor = entry.type.getDeclaredConstructor(String::class.java, String::class.java).apply { isAccessible = true }
-        val lock = Any()
-        var lastEntry: Any? = null
-        var lastLabels: Pair<String, String>? = null
+        fun applyCache(manager: Any) = synchronized(originalWatermarkEntries) {
+            val holder = outer.get(manager) ?: return@synchronized
+            if (!keepModel()) {
+                originalWatermarkEntries.remove(holder)?.let { entry.set(holder, it.native) }
+                return@synchronized
+            }
+            val state = originalWatermarkEntries.getOrPut(holder) { WatermarkCache(entry, entry.get(holder)) }
+            val labels = CameraWatermarkBrand.brand() to CameraWatermarkBrand.model()
+            if (state.labels != labels || entry.get(holder) !== state.applied) {
+                val value = constructor.newInstance(labels.first, labels.second)
+                entry.set(holder, value)
+                state.labels = labels
+                state.applied = value
+            }
+        }
+        refreshWatermarkCache = fun() { aMethod.invoke(null) }
         deoptimize(aMethod)
         aMethod.hook("cam_wm_config_refresh") {
             after { param ->
-                if (!keepModel()) return@after
-                runCatching {
-                    val holder = outer.get(param.result ?: return@runCatching) ?: return@runCatching
-                    val labels = CameraWatermarkBrand.brand() to CameraWatermarkBrand.model()
-                    synchronized(lock) {
-                        if (lastLabels != labels || entry.get(holder) !== lastEntry) {
-                            val value = constructor.newInstance(labels.first, labels.second)
-                            entry.set(holder, value)
-                            lastEntry = value
-                            lastLabels = labels
-                        }
-                    }
-                }.onFailure { DebugLog.w(TAG, "watermark cache refresh failed", it) }
+                com.takekazex.hypertweak.hook.base.HookFailurePolicy.open(TAG, "watermark cache refresh", Unit) {
+                    param.result?.let(::applyCache)
+                }
             }
         }
     }
@@ -747,8 +785,6 @@ object CameraImpersonationHooker : StaticHooker() {
                 after { param ->
                     val unlockLegendary = legendaryMomentUnlock()
                     val unlockExtras = settingCameraLegendaryExtraModes
-                    if (!unlockLegendary && !unlockExtras &&
-                        !(masterLive.masterLiveGateReady && masterLive.masterliveEnabled() && masterLive.masterLiveHasEffectTable())) return@after
                     @Suppress("UNCHECKED_CAST")
                     val registry = param.result as? SparseArray<Any?> ?: return@after
                     ensureCameraModeRegistry(registry, unlockLegendary, unlockExtras)
@@ -762,24 +798,34 @@ object CameraImpersonationHooker : StaticHooker() {
         registry: SparseArray<Any?>,
         unlockLegendary: Boolean,
         unlockExtras: Boolean,
-    ) {
+    ) = synchronized(ownedModeEntries) {
+        val ownership = ownedModeEntries.getOrPut(registry) { CameraModeEntryOwnership() }
+        val master = masterLive.masterLiveGateReady && masterLive.masterliveEnabled() && masterLive.masterLiveHasEffectTable()
+        val enabled = buildSet {
+            if (master) add(CameraModeEntryOwnership.Feature.MASTER_LIVE)
+            if (unlockLegendary) add(CameraModeEntryOwnership.Feature.LEGENDARY)
+            if (unlockExtras) add(CameraModeEntryOwnership.Feature.EXTRA)
+        }
+        ownership.restore(enabled, registry::get, registry::remove)
+        if (enabled.isEmpty()) return@synchronized
         val context = runCatching {
             registryContextGetter?.invoke(null)
-        }.getOrNull() ?: return
-        if (masterLive.masterLiveGateReady && masterLive.masterliveEnabled() && masterLive.masterLiveHasEffectTable()) {
-            ensureModeEntry(registry, masterLiveRegistryEntry, context, CameraIdentity.MASTER_LIVE_MODE_ID)
+        }.getOrNull() ?: return@synchronized
+        if (master) {
+            ensureModeEntry(registry, masterLiveRegistryEntry, context, CameraModeEntryOwnership.Feature.MASTER_LIVE, CameraIdentity.MASTER_LIVE_MODE_ID)
         }
         if (unlockLegendary) {
             ensureModeEntry(
                 registry,
                 legendaryEntryClass.get(),
                 context,
+                CameraModeEntryOwnership.Feature.LEGENDARY,
                 CameraIdentity.LEGENDARY_MOMENT_MODE_ID,
             )
         }
         if (unlockExtras) {
-            ensureModeEntry(registry, CameraLegendaryProfileState.pixelEntry(), context)
-            ensureModeEntry(registry, CameraLegendaryProfileState.cinematicEntry(), context)
+            ensureModeEntry(registry, CameraLegendaryProfileState.pixelEntry(), context, CameraModeEntryOwnership.Feature.EXTRA)
+            ensureModeEntry(registry, CameraLegendaryProfileState.cinematicEntry(), context, CameraModeEntryOwnership.Feature.EXTRA)
         }
     }
 
@@ -787,6 +833,7 @@ object CameraImpersonationHooker : StaticHooker() {
         registry: SparseArray<Any?>,
         entryClass: Class<*>?,
         context: Any,
+        feature: CameraModeEntryOwnership.Feature,
         expectedModuleId: Int? = null,
     ) {
         if (entryClass == null || (expectedModuleId != null && registry.indexOfKey(expectedModuleId) >= 0)) return
@@ -806,6 +853,7 @@ object CameraImpersonationHooker : StaticHooker() {
         val (moduleId, entry) = registeredEntry
         if (registry.indexOfKey(moduleId) >= 0) return
         registry.put(moduleId, entry)
+        ownedModeEntries.getValue(registry).added(moduleId, entry, feature)
         DebugLog.i(TAG, "camera mode registry repaired: inserted module $moduleId (${entryClass.name})")
     }
 

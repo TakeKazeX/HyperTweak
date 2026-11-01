@@ -1,9 +1,5 @@
 package com.takekazex.hypertweak.ui.page.systemui.controlcenter
 
-import com.takekazex.hypertweak.ui.components.dialog.LocalRestartScopeHandled
-import com.takekazex.hypertweak.ui.components.dialog.LocalRestartScopeRequest
-import com.takekazex.hypertweak.ui.components.dialog.restartInProgress
-import com.takekazex.hypertweak.ui.app.LocalAppServices
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 
 import androidx.compose.foundation.layout.Column
@@ -26,18 +22,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.ui.app.LocalAppSettingsStore
 import com.takekazex.hypertweak.settings.contract.AppSettingsStore
-import com.takekazex.hypertweak.util.restart.RestartScopeSelection
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
@@ -52,8 +44,8 @@ import com.takekazex.hypertweak.ui.effect.AppTopAppBar as TopAppBar
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
 import com.takekazex.hypertweak.ui.effect.AppOverlayDialog as OverlayDialog
-import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
+import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
@@ -63,8 +55,7 @@ import top.yukonga.miuix.kmp.utils.overScrollVertical
  *
  * Self-contained state like [ControlCenterCornerPage]: every control reads/writes [AppSettingsStore]
  * directly and the hooker re-reads the keys live on each bind. The master switch installs the
- * hooks, so it needs one SystemUI restart (pending-restart row below); individual sizes apply on
- * the next panel refresh without one.
+ * hooks through the shared live-settings dispatcher; size changes refresh existing plugin hosts.
  *
  * Sizes are stored as `C x R` tokens (columns × rows); empty = follow the system. Big-card sizes
  * share one `spec=CxR` map key; sliders/media/device center have one token each. Dropdown labels
@@ -72,22 +63,11 @@ import top.yukonga.miuix.kmp.utils.overScrollVertical
  */
 @Composable
 fun ControlCenterResizePage(onBack: () -> Unit) {
-    val services = LocalAppServices.current
     val settingsStore = LocalAppSettingsStore.current
     val scrollBehavior = MiuixScrollBehavior()
-    val context = LocalContext.current
-    val coroutineScope = rememberCoroutineScope()
-    val requestRestartScopes = LocalRestartScopeRequest.current
-    val handleRestartedScopes = LocalRestartScopeHandled.current
 
     var enabled by remember {
         mutableStateOf(settingsStore.getBoolean(SystemUiSettingsKeys.KEY_CC_RESIZE_ENABLED, false))
-    }
-    var restartPending by rememberSaveable { mutableStateOf(false) }
-
-    fun markPending() {
-        restartPending = true
-        requestRestartScopes(RestartScopeSelection(systemUi = true))
     }
 
     Scaffold(topBar = {
@@ -117,31 +97,13 @@ fun ControlCenterResizePage(onBack: () -> Unit) {
                         checked = enabled,
                         onCheckedChange = { checked ->
                             enabled = checked
-                            markPending()
+
                             settingsStore.putBoolean(SystemUiSettingsKeys.KEY_CC_RESIZE_ENABLED, checked)
                         },
                         title = stringResource(R.string.cc_resize_title),
                         summary = stringResource(R.string.cc_resize_enabled_summary)
                     )
-                    if (restartPending) {
-                        ArrowPreference(
-                            title = stringResource(R.string.charging_restart_title),
-                            summary = stringResource(R.string.charging_restart_summary),
-                            enabled = !restartInProgress(RestartScopeSelection(systemUi = true)),
-                            onClick = {
-                                settingsStore.flush()
-                                services.restarts.restartScope(
-                                    context = context,
-                                    coroutineScope = coroutineScope,
-                                    selection = RestartScopeSelection(systemUi = true),
-                                    onCompleted = { completed ->
-                                        handleRestartedScopes(completed)
-                                        if (completed.systemUi) restartPending = false
-                                    },
-                                )
-                            }
-                        )
-                    }
+
                 }
             }
 
@@ -156,7 +118,7 @@ fun ControlCenterResizePage(onBack: () -> Unit) {
                             options = CARD_SIZE_OPTIONS,
                             onSelect = { value ->
                                 setCardSize(settingsStore, entry.spec, value)
-                                markPending()
+
                             }
                         )
                     }
@@ -173,7 +135,7 @@ fun ControlCenterResizePage(onBack: () -> Unit) {
                         key = SystemUiSettingsKeys.KEY_CC_SIZE_BRIGHTNESS,
                         options = SLIDER_SIZE_OPTIONS,
                         defaults = SizeOption(1, 2),
-                        onSelect = { markPending() }
+                        onSelect = {  }
                     )
                     TokenSizeRow(
                         title = stringResource(R.string.cc_size_volume),
@@ -181,7 +143,7 @@ fun ControlCenterResizePage(onBack: () -> Unit) {
                         key = SystemUiSettingsKeys.KEY_CC_SIZE_VOLUME,
                         options = SLIDER_SIZE_OPTIONS,
                         defaults = SizeOption(1, 2),
-                        onSelect = { markPending() }
+                        onSelect = {  }
                     )
                 }
             }
@@ -196,7 +158,7 @@ fun ControlCenterResizePage(onBack: () -> Unit) {
                         key = SystemUiSettingsKeys.KEY_CC_SIZE_MEDIA,
                         options = MEDIA_SIZE_OPTIONS,
                         defaults = SizeOption(2, 2),
-                        onSelect = { markPending() }
+                        onSelect = {  }
                     )
                     TokenSizeRow(
                         title = stringResource(R.string.cc_size_device),
@@ -204,7 +166,7 @@ fun ControlCenterResizePage(onBack: () -> Unit) {
                         key = SystemUiSettingsKeys.KEY_CC_SIZE_DEVICE,
                         options = DEVICE_SIZE_OPTIONS,
                         defaults = SizeOption(4, 1),
-                        onSelect = { markPending() }
+                        onSelect = {  }
                     )
                 }
             }
@@ -227,12 +189,12 @@ fun ControlCenterResizePage(onBack: () -> Unit) {
                             onCheckedChange = { newValue ->
                                 checked = newValue
                                 writeTileCardSpecs(settingsStore, entry.spec, newValue)
-                                markPending()
+
                             },
                             title = stringResource(entry.titleRes)
                         )
                     }
-                    CustomTileSpecRow(onSelect = { markPending() })
+                    CustomTileSpecRow(onSelect = {  })
                 }
             }
 

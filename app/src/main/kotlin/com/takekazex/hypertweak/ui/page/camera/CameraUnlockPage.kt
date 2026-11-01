@@ -1,6 +1,5 @@
 package com.takekazex.hypertweak.ui.page.camera
 
-import com.takekazex.hypertweak.ui.components.dialog.LocalRestartScopeRequest
 import com.takekazex.hypertweak.settings.contract.CameraSettingsKeys
 
 import androidx.compose.foundation.layout.Column
@@ -24,7 +23,6 @@ import androidx.compose.ui.unit.sp
 import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.settings.contract.CameraLegendaryMomentMode
 import com.takekazex.hypertweak.ui.app.LocalAppSettingsStore
-import com.takekazex.hypertweak.util.restart.RestartScopeSelection
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import com.takekazex.hypertweak.ui.effect.AppScaffold as Scaffold
@@ -61,16 +59,6 @@ fun CameraUnlockContent(
     bottomPadding: Dp
 ) {
     val settingsStore = LocalAppSettingsStore.current
-    val requestRestartScopes = LocalRestartScopeRequest.current
-
-    fun requestCameraRestart() {
-        requestRestartScopes(
-            RestartScopeSelection(
-                additionalPackages = setOf(RestartScopeSelection.PACKAGE_CAMERA)
-            )
-        )
-    }
-
     var ignoreDeviceMismatch by remember {
         mutableStateOf(settingsStore.getBoolean(CameraSettingsKeys.KEY_CAMERA_IGNORE_DEVICE_MISMATCH, false))
     }
@@ -134,8 +122,7 @@ fun CameraUnlockContent(
     var editingBrand by remember { mutableStateOf(false) }
     var editingModel by remember { mutableStateOf(false) }
 
-    fun set(key: String, value: Boolean, needsRestart: Boolean = false) {
-        if (needsRestart) requestCameraRestart()
+    fun set(key: String, value: Boolean) {
         settingsStore.putBoolean(key, value)
     }
 
@@ -149,7 +136,7 @@ fun CameraUnlockContent(
                     checked = ignoreDeviceMismatch,
                     onCheckedChange = { enabled ->
                         ignoreDeviceMismatch = enabled
-                        set(CameraSettingsKeys.KEY_CAMERA_IGNORE_DEVICE_MISMATCH, enabled, needsRestart = true)
+                        set(CameraSettingsKeys.KEY_CAMERA_IGNORE_DEVICE_MISMATCH, enabled)
                     },
                     title = stringResource(R.string.camera_unlock_ignore_mismatch_title),
                     summary = stringResource(R.string.camera_unlock_ignore_mismatch_summary)
@@ -158,7 +145,7 @@ fun CameraUnlockContent(
                     checked = leicaStyle,
                     onCheckedChange = { enabled ->
                         leicaStyle = enabled
-                        set(CameraSettingsKeys.KEY_CAMERA_LEICA_STYLE, enabled, needsRestart = true)
+                        set(CameraSettingsKeys.KEY_CAMERA_LEICA_STYLE, enabled)
                     },
                     title = stringResource(R.string.camera_unlock_leica_style_title),
                     summary = stringResource(R.string.camera_unlock_leica_style_summary)
@@ -167,7 +154,7 @@ fun CameraUnlockContent(
                     checked = allShutterSounds,
                     onCheckedChange = { enabled ->
                         allShutterSounds = enabled
-                        set(CameraSettingsKeys.KEY_CAMERA_ALL_SHUTTER_SOUNDS, enabled, needsRestart = true)
+                        set(CameraSettingsKeys.KEY_CAMERA_ALL_SHUTTER_SOUNDS, enabled)
                     },
                     title = stringResource(R.string.camera_unlock_all_shutter_sounds_title),
                     summary = stringResource(R.string.camera_unlock_all_shutter_sounds_summary)
@@ -176,7 +163,7 @@ fun CameraUnlockContent(
                     checked = ultraHdQuality,
                     onCheckedChange = { enabled ->
                         ultraHdQuality = enabled
-                        set(CameraSettingsKeys.KEY_CAMERA_ULTRA_HD_QUALITY, enabled, needsRestart = true)
+                        set(CameraSettingsKeys.KEY_CAMERA_ULTRA_HD_QUALITY, enabled)
                     },
                     title = stringResource(R.string.camera_unlock_ultra_hd_title),
                     summary = stringResource(R.string.camera_unlock_ultra_hd_summary)
@@ -185,7 +172,7 @@ fun CameraUnlockContent(
                     checked = selfieSettings,
                     onCheckedChange = { enabled ->
                         selfieSettings = enabled
-                        set(CameraSettingsKeys.KEY_CAMERA_SELFIE_SETTINGS, enabled, needsRestart = true)
+                        set(CameraSettingsKeys.KEY_CAMERA_SELFIE_SETTINGS, enabled)
                     },
                     title = stringResource(R.string.camera_unlock_selfie_settings_title),
                     summary = stringResource(R.string.camera_unlock_selfie_settings_summary)
@@ -202,7 +189,6 @@ fun CameraUnlockContent(
                     onSelectedIndexChange = { index ->
                         val mode = CameraLegendaryMomentMode.fromIndex(index)
                         legendaryMomentMode = mode
-                        requestCameraRestart()
                         settingsStore.camera.setCameraLegendaryMomentMode(mode)
                     },
                 )
@@ -210,7 +196,7 @@ fun CameraUnlockContent(
                     checked = legendaryExtraModes,
                     onCheckedChange = { enabled ->
                         legendaryExtraModes = enabled
-                        set(CameraSettingsKeys.KEY_CAMERA_LEGENDARY_EXTRA_MODES, enabled, needsRestart = true)
+                        set(CameraSettingsKeys.KEY_CAMERA_LEGENDARY_EXTRA_MODES, enabled)
                     },
                     title = stringResource(R.string.camera_unlock_legendary_extra_modes_title),
                     summary = stringResource(R.string.camera_unlock_legendary_extra_modes_summary)
@@ -228,7 +214,7 @@ fun CameraUnlockContent(
                     checked = contentCredential,
                     onCheckedChange = { enabled ->
                         contentCredential = enabled
-                        set(CameraSettingsKeys.KEY_CAMERA_CONTENT_CREDENTIAL, enabled, needsRestart = true)
+                        set(CameraSettingsKeys.KEY_CAMERA_CONTENT_CREDENTIAL, enabled)
                     },
                     title = stringResource(R.string.camera_unlock_content_credential_title),
                     summary = stringResource(R.string.camera_unlock_content_credential_summary)
@@ -246,7 +232,7 @@ fun CameraUnlockContent(
                     checked = masterLiveEnable,
                     onCheckedChange = { enabled ->
                         masterLiveEnable = enabled
-                        set(CameraSettingsKeys.KEY_CAMERA_MASTERLIVE_ENABLE, enabled, needsRestart = true)
+                        set(CameraSettingsKeys.KEY_CAMERA_MASTERLIVE_ENABLE, enabled)
                     },
                     title = stringResource(R.string.camera_unlock_masterlive_title),
                     summary = stringResource(R.string.camera_unlock_masterlive_summary)
@@ -255,7 +241,7 @@ fun CameraUnlockContent(
                     checked = mlRedCarpet,
                     onCheckedChange = { enabled ->
                         mlRedCarpet = enabled
-                        set(CameraSettingsKeys.KEY_CAMERA_MASTERLIVE_RED_CARPET, enabled, needsRestart = true)
+                        set(CameraSettingsKeys.KEY_CAMERA_MASTERLIVE_RED_CARPET, enabled)
                     },
                     title = stringResource(R.string.camera_unlock_red_carpet_title),
                     summary = stringResource(R.string.camera_unlock_red_carpet_summary)
@@ -264,7 +250,7 @@ fun CameraUnlockContent(
                     checked = mlFullFocal,
                     onCheckedChange = { enabled ->
                         mlFullFocal = enabled
-                        set(CameraSettingsKeys.KEY_CAMERA_MASTERLIVE_FULL_FOCAL, enabled, needsRestart = true)
+                        set(CameraSettingsKeys.KEY_CAMERA_MASTERLIVE_FULL_FOCAL, enabled)
                     },
                     title = stringResource(R.string.camera_unlock_full_focal_title),
                     summary = stringResource(R.string.camera_unlock_full_focal_summary)
@@ -273,7 +259,7 @@ fun CameraUnlockContent(
                     checked = mlVideoSizeProbe,
                     onCheckedChange = { enabled ->
                         mlVideoSizeProbe = enabled
-                        set(CameraSettingsKeys.KEY_CAMERA_MASTERLIVE_VIDEO_SIZE_PROBE, enabled, needsRestart = true)
+                        set(CameraSettingsKeys.KEY_CAMERA_MASTERLIVE_VIDEO_SIZE_PROBE, enabled)
                     },
                     title = stringResource(R.string.camera_unlock_video_size_probe_title),
                     summary = stringResource(R.string.camera_unlock_video_size_probe_summary)

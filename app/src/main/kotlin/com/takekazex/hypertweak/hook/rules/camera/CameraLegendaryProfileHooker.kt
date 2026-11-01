@@ -99,7 +99,20 @@ object CameraLegendaryProfileHooker : StaticHooker() {
         }
     }
 
-    private fun initializeCameraModes() {
+    fun refreshSettings() {
+        if (CameraLegendaryProfileState.nativeConfigSnapshot() != null) initializeCameraModes(installHooks = false)
+    }
+
+    override fun onPrepareHotReload() {
+        val binding = CameraHostProfile.resolve(CameraResolver.Ctx(classLoader, hookParam.appInfo), TAG) ?: return
+        CameraLegendaryProfileState.nativeConfigSnapshot()?.let { native ->
+            check(binding.replaceConfigInstance(native)) { "could not restore native camera config" }
+            CameraLegendaryProfileState.setActiveConfig(native)
+            CameraLegendaryProfileState.markApplied(null)
+        }
+    }
+
+    private fun initializeCameraModes(installHooks: Boolean = true) {
         if (!hookParam.isMainProcess) return
         val mode = settingCameraLegendaryMomentMode
         val ctx = CameraResolver.Ctx(classLoader, hookParam.appInfo)
@@ -119,7 +132,7 @@ object CameraLegendaryProfileHooker : StaticHooker() {
         ) {
             reject(mode, "could not restore the camera's native config before selecting a mode")
             CameraLegendaryProfileState.setActiveConfig(current)
-            installExtraModeHooks(ctx, binding, current)
+            if (installHooks) installExtraModeHooks(ctx, binding, current)
             return
         }
         CameraLegendaryProfileState.setActiveConfig(native)
@@ -150,7 +163,7 @@ object CameraLegendaryProfileHooker : StaticHooker() {
 
         val active = binding.configInstance() ?: native
         CameraLegendaryProfileState.setActiveConfig(active)
-        installExtraModeHooks(ctx, binding, active)
+        if (installHooks) installExtraModeHooks(ctx, binding, active)
     }
 
     /** Legendary Moment still uses the camera's Madrid profile when that profile is packaged. */

@@ -1,9 +1,5 @@
 package com.takekazex.hypertweak.ui.page.systemui.lockscreen
 
-import com.takekazex.hypertweak.ui.components.dialog.LocalRestartScopeHandled
-import com.takekazex.hypertweak.ui.components.dialog.LocalRestartScopeRequest
-import com.takekazex.hypertweak.ui.components.dialog.restartInProgress
-import com.takekazex.hypertweak.ui.app.LocalAppServices
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 
 import androidx.compose.foundation.layout.Column
@@ -24,18 +20,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.ui.app.LocalAppSettingsStore
 import com.takekazex.hypertweak.settings.contract.LockscreenBottomTextOptions
-import com.takekazex.hypertweak.util.restart.RestartScopeSelection
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -45,7 +37,6 @@ import top.yukonga.miuix.kmp.basic.SmallTitle
 import com.takekazex.hypertweak.ui.effect.AppTopAppBar as TopAppBar
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
-import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.utils.overScrollVertical
@@ -53,13 +44,8 @@ import top.yukonga.miuix.kmp.utils.overScrollVertical
 /** Settings → System UI → Lockscreen Bottom Text. */
 @Composable
 fun LockscreenBottomTextPage(onBack: () -> Unit) {
-    val services = LocalAppServices.current
     val settingsStore = LocalAppSettingsStore.current
-    val context = LocalContext.current
-    val coroutineScope = rememberCoroutineScope()
     val scrollBehavior = MiuixScrollBehavior()
-    val requestRestartScopes = LocalRestartScopeRequest.current
-    val handleRestartedScopes = LocalRestartScopeHandled.current
 
     var enabled by remember {
         mutableStateOf(settingsStore.getBoolean(SystemUiSettingsKeys.KEY_LOCKSCREEN_BOTTOM_TEXT, false))
@@ -80,17 +66,11 @@ fun LockscreenBottomTextPage(onBack: () -> Unit) {
             )
         )
     }
-    var systemUiRestartPending by rememberSaveable { mutableStateOf(false) }
-
-    fun requestSystemUiRestart() {
-        systemUiRestartPending = true
-        requestRestartScopes(RestartScopeSelection(systemUi = true))
-    }
 
     fun setMaskBit(bit: Int, checked: Boolean) {
         mask = if (checked) mask or bit else mask and bit.inv()
         settingsStore.putInt(SystemUiSettingsKeys.KEY_LOCKSCREEN_BOTTOM_TEXT_MASK, mask)
-        requestSystemUiRestart()
+
     }
 
     Scaffold(topBar = {
@@ -121,30 +101,12 @@ fun LockscreenBottomTextPage(onBack: () -> Unit) {
                         onCheckedChange = { checked ->
                             enabled = checked
                             settingsStore.putBoolean(SystemUiSettingsKeys.KEY_LOCKSCREEN_BOTTOM_TEXT, checked)
-                            requestSystemUiRestart()
+
                         },
                         title = stringResource(R.string.bottom_text_enabled_title),
                         summary = stringResource(R.string.bottom_text_enabled_summary)
                     )
-                    if (systemUiRestartPending) {
-                        ArrowPreference(
-                            title = stringResource(R.string.bottom_text_restart_title),
-                            summary = stringResource(R.string.bottom_text_restart_summary),
-                            enabled = !restartInProgress(RestartScopeSelection(systemUi = true)),
-                            onClick = {
-                                settingsStore.flush()
-                                services.restarts.restartScope(
-                                    context = context,
-                                    coroutineScope = coroutineScope,
-                                    selection = RestartScopeSelection(systemUi = true),
-                                    onCompleted = { completed ->
-                                        handleRestartedScopes(completed)
-                                        if (completed.systemUi) systemUiRestartPending = false
-                                    },
-                                )
-                            }
-                        )
-                    }
+
                     OverlayDropdownPreference(
                         title = stringResource(R.string.bottom_text_mode_title),
                         summary = stringResource(R.string.bottom_text_mode_summary),
@@ -159,7 +121,7 @@ fun LockscreenBottomTextPage(onBack: () -> Unit) {
                         onSelectedIndexChange = { selected ->
                             mode = selected
                             settingsStore.putInt(SystemUiSettingsKeys.KEY_LOCKSCREEN_BOTTOM_TEXT_MODE, selected)
-                            requestSystemUiRestart()
+
                         }
                     )
                 }

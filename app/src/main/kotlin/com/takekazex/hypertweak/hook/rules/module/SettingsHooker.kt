@@ -28,6 +28,8 @@ object SettingsHooker : StaticHooker() {
     // Published on settings acceptance; hook callbacks perform no storage reads.
     private val settingShowInSettings by hookSetting(false) { Preferences.getBoolean(PlatformSettingsKeys.KEY_SHOW_IN_SETTINGS, false) }
 
+    private var retired by generationState { false }
+
     private const val HEADER_ID = 10777L
     private val headerFieldCache = generationResource(ConcurrentHashMap<Class<*>, Map<String, Field>>()) { it.clear() }
     private val headerConstructorCache = generationResource(ConcurrentHashMap<Class<*>, Constructor<*>?>()) { it.clear() }
@@ -37,6 +39,7 @@ object SettingsHooker : StaticHooker() {
     private var headerIconSizeResId by generationState { 0 }
 
     override fun onHook() {
+        retired = false
         val clzMiuiSettings = resolveAppClass(
             "com.android.settings.MiuiSettings",
             mapOf("MiuiSettings" to { bridge ->
@@ -75,7 +78,7 @@ object SettingsHooker : StaticHooker() {
                 val list = param.args[0] as? MutableList<Any?> ?: return@after
                 val activity = param.thisObject as? Activity ?: return@after
 
-                val showInSettings = settingShowInSettings
+                val showInSettings = !retired && settingShowInSettings
                 if (!showInSettings) {
                     runCatching {
                         val iterator = list.iterator()
@@ -192,6 +195,11 @@ object SettingsHooker : StaticHooker() {
             }
         }
     }
+
+    fun refreshSettings(): Boolean = com.takekazex.hypertweak.hook.rules.settings.GoogleServicesSettingsHooker.refreshSettings()
+
+    override fun recoverHotReloadHosts() { refreshSettings() }
+    override fun onPrepareHotReload() { retired = true; refreshSettings() }
 
     private fun headerField(type: Class<*>, name: String): Field? {
         val fields = headerFieldCache.computeIfAbsent(type) {

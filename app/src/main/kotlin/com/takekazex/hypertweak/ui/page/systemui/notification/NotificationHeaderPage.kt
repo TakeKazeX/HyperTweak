@@ -2,10 +2,6 @@ package com.takekazex.hypertweak.ui.page.systemui.notification
 
 import com.takekazex.hypertweak.ui.components.slider.rememberSliderEdit
 
-import com.takekazex.hypertweak.ui.components.dialog.LocalRestartScopeHandled
-import com.takekazex.hypertweak.ui.components.dialog.LocalRestartScopeRequest
-import com.takekazex.hypertweak.ui.components.dialog.restartInProgress
-import com.takekazex.hypertweak.ui.app.LocalAppServices
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 
@@ -29,17 +25,13 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.ui.app.LocalAppSettingsStore
 import com.takekazex.hypertweak.settings.contract.NotificationHeaderModel
-import com.takekazex.hypertweak.util.restart.RestartScopeSelection
 import kotlin.math.roundToInt
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
@@ -53,7 +45,6 @@ import top.yukonga.miuix.kmp.basic.Text
 import com.takekazex.hypertweak.ui.effect.AppTopAppBar as TopAppBar
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
-import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.utils.overScrollVertical
@@ -61,15 +52,9 @@ import top.yukonga.miuix.kmp.utils.overScrollVertical
 /** Settings for OS4's new-control-center notification header. */
 @Composable
 fun NotificationHeaderPage(onBack: () -> Unit) {
-    val services = LocalAppServices.current
     val settingsStore = LocalAppSettingsStore.current
     val scrollBehavior = MiuixScrollBehavior()
-    val context = LocalContext.current
-    val coroutineScope = rememberCoroutineScope()
-    val requestRestartScopes = LocalRestartScopeRequest.current
-    val handleRestartedScopes = LocalRestartScopeHandled.current
 
-    var restartPending by rememberSaveable { mutableStateOf(false) }
     var hideCarrier by remember {
         mutableStateOf(settingsStore.getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_HIDE_CARRIER, false))
     }
@@ -133,11 +118,6 @@ fun NotificationHeaderPage(onBack: () -> Unit) {
         )
     }
 
-    fun markRestartPending() {
-        restartPending = true
-        requestRestartScopes(RestartScopeSelection(systemUi = true))
-    }
-
     val alignmentItems = listOf(
         stringResource(R.string.notification_header_alignment_start),
         stringResource(R.string.notification_header_alignment_center),
@@ -171,25 +151,7 @@ fun NotificationHeaderPage(onBack: () -> Unit) {
                         Text(stringResource(R.string.notification_header_scope_title))
                         Text(stringResource(R.string.notification_header_scope_summary))
                     }
-                    if (restartPending) {
-                        ArrowPreference(
-                            title = stringResource(R.string.notification_header_restart_title),
-                            summary = stringResource(R.string.notification_header_restart_summary),
-                            enabled = !restartInProgress(RestartScopeSelection(systemUi = true)),
-                            onClick = {
-                                settingsStore.flush()
-                                services.restarts.restartScope(
-                                    context = context,
-                                    coroutineScope = coroutineScope,
-                                    selection = RestartScopeSelection(systemUi = true),
-                                    onCompleted = { completed ->
-                                        handleRestartedScopes(completed)
-                                        if (completed.systemUi) restartPending = false
-                                    },
-                                )
-                            }
-                        )
-                    }
+
                 }
             }
 
@@ -201,7 +163,7 @@ fun NotificationHeaderPage(onBack: () -> Unit) {
                         onCheckedChange = {
                             hideCarrier = it
                             settingsStore.putBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_HIDE_CARRIER, it)
-                            markRestartPending()
+
                         },
                         title = stringResource(R.string.notification_header_hide_carrier),
                         summary = stringResource(R.string.notification_header_hide_carrier_summary)
@@ -211,7 +173,7 @@ fun NotificationHeaderPage(onBack: () -> Unit) {
                         onCheckedChange = {
                             hideTime = it
                             settingsStore.putBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_HIDE_TIME, it)
-                            markRestartPending()
+
                         },
                         title = stringResource(R.string.notification_header_hide_time),
                         summary = stringResource(R.string.notification_header_hide_time_summary)
@@ -221,7 +183,7 @@ fun NotificationHeaderPage(onBack: () -> Unit) {
                         onCheckedChange = {
                             hideDate = it
                             settingsStore.putBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_HIDE_DATE, it)
-                            markRestartPending()
+
                         },
                         title = stringResource(R.string.notification_header_hide_date),
                         summary = stringResource(R.string.notification_header_hide_date_summary)
@@ -240,7 +202,7 @@ fun NotificationHeaderPage(onBack: () -> Unit) {
                                 SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_DATE_ABOVE_TIME,
                                 it
                             )
-                            markRestartPending()
+
                         },
                         title = stringResource(R.string.notification_header_date_above_time),
                         summary = stringResource(R.string.notification_header_date_above_time_summary)
@@ -256,7 +218,7 @@ fun NotificationHeaderPage(onBack: () -> Unit) {
                                 SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_DATE_ALIGNMENT,
                                 dateAlignment
                             )
-                            markRestartPending()
+
                         }
                     )
                     OverlayDropdownPreference(
@@ -270,7 +232,7 @@ fun NotificationHeaderPage(onBack: () -> Unit) {
                                 SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_TIME_ALIGNMENT,
                                 timeAlignment
                             )
-                            markRestartPending()
+
                         }
                     )
                     Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp)) {
@@ -287,7 +249,7 @@ fun NotificationHeaderPage(onBack: () -> Unit) {
                                 timeScaleSlider.finish()?.let { value ->
                                     timeScale = value
                                     settingsStore.putFloat(SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_TIME_SCALE, value)
-                                    markRestartPending()
+
                                 }
                             },
                             valueRange = NotificationHeaderModel.MIN_TIME_SCALE..
@@ -309,7 +271,7 @@ fun NotificationHeaderPage(onBack: () -> Unit) {
                                 SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_WEATHER_ENABLED,
                                 it
                             )
-                            markRestartPending()
+
                         },
                         title = stringResource(R.string.notification_header_weather_enabled),
                         summary = stringResource(R.string.notification_header_weather_enabled_summary)
@@ -323,7 +285,7 @@ fun NotificationHeaderPage(onBack: () -> Unit) {
                                     SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_WEATHER_REGION,
                                     it
                                 )
-                                markRestartPending()
+
                             },
                             title = stringResource(R.string.notification_header_weather_region),
                             summary = stringResource(R.string.notification_header_weather_region_summary)
@@ -343,7 +305,7 @@ fun NotificationHeaderPage(onBack: () -> Unit) {
                                     SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_WEATHER_TYPE,
                                     weatherType
                                 )
-                                markRestartPending()
+
                             }
                         )
                     }

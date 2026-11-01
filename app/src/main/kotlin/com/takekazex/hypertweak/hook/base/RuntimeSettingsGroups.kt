@@ -5,6 +5,11 @@ import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 /** Stable group IDs and queries over the single ownership registry. */
 internal object RuntimeSettingsGroups {
     // Compatibility names for callers; stable IDs and ownership are declared together.
+    const val POWER_BUTTON = RuntimeSettingsDefinitions.POWER_BUTTON
+    const val EXPERIMENTAL_CAPABILITIES = RuntimeSettingsDefinitions.EXPERIMENTAL_CAPABILITIES
+    const val CAMERA = RuntimeSettingsDefinitions.CAMERA
+    const val MONET = RuntimeSettingsDefinitions.MONET
+    const val MODULE_ENTRY = RuntimeSettingsDefinitions.MODULE_ENTRY
     const val IME = RuntimeSettingsDefinitions.IME
     fun registerImeTargets(packages: Set<String>) = RuntimeSettingsDefinitions.registerImeTargets(packages)
     const val ICONS = RuntimeSettingsDefinitions.ICONS
