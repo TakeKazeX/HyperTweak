@@ -27,7 +27,8 @@ int main() {
  assert(!scope_hook.target&&code[8]==0x55&&removes==1);
  assert(ApplyDesktopIconScope(code,layout));const auto installed=installs;
  assert(ApplyDesktopIconScope(code,layout)&&installs==installed);
- HyperTweakIconScopeBounds(.72,.54,values);assert(values[0]==1&&values[1]==.01);
+ HyperTweakIconScopeBounds(.72,.54,values);assert(values[0]==4&&values[1]==.01);
+ percent=200;HyperTweakIconScopeBounds(.72,.54,values);assert(values[0]>=1.36&&values[1]==.01);
  percent=-1;HyperTweakIconScopeBounds(.72,.54,values);assert(values[0]==.72&&values[1]==.54);
  grid_active=true;HyperTweakIconScopeBounds(1,1,values);assert(values[0]==1&&values[1]==.01);grid_active=false;
  percent=150;ResetDesktopIconScopeAfterFork();HyperTweakIconScopeBounds(.72,.54,values);assert(values[0]==.72&&values[1]==.54);

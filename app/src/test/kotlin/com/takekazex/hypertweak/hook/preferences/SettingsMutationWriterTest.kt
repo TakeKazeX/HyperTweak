@@ -249,7 +249,7 @@ class SettingsMutationWriterTest {
         assertEquals(130, s.local.persisted[key])
         assertEquals(130, s.remote.persisted[key])
         assertEquals(acknowledged, RuntimeSettingsSignal.lastAcknowledged())
-        assertTrue(assertThrows(java.util.concurrent.ExecutionException::class.java) { writer.patch(mapOf(key to 151), emptySet(), null) {} }.cause is IllegalArgumentException)
+        assertTrue(assertThrows(java.util.concurrent.ExecutionException::class.java) { writer.patch(mapOf(key to 201), emptySet(), null) {} }.cause is IllegalArgumentException)
         writer.patch(mapOf(key to -1), emptySet(), null) {}
         assertEquals(-1, s.remote.persisted[key])
         assertEquals(-1, NativeRuleStateSnapshot.read { RuntimeSettingsSignal.lastAcknowledged()!!.values }!!.iconPercent)

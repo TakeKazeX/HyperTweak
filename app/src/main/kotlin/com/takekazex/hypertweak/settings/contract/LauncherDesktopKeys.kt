@@ -15,5 +15,5 @@ internal object LauncherDesktopKeys {
     fun gridColumns(code: Int): Int { require(code in 1..12); return 4 + (code - 1) / 4 }
     fun gridRows(code: Int): Int { require(code in 1..12); return 5 + (code - 1) % 4 }
     const val FOLLOW_HOST = -1
-    fun validPercent(value: Int): Boolean = value == FOLLOW_HOST || value in 50..150
+    fun validPercent(value: Int): Boolean = value == FOLLOW_HOST || value in 50..200
 }

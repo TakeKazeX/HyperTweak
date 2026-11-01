@@ -9,7 +9,7 @@ internal object DesktopIconPreviewGeometry {
 
     const val DEFAULT_PROGRESS = 250
     fun relativeScale(progress: Int): Float {
-        require(progress in 0..500)
+        require(progress in 0..750)
         return 0.5f + progress / 500f
     }
 
@@ -23,7 +23,7 @@ internal object DesktopIconPreviewGeometry {
         val cellHeight = height / rows
         // Reserve title space even at the largest icon setting and at large font sizes.
         val iconBudget = min(cellWidth - margin * 2, cellHeight - textHeight - margin * 2).coerceAtLeast(0f)
-        val baseline = min(cellWidth * 0.52f, iconBudget / 1.5f)
+        val baseline = min(cellWidth * 0.52f, iconBudget / 2f)
         val icon = baseline * scale
         val cells = List(columns * rows) { index ->
             val left = index % columns * cellWidth + (cellWidth - icon) / 2

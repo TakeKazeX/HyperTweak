@@ -1733,7 +1733,7 @@
     <string name="desktop_icon_sample_app">应用</string>
     <string name="desktop_icon_size">图标大小</string>
     <string name="desktop_icon_preview_percent">预览尺寸 · %1$d%%</string>
-    <string name="desktop_icon_size_summary">相对桌面原有尺寸的 50–150%，实际最大尺寸受格子可用空间限制；点按可输入数值。</string>
+    <string name="desktop_icon_size_summary">相对桌面原有尺寸的 50–200%，较大尺寸可能与文字或相邻图标重叠；点按可输入数值。</string>
     <string name="desktop_icon_preview_columns">桌面列数</string>
     <string name="desktop_icon_preview_rows">桌面行数</string>
     <string name="desktop_icon_override">自定义图标大小</string>

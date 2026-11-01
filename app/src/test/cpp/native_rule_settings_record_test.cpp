@@ -37,12 +37,17 @@ int main() {
     oldWithNewBit.checksum = NativeRuleSettingsChecksum(oldWithNewBit);
     bool migrated = false;
     assert(!RestoreNativeRuleSettings(&oldWithNewBit, &migrated));
-    for (unsigned percent : {50u,100u,150u}) {
+    for (unsigned percent : {50u,100u,150u,175u,200u}) {
         NativeRuleSettingsRecord record{7,0,3,63u | ((percent+1u)<<6u),0};
         record.checksum=NativeRuleSettingsChecksum(record);
         assert(RestoreNativeRuleSettings(&record,&migrated) && migrated && record.schema==kNativeRuleSettingsSchema);
         auto corrupt=record; corrupt.options ^= 1u<<12u;
         assert(!RestoreNativeRuleSettings(&corrupt,&migrated));
+    }
+    for (unsigned percent : {49u,201u,254u}) {
+        NativeRuleSettingsRecord record{9,0,3,(percent+1u)<<6u,0};
+        record.checksum=NativeRuleSettingsChecksum(record);
+        assert(!RestoreNativeRuleSettings(&record,&migrated));
     }
     for(unsigned grid=0;grid<=12;++grid){
         NativeRuleSettingsRecord record{8,0,3,63u|(101u<<6u)|(grid<<14u),0};record.checksum=NativeRuleSettingsChecksum(record);

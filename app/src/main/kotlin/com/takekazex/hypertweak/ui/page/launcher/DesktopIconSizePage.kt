@@ -166,10 +166,10 @@ internal fun DesktopIconSizePage(onBack: () -> Unit) {
                     summary = stringResource(R.string.desktop_icon_size_summary), enabled = enabled, onClick = { editing = true },
                     bottomAction = {
                         Slider(value = progress.toFloat(), onValueChange = {
-                            progress = it.roundToInt().coerceIn(0, 500)
+                            progress = it.roundToInt().coerceIn(0, 750)
                             submit((DesktopIconPreviewGeometry.relativeScale(progress) * 100).roundToInt())
                         },
-                            valueRange = 0f..500f, enabled = enabled, showKeyPoints = true, keyPoints = listOf(0f, 250f, 500f),
+                            valueRange = 0f..750f, enabled = enabled, showKeyPoints = true, keyPoints = (0..750 step 125).map { it.toFloat() }, magnetThreshold = 0.01f,
                             modifier = Modifier.semantics { contentDescription = description })
                     })
             }
@@ -236,7 +236,7 @@ internal fun DesktopIconSizePage(onBack: () -> Unit) {
         }
 
         IntValueDialog(show = editing, title = stringResource(R.string.desktop_icon_size),
-            summary = stringResource(R.string.desktop_icon_size_summary), suffix = "%", range = 50..150,
+            summary = stringResource(R.string.desktop_icon_size_summary), suffix = "%", range = 50..200,
             currentValue = { percent }, emptyValue = percent,
             onValueConfirmed = { progress = (it - 50) * 5; submit(it) }, onDismissRequest = { editing = false })
     }

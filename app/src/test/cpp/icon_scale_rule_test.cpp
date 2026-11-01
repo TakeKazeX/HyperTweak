@@ -87,7 +87,13 @@ int main(int argc,char** argv) {
     memcpy(reinterpret_cast<void*>(actual_icon+layout.actual_padding),&top_padding,8);
     uintptr_t receiver=0;double scale=0;
     assert(!HyperTweakDesktopIconFrame(thread,heap,null,pool,&receiver,&scale));
-    assert(std::abs(observed_maximum-(rendered+2*top_padding-4)/width)<0.000001);
+    assert(observed_maximum==4);
+    observed_maximum=0;scale_value=1.36;rendered=width*scale_value;top_padding=-12;
+    memcpy(reinterpret_cast<void*>(origin+0x1908),&scale_value,8);
+    memcpy(reinterpret_cast<void*>(actual_icon+layout.actual_size),&rendered,8);
+    memcpy(reinterpret_cast<void*>(actual_icon+layout.actual_padding),&top_padding,8);
+    assert(!HyperTweakDesktopIconFrame(thread,heap,null,pool,&receiver,&scale));
+    assert(observed_maximum==4);
     // No Dart setter is returned, and no template Rx/heap object is changed.
     assert(receiver==0);assert(g_desktop_icon_dispatches==0);
     put32(controller+layout.active_rx,sentinel);observed_maximum=0;
