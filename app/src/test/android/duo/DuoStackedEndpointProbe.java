@@ -63,7 +63,7 @@ public final class DuoStackedEndpointProbe {
                 List<?> paths=(List<?>)contours.get(row);RectF bound=(RectF)paths.get(0).getClass().getMethod("getBounds").invoke(paths.get(0));
                 float rowTop=row==1?split:0f,rowHeight=count==1?1f:row==0?split:1f-split;
                 int x=104+Math.round(bound.centerX()*64),y=144+Math.round((rowTop+bound.centerY()*rowHeight)*64);
-                int color=tinted.getPixel(x,y);if(Color.red(color)<180||Color.green(color)>90)throw new AssertionError("Stale per-SIM target tint row="+row+" rgb="+Integer.toHexString(color));
+                int color=tinted.getPixel(x,y);if(Color.red(color)<180||Color.green(color)>90)throw new AssertionError("Stale per-SIM target tint scenario="+scenario+" mode="+mode+" style="+style+" active="+active+" reverse="+reverse+" row="+row+" rgb="+Integer.toHexString(color));
             }
             holder.setVisibility(View.GONE);
             if((Boolean)update.invoke(motion,root,source,icon,target,sourceMorphs,bars,.5f,owners)||nativeView.getAlpha()!=1f)throw new AssertionError("Hidden holder retained phantom endpoint");

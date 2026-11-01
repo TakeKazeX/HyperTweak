@@ -117,6 +117,9 @@ internal class DuoStackedSignalMotion {
         while (rows.size < count) rows += Row()
         while (rows.size > count) rows.removeAt(rows.lastIndex)
         var position = 0
+        // Capturing the first crop can clear View.isDirty. All SIM crops must observe the same
+        // invalidation, otherwise a tint update only refreshes the first row.
+        val refreshTargetInk = target.view.isDirty
         fun destination(row: Row, index: Int): Boolean {
             val view = target.view
             val drawable = view.drawable ?: return false
@@ -125,6 +128,7 @@ internal class DuoStackedSignalMotion {
             val top = row.targetLocal.top; val height = row.targetLocal.height()
             row.targetLocal.top = top + height * if (target.rows.size > 1 && index == 1) target.split else 0f
             row.targetLocal.bottom = top + height * if (target.rows.size > 1 && index == 0) target.split else 1f
+            if (refreshTargetInk) row.target.invalidateView()
             if (!row.target.captureView(view, row.targetLocal)) return false
             row.to.set(row.targetLocal); matrix.reset(); view.transformMatrixToGlobal(matrix)
             matrix.mapRect(row.to); inverse.mapRect(row.to)
