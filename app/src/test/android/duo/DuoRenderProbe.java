@@ -17,6 +17,11 @@ import java.util.List;
 /** Actual production Canvas drawing in an isolated ART process: no windows, hooks or UI input. */
 public final class DuoRenderProbe {
     private static final String P = "com.takekazex.hypertweak.presentation.icon.duo.";
+    static Object content(Constructor<?> constructor, Object... args) throws Exception {
+        Object[] values = Arrays.copyOf(args, 11);
+        values[10] = constructor.getParameterTypes()[10].getConstructor().newInstance();
+        return constructor.newInstance(values);
+    }
     public static void main(String[] args) {
         try { run(args); System.exit(0); } catch (Throwable e) { e.printStackTrace(); System.exit(1); }
     }
@@ -28,12 +33,13 @@ public final class DuoRenderProbe {
         Context system = (Context) thread.getMethod("getSystemContext").invoke(main);
         Context context = system.createPackageContext("com.takekazex.hypertweak", Context.CONTEXT_IGNORE_SECURITY);
         ClassLoader cl = new PathClassLoader(args[0], ClassLoader.getSystemClassLoader().getParent());
+        MobileTypeTypographyProbe.run(context, cl);
         Class<?> drawableType = cl.loadClass(P + "DuoDrawable");
         Class<?> layerType = cl.loadClass(P + "DuoRenderLayer");
         Object layer = Enum.valueOf((Class) layerType, "COMPOSITE");
         Constructor<?> battery = cl.loadClass(P + "DuoBattery").getConstructor(int.class, boolean.class, boolean.class, Integer.class);
         Class<?> contentType = cl.loadClass(P + "DuoContent");
-        Constructor<?> content = Arrays.stream(contentType.getConstructors()).filter(c -> c.getParameterCount() == 10).findFirst().get();
+        Constructor<?> content = Arrays.stream(contentType.getConstructors()).filter(c -> c.getParameterCount() == 11).findFirst().get();
         Constructor<?> row = cl.loadClass(P + "DuoSignalRow").getConstructor(int.class, int.class, int.class);
         List<?> rows = Arrays.asList(row.newInstance(1, 0, 4), row.newInstance(2, 1, 2));
         String[] labels = {"charging / bolt only", "charging / 60 + bolt", "23 / dual SIM", "96 / LTE", "normal / no number", "100 + bolt / dual SIM", "airplane / offline", "23 / single SIM", "85 / bolt + Wi-Fi / dual SIM", "85 + bolt / Wi-Fi / dual SIM"};
@@ -52,7 +58,7 @@ public final class DuoRenderProbe {
             boolean number = i != 0 && i != 4 && i != 8;
             boolean dual = i == 2 || i == 5 || i == 8 || i == 9;
             boolean flight = i == 6;
-            Object state = content.newInstance(battery.newInstance(percentages[i], charge, false, null),
+            Object state = DuoRenderProbe.content(content,battery.newInstance(percentages[i], charge, false, null),
                 i == 3 || flight ? null : Integer.valueOf(4), i == 3 ? "LTE" : null, 4, false, false,
                 flight, Collections.singletonList(4), rows, Integer.valueOf(1));
             drawableType.getMethod("setContent", contentType).invoke(icon, state);
@@ -155,7 +161,7 @@ public final class DuoRenderProbe {
         int[] previousPixels = null;
         for (boolean showNumber : new boolean[]{false, true}) {
             Drawable ring = (Drawable) drawableType.getConstructor(Context.class, layerType).newInstance(context, powerLayer);
-            Object state = content.newInstance(battery.newInstance(77, true, false, null), null, null, 4,
+            Object state = DuoRenderProbe.content(content,battery.newInstance(77, true, false, null), null, null, 4,
                 false, false, false, Collections.singletonList(4), rows, Integer.valueOf(1));
             drawableType.getMethod("setContent", contentType).invoke(ring, state);
             drawableType.getMethod("setBatteryOnly", boolean.class).invoke(ring, true);
@@ -171,7 +177,7 @@ public final class DuoRenderProbe {
         Class<?> viewType = cl.loadClass("com.takekazex.hypertweak.hook.rules.systemui.icon.duo.DuoIconView");
         android.view.View view = (android.view.View) viewType.getConstructor(Context.class).newInstance(context);
         Drawable viewIcon = (Drawable) viewType.getMethod("getIcon").invoke(view);
-        Object viewState = content.newInstance(battery.newInstance(77, true, false, null), Integer.valueOf(4), null, 4,
+        Object viewState = DuoRenderProbe.content(content,battery.newInstance(77, true, false, null), Integer.valueOf(4), null, 4,
             false, false, false, Collections.singletonList(4), rows, Integer.valueOf(1));
         drawableType.getMethod("setContent", contentType).invoke(viewIcon, viewState);
         viewType.getMethod("setSourceIconSidePx", Integer.class).invoke(view, Integer.valueOf(48));

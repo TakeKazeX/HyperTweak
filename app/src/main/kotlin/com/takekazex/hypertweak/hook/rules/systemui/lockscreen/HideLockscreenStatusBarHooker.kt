@@ -55,30 +55,44 @@ object HideLockscreenStatusBarHooker : StaticHooker() {
     private var retiring = false
     init { generationCleanup { retiring = true } }
     private var stateController: Any? by generationState { null }
+    /**
+     * Host `StatusBarStateControllerImpl`, captured from its own `setState` boundary and recovered
+     * from the keyguard status-bar controller. It reports which surface owns the top of the screen
+     * independently of keyguard occlusion.
+     */
+    private var barStateController: Any? by generationState { null }
     private val attachListeners = generationMainResource(WeakHashMap<View, View.OnAttachStateChangeListener>()) { it.clear() }
 
-    /** Null until the host controller is recovered; consumers may use their platform fallback. */
-    internal fun keyguardShowing(): Boolean? = stateController?.let {
-        runCatching {
-            val showing = HostAccess.read(it, "mShowing") as? Boolean ?: return@runCatching null
-            val occluded = HostAccess.read(it, "mOccluded") as? Boolean ?: return@runCatching null
-            showing && !occluded
-        }.getOrNull()
+    /** Keep HOME hidden until both available host models have left the lock screen. */
+    internal fun keyguardShowing(): Boolean? = KeyguardSurfacePolicy.showing(
+        barState(),
+        stateController?.let { runCatching { HostAccess.read(it, "mShowing") as? Boolean }.getOrNull() },
+        stateController?.let { runCatching { HostAccess.read(it, "mOccluded") as? Boolean }.getOrNull() }
+    )
+
+    /** Host `StatusBarState`: 0 SHADE, 1 KEYGUARD, 2 SHADE_LOCKED. */
+    private fun barState(): Int? = barStateController?.let { controller ->
+        runCatching { HostAccess.read(controller, "mState") as? Int }.getOrNull()
     }
     internal fun statusBarSuppressed(): Boolean = enabled
 
     internal fun recoverStateController(component: Any?) {
         if (component == null || retiring) return
         runCatching { HostAccess.provider(component, "keyguardStateControllerImplProvider") }
-            .onSuccess { if (it != null) { stateController = it; notifyPresentation() } }
+            .onSuccess { if (it != null) stateController = it }
             .onFailure { DebugLog.w("HideLockscreenStatusBar", "keyguard controller recovery failed", it) }
+        runCatching { HostAccess.provider(component, "statusBarStateControllerImplProvider") }
+            .onSuccess { if (it != null) barStateController = it }
+            .onFailure { DebugLog.w("HideLockscreenStatusBar", "bar-state controller recovery failed", it) }
+        notifyPresentation()
     }
 
     private fun notifyPresentation() {
         if (!retiring) IconHostPorts.left.visibilityChanged()
     }
 
-    override fun saveHotReloadState(): Any = HostAccess.onMain { listOf(knownViews.toList(), stateController) }
+    override fun saveHotReloadState(): Any =
+        HostAccess.onMain { listOf(knownViews.toList(), stateController, barStateController) }
     override fun restoreHotReloadState(state: Any?) {
         HostAccess.onMain {
             val saved = state as? List<*> ?: emptyList<Any>()
@@ -86,6 +100,7 @@ object HideLockscreenStatusBarHooker : StaticHooker() {
             val views = (saved.firstOrNull() as? List<*>)?.filterIsInstance<View>()
                 ?: saved.filterIsInstance<View>()
             stateController = saved.getOrNull(1)?.takeUnless { it is View }
+            barStateController = saved.getOrNull(2)?.takeUnless { it is View }
             recoverExistingViews(views)
         }
     }
@@ -131,6 +146,7 @@ object HideLockscreenStatusBarHooker : StaticHooker() {
             knownViews.clear()
             intents.clear()
             stateController = null
+            barStateController = null
             keyguardStatusBarClass = null
             enabled = false
         }
@@ -157,12 +173,39 @@ object HideLockscreenStatusBarHooker : StaticHooker() {
                 }
             }
         } ?: DebugLog.hookSkipped("HideLockscreenStatusBar", "notifyKeyguardState(ZZ)", "method not found")
+        // Observe both host models: either can change before the other during a transition.
+        // Re-evaluate HOME visibility even if showing/occlusion itself did not change.
+        val barStateClass = "com.android.systemui.statusbar.StatusBarStateControllerImpl".toClassOrNull()
+        if (barStateClass == null) {
+            DebugLog.hookSkipped("HideLockscreenStatusBar", "StatusBarStateControllerImpl", "class not found")
+        } else {
+            barStateClass.declaredMethods.singleOrNull {
+                it.name == "setState" && it.returnType == Boolean::class.javaPrimitiveType &&
+                    it.parameterTypes.contentEquals(arrayOf(Int::class.javaPrimitiveType, Boolean::class.javaPrimitiveType))
+            }?.let { method ->
+                deoptimize(method)
+                method.hook {
+                    after { param ->
+                        runCatching {
+                            if (!retiring) HostAccess.onMain {
+                                barStateController = param.thisObject
+                                notifyPresentation()
+                            }
+                        }.onFailure { DebugLog.w("HideLockscreenStatusBar", "keyguard bar-state callback failed", it) }
+                    }
+                }
+            } ?: DebugLog.hookSkipped(
+                "HideLockscreenStatusBar", "StatusBarStateControllerImpl#setState", "method not found"
+            )
+        }
         val controllerClass = "com.android.systemui.statusbar.phone.KeyguardStatusBarViewController".toClassOrNull()
         controllerClass?.findMethodOrNull { name("onViewAttached"); noParams() }?.hook {
             after { param ->
                 runCatching {
                     HostAccess.onMain {
                         stateController = HostAccess.read(param.thisObject, "mKeyguardStateController") ?: stateController
+                        barStateController = HostAccess.read(param.thisObject, "mStatusBarStateController")
+                            ?: barStateController
                         (HostAccess.read(param.thisObject, "mView") as? View)?.let(::remember)
                         notifyPresentation()
                     }

@@ -19,6 +19,7 @@ data class MobileTypeConfig(
     val paddingEndSp: Float = 2f,
     val verticalOffsetSp: Float = 0f,
     val fontMode: Int = 0,
+    val typography: com.takekazex.hypertweak.settings.contract.MobileTypeTypography = com.takekazex.hypertweak.settings.contract.MobileTypeTypography(),
     val small5GaEnabled: Boolean = false
 ) {
     fun safe(): MobileTypeConfig = copy(

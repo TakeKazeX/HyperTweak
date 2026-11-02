@@ -416,6 +416,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         networkOnFirstRow = settingCcNetworkFirstRow
         IconTunerFlows.init(classLoader)
         typeConfig = typeConfig.copy(
+            typography = com.takekazex.hypertweak.hook.rules.systemui.icon.MobileTypeTypographySettings.current,
             small5GaEnabled = settingIconCellularTypeSmall5ga
         )
         dataFirst = settingIconMobileRowStyle == 1

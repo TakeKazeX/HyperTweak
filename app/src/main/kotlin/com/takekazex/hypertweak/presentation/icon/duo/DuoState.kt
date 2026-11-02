@@ -40,7 +40,8 @@ data class DuoContent(
     /** Ordered per-SIM levels for the single or stacked cellular glyph. */
     val cellularSignalLevels: List<Int> = listOf(mobileLevel),
     val cellularSignalRows: List<DuoSignalRow> = emptyList(),
-    val activeDataSubId: Int? = null
+    val activeDataSubId: Int? = null,
+    val typography: com.takekazex.hypertweak.settings.contract.MobileTypeTypography = com.takekazex.hypertweak.settings.contract.MobileTypeTypography()
 ) {
     val hasCellularSignal: Boolean get() = !airplaneMode && wifiLevel == null && cellularSignalLevels.isNotEmpty()
 }

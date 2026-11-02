@@ -58,7 +58,7 @@ internal class DuoPanelHandover(private val host: Host) {
         const val AIRPLANE_SLOT = "airplane"
     }
     private val main = Handler(Looper.getMainLooper())
-    private val statusIconOwners = com.takekazex.hypertweak.hook.rules.systemui.icon.SignalTargetOwnership<View>()
+    private val statusIconOwners get() = com.takekazex.hypertweak.hook.rules.systemui.icon.SignalHandoverEvents.statusIcons
     private val stackedOwners = com.takekazex.hypertweak.hook.rules.systemui.icon.SignalTargetOwnership<View>()
     private fun read(target: Any, name: String) = HostAccess.read(target, name)
     private fun ancestor(view: View, name: String) = HostAccess.ancestor(view, name)

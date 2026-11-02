@@ -17,7 +17,7 @@ public final class DuoHeaderAlignmentProbe {
         Class<?> contentType = cl.loadClass(p + "DuoContent");
         Class<?> sizesType = cl.loadClass(p + "DuoSizes");
         Constructor<?> battery = cl.loadClass(p + "DuoBattery").getConstructor(int.class, boolean.class, boolean.class, Integer.class);
-        Constructor<?> content = Arrays.stream(contentType.getConstructors()).filter(c -> c.getParameterCount() == 10).findFirst().get();
+        Constructor<?> content = Arrays.stream(contentType.getConstructors()).filter(c -> c.getParameterCount() == 11).findFirst().get();
         Constructor<?> row = cl.loadClass(p + "DuoSignalRow").getConstructor(int.class, int.class, int.class);
         Class<?> rendererType = cl.loadClass(p + "DuoTopRenderer");
         Object renderer = rendererType.getConstructor().newInstance();
@@ -72,7 +72,7 @@ public final class DuoHeaderAlignmentProbe {
         drawableType.getMethod("setDualSignalDots", boolean.class).invoke(icon, true);
         drawableType.getMethod("setForeground", int.class).invoke(icon, Color.WHITE);
         for (int charging = 0; charging < 2; charging++) for (int i = 0; i < values.length; i++) {
-            Object state = content.newInstance(battery.newInstance(values[i], charging == 1, false, null),
+            Object state = DuoRenderProbe.content(content,battery.newInstance(values[i], charging == 1, false, null),
                 4, null, 4, false, false, false, Arrays.asList(4, 2),
                 Arrays.asList(row.newInstance(1, 0, 4), row.newInstance(2, 1, 2)), 1);
             drawableType.getMethod("setContent", contentType).invoke(icon, state);

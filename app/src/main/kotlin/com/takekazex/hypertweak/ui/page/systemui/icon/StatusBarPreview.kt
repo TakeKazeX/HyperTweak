@@ -121,7 +121,7 @@ internal fun StatusBarPreview(model: StatusBarPreviewModel, duoSizes: DuoSizes =
                         append("5G")
                         withStyle(
                             SpanStyle(
-                                fontSize = (NETWORK_TYPE_SP * MobileTypeLabelStyle.SMALL_5GA_SUFFIX_SCALE).sp
+                                fontSize = (NETWORK_TYPE_SP * model.typography.scale * MobileTypeLabelStyle.SMALL_5GA_SUFFIX_SCALE).sp
                             )
                         ) { append("A") }
                     }
@@ -131,7 +131,8 @@ internal fun StatusBarPreview(model: StatusBarPreviewModel, duoSizes: DuoSizes =
                 Text(
                     text = networkLabel,
                     color = MiuixTheme.colorScheme.onSurface,
-                    fontSize = NETWORK_TYPE_SP.sp,
+                    fontSize = (NETWORK_TYPE_SP * model.typography.scale).sp,
+                    fontWeight = if (model.typography.enabled) androidx.compose.ui.text.font.FontWeight(model.typography.weight) else null,
                     modifier = Modifier.padding(end = 2.dp)
                 )
             }

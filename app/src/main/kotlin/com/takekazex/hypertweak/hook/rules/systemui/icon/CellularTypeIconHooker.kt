@@ -52,9 +52,12 @@ object CellularTypeIconHooker : StaticHooker() {
         Preferences.getBoolean(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_SMALL_5GA, false)
     }
 
+    private val typography = NativeMobileTypeTypography(this)
+    init { generationCleanup { HostAccess.onMain { typography.retire() } } }
     init {
         hostRecovery(HostRecoveryPhase.SOURCES, icons = true) {
             it.component?.let(::recoverOperatorConfig)
+            typography.recover(it.views)
         }
     }
 
@@ -97,6 +100,7 @@ object CellularTypeIconHooker : StaticHooker() {
     override fun onPrepareHotReload() {
 
         HostAccess.onMain {
+            typography.retire()
             val drawables = synchronized(modifiedDrawables) {
                 modifiedDrawables.keys.toList().also { modifiedDrawables.clear() }
             }
@@ -113,6 +117,7 @@ object CellularTypeIconHooker : StaticHooker() {
         customType = settingIconCellularTypeCustomVal.trim()
         small5GaEnabled = settingIconCellularTypeSmall5ga
 
+        typography.install()
         val configEnabled = forceSingle || useCustom
         val binderEnabled = swapSingle
         if (!configEnabled && !binderEnabled && !small5GaEnabled) {

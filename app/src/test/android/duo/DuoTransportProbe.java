@@ -15,8 +15,8 @@ public final class DuoTransportProbe {
         Constructor<?> row=cl.loadClass(P+"DuoSignalRow").getConstructor(int.class,int.class,int.class);
         List<Integer> levels=rows==1?Arrays.asList(4):Arrays.asList(4,2);
         List<Object> signals=new ArrayList<>();for(int i=0;i<rows;i++)signals.add(row.newInstance(i+1,i,levels.get(i)));
-        return Arrays.stream(cl.loadClass(P+"DuoContent").getConstructors()).filter(c->c.getParameterCount()==10).findFirst().get()
-            .newInstance(battery,wifi?Integer.valueOf(4):null,label,active==2?2:4,false,false,false,levels,signals,active);
+        Constructor<?> content=Arrays.stream(cl.loadClass(P+"DuoContent").getConstructors()).filter(c->c.getParameterCount()==11).findFirst().get();
+        return DuoRenderProbe.content(content,battery,wifi?Integer.valueOf(4):null,label,active==2?2:4,false,false,false,levels,signals,active);
     }
     static Bitmap frame(Object drawable)throws Exception{
         Bitmap b=Bitmap.createBitmap(128,128,Bitmap.Config.ARGB_8888);

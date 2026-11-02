@@ -15,6 +15,7 @@ import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
+import com.takekazex.hypertweak.settings.contract.MobileTypeTypography
 import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -244,7 +245,12 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit, onNavig
             hideMobileOnWifi = pref(IconSettingsKeys.KEY_ICON_HIDE_MOBILE_ON_WIFI, false),
             hideWifiConnected = pref(IconSettingsKeys.KEY_ICON_HIDE_WIFI_UNAVAILABLE, false),
             showCellularType = !pref(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_TYPE, false),
-            small5GaEnabled = pref(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_SMALL_5GA, false)
+            small5GaEnabled = pref(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_SMALL_5GA, false),
+            typography = MobileTypeTypography(
+                pref(IconSettingsKeys.KEY_ICON_TYPE_TYPOGRAPHY, false),
+                pref(IconSettingsKeys.KEY_ICON_TYPE_SIZE_PERCENT, 100f),
+                pref(IconSettingsKeys.KEY_ICON_TYPE_WEIGHT, 400)
+            ).safe()
         )
     )
 
@@ -315,6 +321,11 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit, onNavig
                     }
                     1 -> {
                         DuoSignalSection(
+                            typography = MobileTypeTypography(
+                                pref(IconSettingsKeys.KEY_ICON_TYPE_TYPOGRAPHY, false),
+                                pref(IconSettingsKeys.KEY_ICON_TYPE_SIZE_PERCENT, 100f),
+                                pref(IconSettingsKeys.KEY_ICON_TYPE_WEIGHT, 400)
+                            ).safe(),
                             componentSliders = duoComponentSliders,
                             sizeSlider = duoSizeSlider,
                             mirrorAirplane = pref(IconSettingsKeys.KEY_ICON_MIRROR_AIRPLANE, false),
@@ -328,6 +339,7 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit, onNavig
                             onChange = { key, value -> changed(key, value) }
                         )
                         StackedSignalSection(
+                            duoEnabled = pref(IconSettingsKeys.KEY_ICON_DUO_ENABLED, false),
                             enabled = pref(IconSettingsKeys.KEY_ICON_STACKED_ENABLED, false),
                             artworkStyle = pref(IconSettingsKeys.KEY_ICON_STACKED_SIGNAL_STYLE, 0),
                             weight = pref(IconSettingsKeys.KEY_ICON_STACKED_WEIGHT, 0f),
@@ -366,6 +378,11 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit, onNavig
                 customValue = pref(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_CUSTOM_VAL, ""),
                 swapSingle = pref(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_SINGLE_SWAP, false),
                 small5GaEnabled = pref(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_SMALL_5GA, false),
+                typography = MobileTypeTypography(
+                    pref(IconSettingsKeys.KEY_ICON_TYPE_TYPOGRAPHY, false),
+                    pref(IconSettingsKeys.KEY_ICON_TYPE_SIZE_PERCENT, 100f),
+                    pref(IconSettingsKeys.KEY_ICON_TYPE_WEIGHT, 400)
+                ).safe(),
                 onChange = { key, value -> changed(key, value) }
                         )
                     }
@@ -443,6 +460,7 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit, onNavig
 
 @Composable
 private fun StackedSignalSection(
+    duoEnabled: Boolean,
     enabled: Boolean,
     artworkStyle: Int,
     weight: Float,
@@ -461,11 +479,14 @@ private fun StackedSignalSection(
                 stringResource(R.string.icon_stacked_signal_style),
                 stringResource(R.string.icon_stacked_signal_style_summary)
             ) { onChange(IconSettingsKeys.KEY_ICON_STACKED_ENABLED, it) }
-            SliderRow(
-                stringResource(R.string.icon_stacked_signal_weight),
-                SignalWeight.normalize(weight), 0f, 1f,
-                valueLabel = { "${(it * 100).roundToInt()}%" }
-            ) { onChange(IconSettingsKeys.KEY_ICON_STACKED_WEIGHT, it) }
+            // Duo also consumes this weight when the standalone stacked slot is disabled.
+            if (enabled || duoEnabled) {
+                SliderRow(
+                    stringResource(R.string.icon_stacked_signal_weight),
+                    SignalWeight.normalize(weight), 0f, 1f,
+                    valueLabel = { "${(it * 100).roundToInt()}%" }
+                ) { onChange(IconSettingsKeys.KEY_ICON_STACKED_WEIGHT, it) }
+            }
             // Outside the `if (enabled)` guard on purpose: the rule also drives the two-line
             // control-center carrier block's type glyph, which works without stacked signal.
             TunerSwitch(
@@ -867,6 +888,7 @@ private fun NotificationMaxIconsRow(maximum: Int, onValueChange: (Int) -> Unit) 
 
 @Composable
 private fun CellularTypeSection(
+    typography: MobileTypeTypography,
     forceSingle: Boolean,
     useCustom: Boolean,
     customValue: String,
@@ -892,6 +914,19 @@ private fun CellularTypeSection(
                 stringResource(R.string.icon_cellular_type_small_5ga),
                 stringResource(R.string.icon_cellular_type_small_5ga_summary)
             ) { onChange(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_SMALL_5GA, it) }
+            TunerSwitch(
+                typography.enabled,
+                stringResource(R.string.icon_type_typography),
+                stringResource(R.string.icon_type_typography_summary)
+            ) { onChange(IconSettingsKeys.KEY_ICON_TYPE_TYPOGRAPHY, it) }
+            if (typography.enabled) {
+                SliderRow(stringResource(R.string.icon_type_size), typography.sizePercent, 50f, 150f,
+                    valueLabel = { "${it.roundToInt()}%" }
+                ) { onChange(IconSettingsKeys.KEY_ICON_TYPE_SIZE_PERCENT, it) }
+                SliderRow(stringResource(R.string.icon_type_weight), typography.weight.toFloat(), 100f, 900f,
+                    valueLabel = { it.roundToInt().toString() }
+                ) { onChange(IconSettingsKeys.KEY_ICON_TYPE_WEIGHT, it.roundToInt()) }
+            }
             if (useCustom) {
                 TextField(
                     value = customValue,
@@ -1142,6 +1177,7 @@ private fun IntSliderRow(title: String, value: Int, rangeStart: Int, rangeEnd: I
 
 @Composable
 private fun DuoSignalSection(
+    typography: MobileTypeTypography,
     componentSliders: List<SliderEditState>,
     sizeSlider: SliderEditState,
     mirrorAirplane: Boolean,
@@ -1166,7 +1202,7 @@ private fun DuoSignalSection(
         battery = DuoSizes.ratio(componentPercents[6]),
         percent = DuoSizes.ratio(componentPercents[7])
     )
-    DuoSignalPreview(small5GaEnabled, sizes, mirrorAirplane, topPercent, dualDots, cellularDots)
+    DuoSignalPreview(small5GaEnabled, sizes, mirrorAirplane, topPercent, dualDots, cellularDots, typography)
     Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
         Column(Modifier.fillMaxWidth()) {
             TunerSwitch(enabled, stringResource(R.string.icon_duo_enabled),

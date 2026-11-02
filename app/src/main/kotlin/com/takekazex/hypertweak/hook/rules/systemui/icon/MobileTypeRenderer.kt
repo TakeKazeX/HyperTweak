@@ -2,6 +2,7 @@ package com.takekazex.hypertweak.hook.rules.systemui.icon
 
 import com.takekazex.hypertweak.settings.contract.MobileTypeLabelStyle
 
+import com.takekazex.hypertweak.presentation.icon.applyTo
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
@@ -53,7 +54,7 @@ object MobileTypeRenderer {
             safe.verticalOffsetSp * density,
             rtl,
             safe.small5GaEnabled,
-            hostTypeface
+            hostTypeface, safe.typography
         )
         synchronized(cache) { cache.get(key)?.let { return it } }
 
@@ -78,6 +79,7 @@ object MobileTypeRenderer {
             textScaleX = textScale
             textAlign = if (rtl) Paint.Align.RIGHT else Paint.Align.LEFT
         }
+        safe.typography.applyTo(paint)
         val small5Ga = if (safe.small5GaEnabled) {
             MobileTypeLabelStyle.small5GaParts(output.text)
         } else {

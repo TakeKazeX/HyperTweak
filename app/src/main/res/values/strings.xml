@@ -1851,4 +1851,8 @@
     <string name="market_marketing_icon">Disable marketing icons</string>
     <string name="market_marketing_icon_summary">Prevent future custom-icon support checks; existing launcher icons may require refresh.</string>
     <string name="market_live_summary">Changes apply live to subsequent requests and page creation. Reopen pages to refresh existing content. All options default off.</string>
+    <string name="icon_type_typography">Custom Network Type Typography</string>
+    <string name="icon_type_typography_summary">Adjust 5G/5GA text in native, stacked, carrier and Duo icons. Off restores each surface’s default.</string>
+    <string name="icon_type_size">Network Type Size</string>
+    <string name="icon_type_weight">Network Type Weight</string>
 </resources>

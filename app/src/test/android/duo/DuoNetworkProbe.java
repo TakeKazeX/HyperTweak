@@ -17,8 +17,8 @@ public final class DuoNetworkProbe {
             .newInstance(77,true,false,null);
         Constructor<?> row = cl.loadClass(P+"DuoSignalRow").getConstructor(int.class,int.class,int.class);
         Constructor<?> content = Arrays.stream(cl.loadClass(P+"DuoContent").getConstructors())
-            .filter(c -> c.getParameterCount()==10).findFirst().get();
-        return content.newInstance(battery,wifi?Integer.valueOf(4):null,label,4,false,false,false,
+            .filter(c -> c.getParameterCount()==11).findFirst().get();
+        return DuoRenderProbe.content(content,battery,wifi?Integer.valueOf(4):null,label,4,false,false,false,
             Arrays.asList(4,2),Arrays.asList(row.newInstance(1,0,4),row.newInstance(2,1,2)),Integer.valueOf(1));
     }
     public static void run(Context context, ClassLoader cl, String output) throws Exception {

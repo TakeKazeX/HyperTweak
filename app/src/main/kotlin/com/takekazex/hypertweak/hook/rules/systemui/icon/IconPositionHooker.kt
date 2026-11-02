@@ -2,7 +2,7 @@ package com.takekazex.hypertweak.hook.rules.systemui.icon
 
 import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
 import com.takekazex.hypertweak.hook.rules.systemui.icon.carrier.CarrierMask
-import com.takekazex.hypertweak.hook.rules.systemui.icon.carrier.CarrierTypeMotion
+import com.takekazex.hypertweak.hook.rules.systemui.icon.left.LeftPanelMotion
 import com.takekazex.hypertweak.hook.rules.systemui.icon.carrier.ControlCenterCarrierBlockHooker
 import com.takekazex.hypertweak.settings.contract.IconSlotPolicy
 
@@ -102,16 +102,22 @@ object IconPositionHooker : StaticHooker() {
     private val clipStates = generationMainResource(WeakHashMap<ViewGroup, Pair<Boolean, Boolean>>()) { it.clear() }
     private var rowOverrides: Set<String> by generationState { emptySet() }
     private val rowLayoutOwners = generationMainResource(WeakHashMap<ViewGroup, Boolean>()) { it.clear() }
-    private class LowerRowMotion(val source: View) {
-        val motion = CarrierTypeMotion()
+    /** Lower-row and Duo overlays share leases for both native copies. */
+    private class LowerRowMotion(val source: View, val target: View) {
+        val motion = LeftPanelMotion { target.postInvalidateOnAnimation() }
         var savedAlpha = source.alpha
         var appliedAlpha = source.alpha
         fun restore() {
             motion.clear()
             if (abs(source.alpha - appliedAlpha) < .001f) source.alpha = savedAlpha
+            SignalHandoverEvents.statusIcons.release(source, this)
+            SignalHandoverEvents.statusIcons.release(target, this)
         }
     }
-    private val lowerRowMotions = generationMainResource(IdentityHashMap<View, LowerRowMotion>()) { it.clear() }
+    private val lowerRowMotions = generationMainResource(IdentityHashMap<View, LowerRowMotion>()) {
+        it.values.forEach(LowerRowMotion::restore)
+        it.clear()
+    }
     private val lastRestoredOverflow = generationMainResource(WeakHashMap<ViewGroup, Set<String>>()) { it.clear() }
     private val activeHostLayouts = ThreadLocal<ArrayDeque<ViewGroup>>()
     private var originalSlotOrder by generationState { emptyList<String>() }
@@ -673,9 +679,9 @@ object IconPositionHooker : StaticHooker() {
     }
 
     /** Reuse the existing carrier expansion clock and source drawing for lower status icons. */
-    internal fun updateLowerRowHandover(real: ViewGroup, fake: ViewGroup, appearanceAlpha: Float, progress: Float) {
+    internal fun updateLowerRowHandover(real: ViewGroup, fake: ViewGroup, progress: Float) {
         if (retiring || !ownsTwoLineLayout(real)) { clearLowerRowHandover(); return }
-        val root = real.rootView as? ViewGroup ?: return
+        val root = real.rootView as? ViewGroup ?: run { clearLowerRowHandover(); return }
         val sources = HashMap<String, View>()
         for (index in 0 until fake.childCount) {
             val view = fake.getChildAt(index)
@@ -690,9 +696,14 @@ object IconPositionHooker : StaticHooker() {
             if (!IconSlotPolicy.ownsLowerRowMotion(slot, leftOwned, rowOverrides) || !isHostLayoutVisible(target, slot, real)) continue
             val source = sources[slot] ?: continue
             if (lowerRowMotions[target]?.source !== source) lowerRowMotions.remove(target)?.restore()
-            val state = lowerRowMotions.getOrPut(target) { LowerRowMotion(source) }
+            val existing = lowerRowMotions[target]
+            val owners = SignalHandoverEvents.statusIcons
+            if (listOf(source, target).any { it in owners && (existing == null || !owners.owns(it, existing)) }) continue
+            val state = existing ?: LowerRowMotion(source, target).also { lowerRowMotions[target] = it }
+            owners.acquire(source, state)
+            owners.acquire(target, state)
             if (abs(source.alpha - state.appliedAlpha) > .001f) state.savedAlpha = source.alpha
-            val ready = state.motion.update(root, source, target, progress, appearanceAlpha)
+            val ready = state.motion.update(root, source, target, progress)
             state.appliedAlpha = if (ready) 0f else state.savedAlpha
             if (source.alpha != state.appliedAlpha) source.alpha = state.appliedAlpha
             used += target

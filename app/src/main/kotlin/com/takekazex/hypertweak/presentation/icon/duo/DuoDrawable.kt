@@ -12,6 +12,7 @@ import android.graphics.PorterDuff
 import android.graphics.PorterDuffColorFilter
 import android.graphics.Rect
 import android.graphics.RectF
+import com.takekazex.hypertweak.presentation.icon.applyTo
 import android.graphics.Typeface
 import android.graphics.drawable.Drawable
 import androidx.core.graphics.withSave
@@ -372,18 +373,22 @@ class DuoDrawable(context: Context, private val layer: DuoRenderLayer = DuoRende
      * in the open space below the smaller ring; the hand-off renderer centres it on the native type
      * target.
      */
+    private val networkLabelPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private fun drawNetworkLabel(canvas: Canvas, state: DuoContent, centerY: Float) = canvas.withSave {
-        scale(sizes.type, sizes.type, CENTER, centerY)
+        val scale = sizes.type * state.typography.scale
+        scale(scale, scale, CENTER, centerY)
         drawNetworkLabelUnscaled(this, state, centerY)
     }
 
     private fun drawNetworkLabelUnscaled(canvas: Canvas, state: DuoContent, centerY: Float) {
         val label = state.networkLabel.orEmpty()
         if (label.isEmpty()) return
+        colorOf(foreground)
+        val paint = networkLabelPaint.apply { set(this@DuoDrawable.paint) }
         paint.textAlign = Paint.Align.CENTER
         paint.style = Paint.Style.FILL
-        colorOf(foreground)
         paint.textSize = LABEL_TEXT_SIZE
+        state.typography.copy(sizePercent = 100f).applyTo(paint)
         val fontHeight = paint.fontMetrics.let { it.descent - it.ascent }
         if (fontHeight > LABEL_MAX_HEIGHT) paint.textSize *= LABEL_MAX_HEIGHT / fontHeight
         val small5Ga = if (small5GaEnabled) {

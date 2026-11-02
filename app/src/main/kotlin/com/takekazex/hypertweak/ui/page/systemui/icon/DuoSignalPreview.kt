@@ -30,7 +30,8 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 /** Uses the production drawable, so settings previews cannot silently diverge from its geometry. */
 @Composable
 internal fun DuoSignalPreview(small5GaEnabled: Boolean = false, sizes: DuoSizes = DuoSizes(), mirrorAirplane: Boolean = false,
-    topPercent: Boolean = false, dualDots: Boolean = false, cellularDots: Boolean = false) {
+    topPercent: Boolean = false, dualDots: Boolean = false, cellularDots: Boolean = false,
+    typography: com.takekazex.hypertweak.settings.contract.MobileTypeTypography = com.takekazex.hypertweak.settings.contract.MobileTypeTypography()) {
     val foreground = MiuixTheme.colorScheme.onSurface.toArgb()
     val description = stringResource(R.string.icon_duo_preview)
     val context = LocalContext.current
@@ -38,7 +39,7 @@ internal fun DuoSignalPreview(small5GaEnabled: Boolean = false, sizes: DuoSizes 
         val repository = IconSvgRepository(context)
         repository.loadSignalSingle(SignalSvgStyle.HYPEROS3).getOrNull()?.document to repository.loadSignalStacked(SignalSvgStyle.HYPEROS3).getOrNull()?.document
     }
-    val icons = remember(context, small5GaEnabled, artwork, sizes, mirrorAirplane, topPercent, dualDots, cellularDots) {
+    val icons = remember(context, small5GaEnabled, artwork, sizes, mirrorAirplane, topPercent, dualDots, cellularDots, typography) {
         listOf(
             DuoContent(DuoBattery(100, false, false), 4, null, 4, false, false,
                 cellularSignalRows = listOf(DuoSignalRow(1, 0, 4), DuoSignalRow(2, 1, 2)), activeDataSubId = 1),
@@ -54,7 +55,7 @@ internal fun DuoSignalPreview(small5GaEnabled: Boolean = false, sizes: DuoSizes 
                 this.mirrorAirplane = mirrorAirplane
                 this.sizes = sizes
                 this.small5GaEnabled = small5GaEnabled
-                content = state
+                content = state.copy(typography = typography)
                 val document = if (state.cellularSignalLevels.size > 1) artwork.second else artwork.first
                 cellularSignalPicture = document?.let { IconSvgRenderer.signalPicture(it, state.cellularSignalLevels) }
             }

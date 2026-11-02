@@ -1819,4 +1819,8 @@
     <string name="market_marketing_icon">禁用营销图标</string>
     <string name="market_marketing_icon_summary">关闭后续营销图标支持判断；已替换的桌面图标可能需要刷新。</string>
     <string name="market_live_summary">开关实时应用于后续请求和页面构建。已有内容请重新进入页面刷新。所有选项默认关闭。</string>
+    <string name="icon_type_typography">自定义网络类型文字</string>
+    <string name="icon_type_typography_summary">独立调节原生、堆叠、运营商行及 Duo 中的 5G/5GA 字号与字重；关闭后恢复各处默认样式。</string>
+    <string name="icon_type_size">网络类型字号</string>
+    <string name="icon_type_weight">网络类型字重</string>
 </resources>

@@ -45,6 +45,34 @@ class LockscreenStatusBarHostContractTest {
         assertEquals("Ldagger/internal/Provider;", component.fields.single { it.name == "keyguardStateControllerImplProvider" }.type)
     }
 
+    @Test fun barStateBoundaryAndUpgradeRecoveryMatchTheHost() {
+        val classes = classes("LOCKSCREEN_SYSTEMUI_APK")
+        val owner = "Lcom/android/systemui/statusbar/StatusBarStateControllerImpl;"
+        val controller = classes.getValue(owner)
+        val setter = controller.methods.single { it.name == "setState" &&
+            it.parameterTypes.map(CharSequence::toString) == listOf("I", "Z") && it.returnType == "Z" }
+        assertEquals("I", controller.fields.single { it.name == "mState" }.type)
+        assertTrue(setter.fields().any { it.definingClass == owner && it.name == "mState" })
+        val component = classes.getValue("Lcom/android/systemui/dagger/DaggerReferenceGlobalRootComponent\$ReferenceSysUIComponentImpl;")
+        assertEquals("Ldagger/internal/Provider;", component.fields.single { it.name == "statusBarStateControllerImplProvider" }.type)
+        val bar = classes.getValue("Lcom/android/systemui/statusbar/phone/KeyguardStatusBarViewController;")
+        assertEquals("Lcom/android/systemui/statusbar/SysuiStatusBarStateController;",
+            bar.fields.single { it.name == "mStatusBarStateController" }.type)
+    }
+
+    @Test fun mobileTypeFontUsesTheHostsVariableFontSelection() {
+        val classes = classes("LOCKSCREEN_SYSTEMUI_APK")
+        val owner = "Lcom/miui/systemui/statusbar/views/MobileTypeDrawable;"
+        val type = classes.getValue(owner)
+        val setter = type.methods.single { it.name == "setMiuiStatusBarTypeface" &&
+            it.parameterTypes.map(CharSequence::toString) == listOf("[Landroid/graphics/Paint;") && it.returnType == "V" }
+        assertTrue(setter.calls().any { it.definingClass == "Landroid/graphics/Paint;" && it.name == "setTypeface" })
+        assertTrue(setter.fields().any { it.name == "sMiproTypeface" })
+        assertTrue(type.methods.single { it.name == "<clinit>" }.calls().any {
+            it.definingClass == "Landroid/graphics/Typeface\$Builder;" && it.name == "setFontVariationSettings"
+        })
+    }
+
     @Test fun keyguardHasIndependentAttachAndInflateBoundariesAndNativeIconManager() {
         val bar = classes("LOCKSCREEN_SYSTEMUI_APK").getValue("Lcom/android/systemui/statusbar/phone/MiuiKeyguardStatusBarView;")
         for (name in listOf("onAttachedToWindow", "onFinishInflate")) {

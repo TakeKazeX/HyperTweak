@@ -21,7 +21,7 @@ internal object SystemUiIconPorts {
         ),
         positions = IconHostServices.Positions(
             carrierMask = { container, mask -> IconPositionHooker.setCarrierMask(container, mask) },
-            lowerRow = { real, fake, alpha, progress -> IconPositionHooker.updateLowerRowHandover(real, fake, alpha, progress) },
+            lowerRow = { real, fake, _, progress -> IconPositionHooker.updateLowerRowHandover(real, fake, progress) },
             clearLowerRow = { IconPositionHooker.clearLowerRowHandover() }
         ),
         carrier = IconHostServices.CarrierLayout(

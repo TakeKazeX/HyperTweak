@@ -34,4 +34,5 @@ internal class ShadeSwitchEvents {
 
 internal object SignalHandoverEvents {
     val shade = ShadeSwitchEvents()
+    val statusIcons = SignalTargetOwnership<android.view.View>()
 }

@@ -596,7 +596,7 @@ object DuoSignalHooker : StaticHooker() {
                 } ?: binding.view.icon.content
                 aod != null -> freshContent ?: binding.view.icon.content
                 else -> presentationContent(binding, freshContent)
-            }
+            }?.copy(typography = com.takekazex.hypertweak.hook.rules.systemui.icon.MobileTypeTypographySettings.current)
             val privacyState = read(binding.parent, "mPrivacyState")?.toString()
             val privacyShowing = DuoPrivacyGeometry.isTransition(privacyState)
             val visible = (read(battery, "mHomeBlock") == false || privacyShowing) && read(battery, "mMinimalism") == false &&

@@ -86,6 +86,8 @@ object StackedSignalHooker : StaticHooker() {
     /** Bounded backoff before re-reading signal artwork that failed to load. */
     private const val ASSET_LOAD_RETRY_BACKOFF_MS = 5_000L
 
+    private const val HOST_TYPE_SIZE_DIMEN = "statusbar_signal_size"
+
     // Signal appearance is fixed. The settings page no longer exposes opacity, scale, start/end
     // padding or any type-appearance knob (size, weight, condensed width, font, padding, offset),
     // so the renderer always uses these built-in values instead of reading a stored preference.
@@ -141,6 +143,10 @@ object StackedSignalHooker : StaticHooker() {
     private var publishedSignalKey: SignalRenderKey? by generationState { null }
     private var publishedTypeBitmap: android.graphics.Bitmap? by generationState { null }
     private var publishedTypeSuppressed by generationState { false }
+    /** Resolved host type metrics; Int.MIN_VALUE means "not looked up yet". */
+    private var hostTypeSizeId by generationState { Int.MIN_VALUE }
+    private var hostTypeTypeface by generationState { null as android.graphics.Typeface? }
+    private var hostTypeTypefaceResolved by generationState { false }
     private var pendingRender: Runnable? by generationState { null }
 
     /** Hide the whole module-owned stacked slot (signal + type) while WiFi is connected. */
@@ -598,6 +604,36 @@ object StackedSignalHooker : StaticHooker() {
             repository.loadSignalSingle(SignalSvgStyle.HYPEROS3).getOrNull())
     }
 
+    /** Host type text size in px, or null when the dimension cannot be resolved. */
+    private fun hostTypeSizePx(context: Context?): Float? {
+        context ?: return null
+        if (hostTypeSizeId == Int.MIN_VALUE) {
+            hostTypeSizeId = runCatching {
+                context.resources.getIdentifier(HOST_TYPE_SIZE_DIMEN, "dimen", "com.android.systemui")
+            }.getOrDefault(0)
+        }
+        val id = hostTypeSizeId
+        if (id == 0) return null
+        return runCatching { context.resources.getDimensionPixelSize(id).toFloat() }
+            .getOrNull()?.takeIf { it > 0f && it.isFinite() }
+    }
+
+    /** Let the host select its actual bundled/variable font, including its MiPro fallback. */
+    private fun hostTypeTypeface(): android.graphics.Typeface? {
+        if (hostTypeTypefaceResolved) return hostTypeTypeface
+        hostTypeTypefaceResolved = true
+        hostTypeTypeface = runCatching {
+            val type = "com.miui.systemui.statusbar.views.MobileTypeDrawable".toClassOrNull()
+                ?: return@runCatching null
+            val method = HostAccess.declaredMethod(type, "setMiuiStatusBarTypeface",
+                Array<android.graphics.Paint>::class.java, accessible = true) ?: return@runCatching null
+            val paint = android.graphics.Paint()
+            method.invoke(null, arrayOf(paint) as Any)
+            paint.typeface
+        }.onFailure { DebugLog.w(TAG, "host mobile typeface unavailable", it) }.getOrNull()
+        return hostTypeTypeface
+    }
+
     private fun renderTypeSlot(state: MobileSignalState, bridge: HostIconBridge) {
         val output = MobileTypePolicy.resolve(state, typeConfig)
         if (output.text.isBlank() || !typeSlotVisible()) {
@@ -607,7 +643,13 @@ object StackedSignalHooker : StaticHooker() {
         // Already faded away, and it must stay away: the slot was released so the row closes up.
         if (output.suppressed && typeCollapsed) return
         val context = hostContext
-        val config = typeConfig.safe()
+        val hostSizePx = hostTypeSizePx(context)
+        // The host's own type has no side padding of its own; the icon row's spacing separates it.
+        val config = if (hostSizePx != null) {
+            typeConfig.safe().copy(paddingStartSp = 0.5f, paddingEndSp = 0.5f)
+        } else {
+            typeConfig.safe()
+        }
         val iconHeight = renderIconHeight(context)
         val bitmap = runCatching {
             MobileTypeRenderer.render(
@@ -616,7 +658,9 @@ object StackedSignalHooker : StaticHooker() {
                 iconHeightPx = iconHeight,
                 densityDpi = context?.resources?.displayMetrics?.densityDpi ?: 0,
                 fontScale = context?.resources?.configuration?.fontScale ?: 1f,
-                rtl = context?.resources?.configuration?.layoutDirection == android.util.LayoutDirection.RTL
+                rtl = context?.resources?.configuration?.layoutDirection == android.util.LayoutDirection.RTL,
+                hostTypeface = hostTypeTypeface(),
+                hostTextSizePx = hostSizePx
             )
         }.onFailure { DebugLog.w(TAG, "mobile type render failed", it) }.getOrNull()
         if (bitmap == null) {
@@ -688,6 +732,7 @@ object StackedSignalHooker : StaticHooker() {
         hideWhenDisconnected = settingIconStackedTypeHideDisconnect,
         hideWhenWifiAvailable = !settingCellularTypeKeepsOnWifi,
         showRoamingPrefix = settingIconStackedTypeRoaming,
+        typography = MobileTypeTypographySettings.current,
         small5GaEnabled = settingIconCellularTypeSmall5ga
     ).safe()
 
