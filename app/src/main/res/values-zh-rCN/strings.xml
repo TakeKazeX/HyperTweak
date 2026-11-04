@@ -1823,4 +1823,20 @@
     <string name="icon_type_typography_summary">独立调节原生、堆叠、运营商行及 Duo 中的 5G/5GA 字号与字重；关闭后恢复各处默认样式。</string>
     <string name="icon_type_size">网络类型字号</string>
     <string name="icon_type_weight">网络类型字重</string>
+    <string name="smartdns_section_title">SmartDNS 与双栈 DNS</string>
+    <string name="smartdns_enable_title">SmartDNS 总开关</string>
+    <string name="smartdns_ipv4_first_title">IPv4 优先</string>
+    <string name="smartdns_happy_eyeballs_title">Happy Eyeballs 双栈优化</string>
+    <string name="smartdns_footer">下拉选项直接修改 MIUI 云控 Settings.System 值，由 MiuiNetworkPolicyManagerService 转换到 persist.device_config.netd_native.*；写入需要 root，之后可能被云端配置覆盖。</string>
+    <string name="smartdns_write_failed">写入 DNS 云控值失败，请确认已授予 root 权限。</string>
+    <string name="smartdns_mode_default">云控默认值</string>
+    <string name="smartdns_mode_on">开启</string>
+    <string name="smartdns_mode_off">关闭</string>
+    <string name="smartdns_status_on">开启</string>
+    <string name="smartdns_status_off">关闭</string>
+    <string name="smartdns_status_unknown">未知</string>
+    <string name="smartdns_cloud_unset">未设置</string>
+    <string name="smartdns_summary_smartdns">实际：%1$s · 云控值：%2$s</string>
+    <string name="smartdns_summary_ipv4">实际：%1$s · 字段值：%2$s</string>
+    <string name="smartdns_summary_happy">实际：%1$s · 云控值：%2$s</string>
 </resources>

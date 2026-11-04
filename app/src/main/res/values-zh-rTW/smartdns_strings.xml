@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="smartdns_section_title">SmartDNS 與雙棧 DNS</string>
+    <string name="smartdns_enable_title">SmartDNS 總開關</string>
+    <string name="smartdns_ipv4_first_title">IPv4 優先</string>
+    <string name="smartdns_happy_eyeballs_title">Happy Eyeballs 雙棧最佳化</string>
+    <string name="smartdns_footer">下拉選項會修改 MIUI 雲端控制 Settings.System 值，由 MiuiNetworkPolicyManagerService 轉換到 persist.device_config.netd_native.*；寫入需要 root，之後可能被雲端設定覆蓋。</string>
+    <string name="smartdns_write_failed">寫入 DNS 雲端控制值失敗，請確認已授予 root 權限。</string>
+    <string name="smartdns_mode_default">雲端控制預設值</string>
+    <string name="smartdns_mode_on">開啟</string>
+    <string name="smartdns_mode_off">關閉</string>
+    <string name="smartdns_status_on">開啟</string>
+    <string name="smartdns_status_off">關閉</string>
+    <string name="smartdns_status_unknown">未知</string>
+    <string name="smartdns_cloud_unset">未設定</string>
+    <string name="smartdns_summary_smartdns">實際：%1$s · 雲端控制值：%2$s</string>
+    <string name="smartdns_summary_ipv4">實際：%1$s · 欄位值：%2$s</string>
+    <string name="smartdns_summary_happy">實際：%1$s · 雲端控制值：%2$s</string>
+</resources>

@@ -165,6 +165,7 @@ fun PurificationPage(
             }
 
 
+            SmartDnsSection()
             WirelessDiagnosticsSection()
             Spacer(Modifier.height(padding.calculateBottomPadding() + 16.dp))
         }

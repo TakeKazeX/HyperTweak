@@ -1855,4 +1855,20 @@
     <string name="icon_type_typography_summary">Adjust 5G/5GA text in native, stacked, carrier and Duo icons. Off restores each surface’s default.</string>
     <string name="icon_type_size">Network Type Size</string>
     <string name="icon_type_weight">Network Type Weight</string>
+    <string name="smartdns_section_title">SmartDNS and dual-stack DNS</string>
+    <string name="smartdns_enable_title">SmartDNS master switch</string>
+    <string name="smartdns_ipv4_first_title">Prefer IPv4</string>
+    <string name="smartdns_happy_eyeballs_title">Happy Eyeballs dual-stack</string>
+    <string name="smartdns_footer">These options edit MIUI cloud settings; MiuiNetworkPolicyManagerService applies them to persist.device_config.netd_native.*. Writing requires root and cloud configuration may override the values later.</string>
+    <string name="smartdns_write_failed">Failed to write the DNS cloud setting. Check root access.</string>
+    <string name="smartdns_mode_default">Cloud default</string>
+    <string name="smartdns_mode_on">On</string>
+    <string name="smartdns_mode_off">Off</string>
+    <string name="smartdns_status_on">On</string>
+    <string name="smartdns_status_off">Off</string>
+    <string name="smartdns_status_unknown">Unknown</string>
+    <string name="smartdns_cloud_unset">not set</string>
+    <string name="smartdns_summary_smartdns">Actual: %1$s · cloud: %2$s</string>
+    <string name="smartdns_summary_ipv4">Actual: %1$s · field: %2$s</string>
+    <string name="smartdns_summary_happy">Actual: %1$s · cloud: %2$s</string>
 </resources>
