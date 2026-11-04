@@ -2,6 +2,18 @@
 <resources>
     <string name="purification_title">净化与优化</string>
     <string name="purification_summary">风险检测、应用列表上传、文件生成、视频彩铃与无线日志</string>
+    <string name="system_helper_title">运营商 SystemHelper</string>
+    <string name="system_helper_disable_title">禁用 SystemHelper</string>
+    <string name="system_helper_status_enabled">当前状态：已启用</string>
+    <string name="system_helper_status_disabled">当前状态：已禁用</string>
+    <string name="system_helper_status_not_installed">本机未安装 SystemHelper。</string>
+    <string name="system_helper_status_checking">正在查询当前状态…</string>
+    <string name="system_helper_status_query_failed">读取状态失败，请点击刷新重试。</string>
+    <string name="system_helper_status_root">需要 root 权限。%1$s</string>
+    <string name="system_helper_status_set_failed">操作未生效。%1$s</string>
+    <string name="system_helper_version">版本 %1$s</string>
+    <string name="system_helper_refresh">刷新状态</string>
+    <string name="system_helper_footer">状态每次从系统包管理器实时读取；重启和包更新后会重新应用当前选择。</string>
     <string name="wireless_title">无线诊断日志</string>
     <string name="wireless_cnss_title">Wi-Fi 诊断日志</string>
     <string name="wireless_cnss_summary">%1$s · 开启后每日写入约 10 GB</string>

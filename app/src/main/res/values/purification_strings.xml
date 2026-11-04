@@ -2,6 +2,18 @@
 <resources>
     <string name="purification_title">Purification &amp; optimization</string>
     <string name="purification_summary">Risk checks, app list uploads, generated files, video ringback and wireless logs</string>
+    <string name="system_helper_title">Carrier SystemHelper</string>
+    <string name="system_helper_disable_title">Disable SystemHelper</string>
+    <string name="system_helper_status_enabled">Current status: enabled</string>
+    <string name="system_helper_status_disabled">Current status: disabled</string>
+    <string name="system_helper_status_not_installed">SystemHelper is not installed on this device.</string>
+    <string name="system_helper_status_checking">Checking current status…</string>
+    <string name="system_helper_status_query_failed">Could not read current status. Tap refresh to retry.</string>
+    <string name="system_helper_status_root">Root access is required. %1$s</string>
+    <string name="system_helper_status_set_failed">Change not applied. %1$s</string>
+    <string name="system_helper_version">Version %1$s</string>
+    <string name="system_helper_refresh">Refresh status</string>
+    <string name="system_helper_footer">Status is read from the system package state each time. The choice is re-applied after reboot and package updates.</string>
     <string name="wireless_title">Wireless diagnostics logs</string>
     <string name="wireless_cnss_title">Wi-Fi diagnostic logs</string>
     <string name="wireless_cnss_summary">%1$s · About 10 GB/day when enabled</string>

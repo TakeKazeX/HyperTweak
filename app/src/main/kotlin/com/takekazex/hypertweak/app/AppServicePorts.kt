@@ -7,6 +7,7 @@ import com.takekazex.hypertweak.settings.contract.NativeRulePublisher
 import com.takekazex.hypertweak.util.restart.RestartUtils
 import com.takekazex.hypertweak.util.platform.ShortcutUtils
 import com.takekazex.hypertweak.util.diagnostics.WirelessDiagnostics
+import com.takekazex.hypertweak.util.platform.SystemHelperControl
 import com.takekazex.hypertweak.util.scope.ScopeManager
 import com.takekazex.hypertweak.util.scope.ScopePromptStore
 
@@ -15,6 +16,7 @@ internal interface AppServicePorts {
     val restarts: RestartUtils
     val shortcuts: ShortcutUtils
     val wireless: WirelessDiagnostics
+    val systemHelper: SystemHelperControl
     val module: ModuleServicePort
     val nativeUpgrade: NativeUpgradePort
     val nativeRules: NativeRulePublisher

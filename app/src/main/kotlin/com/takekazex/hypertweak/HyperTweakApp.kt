@@ -1,6 +1,7 @@
 package com.takekazex.hypertweak
 
 import com.takekazex.hypertweak.settings.contract.AppSettingsKeys
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import android.app.Application
 import android.content.Context
@@ -30,5 +31,19 @@ class HyperTweakApp : Application() {
         // Republish the native rule flags on every start so the launcher-side payload sees the
         // current state even when the last write came from an older build.
         NativeRuleConfig.publish(this, Preferences.hideRecentsClearButton())
+
+        // The boot receiver normally re-applies this after OTA; opening the app is a second
+        // recovery point if the OEM blocked the boot broadcast.
+        val systemHelperManaged = runCatching {
+            Preferences.getBoolean(PlatformSettingsKeys.KEY_SYSTEM_HELPER_MANAGED, false)
+        }.getOrDefault(false)
+        if (systemHelperManaged) {
+            val desiredDisabled = runCatching {
+                Preferences.getBoolean(PlatformSettingsKeys.KEY_SYSTEM_HELPER_DISABLED, false)
+            }.getOrDefault(false)
+            Thread({
+                com.takekazex.hypertweak.app.DefaultAppServices.systemHelper.reconcileBlocking(this, desiredDisabled)
+            }, "HyperTweak-SystemHelper").start()
+        }
     }
 }

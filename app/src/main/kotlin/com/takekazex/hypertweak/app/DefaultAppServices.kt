@@ -9,6 +9,7 @@ import com.takekazex.hypertweak.util.restart.RestartUtils
 import com.takekazex.hypertweak.util.platform.ShortcutUtils
 import com.takekazex.hypertweak.util.diagnostics.WirelessDiagnostics
 import com.takekazex.hypertweak.util.platform.PlatformLevel
+import com.takekazex.hypertweak.util.platform.SystemHelperControl
 import com.takekazex.hypertweak.util.scope.ScopeManager
 import com.takekazex.hypertweak.util.scope.ScopePromptStore
 import io.github.libxposed.service.XposedService
@@ -21,6 +22,12 @@ internal object DefaultAppServices : AppServicePorts {
     override val restarts = RestartUtils(PreferencesAppSettings::flush)
     override val shortcuts = ShortcutUtils(PreferencesAppSettings)
     override val wireless = WirelessDiagnostics { logger, enabled -> PreferencesAppSettings.putBoolean(logger.preference, enabled) }
+    override val systemHelper = SystemHelperControl(
+        rememberDisabled = { disabled ->
+            PreferencesAppSettings.putBoolean(PlatformSettingsKeys.KEY_SYSTEM_HELPER_DISABLED, disabled)
+            PreferencesAppSettings.putBoolean(PlatformSettingsKeys.KEY_SYSTEM_HELPER_MANAGED, true)
+        }
+    )
     override val module: ModuleServicePort = XposedServiceManager
     override val nativeUpgrade: NativeUpgradePort = NativeUpgradeManager
     override val scopePrompts = ScopePromptStore(PreferencesAppSettings)

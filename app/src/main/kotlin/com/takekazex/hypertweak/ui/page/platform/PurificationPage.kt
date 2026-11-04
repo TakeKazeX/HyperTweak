@@ -97,6 +97,7 @@ fun PurificationPage(
                 }
             }
 
+            SystemHelperSection()
             AivsDirectorySection()
             DarkModeScheduleSection()
             SharePanelSection()
