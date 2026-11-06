@@ -29,14 +29,11 @@ class SystemHelperStateReceiver : BroadcastReceiver() {
         if (!runCatching {
                 Preferences.getBoolean(PlatformSettingsKeys.KEY_SYSTEM_HELPER_MANAGED, false)
             }.getOrDefault(false)) return
-        val desiredDisabled = runCatching {
-            Preferences.getBoolean(PlatformSettingsKeys.KEY_SYSTEM_HELPER_DISABLED, false)
-        }.getOrDefault(false)
 
         val pending = goAsync()
         Thread({
             try {
-                val result = DefaultAppServices.systemHelper.reconcileBlocking(context, desiredDisabled)
+                val result = DefaultAppServices.systemHelper.reconcileBlocking(context)
                 if (result.failure != null) {
                     DebugLog.w("SystemHelper", "deferred reconcile failed: " + result.failure + " " + result.detail)
                 }

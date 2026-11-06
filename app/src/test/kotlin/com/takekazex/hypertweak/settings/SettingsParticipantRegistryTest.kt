@@ -7,6 +7,19 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class SettingsParticipantRegistryTest {
+    @Test fun dormantImeParticipantSurvivesAnInitiallyUnselectedProcess() {
+        val plan = SettingsParticipantRegistry(emptySet())
+        var applied = false
+        plan.register("ime") { applied = true; true }
+        var handler: ((Set<String>) -> Boolean)? = null
+        plan.install(always = setOf("ime")) { id, apply ->
+            assertEquals("ime", id)
+            handler = apply
+        }
+        assertFalse(applied)
+        assertTrue(requireNotNull(handler)(setOf("aosp_ime_packages")))
+        assertTrue(applied)
+    }
     @Test fun missingParticipantFailsBeforeAnyLiveRegistration() {
         val plan = SettingsParticipantRegistry(setOf("icons", "native"))
         plan.register("icons") { true }

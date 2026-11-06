@@ -4,10 +4,6 @@ import com.takekazex.hypertweak.ui.components.slider.rememberSliderEdit
 
 import com.takekazex.hypertweak.ui.components.dialog.AppDialog
 import com.takekazex.hypertweak.ui.components.dialog.IntValueDialog
-import com.takekazex.hypertweak.ui.components.dialog.LocalRestartScopeHandled
-import com.takekazex.hypertweak.ui.components.dialog.LocalRestartScopeRequest
-import com.takekazex.hypertweak.ui.components.dialog.restartInProgress
-import com.takekazex.hypertweak.ui.app.LocalAppServices
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 
 import android.annotation.SuppressLint
@@ -57,7 +53,6 @@ import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -79,7 +74,6 @@ import com.takekazex.hypertweak.ui.effect.NativeGlassPreviewView
 import com.takekazex.hypertweak.ui.effect.decodeBundledGlassPreviewSample
 import com.takekazex.hypertweak.ui.effect.decodeGlassPreviewImage
 import com.takekazex.hypertweak.util.logging.DebugLog
-import com.takekazex.hypertweak.util.restart.RestartScopeSelection
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -118,14 +112,10 @@ import kotlin.math.abs
 @SuppressLint("LocalContextGetResourceValueCall")
 @Composable
 fun GlassTunerPage(onBack: () -> Unit) {
-    val services = LocalAppServices.current
     val settingsStore = LocalAppSettingsStore.current
     val scrollBehavior = MiuixScrollBehavior()
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
-    val requestRestartScopes = LocalRestartScopeRequest.current
-    val handleRestartedScopes = LocalRestartScopeHandled.current
-    var systemUiRestartPending by rememberSaveable { mutableStateOf(false) }
 
     // Local remember-backed state so toggles update instantly; the remote preference write is
     // async, so reading Preferences directly in composition made switches bounce back.
@@ -146,13 +136,11 @@ fun GlassTunerPage(onBack: () -> Unit) {
 
     fun changed(key: String, value: Any) {
         DebugLog.i("GlassTuner", "preference changed: $key=$value")
-        requestRestartScopes(RestartScopeSelection(systemUi = true))
         prefs[key] = value
         when (value) {
             is Boolean -> settingsStore.putBoolean(key, value)
             is Float -> settingsStore.putFloat(key, value)
         }
-        systemUiRestartPending = true
     }
 
     val enabled = pref(SystemUiSettingsKeys.KEY_GLASS_TUNER_ENABLED, false)
@@ -214,7 +202,6 @@ fun GlassTunerPage(onBack: () -> Unit) {
     )
 
     fun applyTunerValues(values: GlassTunerValues) {
-        requestRestartScopes(RestartScopeSelection(systemUi = true))
         prefs[SystemUiSettingsKeys.KEY_GLASS_TUNER_ENABLED] = values.enabled
         prefs[SystemUiSettingsKeys.KEY_GLASS_TUNER_BLEND_ALPHA] = values.blendAlpha
         prefs[SystemUiSettingsKeys.KEY_GLASS_TUNER_BLEND_LIGHTNESS] = values.blendLightness
@@ -232,7 +219,6 @@ fun GlassTunerPage(onBack: () -> Unit) {
         previewRadiusScale = values.radiusScale
         previewGlassOpacity = values.glassOpacity
         previewGlassTone = values.glassTone
-        systemUiRestartPending = true
     }
 
     fun saveCurrentPreset(name: String, announce: Boolean = true): Boolean {
@@ -648,31 +634,6 @@ fun GlassTunerPage(onBack: () -> Unit) {
                             }
                         }
                     }
-                }
-            }
-
-            if (systemUiRestartPending) {
-                SmallTitle(stringResource(R.string.glass_apply))
-                Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-                    ArrowPreference(
-                        title = stringResource(R.string.glass_restart_systemui),
-                        summary = stringResource(R.string.glass_restart_systemui_summary),
-                        enabled = !restartInProgress(RestartScopeSelection(systemUi = true)),
-                        onClick = {
-                            // The remote (LSPosed daemon) copy is written asynchronously; make
-                            // sure SystemUI starts after the daemon has the latest values.
-                            settingsStore.flush()
-                            services.restarts.restartScope(
-                                context = context,
-                                coroutineScope = coroutineScope,
-                                selection = RestartScopeSelection(systemUi = true),
-                                onCompleted = { completed ->
-                                    handleRestartedScopes(completed)
-                                    if (completed.systemUi) systemUiRestartPending = false
-                                },
-                            )
-                        }
-                    )
                 }
             }
 

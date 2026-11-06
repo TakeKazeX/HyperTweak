@@ -2,7 +2,9 @@ package com.takekazex.hypertweak.hook.rules.ime
 
 import com.takekazex.hypertweak.hook.base.cachedDeclaredMethod
 import com.takekazex.hypertweak.hook.base.HostAccess
+import android.content.ComponentName
 import android.content.Context
+import android.provider.Settings
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -203,9 +205,20 @@ class MiuiImeBottomHooker : StaticHooker() {
         val inputMethodManager = bottomViewHelper?.let { helper ->
             runCatching { mImmFieldOf(helper.javaClass)?.get(helper) }.getOrNull() as? InputMethodManager
         } ?: inputMethodManagerSingleton()
-        return inputMethodManager?.let {
-            runCatching { ArrayList(it.enabledInputMethodList) }.getOrNull()
-        }
+        val list = inputMethodManager?.let {
+            runCatching { it.enabledInputMethodList }.getOrNull()
+        } ?: return null
+        // Auxiliary services (Play Services' autofill proxy) are enabled but are not real
+        // keyboards; the secure enabled list is the authoritative set and excludes them.
+        val context = AospImeHooker.currentServiceContext() ?: return ArrayList(list)
+        val allowed = runCatching {
+            Settings.Secure.getString(context.contentResolver, Settings.Secure.ENABLED_INPUT_METHODS)
+                .orEmpty()
+                .split(':')
+                .mapNotNull { ComponentName.unflattenFromString(it.substringBefore(';'))?.packageName }
+                .toSet()
+        }.getOrNull() ?: return ArrayList(list)
+        return ArrayList(list.filter { it.packageName in allowed })
     }
 
     private fun mImmFieldOf(helperClass: Class<*>): Field? = HostAccess.declaredField(helperClass, "mImm", accessible = true)

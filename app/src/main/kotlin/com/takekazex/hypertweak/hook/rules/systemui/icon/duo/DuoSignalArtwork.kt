@@ -68,6 +68,16 @@ internal class DuoSignalArtwork {
                 weight = settingIconStackedWeight)
         }.onFailure { DebugLog.w(TAG, "cellular signal vector recording failed", it) }.getOrNull()
     }
+    /** Dot hand-off endpoint recordings are immutable per level; a drag requests them per frame. */
+    private val destinationPictures = HashMap<Int, Picture>()
+    fun destinationSignal(context: Context, level: Int): Picture? = synchronized(destinationPictures) {
+        destinationPictures[level] ?: run {
+            val assets = loadCellularSignalAssets(context) ?: return null
+            runCatching { IconSvgRenderer.signalPicture(assets.single, listOf(level)) }
+                .onFailure { DebugLog.w(TAG, "destination signal recording failed", it) }
+                .getOrNull()?.also { destinationPictures[level] = it }
+        }
+    }
     private var morphResolved = false
     private var morphBars: com.takekazex.hypertweak.presentation.icon.duo.DuoSignalBars? = null
     fun signalBars(context: Context): com.takekazex.hypertweak.presentation.icon.duo.DuoSignalBars? {
@@ -96,6 +106,6 @@ internal class DuoSignalArtwork {
         return rowMorphs.getOrNull(row)
     }
 
-    fun retire() { rowMorphKey = null; rowMorphs = emptyList(); morphResolved = false; morphBars = null; cellularSignalAssets = null; aodCellularPictures.clear() }
+    fun retire() { rowMorphKey = null; rowMorphs = emptyList(); morphResolved = false; morphBars = null; cellularSignalAssets = null; aodCellularPictures.clear(); destinationPictures.clear() }
     private companion object { const val TAG = "DuoSignal" }
 }

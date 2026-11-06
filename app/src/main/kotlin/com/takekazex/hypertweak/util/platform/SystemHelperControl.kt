@@ -4,9 +4,9 @@ import android.content.Context
 import android.content.pm.PackageManager
 import com.takekazex.hypertweak.util.logging.DebugLog
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
 
 /**
  * Carrier DM client shipped in some China Unicom system images. It is intentionally addressed by
@@ -15,14 +15,17 @@ import kotlinx.coroutines.withContext
  */
 internal object SystemHelperPackage {
     const val NAME = "com.mobiletools.systemhelper"
-    const val DISABLE_COMMAND = "pm disable-user --user 0 " + NAME
-    const val ENABLE_COMMAND = "pm enable --user 0 " + NAME
+    fun command(enabled: Boolean, userId: Int): String {
+        require(userId >= 0)
+        return "pm ${if (enabled) "enable" else "disable-user"} --user $userId $NAME"
+    }
 }
 
 internal data class SystemHelperPackageState(
     val installed: Boolean,
     val enabled: Boolean,
     val versionName: String? = null,
+    val userId: Int = 0,
 )
 
 internal enum class SystemHelperFailure { NO_ROOT, QUERY, SET, NOT_INSTALLED }
@@ -67,10 +70,13 @@ internal class SystemHelperEngine(
                 failure = SystemHelperFailure.NOT_INSTALLED)
         }
         requireRoot(initial)?.let { return it }
-        if (initial.enabled == enabled) return SystemHelperResult(initial)
+        if (initial.enabled == enabled) {
+            rememberDisabled(!enabled)
+            return SystemHelperResult(initial)
+        }
 
         return try {
-            run(if (enabled) SystemHelperPackage.ENABLE_COMMAND else SystemHelperPackage.DISABLE_COMMAND)
+            run(SystemHelperPackage.command(enabled, initial.userId))
             val after = try {
                 readState()
             } catch (e: Exception) {
@@ -129,23 +135,25 @@ internal class SystemHelperControl(
     private val readState: (Context) -> SystemHelperPackageState? = ::readSystemHelperPackageState,
     private val run: (String) -> String = { NativeRootCommand.run(it).toString(Charsets.UTF_8) },
     private val rememberDisabled: (Boolean) -> Unit = {},
+    private val desiredDisabled: () -> Boolean? = { null },
 ) {
-    private val mutex = Mutex()
+    private val lock = ReentrantLock()
 
     private fun engine(context: Context) = SystemHelperEngine({ readState(context) }, run, rememberDisabled)
 
     suspend fun query(context: Context): SystemHelperResult =
-        mutex.withLock { withContext(Dispatchers.IO) { engine(context).query() } }
+        withContext(Dispatchers.IO) { lock.withLock { engine(context).query() } }
 
     suspend fun setEnabled(context: Context, enabled: Boolean): SystemHelperResult =
-        mutex.withLock { withContext(Dispatchers.IO) { engine(context).setEnabled(enabled) } }
+        withContext(Dispatchers.IO) { lock.withLock { engine(context).setEnabled(enabled) } }
 
     /**
      * Called by the boot/package receiver. It blocks only the receiver's own background thread;
      * a disabled or absent target returns before any root invocation.
      */
-    fun reconcileBlocking(context: Context, desiredDisabled: Boolean): SystemHelperResult = synchronized(this) {
-        val result = engine(context).reconcile(desiredDisabled)
+    fun reconcileBlocking(context: Context): SystemHelperResult = lock.withLock {
+        val desired = desiredDisabled() ?: return@withLock engine(context).query()
+        val result = engine(context).reconcile(desired)
         if (result.failure != null) {
             DebugLog.w("SystemHelper", "reconcile failed: " + result.failure + " " + result.detail)
         }
@@ -179,5 +187,6 @@ internal fun readSystemHelperPackageState(context: Context): SystemHelperPackage
         installed = true,
         enabled = enabled,
         versionName = info.versionName,
+        userId = android.os.Process.myUid() / 100000,
     )
 }

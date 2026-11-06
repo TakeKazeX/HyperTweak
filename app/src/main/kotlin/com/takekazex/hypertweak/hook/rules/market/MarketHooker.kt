@@ -13,7 +13,8 @@ import java.lang.reflect.Executable
 
 private object MarketFeature : DexFeature {
     override val id = "market.purification"
-    override val schema = 1
+    // Schema 2 adds the shared tab parser; older caches lack its descriptor.
+    override val schema = 2
 }
 
 object MarketHooker : StaticHooker() {
@@ -38,7 +39,7 @@ object MarketHooker : StaticHooker() {
 
     private fun install(values: Map<String, String>) {
         val deoptimized = mutableSetOf<Executable>()
-        MarketTargets.all.forEach { target ->
+        MarketTargets.all.filterNot { it.tabFilter }.forEach { target ->
             HookFailurePolicy.open("Market", target.descriptor, Unit) {
                 val descriptor = values["target:${target.descriptor}"]
                 if (descriptor == null) {
@@ -66,6 +67,44 @@ object MarketHooker : StaticHooker() {
                 }
             }
         }
+        installTabFilter(values, deoptimized)
         DebugLog.hookRegistered("Market", "purification boundaries ready process=${hookParam.processName}")
+    }
+
+    /**
+     * The store builds both the bottom bar and its pages from `PageConfig.tabs`, so the shared tab
+     * parser is filtered once for every enabled tab switch. Removing entries here also fixes the
+     * host's derived flags, default tab and back target; the host hides the bar when one tab remains.
+     */
+    private fun installTabFilter(values: Map<String, String>, deoptimized: MutableSet<Executable>) {
+        HookFailurePolicy.open("Market", MarketTargets.TAB_ARRAY, Unit) {
+            val descriptor = values["target:${MarketTargets.TAB_ARRAY}"]
+            if (descriptor == null) {
+                DebugLog.hookSkipped("Market", MarketTargets.TAB_ARRAY, "missing or changed APK contract")
+                return@open
+            }
+            val method = requireNotNull(MethodDescriptorCodec.method(descriptor, classLoader))
+            check(method in deoptimized || deoptimize(method).also { ok -> if (ok) deoptimized.add(method) }) {
+                "Market tab deoptimization failed: $descriptor"
+            }
+            val tagOf = requireNotNull(
+                runCatching {
+                    classLoader.loadClass("com.xiaomi.market.model.TabInfo").getMethod("getTag")
+                }.getOrNull()
+            ) { "Market tab tag contract missing" }
+            method.hook("market_tab_filter") {
+                after { param ->
+                    if (param.throwable != null) return@after
+                    val keys = MarketTabFilter.enabledKeys(enabled)
+                    if (keys.isEmpty()) return@after
+                    if (!MarketTabGuard.allowsFiltering(classLoader)) return@after
+                    HookFailurePolicy.open("Market", "tab filter", Unit) {
+                        (param.result as? MutableList<*>)?.let { tabs ->
+                            MarketTabFilter.applyTo(tabs, keys) { tab -> tagOf.invoke(tab) as? String }
+                        }
+                    }
+                }
+            }
+        }
     }
 }

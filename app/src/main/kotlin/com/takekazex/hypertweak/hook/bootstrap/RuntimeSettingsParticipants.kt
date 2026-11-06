@@ -48,7 +48,8 @@ internal object RuntimeSettingsParticipants {
         val header: (Set<String>) -> Unit,
         val notificationText: (Set<String>) -> Unit,
         val hookers: () -> List<BaseHooker>,
-        val retired: () -> Boolean
+        val retired: () -> Boolean,
+        val ime: () -> Boolean = { com.takekazex.hypertweak.hook.rules.ime.AospImeHooker.refreshSettings() }
     )
 
     fun install(dispatcher: SettingsReloadDispatcher, processName: String, isSystemServer: Boolean, actions: Actions) {
@@ -102,7 +103,7 @@ internal object RuntimeSettingsParticipants {
         // screens must be reopened; snapshot delivery does not recreate user-owned screens.
         registerForProcess(RuntimeSettingsGroups.IME) { _ ->
             if (isSystemServer) com.takekazex.hypertweak.hook.rules.ime.AospImeSystemHooker.refreshSettings()
-            else com.takekazex.hypertweak.hook.rules.ime.AospImeHooker.refreshSettings()
+            else actions.ime()
         }
         registerForProcess(RuntimeSettingsGroups.PASSIVE_POLICIES) { _ -> true }
         registerForProcess(RuntimeSettingsGroups.GOOGLE_APP) { _ ->
@@ -307,6 +308,10 @@ internal object RuntimeSettingsParticipants {
             GlassMaterialHooker.refreshSettings()
             true
         }
+        registerForProcess(RuntimeSettingsGroups.CONTROL_CENTER_PRIVACY) { _ ->
+            com.takekazex.hypertweak.hook.rules.systemui.icon.ControlCenterPrivacyHooker.refreshSettings()
+            true
+        }
         registerForProcess(RuntimeSettingsGroups.LOCKSCREEN) { _ ->
             Preferences.invalidateRuntimeReadCache()
             LockscreenBottomTextHooker.refreshSettings()
@@ -323,7 +328,9 @@ internal object RuntimeSettingsParticipants {
                 SystemUIPluginHooker.reloadIslandSettings()
             }
         }
-        registry.install { id, apply ->
+        // The selected-keyboard set can change after a keyboard process starts; the IME
+        // participant must already be present for the dynamic target to receive its snapshot.
+        registry.install(always = setOf(RuntimeSettingsGroups.IME)) { id, apply ->
             if (id == RuntimeSettingsGroups.SECURITY_SIDEBAR || id == RuntimeSettingsGroups.SECURITY_DOCK || id == RuntimeSettingsGroups.DARK_MODE ||
                 id == RuntimeSettingsGroups.QUICK_SHARE)
                 dispatcher.registerWithRetryBudget(id, 120, apply)

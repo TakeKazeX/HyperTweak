@@ -193,6 +193,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
     /** All mutable view state is consumed on the main looper. */
     private var mobileState by generationState { MobileSignalState() }
     private var wifiLevel: Int? by generationState { null }
+    private var wifiDefault: Boolean? by generationState { null }
     private var progress by generationState { 0f }
     private var panelVisible by generationState { false }
 
@@ -781,7 +782,13 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         wifiScope = scope
         wifiInteractor = interactor
         wifiLevel = null
+        wifiDefault = null
         val token = generation.get()
+        wifiSubscriptions.collect(scope, readField(interactor, "isDefault"),
+            { enabled && generation.get() == token }, replay = true) { value ->
+            wifiDefault = value as? Boolean
+            scheduleRender()
+        }
         val wifiMax = runCatching {
             context.getSystemService(android.net.wifi.WifiManager::class.java)?.maxSignalLevel ?: 4
         }.getOrDefault(4).coerceAtLeast(1)
@@ -987,7 +994,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         if (artwork == null) scheduleArtworkLoad(generation.get())
         val rows = CarrierBlockPolicy.resolve(
             state = mobileState,
-            wifiLevel = wifiLevel,
+            wifiLevel = wifiLevel.takeIf { wifiDefault == true },
             config = CarrierBlockConfig(
                 showNonDataType = showNonDataType,
                 keepTypeOnWifi = keepTypeOnWifi,

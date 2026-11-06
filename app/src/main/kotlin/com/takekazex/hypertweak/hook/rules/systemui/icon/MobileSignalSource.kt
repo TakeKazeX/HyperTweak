@@ -49,6 +49,7 @@ internal class MobileSignalSource(
     private var adapterDiscoveryGeneration = 0L
     private var adapterDiscoveryAttempt = 0
     private val session = MobileSignalSession()
+    private var nativeSignalLevels: Map<Int, Int>? = null
     val signalState get() = session.state
     private data class SubBinding(
         val subId: Int,
@@ -85,6 +86,7 @@ internal class MobileSignalSource(
         pendingBindings.clear()
         factoryViewModelIds = emptySet()
         session.clear()
+        nativeSignalLevels = null
         adapterReference = null
         mobileIconsViewModelReference = null
         adapterDiscoveryGeneration = generation.get()
@@ -309,6 +311,7 @@ internal class MobileSignalSource(
             invokeNoArg(miuiViewModel, "isVisible")
         }
         val signalFlow = originInteractor?.let { invokeNoArg(it, "getSignalLevelIcon") }
+        val displayedSignalFlow = invokeNoArg(miuiViewModel, "getSignalIconId")
         val dataConnectedFlow = originInteractor?.let { invokeNoArg(it, "isDataConnected") }
         val inServiceFlow = originInteractor?.let { invokeNoArg(it, "isInService") }
         val roamingFlow = originInteractor?.let { invokeNoArg(it, "isRoaming") }
@@ -337,6 +340,23 @@ internal class MobileSignalSource(
         val isCurrent = {
             enabled && generation.get() == bindingGeneration &&
                 (bindings[subId]?.miuiViewModel === miuiViewModel || pendingBindings.containsKey(miuiViewModel))
+        }
+        val display = MobileSignalDisplayModel(nativeSignalLevels ?: run {
+            val tables = runCatching {
+                val icons = "com.miui.systemui.statusbar.mobile.TelephonyIcons".toClassOrNull()
+                if (icons == null) emptyList() else listOf(
+                    "TELEPHONY_SIGNAL_STRENGTH", "TELEPHONY_SIGNAL_NO_VOICE_STRENGTH"
+                ).mapNotNull { name -> HostAccess.field(icons, name)?.get(null) as? IntArray }
+            }.getOrDefault(emptyList())
+            MobileSignalDisplayModel.levels(tables).also { nativeSignalLevels = it }
+        })
+        fun updateSignal(update: () -> MobileSignalModel) {
+            if (Looper.myLooper() != Looper.getMainLooper()) {
+                mainHandler.post { updateSignal(update) }
+                return
+            }
+            if (!isCurrent()) return
+            reduceOnMain(MobileSignalEvent.SignalModel(subId, update()), bindingGeneration)
         }
         fun required(flow: Any, consumer: (Any?) -> Unit): Boolean =
             subscriptions.collect(scope, flow, isCurrent, replay = true, consumer = consumer)
@@ -374,10 +394,7 @@ internal class MobileSignalSource(
         // Register the host visibility flow with the same cancellation/generation gate as the
         // signal flows. It remains a Pair so the binder's detail chain keeps its second value.
         val allBound = requiredOriginalVisibility() && required(signalFlow) { value ->
-            reduceOnMain(
-                MobileSignalEvent.SignalModel(subId, parseSignalModel(value)),
-                bindingGeneration
-            )
+            updateSignal { display.model(parseSignalModel(value)) }
         } && required(dataConnectedFlow) { value ->
             reduceOnMain(MobileSignalEvent.DataConnected(subId, value as? Boolean == true), bindingGeneration)
         } && required(inServiceFlow) { value ->
@@ -393,6 +410,11 @@ internal class MobileSignalSource(
             pendingBindings.remove(miuiViewModel)
             DebugLog.w(TAG, "subscription flow set not ready subId=$subId")
             return
+        }
+        // The native binder consumes this same resource-id flow, including carrier-specific
+        // decisions and level inflation. Read indices from the host tables, never fixed IDs.
+        optional(displayedSignalFlow) { value ->
+            updateSignal { display.icon((value as? Number)?.toInt()) }
         }
         optional(networkTypeFlow) { value ->
             reduceOnMain(MobileSignalEvent.NetworkType(subId, value?.toString()), bindingGeneration)

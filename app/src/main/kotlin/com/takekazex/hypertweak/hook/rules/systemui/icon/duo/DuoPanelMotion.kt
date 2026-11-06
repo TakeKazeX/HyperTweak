@@ -45,7 +45,7 @@ internal class DuoPanelMotion(context: Context, private val airplaneOnly: Boolea
     private val matrix = Matrix()
     private val rootMatrix = Matrix()
     private val inverseRoot = Matrix()
-    private var drawKey: List<Any?>? = null
+    private var drawSignature = 0L
     private var sourceKey: List<Any?>? = null
     private val glyph = DuoDrawable(context).apply {
         networkOnly = true
@@ -129,7 +129,13 @@ internal class DuoPanelMotion(context: Context, private val airplaneOnly: Boolea
         glyph.content = rendered
         glyph.foreground = color
         glyph.small5GaEnabled = small5GaEnabled
-        val key = listOf(rendered, color, small5GaEnabled, artwork, artwork?.revision, glyph.mirrorAirplane)
+        val networkFont = if (sourceView == null) runCatching {
+            com.takekazex.hypertweak.hook.rules.systemui.icon.MobileTypeHostMetrics.font(native.context)
+        }.getOrNull() else null
+        glyph.networkTypeface = sourceView?.icon?.networkTypeface ?: networkFont?.typeface
+        glyph.networkFontVariationSettings = sourceView?.icon?.networkFontVariationSettings ?: networkFont?.variationSettings
+        val key = listOf(rendered, color, small5GaEnabled, artwork, artwork?.revision, glyph.mirrorAirplane,
+            glyph.networkTypeface, glyph.networkFontVariationSettings)
         if (sourceKey != key) {
             sourceKey = key
             if (!sourceFrame.capture(128, 128) { canvas ->
@@ -158,9 +164,12 @@ internal class DuoPanelMotion(context: Context, private val airplaneOnly: Boolea
         if (native.alpha != appliedAlpha) native.alpha = appliedAlpha
         layerAlpha = if (p >= 1f) 0 else 255
         layer.setBounds(0, 0, root.width, root.height)
-        val nextKey = listOf(sourceFrame.revision, targetFrame.revision, RectF(from), RectF(to),
-            motionProgress, layerAlpha, frameReady, root.width, root.height)
-        if (drawKey != nextKey) { drawKey = nextKey; layer.invalidateSelf() }
+        var signature = p.hashCode().toLong() * 31 + sourceFrame.revision * 17L +
+            targetFrame.revision * 13L + layerAlpha + (if (frameReady) 1 else 0) +
+            root.width * 131 + root.height
+        signature = signature * 31 + from.hashCode()
+        signature = signature * 31 + to.hashCode()
+        if (drawSignature != signature) { drawSignature = signature; layer.invalidateSelf() }
         return frameReady && !drawFailed
     }
 
@@ -174,7 +183,7 @@ internal class DuoPanelMotion(context: Context, private val airplaneOnly: Boolea
         host = null
         wifiArtwork = null
         sourceKey = null
-        drawKey = null
+        drawSignature = 0L
         frameReady = false
         drawFailed = false
     }

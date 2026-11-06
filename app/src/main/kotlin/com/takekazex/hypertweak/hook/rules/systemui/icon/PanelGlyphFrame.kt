@@ -34,15 +34,29 @@ internal class PanelGlyphFrame {
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val fitted = RectF()
     private var viewKey: List<Any?>? = null
+    private var lastView: View? = null
+    private var lastWidth = 0
+    private var lastHeight = 0
+    private var lastCrop: RectF? = null
     private var peak = 0
     private var rgb = Color.WHITE
     private var solid = false
     private var reportedFailure = false
 
-    fun invalidateView() { viewKey = null }
+    fun invalidateView() { viewKey = null; lastView = null }
 
     fun captureView(view: View, crop: RectF? = null): Boolean {
+        // The panel drag asks for the same endpoints every frame. A plain bitmap ImageView can
+        // only change through its drawable identity/geometry, so skip the key allocation when it
+        // is clean; other views keep the full key comparison.
         val image = view as? ImageView
+        val staticFastPath = image?.javaClass == ImageView::class.java &&
+            image.drawable?.javaClass == BitmapDrawable::class.java &&
+            image.background == null && image.foreground == null
+        if (staticFastPath && view === lastView && view.width == lastWidth &&
+            view.height == lastHeight && viewKey != null && !view.isDirty && crop == lastCrop) {
+            return !ink.isEmpty
+        }
         val drawable = image?.drawable
         val bitmapDrawable = drawable as? BitmapDrawable
         val text = view as? TextView
@@ -57,10 +71,13 @@ internal class PanelGlyphFrame {
         // Drawable tint/paint can mutate in place without changing resource identity.
         // Alpha-masked endpoints can stay dirty indefinitely because their parent skips drawing
         // them. A plain bitmap's generation plus ImageView appearance fully identifies its ink.
-        val staticBitmap = image?.javaClass == ImageView::class.java && drawable?.javaClass == BitmapDrawable::class.java &&
-            image.background == null && image.foreground == null
+        val staticBitmap = staticFastPath
         if (key == viewKey && (staticBitmap || !view.isDirty)) return !ink.isEmpty
         viewKey = key
+        lastView = view
+        lastWidth = view.width
+        lastHeight = view.height
+        lastCrop = crop?.let(::RectF)
         return capture(view.width, view.height, crop) { view.draw(it) }
     }
 

@@ -1,6 +1,5 @@
 package com.takekazex.hypertweak.ui.page.camera
 
-import com.takekazex.hypertweak.ui.components.dialog.LocalRestartScopeRequest
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import androidx.compose.foundation.layout.Column
@@ -19,7 +18,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.ui.app.LocalAppSettingsStore
-import com.takekazex.hypertweak.util.restart.RestartScopeSelection
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.preference.SwitchPreference
@@ -43,7 +41,6 @@ fun WatermarkUnlockContent(
     bottomPadding: Dp
 ) {
     val settingsStore = LocalAppSettingsStore.current
-    val requestRestartScopes = LocalRestartScopeRequest.current
 
     // Local remember-backed state so the switches update instantly; the remote preference write is
     // async and reading Preferences directly in composition made them bounce back.
@@ -98,13 +95,6 @@ fun WatermarkUnlockContent(
                     checked = master,
                     onCheckedChange = { enabled ->
                         master = enabled
-                        requestRestartScopes(
-                            RestartScopeSelection(
-                                additionalPackages = setOf(
-                                    RestartScopeSelection.PACKAGE_MEDIA_EDITOR
-                                )
-                            )
-                        )
                         set(PlatformSettingsKeys.KEY_WM_UNLOCK_MASTER, enabled)
                     },
                     title = stringResource(R.string.watermark_master_title),

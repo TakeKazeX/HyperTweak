@@ -41,7 +41,9 @@ internal class DuoStatusIconsMotion {
     private val masks = java.util.IdentityHashMap<View, Alpha>()
     private val entries = LinkedHashMap<String, Entry>()
     private var progress = 0f
-    private var drawKey: List<Any?>? = null
+    private var drawSignature = 0L
+    private val usedSlots = HashSet<String>()
+    private val usedViews = java.util.Collections.newSetFromMap(java.util.IdentityHashMap<View, Boolean>())
     private var failed = false
     private var reportedFailure = false
     private val matrix = Matrix()
@@ -84,8 +86,8 @@ internal class DuoStatusIconsMotion {
         val sourceSlots = slots(home)
         val fakeSlots = slots(proxy)
         val targetSlots = slots(expanded)
-        val usedSlots = HashSet<String>()
-        val usedViews = java.util.Collections.newSetFromMap(java.util.IdentityHashMap<View, Boolean>())
+        usedSlots.clear()
+        usedViews.clear()
         (fakeSlots.keys + targetSlots.keys).forEach { slot ->
             if (slot in excludedSlots) return@forEach
             val source = sourceSlots[slot]
@@ -122,11 +124,16 @@ internal class DuoStatusIconsMotion {
         entries.keys.retainAll(usedSlots)
         masks.keys.toList().filter { it !in usedViews }.forEach(::release)
         layer.setBounds(0, 0, root.width, root.height)
-        val nextKey = listOf(progress, root.width, root.height, entries.map { (slot, entry) ->
-            listOf(slot, entry.source.revision, entry.target.revision, entry.hasSource, entry.hasTarget,
-                RectF(entry.from), RectF(entry.to), entry.opacity)
-        })
-        if (drawKey != nextKey) { drawKey = nextKey; layer.invalidateSelf() }
+        // A drag changes progress every frame; the signatures only suppress redundant frames.
+        var signature = progress.hashCode().toLong() * 31 + root.width * 131 + root.height
+        entries.forEach { (slot, entry) ->
+            signature = signature * 31 + slot.hashCode() + entry.source.revision * 17L +
+                entry.target.revision * 13L + (if (entry.hasSource) 3 else 0) +
+                (if (entry.hasTarget) 5 else 0) + entry.opacity.hashCode()
+            signature = signature * 31 + entry.from.hashCode()
+            signature = signature * 31 + entry.to.hashCode()
+        }
+        if (drawSignature != signature) { drawSignature = signature; layer.invalidateSelf() }
     }
 
     private fun bounds(view: View, ink: RectF, out: RectF) {
@@ -140,22 +147,31 @@ internal class DuoStatusIconsMotion {
     private fun restoreMasks() { masks.keys.toList().forEach(::release) }
     fun clear() {
         restoreMasks(); host?.overlay?.remove(layer)
-        host = null; ownership = null; entries.clear(); failed = false; drawKey = null
+        host = null; ownership = null; entries.clear(); failed = false; drawSignature = 0L
+        usedSlots.clear(); usedViews.clear()
     }
 
     companion object {
         private val separate = setOf("airplane", "mobile", "stacked_mobile", "wifi", "demo_wifi", "battery",
             "stacked_mobile_icon", "stacked_mobile_type", "single_mobile_sim1", "single_mobile_sim2")
         /** Match identities, never child indices: layouts, ignored slots and overflow differ by row. */
+        // Slot identity is fixed for a view instance; the reflective read is the hot cost.
+        private val slotCache = java.util.WeakHashMap<View, String>()
+        private fun slotOf(view: View): String? {
+            synchronized(slotCache) { slotCache[view]?.let { return it.ifEmpty { null } } }
+            val slot = (HostAccess.read(view, "mSlot") as? String) ?: runCatching {
+                HostAccess.publicMethod(view.javaClass, "getSlot", accessible = false)?.takeIf {
+                    it.returnType == String::class.java
+                }?.invoke(view) as? String
+            }.getOrNull()
+            if (slot != null) synchronized(slotCache) { slotCache[view] = slot }
+            return slot
+        }
         fun slots(container: View): Map<String, View> {
             val candidates = LinkedHashMap<String, MutableList<View>>()
             fun visit(view: View) {
                 if (view.visibility != View.VISIBLE) return
-                val slot = (HostAccess.read(view, "mSlot") as? String) ?: runCatching {
-                    HostAccess.publicMethod(view.javaClass, "getSlot", accessible = false)?.takeIf {
-                        it.returnType == String::class.java
-                    }?.invoke(view) as? String
-                }.getOrNull()
+                val slot = slotOf(view)
                 if (slot != null) {
                     if (slot !in separate && view.width > 0 && view.height > 0)
                         candidates.getOrPut(slot) { ArrayList() }.add(view)

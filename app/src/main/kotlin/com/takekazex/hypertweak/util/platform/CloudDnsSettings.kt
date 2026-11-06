@@ -6,6 +6,9 @@ import com.takekazex.hypertweak.settings.contract.SettingsValues
 import com.takekazex.hypertweak.settings.contract.SmartDnsCloudKeys
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /**
  * Reads and applies MIUI's cloud-controlled SmartDNS settings.
@@ -15,6 +18,7 @@ import kotlinx.coroutines.withContext
  * those properties directly would be overwritten on the next cloud refresh.
  */
 internal object CloudDnsSettings {
+    private val mutex = Mutex()
     const val MODE_DEFAULT = SmartDnsCloudKeys.MODE_DEFAULT
     const val MODE_ON = SmartDnsCloudKeys.MODE_ON
     const val MODE_OFF = SmartDnsCloudKeys.MODE_OFF
@@ -94,7 +98,63 @@ internal object CloudDnsSettings {
         )
     }
 
-    suspend fun setSmartDnsModes(
+    suspend fun setSmartDnsModes(context: Context, store: SettingsValues,
+        smartDnsMode: Int, ipv4FirstMode: Int): Boolean = mutex.withLock {
+        setSmartDnsModesLocked(context, store, smartDnsMode, ipv4FirstMode)
+    }
+
+    suspend fun setHappyEyeballsMode(context: Context, store: SettingsValues, mode: Int): Boolean =
+        mutex.withLock { setHappyEyeballsModeLocked(context, store, mode) }
+
+    /** Restore device state before discarding its non-portable baselines. Failures retain them. */
+    fun <T> replaceSettingsBlocking(context: Context, store: SettingsValues, replace: () -> T): T =
+        runBlocking(Dispatchers.IO) { mutex.withLock {
+            // Do not clear captures/modes until the settings replacement is acknowledged.
+            val previousSmart = readMode(store, KEY_SMARTDNS_MODE)
+            val previousIpv4 = readMode(store, KEY_IPV4_FIRST_MODE)
+            val previousHappy = readMode(store, KEY_HAPPY_EYEBALLS_MODE)
+            suspend fun replayPrevious() {
+                check(setSmartDnsModesLocked(context, store, previousSmart, previousIpv4))
+                check(setHappyEyeballsModeLocked(context, store, previousHappy))
+                store.flush()
+            }
+            try {
+                readSmartDnsBaseline(store)?.let { baseline ->
+                    check(restoreSmartDnsBaseline(context, baseline)) {
+                        "Unable to restore SmartDNS before replacing settings"
+                    }
+                }
+                if (store.getBoolean(KEY_HAPPY_BASELINE_CAPTURED, false)) {
+                    check(restoreHappyBaseline(context, store)) {
+                        "Unable to restore Happy Eyeballs before replacing settings"
+                    }
+                }
+            } catch (error: Exception) {
+                runCatching { replayPrevious() }.exceptionOrNull()?.let(error::addSuppressed)
+                throw error
+            }
+            val result = try { replace() } catch (error: Exception) {
+                runCatching { replayPrevious() }.exceptionOrNull()?.let(error::addSuppressed)
+                throw error
+            }
+            if (result == false) {
+                replayPrevious()
+                return@withLock result
+            }
+            // Baselines belong to this device, never to an imported backup. The original
+            // values are now restored; recapture those values if the backup requests overrides.
+            clearSmartDnsBaseline(store)
+            clearHappyBaseline(store)
+            check(setSmartDnsModesLocked(context, store, readMode(store, KEY_SMARTDNS_MODE),
+                readMode(store, KEY_IPV4_FIRST_MODE))) { "Unable to apply restored SmartDNS settings" }
+            check(setHappyEyeballsModeLocked(context, store, readMode(store, KEY_HAPPY_EYEBALLS_MODE))) {
+                "Unable to apply restored Happy Eyeballs settings"
+            }
+            store.flush()
+            result
+        } }
+
+    private suspend fun setSmartDnsModesLocked(
         context: Context,
         store: SettingsValues,
         smartDnsMode: Int,
@@ -118,6 +178,7 @@ internal object CloudDnsSettings {
         }
 
         captureSmartDnsBaseline(context, store)
+        store.flush()
         val baseline = readSmartDnsBaseline(store) ?: return@withContext false
         val value = buildSmartDnsValue(baseline.v2, baseline.v1, smartMode, ipv4Mode)
         val success = writeSetting(context, value.key, value.value)
@@ -125,7 +186,7 @@ internal object CloudDnsSettings {
         success
     }
 
-    suspend fun setHappyEyeballsMode(
+    private suspend fun setHappyEyeballsModeLocked(
         context: Context,
         store: SettingsValues,
         mode: Int,
@@ -136,13 +197,7 @@ internal object CloudDnsSettings {
                 store.putInt(KEY_HAPPY_EYEBALLS_MODE, normalized)
                 return@withContext true
             }
-            val present = store.getBoolean(KEY_HAPPY_BASELINE_PRESENT, false)
-            val original = store.getString(KEY_HAPPY_BASELINE, "")
-            val success = if (present) {
-                writeSetting(context, KEY_HAPPY_EYEBALLS, original)
-            } else {
-                deleteSetting(context, KEY_HAPPY_EYEBALLS)
-            }
+            val success = restoreHappyBaseline(context, store)
             if (success) {
                 clearHappyBaseline(store)
                 store.putInt(KEY_HAPPY_EYEBALLS_MODE, normalized)
@@ -151,6 +206,7 @@ internal object CloudDnsSettings {
         }
 
         captureHappyBaseline(context, store)
+        store.flush()
         val success = writeSetting(
             context,
             KEY_HAPPY_EYEBALLS,
@@ -162,7 +218,7 @@ internal object CloudDnsSettings {
 
     /** Re-applies a non-default SmartDNS mode if MIUI's cloud value changed underneath it. */
     suspend fun reconcileSmartDns(context: Context, store: SettingsValues): Boolean =
-        withContext(Dispatchers.IO) {
+        mutex.withLock { withContext(Dispatchers.IO) {
             val smartMode = readMode(store, KEY_SMARTDNS_MODE)
             val ipv4Mode = if (smartMode == MODE_OFF) MODE_OFF else readMode(store, KEY_IPV4_FIRST_MODE)
             if (smartMode == MODE_DEFAULT && ipv4Mode == MODE_DEFAULT) return@withContext true
@@ -170,17 +226,17 @@ internal object CloudDnsSettings {
             val value = buildSmartDnsValue(baseline.v2, baseline.v1, smartMode, ipv4Mode)
             if (readString(context, value.key) == value.value) return@withContext true
             writeSetting(context, value.key, value.value)
-        }
+        } }
 
     /** Re-applies a non-default Happy Eyeballs mode after a cloud refresh. */
     suspend fun reconcileHappyEyeballs(context: Context, store: SettingsValues): Boolean =
-        withContext(Dispatchers.IO) {
+        mutex.withLock { withContext(Dispatchers.IO) {
             val mode = readMode(store, KEY_HAPPY_EYEBALLS_MODE)
             if (mode == MODE_DEFAULT) return@withContext true
             val desired = if (mode == MODE_ON) "on" else "off"
             if (readString(context, KEY_HAPPY_EYEBALLS) == desired) return@withContext true
             writeSetting(context, KEY_HAPPY_EYEBALLS, desired)
-        }
+        } }
 
     internal fun buildSmartDnsValue(
         baselineV2: String?,
@@ -253,11 +309,17 @@ internal object CloudDnsSettings {
     }
 
     private suspend fun restoreSmartDnsBaseline(context: Context, baseline: SmartDnsBaseline): Boolean =
-        when {
-            baseline.v2 != null -> writeSetting(context, KEY_SMARTDNS_V2, baseline.v2)
-            baseline.v1 != null -> writeSetting(context, KEY_SMARTDNS_V1, baseline.v1)
-            else -> deleteSetting(context, KEY_SMARTDNS_V2)
+        restoreBaseline(baseline) { key, value ->
+            if (value == null) deleteSetting(context, key) else writeSetting(context, key, value)
         }
+
+    internal suspend fun restoreBaseline(baseline: SmartDnsBaseline,
+        write: suspend (String, String?) -> Boolean): Boolean {
+        // Empty v2 can make v1 the active override; both keys must be restored exactly.
+        val v2 = write(KEY_SMARTDNS_V2, baseline.v2)
+        val v1 = write(KEY_SMARTDNS_V1, baseline.v1)
+        return v2 && v1
+    }
 
     private fun clearSmartDnsBaseline(store: SettingsValues) {
         store.putBoolean(KEY_SMARTDNS_BASELINE_CAPTURED, false)
@@ -275,6 +337,11 @@ internal object CloudDnsSettings {
         store.putBoolean(KEY_HAPPY_BASELINE_CAPTURED, true)
     }
 
+    private suspend fun restoreHappyBaseline(context: Context, store: SettingsValues): Boolean =
+        if (store.getBoolean(KEY_HAPPY_BASELINE_PRESENT, false)) {
+            writeSetting(context, KEY_HAPPY_EYEBALLS, store.getString(KEY_HAPPY_BASELINE, ""))
+        } else deleteSetting(context, KEY_HAPPY_EYEBALLS)
+
     private fun clearHappyBaseline(store: SettingsValues) {
         store.putBoolean(KEY_HAPPY_BASELINE_CAPTURED, false)
         store.putBoolean(KEY_HAPPY_BASELINE_PRESENT, false)
@@ -282,7 +349,7 @@ internal object CloudDnsSettings {
     }
 
     private fun readString(context: Context, key: String): String? =
-        runCatching { Settings.System.getString(context.contentResolver, key) }.getOrNull()
+        Settings.System.getString(context.contentResolver, key)
 
     private fun readPropertyBoolean(name: String): Boolean? = runCatching {
         val properties = Class.forName("android.os.SystemProperties")
@@ -300,9 +367,10 @@ internal object CloudDnsSettings {
             val direct = runCatching {
                 Settings.System.putString(context.contentResolver, key, value)
             }.getOrDefault(false)
-            if (direct) return@withContext true
+            if (direct && readString(context, key) == value) return@withContext true
             runCatching {
-                NativeRootCommand.run("settings put system $key ${NativeRootCommand.quote(value)}")
+                NativeRootCommand.run("settings --user ${android.os.Process.myUid() / 100000} put system $key ${NativeRootCommand.quote(value)}")
+                check(readString(context, key) == value) { "Settings readback did not match" }
             }.isSuccess
         }
 
@@ -312,9 +380,10 @@ internal object CloudDnsSettings {
             val direct = runCatching {
                 Settings.System.putString(context.contentResolver, key, null)
             }.getOrDefault(false)
-            if (direct) return@withContext true
+            if (direct && readString(context, key) == null) return@withContext true
             runCatching {
-                NativeRootCommand.run("settings delete system $key")
+                NativeRootCommand.run("settings --user ${android.os.Process.myUid() / 100000} delete system $key")
+                check(readString(context, key) == null) { "Settings deletion did not persist" }
             }.isSuccess
         }
 }

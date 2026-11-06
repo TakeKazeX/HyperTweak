@@ -89,6 +89,26 @@ object NotificationWhitelistBypassHooker : StaticHooker() {
                     val allowed = canFloat.invoke(manager, context, pkg, sbn.notification.channelId) as? Boolean ?: return@boundary
                     cachedFloat.setBoolean(sbn, allowed)
                 } }
+                // The getter ANDs mCanFloat with the notification's MIUI default
+                // (extraNotification.isEnableFloat). A newly permitted app has no explicit extra,
+                // so that default keeps hiding the banner even after the cached field is healed.
+                // Override only the fallback: an explicit miui.enableFloat=false is the app's own
+                // opt-out and is preserved.
+                after { param -> boundary("expanded permission") {
+                    if (!enabled || retired || param.result == true) return@boundary
+                    val sbn = param.thisObject as? StatusBarNotification ?: return@boundary
+                    val extras = sbn.notification.extras
+                    if (extras != null && extras.containsKey("miui.enableFloat") &&
+                        !extras.getBoolean("miui.enableFloat", true)) return@boundary
+                    val context = userContext.invoke(null) as? Context ?: return@boundary
+                    if (sbn.user != android.os.Process.myUserHandle() ||
+                        contextUserId.invoke(context) != android.os.Process.myUid() / 100000) return@boundary
+                    val pkg = effectivePackage.get(sbn) as? String ?: return@boundary
+                    val manager = singleton.get(null) ?: return@boundary
+                    if (canFloat.invoke(manager, context, pkg, sbn.notification.channelId) == true) {
+                        param.result = true
+                    }
+                } }
             }
             DebugLog.i(TAG, "HOOK_OK native float whitelist switch enabled=$enabled")
         }

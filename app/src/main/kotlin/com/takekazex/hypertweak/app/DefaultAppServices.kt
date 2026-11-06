@@ -26,6 +26,11 @@ internal object DefaultAppServices : AppServicePorts {
         rememberDisabled = { disabled ->
             PreferencesAppSettings.putBoolean(PlatformSettingsKeys.KEY_SYSTEM_HELPER_DISABLED, disabled)
             PreferencesAppSettings.putBoolean(PlatformSettingsKeys.KEY_SYSTEM_HELPER_MANAGED, true)
+        },
+        desiredDisabled = {
+            if (PreferencesAppSettings.getBoolean(PlatformSettingsKeys.KEY_SYSTEM_HELPER_MANAGED, false))
+                PreferencesAppSettings.getBoolean(PlatformSettingsKeys.KEY_SYSTEM_HELPER_DISABLED, false)
+            else null
         }
     )
     override val module: ModuleServicePort = XposedServiceManager

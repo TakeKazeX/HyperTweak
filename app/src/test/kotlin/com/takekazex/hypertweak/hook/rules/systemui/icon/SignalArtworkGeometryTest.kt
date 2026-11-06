@@ -78,6 +78,10 @@ class SignalArtworkGeometryTest {
                     val row = attrs.getNamedItem("id").nodeValue.split("_")[1].toInt()
                     assertTrue(b.left-half > 0 && b.right+half < box[2])
                     assertTrue(b.top-half > 0 && b.bottom+half < box[3])
+                    // Production now renders at 1.2x inside a CENTER-aligned native slot.
+                    // Even the maximum weight must leave both vertical edges unclipped.
+                    assertTrue((b.top - half - box[3] / 2) * 1.2 + box[3] / 2 > 0)
+                    assertTrue((b.bottom + half - box[3] / 2) * 1.2 + box[3] / 2 < box[3])
                     if (row == 1) assertTrue("$family top row crosses crop", b.bottom+half < split)
                     else assertTrue("$family bottom row crosses crop", b.top-half > split)
                     rows.getOrPut(row) { mutableListOf() } += b

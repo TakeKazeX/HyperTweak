@@ -34,6 +34,7 @@ public final class DuoRenderProbe {
         Context context = system.createPackageContext("com.takekazex.hypertweak", Context.CONTEXT_IGNORE_SECURITY);
         ClassLoader cl = new PathClassLoader(args[0], ClassLoader.getSystemClassLoader().getParent());
         MobileTypeTypographyProbe.run(context, cl);
+        MobileSignalHostProbe.run(context, cl);
         Class<?> drawableType = cl.loadClass(P + "DuoDrawable");
         Class<?> layerType = cl.loadClass(P + "DuoRenderLayer");
         Object layer = Enum.valueOf((Class) layerType, "COMPOSITE");

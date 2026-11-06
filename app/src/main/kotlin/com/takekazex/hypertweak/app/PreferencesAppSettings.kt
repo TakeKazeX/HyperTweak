@@ -14,6 +14,12 @@ import com.takekazex.hypertweak.settings.contract.PowerSaveSettings
 
 /** Binds the app store to the sole runtime storage and migration owner. */
 internal object PreferencesAppSettings : AppSettingsStore {
+    private lateinit var applicationContext: android.content.Context
+    fun bind(context: android.content.Context) { applicationContext = context.applicationContext ?: context }
+
+    private fun <T> replaceDeviceSettings(replace: () -> T): T =
+        com.takekazex.hypertweak.util.platform.CloudDnsSettings.replaceSettingsBlocking(applicationContext, this, replace)
+
     override fun getBoolean(key: String, defaultValue: Boolean): Boolean = Preferences.getBoolean(key, defaultValue)
     override fun getInt(key: String, defaultValue: Int): Int = Preferences.getInt(key, defaultValue)
     override fun getFloat(key: String, defaultValue: Float): Float = Preferences.getFloat(key, defaultValue)
@@ -27,9 +33,17 @@ internal object PreferencesAppSettings : AppSettingsStore {
     override fun putStringSet(key: String, value: Set<String>): Unit = Preferences.putStringSet(key, value)
     override fun contains(key: String): Boolean = Preferences.contains(key)
     override val backup = object : BackupSettings {
-        override fun clearAllSettings(): Boolean = Preferences.clearAllSettings()
+        override fun clearAllSettings(): Boolean = runCatching {
+            replaceDeviceSettings { Preferences.clearAllSettings() }
+        }.getOrElse {
+            com.takekazex.hypertweak.util.logging.DebugLog.w("Settings", "device settings reset failed", it)
+            false
+        }
         override fun exportSettings(): String = Preferences.exportSettings()
-        override fun restoreSettings(json: String): Int = Preferences.restoreSettings(json)
+        override fun restoreSettings(json: String): Int {
+            com.takekazex.hypertweak.hook.preferences.SettingsBackupCodec.decode(json)
+            return replaceDeviceSettings { Preferences.restoreSettings(json) }
+        }
         override fun settingsEpochForUi(): Long? = Preferences.settingsEpochForUi()
     }
 

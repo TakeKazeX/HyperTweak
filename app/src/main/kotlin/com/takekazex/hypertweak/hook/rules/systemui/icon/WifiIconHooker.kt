@@ -134,22 +134,21 @@ object WifiIconHooker : StaticHooker() {
         activityRight = settingIconWifiActivityRight
         hookActivityDirection()
         hookAccessoryLayout()
-        if (!hideActivity && !hideType && !hideUnavailable && standardMode == 0 &&
-            !paddingEnabled && !activityRight
-        ) {
-            DebugLog.hookSkippedDebug(TAG, "WifiIcon", "no icon tuner wifi switches enabled")
-            return
-        }
 
-        // 1. Substitute a connected Wi-Fi model with the Hidden icon model. This preserves the
-        // host's unavailable/no-internet branches and only hides an Active model.
-        if (hideUnavailable) {
+        // The verified OS4 factory receives isWifiDefault as its third boolean.
+        // Keep the host flow intact so a route change immediately restores/hides the icon.
+        run {
             val companionClass = "$WIFI_ICON_CLASS\$Companion".toClassOrNull()
             val activeClass = ACTIVE_CLASS.toClassOrNull()
             val hiddenInstance = runCatching {
                 HIDDEN_CLASS.toClass().cachedPublicField("INSTANCE", accessible = false).get(null)
             }.getOrNull()
-            val fromModel = companionClass?.findMethodOrNull { name("fromModel") }
+            val fromModel = companionClass?.declaredMethods?.singleOrNull {
+                it.name == "fromModel" && it.returnType.name == WIFI_ICON_CLASS &&
+                    it.parameterTypes.map(Class<*>::getName) == listOf(
+                        "com.android.systemui.statusbar.pipeline.wifi.shared.model.WifiNetworkModel",
+                        "android.content.Context", "boolean", "boolean", "boolean", "int")
+            }
             if (fromModel == null || activeClass == null || hiddenInstance == null) {
                 DebugLog.hookSkipped(
                     TAG,
@@ -157,12 +156,22 @@ object WifiIconHooker : StaticHooker() {
                     "method/class/INSTANCE not found"
                 )
             } else {
+                // ART may inline this static factory into its flow transform/default wrapper.
+                // Deoptimize the verified callers too, so an already-running VM uses the hook.
+                companionClass.declaredMethods.filter { it.name == "fromModel\$default" }
+                    .forEach { deoptimize(it) }
+                "com.android.systemui.statusbar.pipeline.wifi.ui.viewmodel.WifiViewModelInject\$wifiIcon\$2"
+                    .toClassOrNull()?.declaredMethods?.singleOrNull {
+                        it.name == "invokeSuspend" && it.returnType == Any::class.java &&
+                            it.parameterTypes.contentEquals(arrayOf(Any::class.java))
+                    }?.let { deoptimize(it) }
+                deoptimize(fromModel)
                 fromModel.hook {
                     before { param ->
                         val model = param.args.getOrNull(0)
-                        val showUnavailable = param.args.getOrNull(4)
-                        val noFlag = showUnavailable !is Boolean || !showUnavailable
-                        if (activeClass.isInstance(model) && noFlag) param.result = hiddenInstance
+                        if (!retired && WifiRoutePolicy.hide(
+                                activeClass.isInstance(model), param.args.getOrNull(4) as? Boolean, hideUnavailable
+                            )) param.result = hiddenInstance
                     }
                 }
             }

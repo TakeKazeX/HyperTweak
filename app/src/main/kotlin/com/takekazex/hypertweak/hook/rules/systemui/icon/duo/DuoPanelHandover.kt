@@ -66,6 +66,24 @@ internal class DuoPanelHandover(private val host: Host) {
     private val inversePanelMatrix = Matrix()
     private val panelPoint = FloatArray(2)
 
+    /**
+     * Home/expanded endpoints are stable for one shade gesture. Resolving them on every expansion
+     * callback walked the whole status-icon tree (including reflective slot reads) at frame rate.
+     */
+    private class PanelResolution(
+        val home: DuoBinding,
+        val expanded: DuoBinding,
+        val proxyRoot: View,
+        val expandedRoot: View
+    ) {
+        fun valid(binding: DuoBinding): Boolean =
+            home.active && home.view.isAttachedToWindow &&
+                expanded.battery.isAttachedToWindow && expanded.parent.rootView === binding.parent.rootView &&
+                proxyRoot.isAttachedToWindow && expandedRoot.isAttachedToWindow &&
+                home.view.display?.displayId == binding.view.display?.displayId
+    }
+    private val resolutions = java.util.WeakHashMap<DuoBinding, PanelResolution>()
+
     private fun screenAnchor(view: View): DuoPanelPoint {
         panelMatrix.reset()
         view.transformMatrixToGlobal(panelMatrix)
@@ -247,6 +265,9 @@ internal class DuoPanelHandover(private val host: Host) {
         }
     }
 
+    /** The next gesture resolves its endpoints from the current host tree. */
+    fun clearResolutions() = resolutions.clear()
+
     fun clearPanelMotion(binding: DuoBinding) {
         binding.statusIconsMotion.clear()
         binding.powerMotion.clear()
@@ -270,21 +291,33 @@ internal class DuoPanelHandover(private val host: Host) {
         // The host just switched between full shade pages. A later expansion=1 callback must not
         // start the six-frame home-to-carrier settle from the cleared proxy's progress=0.
         if (host.shadeSwitchSettledToControlCenter && host.panelProgress >= 0.999f) return
-        if (!binding.active || !host.panelVisible) { clearPosition(); return }
-        val proxyRoot = ancestor(binding.view,
-            "com.android.systemui.controlcenter.phone.widget.ControlCenterFakeStatusIcons")
-            ?: run { clearPosition(); return }
-        val home = host.bindings().firstOrNull { it.active && it.surface == DuoSurface.HOME &&
-            it.view.isLaidOut && it.view.display?.displayId == binding.view.display?.displayId }
-        val expanded = host.bindings().firstOrNull { it.surface == DuoSurface.EXPANDED &&
-            it.parent.rootView === binding.parent.rootView && ancestor(it.battery,
-                "com.android.systemui.controlcenter.phone.widget.ControlCenterStatusBarIcon") != null }
-        if (home == null || expanded == null || binding.view.width <= 0) { clearPosition(); return }
+        if (!binding.active || !host.panelVisible) {
+            resolutions.remove(binding)
+            clearPosition(); return
+        }
+        if (binding.view.width <= 0) { clearPosition(); return }
+        val resolved = resolutions[binding]?.takeIf { it.valid(binding) } ?: run {
+            val proxyRoot = ancestor(binding.view,
+                "com.android.systemui.controlcenter.phone.widget.ControlCenterFakeStatusIcons")
+                ?: run { clearPosition(); return }
+            val home = host.bindings().firstOrNull { it.active && it.surface == DuoSurface.HOME &&
+                it.view.isLaidOut && it.view.display?.displayId == binding.view.display?.displayId }
+            val expanded = host.bindings().firstOrNull { it.surface == DuoSurface.EXPANDED &&
+                it.parent.rootView === binding.parent.rootView && ancestor(it.battery,
+                    "com.android.systemui.controlcenter.phone.widget.ControlCenterStatusBarIcon") != null }
+            if (home == null || expanded == null) { clearPosition(); return }
+            val probe = if (expanded.active) expanded.view else expanded.battery
+            val expandedRoot = ancestor(probe,
+                "com.android.systemui.controlcenter.phone.widget.ControlCenterStatusBarIcon")
+                ?: run { clearPosition(); return }
+            PanelResolution(home, expanded, proxyRoot, expandedRoot).also { resolutions[binding] = it }
+        }
+        val proxyRoot = resolved.proxyRoot
+        val home = resolved.home
+        val expanded = resolved.expanded
+        val expandedRoot = resolved.expandedRoot
         val target = if (expanded.active) expanded.view else expanded.battery
         if (!target.isLaidOut || target.width <= 0) { clearPosition(); return }
-        val expandedRoot = ancestor(target,
-            "com.android.systemui.controlcenter.phone.widget.ControlCenterStatusBarIcon")
-            ?: run { clearPosition(); return }
         if (binding.panelArrival.settled) {
             // A temporary header endpoint (for example while brightness hides the backdrop)
             // must neither move the proxy home nor replay its Wi-Fi/signal overlays.
@@ -447,7 +480,7 @@ internal class DuoPanelHandover(private val host: Host) {
         for (i in 0 until group.childCount) {
             val child = group.getChildAt(i)
             if (child.isVisible && read(child, "subId") == host.mobile.activeDataSubId)
-                return byId(child, "mobile_type")
+                return byId(child, "mobile_type_single") ?: byId(child, "mobile_type")
         }
         return null
     }

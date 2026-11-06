@@ -15,6 +15,19 @@ import com.takekazex.hypertweak.ui.page.platform.PurificationAppPage
 import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 
+/** Bottom-bar switches; every entry hides one host tab and defaults off. */
+private val tabSwitches = listOf(
+    Triple(Keys.KEY_MARKET_HIDE_TAB_HOME, R.string.market_tab_home, R.string.market_tab_home_summary),
+    Triple(Keys.KEY_MARKET_HIDE_TAB_GAME, R.string.market_tab_game, R.string.market_tab_game_summary),
+    Triple(Keys.KEY_MARKET_HIDE_TAB_RANK, R.string.market_tab_rank, R.string.market_tab_rank_summary),
+    Triple(Keys.KEY_MARKET_HIDE_TAB_SOFTWARE, R.string.market_tab_software, R.string.market_tab_software_summary),
+    Triple(Keys.KEY_MARKET_HIDE_TAB_AGENT, R.string.market_tab_agent, R.string.market_tab_agent_summary),
+    Triple(Keys.KEY_MARKET_HIDE_TAB_ASSEMBLE, R.string.market_tab_assemble, R.string.market_tab_assemble_summary),
+    Triple(Keys.KEY_MARKET_HIDE_TAB_QUICK_GAME, R.string.market_tab_quick_game, R.string.market_tab_quick_game_summary),
+    Triple(Keys.KEY_MARKET_HIDE_TAB_SHORT_PLAY, R.string.market_tab_short_play, R.string.market_tab_short_play_summary),
+    Triple(Keys.KEY_MARKET_HIDE_TAB_MINE, R.string.market_tab_mine, R.string.market_tab_mine_summary),
+)
+
 @Composable
 internal fun MarketPage(onBack: () -> Unit) {
     PurificationAppPage(stringResource(R.string.market_title), Keys.PACKAGE, onBack) {
@@ -55,6 +68,19 @@ internal fun MarketPage(onBack: () -> Unit) {
                 SwitchPreference(checked = values[Keys.KEY_MARKET_MARKETING_ICON] == true,
                     onCheckedChange = { store.putBoolean(Keys.KEY_MARKET_MARKETING_ICON, it); values = values + (Keys.KEY_MARKET_MARKETING_ICON to it) },
                     title = stringResource(R.string.market_marketing_icon), summary = stringResource(R.string.market_marketing_icon_summary))
+            }
+        }
+        SmallTitle(stringResource(R.string.market_tabs))
+        Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+            Column {
+                tabSwitches.forEach { (key, title, summary) ->
+                    SwitchPreference(
+                        checked = values[key] == true,
+                        onCheckedChange = { checked -> store.putBoolean(key, checked); values = values + (key to checked) },
+                        title = stringResource(title),
+                        summary = stringResource(summary),
+                    )
+                }
             }
         }
         SmallTitle(stringResource(R.string.market_live_summary))

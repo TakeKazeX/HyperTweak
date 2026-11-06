@@ -5,6 +5,8 @@ import androidx.core.content.edit
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.XposedServiceManager
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /** App-owned service/reinstall reconciliation; Compose only observes the returned activation. */
 internal class AppActivationCoordinator(
@@ -14,7 +16,7 @@ internal class AppActivationCoordinator(
     private val settings: Settings = object : Settings {
         override val initialized get() = Preferences.isInitialized
         override fun hasRemoteConfig() = Preferences.hasRemoteConfig()
-        override fun clear() = Preferences.clearAllSettings()
+        override fun clear() = PreferencesAppSettings.backup.clearAllSettings()
     },
     private val serviceAvailable: () -> Boolean = { XposedServiceManager.currentService != null },
     private val awaitService: suspend () -> Unit = { delay(500) },
@@ -36,7 +38,7 @@ internal class AppActivationCoordinator(
         if (moduleActive() || connected) {
             // Check before writing LAST_ACTIVE: its absence is the evidence of a fresh data dir.
             // A rejected reset must keep that evidence for the next bind or app launch.
-            if (ensureFreshInstallReset()) local.edit { putBoolean(LAST_ACTIVE, true) }
+            if (withContext(Dispatchers.IO) { ensureFreshInstallReset() }) local.edit { putBoolean(LAST_ACTIVE, true) }
             reload()
             refreshTargets()
             return true

@@ -114,7 +114,8 @@ class HookEntry : XposedModule() {
                     header = { systemUiSettings.applyHeaderSettings(it) },
                     notificationText = { systemUiSettings.applyNotificationTextSettings(it) },
                     hookers = { rootHookers.toList() },
-                    retired = { generationRetired }
+                    retired = { generationRetired },
+                    ime = { refreshImeSettings() }
                 )
             )
         }
@@ -890,6 +891,21 @@ class HookEntry : XposedModule() {
         } finally {
             sharedSession?.close()
         }
+    }
+
+    /** A scoped process may have started before the keyboard was selected. */
+    private fun refreshImeSettings(): Boolean {
+        val ime = com.takekazex.hypertweak.hook.rules.ime.AospImeHooker
+        if (ime !in rootHookers) {
+            val state = packageStates.values.firstOrNull {
+                com.takekazex.hypertweak.hook.rules.ime.AospImeConfig.shouldHookImePackage(it.packageName)
+            } ?: return true
+            attachHooker(ime, state.classLoader, ModuleContext(
+                processName, state.packageName, false, state.isFirstPackage,
+                state.isPackageReady, state.appInfo, state.appContext
+            ))
+        }
+        return ime.refreshSettings()
     }
 
     private fun attachHooker(

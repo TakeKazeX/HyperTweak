@@ -32,7 +32,6 @@ import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.hook.rules.aod.AodIconSettings
 import com.takekazex.hypertweak.hook.rules.systemui.icon.carrier.ControlCenterCarrierBlockHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IconPositionHooker
-import com.takekazex.hypertweak.presentation.icon.IconSvgRenderer
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IconTunerFlows
 import com.takekazex.hypertweak.presentation.icon.MobileSignalState
 import com.takekazex.hypertweak.hook.rules.systemui.icon.SignalHandoverEvents
@@ -104,7 +103,7 @@ object DuoSignalHooker : StaticHooker() {
         override fun rowMorph(context: Context, row: Int, rows: Int) = signalArtwork.rowMorph(context, row, rows)
         override fun signalBars(context: Context) = signalArtwork.signalBars(context)
         override fun destinationSignal(context: Context, level: Int): Picture? =
-            signalArtwork.loadCellularSignalAssets(context)?.let { IconSvgRenderer.signalPicture(it.single, listOf(level)) }
+            signalArtwork.destinationSignal(context, level)
     })
     private val aodController = DuoAodController(this, object : DuoAodController.Host {
         override val enabled get() = DuoSignalHooker.enabled
@@ -628,6 +627,11 @@ object DuoSignalHooker : StaticHooker() {
             binding.view.icon.sizes = componentSizes
             binding.view.icon.foreground = foreground(binding)
             binding.view.icon.nativeWifi = nativeWifiGlyph(binding)
+            val networkFont = runCatching {
+                com.takekazex.hypertweak.hook.rules.systemui.icon.MobileTypeHostMetrics.font(battery.context)
+            }.getOrNull()
+            binding.view.icon.networkTypeface = networkFont?.typeface
+            binding.view.icon.networkFontVariationSettings = networkFont?.variationSettings
             val batteryOnly = aod?.centerBattery == true || binding.surface == DuoSurface.EXPANDED &&
                 expandedStyle == DuoExpandedStyle.KEEP_DUO
             val percentContainer = read(battery, "mBatteryPercentContainer") as? View
@@ -852,6 +856,7 @@ object DuoSignalHooker : StaticHooker() {
     /** The shade switch owns this motion; never replay the proxy/Wi-Fi hand-over on that path. */
     private fun clearShadeSwitchMotion() {
         if (shadeSwitchSuspended) return
+        panelHandover.clearResolutions()
         shadeSwitchSuspended = true
         shadeSwitchSettledToControlCenter = false
         panelProgress = 0f
@@ -871,6 +876,7 @@ object DuoSignalHooker : StaticHooker() {
     internal fun onShadeSwitchFinished(controlCenterVisible: Boolean) {
         if (!enabled) return
         guarded {
+            panelHandover.clearResolutions()
             shadeSwitchSuspended = false
             shadeSwitchSettledToControlCenter = controlCenterVisible
             panelVisible = controlCenterVisible

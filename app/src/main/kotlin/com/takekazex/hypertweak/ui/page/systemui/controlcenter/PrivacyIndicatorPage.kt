@@ -3,7 +3,6 @@ package com.takekazex.hypertweak.ui.page.systemui.controlcenter
 import com.takekazex.hypertweak.ui.components.slider.rememberSliderEdit
 
 import com.takekazex.hypertweak.ui.components.dialog.IntValueDialog
-import com.takekazex.hypertweak.ui.components.dialog.LocalRestartScopeRequest
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 
 import androidx.annotation.StringRes
@@ -37,7 +36,6 @@ import androidx.compose.ui.unit.dp
 import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.ui.app.LocalAppSettingsStore
 import com.takekazex.hypertweak.settings.contract.ControlCenterPrivacyPolicy
-import com.takekazex.hypertweak.util.restart.RestartScopeSelection
 import com.takekazex.hypertweak.ui.effect.AppScaffold as Scaffold
 import com.takekazex.hypertweak.ui.effect.AppTopAppBar as TopAppBar
 import top.yukonga.miuix.kmp.basic.Card
@@ -78,7 +76,6 @@ fun PrivacyIndicatorPage(onBack: () -> Unit) {
     val settingsStore = LocalAppSettingsStore.current
     val scrollBehavior = MiuixScrollBehavior()
     val scrollState = rememberScrollState()
-    val requestRestartScopes = LocalRestartScopeRequest.current
     val prefs = rememberSaveable(saver = privacyPrefsSaver) { mutableStateMapOf<String, Any>() }
     fun <T : Any> pref(key: String, default: T): T {
         @Suppress("UNCHECKED_CAST")
@@ -96,7 +93,6 @@ fun PrivacyIndicatorPage(onBack: () -> Unit) {
             is Boolean -> settingsStore.putBoolean(key, value)
             is Int -> settingsStore.putInt(key, value)
         }
-        requestRestartScopes(RestartScopeSelection(systemUi = true))
     }
     Scaffold(topBar = {
         TopAppBar(title = stringResource(R.string.settings_privacy_indicator), scrollBehavior = scrollBehavior,

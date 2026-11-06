@@ -24,8 +24,8 @@ object VolumeKeyStepsHooker : StaticHooker() {
         Preferences.getInt(PlatformSettingsKeys.KEY_VOLUME_KEY_STEP_SCOPE, PlatformSettingsKeys.VOLUME_KEY_SCOPE_MEDIA_ONLY)
     }
 
-    private val settingEnabled by hookSetting(true) {
-        Preferences.getBoolean(PlatformSettingsKeys.KEY_VOLUME_KEY_STEP_ENABLED, true)
+    private val settingEnabled by hookSetting(false) {
+        Preferences.getBoolean(PlatformSettingsKeys.KEY_VOLUME_KEY_STEP_ENABLED, false)
     }
 
     override val hookerName = "VolumeKeySteps"

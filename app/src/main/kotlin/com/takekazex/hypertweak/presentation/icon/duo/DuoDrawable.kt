@@ -374,6 +374,10 @@ class DuoDrawable(context: Context, private val layer: DuoRenderLayer = DuoRende
      * target.
      */
     private val networkLabelPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+    var networkTypeface: Typeface? = Typeface.DEFAULT
+        set(value) { if (field != value) { field = value; invalidateSelf() } }
+    var networkFontVariationSettings: String? = null
+        set(value) { if (field != value) { field = value; invalidateSelf() } }
     private fun drawNetworkLabel(canvas: Canvas, state: DuoContent, centerY: Float) = canvas.withSave {
         val scale = sizes.type * state.typography.scale
         scale(scale, scale, CENTER, centerY)
@@ -388,6 +392,9 @@ class DuoDrawable(context: Context, private val layer: DuoRenderLayer = DuoRende
         paint.textAlign = Paint.Align.CENTER
         paint.style = Paint.Style.FILL
         paint.textSize = LABEL_TEXT_SIZE
+        // The header/strokes use a heavy paint; network text has its own system baseline.
+        paint.typeface = networkTypeface ?: Typeface.DEFAULT
+        networkFontVariationSettings?.let { paint.fontVariationSettings = it }
         state.typography.copy(sizePercent = 100f).applyTo(paint)
         val fontHeight = paint.fontMetrics.let { it.descent - it.ascent }
         if (fontHeight > LABEL_MAX_HEIGHT) paint.textSize *= LABEL_MAX_HEIGHT / fontHeight

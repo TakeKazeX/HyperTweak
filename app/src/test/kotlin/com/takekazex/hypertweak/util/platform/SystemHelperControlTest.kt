@@ -4,11 +4,22 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class SystemHelperControlTest {
+    @Test fun `secondary user writes and verifies that same user`() {
+        var state = SystemHelperPackageState(true, true, userId = 10)
+        val commands = mutableListOf<String>()
+        val engine = SystemHelperEngine({ state }, { command ->
+            commands += command
+            if (command == "id -u") "0" else { state = state.copy(enabled = false); "" }
+        })
+        assertNull(engine.setEnabled(false).failure)
+        assertEquals(listOf("id -u", "pm disable-user --user 10 com.mobiletools.systemhelper"), commands)
+        assertEquals(10, engine.query().state!!.userId)
+    }
     @Test
     fun `commands are pinned to the carrier package and current user`() {
         assertEquals("com.mobiletools.systemhelper", SystemHelperPackage.NAME)
-        assertEquals("pm disable-user --user 0 com.mobiletools.systemhelper", SystemHelperPackage.DISABLE_COMMAND)
-        assertEquals("pm enable --user 0 com.mobiletools.systemhelper", SystemHelperPackage.ENABLE_COMMAND)
+        assertEquals("pm disable-user --user 0 com.mobiletools.systemhelper", SystemHelperPackage.command(false, 0))
+        assertEquals("pm enable --user 0 com.mobiletools.systemhelper", SystemHelperPackage.command(true, 0))
     }
 
     private class Device {
@@ -32,13 +43,13 @@ class SystemHelperControlTest {
                 commands += command
                 when {
                     command == "id -u" -> root
-                    command == SystemHelperPackage.DISABLE_COMMAND -> {
+                    command == SystemHelperPackage.command(false, 0) -> {
                         check(acceptWrite) { "package manager rejected disable" }
                         enabled = false
                         beforeReadback?.invoke()
                         ""
                     }
-                    command == SystemHelperPackage.ENABLE_COMMAND -> {
+                    command == SystemHelperPackage.command(true, 0) -> {
                         check(acceptWrite) { "package manager rejected enable" }
                         enabled = true
                         beforeReadback?.invoke()
@@ -57,13 +68,13 @@ class SystemHelperControlTest {
         val first = d.engine.query()
         assertNull(first.failure)
         assertTrue(first.state!!.installed)
-        assertTrue(first.state!!.enabled)
-        assertEquals("4.0.0-20260910", first.state!!.versionName)
+        assertTrue(first.state.enabled)
+        assertEquals("4.0.0-20260910", first.state.versionName)
 
         d.enabled = false
         val second = d.engine.query()
         assertTrue(second.state!!.installed)
-        assertFalse(second.state!!.enabled)
+        assertFalse(second.state.enabled)
         assertTrue(d.commands.isEmpty())
     }
 
@@ -82,7 +93,7 @@ class SystemHelperControlTest {
         val result = d.engine.setEnabled(false)
         assertNull(result.failure)
         assertFalse(result.state!!.enabled)
-        assertEquals(listOf(SystemHelperPackage.DISABLE_COMMAND), d.commands.filter { it != "id -u" })
+        assertEquals(listOf(SystemHelperPackage.command(false, 0)), d.commands.filter { it != "id -u" })
         assertEquals(listOf(true), d.remembered)
     }
 
@@ -92,7 +103,7 @@ class SystemHelperControlTest {
         val result = d.engine.setEnabled(true)
         assertNull(result.failure)
         assertTrue(result.state!!.enabled)
-        assertEquals(listOf(SystemHelperPackage.ENABLE_COMMAND), d.commands.filter { it != "id -u" })
+        assertEquals(listOf(SystemHelperPackage.command(true, 0)), d.commands.filter { it != "id -u" })
         assertEquals(listOf(false), d.remembered)
     }
 
@@ -150,7 +161,7 @@ class SystemHelperControlTest {
         val result = d.engine.reconcile(true)
         assertNull(result.failure)
         assertFalse(result.state!!.enabled)
-        assertEquals(SystemHelperPackage.DISABLE_COMMAND, d.commands.filter { it != "id -u" }.single())
+        assertEquals(SystemHelperPackage.command(false, 0), d.commands.filter { it != "id -u" }.single())
         assertEquals(listOf(true), d.remembered)
     }
 
@@ -160,7 +171,7 @@ class SystemHelperControlTest {
         val result = d.engine.reconcile(false)
         assertNull(result.failure)
         assertTrue(result.state!!.enabled)
-        assertEquals(SystemHelperPackage.ENABLE_COMMAND, d.commands.filter { it != "id -u" }.single())
+        assertEquals(SystemHelperPackage.command(true, 0), d.commands.filter { it != "id -u" }.single())
         assertEquals(listOf(false), d.remembered)
     }
 

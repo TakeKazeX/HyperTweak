@@ -41,6 +41,9 @@ internal class RuntimeSettingsReceiver(
             if (intent.action != RuntimeSettingsProtocol.CHANGED ||
                 !SettingsTransport.trusted(context, sentFromPackage, sentFromUid, SettingsTransport.MODULE)) return
             val snapshot = RuntimeSettingsProtocol.decode(intent) ?: return
+            // The selected IMEs may have changed after this keyboard process started; register
+            // the new targets before the IME participant is asked to refresh.
+            RuntimeSettingsStore.registerImeTargets(snapshot)
             val groups = RuntimeSettingsStore.changedGroups(snapshot)
             // The participant needs the keys too: a shared domain can own several hooks and must
             // route each committed change to the hooker that applies it.

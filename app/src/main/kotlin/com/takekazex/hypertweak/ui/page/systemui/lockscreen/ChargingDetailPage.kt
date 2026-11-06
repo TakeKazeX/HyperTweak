@@ -1,8 +1,5 @@
 package com.takekazex.hypertweak.ui.page.systemui.lockscreen
 
-import com.takekazex.hypertweak.ui.components.dialog.LocalRestartScopeHandled
-import com.takekazex.hypertweak.ui.components.dialog.restartInProgress
-import com.takekazex.hypertweak.ui.app.LocalAppServices
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 
 import androidx.compose.foundation.layout.Column
@@ -23,17 +20,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.ui.app.LocalAppSettingsStore
 import com.takekazex.hypertweak.settings.contract.LockscreenChargingOptions
-import com.takekazex.hypertweak.util.restart.RestartScopeSelection
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -51,17 +45,13 @@ import top.yukonga.miuix.kmp.utils.overScrollVertical
 /**
  * Options for the lockscreen charging detail (Features → System UI → Lockscreen → Charging Detail Options).
  * State is kept locally and written straight into [AppSettingsStore]; the hooker re-reads these keys on
- * every render, so every option here applies live. The master switch installs the hook, so it
- * needs a SystemUI restart, offered through the in-page Restart SystemUI row.
+ * every render, so every option here applies live, including the master switch (the runtime settings
+ * dispatcher installs or retires the hook without a SystemUI restart).
  */
 @Composable
 fun ChargingDetailPage(onBack: () -> Unit) {
-    val services = LocalAppServices.current
     val settingsStore = LocalAppSettingsStore.current
     val scrollBehavior = MiuixScrollBehavior()
-    val context = LocalContext.current
-    val coroutineScope = rememberCoroutineScope()
-    val handleRestartedScopes = LocalRestartScopeHandled.current
 
     var enabled by remember {
         mutableStateOf(settingsStore.getBoolean(SystemUiSettingsKeys.KEY_LOCKSCREEN_CHARGING_DETAIL, false))
@@ -113,22 +103,6 @@ fun ChargingDetailPage(onBack: () -> Unit) {
                         },
                         title = stringResource(R.string.charging_enabled_title),
                         summary = stringResource(R.string.charging_enabled_summary)
-                    )
-                    ArrowPreference(
-                        title = stringResource(R.string.charging_restart_title),
-                        summary = stringResource(R.string.charging_restart_summary),
-                        enabled = !restartInProgress(RestartScopeSelection(systemUi = true)),
-                        onClick = {
-                            settingsStore.flush()
-                            services.restarts.restartScope(
-                                context = context,
-                                coroutineScope = coroutineScope,
-                                selection = RestartScopeSelection(systemUi = true),
-                                onCompleted = { completed ->
-                                    handleRestartedScopes(completed)
-                                },
-                            )
-                        }
                     )
                 }
             }

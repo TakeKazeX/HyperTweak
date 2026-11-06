@@ -39,7 +39,7 @@ internal class DuoBinding(val battery: View, val parent: ViewGroup, val icons: V
     var networkMotionProgress = 0f
     val panelArrival = DuoPanelArrival(panelInitiallySettled)
     var networkMotionSettle: Runnable? = null
-    val networkIds = listOf("wifi_signal", "mobile_type", "mobile_signal").associateWith {
+    val networkIds = listOf("wifi_signal", "mobile_type_single", "mobile_type", "mobile_signal").associateWith {
         battery.resources.getIdentifier(it, "id", battery.context.packageName)
     }
     var missingSince = -1L

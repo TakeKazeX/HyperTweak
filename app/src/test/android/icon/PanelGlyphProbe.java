@@ -60,6 +60,17 @@ public final class PanelGlyphProbe {
         bitmap.eraseColor(Color.RED);
         capture.invoke(frame, image, null);
         check((Integer) colorAt.invoke(frame, 8f, 8f) == Color.RED, "in-place bitmap mutation");
+        capture.invoke(frame, image, new android.graphics.RectF(0, 0, 16, 8));
+        Method ink = type.getMethod("getInk");
+        check(((android.graphics.RectF) ink.invoke(frame)).height() == 8f, "cropped recording");
+        capture.invoke(frame, image, null);
+        check(((android.graphics.RectF) ink.invoke(frame)).height() == 16f,
+            "removing the crop must not reuse a partial recording");
+        bitmap.eraseColor(Color.BLUE);
+        type.getMethod("invalidateView").invoke(frame);
+        capture.invoke(frame, image, null);
+        check((Integer) colorAt.invoke(frame, 8f, 8f) == Color.BLUE,
+            "explicit invalidation must bypass the clean bitmap shortcut");
         // Arbitrary draw callbacks can be dirty even when their output is unchanged.
         Object recorded = type.getConstructor().newInstance();
         Class<?> function = loader.loadClass("kotlin.jvm.functions.Function1");

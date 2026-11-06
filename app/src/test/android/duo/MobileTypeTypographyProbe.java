@@ -24,6 +24,7 @@ public final class MobileTypeTypographyProbe {
         if(low<=0||high<low*1.3)throw new AssertionError("Variable wght axis defeated weight override: "+low+","+high);
         apply.invoke(null,create.newInstance(true,50f,400),small);apply.invoke(null,create.newInstance(true,150f,400),large);
         if(small.getTextSize()!=16||large.getTextSize()!=48||large.measureText("5GA")<small.measureText("5GA")*2.8)throw new AssertionError("Independent size did not scale");
+        MobileTypeSlotProbe.run(context,cl);
         System.out.println("PASS mobile_type_typography variable_font_ink="+low+"/"+high+" disabled_baseline=true scale=50..150%");
     }
 }

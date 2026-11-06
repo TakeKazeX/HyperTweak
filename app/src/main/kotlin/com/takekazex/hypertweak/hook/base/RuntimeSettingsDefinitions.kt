@@ -77,6 +77,8 @@ internal object RuntimeSettingsDefinitions {
     const val MEDIA_CARD = "systemui.media_card"
     /** Control-center plugin sub-hooks whose presence a session used to decide at creation. */
     const val CONTROL_CENTER_PLUGIN = "systemui.control_center_plugin"
+    /** Control-center privacy header styling (master, geometry, text and colors). */
+    const val CONTROL_CENTER_PRIVACY = "systemui.control_center_privacy"
     /** Glass material tuner coefficients read from the resource/View funnels. */
     const val GLASS = "systemui.glass"
     /** Automatic power saving, its threshold and charging exit. */
@@ -126,6 +128,14 @@ internal object RuntimeSettingsDefinitions {
         PlatformSettingsKeys.KEY_KEEP_HAPTIC_FEEDBACK_IN_POWER_SAVE,
         PlatformSettingsKeys.KEY_KEEP_SYSTEM_SOUNDS_IN_POWER_SAVE,
         PlatformSettingsKeys.KEY_KEEP_WAKEUP_GESTURES_IN_POWER_SAVE,
+    )
+    private val controlCenterPrivacyKeys = setOf(
+        SystemUiSettingsKeys.KEY_CC_PRIVACY_ENABLED, SystemUiSettingsKeys.KEY_CC_PRIVACY_CENTER,
+        SystemUiSettingsKeys.KEY_CC_PRIVACY_BACKGROUND, SystemUiSettingsKeys.KEY_CC_PRIVACY_COLORED,
+        SystemUiSettingsKeys.KEY_CC_PRIVACY_NAMES, SystemUiSettingsKeys.KEY_CC_PRIVACY_ALL_APPS,
+        SystemUiSettingsKeys.KEY_CC_PRIVACY_ARROW, SystemUiSettingsKeys.KEY_CC_PRIVACY_DOT,
+        SystemUiSettingsKeys.KEY_CC_PRIVACY_ICON_SIZE, SystemUiSettingsKeys.KEY_CC_PRIVACY_TEXT_SIZE,
+        SystemUiSettingsKeys.KEY_CC_PRIVACY_OFFSET,
     )
     private val watermarkKeys = setOf(
         PlatformSettingsKeys.KEY_WM_UNLOCK_MASTER, PlatformSettingsKeys.KEY_WM_LEICA, PlatformSettingsKeys.KEY_WM_XIAOMI,
@@ -279,6 +289,7 @@ internal object RuntimeSettingsDefinitions {
         // Control-center plugin sub-hooks (editor, resize, slider, corner): the plugin session
         // applies these to its living instances instead of choosing them at creation time.
         CONTROL_CENTER_PLUGIN to Group(systemUi) { it in SystemUiLiveSettings.CONTROL_CENTER_PLUGIN_KEYS },
+        CONTROL_CENTER_PRIVACY to Group(systemUi) { it in controlCenterPrivacyKeys },
         GLASS to Group(systemUi) { it in SystemUiLiveSettings.GLASS_KEYS },
         // The battery monitor lives in SystemUI; charging itself is handled by the AOD/battery rules.
         LOCKSCREEN to Group(systemUi) { it in SystemUiLiveSettings.LOCKSCREEN_KEYS },

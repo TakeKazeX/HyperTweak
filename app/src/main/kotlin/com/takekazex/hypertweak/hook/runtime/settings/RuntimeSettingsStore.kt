@@ -6,6 +6,13 @@ internal object RuntimeSettingsStore {
     private val ledger = RuntimeSettingsLedger()
     private var target: String? = null
     fun configure(process: String, systemServer: Boolean) { target = RuntimeSettingsGroups.target(process, systemServer) }
+
+    /** A selection change can add this process to the IME group after it has started. */
+    fun registerImeTargets(snapshot: RuntimeSettingsSnapshot) {
+        val packages = snapshot.values[com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys.KEY_AOSP_IME_PACKAGES]
+            as? Set<*> ?: return
+        RuntimeSettingsGroups.registerImeTargets(packages.filterIsInstance<String>().toSet())
+    }
     fun latest(): RuntimeSettingsSnapshot? = ledger.latest()
     fun values(): Map<String, Any>? = ledger.latest()?.values
 

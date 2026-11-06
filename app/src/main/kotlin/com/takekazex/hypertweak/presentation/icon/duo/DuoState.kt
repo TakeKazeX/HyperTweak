@@ -50,6 +50,8 @@ object DuoPolicy {
     /** The dot and handoff renderers consume the same per-subscription rows. */
     fun dotRows(state: DuoContent?, dual: Boolean): List<DuoSignalRow> {
         if (state == null || state.airplaneMode || state.wifiLevel == null) return emptyList()
+        // A device without a SIM has no cellular row to mirror; the Wi-Fi ring alone is complete.
+        if (state.cellularSignalRows.isEmpty() && state.cellularSignalLevels.isEmpty()) return emptyList()
         if (dual && state.cellularSignalRows.size > 1) return state.cellularSignalRows.take(2)
         return listOf(DuoSignalRow(state.activeDataSubId ?: -1, -1,
             if (state.noService) -1 else state.mobileLevel))
@@ -93,8 +95,27 @@ object DuoPolicy {
                 airplaneMode = true
             )
         }
-        val sub = mobile.subscriptions[mobile.activeDataSubId] ?: return null
-        if (mobile.activeDataSubId !in mobile.subscriptionOrder || !sub.supportsReplacement) return null
+        val sub = mobile.subscriptions[mobile.activeDataSubId]
+        if (sub == null || mobile.activeDataSubId !in mobile.subscriptionOrder || !sub.supportsReplacement) {
+            // A device with no SIM (or with the active subscription removed) still owns the
+            // combined surface: the battery ring and Wi-Fi state are complete without a cellular
+            // row. Unknown/satellite/unsupported subscriptions keep the native cluster.
+            if (mobile.subscriptionOrder.isNotEmpty()) return null
+            val wifi = network.transport == DuoTransport.WIFI ||
+                (network.transport == DuoTransport.VPN && network.wifiDefault == true)
+            val wifiLevel = if (wifi) network.wifiLevel?.takeIf { it in 0..4 } else null
+            if (!wifi && network.transport !in setOf(DuoTransport.NONE, DuoTransport.UNKNOWN)) return null
+            return DuoContent(
+                battery = battery,
+                wifiLevel = wifiLevel,
+                networkLabel = null,
+                mobileLevel = 0,
+                noService = true,
+                noInternet = (wifi && !network.validated) || network.transport == DuoTransport.NONE,
+                cellularSignalLevels = emptyList(),
+                cellularSignalRows = emptyList()
+            )
+        }
         if (sub.inService == null) return null
         // A connected Wi-Fi radio is not necessarily the default route. Only use the host
         // isDefault signal to resolve an opaque VPN; explicit default transport always wins.

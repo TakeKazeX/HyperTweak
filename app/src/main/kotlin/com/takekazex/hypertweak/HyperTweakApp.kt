@@ -26,6 +26,7 @@ class HyperTweakApp : Application() {
         val localPrefs = getSharedPreferences(AppSettingsKeys.NAME, Context.MODE_PRIVATE)
         Preferences.init(localPrefs, useLocalOnly = true)
         Preferences.initLocalCache(this)
+        com.takekazex.hypertweak.app.PreferencesAppSettings.bind(this)
         DebugLog.ensureSession()
 
         // Republish the native rule flags on every start so the launcher-side payload sees the
@@ -38,11 +39,8 @@ class HyperTweakApp : Application() {
             Preferences.getBoolean(PlatformSettingsKeys.KEY_SYSTEM_HELPER_MANAGED, false)
         }.getOrDefault(false)
         if (systemHelperManaged) {
-            val desiredDisabled = runCatching {
-                Preferences.getBoolean(PlatformSettingsKeys.KEY_SYSTEM_HELPER_DISABLED, false)
-            }.getOrDefault(false)
             Thread({
-                com.takekazex.hypertweak.app.DefaultAppServices.systemHelper.reconcileBlocking(this, desiredDisabled)
+                com.takekazex.hypertweak.app.DefaultAppServices.systemHelper.reconcileBlocking(this)
             }, "HyperTweak-SystemHelper").start()
         }
     }

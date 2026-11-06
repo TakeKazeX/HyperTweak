@@ -86,6 +86,7 @@ object AospImeHooker : StaticHooker() {
 
     override fun onPrepareHotReload() {
         generationAlive = false
+        loggedManagedPackages.clear()
         HostAccess.onMain { nativeAppearance.retire(); windowPolicy.retire(); raise.prepareReload() }
         HostAccess.onMain {
             insetsView?.get()?.let { view ->
@@ -414,8 +415,23 @@ object AospImeHooker : StaticHooker() {
         }
     }
 
-    internal fun managed(context: Context?): Boolean =
-        AospImeConfig.isEnabled() && context != null && AospImeConfig.isSelectedIme(context.packageName)
+    private val loggedManagedPackages = java.util.Collections.synchronizedSet(HashSet<String>())
+
+    internal fun managed(context: Context?): Boolean {
+        // Plugin-hosted keyboards (WeChat's :hld service) can report a plugin context whose
+        // package differs from the installed IME package. The injected host package is the
+        // authoritative identity for the selection.
+        val servicePackage = context?.packageName
+        val hostPackage = hookParam.packageName
+        val enabled = AospImeConfig.isEnabled()
+        val selected = AospImeConfig.isSelectedIme(servicePackage) || AospImeConfig.isSelectedIme(hostPackage)
+        if (servicePackage != null && loggedManagedPackages.add(servicePackage)) {
+            DebugLog.i(TAG, "managed service=$servicePackage host=$hostPackage enabled=$enabled " +
+                "selected=${AospImeConfig.isSelectedIme(servicePackage)} hostSelected=${AospImeConfig.isSelectedIme(hostPackage)} " +
+                "style=${AospImeConfig.raiseStyle()} -> ${enabled && selected}")
+        }
+        return enabled && selected
+    }
 
     internal fun aospBarActive(context: Context?): Boolean = managed(context)
 

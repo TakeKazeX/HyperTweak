@@ -148,17 +148,9 @@ object ControlCenterPrivacyHooker : StaticHooker() {
     override fun onHook() {
         enabled = isMainProcess && settingCcPrivacyEnabled
         retiring = false
-        if (!enabled) return
-        center = settingCcPrivacyCenter
-        background = settingCcPrivacyBackground
-        colored = settingCcPrivacyColored
-        names = settingCcPrivacyNames
-        allApps = settingCcPrivacyAllApps
-        arrow = settingCcPrivacyArrow
-        dot = settingCcPrivacyDot
-        iconSize = settingCcPrivacyIconSize.coerceIn(16, 32)
-        textSize = settingCcPrivacyTextSize.coerceIn(9, 20)
-        offset = settingCcPrivacyOffset.coerceIn(-16, 24)
+        // Hooks stay installed while the master is off so enabling it applies live; every
+        // callback is gated by [enabled]/[retiring].
+        applySettings()
         val viewClass = VIEW.toClassOrNull() ?: return
         controllerClass = CONTROLLER.toClassOrNull() ?: return
         val headerClass = HEADER.toClassOrNull() ?: return
@@ -262,6 +254,79 @@ object ControlCenterPrivacyHooker : StaticHooker() {
                 } }
             }
         DebugLog.hookRegistered(TAG, "native privacy header and expansion anchors center=$center")
+    }
+
+    private fun applySettings() {
+        center = settingCcPrivacyCenter
+        background = settingCcPrivacyBackground
+        colored = settingCcPrivacyColored
+        names = settingCcPrivacyNames
+        allApps = settingCcPrivacyAllApps
+        arrow = settingCcPrivacyArrow
+        dot = settingCcPrivacyDot
+        iconSize = settingCcPrivacyIconSize.coerceIn(16, 32)
+        textSize = settingCcPrivacyTextSize.coerceIn(9, 20)
+        offset = settingCcPrivacyOffset.coerceIn(-16, 24)
+    }
+
+    /** Live settings: refresh cached values and restyle (or restore) living headers. */
+    fun refreshSettings() {
+        HostAccess.onMain {
+            val wanted = isMainProcess && settingCcPrivacyEnabled
+            if (wanted == enabled) {
+                if (wanted) {
+                    bindings.values.toList().forEach(::restore)
+                    applySettings()
+                    bindings.values.toList().forEach(::style)
+                }
+                return@onMain
+            }
+            enabled = wanted
+            if (wanted) {
+                retiring = false
+                applySettings()
+                bindings.values.toList().forEach { binding ->
+                    binding.root.get()?.let { root ->
+                        place(binding)
+                        style(binding)
+                        root.requestLayout()
+                    }
+                }
+                recoverLivingHeaders()
+            } else {
+                retiring = true
+                bindings.values.toList().forEach { binding ->
+                    binding.root.get()?.removeOnLayoutChangeListener(binding.listener)
+                    binding.fake?.get()?.removeOnLayoutChangeListener(binding.listener)
+                    main.removeCallbacks(binding.refresh)
+                    guarded { restore(binding) }
+                }
+                bindings.clear()
+                headers.clear()
+                layoutStates.clear()
+                main.removeCallbacks(expiryTask)
+                expiryAt = 0
+                retiring = false
+            }
+        }
+    }
+
+    /** Re-enable must also bind headers inflated while the master was disabled. */
+    private fun recoverLivingHeaders() = guarded {
+        val context = hookParam.appContext
+            ?: io.github.lingqiqi5211.ezhooktool.xposed.EzXposed.appContextOrNull ?: return@guarded
+        val app = context.applicationContext ?: context
+        val component = read(app, "mSysUIComponent")
+            ?: read(app, "mInitializer")?.let { invoke(it, "getSysUIComponent") }
+        val views = ArrayList<View>()
+        fun visit(view: View) {
+            views += view
+            if (view is ViewGroup) for (index in 0 until view.childCount) visit(view.getChildAt(index))
+        }
+        android.view.inspector.WindowInspector.getGlobalWindowViews().forEach(::visit)
+        val header = component?.let { HostAccess.provider(it, "controlCenterHeaderControllerProvider") }
+        (header?.let { read(it, "privacyContainer") } as? View)?.let(::visit)
+        recoverExistingViews(views, component)
     }
 
     private fun hook(type: Class<*>, names: List<String>, action: (Any, String) -> Unit) {

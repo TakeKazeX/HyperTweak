@@ -57,7 +57,7 @@ private const val BAR_HEIGHT_DP = 32f
 private const val CLOCK_SP = 14f
 
 /** ROM mobile type size; the preview shows the `5G` label the host draws beside the bars. */
-private const val NETWORK_TYPE_SP = 12f
+private const val NETWORK_TYPE_SP = CLOCK_SP
 
 /** How often the preview clock re-reads the system time. */
 private const val CLOCK_REFRESH_MS = 30_000L

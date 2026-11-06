@@ -4,8 +4,6 @@ import com.takekazex.hypertweak.ui.components.scope.MissingScopeCard
 import com.takekazex.hypertweak.ui.components.slider.rememberSliderEdit
 
 import com.takekazex.hypertweak.ui.components.dialog.IntValueDialog
-import com.takekazex.hypertweak.ui.components.dialog.LocalRestartScopeHandled
-import com.takekazex.hypertweak.ui.components.dialog.LocalRestartScopeRequest
 import com.takekazex.hypertweak.ui.page.systemui.controlcenter.TileStateMessageDurationDialog
 import com.takekazex.hypertweak.ui.app.LocalAppServices
 import androidx.compose.runtime.getValue
@@ -34,7 +32,6 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -48,7 +45,6 @@ import com.takekazex.hypertweak.ui.app.LocalAppSettingsStore
 import com.takekazex.hypertweak.settings.contract.TileStateMessageDuration
 import com.takekazex.hypertweak.settings.contract.VolumeKeyStepPolicy
 import com.takekazex.hypertweak.util.platform.PlatformLevel
-import com.takekazex.hypertweak.util.restart.RestartScopeSelection
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -137,15 +133,12 @@ fun SystemUIPage(
     val context = LocalContext.current
     val upstreamBackGesture = com.takekazex.hypertweak.ui.effect.rememberUpstreamBackGestureInstalled()
     val scrollBehavior = MiuixScrollBehavior()
-    val coroutineScope = rememberCoroutineScope()
-    val requestRestartScopes = LocalRestartScopeRequest.current
-    val handleRestartedScopes = LocalRestartScopeHandled.current
     var hideLockscreenDate by rememberSaveable {
         mutableStateOf(settingsStore.getBoolean(SystemUiSettingsKeys.KEY_HIDE_LOCKSCREEN_DATE, false))
     }
 
     var volumeKeyStepEnabled by rememberSaveable {
-        mutableStateOf(settingsStore.getBoolean(PlatformSettingsKeys.KEY_VOLUME_KEY_STEP_ENABLED, true))
+        mutableStateOf(settingsStore.getBoolean(PlatformSettingsKeys.KEY_VOLUME_KEY_STEP_ENABLED, false))
     }
     var volumeKeyStepCount by remember {
         mutableIntStateOf(
@@ -429,7 +422,6 @@ fun SystemUIPage(
                             hideLockscreenDate = value
                             settingsStore.putBoolean(SystemUiSettingsKeys.KEY_HIDE_LOCKSCREEN_DATE, value)
                             settingsStore.flush()
-                            requestRestartScopes(RestartScopeSelection(systemUi = true))
                         },
                         title = stringResource(R.string.tweaks_hide_lockscreen_date_title),
                         summary = stringResource(R.string.tweaks_hide_lockscreen_date_summary)

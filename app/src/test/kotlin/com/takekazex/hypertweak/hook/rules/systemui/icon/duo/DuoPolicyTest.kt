@@ -101,6 +101,23 @@ class DuoPolicyTest {
         assertEquals(1, wifi.mobileLevel)
     }
 
+    @Test fun deviceWithoutSimKeepsTheBatteryAndWifiSurface() {
+        val noSim = MobileSignalState()
+        val wifi = DuoPolicy.content(battery, noSim, DuoNetwork(DuoTransport.WIFI, true, 3))!!
+        assertEquals(3, wifi.wifiLevel)
+        assertTrue(wifi.noService)
+        assertTrue(wifi.cellularSignalLevels.isEmpty())
+        assertFalse(wifi.noInternet)
+        assertTrue(DuoPolicy.dotRows(wifi, true).isEmpty())
+        val offline = DuoPolicy.content(battery, noSim, DuoNetwork(DuoTransport.NONE))!!
+        assertNull(offline.wifiLevel)
+        assertTrue(offline.noInternet)
+        // The network collector may not have reported yet; a battery-only surface is still valid.
+        val unknown = DuoPolicy.content(battery, noSim, DuoNetwork(DuoTransport.UNKNOWN))!!
+        assertNull(unknown.wifiLevel)
+        assertFalse(unknown.noInternet)
+    }
+
     @Test fun removedOrUnknownDataSimCannotShowTheLastKnownSim() {
         assertNull(DuoPolicy.content(battery, mobile().reduce(MobileSignalEvent.Subscriptions(listOf(22))), cellular))
         assertNull(DuoPolicy.content(battery, mobile().reduce(MobileSignalEvent.ActiveDataSubId(999)), cellular))

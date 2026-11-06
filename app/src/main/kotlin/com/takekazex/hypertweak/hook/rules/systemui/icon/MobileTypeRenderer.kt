@@ -30,7 +30,8 @@ object MobileTypeRenderer {
         fontScale: Float = 1f,
         rtl: Boolean = false,
         hostTypeface: Typeface? = null,
-        hostTextSizePx: Float? = null
+        hostTextSizePx: Float? = null,
+        hostFontVariationSettings: String? = null
     ): Bitmap? {
         if (output.text.isBlank()) return null
         val safe = config.safe()
@@ -54,7 +55,7 @@ object MobileTypeRenderer {
             safe.verticalOffsetSp * density,
             rtl,
             safe.small5GaEnabled,
-            hostTypeface, safe.typography
+            hostTypeface, hostFontVariationSettings, safe.typography
         )
         synchronized(cache) { cache.get(key)?.let { return it } }
 
@@ -75,7 +76,9 @@ object MobileTypeRenderer {
         val paint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.WHITE
             textSize = textSizePx
-            typeface = hostTypeface ?: Typeface.create(Typeface.create(family, Typeface.NORMAL), weight, false)
+            typeface = hostTypeface ?: if (safe.fontMode == 0) Typeface.create(family, Typeface.NORMAL)
+                else Typeface.create(Typeface.create(family, Typeface.NORMAL), weight, false)
+            if (hostFontVariationSettings != null) fontVariationSettings = hostFontVariationSettings
             textScaleX = textScale
             textAlign = if (rtl) Paint.Align.RIGHT else Paint.Align.LEFT
         }
@@ -89,7 +92,7 @@ object MobileTypeRenderer {
             output.text in setOf("4G+", "5G+", "5GA")
         ) output.text.drop(2) else null
         val suffixPaint = TextPaint(paint).apply {
-            textSize = textSizePx * if (small5Ga != null) {
+            textSize = paint.textSize * if (small5Ga != null) {
                 MobileTypeLabelStyle.SMALL_5GA_SUFFIX_SCALE
             } else {
                 0.7f

@@ -52,6 +52,7 @@ internal object RuntimeSettingsGroups {
     const val NOTIFICATION_TEXT = RuntimeSettingsDefinitions.NOTIFICATION_TEXT
     const val MEDIA_CARD = RuntimeSettingsDefinitions.MEDIA_CARD
     const val CONTROL_CENTER_PLUGIN = RuntimeSettingsDefinitions.CONTROL_CENTER_PLUGIN
+    const val CONTROL_CENTER_PRIVACY = RuntimeSettingsDefinitions.CONTROL_CENTER_PRIVACY
     const val GLASS = RuntimeSettingsDefinitions.GLASS
     const val POWER_SAVE = RuntimeSettingsDefinitions.POWER_SAVE
     const val LOCKSCREEN = RuntimeSettingsDefinitions.LOCKSCREEN

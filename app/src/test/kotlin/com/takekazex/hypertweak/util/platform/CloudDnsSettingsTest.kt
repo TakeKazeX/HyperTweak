@@ -4,8 +4,36 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import kotlinx.coroutines.runBlocking
 
 class CloudDnsSettingsTest {
+    @Test fun `blank v2 and modified v1 are both restored including absent values`() = runBlocking {
+        val device = mutableMapOf<String, String?>(
+            SmartDnsV2 to "", SmartDnsV1 to "off,1000,2500,off,2500,2")
+        assertTrue(CloudDnsSettings.restoreBaseline(CloudDnsSettings.SmartDnsBaseline("", v2)) { key, value ->
+            device[key] = value
+            true
+        })
+        assertEquals("", device[SmartDnsV2])
+        assertEquals(v2, device[SmartDnsV1])
+        assertTrue(CloudDnsSettings.restoreBaseline(CloudDnsSettings.SmartDnsBaseline(null, null)) { key, value ->
+            device[key] = value
+            true
+        })
+        assertTrue(device.values.all { it == null })
+    }
+
+    @Test fun `partial baseline restore reports failure so the capture can be retained`() = runBlocking {
+        val attempted = mutableListOf<String>()
+        assertFalse(CloudDnsSettings.restoreBaseline(CloudDnsSettings.SmartDnsBaseline(null, v2)) { key, _ ->
+            attempted += key
+            key != SmartDnsV2
+        })
+        assertEquals(listOf(SmartDnsV2, SmartDnsV1), attempted)
+    }
+
+    private val SmartDnsV2 = "cloud_smartdns_enabled_v2"
+    private val SmartDnsV1 = "cloud_smartdns_enabled"
     private val v2 = "on,1000,2500,on,2500,2,1,1,560,420,128"
 
     @Test
