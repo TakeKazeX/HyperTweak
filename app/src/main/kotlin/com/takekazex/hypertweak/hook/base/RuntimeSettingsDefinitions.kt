@@ -223,6 +223,10 @@ internal object RuntimeSettingsDefinitions {
         SystemUiSettingsKeys.KEY_NOTIFICATION_WHITELIST_BYPASS,
         PlatformSettingsKeys.KEY_SHARE_PANEL_SHOW_ALL,
         AppSettingsKeys.KEY_APP_DETAILS_ICON_LAUNCH,
+        AppSettingsKeys.KEY_APP_DETAILS_HIDE_REPORT,
+        AppSettingsKeys.KEY_APP_DETAILS_ALLOW_DISABLE,
+        AppSettingsKeys.KEY_APP_DETAILS_MORE_INFO,
+        AppSettingsKeys.KEY_APP_DETAILS_NAMED_SHARE,
         PlatformSettingsKeys.KEY_GUARD_PROVIDER_DISABLE_ENVIRONMENT_CHECK,
         PlatformSettingsKeys.KEY_SECURITY_CENTER_SKIP_LOCAL_SU_CHECK,
         PlatformSettingsKeys.KEY_SECURITY_CENTER_DISABLE_SAFEPAY_AUTO_SCAN,
@@ -355,7 +359,13 @@ internal object RuntimeSettingsDefinitions {
                 it in watermarkKeys ||
                 it in powerSaveKeys
         },
-        APP_DETAILS to Group(setOf("com.miui.securitycenter")) { it == AppSettingsKeys.KEY_APP_DETAILS_ICON_LAUNCH },
+        APP_DETAILS to Group(setOf("com.miui.securitycenter")) {
+            it == AppSettingsKeys.KEY_APP_DETAILS_ICON_LAUNCH ||
+                it == AppSettingsKeys.KEY_APP_DETAILS_HIDE_REPORT ||
+                it == AppSettingsKeys.KEY_APP_DETAILS_ALLOW_DISABLE ||
+                it == AppSettingsKeys.KEY_APP_DETAILS_MORE_INFO ||
+                it == AppSettingsKeys.KEY_APP_DETAILS_NAMED_SHARE
+        },
         SECURITY_GAMEBOOSTER to Group(setOf("com.miui.securitycenter")) {
             it == PlatformSettingsKeys.KEY_SECURITY_CENTER_FORCE_UNLOCK_GUNSIGHT ||
                 it == PlatformSettingsKeys.KEY_SECURITY_CENTER_FORCE_UNLOCK_MACRO

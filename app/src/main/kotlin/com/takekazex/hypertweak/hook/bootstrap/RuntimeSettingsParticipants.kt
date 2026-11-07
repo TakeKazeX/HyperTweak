@@ -13,6 +13,8 @@ import com.takekazex.hypertweak.hook.rules.systemui.notification.NotificationWhi
 import com.takekazex.hypertweak.hook.rules.systemui.StatusBarHideSilentHooker
 import com.takekazex.hypertweak.hook.rules.systemui.FreeformBlurTransitionHooker
 import com.takekazex.hypertweak.hook.rules.securitycenter.AppDetailsIconLaunchHooker
+import com.takekazex.hypertweak.hook.rules.securitycenter.AppDetailsActionsHooker
+import com.takekazex.hypertweak.hook.rules.securitycenter.MoreAppInfoHooker
 import com.takekazex.hypertweak.hook.rules.securitycenter.sidebar.SecurityCenterSidebarHooker
 import com.takekazex.hypertweak.hook.rules.securitycenter.sidebar.SecurityCenterGameBoosterHooker
 import com.takekazex.hypertweak.hook.rules.securitycenter.sidebar.SecurityCenterPopupHooker
@@ -197,7 +199,11 @@ internal object RuntimeSettingsParticipants {
             applied
         }
         registerForProcess(RuntimeSettingsGroups.APP_DETAILS) { _ ->
-            if (processName == "com.miui.securitycenter") AppDetailsIconLaunchHooker.refreshSettings()
+            if (processName == "com.miui.securitycenter") {
+                AppDetailsIconLaunchHooker.refreshSettings()
+                AppDetailsActionsHooker.refreshSettings()
+                MoreAppInfoHooker.refreshSettings()
+            }
             true
         }
         registerForProcess(RuntimeSettingsGroups.SECURITY_GAMEBOOSTER) { _ ->

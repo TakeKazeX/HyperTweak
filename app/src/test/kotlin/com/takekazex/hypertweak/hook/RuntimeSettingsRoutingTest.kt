@@ -300,25 +300,34 @@ class RuntimeSettingsRoutingTest {
         assertNull(restored.value(key))
     }
 
-    @Test fun appDetailsSettingMigratesAndResetsWithoutLeakingToOtherPackages() {
-        val key = AppSettingsKeys.KEY_APP_DETAILS_ICON_LAUNCH
-        assertEquals(setOf(Groups.APP_DETAILS), Groups.affected(key))
-        assertEquals(mapOf(key to true), Groups.subset("com.miui.securitycenter", mapOf(key to true)))
-        assertTrue(Groups.subset("com.android.settings", mapOf(key to true)).isEmpty())
-        assertTrue(Groups.subset("com.miui.guardprovider", mapOf(key to true)).isEmpty())
-        assertNull(RuntimeSettingsSnapshot.read(1, mapOf(key to "true"), setOf(Groups.APP_DETAILS)))
+    @Test fun appDetailsSettingsMigrateAndResetWithoutLeakingToOtherPackages() {
+        val keys = setOf(
+            AppSettingsKeys.KEY_APP_DETAILS_ICON_LAUNCH,
+            AppSettingsKeys.KEY_APP_DETAILS_HIDE_REPORT,
+            AppSettingsKeys.KEY_APP_DETAILS_ALLOW_DISABLE,
+            AppSettingsKeys.KEY_APP_DETAILS_MORE_INFO,
+            AppSettingsKeys.KEY_APP_DETAILS_NAMED_SHARE,
+        )
+        val values = keys.associateWith { true }
+        keys.forEach { key ->
+            assertEquals(setOf(Groups.APP_DETAILS), Groups.affected(key))
+            assertNull(RuntimeSettingsSnapshot.read(1, mapOf(key to "true"), setOf(Groups.APP_DETAILS)))
+        }
+        assertEquals(values, Groups.subset("com.miui.securitycenter", values))
+        assertTrue(Groups.subset("com.android.settings", values).isEmpty())
+        assertTrue(Groups.subset("com.miui.guardprovider", values).isEmpty())
         val ledger = RuntimeSettingsLedger().also {
             it.restore(arrayOf<Any>(1L, hashMapOf("icon_duo_enabled" to true)))
         }
-        val enabled = RuntimeSettingsSnapshot.read(2, mapOf(key to true), setOf(Groups.APP_DETAILS))!!
+        val enabled = RuntimeSettingsSnapshot.read(2, values, setOf(Groups.APP_DETAILS))!!
         assertTrue(Groups.APP_DETAILS in ledger.changedGroups(enabled))
         assertTrue(ledger.accept(enabled))
         val restored = RuntimeSettingsLedger().also { it.restore(ledger.save()) }
-        assertEquals(true, restored.value(key))
+        keys.forEach { assertEquals(true, restored.value(it)) }
         val reset = RuntimeSettingsSnapshot.read(3, emptyMap<String, Any>(), setOf(Groups.APP_DETAILS))!!
         assertEquals(setOf(Groups.APP_DETAILS), restored.changedGroups(reset))
         assertTrue(restored.accept(reset))
-        assertNull(restored.value(key))
+        keys.forEach { assertNull(restored.value(it)) }
     }
 
     @Test fun recentsGestureBarSwitchUsesSystemUiSnapshotAndReset() {

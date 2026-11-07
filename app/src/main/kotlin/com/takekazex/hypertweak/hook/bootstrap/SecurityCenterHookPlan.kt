@@ -5,6 +5,9 @@ import com.takekazex.hypertweak.hook.rules.module.RestartBroadcastHooker
 import com.takekazex.hypertweak.hook.rules.securitycenter.AospAppInfoEntryHooker
 import com.takekazex.hypertweak.hook.rules.securitycenter.AospAppManagerEntryHooker
 import com.takekazex.hypertweak.hook.rules.securitycenter.AppDetailsIconLaunchHooker
+import com.takekazex.hypertweak.hook.rules.securitycenter.AppDetailsActionsHooker
+import com.takekazex.hypertweak.hook.rules.securitycenter.MoreAppInfoHooker
+import com.takekazex.hypertweak.hook.rules.securitycenter.NamedApkShareHooker
 import com.takekazex.hypertweak.hook.rules.securitycenter.battery.BatteryInfoHooker
 import com.takekazex.hypertweak.hook.rules.securitycenter.BerserkModeHooker
 import com.takekazex.hypertweak.hook.rules.securitycenter.BubbleNotificationWhitelistHooker
@@ -77,6 +80,9 @@ internal object SecurityCenterHookPlan {
                     }
                     if (processName == packageName) {
                         hook { AppDetailsIconLaunchHooker }
+                        hook { AppDetailsActionsHooker }
+                        hook { MoreAppInfoHooker }
+                        hook { NamedApkShareHooker }
                         hook { SecurityCenterUsbInstallNetworkVerifyHooker }
                     }
                     if (processName == packageName || processName == "$packageName.remote") {

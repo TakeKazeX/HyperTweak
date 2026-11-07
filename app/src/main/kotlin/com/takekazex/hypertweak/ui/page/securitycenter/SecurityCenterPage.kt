@@ -83,6 +83,18 @@ fun SecurityCenterPage(
     var iconLaunch by rememberSaveable {
         mutableStateOf(settingsStore.getBoolean(AppSettingsKeys.KEY_APP_DETAILS_ICON_LAUNCH, false))
     }
+    var hideReport by rememberSaveable {
+        mutableStateOf(settingsStore.getBoolean(AppSettingsKeys.KEY_APP_DETAILS_HIDE_REPORT, false))
+    }
+    var allowDisable by rememberSaveable {
+        mutableStateOf(settingsStore.getBoolean(AppSettingsKeys.KEY_APP_DETAILS_ALLOW_DISABLE, false))
+    }
+    var moreAppInfo by rememberSaveable {
+        mutableStateOf(settingsStore.getBoolean(AppSettingsKeys.KEY_APP_DETAILS_MORE_INFO, false))
+    }
+    var namedApkShare by rememberSaveable {
+        mutableStateOf(settingsStore.getBoolean(AppSettingsKeys.KEY_APP_DETAILS_NAMED_SHARE, false))
+    }
     var bubbleNotificationUnlock by remember {
         mutableStateOf(
             settingsStore.getBoolean(
@@ -228,6 +240,42 @@ fun SecurityCenterPage(
                     },
                     title = stringResource(R.string.security_center_icon_launch),
                     summary = stringResource(R.string.security_center_icon_launch_summary)
+                )
+                SwitchPreference(
+                    checked = moreAppInfo,
+                    onCheckedChange = { enabled ->
+                        moreAppInfo = enabled
+                        settingsStore.putBoolean(AppSettingsKeys.KEY_APP_DETAILS_MORE_INFO, enabled)
+                    },
+                    title = stringResource(R.string.security_center_more_app_info),
+                    summary = stringResource(R.string.security_center_more_app_info_summary)
+                )
+                SwitchPreference(
+                    checked = namedApkShare,
+                    onCheckedChange = { enabled ->
+                        namedApkShare = enabled
+                        settingsStore.putBoolean(AppSettingsKeys.KEY_APP_DETAILS_NAMED_SHARE, enabled)
+                    },
+                    title = stringResource(R.string.security_center_named_apk_share),
+                    summary = stringResource(R.string.security_center_named_apk_share_summary)
+                )
+                SwitchPreference(
+                    checked = hideReport,
+                    onCheckedChange = { enabled ->
+                        hideReport = enabled
+                        settingsStore.putBoolean(AppSettingsKeys.KEY_APP_DETAILS_HIDE_REPORT, enabled)
+                    },
+                    title = stringResource(R.string.security_center_hide_app_report),
+                    summary = stringResource(R.string.security_center_hide_app_report_summary)
+                )
+                SwitchPreference(
+                    checked = allowDisable,
+                    onCheckedChange = { enabled ->
+                        allowDisable = enabled
+                        settingsStore.putBoolean(AppSettingsKeys.KEY_APP_DETAILS_ALLOW_DISABLE, enabled)
+                    },
+                    title = stringResource(R.string.security_center_allow_app_disable),
+                    summary = stringResource(R.string.security_center_allow_app_disable_summary)
                 )
             }
             SmallTitle(stringResource(R.string.security_center_privacy_entries_section))

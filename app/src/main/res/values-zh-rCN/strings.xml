@@ -1617,6 +1617,14 @@
     <string name="security_center_app_details_section">应用详情</string>
     <string name="security_center_icon_launch">点击图标打开应用</string>
     <string name="security_center_icon_launch_summary">点击应用详情页顶部的图标打开应用</string>
+    <string name="security_center_more_app_info">显示更多应用信息</string>
+    <string name="security_center_more_app_info_summary">在「应用信息」页显示版本号、SDK、UID、APK 路径等信息</string>
+    <string name="security_center_named_apk_share">分享 APK 时带应用名</string>
+    <string name="security_center_named_apk_share_summary">从应用详情分享单 APK 时，在文件名中加入应用名和版本</string>
+    <string name="security_center_hide_app_report">移除举报按钮</string>
+    <string name="security_center_hide_app_report_summary">隐藏应用详情菜单中的「举报」入口</string>
+    <string name="security_center_allow_app_disable">允许禁用更多应用</string>
+    <string name="security_center_allow_app_disable_summary">为当前用户的更多应用显示「禁用」按钮，受保护应用除外</string>
     <string name="settings_notification_mini_window_title">解锁横幅通知小窗手势</string>
     <string name="settings_notification_mini_window_summary">移除应用白名单，允许更多横幅通知显示手势条并下拉打开小窗</string>
     <string name="notification_menu_summary">通知行为、图标过滤与通知中心样式</string>
