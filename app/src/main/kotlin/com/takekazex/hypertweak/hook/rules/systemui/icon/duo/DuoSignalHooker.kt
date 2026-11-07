@@ -384,7 +384,7 @@ object DuoSignalHooker : StaticHooker() {
         duoView.submit(
             content,
             settingIconCellularTypeSmall5ga,
-            signalArtwork.renderAodCellularSignal(context, content)
+            signalArtwork.renderCellularSignal(context, content)
         )
     }
 

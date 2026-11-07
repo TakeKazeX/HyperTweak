@@ -35,7 +35,11 @@ object PowerSaveOverrideHooker : StaticHooker() {
         }
 
         prepareDexTargets(name = PowerSaveOverrideFeature.id,
-            resolve = ::resolveTransition, install = ::installTransition)
+            resolve = {
+                resolveTransition().also {
+                    if (it == null) DebugLog.hookSkipped(TAG, "power-save entry", "transaction contract unavailable")
+                }
+            }, install = ::installTransition)
     }
 
     override val installPolicy = InstallPolicy.WHEN_ENABLED

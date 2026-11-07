@@ -19,13 +19,12 @@ class HyperTweakApp : Application() {
         DebugLog.setProcessTag("app")
         com.takekazex.hypertweak.hook.runtime.settings.RuntimeSettingsSignal.attach(this)
         com.takekazex.hypertweak.hook.nativebridge.NativeUpgradeManager.restore(this)
-        // Init connection to LSPosed preferences as early as possible
-        XposedServiceManager.init()
-
         // Synchronously initialize local preferences
         val localPrefs = getSharedPreferences(AppSettingsKeys.NAME, Context.MODE_PRIVATE)
         Preferences.init(localPrefs, useLocalOnly = true)
         Preferences.initLocalCache(this)
+        // Binding can recover app-local settings from older versions.
+        XposedServiceManager.init()
         com.takekazex.hypertweak.app.PreferencesAppSettings.bind(this)
         DebugLog.ensureSession()
 

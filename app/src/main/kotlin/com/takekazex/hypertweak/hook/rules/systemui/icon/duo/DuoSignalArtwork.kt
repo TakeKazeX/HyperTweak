@@ -25,21 +25,8 @@ internal class DuoSignalArtwork {
         val stacked: IconSvgRenderer.Document
     )
     private var cellularSignalAssets: CellularSignalAssets? = null
-    private val aodCellularPictures = LinkedHashMap<List<Int>, Picture>()
-    fun renderAodCellularSignal(context: Context, content: DuoContent): Picture? {
-        if (content.airplaneMode || content.wifiLevel != null ||
-            !content.hasCellularSignal) return null
-        val levels = content.cellularSignalLevels.take(2)
-        if (levels.isEmpty()) return null
-        val key = levels
-        synchronized(aodCellularPictures) {
-            aodCellularPictures[key]?.let { return it }
-            val picture = renderCellularSignal(context, content) ?: return null
-            if (aodCellularPictures.size >= 32) aodCellularPictures.remove(aodCellularPictures.keys.first())
-            aodCellularPictures[key] = picture
-            return picture
-        }
-    }
+    private data class CellularPictureKey(val levels: List<Int>, val weight: Float)
+    private val cellularPictures = LinkedHashMap<CellularPictureKey, Picture>()
 
     fun loadCellularSignalAssets(context: Context): CellularSignalAssets? {
         cellularSignalAssets?.let { return it }
@@ -62,11 +49,21 @@ internal class DuoSignalArtwork {
             !content.hasCellularSignal) return null
         val levels = content.cellularSignalLevels.take(2)
         if (levels.isEmpty()) return null
-        val assets = loadCellularSignalAssets(context) ?: return null
-        return runCatching {
-            IconSvgRenderer.signalPicture(if (levels.size > 1) assets.stacked else assets.single, levels,
-                weight = settingIconStackedWeight)
-        }.onFailure { DebugLog.w(TAG, "cellular signal vector recording failed", it) }.getOrNull()
+        val key = CellularPictureKey(levels, settingIconStackedWeight)
+        return synchronized(cellularPictures) {
+            cellularPictures[key]?.let { return it }
+            val assets = loadCellularSignalAssets(context) ?: return null
+            val picture = runCatching {
+                IconSvgRenderer.signalPicture(if (levels.size > 1) assets.stacked else assets.single,
+                    levels, weight = key.weight)
+            }.onFailure { DebugLog.w(TAG, "cellular signal vector recording failed", it) }
+                .getOrNull() ?: return null
+            // Reuse the recording through pre-draw and panel callbacks. A new Picture would
+            // also defeat the view's identity check and invalidate the same icon again.
+            if (cellularPictures.size >= 32) cellularPictures.remove(cellularPictures.keys.first())
+            cellularPictures[key] = picture
+            picture
+        }
     }
     /** Dot hand-off endpoint recordings are immutable per level; a drag requests them per frame. */
     private val destinationPictures = HashMap<Int, Picture>()
@@ -106,6 +103,6 @@ internal class DuoSignalArtwork {
         return rowMorphs.getOrNull(row)
     }
 
-    fun retire() { rowMorphKey = null; rowMorphs = emptyList(); morphResolved = false; morphBars = null; cellularSignalAssets = null; aodCellularPictures.clear(); destinationPictures.clear() }
+    fun retire() { rowMorphKey = null; rowMorphs = emptyList(); morphResolved = false; morphBars = null; cellularSignalAssets = null; cellularPictures.clear(); destinationPictures.clear() }
     private companion object { const val TAG = "DuoSignal" }
 }

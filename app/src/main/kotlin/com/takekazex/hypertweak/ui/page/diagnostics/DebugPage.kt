@@ -128,6 +128,7 @@ fun DebugPage(
             SmallTitle(stringResource(R.string.debug_actions_title))
             Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
                 Column(Modifier.fillMaxWidth()) {
+                    AdbTcpPortPreference()
                     Button(
                         onClick = { showHotReloadDialog = true },
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),

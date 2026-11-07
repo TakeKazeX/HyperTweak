@@ -16,6 +16,7 @@ import com.takekazex.hypertweak.hook.preferences.SettingsMutationWriter
 import com.takekazex.hypertweak.hook.runtime.settings.BackGestureSettingsLedger
 import com.takekazex.hypertweak.hook.runtime.settings.BackGestureSettingsSnapshot
 import com.takekazex.hypertweak.hook.runtime.settings.RuntimeSettingsReadCache
+import com.takekazex.hypertweak.hook.runtime.settings.RuntimeSettingsSignal
 import com.takekazex.hypertweak.hook.runtime.settings.RuntimeSettingsSnapshot
 import com.takekazex.hypertweak.hook.runtime.settings.RuntimeSettingsStore
 import com.takekazex.hypertweak.settings.contract.CameraLegendaryMomentMode
@@ -300,21 +301,37 @@ object Preferences {
         PlatformSettingsKeys.DEFAULT_BATTERY_AUTO_POWER_SAVE_THRESHOLD,
     ).coerceIn(PlatformSettingsKeys.MIN_BATTERY_AUTO_POWER_SAVE_THRESHOLD, PlatformSettingsKeys.MAX_BATTERY_AUTO_POWER_SAVE_THRESHOLD)
 
+    private val powerSaveFeatureKeys = listOf(
+        PlatformSettingsKeys.KEY_KEEP_REFRESH_RATE_IN_POWER_SAVE,
+        PlatformSettingsKeys.KEY_KEEP_HAPTIC_FEEDBACK_IN_POWER_SAVE,
+        PlatformSettingsKeys.KEY_KEEP_SYSTEM_SOUNDS_IN_POWER_SAVE,
+        PlatformSettingsKeys.KEY_KEEP_WAKEUP_GESTURES_IN_POWER_SAVE,
+    )
+
     /** Preserve the effective legacy selection when editing one independent feature. */
     fun setPowerSaveFeature(key: String, enabled: Boolean) {
-        val keys = listOf(
-            PlatformSettingsKeys.KEY_KEEP_REFRESH_RATE_IN_POWER_SAVE, PlatformSettingsKeys.KEY_KEEP_HAPTIC_FEEDBACK_IN_POWER_SAVE,
-            PlatformSettingsKeys.KEY_KEEP_SYSTEM_SOUNDS_IN_POWER_SAVE, PlatformSettingsKeys.KEY_KEEP_WAKEUP_GESTURES_IN_POWER_SAVE,
-        )
-        require(key in keys)
+        require(key in powerSaveFeatureKeys)
+        val master = PlatformSettingsKeys.KEY_POWER_SAVE_OVERRIDE_MASTER
         val values = PowerSaveOverrideSelection.edit(
-            getBoolean(PlatformSettingsKeys.KEY_POWER_SAVE_OVERRIDE_MASTER, false),
-            keys.associateWith { getBoolean(it, false) }, key, enabled,
+            getBoolean(master, false), powerSaveFeatureKeys.associateWith { getBoolean(it, false) }, key, enabled,
         )
-        (keys + PlatformSettingsKeys.KEY_POWER_SAVE_OVERRIDE_MASTER).forEach(::memoInvalidate)
-        write {
-            putBoolean(PlatformSettingsKeys.KEY_POWER_SAVE_OVERRIDE_MASTER, true)
-            values.forEach { (featureKey, value) -> putBoolean(featureKey, value) }
+        publishPowerSaveSelection(values + (master to true))
+    }
+
+    /** Older editors persisted this selection locally without acknowledging it for the hosts. */
+    internal fun recoverUnpublishedPowerSaveSelection() {
+        val acknowledged = RuntimeSettingsSignal.lastAcknowledged()?.values ?: return
+        val local = localSourcePrefs ?: return
+        val master = PlatformSettingsKeys.KEY_POWER_SAVE_OVERRIDE_MASTER
+        val keys = powerSaveFeatureKeys + master
+        if (keys.any(acknowledged::containsKey) || !local.getBoolean(master, false)) return
+        publishPowerSaveSelection(keys.associateWith { local.getBoolean(it, false) })
+    }
+
+    private fun publishPowerSaveSelection(values: Map<String, Boolean>) {
+        values.keys.forEach(::memoInvalidate)
+        write(runtimeChanges = values) {
+            values.forEach { (key, value) -> putBoolean(key, value) }
         }
     }
 

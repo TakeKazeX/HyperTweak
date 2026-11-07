@@ -43,11 +43,11 @@ class AppRestartTrackerTest {
 
     @Test fun revertingAToggleClearsOnlyItsDirtyRestartRequest() {
         val store = Store(); val tracker = AppRestartTracker(store, AppSettingsState(MemoryAppSettings()))
-        val key = SystemUiSettingsKeys.KEY_LOCKSCREEN_KEEP_NOTIFICATIONS
+        val key = PlatformSettingsKeys.KEY_DOWNLOAD_ALWAYS_SHOW_FULL_LINK
         store.values["tweak_baseline_$key"] = false
         tracker.markTweaked(key, true)
         assertEquals(setOf(key), tracker.dirtyTweakKeys)
-        assertTrue(tracker.pendingRestartScopes.systemUi)
+        assertTrue(RestartScopeSelection.PACKAGE_DOWNLOADS_UI in tracker.pendingRestartScopes.additionalPackages)
         tracker.markTweaked(key, false)
         assertTrue(tracker.dirtyTweakKeys.isEmpty())
         assertTrue(tracker.pendingRestartScopes.isEmpty())
@@ -56,17 +56,17 @@ class AppRestartTrackerTest {
     @Test fun partialRestartKeepsManualRequestsAndAdvancesTheClearedBaseline() {
         val store = Store(); val settings = AppSettingsState(MemoryAppSettings())
         val tracker = AppRestartTracker(store, settings)
-        val key = SystemUiSettingsKeys.KEY_LOCKSCREEN_KEEP_NOTIFICATIONS
+        val key = PlatformSettingsKeys.KEY_DOWNLOAD_ALWAYS_SHOW_FULL_LINK
         store.values["tweak_baseline_$key"] = false
         tracker.requestRestartScopes(RestartScopeSelection(settings = true))
         tracker.markTweaked(key, true)
-        settings.lockscreenKeepNotifications = true
-        tracker.clearRestartedScopes(RestartScopeSelection(systemUi = true))
+        settings.downloadAlwaysShowFullLink = true
+        tracker.clearRestartedScopes(RestartScopeSelection(additionalPackages = setOf(RestartScopeSelection.PACKAGE_DOWNLOADS_UI)))
         assertTrue(tracker.dirtyTweakKeys.isEmpty())
         assertEquals(RestartScopeSelection(settings = true), tracker.pendingRestartScopes)
         assertEquals(true, store.values["tweak_baseline_$key"])
         tracker.markTweaked(key, false)
-        assertTrue(tracker.pendingRestartScopes.systemUi)
+        assertTrue(RestartScopeSelection.PACKAGE_DOWNLOADS_UI in tracker.pendingRestartScopes.additionalPackages)
         assertTrue(tracker.pendingRestartScopes.settings)
     }
 
@@ -75,7 +75,9 @@ class AppRestartTrackerTest {
         val tracker = AppRestartTracker(store, AppSettingsState(MemoryAppSettings()))
         for (key in listOf(SystemUiSettingsKeys.KEY_HIDE_LOCKSCREEN_STATUS_BAR,
             SystemUiSettingsKeys.KEY_CC_EDIT_ENABLED, PlatformSettingsKeys.KEY_THREE_ISLANDS,
-            PlatformSettingsKeys.KEY_XMSF_UNLOCK_FOCUS_AUTH, PlatformSettingsKeys.KEY_SHOW_IN_SETTINGS)) {
+            PlatformSettingsKeys.KEY_XMSF_UNLOCK_FOCUS_AUTH, PlatformSettingsKeys.KEY_SHOW_IN_SETTINGS,
+            SystemUiSettingsKeys.KEY_LOCKSCREEN_ALL_NOTIFICATIONS, SystemUiSettingsKeys.KEY_LOCKSCREEN_KEEP_NOTIFICATIONS,
+            PlatformSettingsKeys.KEY_SETTINGS_GLOBAL_INTERFACE)) {
             tracker.markTweaked(key, true)
             assertFalse(store.values.containsKey("tweak_baseline_$key"))
         }

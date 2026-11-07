@@ -66,6 +66,7 @@ internal object XposedServiceManager : XposedServiceHelper.OnServiceListener, Mo
             val remotePrefs = service.getRemotePreferences(AppSettingsKeys.NAME)
             Preferences.init(remotePrefs)
             RuntimeSettingsSignal.bind(remotePrefs)
+            Preferences.recoverUnpublishedPowerSaveSelection()
             DebugLog.d("XposedService", "switched Preferences to RemotePreferences")
         } catch (t: Throwable) {
             Preferences.noteRemoteBackendUnavailable()

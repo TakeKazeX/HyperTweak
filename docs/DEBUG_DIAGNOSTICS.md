@@ -8,6 +8,10 @@ Provider：`content://com.takekazex.hypertweak.debug`。所有方法校验真实
 
 这是应用层的访问控制；设备 root 本身可以绕过应用数据权限。原有 `.logdump` 只读日志接口继续保持原来的 root/shell 策略。
 
+## 无线 ADB 5555
+
+调试页 → **调试操作** → **无线 ADB（5555 端口）**。开关读取 `adbd` 的实际监听状态，需要 Root。开启后可在电脑上执行 `adb connect <设备 IP>:5555`，继续使用设备原有的 ADB 授权。关闭后停止监听 5555，已启用的 USB 调试仍可使用。切换会重启 `adbd`，当前 ADB 会话会短暂断开。端口仅在本次开机期间设置。
+
 ## AI / adb 客户端
 
 首选仓库内的 `.github/scripts/hypertweak_debug.py`，依赖 Python 3 与 adb。默认通过 `su -c` 执行；已经 `adb root` 的环境加 `--root-adbd`。多设备指定 `--serial`，多用户指定 `--user`，不要默认为当前前台用户安装了模块。

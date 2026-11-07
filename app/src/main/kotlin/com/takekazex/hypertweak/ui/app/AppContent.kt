@@ -293,7 +293,6 @@ internal fun AppContent(
                     },
                     settingsGlobalInterface = settingsGlobalInterface,
                     onSettingsGlobalInterfaceChange = { checked ->
-                        markTweaked(PlatformSettingsKeys.KEY_SETTINGS_GLOBAL_INTERFACE, checked)
                         settingsGlobalInterface = checked
                         settings.storage.putBoolean(PlatformSettingsKeys.KEY_SETTINGS_GLOBAL_INTERFACE, checked)
                     },
@@ -473,13 +472,11 @@ internal fun AppContent(
                     },
                     lockscreenAllNotifications = lockscreenAllNotifications,
                     onLockscreenAllNotificationsChange = { checked ->
-                        markTweaked(SystemUiSettingsKeys.KEY_LOCKSCREEN_ALL_NOTIFICATIONS, checked)
                         lockscreenAllNotifications = checked
                         settings.storage.putBoolean(SystemUiSettingsKeys.KEY_LOCKSCREEN_ALL_NOTIFICATIONS, checked)
                     },
                     lockscreenKeepNotifications = lockscreenKeepNotifications,
                     onLockscreenKeepNotificationsChange = { checked ->
-                        markTweaked(SystemUiSettingsKeys.KEY_LOCKSCREEN_KEEP_NOTIFICATIONS, checked)
                         lockscreenKeepNotifications = checked
                         settings.storage.putBoolean(SystemUiSettingsKeys.KEY_LOCKSCREEN_KEEP_NOTIFICATIONS, checked)
                     },
