@@ -244,8 +244,15 @@
     <string name="credits_title">Credits</string>
     <string name="credits_xiaomihelper_desc">References for Settings preference injection</string>
     <string name="debug_actions_title">Debug actions</string>
-    <string name="debug_adb_tcp_title">Wireless ADB (port 5555)</string>
-    <string name="debug_adb_tcp_summary">Open a temporary ADB TCP listener. Changing it restarts adbd and briefly disconnects active sessions.</string>
+    <string name="debug_adb_tcp_title">Wireless ADB</string>
+    <string name="debug_adb_tcp_summary">Open a legacy ADB TCP listener. Changing it restarts adbd and briefly disconnects active sessions.</string>
+    <string name="debug_adb_tcp_listening">Listening on port %1$d. Connect using the device IP and this port.</string>
+    <string name="debug_adb_tcp_custom">Custom port</string>
+    <string name="debug_adb_tcp_custom_summary">Use the specified port the next time you enable wireless ADB. Otherwise, an available random port is chosen.</string>
+    <string name="debug_adb_tcp_port">Port (1–65535)</string>
+    <string name="debug_adb_tcp_occupied">The requested port is in use, or no random candidate was available.</string>
+    <string name="debug_adb_tcp_persistent">Keep open after reboot</string>
+    <string name="debug_adb_tcp_persistent_summary">While listening, save the current port for the next boot. Enable this only on a trusted network.</string>
     <string name="debug_adb_tcp_working">Checking the ADB listener…</string>
     <string name="debug_adb_tcp_unknown">Could not read port status. Root access is required.</string>
     <string name="debug_adb_tcp_failed">Could not change the ADB listener</string>

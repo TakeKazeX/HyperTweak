@@ -242,8 +242,15 @@
     <string name="credits_title">致谢</string>
     <string name="credits_xiaomihelper_desc">Settings 偏好注入参考</string>
     <string name="debug_actions_title">调试操作</string>
-    <string name="debug_adb_tcp_title">无线 ADB（5555 端口）</string>
-    <string name="debug_adb_tcp_summary">临时开放 ADB TCP 端口。切换时会重启 adbd，当前连接将短暂中断。</string>
+    <string name="debug_adb_tcp_title">无线 ADB</string>
+    <string name="debug_adb_tcp_summary">开放传统 ADB TCP 端口。切换时会重启 adbd，当前连接将短暂中断。</string>
+    <string name="debug_adb_tcp_listening">正在监听端口 %1$d。使用设备 IP 和此端口连接。</string>
+    <string name="debug_adb_tcp_custom">自定义端口</string>
+    <string name="debug_adb_tcp_custom_summary">下次开启无线 ADB 时使用指定端口。关闭此选项时随机选择空闲端口。</string>
+    <string name="debug_adb_tcp_port">端口（1–65535）</string>
+    <string name="debug_adb_tcp_occupied">指定端口已被占用，或没有找到可用的随机端口。</string>
+    <string name="debug_adb_tcp_persistent">重启后保持开启</string>
+    <string name="debug_adb_tcp_persistent_summary">监听期间可保存当前端口，下次开机继续使用。建议仅在可信网络上开启。</string>
     <string name="debug_adb_tcp_working">正在检查 ADB 端口…</string>
     <string name="debug_adb_tcp_unknown">无法读取端口状态，需要 Root 权限。</string>
     <string name="debug_adb_tcp_failed">无法切换 ADB 端口</string>
