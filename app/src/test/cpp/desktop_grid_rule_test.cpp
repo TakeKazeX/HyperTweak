@@ -47,6 +47,21 @@ int main(int argc,char** argv){
  for(unsigned i=0;i<8;++i){const auto at=resolved.sites[i].offset;const auto saved=image_bytes[at];image_bytes[at]^=0xff;const auto bad=dart::ResolveTarget(image,dart::kDesktopGridTarget);assert(!bad.resolved||!bad.verified);image_bytes[at]=saved;}
  uintptr_t sites[8]{};for(unsigned i=0;i<8;++i)sites[i]=resolved.sites[i].offset;
  dart::DesktopGridLayout decoded{};assert(dart::DecodeDesktopGridLayout(image,sites,&decoded));
+ // The inlined/expanded family permits relocation and CID renumbering, but
+ // divergent async returns or type guards must still reject the contract.
+ uint32_t load_reason_guard=0;
+ assert(dart::ReadInsn(image,decoded.load+0xa94,&load_reason_guard));
+ if(load_reason_guard==0x7100681fu){
+  const uintptr_t offsets[]={sites[4]+0xcc,decoded.load+0x2a0,decoded.load+0xa4c};
+  const uint32_t changed_bits[]={1u,1u,1u<<10u};
+  for(size_t i=0;i<3;++i){
+   uint32_t original=0;assert(dart::ReadInsn(image,offsets[i],&original));
+   const auto changed=original^changed_bits[i];
+   memcpy(image_bytes.data()+offsets[i],&changed,4);
+   assert(!dart::DecodeDesktopGridLayout(image,sites,&decoded));
+   memcpy(image_bytes.data()+offsets[i],&original,4);
+  }
+ }
  // Preview reads and the independent live-geometry consumer must agree.
  uint32_t prepare_word=0;uintptr_t prepare_current=0;
  assert(dart::ReadInsn(image,sites[1]+20,&prepare_word)&&dart::DecodeBlTarget(sites[1]+20,prepare_word,&prepare_current));

@@ -60,6 +60,45 @@ const SiteSpec kGridSites[]={
 uint32_t GridWord(const Image& image,uintptr_t at){uint32_t word=0;ReadInsn(image,at,&word);return word;}
 uint32_t GridField(uint32_t word){return (word>>12u)&511u;}
 bool GridCall(const Image& image,uintptr_t at,uintptr_t* result){const auto w=GridWord(image,at);return IsBl(w)&&DecodeBlTarget(at,w,result)&&Contains(image,*result,16,kFlagRead|kFlagExec);}
+
+bool GridAsyncReturnBranch(const Image& image, uintptr_t at, uintptr_t* target) {
+ const auto word = GridWord(image, at);
+ // B and BL encode the same signed displacement. Require B before decoding it.
+ return (word & 0xfc000000u) == 0x14000000u &&
+        DecodeBlTarget(at, word | 0x80000000u, target);
+}
+
+bool VerifyGridAsyncReturn(const Image& image, uintptr_t apply, uintptr_t load) {
+ uintptr_t tail = 0;
+ if (!GridAsyncReturnBranch(image, apply + 0xcc, &tail)) return false;
+ // The shared Dart tail reloads the async state, replaces the caller frame,
+ // calls the thread's async return stub and unwinds its own frame.
+ constexpr uint32_t tail_words[] = {
+  0xf85f83a2u, 0xaa1d03efu, 0xa8c179fdu, 0xa9bf79fdu, 0xaa0f03fdu,
+  0xa9bf09e0u, 0xf9431b5eu, 0xd63f03c0u, 0xaa1d03efu, 0xa8c179fdu, 0xd65f03c0u,
+ };
+ if (!Contains(image, tail, sizeof(tail_words), kFlagRead | kFlagExec) ||
+     memcmp(image.base + tail, tail_words, sizeof(tail_words)) != 0) return false;
+ uintptr_t target = 0;
+ if (!GridAsyncReturnBranch(image, apply + 0x410, &target) || target != tail) return false;
+ if (!load) return true;
+ constexpr uintptr_t load_returns[] = {0x2a0u, 0x580u, 0xd60u, 0x1038u, 0x1614u, 0x1ae8u};
+ for (const auto offset : load_returns) {
+  if (!GridAsyncReturnBranch(image, load + offset, &target) || target != tail) return false;
+ }
+ return true;
+}
+
+bool VerifyExpandedGridLoadCid(const Image& image, uintptr_t load) {
+ const auto cid = [&](uintptr_t offset) { return (GridWord(image, load + offset) >> 10u) & 4095u; };
+ // The two layout enum conversions and the cached-config store guard the
+ // same class after extracting the CID from the object header.
+ const auto config_cid = cid(0x73c);
+ uintptr_t first_enum = 0, second_enum = 0;
+ return config_cid != 0 && config_cid == cid(0xa4c) && config_cid == cid(0xe30) &&
+        GridCall(image, load + 0x748, &first_enum) &&
+        GridCall(image, load + 0xa58, &second_enum) && first_enum == second_enum;
+}
 }
 const TargetSpec kDesktopGridTarget={"desktop_grid_pipeline","libapp.so",kGridSites,8};
 bool DecodeDesktopGridLayout(const Image& image,const uintptr_t* sites,DesktopGridLayout* out,const uint8_t* handler,const uint8_t* variable,const uint8_t* rows,const uint8_t* clamp){
@@ -122,6 +161,8 @@ bool DecodeDesktopGridLayout(const Image& image,const uintptr_t* sites,DesktopGr
  if(!GridCall(image,sites[2]+248,&v.load)||!GridCall(image,sites[3]+340,&call)||call!=v.load)return false;
  const bool expanded_load=verify(v.load,kGridExpandedLoad);
  if(!expanded_load&&!verify(v.load,kGridLoad))return false;
+ if(inline_apply&&!VerifyGridAsyncReturn(image,sites[4],expanded_load?v.load:0))return false;
+ if(expanded_load&&(!inline_apply||!VerifyExpandedGridLoadCid(image,v.load)))return false;
  if(GridWord(image,v.load+(expanded_load?0xa94:0xa0c))!=0x7100681fu||!GridCall(image,v.load+(expanded_load?0xaa0:0xa18),&call))return false;
  if(!GridCall(image,v.load+(expanded_load?0x1330:0x120c),&v.migrate)||!verify(v.migrate,kGridMigrate))return false;
  if(inline_apply) {
