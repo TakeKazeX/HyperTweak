@@ -251,6 +251,7 @@ internal object RuntimeSettingsParticipants {
             it is com.takekazex.hypertweak.hook.rules.lbe.LbeClipboardToastHooker
         } }
         registerForProcess(RuntimeSettingsGroups.BARRAGE) { _ -> true }
+        registerForProcess(RuntimeSettingsGroups.BUSINESS_HALL_ADS) { _ -> true }
         registerForProcess(RuntimeSettingsGroups.OFFLINE_CONFIG) { _ -> Preferences.invalidateRuntimeReadCache(); true }
         registerForProcess(RuntimeSettingsGroups.XIAOAI_GESTURES) { _ -> true }
         registerForProcess(RuntimeSettingsGroups.SETTINGS_AI) { _ ->

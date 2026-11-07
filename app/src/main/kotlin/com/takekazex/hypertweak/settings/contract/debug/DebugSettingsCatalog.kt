@@ -71,6 +71,7 @@ internal object DebugSettingsCatalog {
         DebugSetting("community_block_detection", "Boolean", false),
         DebugSetting("community_device_modify", "Boolean", false),
         DebugSetting("community_device_modify_model", "String", ""),
+        DebugSetting("contacts_business_hall_ad_block", "Boolean", false),
         DebugSetting("contacts_business_hall_ignore_offline", "Boolean", false),
         DebugSetting("contextual_search_haptics", "Boolean", false),
         DebugSetting("contextual_search_long_press", "Boolean", false),

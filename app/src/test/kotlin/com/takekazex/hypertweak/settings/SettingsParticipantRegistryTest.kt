@@ -45,7 +45,10 @@ class SettingsParticipantRegistryTest {
             header = { unexpected() }, notificationText = { unexpected() }, hookers = { unexpected() },
             retired = { unexpected() }
         )
-        for (process in RuntimeSettingsGroups.targets + setOf("system_server", "com.miui.securitycenter.power", "unscoped")) {
+        val processNames = RuntimeSettingsGroups.targets + setOf(
+            "system_server", "com.miui.securitycenter.power", "com.android.contacts:business", "unscoped",
+        )
+        for (process in processNames) {
             val dispatcher = SettingsReloadDispatcher(
                 post = { _, _ -> unexpected() }, remove = { unexpected() }, failure = { _, _ -> unexpected() }
             )

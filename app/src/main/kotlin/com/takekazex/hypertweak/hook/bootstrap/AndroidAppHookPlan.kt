@@ -6,6 +6,7 @@ import com.takekazex.hypertweak.hook.rules.camera.CameraImpersonationHooker
 import com.takekazex.hypertweak.hook.rules.camera.CameraLegendaryProfileHooker
 import com.takekazex.hypertweak.hook.rules.camera.CameraUltraQualityHooker
 import com.takekazex.hypertweak.hook.rules.camera.CameraWatermarkHooker
+import com.takekazex.hypertweak.hook.rules.contacts.BusinessHallAdBlockHooker
 import com.takekazex.hypertweak.hook.rules.downloads.DownloadUiHooker
 import com.takekazex.hypertweak.hook.rules.downloads.DownloadXlLogDirectoryHooker
 import com.takekazex.hypertweak.hook.rules.intentresolver.SharePanelHooker
@@ -78,6 +79,9 @@ internal object AndroidAppHookPlan {
             "com.android.contacts" -> {
                 hook { RestartBroadcastHooker }
                 hook { CarrierOfflineConfigHooker }
+                if (processName == packageName || processName == "$packageName:business") {
+                    hook { BusinessHallAdBlockHooker }
+                }
             }
         }
     }

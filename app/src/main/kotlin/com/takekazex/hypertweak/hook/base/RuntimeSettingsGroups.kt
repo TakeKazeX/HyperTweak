@@ -41,6 +41,7 @@ internal object RuntimeSettingsGroups {
     const val SECURITY_BUBBLES = RuntimeSettingsDefinitions.SECURITY_BUBBLES
     const val SECURITY_CLIPBOARD = RuntimeSettingsDefinitions.SECURITY_CLIPBOARD
     const val BARRAGE = RuntimeSettingsDefinitions.BARRAGE
+    const val BUSINESS_HALL_ADS = RuntimeSettingsDefinitions.BUSINESS_HALL_ADS
     const val OFFLINE_CONFIG = RuntimeSettingsDefinitions.OFFLINE_CONFIG
     const val XIAOAI_GESTURES = RuntimeSettingsDefinitions.XIAOAI_GESTURES
     const val SETTINGS_AI = RuntimeSettingsDefinitions.SETTINGS_AI

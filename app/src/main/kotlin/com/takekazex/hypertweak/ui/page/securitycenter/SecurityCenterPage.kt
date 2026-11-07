@@ -201,6 +201,9 @@ fun SecurityCenterPage(
     var networkAssistantIgnoreOffline by remember {
         mutableStateOf(settingsStore.getBoolean(PlatformSettingsKeys.KEY_NETWORK_ASSISTANT_IGNORE_OFFLINE, false))
     }
+    var businessHallAdBlock by rememberSaveable {
+        mutableStateOf(settingsStore.getBoolean(PlatformSettingsKeys.KEY_CONTACTS_BUSINESS_HALL_AD_BLOCK, false))
+    }
     var contactsBusinessHallIgnoreOffline by remember {
         mutableStateOf(settingsStore.getBoolean(PlatformSettingsKeys.KEY_CONTACTS_BUSINESS_HALL_IGNORE_OFFLINE, false))
     }
@@ -493,6 +496,16 @@ fun SecurityCenterPage(
                     },
                     title = stringResource(R.string.security_center_contacts_business_hall_ignore_offline),
                     summary = stringResource(R.string.security_center_carrier_offline_summary)
+                )
+                SwitchPreference(
+                    checked = businessHallAdBlock,
+                    onCheckedChange = { enabled ->
+                        businessHallAdBlock = enabled
+                        settingsStore.putBoolean(PlatformSettingsKeys.KEY_CONTACTS_BUSINESS_HALL_AD_BLOCK, enabled)
+                        settingsStore.flush()
+                    },
+                    title = stringResource(R.string.security_center_business_hall_ad_block),
+                    summary = stringResource(R.string.security_center_business_hall_ad_block_summary),
                 )
             }
 

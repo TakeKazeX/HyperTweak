@@ -75,6 +75,8 @@
     <string name="security_center_bypass_usb_install_network_verify_summary">Only skips network verification when enabling USB installation; a Xiaomi account is still required. Turning this off does not disable USB installation that is already enabled.</string>
     <string name="security_center_carrier_offline_section">Carrier business availability</string>
     <string name="security_center_network_assistant_ignore_offline">Disable Network Assistant offline configuration</string>
+    <string name="security_center_business_hall_ad_block">Hide Business Hall ads</string>
+    <string name="security_center_business_hall_ad_block_summary">Hides recommendation cards, pop-ups, and promotions. Reopen Business Hall after changing this setting.</string>
     <string name="security_center_contacts_business_hall_ignore_offline">Disable Business Hall offline configuration</string>
     <string name="security_center_carrier_offline_summary">Ignores the carrier offline flag and restores the original query and correction branches where available. Re-enter an open page to refresh; carrier service availability still applies.</string>
     <string name="security_center_privacy_call_entry">Show privacy call entry</string>

@@ -75,6 +75,8 @@
     <string name="security_center_bypass_usb_install_network_verify_summary">仅在开启 USB 安装时跳过联网校验，仍需小米账户。关闭此开关不会关闭已开启的 USB 安装。</string>
     <string name="security_center_carrier_offline_section">运营商业务配置</string>
     <string name="security_center_network_assistant_ignore_offline">禁用网络助手离线配置</string>
+    <string name="security_center_business_hall_ad_block">屏蔽营业厅广告</string>
+    <string name="security_center_business_hall_ad_block_summary">隐藏推荐卡片、弹窗和推广活动。切换后请重新进入营业厅。</string>
     <string name="security_center_contacts_business_hall_ignore_offline">禁用营业厅离线配置</string>
     <string name="security_center_carrier_offline_summary">忽略运营商下线标记，在条件允许时恢复原查询和校正分支。已打开的页面需重新进入刷新，实际可用性仍取决于运营商服务。</string>
     <string name="security_center_privacy_call_entry">显示隐私通话入口</string>
