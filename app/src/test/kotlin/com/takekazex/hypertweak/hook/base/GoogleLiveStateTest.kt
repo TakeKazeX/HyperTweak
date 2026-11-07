@@ -76,20 +76,22 @@ class GoogleLiveStateTest {
     @Test fun requestDoesNotWaitForInFlightDatabaseCommitAndLatestValueWins() {
         val started = CountDownLatch(1)
         val release = CountDownLatch(1)
-        val done = CountDownLatch(1)
+        val latestWrite = CountDownLatch(1)
         val executor = Executors.newSingleThreadExecutor()
         val writes = java.util.Collections.synchronizedList(ArrayList<Boolean>())
         val work = LatestSettingsWork<Boolean>({ executor.execute(it) }, {
             if (it) { started.countDown(); check(release.await(3, TimeUnit.SECONDS)) }
             writes += it
-            if (!it) done.countDown()
+            if (!it) latestWrite.countDown()
         }) { throw it }
         try {
             work.request(true)
             assertTrue(started.await(3, TimeUnit.SECONDS))
             assertFalse(work.request(false))
             release.countDown()
-            assertTrue(done.await(3, TimeUnit.SECONDS))
+            assertTrue(latestWrite.await(3, TimeUnit.SECONDS))
+            // The write callback signals before drain records the applied value.
+            executor.submit {}.get(3, TimeUnit.SECONDS)
             assertEquals(listOf(true, false), writes)
             assertTrue(work.request(false))
             work.retire()
