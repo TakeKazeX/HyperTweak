@@ -403,7 +403,7 @@
     <string name="glass_glass_tone_summary">控制玻璃的基础色调；数值越低，观感越亮。</string>
     <string name="glass_slider_edit_value">输入数值</string>
     <string name="glass_parameters">参数</string>
-    <string name="glass_parameters_summary">覆盖磨砂与柔光玻璃的模糊参数</string>
+    <string name="glass_parameters_summary">拖动时预览，松手后将参数应用到系统界面。</string>
     <string name="glass_preview_title">原生材质预览</string>
     <string name="glass_preview_change_image">更换图片</string>
     <string name="glass_preview_auto_dark">已根据图片自动适配深色材质</string>

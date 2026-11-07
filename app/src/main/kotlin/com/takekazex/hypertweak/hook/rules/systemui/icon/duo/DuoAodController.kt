@@ -4,6 +4,7 @@ import com.takekazex.hypertweak.presentation.icon.duo.DuoSurface
 
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.view.View
 import android.view.ViewGroup
 import androidx.core.view.isVisible
@@ -31,10 +32,34 @@ internal class DuoAodController(owner: BaseHooker, private val host: Host) : Hoo
         fun setPrivacyInset(binding: DuoBinding, inset: Int)
         fun setNativeAirplaneMasked(binding: DuoBinding, masked: Boolean)
     }
-    private companion object { const val TAG = "DuoSignal" }
+    private companion object {
+        const val TAG = "DuoSignal"
+        const val BATTERY_ANIMATION_WATCHDOG_MS = 1500L
+    }
     private val main = Handler(Looper.getMainLooper())
+    private var batteryAodMode: Field? = null
+    private var batteryRealStyle: Field? = null
+
+    fun resolveBatteryAnimation(batteryClass: Class<*>) {
+        batteryAodMode = field(batteryClass, "mToAod")?.takeIf { it.type == Boolean::class.javaPrimitiveType }
+        batteryRealStyle = field(batteryClass, "mStoreRealStyle")?.takeIf { it.type == Int::class.javaPrimitiveType }
+    }
+
+    fun startBatteryAnimation(binding: DuoBinding, toAod: Boolean, animate: Boolean) {
+        // Style 3 animates the adjacent icon containers but does not fade/switch the battery.
+        val nativeStyle = batteryRealStyle?.getInt(binding.battery)
+        binding.batteryAnimationToAod = toAod.takeIf {
+            animate && batteryAodMode != null && nativeStyle != null && nativeStyle != 3
+        }
+        binding.batteryAnimationDeadline = SystemClock.uptimeMillis() + BATTERY_ANIMATION_WATCHDOG_MS
+    }
+
     private var dozingRead: (() -> Boolean?)? = null
-    fun retire() { dozingRead = null }
+    fun retire() {
+        dozingRead = null
+        batteryAodMode = null
+        batteryRealStyle = null
+    }
     private fun read(target: Any, name: String) = HostAccess.read(target, name)
     private fun field(type: Class<*>, name: String) = HostAccess.field(type, name)
     private inline fun guarded(action: () -> Unit) {
@@ -76,9 +101,27 @@ internal class DuoAodController(owner: BaseHooker, private val host: Host) : Hoo
     fun keyguardDecision(binding: DuoBinding): KeyguardRowDecision {
         val root = binding.keyguardRoot
             ?: return KeyguardRowDecision.of(AodHostPhase.UNKNOWN, KeyguardRowOwner.DUO)
-        val phase = AodKeyguardPolicy.phaseForFrame(
+        val dozing = dozingRead?.invoke()
+        var phase = AodKeyguardPolicy.phaseForFrame(
             host.enabled, root.isAttachedToWindow, binding.rowPhase
-        ) { dozingRead?.invoke() }
+        ) { dozing }
+        val animationToAod = binding.batteryAnimationToAod
+        if (host.enabled && root.isAttachedToWindow && animationToAod != null) {
+            val nativeAod = batteryAodMode?.getBoolean(binding.battery)
+            val finished = nativeAod == animationToAod && dozing == animationToAod &&
+                binding.battery.alpha >= 1f
+            if (nativeAod == null || finished || SystemClock.uptimeMillis() >= binding.batteryAnimationDeadline) {
+                binding.batteryAnimationToAod = null
+            } else {
+                phase = AodKeyguardPolicy.phaseForBatteryAnimation(animationToAod, nativeAod)
+                // The original View is GONE while Duo owns the row and may not invalidate it.
+                binding.parent.postInvalidateOnAnimation()
+            }
+        } else if (phase == AodHostPhase.LIT && binding.fullAodNativeState != null &&
+            batteryAodMode?.getBoolean(binding.battery) == true) {
+            // Wake dozing can clear before the animation handshake arrives.
+            phase = AodHostPhase.TRANSITIONING
+        }
         val settings = if (phase == AodHostPhase.LIT || phase == AodHostPhase.UNKNOWN)
             AodIconSettings.defaults() else AodIconSettings.current()
         return AodKeyguardPolicy.decide(

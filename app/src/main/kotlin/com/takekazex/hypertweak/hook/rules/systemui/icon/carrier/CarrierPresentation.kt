@@ -22,6 +22,7 @@ import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
 import java.lang.reflect.Field
+import kotlin.math.ceil
 import kotlin.math.roundToInt
 
 private val hideCarrierOne by hookSetting(false) { Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_CARRIER_ONE, false) }
@@ -49,7 +50,8 @@ internal class CarrierPresentation(private val host: Host, private val rowRender
         val type = glyphView(context)
         val wifi = glyphView(context)
         networkSlot.addView(type, FrameLayout.LayoutParams(
-            ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER
+            ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
+            Gravity.START or Gravity.CENTER_VERTICAL
         ))
         networkSlot.addView(wifi, FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER
@@ -61,6 +63,7 @@ internal class CarrierPresentation(private val host: Host, private val rowRender
             gravity = Gravity.CENTER
             includeFontPadding = false
             typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+            fontFeatureSettings = "tnum"
             visibility = View.GONE
             importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
         }, networkSlot, wifi, type).also { parts ->
@@ -175,7 +178,7 @@ internal class CarrierPresentation(private val host: Host, private val rowRender
     }
 
     fun measureRows(block: CarrierBlock, width: Int) {
-        block.rows.forEach { parts ->
+        val rowWidths = block.rows.map { parts ->
             val fixed = listOf(parts.signal, parts.networkSlot)
                 .filter { it.visibility != View.GONE }.sumOf { view ->
                     view.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.AT_MOST),
@@ -186,15 +189,22 @@ internal class CarrierPresentation(private val host: Host, private val rowRender
             val textParams = parts.carrierText.layoutParams as? ViewGroup.MarginLayoutParams
             val padding = block.layout.paddingStart + block.layout.paddingEnd + parts.row.paddingStart +
                 parts.row.paddingEnd + (textParams?.marginStart ?: 0) + (textParams?.marginEnd ?: 0)
-            val available = CarrierBlockPolicy.textWidth(width, fixed + padding)
-            val gap = (4 * parts.row.resources.displayMetrics.density).roundToInt()
-            val badgeWidth = if (parts.badge.isVisible) CarrierBlockPolicy.badgeWidth(
-                available,
-                kotlin.math.ceil(parts.badge.paint.measureText(parts.badge.text.toString())).toInt() +
-                    parts.badge.paddingStart + parts.badge.paddingEnd,
-                gap,
-                kotlin.math.ceil(parts.carrierText.paint.measureText("MMMM")).toInt()
-            ) else 0
+            parts to CarrierBlockPolicy.textWidth(width, fixed + padding)
+        }
+        val gap = (4 * block.layout.resources.displayMetrics.density).roundToInt()
+        val visibleBadges = rowWidths.filter { (parts, _) -> parts.badge.isVisible }
+        val desired = visibleBadges.maxOfOrNull { (parts, _) ->
+            ceil(parts.badge.paint.measureText(parts.badge.text.toString())).toInt() +
+                parts.badge.paddingStart + parts.badge.paddingEnd
+        } ?: 0
+        // Both badges occupy the same column, bounded by the row with less room for its name.
+        val sharedBadgeWidth = visibleBadges.minOfOrNull { (parts, available) ->
+            CarrierBlockPolicy.badgeWidth(
+                available, desired, gap, ceil(parts.carrierText.paint.measureText("MMMM")).toInt()
+            )
+        } ?: 0
+        rowWidths.forEach { (parts, available) ->
+            val badgeWidth = if (parts.badge.isVisible) sharedBadgeWidth else 0
             val badgeParams = parts.badge.layoutParams as LinearLayout.LayoutParams
             val badgeGap = if (badgeWidth > 0) gap else 0
             if (badgeParams.width != badgeWidth || badgeParams.marginEnd != badgeGap) {

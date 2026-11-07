@@ -197,6 +197,7 @@ object DuoSignalHooker : StaticHooker() {
         aodController.resolveDozingSource()
         IconTunerFlows.init(classLoader)
         val batteryClass = BATTERY.toClassOrNull() ?: run { enabled = false; return }
+        aodController.resolveBatteryAnimation(batteryClass)
         val parentClass = CONTAINER.toClassOrNull() ?: run { enabled = false; return }
         batteryLayoutField = field(parentClass, "mBattery")?.takeIf { it.type == View::class.java }
         statusIconsField = field(parentClass, "mStatusIcon")
@@ -299,23 +300,37 @@ object DuoSignalHooker : StaticHooker() {
                 if (binding.active) param.args[0] = false
             }
         }
-        // The host changes mToLockScreen at the start of this callback, before it animates
-        // the battery. Reconcile against that target state in the same frame.
+        // The native battery changes style only after its fade-out. Keep the current renderer
+        // until that handoff, even if the dozing callback arrives earlier or later.
         "com.android.systemui.statusbar.phone.KeyguardStatusBarViewControllerInject".toClassOrNull()
             ?.findMethodOrNull {
                 name("animateFullAod")
                 parameterTypes(Boolean::class.javaPrimitiveType!!, Boolean::class.javaPrimitiveType!!)
             }?.let { method ->
+                val statusBar = field(method.declaringClass, "keyguardStatusBarView")
                 deoptimize(method)
-                method.hook { after { param ->
-                    val toLockScreen = param.args.getOrNull(0) as? Boolean ?: true
-                    guarded {
-                        bindings.values.toList().filter { it.surface == DuoSurface.KEYGUARD }.forEach {
-                            aodController.observeHandshake(it, toLockScreen)
-                            reconcile(it)
+                method.hook {
+                    before { param ->
+                        val toLockScreen = param.args.getOrNull(0) as? Boolean ?: return@before
+                        val animate = param.args.getOrNull(1) as? Boolean ?: return@before
+                        guarded {
+                            val root = statusBar?.get(param.thisObject) as? View ?: return@guarded
+                            bindings.values.firstOrNull { it.keyguardRoot === root }?.let {
+                                aodController.startBatteryAnimation(it, !toLockScreen, animate)
+                            }
                         }
                     }
-                } }
+                    after { param ->
+                        val toLockScreen = param.args.getOrNull(0) as? Boolean ?: return@after
+                        guarded {
+                            val root = statusBar?.get(param.thisObject) as? View ?: return@guarded
+                            bindings.values.firstOrNull { it.keyguardRoot === root }?.let {
+                                aodController.observeHandshake(it, toLockScreen)
+                                reconcile(it)
+                            }
+                        }
+                    }
+                }
             }
         hookProxyCompensation()
         hookWifi()
@@ -548,6 +563,7 @@ object DuoSignalHooker : StaticHooker() {
             val battery = binding.battery
             if (binding.active && batteryLayoutField?.get(binding.parent) !== binding.view) binding.failed = true
             if (!enabled && binding.keyguardRoot != null) {
+                binding.batteryAnimationToAod = null
                 aodController.releaseKeyguardRow(binding, AodHostPhase.UNKNOWN)
                 return
             }
@@ -683,7 +699,7 @@ object DuoSignalHooker : StaticHooker() {
             }
             // Charging animates the retained battery into the island (alpha/scale/translation).
             // Those transforms belong to the old battery, not this fixed connectivity cluster.
-            binding.view.alpha = 1f
+            binding.view.alpha = if (binding.batteryAnimationToAod != null) battery.alpha else 1f
             binding.view.translationX = privacyOffset(binding, privacyState)
             binding.view.translationY = 0f
             binding.view.scaleX = 1f

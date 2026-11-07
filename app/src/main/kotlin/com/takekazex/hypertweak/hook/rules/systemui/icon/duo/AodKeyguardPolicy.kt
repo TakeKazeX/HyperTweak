@@ -106,6 +106,13 @@ internal object AodKeyguardPolicy {
         )
     }
 
+    /** During the native fade, the battery style changes at zero alpha, independently of dozing. */
+    fun phaseForBatteryAnimation(toAod: Boolean, nativeAod: Boolean): AodHostPhase = when {
+        !nativeAod -> AodHostPhase.LIT
+        toAod -> AodHostPhase.DOZING
+        else -> AodHostPhase.TRANSITIONING
+    }
+
     /** A recorded transition holds its lease until the native dozing source can settle it. */
     inline fun phaseForFrame(
         enabled: Boolean, attached: Boolean, previous: AodHostPhase, dozing: () -> Boolean?

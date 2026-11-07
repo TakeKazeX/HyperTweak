@@ -68,6 +68,17 @@ class AodKeyguardPolicyTest {
         assertEquals(AodHostPhase.UNKNOWN, AodKeyguardPolicy.phaseFromDozing(null, keyguardVisible = false))
     }
 
+    @Test fun batteryFadeKeepsTheCurrentStyleUntilTheNativeSwitch() {
+        fun owner(toAod: Boolean, nativeAod: Boolean) = decide(
+            AodKeyguardPolicy.phaseForBatteryAnimation(toAod, nativeAod), standardDuo = true
+        ).owner
+
+        assertEquals(KeyguardRowOwner.DUO, owner(toAod = true, nativeAod = false))
+        assertEquals(KeyguardRowOwner.AOD_NATIVE, owner(toAod = true, nativeAod = true))
+        assertEquals(KeyguardRowOwner.AOD_NATIVE, owner(toAod = false, nativeAod = true))
+        assertEquals(KeyguardRowOwner.DUO, owner(toAod = false, nativeAod = false))
+    }
+
     @Test fun fullAodExitIsLitEvenThoughTheHostKeepsToLockScreenFalse() {
         // Enter: the handshake reports false, the dozing flag is authoritative.
         assertEquals(

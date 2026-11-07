@@ -55,6 +55,8 @@ internal class DuoBinding(val battery: View, val parent: ViewGroup, val icons: V
      * host cannot answer, the recorded phase is kept so a transient read cannot flip the row.
      */
     var rowPhase: AodHostPhase = AodHostPhase.UNKNOWN
+    var batteryAnimationToAod: Boolean? = null
+    var batteryAnimationDeadline = 0L
     var dotsInMotion = false
     var reconciling = false
     // Preserve whether the host/user already ignored the native airplane slot before Duo.

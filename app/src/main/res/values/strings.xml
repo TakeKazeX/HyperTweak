@@ -405,7 +405,7 @@
     <string name="glass_glass_tone_summary">Controls the base cast; lower values appear brighter.</string>
     <string name="glass_slider_edit_value">Enter value</string>
     <string name="glass_parameters">Parameters</string>
-    <string name="glass_parameters_summary">Override the blur parameters of the frosted and soft glass materials</string>
+    <string name="glass_parameters_summary">Preview as you drag. Release to apply the settings in SystemUI.</string>
     <string name="glass_preview_title">Native Material Preview</string>
     <string name="glass_preview_change_image">Change image</string>
     <string name="glass_preview_auto_dark">Image detected as dark; preview adapted</string>

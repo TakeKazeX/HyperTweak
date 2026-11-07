@@ -9,14 +9,19 @@ import com.takekazex.hypertweak.presentation.glass.scaleRadius
 
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 
+import android.content.res.AssetManager
 import android.content.res.Resources
 import android.view.View
 import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
+import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 import io.github.lingqiqi5211.ezhooktool.xposed.common.HookParam
-import java.util.concurrent.ConcurrentHashMap
+import java.lang.ref.WeakReference
+import io.github.libxposed.api.XposedInterface
+import java.lang.reflect.Method
+import java.util.WeakHashMap
 
 /**
  * OS4 material-style glass tuner (Settings → Display → Visual style, 材质风格).
@@ -44,8 +49,8 @@ import java.util.concurrent.ConcurrentHashMap
  *
  * "More transparent" is expressed as multipliers: blend/dim alpha (lower = see more of the
  * wallpaper behind the surface), max blur radius (lower = less frost), and glass-shader
- * opacity (lower = cards less tinted and less highlighted). Values are snapshotted at
- * hook-install time, so changes require a SystemUI restart; the GlassTunerPage offers one.
+ * opacity (lower = cards less tinted and less highlighted). Accepted settings refresh the
+ * shade's resource owners and replay the original shader parameters on existing views.
  */
 object GlassMaterialHooker : StaticHooker() {
     // Published on settings acceptance; hook callbacks perform no storage reads.
@@ -65,6 +70,21 @@ object GlassMaterialHooker : StaticHooker() {
     private val settingGlassTunerGlassTone by hookSetting(1f) { Preferences.getFloat(SystemUiSettingsKeys.KEY_GLASS_TUNER_GLASS_TONE, 1f) }
 
     private const val TAG = "GlassMaterial"
+    private const val SHADE_BLUR = "com.miui.systemui.shade.blur.ShadeBlendBlurControllerImpl"
+    private const val BLUR_UTILS = "com.miui.systemui.statusbar.policy.BlurUtilsExt"
+
+    init {
+        hostRecovery(HostRecoveryPhase.CONTENT) { scope ->
+            val component = scope.component ?: return@hostRecovery
+            runCatching {
+                val shade = HostAccess.provider(component, "provideShadeBlendBlurControllerProvider")
+                if (shade?.javaClass?.name == SHADE_BLUR) shadeBlur = WeakReference(shade)
+                val utils = HostAccess.provider(component, "blurUtilsExtProvider")
+                if (utils?.javaClass?.name == BLUR_UTILS) blurUtils = WeakReference(utils)
+                if (enabled) refreshHostResources()
+            }.onFailure { DebugLog.w(TAG, "Material host recovery failed", it) }
+        }
+    }
 
     /** Blend color arrays ([color, blendMode, ...] pairs) behind the two material modes. */
     private val BLEND_ARRAYS = setOf(
@@ -115,7 +135,7 @@ object GlassMaterialHooker : StaticHooker() {
         "notification_element_blend_headsUp_color_2"
     )
 
-    private enum class Kind { BLEND_ARRAY, RADIUS_DIMEN, DIM_COLOR, SOLID_BG_COLOR, CARD_SHADE_COLOR }
+    private enum class Kind { BLEND_ARRAY, RADIUS_DIMEN, DIM_COLOR, SOLID_BG_COLOR, CARD_SHADE_COLOR, OTHER }
 
     /**
      * Control-center blend arrays from the miui.systemui.plugin resources (the plugin keeps
@@ -137,68 +157,105 @@ object GlassMaterialHooker : StaticHooker() {
     private var glassOpacity by generationState { 1f }
     private var glassTone by generationState { 1f }
 
-    /** The funnels are installed once per hook generation, whichever entry point runs first. */
-    private var installed by generationState { false }
-
-    override fun onPrepareHotReload() {
-
-        knownIds.clear()
-        missedIds.clear()
+    private var setGlass: XposedInterface.Invoker<*, Method>? by generationState { null }
+    private var shadeBlur: WeakReference<Any>? by generationState { null }
+    private var blurUtils: WeakReference<Any>? by generationState { null }
+    private val originalShaders = generationResource(WeakHashMap<View, FloatArray>()) {
+        synchronized(it) { it.clear() }
     }
 
-    /**
-     * Accepted-snapshot refresh. The resource and View funnels are hot, so the coefficients stay
-     * in volatile copies; this pass re-reads them and re-registers the resource identities, which
-     * also lets a first enable install the funnels instead of waiting for a SystemUI restart.
-     */
-    fun refreshSettings() {
+    override fun saveHotReloadState(): Any = synchronized(originalShaders) { HashMap(originalShaders) }
+
+    override fun restoreHotReloadState(state: Any?) {
+        val entries = state as? Map<*, *> ?: return
+        synchronized(originalShaders) {
+            entries.forEach { (view, params) ->
+                if (view is View && params is FloatArray) originalShaders.putIfAbsent(view, params)
+            }
+        }
+        HostAccess.onMain { replayShaders() }
+    }
+
+    override fun onPrepareHotReload() = HostAccess.onMain {
+        if (enabled) {
+            enabled = false
+            refreshHostResources()
+            replayShaders()
+        }
+    }
+
+    fun refreshSettings() = HostAccess.onMain {
         val wasEnabled = enabled
-        enabled = settingGlassTunerEnabled
-        blendAlpha = settingGlassTunerBlendAlpha
-        blendLightness = settingGlassTunerBlendLightness
-        radiusScale = settingGlassTunerRadiusScale
-        glassOpacity = settingGlassTunerGlassOpacity
-        glassTone = settingGlassTunerGlassTone
-        if (wasEnabled != enabled || !enabled) {
-            if (enabled) installFunnels()
-            // Let the host rebuild the current surfaces with the new tokens.
-            knownIds.clear()
-            missedIds.clear()
+        val resourcesChanged = wasEnabled != settingGlassTunerEnabled ||
+            blendAlpha != settingGlassTunerBlendAlpha || blendLightness != settingGlassTunerBlendLightness ||
+            radiusScale != settingGlassTunerRadiusScale || glassOpacity != settingGlassTunerGlassOpacity
+        val shadersChanged = wasEnabled != settingGlassTunerEnabled ||
+            glassOpacity != settingGlassTunerGlassOpacity || glassTone != settingGlassTunerGlassTone
+        readSettings()
+        if (wasEnabled || enabled) {
+            if (resourcesChanged) refreshHostResources()
+            if (shadersChanged) replayShaders()
         }
         DebugLog.i(TAG, "settings applied enabled=$enabled blendAlpha=$blendAlpha " +
             "radiusScale=$radiusScale glassOpacity=$glassOpacity glassTone=$glassTone")
     }
 
-    override fun onHook() {
+    private fun readSettings() {
         enabled = settingGlassTunerEnabled
         blendAlpha = settingGlassTunerBlendAlpha
         blendLightness = settingGlassTunerBlendLightness
         radiusScale = settingGlassTunerRadiusScale
         glassOpacity = settingGlassTunerGlassOpacity
         glassTone = settingGlassTunerGlassTone
+    }
+
+    override fun onHook() {
+        readSettings()
+        // Collect baselines even while disabled so the first enable updates already-created views.
+        SHADE_BLUR.toClassOrNull()?.hookAllConstructors {
+            after { param -> shadeBlur = WeakReference(param.thisObject) }
+        }
+        BLUR_UTILS.toClassOrNull()?.hookAllConstructors {
+            after { param -> blurUtils = WeakReference(param.thisObject) }
+        }
         installFunnels()
     }
 
-    /** Installs the resource and View funnels once per hook generation. */
-    private fun installFunnels() {
-        if (!enabled) {
-            DebugLog.hookSkippedDebug(TAG, "Resources#get* / View#setMiGlass", "glass tuner disabled")
-            return
-        }
-        DebugLog.i(
-            TAG,
-            "glass tuner enabled, blendAlpha=$blendAlpha blendLightness=$blendLightness " +
-                "radiusScale=$radiusScale glassOpacity=$glassOpacity glassTone=$glassTone"
-        )
+    private fun refreshHostResources() {
+        runCatching {
+            blurUtils?.get()?.let { HostAccess.invoke(it, "updateResources\$14") }
+        }.onFailure { DebugLog.w(TAG, "Blur resource refresh failed", it) }
+        val shade = shadeBlur?.get() ?: return
+        runCatching {
+            HostAccess.invoke(shade, "updateBlendColors")
+            HostAccess.invoke(shade, "updateDimColor")
+        }.onFailure { DebugLog.w(TAG, "Shade blend refresh failed", it) }
+        runCatching {
+            // The host's own callback reads the current heads-up state and reapplies the radii.
+            val listener = HostAccess.read(shade, "configListener") ?: return@runCatching
+            val boolean = Boolean::class.javaPrimitiveType!!
+            HostAccess.method(listener, "onDensityOrFontScaleChanged", boolean, boolean)
+                ?.invoke(listener, false, false)
+        }.onFailure { DebugLog.w(TAG, "Shade radius refresh failed", it) }
+    }
 
-        // Re-entrant installs (a first live enable) must not stack a second hook per method.
-        if (installed) return
-        installed = true
+    private fun replayShaders() {
+        val original = setGlass ?: return
+        val entries = synchronized(originalShaders) { HashMap(originalShaders) }
+        entries.forEach { (view, params) ->
+            runCatching {
+                val current = if (enabled) scaleGlassParams(params, glassOpacity, glassTone) else params
+                original.invoke(view, current)
+            }
+                .onFailure { DebugLog.w(TAG, "Glass shader refresh failed", it) }
+        }
+    }
+
+    private fun installFunnels() {
         val resources = Resources::class.java
         val targets = listOf(
             HostAccess.requirePublicMethod(resources, "getDimensionPixelSize", Int::class.javaPrimitiveType, accessible = false),
             HostAccess.requirePublicMethod(resources, "getIntArray", Int::class.javaPrimitiveType, accessible = false),
-            HostAccess.requirePublicMethod(resources, "getColor", Int::class.javaPrimitiveType, accessible = false),
             HostAccess.requirePublicMethod(resources, "getColor", Int::class.javaPrimitiveType, Resources.Theme::class.java, accessible = false)
         )
         targets.forEach { method ->
@@ -232,18 +289,22 @@ object GlassMaterialHooker : StaticHooker() {
             deoptimize(method)
             method.hook {
                 intercept { chain ->
+                    val view = chain.thisObject as? View ?: return@intercept chain.proceed()
                     val params = chain.getArgs().getOrNull(0) as? FloatArray
-                    if (params == null) {
-                        return@intercept chain.proceed()
+                    val scaled = if (enabled && params != null)
+                        scaleGlassParams(params, glassOpacity, glassTone) else params
+                    val result = if (scaled === params) chain.proceed() else chain.proceed(arrayOf(scaled))
+                    synchronized(originalShaders) {
+                        if (params == null || params.all { it == 0f }) {
+                            originalShaders.remove(view)
+                        } else if (originalShaders[view]?.contentEquals(params) != true) {
+                            originalShaders[view] = params.copyOf()
+                        }
                     }
-                    val scaled = scaleGlassParams(params, glassOpacity, glassTone)
-                    if (scaled === params) {
-                        chain.proceed()
-                    } else {
-                        chain.proceed(arrayOf(scaled))
-                    }
+                    result
                 }
             }
+            setGlass = module.getInvoker(method).setType(XposedInterface.Invoker.Type.ORIGIN)
             DebugLog.hookRegistered(TAG, "View#setMiGlass")
         }.onFailure {
             DebugLog.hookFailed(TAG, "View#setMiGlass", it)
@@ -270,37 +331,29 @@ object GlassMaterialHooker : StaticHooker() {
                 scaleColorLightness(scaleColorAlpha(color, blendAlpha), blendLightness)
             }
             Kind.CARD_SHADE_COLOR -> scaleColorAlpha(result as? Int ?: 0, glassOpacity)
+            Kind.OTHER -> result
         }
     }
 
-    /**
-     * Resolves and caches the kind for [id]. The hook sits on very hot `Resources` methods
-     * (every dimension/color/array read in SystemUI), so the fast path must be a pair of plain
-     * id lookups with no framework calls and no string allocation. Full package+name resolution
-     * happens exactly once per resource id; ids collide between the SystemUI APK and the
-     * miui.systemui.plugin APK (both allocate in the 0x7f range), but the plugin loads later,
-     * so SystemUI's own ids are almost always resolved first — a rare wrong hit only scales one
-     * unrelated array, never crashes.
-     */
-    private val knownIds = generationResource(ConcurrentHashMap<Int, Kind>()) { it.clear() }
-    private val missedIds = generationResource(ConcurrentHashMap.newKeySet<Int>()) { it.clear() }
+    // Plugin and SystemUI resource tables can reuse numeric IDs. Cache by asset table.
+    private val kinds = generationResource(WeakHashMap<AssetManager, MutableMap<Int, Kind>>()) {
+        synchronized(it) { it.clear() }
+    }
 
     private fun kindOf(resources: Resources, id: Int): Kind? {
         if (id == 0) return null
-        knownIds[id]?.let { return it }
-        if (id in missedIds) return null
-        val name = runCatching { resources.getResourceEntryName(id) }.getOrNull()
-        val kind = name?.let {
-            when {
-                it in BLEND_ARRAYS || it in PLUGIN_BLEND_ARRAYS -> Kind.BLEND_ARRAY
-                it in RADIUS_DIMENS -> Kind.RADIUS_DIMEN
-                it == DIM_COLOR -> Kind.DIM_COLOR
-                it == SOLID_BG_COLOR -> Kind.SOLID_BG_COLOR
-                it in CARD_SHADE_COLORS -> Kind.CARD_SHADE_COLOR
-                else -> null
+        val kind = synchronized(kinds) {
+            kinds.getOrPut(resources.assets) { HashMap() }.getOrPut(id) {
+                when (runCatching { resources.getResourceEntryName(id) }.getOrNull()) {
+                    in BLEND_ARRAYS, in PLUGIN_BLEND_ARRAYS -> Kind.BLEND_ARRAY
+                    in RADIUS_DIMENS -> Kind.RADIUS_DIMEN
+                    DIM_COLOR -> Kind.DIM_COLOR
+                    SOLID_BG_COLOR -> Kind.SOLID_BG_COLOR
+                    in CARD_SHADE_COLORS -> Kind.CARD_SHADE_COLOR
+                    else -> Kind.OTHER
+                }
             }
         }
-        if (kind != null) knownIds[id] = kind else missedIds += id
-        return kind
+        return kind.takeUnless { it == Kind.OTHER }
     }
 }

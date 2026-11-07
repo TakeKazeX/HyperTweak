@@ -202,7 +202,7 @@ internal class CarrierRowRenderer {
             parts.networkSlot.layoutParams = slotParams
         }
         val both = keepTypeOnWifi && type != null
-        val typeGravity = if (both) Gravity.START or Gravity.CENTER_VERTICAL else Gravity.CENTER
+        val typeGravity = Gravity.START or Gravity.CENTER_VERTICAL
         val wifiGravity = if (both) Gravity.END or Gravity.CENTER_VERTICAL else Gravity.CENTER
         listOf(parts.type to typeGravity, parts.wifi to wifiGravity).forEach { (view, gravity) ->
             val params = view.layoutParams as? FrameLayout.LayoutParams ?: return@forEach
