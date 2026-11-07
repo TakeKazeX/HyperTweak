@@ -107,6 +107,9 @@ for k,v in sorted(keys.items(),key=lambda kv:kv[1]):
 # Dynamic slot family is bounded by the same host-independent slot contract used by the UI.
 slot_text=(SRC/'ui/page/systemui/icon/IconSlotCatalog.kt').read_text()
 slot_block=slot_text.split('val slots: List<String> = listOf(',1)[1].split(')',1)[0]
+slot_policy=(SRC/'settings/contract/IconSlotPolicy.kt').read_text()
+slot_constants=dict(re.findall(r'const val (SLOT_\w+) = "([\w_]+)"',slot_policy))
+slot_block=re.sub(r'IconSlotPolicy\.(SLOT_\w+)',lambda m:f'"{slot_constants[m[1]]}"',slot_block)
 for slot in re.findall(r'"([\w_]+)"',slot_block): lines.append(f'        DebugSetting("icon_tuner_slot_{slot}", "Int", 0),')
 lines += ['    ).associateBy { it.key }','}', '']
 result='\n'.join(lines)

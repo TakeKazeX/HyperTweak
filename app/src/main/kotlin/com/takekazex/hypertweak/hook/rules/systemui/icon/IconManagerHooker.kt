@@ -52,6 +52,8 @@ object IconManagerHooker : StaticHooker() {
     init { generationCleanup { retiring = true } }
 
     private var setBlockListMethod: java.lang.reflect.Method? by generationState { null }
+    internal var rotationSlotRoutingReady by generationState { false }
+        private set
 
     override fun saveHotReloadState(): Any = HostAccess.onMain {
         synchronized(stateLock) {
@@ -116,7 +118,7 @@ object IconManagerHooker : StaticHooker() {
     private val refreshContexts = ThreadLocal.withInitial { ArrayList<RefreshContext>() }
 
     private fun finalBlocked(manager: Any, slot: String, hostBlocked: Boolean, minimalism: Boolean = false): Boolean {
-        if (restoring || retiring) return hostBlocked
+        if ((restoring || retiring) && slot != IconSlotPolicy.SLOT_ROTATION_LOCK) return hostBlocked
         val location = readLocation(manager)
         val surface = IconSlotPolicy.surfaceForHostLocation(location)
         val owned = IconSlotPolicy.ownedSlotsFor(
@@ -124,6 +126,9 @@ object IconManagerHooker : StaticHooker() {
             IconHostPorts.left.homeSlots(),
             IconHostPorts.left.keyguardSlots()
         )
+        if (slot == IconSlotPolicy.SLOT_ROTATION_LOCK) {
+            return IconSlotPolicy.rotationLockBlocked(location, hostBlocked, options, owned, minimalism)
+        }
         if (usesTwoLineControlCenterPolicy(location)) {
             return IconSlotPolicy.classicBlockedForTwoLineControlCenter(
                 slot, hostBlocked, options.policy, owned, minimalism
@@ -136,7 +141,9 @@ object IconManagerHooker : StaticHooker() {
 
     private fun hookFinalVisibility(managerClass: Class<*>) {
         // addHolder receives tuner blocking before the first observer refresh.
-        managerClass.findMethodOrNull { name("addHolder"); paramCount(4) }?.hook {
+        val addHolder = managerClass.findMethodOrNull { name("addHolder"); paramCount(4) }
+        addHolder?.let(::deoptimize)
+        addHolder?.hook {
             before { param ->
                 val manager = param.thisObject
                 val slot = param.args.getOrNull(1) as? String ?: return@before
@@ -152,7 +159,8 @@ object IconManagerHooker : StaticHooker() {
         } ?: return
         val icon = "com.android.systemui.statusbar.StatusBarIconView".toClassOrNull() ?: return
         val slotField = hierarchyField(icon, "mSlot") ?: return
-        controller.findMethodOrNull { name("refreshIconGroup"); paramCount(1) }?.let { method ->
+        val refreshGroup = controller.findMethodOrNull { name("refreshIconGroup"); paramCount(1) }
+        refreshGroup?.let { method ->
             deoptimize(method)
             method.hook {
                 before { param ->
@@ -170,7 +178,8 @@ object IconManagerHooker : StaticHooker() {
                 }
             }
         }
-        icon.findMethodOrNull { name("setBlocked"); paramCount(1) }?.let { method ->
+        val setBlocked = icon.findMethodOrNull { name("setBlocked"); paramCount(1) }
+        setBlocked?.let { method ->
             deoptimize(method)
             method.hook {
                 before { param ->
@@ -183,6 +192,7 @@ object IconManagerHooker : StaticHooker() {
                 }
             }
         }
+        rotationSlotRoutingReady = addHolder != null && refreshGroup != null && setBlocked != null
     }
 
     override fun onHook() {

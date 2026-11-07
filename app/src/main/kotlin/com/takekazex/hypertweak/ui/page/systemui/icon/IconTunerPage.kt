@@ -239,6 +239,7 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit, onNavig
                     .flatMap { IconTunerContract.slotsForLeftPreference(it) }
                     .toSet()
             },
+            rotationLockEnabled = pref(SystemUiSettingsKeys.KEY_CC_ROTATION_LOCK_ICON, false),
             stackedEnabled = pref(IconSettingsKeys.KEY_ICON_STACKED_ENABLED, false),
             duoEnabled = pref(IconSettingsKeys.KEY_ICON_DUO_ENABLED, false),
             duoSizeDp = DuoLayout.snapSizeDp(duoSizeSlider.value).toFloat(),
@@ -408,6 +409,15 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit, onNavig
                             ) { changed(IconSettingsKeys.KEY_ICON_MIRROR_AIRPLANE, it) }
                         }
 
+                        SmallTitle(stringResource(R.string.icon_cc_rotation_lock_title))
+                        Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+                            TunerSwitch(
+                                pref(SystemUiSettingsKeys.KEY_CC_ROTATION_LOCK_ICON, false),
+                                stringResource(R.string.icon_cc_rotation_lock),
+                                stringResource(R.string.icon_cc_rotation_lock_summary)
+                            ) { changed(SystemUiSettingsKeys.KEY_CC_ROTATION_LOCK_ICON, it) }
+                        }
+
                         NotificationSection(
                 enabled = pref(PlatformSettingsKeys.KEY_STATUSBAR_NOTIFICATION_MAX, false),
                 maximum = NotificationIconLimit.clamp(
@@ -547,7 +557,8 @@ internal val LEFT_TOGGLE_ROWS: List<LeftToggleRow> = listOf(
     LeftToggleRow(IconSettingsKeys.KEY_ICON_LEFT_NFC, R.string.icon_left_nfc, "nfc"),
     LeftToggleRow(IconSettingsKeys.KEY_ICON_LEFT_VPN, R.string.icon_left_vpn, "vpn"),
     LeftToggleRow(IconSettingsKeys.KEY_ICON_LEFT_AIRPLANE, R.string.icon_left_airplane, "airplane"),
-    LeftToggleRow(IconSettingsKeys.KEY_ICON_LEFT_HEADSET, R.string.icon_left_headset, "headset")
+    LeftToggleRow(IconSettingsKeys.KEY_ICON_LEFT_HEADSET, R.string.icon_left_headset, "headset"),
+    LeftToggleRow(IconSettingsKeys.KEY_ICON_LEFT_ROTATION_LOCK, R.string.icon_slot_rotation_lock, IconSlotPolicy.SLOT_ROTATION_LOCK)
 )
 
 /**

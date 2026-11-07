@@ -28,7 +28,8 @@ object IconTunerContract {
         IconSettingsKeys.KEY_ICON_LEFT_NFC to "icon_tuner_left_nfc",
         IconSettingsKeys.KEY_ICON_LEFT_VPN to "icon_tuner_left_vpn",
         IconSettingsKeys.KEY_ICON_LEFT_AIRPLANE to "icon_tuner_left_airplane",
-        IconSettingsKeys.KEY_ICON_LEFT_HEADSET to "icon_tuner_left_headset"
+        IconSettingsKeys.KEY_ICON_LEFT_HEADSET to "icon_tuner_left_headset",
+        IconSettingsKeys.KEY_ICON_LEFT_ROTATION_LOCK to "icon_tuner_left_rotation_lock"
     )
 
     /**
@@ -44,6 +45,7 @@ object IconTunerContract {
         IconSettingsKeys.KEY_ICON_LEFT_ALARM_CLOCK -> listOf("alarm_clock")
         IconSettingsKeys.KEY_ICON_LEFT_LOCATION -> listOf("location", "gps")
         IconSettingsKeys.KEY_ICON_LEFT_HEADSET -> listOf("headset", "wireless_headset")
+        IconSettingsKeys.KEY_ICON_LEFT_ROTATION_LOCK -> listOf(IconSlotPolicy.SLOT_ROTATION_LOCK)
         else -> listOf(key.substringAfterLast('_'))
     }
 

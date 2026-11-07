@@ -40,6 +40,7 @@ data class IconSlotInfo(
 object IconSlotCatalog {
     /** Rows shown in the settings page, in host order. */
     val slots: List<String> = listOf(
+        IconSlotPolicy.SLOT_ROTATION_LOCK,
         "handle", "network_speed", "mute", "micphone", "headset", "mikey", "privacy_mode",
         "nfc", "gps", "missed_call", "managed_profile", "second_space", "ime", "cast",
         "location", "stealth", "tty", "alarm_clock", "vpn", "ethernet", "handle_battery",
@@ -52,6 +53,7 @@ object IconSlotCatalog {
 
     /** Catalog keyed by host slot name; `internal` so the unit test can assert full coverage. */
     internal val bySlot: Map<String, IconSlotInfo> = listOf(
+        IconSlotInfo(IconSlotPolicy.SLOT_ROTATION_LOCK, R.string.icon_slot_rotation_lock, R.drawable.ic_stat_sys_rotation_lock_ios),
         IconSlotInfo("handle", R.string.icon_slot_handle, R.drawable.ic_stat_sys_unknown),
         IconSlotInfo("network_speed", R.string.icon_slot_network_speed, R.drawable.ic_stat_sys_net_speed),
         IconSlotInfo("mute", R.string.icon_slot_mute, R.drawable.ic_stat_sys_volume),

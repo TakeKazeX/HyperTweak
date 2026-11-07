@@ -1493,6 +1493,11 @@
     <string name="aod_icons_percent_duo_center">圆环下方居中</string>
     <string name="icon_mirror_airplane">镜像飞行模式图标</string>
     <string name="icon_mirror_airplane_summary">将飞行模式图标朝向右侧</string>
+    <string name="icon_cc_rotation_lock_title">旋转锁定</string>
+    <string name="icon_cc_rotation_lock">iOS 风格旋转锁定图标</string>
+    <string name="icon_cc_rotation_lock_summary">锁定屏幕旋转时显示图标。可在槽位或图标左置中调整显示位置。</string>
+    <string name="icon_cc_rotation_lock_description">屏幕旋转已锁定</string>
+    <string name="icon_slot_rotation_lock">旋转锁定</string>
     <string name="logs_refresh">刷新日志</string>
     <string name="logs_source_ready">已读取应用日志和 HyperTweak 的 LSPosed 日志，点击刷新。</string>
     <string name="logs_source_root">已读取应用日志。读取 HyperTweak 的 LSPosed 日志需要 Root 授权，点击重试。</string>

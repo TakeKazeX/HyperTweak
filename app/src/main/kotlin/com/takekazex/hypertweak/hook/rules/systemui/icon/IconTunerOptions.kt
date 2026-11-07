@@ -7,6 +7,7 @@ import com.takekazex.hypertweak.settings.contract.IconTunerSnapshot
 import com.takekazex.hypertweak.settings.contract.IconSlotPolicyConfig
 
 import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
+import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 
 import com.takekazex.hypertweak.hook.Preferences
 
@@ -62,6 +63,12 @@ object IconTunerOptions {
             modes,
             parseSlotList(readString(IconSettingsKeys.KEY_ICON_EXT_BLOCKED, LEGACY_EXTRA_BLOCKED, ""))
         )
+        val rotationLockEnabled = Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_ROTATION_LOCK_ICON, false)
+        val rotationSlot = IconSlotPolicy.SLOT_ROTATION_LOCK
+        if (!rotationLockEnabled || !IconSlotPolicy.rotationLockShowsOnStatusBar(
+                IconSlotPolicy.modeFor(rotationSlot, slotModes), rotationSlot in leftSlots
+            )
+        ) leftSlots.remove(rotationSlot)
         val policy = IconSlotPolicyConfig(
             position = position,
             customOrderEntries = customEntries,
@@ -69,6 +76,7 @@ object IconTunerOptions {
             slotModes = slotModes,
             enabledModuleSlots = buildSet {
                 if (stackedEnabled) addAll(IconSlotPolicy.SIGNAL_SLOTS)
+                if (rotationLockEnabled) add(rotationSlot)
             },
             leftSlots = leftSlots
         )

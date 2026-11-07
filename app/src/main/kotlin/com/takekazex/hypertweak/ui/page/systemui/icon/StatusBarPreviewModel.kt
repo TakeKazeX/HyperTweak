@@ -88,6 +88,7 @@ internal data class StatusBarPreviewInput(
     val hideWifiConnected: Boolean,
     val showCellularType: Boolean,
     val small5GaEnabled: Boolean = false,
+    val rotationLockEnabled: Boolean = false,
     val typography: com.takekazex.hypertweak.settings.contract.MobileTypeTypography = com.takekazex.hypertweak.settings.contract.MobileTypeTypography()
 )
 
@@ -114,8 +115,16 @@ internal fun buildStatusBarPreview(input: StatusBarPreviewInput): StatusBarPrevi
         order.indexOf(slot).let { if (it < 0) Int.MAX_VALUE else it }
     }
 
-    val left = leftPreviewSlots(input.leftSlots).sortedBy(hostIndex).take(PREVIEW_MAX_LEFT_SLOTS)
-    val indicators = PREVIEW_INDICATOR_SLOTS
+    val rotation = IconSlotPolicy.SLOT_ROTATION_LOCK
+    val showRotation = input.rotationLockEnabled && IconSlotPolicy.rotationLockShowsOnStatusBar(
+        IconSlotPolicy.modeFor(rotation, modes), rotation in input.leftSlots
+    )
+    val left = leftPreviewSlots(input.leftSlots)
+        .filter { it != rotation || showRotation }
+        .sortedBy(hostIndex)
+        .take(PREVIEW_MAX_LEFT_SLOTS)
+    val indicatorSample = if (showRotation) PREVIEW_INDICATOR_SLOTS + rotation else PREVIEW_INDICATOR_SLOTS
+    val indicators = indicatorSample
         .filterNot { it in input.leftSlots }
         .filterNot { previewHidden(it, modes) }
         .sortedBy(hostIndex)

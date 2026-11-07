@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="14dp"
+    android:height="16.8dp"
+    android:viewportWidth="50"
+    android:viewportHeight="60">
+    <!-- SystemUI fits the whole drawable to the slot. Scale the ink within its viewport. -->
+    <group
+        android:scaleX="0.7"
+        android:scaleY="0.7"
+        android:translateX="1.9"
+        android:translateY="9">
+        <!-- Clockwise arrow, including the rounded tip and tail. -->
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:pathData="M58.6,24.7 H61.7 Q66,24.7 63.8,28.2
+                L58,36.5 Q56,39.6 53.9,36.5 L48,28
+                Q45.7,24.7 49.5,24.7 H53.4
+                C50.7,14.3 41.7,6.6 30.1,6.6
+                C16.4,6.6 6.4,18 6.6,31.1
+                C6.8,43.9 17.5,54.3 30.6,54.1
+                C38.5,54 44.9,50.3 49.3,44.6
+                C50.4,43 51.9,42.5 53.3,43.6
+                C54.8,44.7 54.4,46.4 53.1,47.9
+                C47.9,54.7 39.8,59.1 30.9,59.1
+                C15.2,59.2 1.7,46.6 1.5,30.7
+                C1.3,14.6 14.4,1.6 30.4,1.6
+                C44,1.6 55.6,11.1 58.6,24.7 Z" />
+        <!-- Closed shackle with a transparent opening. -->
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:fillType="evenOdd"
+            android:pathData="M22.5,27.3 V23.7
+                C22.5,18.6 25.6,15.2 30.3,15.2
+                C35,15.2 38.1,18.4 38.1,23.7 V27.3
+                Q40.6,27.5 40.6,30.3 V42
+                Q40.6,44.8 37.8,44.8 H22.8
+                Q20,44.8 20,42 V30.3
+                Q20,27.5 22.5,27.3 Z
+                M25.8,27.1 H34.9 V23.6
+                C34.9,20.5 33.3,18.6 30.3,18.6
+                C27.4,18.6 25.8,20.5 25.8,23.6 Z" />
+    </group>
+</vector>

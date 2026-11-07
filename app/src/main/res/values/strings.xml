@@ -1501,6 +1501,11 @@
     <string name="aod_icons_percent_duo_center">Centered below the ring</string>
     <string name="icon_mirror_airplane">Mirror airplane mode icon</string>
     <string name="icon_mirror_airplane_summary">Point the airplane icon to the right</string>
+    <string name="icon_cc_rotation_lock_title">Rotation lock</string>
+    <string name="icon_cc_rotation_lock">iOS-style rotation lock icon</string>
+    <string name="icon_cc_rotation_lock_summary">Show an icon when screen rotation is locked. Change where it appears under Icon slots or Left icons.</string>
+    <string name="icon_cc_rotation_lock_description">Screen rotation locked</string>
+    <string name="icon_slot_rotation_lock">Rotation lock</string>
     <string name="logs_refresh">Refresh Logs</string>
     <string name="logs_source_ready">App and HyperTweak LSPosed records loaded. Tap to refresh.</string>
     <string name="logs_source_root">App logs loaded. Allow root access to read HyperTweak LSPosed logs; tap to retry.</string>

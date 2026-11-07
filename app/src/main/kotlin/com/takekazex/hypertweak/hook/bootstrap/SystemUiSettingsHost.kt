@@ -14,6 +14,7 @@ import com.takekazex.hypertweak.hook.rules.systemui.notification.NotificationMon
 import com.takekazex.hypertweak.hook.rules.systemui.SystemUIPluginHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.AirplaneIconHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.CcBatteryStyleHooker
+import com.takekazex.hypertweak.hook.rules.systemui.icon.CcRotationLockIconHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.CellularIconHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.CellularTypeIconHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.carrier.ControlCenterCarrierBlockHooker
@@ -53,7 +54,7 @@ internal class SystemUiSettingsHost(
         CellularIconHooker, WifiIconHooker, HideCellularIconHooker, IconManagerHooker,
         IconPositionHooker, AirplaneIconHooker, IconSlotTintHooker, IgnoreSysIconSettingsHooker,
         LeftContainerHooker, DuoSignalHooker, StackedSignalHooker, HideCarrierLabelHooker,
-        ControlCenterHeaderHooker, CcBatteryStyleHooker, ControlCenterCarrierBlockHooker,
+        ControlCenterHeaderHooker, CcBatteryStyleHooker, CcRotationLockIconHooker, ControlCenterCarrierBlockHooker,
         ControlCenterPrivacyHooker, RegionSamplingHooker, CellularTypeIconHooker, NotificationMaxNumberHooker
     )
 

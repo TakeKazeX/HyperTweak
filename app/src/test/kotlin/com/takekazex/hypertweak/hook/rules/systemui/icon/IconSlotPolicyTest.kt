@@ -4,6 +4,7 @@ import com.takekazex.hypertweak.hook.rules.systemui.icon.carrier.CarrierMask
 import com.takekazex.hypertweak.settings.contract.IconSlotPolicy
 
 import com.takekazex.hypertweak.settings.contract.IconTunerContract
+import com.takekazex.hypertweak.settings.contract.IconTunerSnapshot
 
 import com.takekazex.hypertweak.settings.contract.IconSlotPolicyConfig
 
@@ -20,6 +21,51 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class IconSlotPolicyTest {
+    @Test
+    fun rotationLockRoutesEachModeAndHandsOffToTheLeftClone() {
+        val slot = IconSlotPolicy.SLOT_ROTATION_LOCK
+        val locations = listOf("HOME", "KEYGUARD", "QS", "QS_FAKE", "SHADE_CARRIER_GROUP", null)
+        fun shown(mode: IconSlotMode, leftMode: Int = 0, owned: Set<String> = emptySet()): List<String?> {
+            val snapshot = IconTunerSnapshot(
+                policy = IconSlotPolicyConfig(
+                    slotModes = mapOf(slot to mode.value),
+                    leftSlots = if (leftMode != 0) setOf(slot) else emptySet()
+                ),
+                stackedEnabled = false, ignoreSystemHide = false, hidePrivacy = false, leftMode = leftMode
+            )
+            return locations.filterNot { location ->
+                IconSlotPolicy.rotationLockBlocked(
+                    location, false, snapshot,
+                    IconSlotPolicy.ownedSlotsFor(location, owned, owned), minimalism = false
+                )
+            }
+        }
+        assertEquals(listOf("QS"), shown(IconSlotMode.FOLLOW_SYSTEM))
+        assertEquals(listOf("HOME", "KEYGUARD", "QS", "QS_FAKE"), shown(IconSlotMode.SHOW_EVERYWHERE))
+        assertEquals(listOf("HOME", "KEYGUARD"), shown(IconSlotMode.STATUS_BAR_ONLY))
+        assertEquals(listOf("QS"), shown(IconSlotMode.CONTROL_CENTER_ONLY, IconTunerContract.LEFT_MODE_HOME))
+        assertEquals(emptyList<String>(), shown(IconSlotMode.HIDE_EVERYWHERE))
+        assertEquals(listOf("HOME", "QS", "QS_FAKE"), shown(IconSlotMode.FOLLOW_SYSTEM, IconTunerContract.LEFT_MODE_HOME))
+        assertEquals(listOf("QS", "QS_FAKE"), shown(
+            IconSlotMode.FOLLOW_SYSTEM, IconTunerContract.LEFT_MODE_HOME_AND_LOCKSCREEN, setOf(slot)
+        ))
+    }
+
+    @Test
+    fun rotationLockSlotUsesCustomOrderOnFirstEnableAndAfterReload() {
+        val slot = IconSlotPolicy.SLOT_ROTATION_LOCK
+        val native = listOf("alarm_clock", "zen", "wifi")
+        val enabled = IconSlotPolicyConfig(enabledModuleSlots = setOf(slot))
+        assertEquals(listOf(slot) + native, IconSlotPolicy.normalizeOrder(native, enabled))
+        val custom = enabled.copy(
+            position = IconSlotPolicyConfig.POSITION_CUSTOM,
+            customOrderEntries = IconSlotPolicy.orderEntries(listOf("zen", slot))
+        )
+        val expected = listOf("zen", slot, "alarm_clock", "wifi")
+        assertEquals(expected, IconSlotPolicy.normalizeOrder(native, custom))
+        assertEquals(expected, IconSlotPolicy.normalizeReloadOrder(native, expected, custom))
+    }
+
     @Test
     fun mobileBeforeWifiSurvivesReloadWithBothNativeAndModuleSignalHolders() {
         val native = listOf("alarm_clock", "wifi", "demo_wifi", "mobile", "demo_mobile", "battery")

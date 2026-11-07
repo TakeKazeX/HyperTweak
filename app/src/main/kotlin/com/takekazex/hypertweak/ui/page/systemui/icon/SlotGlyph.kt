@@ -2,6 +2,7 @@ package com.takekazex.hypertweak.ui.page.systemui.icon
 
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
@@ -26,7 +27,7 @@ internal const val SLOT_HEIGHT_DP = 20f
 /**
  * Icon column of a settings row.
  *
- * Every `ic_stat_sys_*` vector is the ROM status-bar drawable centred in a 28dp box, and the ROM
+ * The ROM `ic_stat_sys_*` vectors are centred in a 28dp box, and the ROM
  * artwork inside it is only 20dp tall with its own padding. A row that drew that vector at its
  * intrinsic size (or, as it did before, at 22dp) therefore showed a glyph far lighter than the 24dp
  * icons the rest of the app uses. Rows scale it to this box instead, so the slot glyphs read at
@@ -48,7 +49,10 @@ internal fun SlotRowGlyph(
     Icon(
         painter = painterResource(iconRes),
         contentDescription = null,
-        modifier = modifier.size(SlotRowGlyphBox),
+        modifier = modifier.size(SlotRowGlyphBox).then(
+            if (iconRes == R.drawable.ic_stat_sys_rotation_lock_ios) Modifier.padding(5.dp)
+            else Modifier
+        ),
         tint = tint
     )
 }
@@ -103,6 +107,7 @@ internal fun StatusBarSlotGlyph(
 private fun romSlotArtworkBox(@DrawableRes iconRes: Int): DpSize? = ROM_ARTWORK_DP[iconRes]
 
 private val ROM_ARTWORK_DP: Map<Int, DpSize> = mapOf(
+    R.drawable.ic_stat_sys_rotation_lock_ios to DpSize(16.dp, 20.dp),
     R.drawable.ic_stat_sys_handle_battery to DpSize(30.dp, 20.dp),
     R.drawable.ic_stat_sys_vpn to DpSize(25.dp, 20.dp),
     R.drawable.ic_stat_sys_hotspot to DpSize(22.dp, 20.dp),

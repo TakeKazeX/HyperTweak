@@ -91,6 +91,7 @@ object SystemUiSettingsKeys {
     const val KEY_CC_PRIVACY_OFFSET = "systemui_cc_privacy_offset"
     const val KEY_CC_BATTERY_PERCENT_OUTSIDE = "systemui_cc_battery_percent_outside"
     const val KEY_CC_BATTERY_PERCENT_LEFT = "systemui_cc_battery_percent_left"
+    const val KEY_CC_ROTATION_LOCK_ICON = "systemui_cc_rotation_lock_icon"
     const val KEY_GLASS_TUNER_ENABLED = "glass_tuner_enabled"
     const val KEY_GLASS_TUNER_BLEND_ALPHA = "glass_tuner_blend_alpha"
     const val KEY_GLASS_TUNER_BLEND_LIGHTNESS = "glass_tuner_blend_lightness"

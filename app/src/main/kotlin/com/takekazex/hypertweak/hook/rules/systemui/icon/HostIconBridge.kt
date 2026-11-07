@@ -13,7 +13,7 @@ import java.lang.reflect.Method
 import java.util.Collections
 
 /**
- * Publishes module-owned bitmap icons through the OS4 StatusBarIconController.
+ * Publishes module-owned icons through the OS4 StatusBarIconController.
  *
  * The bridge is intentionally strict about the host main thread and ownership. It never creates
  * a fake resource id, never overwrites a holder owned by another package, and only reports success
@@ -49,11 +49,16 @@ class HostIconBridge(
 
     /** Publishes or updates one ordinary (type 0, tag 0) module holder. Main-thread only. */
     fun publish(slot: String, icon: Bitmap, description: CharSequence? = null): Boolean {
+        if (icon.isRecycled) return false
+        return publish(slot, Icon.createWithBitmap(icon), description)
+    }
+
+    internal fun publish(slot: String, icon: Icon, description: CharSequence?): Boolean {
         if (Looper.myLooper() != Looper.getMainLooper()) {
             DebugLog.w(TAG, "refusing off-main StatusBarIcon publish slot=$slot")
             return false
         }
-        if (slot.isBlank() || icon.isRecycled) return false
+        if (slot.isBlank()) return false
         synchronized(lock) {
             val existing = findHolder(slot)
             val existingPackage = holderPackage(existing)
@@ -169,7 +174,7 @@ class HostIconBridge(
         holderIconField(holder).get(holder) === expectedIcon
     }.getOrDefault(false)
 
-    private fun createStatusIcon(bitmap: Bitmap, description: CharSequence?): Any? = runCatching {
+    private fun createStatusIcon(icon: Icon, description: CharSequence?): Any? = runCatching {
         val statusIconClass = Class.forName(
             IconTunerFlows.hostClassName("com.android.internal", "statusbar.StatusBarIcon"),
             false,
@@ -199,7 +204,7 @@ class HostIconBridge(
         ctor.newInstance(
             systemUser,
             MODULE_PACKAGE,
-            Icon.createWithBitmap(bitmap),
+            icon,
             0,
             0,
             description,

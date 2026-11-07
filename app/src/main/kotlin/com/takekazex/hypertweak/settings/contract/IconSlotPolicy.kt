@@ -59,6 +59,7 @@ object IconSlotPolicy {
     const val SLOT_MOBILE = "mobile"
     const val SLOT_WIFI = "wifi"
     const val SLOT_DEMO_WIFI = "demo_wifi"
+    const val SLOT_ROTATION_LOCK = "hypertweak_rotation_lock"
 
     /** The fake QS row follows the collapsed status bar and must retain its native single row. */
     fun ownsTwoLineControlCenterRow(location: String?): Boolean = location == "QS"
@@ -115,7 +116,34 @@ object IconSlotPolicy {
     fun ownsLowerRowMotion(slot: String, leftOwnedSlots: Set<String>, overrides: Set<String> = emptySet()): Boolean =
         !isTwoLineUpperSlot(slot, overrides) && slot !in leftOwnedSlots
 
-    val MODULE_SLOTS: List<String> = SIGNAL_SLOTS
+    val MODULE_SLOTS: List<String> = SIGNAL_SLOTS + SLOT_ROTATION_LOCK
+
+    fun rotationLockShowsOnStatusBar(mode: IconSlotMode, leftSelected: Boolean): Boolean = when (mode) {
+        IconSlotMode.FOLLOW_SYSTEM -> leftSelected
+        IconSlotMode.SHOW_EVERYWHERE, IconSlotMode.STATUS_BAR_ONLY -> true
+        else -> false
+    }
+
+    fun rotationLockBlocked(
+        location: String?, hostBlocked: Boolean, snapshot: IconTunerSnapshot,
+        owned: Set<String>, minimalism: Boolean
+    ): Boolean {
+        val policy = snapshot.policy
+        val mode = modeFor(SLOT_ROTATION_LOCK, policy.slotModes, policy.extraHiddenSlots)
+        val leftSelected = SLOT_ROTATION_LOCK in policy.leftSlots
+        val allowed = when (location) {
+            "QS" -> mode != IconSlotMode.HIDE_EVERYWHERE && mode != IconSlotMode.STATUS_BAR_ONLY
+            "HOME" -> rotationLockShowsOnStatusBar(mode, leftSelected)
+            // The collapsed mirror is part of the control center's block-list surface.
+            "QS_FAKE" -> mode != IconSlotMode.STATUS_BAR_ONLY && rotationLockShowsOnStatusBar(mode, leftSelected)
+            "KEYGUARD" -> rotationLockShowsOnStatusBar(
+                mode, leftSelected && snapshot.leftMode == IconTunerContract.LEFT_MODE_HOME_AND_LOCKSCREEN
+            )
+            else -> false
+        }
+        return !allowed || SLOT_ROTATION_LOCK in owned ||
+            (hostBlocked && (mode == IconSlotMode.FOLLOW_SYSTEM || minimalism))
+    }
 
     /**
      * These are preference-name aliases, not slot aliases in the host list. The first name is the
@@ -391,6 +419,11 @@ object IconSlotPolicy {
         enabledModuleSlots: Set<String>
     ): List<String> {
         val result = stableUnique(systemSlots)
+        if (SLOT_ROTATION_LOCK in enabledModuleSlots) {
+            // Keep the default position used by the host when it first encounters this slot.
+            result.remove(SLOT_ROTATION_LOCK)
+            result.add(0, SLOT_ROTATION_LOCK)
+        }
         val enabledSignals = SIGNAL_SLOTS.filter { it in enabledModuleSlots }
         if (enabledSignals.isNotEmpty()) {
             // Reload carries existing module holders after native slots. Re-anchor those too;

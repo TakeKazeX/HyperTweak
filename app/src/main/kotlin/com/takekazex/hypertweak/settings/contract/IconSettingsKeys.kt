@@ -80,6 +80,7 @@ object IconSettingsKeys {
     const val KEY_ICON_MIRROR_AIRPLANE = "icon_mirror_airplane"
     const val KEY_ICON_LEFT_AIRPLANE = "icon_left_airplane"
     const val KEY_ICON_LEFT_HEADSET = "icon_left_headset"
+    const val KEY_ICON_LEFT_ROTATION_LOCK = "icon_left_rotation_lock"
     const val KEY_ICON_HIDE_CARRIER_ONE = "statusbar_hide_carrier_one"
     const val KEY_ICON_HIDE_CARRIER_TWO = "statusbar_hide_carrier_two"
     const val KEY_ICON_HIDE_CARRIER_HD = "statusbar_hide_carrier_hd"
