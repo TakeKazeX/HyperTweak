@@ -59,6 +59,7 @@
         <package android:name="com.miui.personalassistant" />
         <package android:name="com.android.camera" />
         <package android:name="com.android.contacts" />
+        <package android:name="com.xiaomi.barrage" />
         <package android:name="com.android.mms" />
         <package android:name="com.android.browser" />
         <package android:name="com.xiaomi.xmsf" />

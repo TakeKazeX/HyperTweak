@@ -60,6 +60,7 @@ internal object RuntimeSettingsDefinitions {
     const val SECURITY_BUBBLES = "securitycenter.bubbles"
     const val SECURITY_CLIPBOARD = "securitycenter.clipboard"
     const val OFFLINE_CONFIG = "carrier.offline_config"
+    const val BARRAGE = "barrage.any_app"
     const val XIAOAI_GESTURES = "xiaoai.gesture_input"
     const val SETTINGS_AI = "settings.hyperos_ai"
     const val MARKET = "market.purification"
@@ -235,6 +236,7 @@ internal object RuntimeSettingsDefinitions {
         PlatformSettingsKeys.KEY_SECURITY_CENTER_BYPASS_USB_INSTALL_NETWORK_VERIFY,
         PlatformSettingsKeys.KEY_NETWORK_ASSISTANT_IGNORE_OFFLINE,
         PlatformSettingsKeys.KEY_CONTACTS_BUSINESS_HALL_IGNORE_OFFLINE,
+        PlatformSettingsKeys.KEY_BARRAGE_ANY_APP,
     )
     data class Group(val targets: Set<String>, val owns: (String) -> Boolean)
     private val systemUi = setOf("com.android.systemui")
@@ -404,6 +406,9 @@ internal object RuntimeSettingsDefinitions {
         },
         SECURITY_CLIPBOARD to Group(setOf("com.miui.securitycenter", "com.lbe.security.miui")) {
             it == PlatformSettingsKeys.KEY_LBE_CLIPBOARD_TOAST
+        },
+        BARRAGE to Group(setOf("com.xiaomi.barrage")) {
+            it == PlatformSettingsKeys.KEY_BARRAGE_ANY_APP
         },
         // The Network Assistant classes are packaged in Security Center; its activities run in
         // the main process and its service/provider consumers also use the .remote process.

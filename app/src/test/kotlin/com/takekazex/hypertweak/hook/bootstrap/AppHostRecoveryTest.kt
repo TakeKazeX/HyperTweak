@@ -18,6 +18,7 @@ class AppHostRecoveryTest {
         assertEquals("com.lbe.security.miui", AppHostRecovery.owner("com.lbe.security.miui", false))
         assertEquals("com.lbe.security.miui", AppHostRecovery.owner("com.lbe.security.miui:worker", false))
         assertEquals("com.miui.securitycenter", AppHostRecovery.owner("com.miui.securitycenter:aux", false))
+        assertEquals("com.xiaomi.barrage", AppHostRecovery.owner("com.xiaomi.barrage", false))
         assertEquals("com.android.contacts", AppHostRecovery.owner("com.android.contacts:business", false))
         assertEquals("com.miui.guardprovider", AppHostRecovery.owner("com.miui.guardprovider", false))
         assertEquals("com.miui.guardprovider", AppHostRecovery.owner("com.miui.guardprovider:engine", false))

@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.bootstrap
 
+import com.takekazex.hypertweak.hook.rules.barrage.BarrageAnyAppHooker
 import com.takekazex.hypertweak.hook.rules.camera.CameraDeviceMismatchHooker
 import com.takekazex.hypertweak.hook.rules.camera.CameraImpersonationHooker
 import com.takekazex.hypertweak.hook.rules.camera.CameraLegendaryProfileHooker
@@ -70,6 +71,9 @@ internal object AndroidAppHookPlan {
             }
             "com.android.intentresolver" -> {
                 hook { SharePanelHooker }
+            }
+            "com.xiaomi.barrage" -> if (processName == packageName) {
+                hook { BarrageAnyAppHooker }
             }
             "com.android.contacts" -> {
                 hook { RestartBroadcastHooker }

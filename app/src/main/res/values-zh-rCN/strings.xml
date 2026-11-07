@@ -511,6 +511,9 @@
     <string name="home_restart_scoped_apps_summary">重启 SystemUI、设置等作用域进程</string>
     <string name="home_scope_aod">息屏显示</string>
     <string name="home_scope_bluetooth">小米蓝牙</string>
+    <string name="home_scope_barrage">弹幕通知</string>
+    <string name="settings_barrage_any_app_title">允许所有应用使用弹幕通知</string>
+    <string name="settings_barrage_any_app_summary">需在游戏加速中开启弹幕通知，并在 LSPosed 中勾选弹幕通知作用域。原有通知设置仍然生效。</string>
     <string name="home_scope_contacts">通讯录与营业厅</string>
     <string name="home_scope_guard_provider">安全组件</string>
     <string name="home_scope_theme_manager">主题壁纸</string>

@@ -13,6 +13,7 @@ internal object AppHostRecovery {
             "com.miui.securitycenter.remote", "com.miui.securitycenter.cache",
             "com.miui.securitycenter.power", "com.miui.securitycenter.bootaware", "com.miui.securitycenter.uniauth" ->
                 "com.miui.securitycenter"
+            "com.xiaomi.barrage" -> "com.xiaomi.barrage"
             "com.android.contacts", "com.android.contacts:business" -> "com.android.contacts"
             else -> process.substringBefore(':').takeIf { it == "com.miui.guardprovider" }
         }

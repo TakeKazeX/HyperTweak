@@ -514,6 +514,9 @@
     <string name="home_scope_aod">Always-On Display</string>
     <string name="home_scope_bluetooth">Xiaomi Bluetooth</string>
     <string name="home_scope_guard_provider">GuardProvider</string>
+    <string name="home_scope_barrage">Barrage notifications</string>
+    <string name="settings_barrage_any_app_title">Allow barrage notifications from all apps</string>
+    <string name="settings_barrage_any_app_summary">Requires Game Turbo barrage notifications and the Barrage notifications scope in LSPosed. Existing notification settings still apply.</string>
     <string name="home_scope_contacts">Contacts and Business Hall</string>
     <string name="home_scope_theme_manager">Theme Manager</string>
     <string name="home_scope_launcher">System Launcher</string>

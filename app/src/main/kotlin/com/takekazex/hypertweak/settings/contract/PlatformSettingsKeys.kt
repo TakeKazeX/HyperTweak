@@ -52,6 +52,7 @@ object PlatformSettingsKeys {
     const val KEY_SECURITY_CENTER_DISABLE_USB_INSTALL_INTERCEPT = "securitycenter_disable_usb_install_intercept"
     const val KEY_SECURITY_CENTER_BYPASS_USB_INSTALL_NETWORK_VERIFY = "securitycenter_bypass_usb_install_network_verify"
     const val KEY_NETWORK_ASSISTANT_IGNORE_OFFLINE = "network_assistant_ignore_offline"
+    const val KEY_BARRAGE_ANY_APP = "barrage_any_app"
     const val KEY_CONTACTS_BUSINESS_HALL_IGNORE_OFFLINE = "contacts_business_hall_ignore_offline"
     const val KEY_SHARE_PANEL_SHOW_ALL = "share_panel_show_all"
     const val KEY_GUARD_PROVIDER_BLOCK_UPLOAD_APP_LIST = "guard_provider_block_upload_app_list"

@@ -42,6 +42,7 @@ internal object DebugSettingsCatalog {
         DebugSetting("back_gesture_enabled", "Boolean", false),
         DebugSetting("back_gesture_haptics_disabled", "Boolean", false),
         DebugSetting("back_gesture_upstream_detection_disabled", "Boolean", false),
+        DebugSetting("barrage_any_app", "Boolean", false),
         DebugSetting("battery_auto_power_save_enabled", "Boolean", false),
         DebugSetting("battery_auto_power_save_threshold", "Int", com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys.DEFAULT_BATTERY_AUTO_POWER_SAVE_THRESHOLD),
         DebugSetting("block_download_xl_log_dir", "Boolean", false),

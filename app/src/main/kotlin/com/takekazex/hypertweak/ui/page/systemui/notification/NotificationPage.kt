@@ -1,6 +1,7 @@
 package com.takekazex.hypertweak.ui.page.systemui.notification
 
 import com.takekazex.hypertweak.ui.page.platform.NotificationBannerBatchSection
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 
 import androidx.compose.foundation.layout.Column
@@ -28,6 +29,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.ui.app.LocalAppSettingsStore
+import com.takekazex.hypertweak.ui.components.scope.MissingScopeCard
 import com.takekazex.hypertweak.util.platform.PlatformLevel
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
@@ -57,12 +59,16 @@ fun NotificationPage(
     onNavigateToNotificationHeader: () -> Unit,
 ) {
     val settingsStore = LocalAppSettingsStore.current
+    var barrageAnyApp by rememberSaveable {
+        mutableStateOf(settingsStore.getBoolean(PlatformSettingsKeys.KEY_BARRAGE_ANY_APP, false))
+    }
     var notifMoreSettings by remember { mutableStateOf(settingsStore.systemUi.notificationMoreSettings()) }
     var notifBadge by remember { mutableStateOf(settingsStore.systemUi.notificationBadge()) }
     var notifMiniWindow by rememberSaveable { mutableStateOf(settingsStore.getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_MINI_WINDOW, false)) }
     var notifBlockFold by remember { mutableStateOf(settingsStore.systemUi.notificationBlockFold()) }
     var iconFilterMode by rememberSaveable { mutableIntStateOf(com.takekazex.hypertweak.settings.contract.NotificationIconPolicy.normalize(settingsStore.getInt(SystemUiSettingsKeys.KEY_NOTIFICATION_ICON_FILTER_MODE, 0))) }
     NotificationMenuLayout(stringResource(R.string.settings_system_ui_section_notifications), onBack) {
+        MissingScopeCard("com.xiaomi.barrage")
         SmallTitle(stringResource(R.string.settings_system_ui_section_notifications))
         Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
             Column(Modifier.fillMaxWidth()) {
@@ -122,6 +128,20 @@ fun NotificationPage(
         }
 
         NotificationBannerBatchSection()
+
+        SmallTitle(stringResource(R.string.home_scope_barrage))
+        Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+            SwitchPreference(
+                checked = barrageAnyApp,
+                onCheckedChange = { enabled ->
+                    barrageAnyApp = enabled
+                    settingsStore.putBoolean(PlatformSettingsKeys.KEY_BARRAGE_ANY_APP, enabled)
+                    settingsStore.flush()
+                },
+                title = stringResource(R.string.settings_barrage_any_app_title),
+                summary = stringResource(R.string.settings_barrage_any_app_summary),
+            )
+        }
 
         if (PlatformLevel.isOs4) {
             SmallTitle(stringResource(R.string.settings_system_ui_section_notification_shade))
