@@ -28,6 +28,8 @@ internal object RuntimeSettingsGroups {
     const val DOCK = RuntimeSettingsDefinitions.DOCK
     const val VOLUME = RuntimeSettingsDefinitions.VOLUME
     const val XMSF = RuntimeSettingsDefinitions.XMSF
+    const val AICR_FREEFORM = RuntimeSettingsDefinitions.AICR_FREEFORM
+    const val FREEFORM = RuntimeSettingsDefinitions.FREEFORM
     const val GESTURE_BAR = RuntimeSettingsDefinitions.GESTURE_BAR
     const val GESTURE_BAR_UI = RuntimeSettingsDefinitions.GESTURE_BAR_UI
     const val GATED_FEATURES = RuntimeSettingsDefinitions.GATED_FEATURES

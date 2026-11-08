@@ -5,6 +5,9 @@ import java.util.Locale
 
 /** Pure input gates shared by the legacy and intentUri Copy Direct routes. */
 internal object AicrCopyDirectBrowserPolicy {
+    const val AICR_PACKAGE = "com.xiaomi.aicr"
+    const val OPEN_SOURCE = "open_source"
+    const val CLIPBOARD_OPEN = "clipboard_open"
     const val XIAOMI_BROWSER = "com.android.browser"
     const val ACTION_VIEW = "android.intent.action.VIEW"
 

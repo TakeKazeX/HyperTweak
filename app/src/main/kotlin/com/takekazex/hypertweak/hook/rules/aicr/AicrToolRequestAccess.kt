@@ -10,12 +10,19 @@ internal class AicrToolRequestAccess private constructor(
     private val constructor: Constructor<*>,
     private val parse: (String) -> Any
 ) {
-    fun rewrite(request: Any, transform: (String) -> String?): Any? {
-        // queryId, toolId, method, clientInfo are copied without changing their protocol identity.
-        val values = strings.map { it.invoke(request) }
-        if (values[1] != "aipanel") return null
+    fun rewrite(request: Any, transform: (String) -> String?): Any? =
+        rewrite(request, { _, toolId, _ -> Unit.takeIf { toolId == "aipanel" } }) { _, raw -> transform(raw) }
+
+    fun <T : Any> rewrite(
+        request: Any,
+        select: (queryId: String?, toolId: String?, method: String?) -> T?,
+        transform: (T, String) -> String?,
+    ): Any? {
+        // Preserve queryId, toolId, method and clientInfo.
+        val values = strings.map { it.invoke(request) as? String }
+        val selected = select(values[0], values[1], values[2]) ?: return null
         val original = input.invoke(request) ?: return null
-        val rewritten = transform(original.toString()) ?: return null
+        val rewritten = transform(selected, original.toString()) ?: return null
         return constructor.newInstance(*values.toTypedArray(), parse(rewritten))
     }
 

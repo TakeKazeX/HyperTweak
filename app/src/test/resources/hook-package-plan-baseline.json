@@ -39,6 +39,7 @@
       "LockscreenKeepNotificationsHooker",
       "FocusNotificationWhitelistHooker",
       "NotificationMiniWindowHooker",
+      "SystemUiFreeformHooker",
       "NotificationWhitelistBypassHooker",
       "SystemUiBubbleNotificationWhitelistHooker",
       "NotificationBlockFoldHooker",
@@ -86,6 +87,7 @@
       "LockscreenKeepNotificationsHooker",
       "FocusNotificationWhitelistHooker",
       "NotificationMiniWindowHooker",
+      "SystemUiFreeformHooker",
       "NotificationWhitelistBypassHooker",
       "SystemUiBubbleNotificationWhitelistHooker",
       "NotificationBlockFoldHooker",
@@ -265,6 +267,9 @@
       "SecurityCenterSafetyChecksHooker",
       "SecurityCenterGameBoosterHooker",
       "AppDetailsIconLaunchHooker",
+      "AppDetailsActionsHooker",
+      "MoreAppInfoHooker",
+      "NamedApkShareHooker",
       "SecurityCenterUsbInstallNetworkVerifyHooker",
       "CarrierOfflineConfigHooker"
     ]
@@ -582,7 +587,8 @@
     "package": "com.android.contacts",
     "targets": [
       "RestartBroadcastHooker",
-      "CarrierOfflineConfigHooker"
+      "CarrierOfflineConfigHooker",
+      "BusinessHallAdBlockHooker"
     ]
   },
   {

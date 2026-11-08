@@ -2,6 +2,7 @@ package com.takekazex.hypertweak.hook.bootstrap
 
 import com.takekazex.hypertweak.hook.rules.aicr.AicrBrowserWhitelistHooker
 import com.takekazex.hypertweak.hook.rules.aicr.AicrDefaultBrowserHooker
+import com.takekazex.hypertweak.hook.rules.aicr.AicrCopyDirectFreeformHooker
 import com.takekazex.hypertweak.hook.rules.gms.QuickSharePhenotypeHooker
 import com.takekazex.hypertweak.hook.rules.googleapp.GoogleAppProcessPolicy
 import com.takekazex.hypertweak.hook.rules.googleapp.GoogleAppRuntime
@@ -97,6 +98,9 @@ internal object ServiceAppHookPlan {
             "com.xiaomi.aicr" -> {
                 hook { AicrBrowserWhitelistHooker }
                 hook { AicrDefaultBrowserHooker }
+                if (processName == AicrCopyDirectFreeformHooker.COGNITION ||
+                    processName == AicrCopyDirectFreeformHooker.ACTION_PROVIDER
+                ) hook { AicrCopyDirectFreeformHooker }
             }
             "com.takekazex.hypertweak" -> {
                 hook { ModuleStatusHooker }

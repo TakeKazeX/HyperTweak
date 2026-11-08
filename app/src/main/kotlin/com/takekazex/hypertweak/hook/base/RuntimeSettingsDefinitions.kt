@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.base
 
+import com.takekazex.hypertweak.settings.contract.FreeformSettingsKeys
 import com.takekazex.hypertweak.settings.contract.LauncherDesktopKeys
 
 import com.takekazex.hypertweak.settings.contract.ScreenshotSettingsKeys
@@ -47,6 +48,8 @@ internal object RuntimeSettingsDefinitions {
     const val DOCK = "launcher.dock"
     const val VOLUME = "system.volume"
     const val XMSF = "xmsf.focus"
+    const val AICR_FREEFORM = "aicr.freeform"
+    const val FREEFORM = "system.freeform"
     const val GESTURE_BAR = "system.gesture_bar"
     const val GESTURE_BAR_UI = "systemui.gesture_bar"
     /** Switches that decide whether a hooker is installed at all, not just how it behaves. */
@@ -193,7 +196,7 @@ internal object RuntimeSettingsDefinitions {
         PlatformSettingsKeys.KEY_UNLOCK_ADAPTIVE_REFRESH_PRO
     )
     val strictBooleanKeys = com.takekazex.hypertweak.settings.contract.CameraSettingsKeys.booleanKeys +
-        experimentalKeys + PackageManagerSettingsKeys.keys + setOf(PlatformSettingsKeys.KEY_POWER_BUTTON_CTS,
+        experimentalKeys + FreeformSettingsKeys.keys + PackageManagerSettingsKeys.keys + setOf(PlatformSettingsKeys.KEY_POWER_BUTTON_CTS,
             PlatformSettingsKeys.KEY_SHOW_IN_SETTINGS, SystemUiSettingsKeys.KEY_IMMEDIATE_MONET_REFRESH) + com.takekazex.hypertweak.settings.contract.MarketSettingsKeys.keys + setOf(com.takekazex.hypertweak.settings.contract.CommunitySettingsKeys.KEY_COMMUNITY_BLOCK_DETECTION,
         com.takekazex.hypertweak.settings.contract.CommunitySettingsKeys.KEY_COMMUNITY_DEVICE_MODIFY, PlatformSettingsKeys.KEY_AOSP_IME_ENABLED,
         PlatformSettingsKeys.KEY_AOSP_IME_MIUI_IME_LIST) + policyKeys + passivePolicyKeys + googleKeys + aospUiKeys + aospSecurityKeys + setOf(
@@ -327,6 +330,10 @@ internal object RuntimeSettingsDefinitions {
         DOCK to Group(setOf("android")) { it == DockConfig.KEY },
         VOLUME to Group(systemUi + "android") { it == PlatformSettingsKeys.KEY_VOLUME_KEY_STEP_ENABLED || it == PlatformSettingsKeys.KEY_VOLUME_KEY_STEP_COUNT || it == PlatformSettingsKeys.KEY_VOLUME_KEY_STEP_SCOPE },
         XMSF to Group(setOf("com.xiaomi.xmsf")) { it == PlatformSettingsKeys.KEY_XMSF_UNLOCK_FOCUS_AUTH },
+        FREEFORM to Group(systemUi + "android") { it in FreeformSettingsKeys.keys },
+        AICR_FREEFORM to Group(setOf("com.xiaomi.aicr")) {
+            it == FreeformSettingsKeys.KEY_JUMP || it in FreeformSettingsKeys.copyDirectKeys
+        },
         // system_server: DisplayPolicy asks for the attach state on every recents transition.
         GESTURE_BAR to Group(setOf("android")) {
             it == SystemUiSettingsKeys.KEY_GESTURE_BAR_ATTACH_TRANSITION || it == PlatformSettingsKeys.KEY_HIDE_GESTURE_BAR_RECENTS

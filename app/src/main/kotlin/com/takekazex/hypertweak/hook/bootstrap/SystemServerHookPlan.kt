@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.bootstrap
 
+import com.takekazex.hypertweak.hook.rules.freeform.SystemServerFreeformHooker
 import com.takekazex.hypertweak.hook.rules.ime.AospImeConfig
 import com.takekazex.hypertweak.hook.rules.ime.AospImeSystemHooker
 import com.takekazex.hypertweak.hook.rules.system.NativePhotoPickerHooker
@@ -28,6 +29,7 @@ import com.takekazex.hypertweak.hook.base.BaseHooker
 internal object SystemServerHookPlan {
     fun steps(imeEnabled: Boolean): List<HookStep.Install<*>> = buildList<HookStep> {
         hook { SystemServerReadinessHooker }
+        hook { SystemServerFreeformHooker }
         hook { AospBackSystemHooker }
         hook { com.takekazex.hypertweak.hook.rules.system.DockBackgroundHooker }
         hook { com.takekazex.hypertweak.hook.rules.system.ForceScreenshotHooker }

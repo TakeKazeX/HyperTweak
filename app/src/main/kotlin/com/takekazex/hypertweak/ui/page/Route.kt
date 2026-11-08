@@ -12,6 +12,7 @@ sealed interface Route : NavKey {
     data object HiddenFeatures : Route
     data object AppShortcuts : Route
     data object PackageManager : Route
+    data object Freeform : Route
     data object SystemFramework : Route
     data object AospRestore : Route
     data object SecurityCenter : Route
@@ -67,6 +68,7 @@ val Route.saveKey: String
         Route.HiddenFeatures -> "HiddenFeatures"
         Route.AppShortcuts -> "AppShortcuts"
         Route.PackageManager -> "PackageManager"
+        Route.Freeform -> "Freeform"
         Route.SystemFramework -> "SystemFramework"
         Route.AospRestore -> "AospRestore"
         Route.SecurityCenter -> "SecurityCenter"
@@ -117,6 +119,7 @@ fun routeFromSaveKey(key: String): Route? = when (key) {
     "HiddenFeatures" -> Route.HiddenFeatures
     "AppShortcuts" -> Route.AppShortcuts
     "PackageManager" -> Route.PackageManager
+    "Freeform" -> Route.Freeform
     "SystemFramework", "SystemEnhancements" -> Route.SystemFramework
     "AospRestore" -> Route.AospRestore
     "SecurityCenter" -> Route.SecurityCenter

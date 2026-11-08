@@ -1,5 +1,6 @@
 [
   "SystemServerReadinessHooker",
+  "SystemServerFreeformHooker",
   "AospBackSystemHooker",
   "DockBackgroundHooker",
   "ForceScreenshotHooker",

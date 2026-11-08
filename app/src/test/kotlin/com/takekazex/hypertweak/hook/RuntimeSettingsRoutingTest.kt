@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook
 
+import com.takekazex.hypertweak.settings.contract.FreeformSettingsKeys
 import com.takekazex.hypertweak.hook.nativebridge.NativeRuleStateSnapshot
 import com.takekazex.hypertweak.hook.runtime.settings.RuntimeSettingsLedger
 import com.takekazex.hypertweak.hook.runtime.settings.RuntimeSettingsSnapshot
@@ -362,6 +363,38 @@ class RuntimeSettingsRoutingTest {
         assertNull(ledger.value(key))
     }
 
+    @Test fun freeformAcceptsSettingsAfterUpgradeAndRoutesResetToBothHosts() {
+        val values = FreeformSettingsKeys.keys.associateWith { true }
+        assertEquals(values, Groups.subset("android", values))
+        assertEquals(values, Groups.subset("com.android.systemui", values))
+        assertTrue(Groups.subset("com.miui.home", values).isEmpty())
+        val aicrKeys = FreeformSettingsKeys.copyDirectKeys + FreeformSettingsKeys.KEY_JUMP
+        assertEquals(values.filterKeys { it in aicrKeys }, Groups.subset("com.xiaomi.aicr", values))
+        assertEquals(setOf(Groups.AICR_FREEFORM), Groups.forProcess("com.xiaomi.aicr:cognitionService")
+            .intersect(setOf(Groups.AICR_FREEFORM, Groups.FREEFORM)))
+        assertFalse(Groups.owns("system_freeform_bubble"))
+        val retired = RuntimeSettingsSnapshot.read(1, mapOf("system_freeform_bubble" to true), setOf(Groups.FREEFORM))!!
+        assertTrue(retired.values.isEmpty())
+
+        val previous = RuntimeSettingsLedger()
+        val previousGroups = setOf(Groups.VOLUME)
+        val groups = previousGroups + Groups.FREEFORM
+        assertTrue(previous.accept(RuntimeSettingsSnapshot.read(1, emptyMap<String, Any>(), previousGroups)!!))
+        val ledger = RuntimeSettingsLedger()
+        ledger.restore(previous.save())
+        assertFalse(ledger.owns(FreeformSettingsKeys.KEY_COUNT))
+        assertNull(RuntimeSettingsSnapshot.read(2, mapOf(FreeformSettingsKeys.KEY_COUNT to 256), groups))
+        val enabled = RuntimeSettingsSnapshot.read(2, values, groups)!!
+        assertEquals(setOf(Groups.FREEFORM, Groups.AICR_FREEFORM), ledger.changedGroups(enabled))
+        assertTrue(ledger.accept(enabled))
+        values.keys.forEach { assertEquals(true, ledger.value(it)) }
+
+        val reset = RuntimeSettingsSnapshot.read(3, emptyMap<String, Any>(), groups)!!
+        assertEquals(setOf(Groups.FREEFORM, Groups.AICR_FREEFORM), ledger.changedGroups(reset))
+        assertTrue(ledger.accept(reset))
+        values.keys.forEach { assertNull(ledger.value(it)) }
+    }
+
     @Test fun allRegisteredPackagesNormalizeColonSubprocessesWithoutInventingUnknownRoutes() {
         Groups.targets.forEach { target ->
             assertEquals(target, Groups.target("$target:worker"))
@@ -382,7 +415,7 @@ class RuntimeSettingsRoutingTest {
     @Test fun everyExistingLiveRouteHasExplicitConsumersIncludingScreenshotEditorAndSystemServer() {
         assertEquals(setOf(Groups.SCREENSHOT), Groups.forProcess("com.miui.screenshot"))
         assertEquals(Groups.forProcess("com.miui.screenshot"), Groups.forProcess("com.miui.screenshot:photo_editor"))
-        assertEquals(setOf(Groups.POWER_BUTTON, Groups.EXPERIMENTAL_CAPABILITIES, Groups.IME, Groups.BACK, Groups.DOCK, Groups.VOLUME, Groups.GESTURE_BAR, Groups.FORCE_SCREENSHOT, Groups.DARK_MODE, Groups.NATIVE_PHOTO_PICKER, Groups.NATIVE_FILE_PICKER, Groups.AOSP_INSTALLER, Groups.PACKAGE_MANAGER,
+        assertEquals(setOf(Groups.POWER_BUTTON, Groups.EXPERIMENTAL_CAPABILITIES, Groups.IME, Groups.BACK, Groups.DOCK, Groups.VOLUME, Groups.FREEFORM, Groups.GESTURE_BAR, Groups.FORCE_SCREENSHOT, Groups.DARK_MODE, Groups.NATIVE_PHOTO_PICKER, Groups.NATIVE_FILE_PICKER, Groups.AOSP_INSTALLER, Groups.PACKAGE_MANAGER,
             Groups.GMS_RESTRICTIONS, Groups.PASSKEY, Groups.FCM, Groups.POLICY_FEATURES),
             Groups.forProcess("system_server", true))
         assertEquals(setOf(Groups.XMSF), Groups.forProcess("com.xiaomi.xmsf:push"))

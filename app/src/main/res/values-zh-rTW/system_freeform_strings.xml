@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="system_freeform_title">小窗</string>
+    <string name="system_freeform_count_title">多小窗</string>
+    <string name="system_freeform_count_summary">將系統替換舊小窗的數量門檻提高至 256。裝置仍可能有其他限制。</string>
+    <string name="system_freeform_force_title">強制允許小窗</string>
+    <string name="system_freeform_force_summary">放寬小窗的應用程式相容性檢查。部分應用程式的介面可能顯示異常。</string>
+    <string name="system_freeform_pin_title">貼邊小窗強制前景</string>
+    <string name="system_freeform_pin_summary">下次將小窗貼邊時按前景視窗處理，可能增加耗電。</string>
+    <string name="system_freeform_summary">調整小窗行為，並選擇應用程式在哪些情境以小窗開啟</string>
+    <string name="system_freeform_window_section">小窗行為</string>
+    <string name="system_freeform_jump_section">跳轉情境</string>
+    <string name="system_freeform_jump_title">跳轉應用程式時以小窗開啟</string>
+    <string name="system_freeform_jump_summary">只在下方已開啟的情境使用小窗，系統仍會檢查目標應用程式是否支援。</string>
+    <string name="system_freeform_notification_title">輕觸通知時以小窗開啟</string>
+    <string name="system_freeform_notification_summary">解鎖後輕觸通知，優先以小窗開啟支援的應用程式。</string>
+    <string name="system_freeform_content_links_title">傳送門與複製直達連結</string>
+    <string name="system_freeform_content_links_summary">從傳送門或複製直達開啟辨識出的網頁時，優先使用小窗。</string>
+    <string name="system_freeform_share_title">分享至其他應用程式</string>
+    <string name="system_freeform_share_summary">跨應用程式分享時優先以小窗開啟接收應用程式，包括微信回呼。</string>
+    <string name="system_freeform_copy_direct_command_title">複製直達口令跳轉</string>
+    <string name="system_freeform_copy_direct_command_summary">點選辨識出的口令卡片時，優先以小窗開啟目標應用程式。</string>
+    <string name="system_freeform_copy_direct_location_title">複製直達查看地點</string>
+    <string name="system_freeform_copy_direct_location_summary">點選辨識出的地點卡片時，優先以小窗開啟地圖應用程式。</string>
+    <string name="system_freeform_copy_direct_tracking_title">複製直達包裹查詢</string>
+    <string name="system_freeform_copy_direct_tracking_summary">點選辨識出的包裹追蹤號碼卡片時，優先以小窗開啟查詢應用程式。</string>
+</resources>

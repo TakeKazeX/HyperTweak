@@ -4,6 +4,7 @@ import androidx.compose.animation.*
 import androidx.compose.runtime.*
 import com.takekazex.hypertweak.ui.page.Route
 import com.takekazex.hypertweak.ui.page.platform.AospRestorePage
+import com.takekazex.hypertweak.ui.page.platform.FreeformPage
 import com.takekazex.hypertweak.ui.page.platform.SystemFrameworkPage
 import com.takekazex.hypertweak.ui.page.securitycenter.SecurityCenterPage
 import com.takekazex.hypertweak.ui.page.platform.AospImePage
@@ -25,9 +26,11 @@ internal fun NavEntryBuilder.featuresPages(settings: NavigationSettings, navCont
         entry<Route.PackageManager> {
             com.takekazex.hypertweak.ui.page.platform.PackageManagerPage(onBack = { navController.pop() })
         }
+        entry<Route.Freeform> { FreeformPage(onBack = { navController.pop() }) }
         entry<Route.SystemFramework> {
             SystemFrameworkPage(
                 onBack = { navController.pop() },
+                onNavigateToFreeform = { navController.navigateTo(Route.Freeform) },
                 onNavigateToPackageManager = { navController.navigateTo(Route.PackageManager) },
                 allowThirdPartyTheme = allowThirdPartyTheme,
                 onAllowThirdPartyThemeChange = onAllowThirdPartyThemeChange,

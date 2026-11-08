@@ -166,6 +166,9 @@ internal object RuntimeSettingsParticipants {
         registerForProcess(RuntimeSettingsGroups.NATIVE) { _ -> actions.publishNative(); true }
         registerForProcess(RuntimeSettingsGroups.DOCK) { _ -> com.takekazex.hypertweak.hook.rules.system.DockBackgroundHooker.refreshSettings() }
         registerForProcess(RuntimeSettingsGroups.VOLUME) { _ -> if (isSystemServer) VolumeKeyStepsHooker.refreshConfiguration(); true }
+        // The settings store publishes the hook snapshots before dispatch.
+        registerForProcess(RuntimeSettingsGroups.FREEFORM) { _ -> true }
+        registerForProcess(RuntimeSettingsGroups.AICR_FREEFORM) { _ -> true }
         // system_server: the hooker re-reads the attach switch per transition.
         registerForProcess(RuntimeSettingsGroups.GESTURE_BAR) { _ ->
             Preferences.invalidateRuntimeReadCache()

@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.bootstrap
 
+import com.takekazex.hypertweak.hook.rules.freeform.SystemUiFreeformHooker
 import com.takekazex.hypertweak.hook.rules.backgesture.AospBackSystemUiHooker
 import com.takekazex.hypertweak.hook.rules.module.RestartBroadcastHooker
 import com.takekazex.hypertweak.hook.rules.system.BatteryAutoPowerSaveHooker
@@ -83,6 +84,7 @@ internal object SystemUiHookPlan {
                 hook { LockscreenKeepNotificationsHooker }
                 hook { FocusNotificationWhitelistHooker }
                 hook { NotificationMiniWindowHooker }
+                hook { SystemUiFreeformHooker }
                 hook { NotificationWhitelistBypassHooker }
                 hook { SystemUiBubbleNotificationWhitelistHooker }
                 // Notification fold suppression (its own switch) and the status-bar "silent

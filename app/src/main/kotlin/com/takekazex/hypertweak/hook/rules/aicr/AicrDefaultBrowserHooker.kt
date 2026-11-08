@@ -33,7 +33,7 @@ object AicrDefaultBrowserHooker : StaticHooker() {
     }
 
     private const val TAG = "AicrDefaultBrowser"
-    private const val PACKAGE = "com.xiaomi.aicr"
+    private const val PACKAGE = AicrCopyDirectBrowserPolicy.AICR_PACKAGE
     private const val XIAOMI_BROWSER = AicrCopyDirectBrowserPolicy.XIAOMI_BROWSER
     private const val COPY_DIRECT_TYPE_MARKER = "get_copy_direct_data"
     // Semantic identifiers, not obfuscated method names.
@@ -179,7 +179,7 @@ object AicrDefaultBrowserHooker : StaticHooker() {
                         val context = param.args.getOrNull(0) as? Context ?: return@open
                         val rawUrl = param.args.getOrNull(1) as? String ?: return@open
                         val uri = normalizedWebUri(rawUrl) ?: return@open
-                        if (startWebIntent(context, buildWebIntent(uri, "clipboard_open"))) {
+                        if (startWebIntent(context, buildWebIntent(uri))) {
                             param.result = null
                         }
                     }
@@ -319,10 +319,10 @@ object AicrDefaultBrowserHooker : StaticHooker() {
         return runCatching { context.startActivity(chooserFallback) }.isSuccess
     }
 
-    private fun buildWebIntent(uri: Uri, source: String): Intent =
+    private fun buildWebIntent(uri: Uri): Intent =
         Intent(Intent.ACTION_VIEW, uri).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            putExtra("open_source", source)
+            putExtra(AicrCopyDirectBrowserPolicy.OPEN_SOURCE, AicrCopyDirectBrowserPolicy.CLIPBOARD_OPEN)
         }
 
     private fun normalizedWebUri(rawUrl: String): Uri? {
@@ -389,7 +389,7 @@ internal object AicrDefaultBrowserCache {
     private const val BUBBLE_BIND = "target.bubble_bind"
     const val CUE_DATA = "com.xiaomi.ai.bubble.core.model.CueData"
 
-    const val LEGACY_URL_MARKER = "clipboard_open"
+    const val LEGACY_URL_MARKER = AicrCopyDirectBrowserPolicy.CLIPBOARD_OPEN
     const val ACTION_PROVIDER_MARKER = "ActionCoreProvider.call"
     const val PANEL_DISPATCH_MARKER = "AiPanelHandler"
     const val TOOL_REQUEST = "com.xiaomi.aicr.decisionframework.model.tool.ToolRequest"

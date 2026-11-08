@@ -58,6 +58,7 @@ import kotlin.math.roundToInt
 @Composable
 internal fun SystemFrameworkPage(
     onBack: () -> Unit,
+    onNavigateToFreeform: () -> Unit,
     onNavigateToPackageManager: () -> Unit,
     allowThirdPartyTheme: Boolean,
     onAllowThirdPartyThemeChange: (Boolean) -> Unit,
@@ -97,6 +98,11 @@ internal fun SystemFrameworkPage(
                     title = stringResource(R.string.package_manager_title),
                     summary = stringResource(R.string.package_manager_summary),
                     onClick = onNavigateToPackageManager
+                )
+                ArrowPreference(
+                    title = stringResource(R.string.system_freeform_title),
+                    summary = stringResource(R.string.system_freeform_summary),
+                    onClick = onNavigateToFreeform
                 )
                 SwitchPreference(
                     checked = forceScreenshot,

@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="system_freeform_title">Floating windows</string>
+    <string name="system_freeform_count_title">More floating windows</string>
+    <string name="system_freeform_count_summary">Raise the window replacement threshold to 256. Other device limits may still apply.</string>
+    <string name="system_freeform_force_title">Force allow floating windows</string>
+    <string name="system_freeform_force_summary">Relax app compatibility checks for floating windows. Some apps may display incorrectly.</string>
+    <string name="system_freeform_pin_title">Keep pinned windows in the foreground</string>
+    <string name="system_freeform_pin_summary">Apply the foreground policy the next time a window is pinned. This may increase power use.</string>
+    <string name="system_freeform_summary">Manage floating-window behavior and choose when other apps open in one</string>
+    <string name="system_freeform_window_section">Window behavior</string>
+    <string name="system_freeform_jump_section">Launch scenarios</string>
+    <string name="system_freeform_jump_title">Open other apps in floating windows</string>
+    <string name="system_freeform_jump_summary">Apply only to the scenarios enabled below. The system still checks whether the target supports floating windows.</string>
+    <string name="system_freeform_notification_title">Tap notifications</string>
+    <string name="system_freeform_notification_summary">Tap a notification while unlocked to open its app in a floating window when supported.</string>
+    <string name="system_freeform_content_links_title">Taplus and Copy to open links</string>
+    <string name="system_freeform_content_links_summary">Use a floating window when you open a recognized web link from Taplus or Copy to open.</string>
+    <string name="system_freeform_share_title">Share to other apps</string>
+    <string name="system_freeform_share_summary">Open the receiving app in a floating window when sharing. Includes the WeChat callback.</string>
+    <string name="system_freeform_copy_direct_command_title">Copy Direct tokens</string>
+    <string name="system_freeform_copy_direct_command_summary">Open the receiving app in a floating window when you tap a recognized token.</string>
+    <string name="system_freeform_copy_direct_location_title">Copy Direct places</string>
+    <string name="system_freeform_copy_direct_location_summary">Open the map app in a floating window when you tap a recognized address.</string>
+    <string name="system_freeform_copy_direct_tracking_title">Copy Direct parcel tracking</string>
+    <string name="system_freeform_copy_direct_tracking_summary">Open the tracking app in a floating window when you tap a recognized tracking number.</string>
+</resources>
