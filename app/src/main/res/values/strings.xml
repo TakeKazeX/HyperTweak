@@ -7,7 +7,7 @@
     <string name="about_telegram_group">Telegram Group</string>
     <string name="about_telegram_group_summary">Join the community chat on Telegram</string>
     <string name="about_title">About</string>
-    <string name="about_version">Version v%1$s (%2$d)</string>
+    <string name="about_version">v%1$s (%2$d)</string>
     <string name="about_view_source_code">View Source Code</string>
     <string name="about_view_source_code_summary">Check the GitHub repository</string>
     <string name="aosp_app_info_entry">AOSP App Info Entry</string>
@@ -845,6 +845,8 @@
     <string name="main_tab_home">Home</string>
     <string name="main_tab_settings">Settings</string>
     <string name="main_tab_tweaks">Tweaks</string>
+    <string name="main_navigation_rail_expand">Expand side navigation</string>
+    <string name="main_navigation_rail_collapse">Collapse side navigation</string>
     <string name="main_theme_dark">Dark</string>
     <string name="main_theme_follow_system">Follow System</string>
     <string name="main_theme_light">Light</string>
@@ -885,7 +887,7 @@
     <string name="settings_about">About</string>
     <string name="settings_about_summary">HyperTweak v%1$s</string>
     <string name="settings_allow_landscape">Allow Landscape Mode</string>
-    <string name="settings_allow_landscape_summary">Allow rotation to landscape</string>
+    <string name="settings_allow_landscape_summary">Allow rotation to landscape and use side navigation on the main screen</string>
     <string name="settings_aosp_restore">AOSP / International Restore</string>
     <string name="settings_aosp_restore_summary">Restore HyperOS components to AOSP or international behavior</string>
     <string name="settings_global_interface_title">Use the international Settings interface</string>
@@ -1558,7 +1560,7 @@
     <string name="appearance_global_blur">Global blur</string>
     <string name="appearance_blur_off">Off</string>
     <string name="appearance_blur_uniform">Blur</string>
-    <string name="appearance_blur_progressive">Progressive blur</string>
+    <string name="appearance_blur_progressive">Progressive blur (top bars only)</string>
     <string name="restart_scope_loading">Loading application scope…</string>
     <string name="restart_completed">Selected apps restarted.</string>
     <string name="restart_failed">Restart could not be confirmed. Pending settings have been kept; check Root access and try again.</string>

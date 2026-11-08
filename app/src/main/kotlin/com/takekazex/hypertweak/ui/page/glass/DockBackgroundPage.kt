@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.ui.page.glass
 
+import com.takekazex.hypertweak.ui.components.MiuixExpandableContent
 import com.takekazex.hypertweak.ui.components.slider.rememberSliderEdit
 import com.takekazex.hypertweak.ui.components.slider.SliderEditState
 
@@ -165,14 +166,15 @@ fun DockBackgroundPage(onBack: () -> Unit) {
                     } else {
                         DockSlider(stringResource(R.string.dock_blur), config.blur, DockConfig.BLUR_RANGE, DockConfig.DEFAULT_BLUR, "px",
                             { change(config.copy(blur = it)) }, editState = blurSlider)
-                        if (config.style == DockConfig.GLASS) {
+                        MiuixExpandableContent(visible = config.style == DockConfig.GLASS) {
                             DockSlider(stringResource(R.string.dock_brightness), config.brightness, DockConfig.BRIGHTNESS_RANGE, 0, "%",
                                 { change(config.copy(brightness = it)) }, editState = brightnessSlider, summary = stringResource(R.string.dock_brightness_summary))
                             DockSlider(stringResource(R.string.dock_shading), config.shading, DockConfig.PERCENT_RANGE, 0, "%",
                                 { change(config.copy(shading = it)) }, editState = shadingSlider, summary = stringResource(R.string.dock_shading_summary))
                             DockSlider(stringResource(R.string.dock_opacity), config.opacity, DockConfig.PERCENT_RANGE, 100, "%",
                                 { change(config.copy(opacity = it)) }, editState = opacitySlider, summary = stringResource(R.string.dock_opacity_summary))
-                        } else {
+                        }
+                        MiuixExpandableContent(visible = config.style != DockConfig.GLASS) {
                             DockSlider(stringResource(R.string.dock_tint), config.tint, DockConfig.PERCENT_RANGE, 100, "%",
                                 { change(config.copy(tint = it)) }, editState = tintSlider)
                         }

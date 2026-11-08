@@ -14,6 +14,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 enum class AppBlurMode { Off, Uniform, Progressive }
 val LocalAppBlurMode = staticCompositionLocalOf { AppBlurMode.Uniform }
 
+/** Applies uniform blur when the global blur setting is enabled. */
 @Composable
 fun Modifier.appTextureBlur(
     backdrop: Backdrop,
@@ -21,16 +22,13 @@ fun Modifier.appTextureBlur(
     blurRadius: Float = 25f,
     colors: BlurColors = BlurColors(),
     highlight: Highlight? = null,
-    gradient: ProgressiveBlur = ProgressiveBlur.Top,
     enabled: Boolean = true,
     fallbackColor: Color = MiuixTheme.colorScheme.surface,
 ): Modifier {
     if (!enabled) return this
-    return when (LocalAppBlurMode.current) {
-        AppBlurMode.Off -> background(fallbackColor, shape)
-        AppBlurMode.Uniform -> textureBlur(backdrop, shape, blurRadius, colors = colors, highlight = highlight)
-        AppBlurMode.Progressive -> progressiveTextureBlur(
-            backdrop, shape, blurRadius, gradient = gradient, colors = colors, highlight = highlight,
-        )
+    return if (LocalAppBlurMode.current == AppBlurMode.Off) {
+        background(fallbackColor, shape)
+    } else {
+        textureBlur(backdrop, shape, blurRadius, colors = colors, highlight = highlight)
     }
 }

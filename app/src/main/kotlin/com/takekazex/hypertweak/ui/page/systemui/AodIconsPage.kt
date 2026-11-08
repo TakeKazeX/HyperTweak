@@ -32,6 +32,7 @@ import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
+import com.takekazex.hypertweak.ui.components.MiuixExpandableContent
 import com.takekazex.hypertweak.ui.effect.AppScaffold as Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import com.takekazex.hypertweak.ui.effect.AppTopAppBar as TopAppBar
@@ -146,7 +147,7 @@ fun AodIconsPage(onBack: () -> Unit) {
                         title = stringResource(R.string.aod_icons_duo_title),
                         summary = stringResource(R.string.aod_icons_duo_summary)
                     )
-                    if (duoEnabled) {
+                    MiuixExpandableContent(visible = duoEnabled) {
                         OverlayDropdownPreference(
                             title = stringResource(R.string.aod_icons_duo_center_title),
                             summary = stringResource(R.string.aod_icons_duo_center_summary),

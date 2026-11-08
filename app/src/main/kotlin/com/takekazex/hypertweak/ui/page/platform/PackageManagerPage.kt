@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.settings.contract.PackageManagerSettingsKeys as Keys
 import com.takekazex.hypertweak.ui.app.LocalAppSettingsStore
+import com.takekazex.hypertweak.ui.components.MiuixExpandableContent
 import com.takekazex.hypertweak.ui.components.scope.MissingScopeCard
 import com.takekazex.hypertweak.ui.effect.AppScaffold
 import com.takekazex.hypertweak.ui.effect.AppTopAppBar
@@ -77,57 +78,57 @@ internal fun PackageManagerPage(onBack: () -> Unit) {
                 )
             }
 
-            if (enabled) {
+            MiuixExpandableContent(visible = enabled) {
                 PackageManagerSection(R.string.package_manager_core_section) {
                     PackageManagerSwitch(
                         Keys.KEY_DOWNGRADE, R.string.package_manager_downgrade,
-                        R.string.package_manager_downgrade_summary
+                        R.string.package_manager_downgrade_summary, enabled
                     )
                     PackageManagerSwitch(
                         Keys.KEY_UPDATE_SIGNATURE, R.string.package_manager_update_signature,
-                        R.string.package_manager_update_signature_summary
+                        R.string.package_manager_update_signature_summary, enabled
                     )
                     PackageManagerSwitch(
                         Keys.KEY_MIN_SIGNATURE_SCHEME, R.string.package_manager_min_scheme,
-                        R.string.package_manager_min_scheme_summary
+                        R.string.package_manager_min_scheme_summary, enabled
                     )
                     PackageManagerSwitch(
                         Keys.KEY_APK_INTEGRITY, R.string.package_manager_integrity,
-                        R.string.package_manager_integrity_summary
+                        R.string.package_manager_integrity_summary, enabled
                     )
                     PackageManagerSwitch(
                         Keys.KEY_SPLIT_SIGNATURE, R.string.package_manager_split_signature,
-                        R.string.package_manager_split_signature_summary
+                        R.string.package_manager_split_signature_summary, enabled
                     )
                     PackageManagerSwitch(
                         Keys.KEY_SHARED_UID, R.string.package_manager_shared_uid,
-                        R.string.package_manager_shared_uid_summary
+                        R.string.package_manager_shared_uid_summary, enabled
                     )
                 }
                 PackageManagerSection(R.string.package_manager_advanced_section) {
                     PackageManagerSwitch(
                         Keys.KEY_LOW_TARGET, R.string.package_manager_low_target,
-                        R.string.package_manager_low_target_summary
+                        R.string.package_manager_low_target_summary, enabled
                     )
                     PackageManagerSwitch(
                         Keys.KEY_COMPRESSED_RESOURCES, R.string.package_manager_compressed_resources,
-                        R.string.package_manager_compressed_resources_summary
+                        R.string.package_manager_compressed_resources_summary, enabled
                     )
                     PackageManagerSwitch(
                         Keys.KEY_VERIFICATION_AGENT, R.string.package_manager_verifier,
-                        R.string.package_manager_verifier_summary
+                        R.string.package_manager_verifier_summary, enabled
                     )
                     PackageManagerSwitch(
                         Keys.KEY_PERSISTENT_UPDATE, R.string.package_manager_persistent,
-                        R.string.package_manager_persistent_summary
+                        R.string.package_manager_persistent_summary, enabled
                     )
                     PackageManagerSwitch(
                         Keys.KEY_SYSTEM_APP_UPDATE, R.string.package_manager_system_update,
-                        R.string.package_manager_system_update_summary
+                        R.string.package_manager_system_update_summary, enabled
                     )
                     PackageManagerSwitch(
                         Keys.KEY_ISOLATION, R.string.package_manager_isolation,
-                        R.string.package_manager_isolation_summary
+                        R.string.package_manager_isolation_summary, enabled
                     )
                 }
             }
@@ -146,13 +147,14 @@ private fun PackageManagerSection(@StringRes title: Int, content: @Composable ()
 }
 
 @Composable
-private fun PackageManagerSwitch(key: String, @StringRes title: Int, @StringRes summary: Int) {
+private fun PackageManagerSwitch(key: String, @StringRes title: Int, @StringRes summary: Int, enabled: Boolean) {
     val settings = LocalAppSettingsStore.current
     var checked by remember(settings, key) { mutableStateOf(settings.getBoolean(key, false)) }
     SwitchPreference(
         title = stringResource(title),
         summary = stringResource(summary),
         checked = checked,
+        enabled = enabled,
         onCheckedChange = {
             checked = it
             settings.putBoolean(key, it)

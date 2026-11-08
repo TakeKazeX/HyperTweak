@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.util.platform.AdbTcpPort
 import kotlinx.coroutines.launch
+import com.takekazex.hypertweak.ui.components.MiuixExpandableContent
 import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 
@@ -78,11 +79,12 @@ internal fun AdbTcpPortPreference() {
             preferences.edit().putBoolean("custom", it).apply()
         },
     )
-    if (custom) {
+    MiuixExpandableContent(visible = custom) {
         TextField(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
             value = input,
             label = stringResource(R.string.debug_adb_tcp_port),
+            enabled = custom,
             onValueChange = {
                 input = it.filter { digit -> digit in '0'..'9' }.take(5)
                 preferences.edit().putString("port", input).apply()

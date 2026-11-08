@@ -25,6 +25,7 @@ import com.takekazex.hypertweak.settings.contract.CameraLegendaryMomentMode
 import com.takekazex.hypertweak.ui.app.LocalAppSettingsStore
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
+import com.takekazex.hypertweak.ui.components.MiuixExpandableContent
 import com.takekazex.hypertweak.ui.effect.AppScaffold as Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
@@ -286,7 +287,7 @@ fun CameraUnlockContent(
                     title = stringResource(R.string.camera_unlock_custom_title),
                     summary = stringResource(R.string.camera_unlock_custom_summary)
                 )
-                if (customWm) {
+                MiuixExpandableContent(visible = customWm) {
                     ArrowPreference(
                         title = stringResource(R.string.camera_unlock_custom_brand_title),
                         summary = if (customBrand.isEmpty()) {
@@ -295,6 +296,7 @@ fun CameraUnlockContent(
                             customBrand
                         },
                         onClick = { editingBrand = true },
+                        enabled = customWm,
                         holdDownState = editingBrand
                     )
                     ArrowPreference(
@@ -305,6 +307,7 @@ fun CameraUnlockContent(
                             customModel
                         },
                         onClick = { editingModel = true },
+                        enabled = customWm,
                         holdDownState = editingModel
                     )
                 }

@@ -13,6 +13,7 @@ import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.settings.contract.CommunitySettings
 import com.takekazex.hypertweak.settings.contract.CommunitySettingsKeys
 import com.takekazex.hypertweak.ui.app.LocalAppSettingsStore
+import com.takekazex.hypertweak.ui.components.MiuixExpandableContent
 import com.takekazex.hypertweak.ui.components.dialog.CenteredDialog
 import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.preference.ArrowPreference
@@ -44,9 +45,14 @@ internal fun CommunitySection() {
             SwitchPreference(checked = modify, onCheckedChange = {
                 store.putBoolean(CommunitySettingsKeys.KEY_COMMUNITY_DEVICE_MODIFY, it); modify = it
             }, title = stringResource(R.string.community_modify), summary = stringResource(R.string.community_modify_summary))
-            if (modify) ArrowPreference(title = stringResource(R.string.community_model),
-                summary = model.ifBlank { stringResource(R.string.community_model_empty) },
-                onClick = { draft = model; editing = true })
+            MiuixExpandableContent(visible = modify) {
+                ArrowPreference(
+                    title = stringResource(R.string.community_model),
+                    summary = model.ifBlank { stringResource(R.string.community_model_empty) },
+                    enabled = modify,
+                    onClick = { draft = model; editing = true }
+                )
+            }
         }
     }
     CenteredDialog(show = editing, title = stringResource(R.string.community_model),

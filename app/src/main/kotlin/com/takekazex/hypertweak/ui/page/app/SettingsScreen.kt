@@ -13,6 +13,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
+import com.takekazex.hypertweak.ui.components.MiuixExpandableContent
 import com.takekazex.hypertweak.ui.effect.AppScaffold as Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import com.takekazex.hypertweak.ui.effect.AppTopAppBar as TopAppBar
@@ -100,11 +101,7 @@ fun SettingsScreenContent(
                         summary = stringResource(R.string.settings_hide_desktop_icon_summary)
                     )
 
-                    AnimatedVisibility(
-                        visible = !hideLauncherIcon,
-                        enter = expandVertically() + fadeIn(),
-                        exit = shrinkVertically() + fadeOut()
-                    ) {
+                    MiuixExpandableContent(visible = !hideLauncherIcon) {
                         ArrowPreference(
                             title = stringResource(R.string.settings_app_shortcuts),
                             summary = stringResource(R.string.settings_app_shortcuts_summary),

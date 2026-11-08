@@ -76,6 +76,7 @@ fun HiddenFeaturesPage(
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
                 .padding(top = innerPadding.calculateTopPadding())
                 .overScrollVertical()
                 .nestedScroll(topAppBarScrollBehavior.nestedScrollConnection)
@@ -358,7 +359,7 @@ fun HiddenFeaturesPage(
                 }
             }
 
-            Spacer(modifier = Modifier.height(48.dp))
+            Spacer(modifier = Modifier.height(innerPadding.calculateBottomPadding() + 16.dp))
         }
     }
 }

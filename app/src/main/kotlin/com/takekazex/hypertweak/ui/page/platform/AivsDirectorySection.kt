@@ -13,6 +13,7 @@ import androidx.lifecycle.compose.currentStateAsState
 import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 import com.takekazex.hypertweak.ui.app.LocalAppSettingsStore
+import com.takekazex.hypertweak.ui.components.MiuixExpandableContent
 import com.takekazex.hypertweak.ui.components.dialog.CenteredDialog
 import com.takekazex.hypertweak.util.platform.AivsDirectoryMigration
 import kotlinx.coroutines.CancellationException
@@ -68,16 +69,18 @@ internal fun AivsDirectorySection() {
                 title = stringResource(R.string.aivs_redirect_title),
                 summary = stringResource(R.string.aivs_redirect_summary)
             )
-            if (enabled) ArrowPreference(
-                title = stringResource(if (busy) R.string.aivs_working else R.string.aivs_check),
-                summary = when {
-                    moved -> stringResource(R.string.aivs_moved)
-                    checkedEmpty -> stringResource(R.string.aivs_empty)
-                    else -> null
-                },
-                enabled = !busy,
-                onClick = { checkDirectories() }
-            )
+            MiuixExpandableContent(visible = enabled) {
+                ArrowPreference(
+                    title = stringResource(if (busy) R.string.aivs_working else R.string.aivs_check),
+                    summary = when {
+                        moved -> stringResource(R.string.aivs_moved)
+                        checkedEmpty -> stringResource(R.string.aivs_empty)
+                        else -> null
+                    },
+                    enabled = enabled && !busy,
+                    onClick = { checkDirectories() }
+                )
+            }
         }
     }
     CenteredDialog(

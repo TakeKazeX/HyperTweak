@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.ui.page.systemui.icon
 
+import com.takekazex.hypertweak.ui.components.MiuixExpandableContent
 import com.takekazex.hypertweak.ui.components.slider.rememberSliderEdit
 import com.takekazex.hypertweak.ui.components.slider.SliderEditState
 
@@ -490,7 +491,7 @@ private fun StackedSignalSection(
                 stringResource(R.string.icon_stacked_signal_style_summary)
             ) { onChange(IconSettingsKeys.KEY_ICON_STACKED_ENABLED, it) }
             // Duo also consumes this weight when the standalone stacked slot is disabled.
-            if (enabled || duoEnabled) {
+            MiuixExpandableContent(visible = enabled || duoEnabled) {
                 SliderRow(
                     stringResource(R.string.icon_stacked_signal_weight),
                     SignalWeight.normalize(weight), 0f, 1f,
@@ -504,7 +505,7 @@ private fun StackedSignalSection(
                 stringResource(R.string.icon_stacked_type_keep_on_wifi),
                 stringResource(R.string.icon_stacked_type_keep_on_wifi_summary)
             ) { onChange(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_KEEP_ON_WIFI, it) }
-            if (enabled) {
+            MiuixExpandableContent(visible = enabled) {
                 OverlayDropdownPreference(
                     title = stringResource(R.string.icon_stacked_signal_artwork),
                     items = listOf(
@@ -595,7 +596,7 @@ private fun LeftContainerSection(
                 selectedIndex = mode.coerceIn(0, modes.lastIndex),
                 onSelectedIndexChange = { onChange(IconTunerContract.KEY_LEFT_MODE, it) }
             )
-            if (mode != IconTunerContract.LEFT_MODE_DISABLED) {
+            MiuixExpandableContent(visible = mode != IconTunerContract.LEFT_MODE_DISABLED) {
                 Text(
                     text = stringResource(R.string.icon_left_hint),
                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
@@ -760,9 +761,10 @@ private fun WifiSection(
                 selectedIndex = (standardMode - 0).coerceIn(0, standardModes.lastIndex),
                 onSelectedIndexChange = { onChange(IconSettingsKeys.KEY_ICON_WIFI_STANDARD_MODE, it) }
             )
-            if (standardMode == 3) {
+            MiuixExpandableContent(visible = standardMode == 3) {
                 TextField(
                     value = standardMap,
+                    enabled = standardMode == 3,
                     onValueChange = { onChange(IconSettingsKeys.KEY_ICON_WIFI_STANDARD_MAP, it) },
                     label = stringResource(R.string.icon_wifi_standard_map),
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)
@@ -773,7 +775,7 @@ private fun WifiSection(
                 stringResource(R.string.icon_wifi_padding),
                 stringResource(R.string.icon_wifi_padding_summary)
             ) { onChange(IconSettingsKeys.KEY_ICON_WIFI_PADDING, it) }
-            if (paddingEnabled) {
+            MiuixExpandableContent(visible = paddingEnabled) {
                 SliderRow(stringResource(R.string.icon_wifi_padding_start), paddingStart, 0f, 24f) {
                     onChange(IconSettingsKeys.KEY_ICON_WIFI_PADDING_START_VAL, it)
                 }
@@ -829,7 +831,7 @@ private fun NotificationSection(
                 stringResource(R.string.icon_notification_max),
                 stringResource(R.string.icon_notification_max_summary)
             ) { onChange(PlatformSettingsKeys.KEY_STATUSBAR_NOTIFICATION_MAX, it) }
-            if (enabled) {
+            MiuixExpandableContent(visible = enabled) {
                 NotificationMaxIconsRow(maximum) {
                     onChange(PlatformSettingsKeys.KEY_STATUSBAR_NOTIFICATION_ICON_MAX, it)
                 }
@@ -930,7 +932,7 @@ private fun CellularTypeSection(
                 stringResource(R.string.icon_type_typography),
                 stringResource(R.string.icon_type_typography_summary)
             ) { onChange(IconSettingsKeys.KEY_ICON_TYPE_TYPOGRAPHY, it) }
-            if (typography.enabled) {
+            MiuixExpandableContent(visible = typography.enabled) {
                 SliderRow(stringResource(R.string.icon_type_size), typography.sizePercent, 50f, 150f,
                     valueLabel = { "${it.roundToInt()}%" }
                 ) { onChange(IconSettingsKeys.KEY_ICON_TYPE_SIZE_PERCENT, it) }
@@ -938,9 +940,10 @@ private fun CellularTypeSection(
                     valueLabel = { it.roundToInt().toString() }
                 ) { onChange(IconSettingsKeys.KEY_ICON_TYPE_WEIGHT, it.roundToInt()) }
             }
-            if (useCustom) {
+            MiuixExpandableContent(visible = useCustom) {
                 TextField(
                     value = customValue,
+                    enabled = useCustom,
                     onValueChange = { onChange(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_CUSTOM_VAL, it) },
                     label = stringResource(R.string.icon_cellular_type_custom_val),
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)
@@ -1035,7 +1038,7 @@ private fun CarrierSection(
                 selectedIndex = mobileRowStyle.coerceIn(0, 1),
                 onSelectedIndexChange = { onChange(IconSettingsKeys.KEY_ICON_MOBILE_ROW_STYLE, it) }
             )
-            if (mobileRowStyle == 0) {
+            MiuixExpandableContent(visible = mobileRowStyle == 0) {
                 TunerSwitch(
                     ccNetworkFirstRow,
                     stringResource(R.string.icon_cc_network_first_row),
@@ -1054,9 +1057,10 @@ private fun CarrierSection(
                 stringResource(R.string.icon_cc_carrier_show_badge_summary),
                 enabled = ccHideDate && ccTwoLine
             ) { onChange(SystemUiSettingsKeys.KEY_CC_CARRIER_SHOW_BADGE, it) }
-            if (ccHideDate && ccTwoLine && ccShowBadge) {
+            MiuixExpandableContent(visible = ccHideDate && ccTwoLine && ccShowBadge) {
                 TextField(
                     value = ccBadgeOne,
+                    enabled = ccHideDate && ccTwoLine && ccShowBadge,
                     onValueChange = { onChange(SystemUiSettingsKeys.KEY_CC_CARRIER_BADGE_ONE, it) },
                     label = stringResource(R.string.icon_cc_carrier_badge_one),
                     singleLine = true,
@@ -1064,6 +1068,7 @@ private fun CarrierSection(
                 )
                 TextField(
                     value = ccBadgeTwo,
+                    enabled = ccHideDate && ccTwoLine && ccShowBadge,
                     onValueChange = { onChange(SystemUiSettingsKeys.KEY_CC_CARRIER_BADGE_TWO, it) },
                     label = stringResource(R.string.icon_cc_carrier_badge_two),
                     singleLine = true,
@@ -1218,7 +1223,7 @@ private fun DuoSignalSection(
         Column(Modifier.fillMaxWidth()) {
             TunerSwitch(enabled, stringResource(R.string.icon_duo_enabled),
                 stringResource(R.string.icon_duo_summary)) { onChange(IconSettingsKeys.KEY_ICON_DUO_ENABLED, it) }
-            if (enabled) {
+            MiuixExpandableContent(visible = enabled) {
                 OverlayDropdownPreference(
                     title = stringResource(R.string.icon_duo_expanded),
                     items = listOf(stringResource(R.string.icon_duo_keep), stringResource(R.string.icon_duo_native)),
@@ -1240,7 +1245,7 @@ private fun DuoSignalSection(
                 DuoSizeRow(sizeSlider) { onChange(IconSettingsKeys.KEY_ICON_DUO_SIZE, it) }
                 var advanced by rememberSaveable { mutableStateOf(false) }
                 TunerSwitch(advanced, stringResource(R.string.icon_duo_advanced)) { advanced = it }
-                if (advanced) {
+                MiuixExpandableContent(visible = advanced) {
                     val components = listOf(
                         IconSettingsKeys.KEY_ICON_DUO_RING_SCALE to R.string.icon_duo_ring_scale,
                         IconSettingsKeys.KEY_ICON_DUO_WIFI_SCALE to R.string.icon_duo_wifi_scale,

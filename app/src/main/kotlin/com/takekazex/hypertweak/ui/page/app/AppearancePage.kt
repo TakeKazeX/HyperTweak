@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.ui.page.app
 
+import com.takekazex.hypertweak.ui.components.MiuixExpandableContent
 import com.takekazex.hypertweak.ui.components.slider.rememberSliderEdit
 
 import com.takekazex.hypertweak.ui.components.dialog.ScaleDialog
@@ -7,11 +8,6 @@ import com.takekazex.hypertweak.ui.effect.AppScaffold as Scaffold
 import com.takekazex.hypertweak.ui.effect.AppTopAppBar as TopAppBar
 
 import android.annotation.SuppressLint
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
@@ -175,11 +171,7 @@ fun AppearancePage(
                         title = stringResource(R.string.appearance_monet_color),
                         summary = stringResource(R.string.appearance_monet_color_summary)
                     )
-                    AnimatedVisibility(
-                        visible = useMonet,
-                        enter = fadeIn() + expandVertically(),
-                        exit = fadeOut() + shrinkVertically()
-                    ) {
+                    MiuixExpandableContent(visible = useMonet) {
                         Column(Modifier.fillMaxWidth()) {
                             OverlayDropdownPreference(entry = accentEntry, title = stringResource(R.string.appearance_accent_color))
                             OverlayDropdownPreference(entry = paletteEntry, title = stringResource(R.string.appearance_color_style))
@@ -203,11 +195,7 @@ fun AppearancePage(
                         title = stringResource(R.string.appearance_floating_bottom_bar),
                         summary = stringResource(R.string.appearance_floating_bottom_bar_summary)
                     )
-                    AnimatedVisibility(
-                        visible = useFloatingBottomBar,
-                        enter = fadeIn() + expandVertically(),
-                        exit = fadeOut() + shrinkVertically()
-                    ) {
+                    MiuixExpandableContent(visible = useFloatingBottomBar) {
                         OverlayDropdownPreference(
                             title = stringResource(R.string.appearance_floating_bar_style),
                             items = listOf("Miuix", stringResource(R.string.appearance_bar_style_ios)),
@@ -225,11 +213,7 @@ fun AppearancePage(
                         selectedIndex = predictiveBackStyle.coerceIn(0, 2),
                         onSelectedIndexChange = onPredictiveBackStyleChange
                     )
-                    AnimatedVisibility(
-                        visible = predictiveBackStyle == 2,
-                        enter = fadeIn() + expandVertically(),
-                        exit = fadeOut() + shrinkVertically()
-                    ) {
+                    MiuixExpandableContent(visible = predictiveBackStyle == 2) {
                         SwitchPreference(
                             checked = predictiveBackFollowGesture,
                             onCheckedChange = onPredictiveBackFollowGestureChange,

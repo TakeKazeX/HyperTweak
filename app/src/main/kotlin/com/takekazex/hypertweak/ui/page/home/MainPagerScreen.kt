@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.ui.page.home
 
+import android.content.res.Configuration
 import com.takekazex.hypertweak.ui.page.app.SettingsScreenContent
 import top.yukonga.miuix.kmp.utils.pagerGestureOverride
 import top.yukonga.miuix.kmp.utils.PagerInterceptionMode
@@ -8,20 +9,22 @@ import top.yukonga.miuix.kmp.utils.PagerGestureNestedScrollConnection
 import com.takekazex.hypertweak.ui.effect.appTextureBlur
 import com.takekazex.hypertweak.ui.effect.LocalAppBlurMode
 import com.takekazex.hypertweak.ui.effect.AppBlurMode
-import top.yukonga.miuix.kmp.blur.ProgressiveBlur
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import top.yukonga.miuix.kmp.basic.FloatingNavigationBar
 import com.takekazex.hypertweak.ui.liquid.IosLiquidGlassNavigationBar
+import com.takekazex.hypertweak.ui.liquid.MainPagerState
 import com.takekazex.hypertweak.ui.effect.rememberContentReady
 import com.takekazex.hypertweak.util.restart.RestartScopeSelection
 import top.yukonga.miuix.kmp.basic.NavigationBar
@@ -39,11 +42,19 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.Alignment
 import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.ui.effect.AppScaffold as Scaffold
 import top.yukonga.miuix.kmp.basic.SnackbarHost
 import top.yukonga.miuix.kmp.basic.SnackbarHostState
+import top.yukonga.miuix.kmp.basic.NavigationItem
+import top.yukonga.miuix.kmp.basic.NavigationRail
+import top.yukonga.miuix.kmp.basic.NavigationRailItem
+import top.yukonga.miuix.kmp.basic.NavigationRailValue
+import top.yukonga.miuix.kmp.basic.rememberNavigationRailState
 import top.yukonga.miuix.kmp.blur.BlendColorEntry
 import top.yukonga.miuix.kmp.blur.BlurDefaults
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
@@ -57,7 +68,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
 fun MainPagerScreen(
-    mainPagerState: com.takekazex.hypertweak.ui.liquid.MainPagerState,
+    mainPagerState: MainPagerState,
     useFloatingBottomBar: Boolean,
     floatingBarStyle: Int,
     backdrop: LayerBackdrop,
@@ -125,6 +136,12 @@ fun MainPagerScreen(
     onAppLanguageChange: (Int) -> Unit
 ) {
     val pagerState = mainPagerState.pagerState
+    val showNavigationRail = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val navigationItems = listOf(
+        NavigationItem(stringResource(R.string.main_tab_home), Icons.Rounded.Home),
+        NavigationItem(stringResource(R.string.main_tab_tweaks), Icons.Rounded.Extension),
+        NavigationItem(stringResource(R.string.main_tab_settings), Icons.Rounded.Settings),
+    )
     val contentReady = rememberContentReady()
     val isDark = isSystemInDarkTheme()
     val floatingBarShape = RoundedCornerShape(top.yukonga.miuix.kmp.basic.FloatingToolbarDefaults.CornerRadius)
@@ -137,15 +154,13 @@ fun MainPagerScreen(
         // the app always starts here, so a notice queued before the first frame still has a host.
         snackbarHost = { SnackbarHost(snackbarHostState) },
         bottomBar = {
+            if (showNavigationRail) {
+                return@Scaffold
+            }
             if (useFloatingBottomBar) {
                 if (floatingBarStyle == 1) {
-                    val items = listOf(
-                        top.yukonga.miuix.kmp.basic.NavigationItem(stringResource(R.string.main_tab_home), Icons.Rounded.Home),
-                        top.yukonga.miuix.kmp.basic.NavigationItem(stringResource(R.string.main_tab_tweaks), Icons.Rounded.Extension),
-                        top.yukonga.miuix.kmp.basic.NavigationItem(stringResource(R.string.main_tab_settings), Icons.Rounded.Settings)
-                    )
                     IosLiquidGlassNavigationBar(
-                        items = items,
+                        items = navigationItems,
                         selectedIndex = mainPagerState.selectedPage,
                         onItemClick = mainPagerState::animateToPage,
                         isBlurActive = LocalAppBlurMode.current != AppBlurMode.Off,
@@ -155,7 +170,6 @@ fun MainPagerScreen(
                     FloatingNavigationBar(
                         modifier = Modifier.appTextureBlur(
                             backdrop = backdrop,
-                            gradient = ProgressiveBlur.Bottom,
                             shape = floatingBarShape,
                             blurRadius = 25f,
                             colors = BlurDefaults.blurColors(
@@ -167,33 +181,16 @@ fun MainPagerScreen(
                         ),
                         color = Color.Transparent,
                     ) {
-                        MyFloatingNavigationBarItem(
-                            selected = mainPagerState.selectedPage == 0,
-                            onClick = {
-                                mainPagerState.animateToPage(0)
-                            },
-                            icon = Icons.Rounded.Home,
-                            label = stringResource(R.string.main_tab_home),
-                            iconSize = 32.dp
-                        )
-                        MyFloatingNavigationBarItem(
-                            selected = mainPagerState.selectedPage == 1,
-                            onClick = {
-                                mainPagerState.animateToPage(1)
-                            },
-                            icon = Icons.Rounded.Extension,
-                            label = stringResource(R.string.main_tab_tweaks),
-                            iconSize = 28.0.dp
-                        )
-                        MyFloatingNavigationBarItem(
-                            selected = mainPagerState.selectedPage == 2,
-                            onClick = {
-                                mainPagerState.animateToPage(2)
-                            },
-                            icon = Icons.Rounded.Settings,
-                            label = stringResource(R.string.main_tab_settings),
-                            iconSize = 26.5.dp
-                        )
+                        val iconSizes = listOf(32.dp, 28.dp, 26.5.dp)
+                        navigationItems.forEachIndexed { index, item ->
+                            MyFloatingNavigationBarItem(
+                                selected = mainPagerState.selectedPage == index,
+                                onClick = { mainPagerState.animateToPage(index) },
+                                icon = item.icon,
+                                label = item.label,
+                                iconSize = iconSizes[index],
+                            )
+                        }
                     }
                 }
             } else {
@@ -202,7 +199,6 @@ fun MainPagerScreen(
                         .fillMaxWidth()
                         .appTextureBlur(
                             backdrop = backdrop,
-                            gradient = ProgressiveBlur.Bottom,
                             shape = RectangleShape,
                             blurRadius = 25f,
                             colors = BlurDefaults.blurColors(
@@ -213,40 +209,21 @@ fun MainPagerScreen(
                         ),
                     color = Color.Transparent
                 ) {
-                    MyNavigationBarItem(
-                        selected = mainPagerState.selectedPage == 0,
-                        onClick = {
-                            mainPagerState.animateToPage(0)
-                        },
-                        icon = Icons.Rounded.Home,
-                        label = stringResource(R.string.main_tab_home),
-                        iconSize = 30.dp
-                    )
-                    MyNavigationBarItem(
-                        selected = mainPagerState.selectedPage == 1,
-                        onClick = {
-                            mainPagerState.animateToPage(1)
-                        },
-                        icon = Icons.Rounded.Extension,
-                        label = stringResource(R.string.main_tab_tweaks),
-                        iconSize = 26.0.dp
-                    )
-                    MyNavigationBarItem(
-                        selected = mainPagerState.selectedPage == 2,
-                        onClick = {
-                            mainPagerState.animateToPage(2)
-                        },
-                        icon = Icons.Rounded.Settings,
-                        label = stringResource(R.string.main_tab_settings),
-                        iconSize = 24.5.dp
-                    )
+                    val iconSizes = listOf(30.dp, 26.dp, 24.5.dp)
+                    navigationItems.forEachIndexed { index, item ->
+                        MyNavigationBarItem(
+                            selected = mainPagerState.selectedPage == index,
+                            onClick = { mainPagerState.animateToPage(index) },
+                            icon = item.icon,
+                            label = item.label,
+                            iconSize = iconSizes[index],
+                        )
+                    }
                 }
             }
         }
     ) { padding ->
-        Box(modifier = Modifier.fillMaxSize().then(
-            if (LocalAppBlurMode.current != AppBlurMode.Off) Modifier.layerBackdrop(backdrop) else Modifier
-        )) {
+        MainPagerLayout(showNavigationRail, navigationItems, mainPagerState, backdrop) {
             HorizontalPager(
                 state = pagerState,
                 modifier = Modifier.fillMaxSize().pagerGestureOverride(
@@ -335,6 +312,57 @@ fun MainPagerScreen(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun MainPagerLayout(
+    showNavigationRail: Boolean,
+    navigationItems: List<NavigationItem>,
+    mainPagerState: MainPagerState,
+    backdrop: LayerBackdrop,
+    content: @Composable () -> Unit,
+) {
+    val width = with(LocalDensity.current) { LocalWindowInfo.current.containerSize.width.toDp() }
+    val expandRail = width >= 1200.dp
+    val railState = rememberNavigationRailState(
+        initialValue = if (expandRail) NavigationRailValue.Expanded else NavigationRailValue.Collapsed,
+    )
+    LaunchedEffect(expandRail) {
+        if (expandRail) railState.expand() else railState.collapse()
+    }
+    Row(Modifier.fillMaxSize()) {
+        if (showNavigationRail) {
+            NavigationRail(
+                state = railState,
+                expandContentDescription = stringResource(R.string.main_navigation_rail_expand),
+                collapseContentDescription = stringResource(R.string.main_navigation_rail_collapse),
+            ) {
+                navigationItems.forEachIndexed { index, item ->
+                    NavigationRailItem(
+                        selected = mainPagerState.selectedPage == index,
+                        onClick = { mainPagerState.animateToPage(index) },
+                        icon = item.icon,
+                        label = item.label,
+                    )
+                }
+            }
+        }
+        val paneInsets = if (showNavigationRail) {
+            // The rail already occupies the start cutout and side navigation-bar insets.
+            Modifier.consumeWindowInsets(
+                WindowInsets.displayCutout.union(WindowInsets.navigationBars).only(WindowInsetsSides.Start),
+            ).clipToBounds()
+        } else {
+            Modifier
+        }
+        Box(
+            Modifier.weight(1f).fillMaxHeight().then(paneInsets).then(
+                if (LocalAppBlurMode.current != AppBlurMode.Off) Modifier.layerBackdrop(backdrop) else Modifier,
+            ),
+        ) {
+            content()
         }
     }
 }

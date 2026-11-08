@@ -1,7 +1,7 @@
 package com.takekazex.hypertweak.ui.page.update
 
+import com.takekazex.hypertweak.ui.components.MiuixExpandableContent
 import com.takekazex.hypertweak.ui.components.dialog.CenteredDialog
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.size
@@ -261,7 +261,7 @@ fun UpdatePage(
                         )
                         // Only the chosen route's own setting is shown, the way the Miuix examples
                         // reveal a dependent row.
-                        AnimatedVisibility(visible = proxyMode == UpdateProxyMode.THIRD_PARTY) {
+                        MiuixExpandableContent(visible = proxyMode == UpdateProxyMode.THIRD_PARTY) {
                             Column(Modifier.fillMaxWidth()) {
                                 HorizontalDivider(Modifier.padding(horizontal = 16.dp))
                                 Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
@@ -282,6 +282,7 @@ fun UpdatePage(
                                     TextField(
                                         modifier = Modifier.fillMaxWidth(),
                                         value = proxyInput,
+                                        enabled = proxyMode == UpdateProxyMode.THIRD_PARTY,
                                         maxLines = 1,
                                         onValueChange = { raw ->
                                             proxyInput = raw
@@ -318,7 +319,7 @@ fun UpdatePage(
                                         )
                                         IconButton(
                                             onClick = { manager.testProxy() },
-                                            enabled = !testing && proxyInputValid
+                                            enabled = proxyMode == UpdateProxyMode.THIRD_PARTY && !testing && proxyInputValid
                                         ) {
                                             Icon(
                                                 MiuixIcons.Search,

@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.ui.page.glass
 
+import com.takekazex.hypertweak.ui.components.MiuixExpandableContent
 import com.takekazex.hypertweak.ui.components.slider.rememberSliderEdit
 
 import com.takekazex.hypertweak.ui.components.dialog.AppDialog
@@ -19,11 +20,6 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Box
@@ -480,11 +476,7 @@ fun GlassTunerPage(onBack: () -> Unit) {
                         title = stringResource(R.string.glass_custom_parameters),
                         summary = stringResource(R.string.glass_parameters_summary)
                     )
-                    AnimatedVisibility(
-                        visible = enabled,
-                        enter = fadeIn() + expandVertically(),
-                        exit = fadeOut() + shrinkVertically(),
-                    ) {
+                    MiuixExpandableContent(visible = enabled) {
                         Column(Modifier.fillMaxWidth()) {
                             GlassSliderPreference(
                                 title = stringResource(R.string.glass_blend_opacity),

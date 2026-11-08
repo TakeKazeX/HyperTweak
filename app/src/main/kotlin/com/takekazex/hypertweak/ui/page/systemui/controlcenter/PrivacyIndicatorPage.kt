@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.ui.page.systemui.controlcenter
 
+import com.takekazex.hypertweak.ui.components.MiuixExpandableContent
 import com.takekazex.hypertweak.ui.components.slider.rememberSliderEdit
 
 import com.takekazex.hypertweak.ui.components.dialog.IntValueDialog
@@ -169,7 +170,7 @@ private fun PrivacyHeaderSection(
                 stringResource(R.string.icon_cc_privacy_enabled_summary)) {
                 onChange(SystemUiSettingsKeys.KEY_CC_PRIVACY_ENABLED, it)
             }
-            if (enabled) {
+            MiuixExpandableContent(visible = enabled) {
                 ArrowPreference(
                     title = stringResource(R.string.icon_cc_privacy_reset),
                     summary = stringResource(R.string.icon_cc_privacy_reset_summary),

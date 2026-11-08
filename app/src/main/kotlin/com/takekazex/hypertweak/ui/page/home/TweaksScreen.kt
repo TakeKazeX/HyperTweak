@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
+import com.takekazex.hypertweak.ui.components.MiuixExpandableContent
 import com.takekazex.hypertweak.ui.effect.AppScaffold as Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.TextButton
@@ -228,11 +229,7 @@ fun TweaksScreenContent(
                         title = stringResource(R.string.settings_pa_model_spoof_title),
                         summary = stringResource(R.string.settings_pa_model_spoof_summary)
                     )
-                    AnimatedVisibility(
-                        visible = paModelSpoofEnabled,
-                        enter = expandVertically() + fadeIn(),
-                        exit = shrinkVertically() + fadeOut()
-                    ) {
+                    MiuixExpandableContent(visible = paModelSpoofEnabled) {
                         ModelSpoofValuesRow()
                     }
                 }

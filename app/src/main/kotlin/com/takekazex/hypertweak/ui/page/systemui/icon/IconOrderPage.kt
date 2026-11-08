@@ -56,6 +56,7 @@ import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
+import com.takekazex.hypertweak.ui.components.MiuixExpandableContent
 import com.takekazex.hypertweak.ui.effect.AppScaffold as Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
@@ -215,7 +216,7 @@ fun IconOrderPage(onBack: () -> Unit) {
                     }
                 }
 
-                if (custom) {
+                MiuixExpandableContent(visible = custom) {
                     SmallTitle(stringResource(R.string.icon_position_custom))
                     Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
                         Column(Modifier.fillMaxWidth()) {

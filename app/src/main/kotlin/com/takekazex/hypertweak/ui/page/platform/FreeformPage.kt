@@ -1,11 +1,6 @@
 package com.takekazex.hypertweak.ui.page.platform
 
 import androidx.annotation.StringRes
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -24,11 +19,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -36,10 +29,10 @@ import androidx.lifecycle.compose.currentStateAsState
 import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.settings.contract.FreeformSettingsKeys as Keys
 import com.takekazex.hypertweak.ui.app.LocalAppSettingsStore
+import com.takekazex.hypertweak.ui.components.MiuixExpandableContent
 import com.takekazex.hypertweak.ui.components.scope.MissingScopeCard
 import com.takekazex.hypertweak.ui.effect.AppScaffold
 import com.takekazex.hypertweak.ui.effect.AppTopAppBar
-import top.yukonga.miuix.kmp.anim.folmeSpring
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -84,41 +77,31 @@ internal fun FreeformPage(onBack: () -> Unit) {
                     Keys.KEY_JUMP, R.string.system_freeform_jump_title, R.string.system_freeform_jump_summary,
                     state = jump,
                 )
-                val sizeSpring = folmeSpring<IntSize>(0.95f, 0.30f)
-                val alphaSpring = folmeSpring<Float>(0.95f, 0.20f)
-                AnimatedVisibility(
-                    visible = jump.value,
-                    enter = expandVertically(animationSpec = sizeSpring, expandFrom = Alignment.Top) +
-                        fadeIn(animationSpec = alphaSpring),
-                    exit = shrinkVertically(animationSpec = sizeSpring, shrinkTowards = Alignment.Top) +
-                        fadeOut(animationSpec = alphaSpring),
-                ) {
-                    Column {
-                        FreeformSwitch(
-                            Keys.KEY_JUMP_NOTIFICATION, R.string.system_freeform_notification_title,
-                            R.string.system_freeform_notification_summary, enabled = jump.value,
-                        )
-                        FreeformSwitch(
-                            Keys.KEY_JUMP_SHARE, R.string.system_freeform_share_title,
-                            R.string.system_freeform_share_summary, enabled = jump.value,
-                        )
-                        FreeformSwitch(
-                            Keys.KEY_JUMP_CONTENT_LINKS, R.string.system_freeform_content_links_title,
-                            R.string.system_freeform_content_links_summary, enabled = jump.value,
-                        )
-                        FreeformSwitch(
-                            Keys.KEY_COPY_DIRECT_COMMAND, R.string.system_freeform_copy_direct_command_title,
-                            R.string.system_freeform_copy_direct_command_summary, enabled = jump.value,
-                        )
-                        FreeformSwitch(
-                            Keys.KEY_COPY_DIRECT_LOCATION, R.string.system_freeform_copy_direct_location_title,
-                            R.string.system_freeform_copy_direct_location_summary, enabled = jump.value,
-                        )
-                        FreeformSwitch(
-                            Keys.KEY_COPY_DIRECT_TRACKING, R.string.system_freeform_copy_direct_tracking_title,
-                            R.string.system_freeform_copy_direct_tracking_summary, enabled = jump.value,
-                        )
-                    }
+                MiuixExpandableContent(visible = jump.value) {
+                    FreeformSwitch(
+                        Keys.KEY_JUMP_NOTIFICATION, R.string.system_freeform_notification_title,
+                        R.string.system_freeform_notification_summary, enabled = jump.value,
+                    )
+                    FreeformSwitch(
+                        Keys.KEY_JUMP_SHARE, R.string.system_freeform_share_title,
+                        R.string.system_freeform_share_summary, enabled = jump.value,
+                    )
+                    FreeformSwitch(
+                        Keys.KEY_JUMP_CONTENT_LINKS, R.string.system_freeform_content_links_title,
+                        R.string.system_freeform_content_links_summary, enabled = jump.value,
+                    )
+                    FreeformSwitch(
+                        Keys.KEY_COPY_DIRECT_COMMAND, R.string.system_freeform_copy_direct_command_title,
+                        R.string.system_freeform_copy_direct_command_summary, enabled = jump.value,
+                    )
+                    FreeformSwitch(
+                        Keys.KEY_COPY_DIRECT_LOCATION, R.string.system_freeform_copy_direct_location_title,
+                        R.string.system_freeform_copy_direct_location_summary, enabled = jump.value,
+                    )
+                    FreeformSwitch(
+                        Keys.KEY_COPY_DIRECT_TRACKING, R.string.system_freeform_copy_direct_tracking_title,
+                        R.string.system_freeform_copy_direct_tracking_summary, enabled = jump.value,
+                    )
                 }
             }
             Spacer(Modifier.height(padding.calculateBottomPadding() + 16.dp))

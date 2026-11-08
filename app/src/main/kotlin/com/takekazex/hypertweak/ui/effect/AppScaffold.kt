@@ -17,13 +17,14 @@ private val LocalTopBarBackdrop = staticCompositionLocalOf<LayerBackdrop?> { nul
 private fun Modifier.topBarBlur(enabled: Boolean = true): Modifier {
     if (!enabled) return this
     val backdrop = LocalTopBarBackdrop.current ?: return this
-    return appTextureBlur(
-        backdrop = backdrop,
-        shape = RectangleShape,
-        colors = BlurDefaults.blurColors(blendColors = listOf(
-            BlendColorEntry(MiuixTheme.colorScheme.surface.copy(alpha = 0.8f)),
-        )),
+    val colors = BlurDefaults.blurColors(
+        blendColors = listOf(BlendColorEntry(MiuixTheme.colorScheme.surface.copy(alpha = 0.8f))),
     )
+    return if (LocalAppBlurMode.current == AppBlurMode.Progressive) {
+        progressiveTextureBlur(backdrop, RectangleShape, 25f, gradient = ProgressiveBlur.Top, colors = colors)
+    } else {
+        appTextureBlur(backdrop, RectangleShape, colors = colors)
+    }
 }
 
 @Composable

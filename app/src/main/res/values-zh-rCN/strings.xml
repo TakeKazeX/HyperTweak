@@ -7,7 +7,7 @@
     <string name="about_telegram_group">Telegram 群组</string>
     <string name="about_telegram_group_summary">加入 Telegram 交流群</string>
     <string name="about_title">关于</string>
-    <string name="about_version">版本 v%1$s（%2$d）</string>
+    <string name="about_version">v%1$s（%2$d）</string>
     <string name="about_view_source_code">查看源代码</string>
     <string name="about_view_source_code_summary">查看 GitHub 仓库</string>
     <string name="aosp_app_info_entry">AOSP 应用信息入口</string>
@@ -841,6 +841,8 @@
     <string name="main_tab_home">首页</string>
     <string name="main_tab_settings">设置</string>
     <string name="main_tab_tweaks">功能</string>
+    <string name="main_navigation_rail_expand">展开侧边导航</string>
+    <string name="main_navigation_rail_collapse">收起侧边导航</string>
     <string name="main_theme_dark">深色</string>
     <string name="main_theme_follow_system">跟随系统</string>
     <string name="main_theme_light">浅色</string>
@@ -881,7 +883,7 @@
     <string name="settings_about">关于</string>
     <string name="settings_about_summary">HyperTweak v%1$s</string>
     <string name="settings_allow_landscape">允许横屏模式</string>
-    <string name="settings_allow_landscape_summary">允许界面旋转为横屏</string>
+    <string name="settings_allow_landscape_summary">允许界面旋转为横屏，主界面使用侧边导航</string>
     <string name="settings_aosp_restore">AOSP/国际版还原</string>
     <string name="settings_aosp_restore_summary">将 HyperOS 组件还原为 AOSP 或国际版行为</string>
     <string name="settings_global_interface_title">启用国际版设置界面</string>
@@ -1549,7 +1551,7 @@
     <string name="appearance_global_blur">全局模糊</string>
     <string name="appearance_blur_off">关闭模糊</string>
     <string name="appearance_blur_uniform">模糊</string>
-    <string name="appearance_blur_progressive">渐进性模糊</string>
+    <string name="appearance_blur_progressive">渐进性模糊（仅顶栏）</string>
     <string name="restart_scope_loading">正在加载作用域…</string>
     <string name="restart_completed">所选应用已重启。</string>
     <string name="restart_failed">未能确认重启成功，已保留待应用设置。请检查 Root 权限后重试。</string>

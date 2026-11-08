@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.ui.page.systemui.notification
 
+import com.takekazex.hypertweak.ui.components.MiuixExpandableContent
 import com.takekazex.hypertweak.ui.components.slider.rememberSliderEdit
 
 import androidx.compose.runtime.getValue
@@ -276,7 +277,7 @@ fun NotificationHeaderPage(onBack: () -> Unit) {
                         title = stringResource(R.string.notification_header_weather_enabled),
                         summary = stringResource(R.string.notification_header_weather_enabled_summary)
                     )
-                    if (weatherEnabled) {
+                    MiuixExpandableContent(visible = weatherEnabled) {
                         SwitchPreference(
                             checked = weatherRegion,
                             onCheckedChange = {

@@ -33,6 +33,7 @@ import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 import com.takekazex.hypertweak.settings.contract.VolumeKeyStepPolicy
 import com.takekazex.hypertweak.ui.app.LocalAppSettingsStore
+import com.takekazex.hypertweak.ui.components.MiuixExpandableContent
 import com.takekazex.hypertweak.ui.components.dialog.IntValueDialog
 import com.takekazex.hypertweak.ui.components.scope.MissingScopeCard
 import com.takekazex.hypertweak.ui.components.slider.rememberSliderEdit
@@ -199,7 +200,7 @@ private fun VolumeKeyStepSection() {
                 title = stringResource(R.string.volume_key_step_enabled),
                 summary = stringResource(R.string.volume_key_step_enabled_summary)
             )
-            if (volumeKeyStepEnabled) {
+            MiuixExpandableContent(visible = volumeKeyStepEnabled) {
                 OverlayDropdownPreference(
                     title = stringResource(R.string.volume_key_scope_title),
                     summary = stringResource(if (volumeKeyStepScope == PlatformSettingsKeys.VOLUME_KEY_SCOPE_MEDIA_ONLY) R.string.volume_key_scope_media else R.string.volume_key_scope_active_stream),
@@ -209,6 +210,7 @@ private fun VolumeKeyStepSection() {
                         stringResource(R.string.volume_key_scope_active_stream)
                     ),
                     selectedIndex = volumeKeyStepScope,
+                    enabled = volumeKeyStepEnabled,
                     onSelectedIndexChange = ::setVolumeKeyStepScope
                 )
                 ArrowPreference(
@@ -230,6 +232,7 @@ private fun VolumeKeyStepSection() {
                         )
                     },
                     onClick = { volumeKeySliderExpanded = !volumeKeySliderExpanded },
+                    enabled = volumeKeyStepEnabled,
                     holdDownState = volumeKeySliderExpanded,
                     bottomAction = {
                         Slider(
@@ -246,6 +249,7 @@ private fun VolumeKeyStepSection() {
                             steps = VolumeKeyStepPolicy.MAX_STEPS -
                                 VolumeKeyStepPolicy.MIN_STEPS - 1,
                             showKeyPoints = true,
+                            enabled = volumeKeyStepEnabled,
                             keyPoints = listOf(5f, 15f, 100f),
                             hapticEffect = SliderDefaults.SliderHapticEffect.Step
                         )
