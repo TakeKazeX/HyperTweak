@@ -50,6 +50,7 @@ internal object SystemServerHookPlan {
         hook { NativePhotoPickerHooker }
         hook { NativeFilePickerHooker }
         hook { AospPackageInstallerHooker }
+        hook { com.takekazex.hypertweak.hook.rules.system.PackageManagerHooker }
         // AON visual-perception runtime gates (感知锁屏/靠近亮屏/非注视感知) are resource bools read by
         // miui-services inside system_server; the Settings-side unlock alone cannot activate them.
         hook { AonRuntimeGateHooker }

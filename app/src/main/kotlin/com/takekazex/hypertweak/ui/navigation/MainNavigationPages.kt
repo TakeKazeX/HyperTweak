@@ -39,14 +39,10 @@ internal fun NavEntryBuilder.mainPages(settings: NavigationSettings, navControll
                 onShowInSettingsChange = onShowInSettingsChange,
                 hideLauncherIcon = hideLauncherIcon,
                 onHideLauncherIconChange = onHideLauncherIconChange,
-                 unlockThirdPartyDarkMode = unlockThirdPartyDarkMode,
-                 onUnlockThirdPartyDarkModeChange = onUnlockThirdPartyDarkModeChange,
                 disableSpatialAudio = disableSpatialAudio,
                 onDisableSpatialAudioChange = onDisableSpatialAudioChange,
                 forceAdaptiveAnc = forceAdaptiveAnc,
                 onForceAdaptiveAncChange = onForceAdaptiveAncChange,
-                allowThirdPartyTheme = allowThirdPartyTheme,
-                onAllowThirdPartyThemeChange = onAllowThirdPartyThemeChange,
                 themeMode = themeMode,
                 onThemeModeChange = onThemeModeChange,
                 useMonet = useMonet,
@@ -81,6 +77,7 @@ internal fun NavEntryBuilder.mainPages(settings: NavigationSettings, navControll
                 onNavigateToAppShortcuts = {
                     navController.navigateTo(Route.AppShortcuts)
                 },
+                onNavigateToSystemFramework = { navController.navigateTo(Route.SystemFramework) },
                 onNavigateToAospRestore = {
                     navController.navigateTo(Route.AospRestore)
                 },

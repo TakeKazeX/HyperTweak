@@ -3,7 +3,6 @@ package com.takekazex.hypertweak.ui.page.systemui
 import com.takekazex.hypertweak.ui.components.scope.MissingScopeCard
 import com.takekazex.hypertweak.ui.components.slider.rememberSliderEdit
 
-import com.takekazex.hypertweak.ui.components.dialog.IntValueDialog
 import com.takekazex.hypertweak.ui.page.systemui.controlcenter.TileStateMessageDurationDialog
 import com.takekazex.hypertweak.ui.app.LocalAppServices
 import androidx.compose.runtime.getValue
@@ -29,21 +28,18 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import kotlin.math.roundToInt
 import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.ui.app.LocalAppSettingsStore
 import com.takekazex.hypertweak.settings.contract.TileStateMessageDuration
-import com.takekazex.hypertweak.settings.contract.VolumeKeyStepPolicy
 import com.takekazex.hypertweak.util.platform.PlatformLevel
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
@@ -65,7 +61,7 @@ import top.yukonga.miuix.kmp.utils.overScrollVertical
 
 /**
  * System UI tweaks (Features tab → System UI). This second-level page groups notification fixes,
- * multitasking transitions, volume-key steps, lockscreen and display options, media-card switches,
+ * multitasking transitions, lockscreen and display options, media-card switches,
  * control-center sliders, and navigation-bar settings. Existing tracked switches stay hoisted in
  * [MainActivity]; self-contained groups read their saved preferences here and offer local restarts.
  */
@@ -137,51 +133,6 @@ fun SystemUIPage(
         mutableStateOf(settingsStore.getBoolean(SystemUiSettingsKeys.KEY_HIDE_LOCKSCREEN_DATE, false))
     }
 
-    var volumeKeyStepEnabled by rememberSaveable {
-        mutableStateOf(settingsStore.getBoolean(PlatformSettingsKeys.KEY_VOLUME_KEY_STEP_ENABLED, false))
-    }
-    var volumeKeyStepCount by remember {
-        mutableIntStateOf(
-            settingsStore.getInt(
-                PlatformSettingsKeys.KEY_VOLUME_KEY_STEP_COUNT,
-                PlatformSettingsKeys.DEFAULT_VOLUME_KEY_STEP_COUNT
-            ).coerceIn(VolumeKeyStepPolicy.MIN_STEPS, VolumeKeyStepPolicy.MAX_STEPS)
-        )
-    }
-    var volumeKeyStepScope by remember {
-        mutableIntStateOf(
-            settingsStore.getInt(
-                PlatformSettingsKeys.KEY_VOLUME_KEY_STEP_SCOPE,
-                PlatformSettingsKeys.VOLUME_KEY_SCOPE_MEDIA_ONLY
-            ).coerceIn(
-                PlatformSettingsKeys.VOLUME_KEY_SCOPE_MEDIA_ONLY,
-                PlatformSettingsKeys.VOLUME_KEY_SCOPE_ACTIVE_STREAM
-            )
-        )
-    }
-    var volumeKeySliderExpanded by remember { mutableStateOf(false) }
-    val volumeKeySlider = rememberSliderEdit(volumeKeyStepCount.toFloat())
-    val volumeKeySliderValue = volumeKeySlider.value
-    val displayedVolumeKeyStepCount = volumeKeySliderValue.roundToInt().coerceIn(
-        VolumeKeyStepPolicy.MIN_STEPS,
-        VolumeKeyStepPolicy.MAX_STEPS
-    )
-    fun setVolumeKeyStepCount(value: Int) {
-        val resolved = value.coerceIn(VolumeKeyStepPolicy.MIN_STEPS, VolumeKeyStepPolicy.MAX_STEPS)
-        volumeKeyStepCount = resolved
-        settingsStore.putInt(PlatformSettingsKeys.KEY_VOLUME_KEY_STEP_COUNT, resolved)
-        settingsStore.flush()
-    }
-    fun setVolumeKeyStepScope(value: Int) {
-        val resolved = value.coerceIn(
-            PlatformSettingsKeys.VOLUME_KEY_SCOPE_MEDIA_ONLY,
-            PlatformSettingsKeys.VOLUME_KEY_SCOPE_ACTIVE_STREAM
-        )
-        volumeKeyStepScope = resolved
-        settingsStore.putInt(PlatformSettingsKeys.KEY_VOLUME_KEY_STEP_SCOPE, resolved)
-        settingsStore.flush()
-    }
-
     var tileMessageDialog by rememberSaveable { mutableStateOf(false) }
     var tileMessageSeconds by rememberSaveable {
         mutableFloatStateOf(TileStateMessageDuration.normalize(settingsStore.getInt(
@@ -241,87 +192,6 @@ fun SystemUIPage(
                     )
                 }
             }
-
-            SmallTitle(stringResource(R.string.volume_key_section))
-            Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-                Column(Modifier.fillMaxWidth()) {
-                    SwitchPreference(
-                        checked = volumeKeyStepEnabled,
-                        onCheckedChange = {
-                            volumeKeyStepEnabled = it
-                            if (!it) volumeKeySliderExpanded = false
-                            settingsStore.putBoolean(PlatformSettingsKeys.KEY_VOLUME_KEY_STEP_ENABLED, it)
-                            settingsStore.flush()
-                        },
-                        title = stringResource(R.string.volume_key_step_enabled),
-                        summary = stringResource(R.string.volume_key_step_enabled_summary)
-                    )
-                    if (volumeKeyStepEnabled) {
-                        OverlayDropdownPreference(
-                            title = stringResource(R.string.volume_key_scope_title),
-                            summary = stringResource(if (volumeKeyStepScope == PlatformSettingsKeys.VOLUME_KEY_SCOPE_MEDIA_ONLY) R.string.volume_key_scope_media else R.string.volume_key_scope_active_stream),
-                            showValue = false,
-                            items = listOf(
-                                stringResource(R.string.volume_key_scope_media),
-                                stringResource(R.string.volume_key_scope_active_stream)
-                            ),
-                            selectedIndex = volumeKeyStepScope,
-                            onSelectedIndexChange = ::setVolumeKeyStepScope
-                        )
-                        ArrowPreference(
-                            title = stringResource(R.string.volume_key_step_title),
-                            summary = pluralStringResource(
-                                R.plurals.volume_key_step_summary,
-                                displayedVolumeKeyStepCount,
-                                displayedVolumeKeyStepCount,
-                                VolumeKeyStepPolicy.percentStep(displayedVolumeKeyStepCount)
-                            ),
-                            endActions = {
-                                Text(
-                                    text = pluralStringResource(
-                                        R.plurals.volume_key_step_value,
-                                        displayedVolumeKeyStepCount,
-                                        displayedVolumeKeyStepCount
-                                    ),
-                                    color = MiuixTheme.colorScheme.onSurfaceVariantActions
-                                )
-                            },
-                            onClick = { volumeKeySliderExpanded = !volumeKeySliderExpanded },
-                            holdDownState = volumeKeySliderExpanded,
-                            bottomAction = {
-                                Slider(
-                                    value = volumeKeySliderValue.coerceIn(
-                                        VolumeKeyStepPolicy.MIN_STEPS.toFloat(),
-                                        VolumeKeyStepPolicy.MAX_STEPS.toFloat()
-                                    ),
-                                    onValueChange = volumeKeySlider::update,
-                                    onValueChangeFinished = {
-                                        volumeKeySlider.finish { it.roundToInt().toFloat() }?.let { setVolumeKeyStepCount(it.toInt()) }
-                                    },
-                                    valueRange = VolumeKeyStepPolicy.MIN_STEPS.toFloat()..
-                                        VolumeKeyStepPolicy.MAX_STEPS.toFloat(),
-                                    steps = VolumeKeyStepPolicy.MAX_STEPS -
-                                        VolumeKeyStepPolicy.MIN_STEPS - 1,
-                                    showKeyPoints = true,
-                                    keyPoints = listOf(5f, 15f, 100f),
-                                    hapticEffect = SliderDefaults.SliderHapticEffect.Step
-                                )
-                            }
-                        )
-                    }
-                }
-            }
-            IntValueDialog(
-                show = volumeKeyStepEnabled && volumeKeySliderExpanded,
-                title = stringResource(R.string.volume_key_step_title),
-                summary = stringResource(R.string.volume_key_step_dialog_summary),
-                suffix = stringResource(R.string.volume_key_step_suffix),
-                range = VolumeKeyStepPolicy.MIN_STEPS..VolumeKeyStepPolicy.MAX_STEPS,
-                currentValue = { volumeKeyStepCount },
-                emptyValue = volumeKeyStepCount,
-                onValueConfirmed = ::setVolumeKeyStepCount,
-                onDismissRequest = { volumeKeySliderExpanded = false }
-            )
 
             SmallTitle(stringResource(R.string.notification_media_section))
             Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {

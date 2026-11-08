@@ -4,6 +4,7 @@ import androidx.compose.animation.*
 import androidx.compose.runtime.*
 import com.takekazex.hypertweak.ui.page.Route
 import com.takekazex.hypertweak.ui.page.platform.AospRestorePage
+import com.takekazex.hypertweak.ui.page.platform.SystemFrameworkPage
 import com.takekazex.hypertweak.ui.page.securitycenter.SecurityCenterPage
 import com.takekazex.hypertweak.ui.page.platform.AospImePage
 import com.takekazex.hypertweak.ui.page.glass.GlassTunerPage
@@ -21,6 +22,19 @@ import top.yukonga.miuix.kmp.nav.core.*
 
 internal fun NavEntryBuilder.featuresPages(settings: NavigationSettings, navController: NavController) {
     with(settings) {
+        entry<Route.PackageManager> {
+            com.takekazex.hypertweak.ui.page.platform.PackageManagerPage(onBack = { navController.pop() })
+        }
+        entry<Route.SystemFramework> {
+            SystemFrameworkPage(
+                onBack = { navController.pop() },
+                onNavigateToPackageManager = { navController.navigateTo(Route.PackageManager) },
+                allowThirdPartyTheme = allowThirdPartyTheme,
+                onAllowThirdPartyThemeChange = onAllowThirdPartyThemeChange,
+                unlockThirdPartyDarkMode = unlockThirdPartyDarkMode,
+                onUnlockThirdPartyDarkModeChange = onUnlockThirdPartyDarkModeChange,
+            )
+        }
         entry<Route.AospRestore> {
             AospRestorePage(
                 onBack = { navController.pop() },

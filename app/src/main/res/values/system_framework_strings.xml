@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="system_framework_summary">Package manager, screenshot restrictions, appearance and volume key steps</string>
+    <string name="system_framework_appearance">Appearance</string>
+</resources>

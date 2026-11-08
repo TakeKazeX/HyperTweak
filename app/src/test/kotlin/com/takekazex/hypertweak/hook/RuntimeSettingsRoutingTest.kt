@@ -7,6 +7,7 @@ import com.takekazex.hypertweak.settings.contract.ScreenshotSettingsKeys
 
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 
+import com.takekazex.hypertweak.settings.contract.PackageManagerSettingsKeys
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import com.takekazex.hypertweak.settings.contract.BackGestureKeys
@@ -100,8 +101,9 @@ class RuntimeSettingsRoutingTest {
         assertTrue(Groups.PASSIVE_POLICIES in Groups.forProcess("com.xiaomi.bluetooth:application"))
     }
 
-    @Test fun aospRestorePublishesEverySwitchAndResetToItsExecutingOwner() {
+    @Test fun aospRestoreAndPackageManagerPublishSwitchesAndResetToTheirOwners() {
         val keys = mapOf(
+            Groups.PACKAGE_MANAGER to PackageManagerSettingsKeys.keys.toList(),
             Groups.AOSP_INSTALLER to listOf(PlatformSettingsKeys.KEY_AOSP_PACKAGE_INSTALLER),
             Groups.AOSP_SYSTEM_UI to listOf(PlatformSettingsKeys.KEY_AOSP_POWER_MENU,
                 PlatformSettingsKeys.KEY_AOSP_VOLUME_PANEL, PlatformSettingsKeys.KEY_AOSP_VOLUME_HAPTIC_MIUI,
@@ -126,6 +128,8 @@ class RuntimeSettingsRoutingTest {
         assertTrue(Groups.AOSP_INSTALLER in Groups.forProcess("system_server", true))
         assertTrue(Groups.AOSP_SYSTEM_UI in Groups.forProcess("com.android.systemui"))
         assertTrue(Groups.AOSP_SECURITY in Groups.forProcess("com.miui.securitycenter:ui"))
+        assertTrue(Groups.PACKAGE_MANAGER in Groups.forProcess("system_server", true))
+        assertFalse(Groups.PACKAGE_MANAGER in Groups.forProcess("com.android.systemui"))
         assertFalse(Groups.AOSP_INSTALLER in Groups.forProcess("com.android.systemui"))
     }
 
@@ -378,7 +382,7 @@ class RuntimeSettingsRoutingTest {
     @Test fun everyExistingLiveRouteHasExplicitConsumersIncludingScreenshotEditorAndSystemServer() {
         assertEquals(setOf(Groups.SCREENSHOT), Groups.forProcess("com.miui.screenshot"))
         assertEquals(Groups.forProcess("com.miui.screenshot"), Groups.forProcess("com.miui.screenshot:photo_editor"))
-        assertEquals(setOf(Groups.POWER_BUTTON, Groups.EXPERIMENTAL_CAPABILITIES, Groups.IME, Groups.BACK, Groups.DOCK, Groups.VOLUME, Groups.GESTURE_BAR, Groups.FORCE_SCREENSHOT, Groups.DARK_MODE, Groups.NATIVE_PHOTO_PICKER, Groups.NATIVE_FILE_PICKER, Groups.AOSP_INSTALLER,
+        assertEquals(setOf(Groups.POWER_BUTTON, Groups.EXPERIMENTAL_CAPABILITIES, Groups.IME, Groups.BACK, Groups.DOCK, Groups.VOLUME, Groups.GESTURE_BAR, Groups.FORCE_SCREENSHOT, Groups.DARK_MODE, Groups.NATIVE_PHOTO_PICKER, Groups.NATIVE_FILE_PICKER, Groups.AOSP_INSTALLER, Groups.PACKAGE_MANAGER,
             Groups.GMS_RESTRICTIONS, Groups.PASSKEY, Groups.FCM, Groups.POLICY_FEATURES),
             Groups.forProcess("system_server", true))
         assertEquals(setOf(Groups.XMSF), Groups.forProcess("com.xiaomi.xmsf:push"))

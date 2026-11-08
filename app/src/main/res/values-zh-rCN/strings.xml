@@ -1310,7 +1310,7 @@
     <string name="settings_unlock_visual_perception_summary">显示隐藏的主动视觉感知设置</string>
     <string name="settings_unlock_aon_gestures_title">解锁更多隔空手势</string>
     <string name="settings_unlock_aon_gestures_summary">补充隐藏的隔空手势选项（实验性）</string>
-    <string name="settings_unlock_third_party_dark_mode_title">第三方应用深色模式</string>
+    <string name="settings_unlock_third_party_dark_mode_title">允许第三方应用强制深色模式</string>
     <string name="settings_unlock_third_party_dark_mode_summary">在深色模式设置中显示第三方应用</string>
     <string name="settings_unlock_adaptive_refresh_title">解锁自适应刷新率Pro</string>
     <string name="settings_unlock_adaptive_refresh_summary">显示隐藏的「自适应刷新率 Pro」开关</string>

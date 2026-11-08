@@ -1,6 +1,5 @@
 package com.takekazex.hypertweak.ui.page.home
 
-import com.takekazex.hypertweak.ui.page.platform.ForceScreenshotSection
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import android.annotation.SuppressLint
@@ -54,14 +53,13 @@ fun TweaksScreenContent(
     onNavigateToDownloadManager: () -> Unit,
     onNavigateToSecurityCenter: () -> Unit,
     onNavigateToAospRestore: () -> Unit,
+    onNavigateToSystemFramework: () -> Unit,
     onNavigateToGoogleServices: () -> Unit,
     onNavigateToCameraWatermark: () -> Unit,
     paModelSpoofEnabled: Boolean,
     onPaModelSpoofEnabledChange: (Boolean) -> Unit,
-    unlockThirdPartyDarkMode: Boolean,
-    onUnlockThirdPartyDarkModeChange: (Boolean) -> Unit,
-    allowThirdPartyTheme: Boolean,
-    onAllowThirdPartyThemeChange: (Boolean) -> Unit,
+
+
     disableSpatialAudio: Boolean,
     onDisableSpatialAudioChange: (Boolean) -> Unit,
     forceAdaptiveAnc: Boolean,
@@ -120,6 +118,18 @@ fun TweaksScreenContent(
                             )
                         },
                         onClick = onNavigateToSystemLauncher
+                    )
+                    ArrowPreference(
+                        title = stringResource(R.string.force_screenshot_section),
+                        summary = stringResource(R.string.system_framework_summary),
+                        startAction = {
+                            ApplicationIcon(
+                                packageName = "android",
+                                modifier = Modifier.padding(end = 6.dp),
+                                contentDescription = stringResource(R.string.force_screenshot_section)
+                            )
+                        },
+                        onClick = onNavigateToSystemFramework
                     )
                     ArrowPreference(
                         title = stringResource(R.string.settings_system_ui),
@@ -209,18 +219,6 @@ fun TweaksScreenContent(
                 )
             }
 
-            ForceScreenshotSection()
-
-            SmallTitle(text = stringResource(R.string.tweaks_theme_manager_title))
-            Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-                SwitchPreference(
-                    checked = allowThirdPartyTheme,
-                    onCheckedChange = onAllowThirdPartyThemeChange,
-                    title = stringResource(R.string.tweaks_allow_third_party_theme_title),
-                    summary = stringResource(R.string.tweaks_allow_third_party_theme_summary)
-                )
-            }
-
             SmallTitle(text = stringResource(R.string.tweaks_personal_assistant_title))
             Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
                 Column(modifier = Modifier.fillMaxWidth()) {
@@ -238,16 +236,6 @@ fun TweaksScreenContent(
                         ModelSpoofValuesRow()
                     }
                 }
-            }
-
-            SmallTitle(text = stringResource(R.string.tweaks_display_title))
-            Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-                SwitchPreference(
-                    checked = unlockThirdPartyDarkMode,
-                    onCheckedChange = onUnlockThirdPartyDarkModeChange,
-                    title = stringResource(R.string.settings_unlock_third_party_dark_mode_title),
-                    summary = stringResource(R.string.settings_unlock_third_party_dark_mode_summary)
-                )
             }
 
             // Scope 5: Bluetooth

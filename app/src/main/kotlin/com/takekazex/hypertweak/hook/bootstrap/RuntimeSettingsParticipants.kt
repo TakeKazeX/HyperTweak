@@ -139,6 +139,8 @@ internal object RuntimeSettingsParticipants {
         registerForProcess(RuntimeSettingsGroups.FORCE_SCREENSHOT) { _ ->
             com.takekazex.hypertweak.hook.rules.system.ForceScreenshotHooker.refreshSettings(); true
         }
+        // PackageManagerHooker reads slots refreshed before group dispatch.
+        registerForProcess(RuntimeSettingsGroups.PACKAGE_MANAGER) { _ -> true }
         registerForProcess(RuntimeSettingsGroups.AOSP_INSTALLER) { _ ->
             com.takekazex.hypertweak.hook.rules.system.AospPackageInstallerHooker.refreshSettings()
         }

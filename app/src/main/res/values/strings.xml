@@ -1315,7 +1315,7 @@
     <string name="settings_unlock_visual_perception_summary">Show hidden visual-perception settings</string>
     <string name="settings_unlock_aon_gestures_title">Unlock More Air Gestures</string>
     <string name="settings_unlock_aon_gestures_summary">Add the hidden air-gesture options (experimental)</string>
-    <string name="settings_unlock_third_party_dark_mode_title">Third-party dark mode</string>
+    <string name="settings_unlock_third_party_dark_mode_title">Allow forced dark mode for third-party apps</string>
     <string name="settings_unlock_third_party_dark_mode_summary">Show third-party apps in the dark mode settings</string>
     <string name="settings_unlock_adaptive_refresh_title">Unlock Adaptive Refresh Rate Pro</string>
     <string name="settings_unlock_adaptive_refresh_summary">Show the hidden Adaptive refresh rate Pro switch</string>

@@ -8,6 +8,7 @@ import com.takekazex.hypertweak.settings.contract.AodSettingsKeys
 
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 
+import com.takekazex.hypertweak.settings.contract.PackageManagerSettingsKeys
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import com.takekazex.hypertweak.settings.contract.AppSettingsKeys
@@ -34,6 +35,7 @@ internal object RuntimeSettingsDefinitions {
     const val IME = "inputmethod.layout"
     private val imeTargets = java.util.concurrent.CopyOnWriteArraySet<String>(setOf("android"))
     fun registerImeTargets(packages: Set<String>) { imeTargets.addAll(packages) }
+    const val PACKAGE_MANAGER = "system.package_manager"
     const val AOSP_INSTALLER = "system.aosp_installer"
     const val AOSP_SYSTEM_UI = "systemui.aosp_restore"
     const val AOSP_SECURITY = "securitycenter.aosp_restore"
@@ -191,7 +193,7 @@ internal object RuntimeSettingsDefinitions {
         PlatformSettingsKeys.KEY_UNLOCK_ADAPTIVE_REFRESH_PRO
     )
     val strictBooleanKeys = com.takekazex.hypertweak.settings.contract.CameraSettingsKeys.booleanKeys +
-        experimentalKeys + setOf(PlatformSettingsKeys.KEY_POWER_BUTTON_CTS,
+        experimentalKeys + PackageManagerSettingsKeys.keys + setOf(PlatformSettingsKeys.KEY_POWER_BUTTON_CTS,
             PlatformSettingsKeys.KEY_SHOW_IN_SETTINGS, SystemUiSettingsKeys.KEY_IMMEDIATE_MONET_REFRESH) + com.takekazex.hypertweak.settings.contract.MarketSettingsKeys.keys + setOf(com.takekazex.hypertweak.settings.contract.CommunitySettingsKeys.KEY_COMMUNITY_BLOCK_DETECTION,
         com.takekazex.hypertweak.settings.contract.CommunitySettingsKeys.KEY_COMMUNITY_DEVICE_MODIFY, PlatformSettingsKeys.KEY_AOSP_IME_ENABLED,
         PlatformSettingsKeys.KEY_AOSP_IME_MIUI_IME_LIST) + policyKeys + passivePolicyKeys + googleKeys + aospUiKeys + aospSecurityKeys + setOf(
@@ -307,6 +309,9 @@ internal object RuntimeSettingsDefinitions {
         },
         NATIVE_FILE_PICKER to Group(setOf("android", "com.android.photopicker")) {
             it == PlatformSettingsKeys.KEY_NATIVE_FILE_PICKER || it == PlatformSettingsKeys.KEY_NATIVE_PICKER
+        },
+        PACKAGE_MANAGER to Group(setOf("android")) {
+            it in PackageManagerSettingsKeys.keys
         },
         AOSP_INSTALLER to Group(setOf("android")) { it == PlatformSettingsKeys.KEY_AOSP_PACKAGE_INSTALLER },
         AOSP_SYSTEM_UI to Group(systemUi) { it in aospUiKeys },
