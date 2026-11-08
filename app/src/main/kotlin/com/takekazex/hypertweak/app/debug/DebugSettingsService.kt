@@ -153,8 +153,10 @@ internal object DebugSettingsService {
     private fun effective(d: DebugSetting, values: Map<String, *>): Any? {
         fun bool(key: String) = values[key] == true
         val explicit = values.containsKey(d.key)
+        fun authCreakEnabled() = values[PackageManagerSettingsKeys.KEY_AUTH_CREAK] as? Boolean
+            ?: PackageManagerSettingsKeys.legacyAuthCreakKeys.any(::bool)
         fun corePatchEnabled() = values[PackageManagerSettingsKeys.KEY_ENABLED] as? Boolean
-            ?: PackageManagerSettingsKeys.patchKeys.any(::bool)
+            ?: PackageManagerSettingsKeys.corePatchKeys.any(::bool) || authCreakEnabled()
         return when (d.key) {
             PlatformSettingsKeys.KEY_NATIVE_PHOTO_PICKER, PlatformSettingsKeys.KEY_NATIVE_FILE_PICKER ->
                 if (explicit) values[d.key] else bool(PlatformSettingsKeys.KEY_NATIVE_PICKER)
@@ -165,7 +167,11 @@ internal object DebugSettingsService {
             PlatformSettingsKeys.KEY_POWER_BUTTON_ACTION -> (values[d.key] as? Int)?.takeIf { it in 0..3 }
                 ?: if (bool(PlatformSettingsKeys.KEY_POWER_BUTTON_CTS)) 1 else 0
             PackageManagerSettingsKeys.KEY_ENABLED -> corePatchEnabled()
-            in PackageManagerSettingsKeys.patchKeys -> corePatchEnabled() && bool(d.key)
+            PackageManagerSettingsKeys.KEY_AUTH_CREAK -> corePatchEnabled() && authCreakEnabled()
+            PackageManagerSettingsKeys.KEY_DISABLE_INTEGRITY -> corePatchEnabled() &&
+                (bool(PackageManagerSettingsKeys.KEY_DISABLE_INTEGRITY) || authCreakEnabled())
+            in PackageManagerSettingsKeys.corePatchKeys -> corePatchEnabled() && bool(d.key)
+            in PackageManagerSettingsKeys.extendedPatchKeys -> bool(d.key)
             in powerKeys -> bool(PlatformSettingsKeys.KEY_POWER_SAVE_OVERRIDE_MASTER) && bool(d.key)
             IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_KEEP_ON_WIFI -> if (explicit) values[d.key]
                 else if (values.containsKey(IconSettingsKeys.KEY_ICON_STACKED_TYPE_HIDE_WIFI)) !bool(IconSettingsKeys.KEY_ICON_STACKED_TYPE_HIDE_WIFI) else false

@@ -1,7 +1,5 @@
 package com.takekazex.hypertweak.hook.rules.system
 
-import android.content.pm.ApplicationInfo
-import android.os.Process
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.HostAccess
@@ -16,25 +14,33 @@ import java.lang.reflect.Method
 /** Install-time policy overlays in system_server. PMS remains the owner of persisted package state. */
 internal object PackageManagerHooker : StaticHooker() {
     private val activePatches by hookSetting(emptySet<String>()) {
-        val selected = PackageManagerSettingsKeys.patchKeys.filterTo(mutableSetOf()) {
+        val selected = PackageManagerSettingsKeys.extendedPatchKeys.filterTo(mutableSetOf()) {
             Preferences.getBoolean(it, false)
         }
-        // Upgrades from the independent switches inherit any enabled patch until the master is set.
-        if (Preferences.getBoolean(PackageManagerSettingsKeys.KEY_ENABLED, selected.isNotEmpty())) {
-            selected
-        } else {
-            emptySet()
+        val core = PackageManagerSettingsKeys.corePatchKeys.filterTo(mutableSetOf()) {
+            Preferences.getBoolean(it, false)
         }
+        val legacyAuthCreak = PackageManagerSettingsKeys.legacyAuthCreakKeys.any {
+            Preferences.getBoolean(it, false)
+        }
+        if (Preferences.getBoolean(PackageManagerSettingsKeys.KEY_AUTH_CREAK, legacyAuthCreak)) {
+            core += PackageManagerSettingsKeys.KEY_AUTH_CREAK
+            // HyperCeiler enables the integrity switch together with auth_creak.
+            core += PackageManagerSettingsKeys.KEY_DISABLE_INTEGRITY
+        }
+        // The master switch gates only the core patches; extended install options stay independent.
+        if (Preferences.getBoolean(PackageManagerSettingsKeys.KEY_ENABLED, core.isNotEmpty())) {
+            selected += core
+        }
+        selected
     }
 
     private val downgrade get() = PackageManagerSettingsKeys.KEY_DOWNGRADE in activePatches
     private val lowTarget get() = PackageManagerSettingsKeys.KEY_LOW_TARGET in activePatches
-    private val minScheme get() = PackageManagerSettingsKeys.KEY_MIN_SIGNATURE_SCHEME in activePatches
-    private val integrity get() = PackageManagerSettingsKeys.KEY_APK_INTEGRITY in activePatches
-    private val compressedResources get() = PackageManagerSettingsKeys.KEY_COMPRESSED_RESOURCES in activePatches
+    private val authCreak get() = PackageManagerSettingsKeys.KEY_AUTH_CREAK in activePatches
+    private val disableIntegrity get() = PackageManagerSettingsKeys.KEY_DISABLE_INTEGRITY in activePatches
     private val updateSignature get() = PackageManagerSettingsKeys.KEY_UPDATE_SIGNATURE in activePatches
     private val splitSignature get() = PackageManagerSettingsKeys.KEY_SPLIT_SIGNATURE in activePatches
-    private val sharedUid get() = PackageManagerSettingsKeys.KEY_SHARED_UID in activePatches
     private val verificationAgent get() = PackageManagerSettingsKeys.KEY_VERIFICATION_AGENT in activePatches
     private val persistentUpdate get() = PackageManagerSettingsKeys.KEY_PERSISTENT_UPDATE in activePatches
     private val systemAppUpdate get() = PackageManagerSettingsKeys.KEY_SYSTEM_APP_UPDATE in activePatches
@@ -52,8 +58,8 @@ internal object PackageManagerHooker : StaticHooker() {
             deoptimize(prepare)
             prepare.hook("pms.prepare") {
                 intercept { chain ->
-                    if (!lowTarget && !minScheme && !integrity && !compressedResources && !updateSignature &&
-                        !sharedUid && !persistentUpdate && !systemAppUpdate && !isolation) return@intercept chain.proceed()
+                    if (!lowTarget && !authCreak && !disableIntegrity && !updateSignature &&
+                        !persistentUpdate && !systemAppUpdate && !isolation) return@intercept chain.proceed()
                     val previous = updatePair.get()
                     updatePair.remove()
                     try {
@@ -68,13 +74,13 @@ internal object PackageManagerHooker : StaticHooker() {
             pmMethod("PackageInstallerSession", "validateApkInstallLocked",
                 host("android.content.pm.parsing.PackageLite"))
                 .scope("validate_session", validating, deoptCaller = true) {
-                    minScheme || integrity || splitSignature
+                    authCreak || disableIntegrity || splitSignature
                 }
         }
         install("reconcile_scope") {
             pmMethod("InstallPackageHelper", "reconcileInstallPackages", List::class.java,
                 List::class.java, Map::class.java)
-                .scope("reconcile_install", reconciling) { updateSignature || sharedUid }
+                .scope("reconcile_install", reconciling) { updateSignature }
         }
 
         install("downgrade") {
@@ -100,11 +106,13 @@ internal object PackageManagerHooker : StaticHooker() {
                 pm("pkg.AndroidPackage"), Integer.TYPE)
             pmMethod("InstallPackageHelper", "scanInstallPackages", java.lang.Boolean.TYPE,
                 List::class.java, Map::class.java, Map::class.java)
-                .scope("scan_install", scanning) { minScheme }
+                .scope("scan_install", scanning) { authCreak }
             deoptimize(pmMethod("InstallPackageHelper", "assertPackageIsValid", Void.TYPE,
                 pm("pkg.AndroidPackage"), Integer.TYPE, Integer.TYPE))
-            floor.overrideWhen("scheme_floor", 1) { minScheme && (preparing.active || validating.active) }
-            scan.overrideWhen("scheme_scan", null) { minScheme && scanning.active }
+            floor.overrideWhen("scheme_floor", 1) {
+                (authCreak || disableIntegrity) && (preparing.active || validating.active)
+            }
+            scan.overrideWhen("scheme_scan", null) { authCreak && scanning.active }
         }
         install("apk_integrity") {
             val verifier = host("android.util.apk.ApkSignatureVerifier")
@@ -117,11 +125,11 @@ internal object PackageManagerHooker : StaticHooker() {
             val parseLite = method(apkLite, "parseApkLiteInner", parseResult, parseInput,
                 File::class.java, FileDescriptor::class.java, String::class.java, Integer.TYPE)
             val parsingSessionApk = ThreadActivation()
-            parseLite.scope("session_apk_integrity", parsingSessionApk) { integrity && validating.active }
+            parseLite.scope("session_apk_integrity", parsingSessionApk) { authCreak && validating.active }
             deoptimize(verify)
             internalVerify.hook("pms.apk_integrity") {
                 intercept { chain ->
-                    if (integrity && (preparing.active || parsingSessionApk.active) && chain.args[3] == true) {
+                    if (authCreak && (preparing.active || parsingSessionApk.active) && chain.args[3] == true) {
                         chain.proceed(chain.args.toTypedArray().also { it[3] = false })
                     } else {
                         chain.proceed()
@@ -138,10 +146,23 @@ internal object PackageManagerHooker : StaticHooker() {
             val contains = method(host("android.content.res.AssetManager"), "containsAllocatedTable", java.lang.Boolean.TYPE)
             deoptimize(parseBase)
             contains.overrideWhen("compressed_resources", false) {
-                compressedResources && preparing.active
+                authCreak && preparing.active
             }
         }
-        install("update_and_shared_uid") { installSignaturePolicy(preparing, reconciling, permissionCheck, updatePair) }
+        install("strict_jar_integrity") {
+            // Disable JAR signature-scheme rollback protection: allow an APK whose
+            // newer signature scheme marker was stripped to pass verification.
+            val verifier = host("android.util.jar.StrictJarVerifier")
+            verifier.hookAllConstructors {
+                before { param ->
+                    if ((authCreak || disableIntegrity) && (preparing.active || validating.active) &&
+                        param.args.size == 4 && param.args[3] == true) {
+                        param.args[3] = false
+                    }
+                }
+            }
+        }
+        install("update_signature") { installSignaturePolicy(preparing, reconciling, permissionCheck, updatePair) }
         install("split_signature") {
             val signing = host("android.content.pm.SigningDetails")
             val exactMatch = method(signing, "signaturesMatchExactly", java.lang.Boolean.TYPE, signing)
@@ -190,12 +211,8 @@ internal object PackageManagerHooker : StaticHooker() {
     ) {
         val signing = host("android.content.pm.SigningDetails")
         val setting = pm("PackageSetting")
-        val shared = pm("SharedUserSetting")
         val exception = pm("PackageManagerException")
         val error = HostAccess.requireDeclaredField(exception, "error", accessible = true)
-        val appId = method(shared, "getAppId", Integer.TYPE, accessible = true)
-        val uidFlags = method(pm("SettingBase"), "getFlags", Integer.TYPE, accessible = true)
-        val privileged = method(shared, "isPrivileged", java.lang.Boolean.TYPE, accessible = true)
         val isSystem = method(setting, "isSystem", java.lang.Boolean.TYPE, accessible = true)
         val oldSigning = method(setting, "getSigningDetails", signing, accessible = true)
         val capability = method(signing, "checkCapability", java.lang.Boolean.TYPE, signing, Integer.TYPE)
@@ -205,7 +222,7 @@ internal object PackageManagerHooker : StaticHooker() {
         val stateShared = HostAccess.requirePublicMethod(state, "hasSharedUser", accessible = true)
         val parsed = host("com.android.internal.pm.parsing.pkg.ParsedPackage")
         val verify = pmMethod("PackageManagerServiceUtils", "verifySignatures", java.lang.Boolean.TYPE,
-            setting, shared, setting, signing, java.lang.Boolean.TYPE, java.lang.Boolean.TYPE, java.lang.Boolean.TYPE)
+            setting, pm("SharedUserSetting"), setting, signing, java.lang.Boolean.TYPE, java.lang.Boolean.TYPE, java.lang.Boolean.TYPE)
         val checkKeySet = pmMethod("KeySetManagerService", "checkUpgradeKeySetLocked",
             java.lang.Boolean.TYPE, state, pm("pkg.AndroidPackage"))
         val matchPermissions = pmMethod("InstallPackageHelper", "doesSignatureMatchForPermissions",
@@ -226,18 +243,16 @@ internal object PackageManagerHooker : StaticHooker() {
         verify.hook("pms.install_signature") {
             after { param ->
                 val failure = param.throwable
-                if ((!updateSignature && !sharedUid) || (!preparing.active && !reconciling.active) ||
+                if (!updateSignature || (!preparing.active && !reconciling.active) ||
                     !exception.isInstance(failure)) return@after
                 val existing = param.args[0] ?: return@after
-                val sharedUser = param.args[1]
-                if (param.args[2] != null) return@after // Disabled factory package.
+                // Shared-UID updates and disabled factory packages keep the native decision.
+                if (param.args[1] != null || param.args[2] != null) return@after
                 val allow = HookFailurePolicy.open(hookerName, "classify install signature failure", false) {
                     if (isSystem.invoke(existing) != false) return@open false
                     when (error.getInt(failure)) {
                         INSTALL_FAILED_UPDATE_INCOMPATIBLE -> {
-                            if (!updateSignature || sharedUser != null || hasSharedUser.invoke(existing) != false) {
-                                return@open false
-                            }
+                            if (hasSharedUser.invoke(existing) != false) return@open false
                             if (preparing.active) {
                                 // preparePackage repeats the installed-data check on these exact signers.
                                 val installed = oldSigning.invoke(existing) ?: return@open false
@@ -245,15 +260,6 @@ internal object PackageManagerHooker : StaticHooker() {
                                 updatePair.set(UpdateSigners(installed, incoming))
                             }
                             true
-                        }
-                        INSTALL_FAILED_SHARED_USER_INCOMPATIBLE -> {
-                            if (!sharedUid || sharedUser == null || privileged.invoke(sharedUser) != false) {
-                                return@open false
-                            }
-                            val flags = uidFlags.invoke(sharedUser) as? Int ?: return@open false
-                            val uid = appId.invoke(sharedUser) as? Int ?: return@open false
-                            val systemFlags = ApplicationInfo.FLAG_SYSTEM or ApplicationInfo.FLAG_UPDATED_SYSTEM_APP
-                            flags and systemFlags == 0 && uid in Process.FIRST_APPLICATION_UID..Process.LAST_APPLICATION_UID
                         }
                         else -> false
                     }
@@ -313,5 +319,4 @@ internal object PackageManagerHooker : StaticHooker() {
     private const val CAPABILITY_INSTALLED_DATA = 1
     private const val INSTALL_BYPASS_LOW_TARGET_SDK_BLOCK = 0x01000000
     private const val INSTALL_FAILED_UPDATE_INCOMPATIBLE = -7
-    private const val INSTALL_FAILED_SHARED_USER_INCOMPATIBLE = -8
 }

@@ -1,33 +1,29 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="package_manager_title">包管理服务</string>
-    <string name="package_manager_summary">应用安装与更新的核心破解</string>
+    <string name="package_manager_summary">放宽应用安装与更新检查</string>
     <string name="package_manager_master">启用核心破解</string>
-    <string name="package_manager_master_summary">按需选择下方要放宽的检查。关闭后，新的安装会恢复系统检查，子项设置会保留。</string>
+    <string name="package_manager_master_summary">按需选择下方核心破解选项。关闭后，新安装会恢复系统检查，子项设置会保留。</string>
     <string name="package_manager_core_section">核心破解选项</string>
     <string name="package_manager_advanced_section">扩展安装选项</string>
     <string name="package_manager_downgrade">允许应用降级</string>
-    <string name="package_manager_downgrade_summary">直接用旧版 APK 覆盖已安装的新版应用，省去先卸载的步骤。</string>
+    <string name="package_manager_downgrade_summary">直接安装旧版本覆盖新版本，无需先卸载。</string>
     <string name="package_manager_update_signature">允许重签名 APK 覆盖安装</string>
-    <string name="package_manager_update_signature_summary">改包或第三方重签后的 APK 也能覆盖同包名的普通应用。新版本可以访问原应用的数据。</string>
-    <string name="package_manager_min_scheme">允许仅使用 v1 签名的 APK</string>
-    <string name="package_manager_min_scheme_summary">系统提示至少需要 v2 签名时，允许只有旧版 v1 签名的 APK 安装。</string>
-    <string name="package_manager_integrity">允许安装内容被修改的 APK</string>
-    <string name="package_manager_integrity_summary">APK 签名后又改了文件，导致内容校验失败时可用。APK 仍需有可读取的签名证书。</string>
+    <string name="package_manager_update_signature_summary">用不同签名的 APK 更新同包名应用，原应用数据会保留。</string>
+    <string name="package_manager_auth_creak">禁用软件包管理器签名验证</string>
+    <string name="package_manager_auth_creak_summary">可安装被修改的 APK、仅有 v1 签名的 APK，或资源表被压缩的 APK。</string>
+    <string name="package_manager_disable_integrity">禁用系统完整性校验</string>
+    <string name="package_manager_disable_integrity_summary">禁止系统自动恢复被篡改的内容。</string>
     <string name="package_manager_split_signature">允许拆分包签名不同</string>
-    <string name="package_manager_split_signature_summary">适用于由主 APK 和语言、机型或功能扩展包组成的应用。允许这些 APK 用不同签名一起安装。</string>
-    <string name="package_manager_shared_uid">放宽共享 UID 的签名检查</string>
-    <string name="package_manager_shared_uid_summary">有些应用共用一个 Android 身份来共享数据。开启后，签名不同的普通应用也可以加入同一共享组。</string>
+    <string name="package_manager_split_signature_summary">主 APK 和拆分 APK 签名不同也能一起安装。</string>
     <string name="package_manager_low_target">允许安装面向旧版 Android 的应用</string>
-    <string name="package_manager_low_target_summary">安装时提示应用面向的 Android 版本太旧，可开启此项。</string>
-    <string name="package_manager_compressed_resources">允许压缩的 APK 资源表</string>
-    <string name="package_manager_compressed_resources_summary">安装报错指出 resources.arsc 被压缩或未对齐时可用，常见于重新打包的 APK。</string>
+    <string name="package_manager_low_target_summary">安装系统因 targetSdk 过旧而阻止的应用。</string>
     <string name="package_manager_verifier">跳过安装时的系统校验服务</string>
-    <string name="package_manager_verifier_summary">跳过 Android 在安装时额外调用的校验服务。APK 的签名检查由上方选项控制。</string>
+    <string name="package_manager_verifier_summary">不再调用系统的安装校验服务。</string>
     <string name="package_manager_persistent">允许更新系统常驻应用</string>
-    <string name="package_manager_persistent_summary">系统提示常驻应用不能更新时可用。只在准备安装时放宽这项限制。</string>
+    <string name="package_manager_persistent_summary">更新系统标记为常驻的应用。</string>
     <string name="package_manager_system_update">允许更新被小米限制的系统应用</string>
-    <string name="package_manager_system_update_summary">小米限制某些预装应用手动更新时可用。Android 仍会核对系统应用签名。</string>
+    <string name="package_manager_system_update_summary">跳过 HyperOS 对部分预装应用更新的限制。</string>
     <string name="package_manager_isolation">放宽 HyperOS 安装来源和机型限制</string>
-    <string name="package_manager_isolation_summary">HyperOS 因安装来源或 APK 声明的机型、地区规则拒绝安装时可用。</string>
+    <string name="package_manager_isolation_summary">跳过 HyperOS 基于安装来源或机型规则的检查。</string>
 </resources>

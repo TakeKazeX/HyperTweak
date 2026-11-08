@@ -43,8 +43,14 @@ import top.yukonga.miuix.kmp.utils.overScrollVertical
 @Composable
 internal fun PackageManagerPage(onBack: () -> Unit) {
     val settings = LocalAppSettingsStore.current
+    fun legacyAuthCreak(): Boolean = Keys.legacyAuthCreakKeys.any { settings.getBoolean(it, false) }
     var enabled by remember(settings) {
-        mutableStateOf(settings.getBoolean(Keys.KEY_ENABLED, Keys.patchKeys.any { settings.getBoolean(it, false) }))
+        mutableStateOf(
+            settings.getBoolean(Keys.KEY_ENABLED, Keys.corePatchKeys.any { settings.getBoolean(it, false) } || legacyAuthCreak())
+        )
+    }
+    var authCreak by remember(settings) {
+        mutableStateOf(settings.getBoolean(Keys.KEY_AUTH_CREAK, legacyAuthCreak()))
     }
     val scrollBehavior = MiuixScrollBehavior()
     AppScaffold(topBar = {
@@ -89,48 +95,44 @@ internal fun PackageManagerPage(onBack: () -> Unit) {
                         R.string.package_manager_update_signature_summary, enabled
                     )
                     PackageManagerSwitch(
-                        Keys.KEY_MIN_SIGNATURE_SCHEME, R.string.package_manager_min_scheme,
-                        R.string.package_manager_min_scheme_summary, enabled
+                        Keys.KEY_AUTH_CREAK, R.string.package_manager_auth_creak,
+                        R.string.package_manager_auth_creak_summary, enabled,
+                        checked = authCreak,
+                        onCheckedChange = { checked -> authCreak = checked }
                     )
-                    PackageManagerSwitch(
-                        Keys.KEY_APK_INTEGRITY, R.string.package_manager_integrity,
-                        R.string.package_manager_integrity_summary, enabled
-                    )
+                    MiuixExpandableContent(visible = !authCreak) {
+                        PackageManagerSwitch(
+                            Keys.KEY_DISABLE_INTEGRITY, R.string.package_manager_disable_integrity,
+                            R.string.package_manager_disable_integrity_summary, enabled
+                        )
+                    }
                     PackageManagerSwitch(
                         Keys.KEY_SPLIT_SIGNATURE, R.string.package_manager_split_signature,
                         R.string.package_manager_split_signature_summary, enabled
                     )
-                    PackageManagerSwitch(
-                        Keys.KEY_SHARED_UID, R.string.package_manager_shared_uid,
-                        R.string.package_manager_shared_uid_summary, enabled
-                    )
                 }
-                PackageManagerSection(R.string.package_manager_advanced_section) {
-                    PackageManagerSwitch(
-                        Keys.KEY_LOW_TARGET, R.string.package_manager_low_target,
-                        R.string.package_manager_low_target_summary, enabled
-                    )
-                    PackageManagerSwitch(
-                        Keys.KEY_COMPRESSED_RESOURCES, R.string.package_manager_compressed_resources,
-                        R.string.package_manager_compressed_resources_summary, enabled
-                    )
-                    PackageManagerSwitch(
-                        Keys.KEY_VERIFICATION_AGENT, R.string.package_manager_verifier,
-                        R.string.package_manager_verifier_summary, enabled
-                    )
-                    PackageManagerSwitch(
-                        Keys.KEY_PERSISTENT_UPDATE, R.string.package_manager_persistent,
-                        R.string.package_manager_persistent_summary, enabled
-                    )
-                    PackageManagerSwitch(
-                        Keys.KEY_SYSTEM_APP_UPDATE, R.string.package_manager_system_update,
-                        R.string.package_manager_system_update_summary, enabled
-                    )
-                    PackageManagerSwitch(
-                        Keys.KEY_ISOLATION, R.string.package_manager_isolation,
-                        R.string.package_manager_isolation_summary, enabled
-                    )
-                }
+            }
+            PackageManagerSection(R.string.package_manager_advanced_section) {
+                PackageManagerSwitch(
+                    Keys.KEY_LOW_TARGET, R.string.package_manager_low_target,
+                    R.string.package_manager_low_target_summary, enabled = true
+                )
+                PackageManagerSwitch(
+                    Keys.KEY_VERIFICATION_AGENT, R.string.package_manager_verifier,
+                    R.string.package_manager_verifier_summary, enabled = true
+                )
+                PackageManagerSwitch(
+                    Keys.KEY_PERSISTENT_UPDATE, R.string.package_manager_persistent,
+                    R.string.package_manager_persistent_summary, enabled = true
+                )
+                PackageManagerSwitch(
+                    Keys.KEY_SYSTEM_APP_UPDATE, R.string.package_manager_system_update,
+                    R.string.package_manager_system_update_summary, enabled = true
+                )
+                PackageManagerSwitch(
+                    Keys.KEY_ISOLATION, R.string.package_manager_isolation,
+                    R.string.package_manager_isolation_summary, enabled = true
+                )
             }
 
             Spacer(Modifier.height(padding.calculateBottomPadding() + 16.dp))
@@ -147,17 +149,25 @@ private fun PackageManagerSection(@StringRes title: Int, content: @Composable ()
 }
 
 @Composable
-private fun PackageManagerSwitch(key: String, @StringRes title: Int, @StringRes summary: Int, enabled: Boolean) {
+private fun PackageManagerSwitch(
+    key: String,
+    @StringRes title: Int,
+    @StringRes summary: Int,
+    enabled: Boolean,
+    checked: Boolean? = null,
+    onCheckedChange: ((Boolean) -> Unit)? = null,
+) {
     val settings = LocalAppSettingsStore.current
-    var checked by remember(settings, key) { mutableStateOf(settings.getBoolean(key, false)) }
+    var stored by remember(settings, key) { mutableStateOf(settings.getBoolean(key, false)) }
     SwitchPreference(
         title = stringResource(title),
         summary = stringResource(summary),
-        checked = checked,
+        checked = checked ?: stored,
         enabled = enabled,
         onCheckedChange = {
-            checked = it
+            stored = it
             settings.putBoolean(key, it)
+            onCheckedChange?.invoke(it)
         }
     )
 }
