@@ -48,6 +48,7 @@ internal object RuntimeSettingsGroups {
     const val OFFLINE_CONFIG = RuntimeSettingsDefinitions.OFFLINE_CONFIG
     const val XIAOAI_GESTURES = RuntimeSettingsDefinitions.XIAOAI_GESTURES
     const val SETTINGS_AI = RuntimeSettingsDefinitions.SETTINGS_AI
+    const val WIFI_DETAILS = RuntimeSettingsDefinitions.WIFI_DETAILS
     const val MARKET = RuntimeSettingsDefinitions.MARKET
     const val COMMUNITY = RuntimeSettingsDefinitions.COMMUNITY
     const val SHARE_PANEL = RuntimeSettingsDefinitions.SHARE_PANEL

@@ -31,6 +31,12 @@ object PlatformSettingsKeys {
     const val KEY_SETTINGS_GEMINI_ENTRY = "settings_gemini_entry"
     const val KEY_WIFI_CNSS_DIAG_ENABLED = "wifi_cnss_diag_enabled"
     const val KEY_WIFI_TCPDUMP_ENABLED = "wifi_tcpdump_enabled"
+    const val KEY_WIFI_DETAIL_IP_MULTILINE = "wifi_detail_ip_multiline"
+    const val KEY_WIFI_SAVED_NETWORKS_ENTRY_POSITION = "wifi_saved_networks_entry_position"
+    const val KEY_WIFI_SAVED_NETWORK_CUSTOM_ACTIONS = "wifi_saved_network_custom_actions"
+    const val WIFI_SAVED_NETWORKS_POSITION_DEFAULT = 0
+    const val WIFI_SAVED_NETWORKS_POSITION_BELOW_ACCELERATION = 1
+    const val WIFI_SAVED_NETWORKS_POSITION_ABOVE_ADVANCED = 2
     const val KEY_SYSTEM_HELPER_DISABLED = "system_helper_disabled"
     const val KEY_SYSTEM_HELPER_MANAGED = "system_helper_managed"
     const val KEY_DISABLE_VIDEO_RINGBACK = "disable_video_ringback"

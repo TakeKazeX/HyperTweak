@@ -328,6 +328,19 @@ object Preferences {
         publishPowerSaveSelection(keys.associateWith { local.getBoolean(it, false) })
     }
 
+    /** Recover a Wi-Fi position saved while the module was using its local settings backend. */
+    internal fun recoverUnpublishedSavedNetworksPosition() {
+        val key = PlatformSettingsKeys.KEY_WIFI_SAVED_NETWORKS_ENTRY_POSITION
+        val acknowledged = RuntimeSettingsSignal.lastAcknowledged()?.values ?: return
+        if (acknowledged.containsKey(key)) return
+        val local = localSourcePrefs ?: return
+        val position = local.all[key] as? Int ?: return
+        if (position in PlatformSettingsKeys.WIFI_SAVED_NETWORKS_POSITION_BELOW_ACCELERATION..
+            PlatformSettingsKeys.WIFI_SAVED_NETWORKS_POSITION_ABOVE_ADVANCED) {
+            putInt(key, position)
+        }
+    }
+
     private fun publishPowerSaveSelection(values: Map<String, Boolean>) {
         values.keys.forEach(::memoInvalidate)
         write(runtimeChanges = values) {

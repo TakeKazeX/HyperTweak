@@ -67,6 +67,7 @@ internal object XposedServiceManager : XposedServiceHelper.OnServiceListener, Mo
             Preferences.init(remotePrefs)
             RuntimeSettingsSignal.bind(remotePrefs)
             Preferences.recoverUnpublishedPowerSaveSelection()
+            Preferences.recoverUnpublishedSavedNetworksPosition()
             DebugLog.d("XposedService", "switched Preferences to RemotePreferences")
         } catch (t: Throwable) {
             Preferences.noteRemoteBackendUnavailable()

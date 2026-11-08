@@ -52,6 +52,8 @@ internal object SettingsAppHookPlan {
                 hook { GoogleServicesSettingsHooker }
                 // Reveal the 小米澎湃AI page's 端侧大模型 / Gemini rows through the shared dispatcher.
                 hook { HyperOsAiEntriesHooker }
+                // Wi-Fi details, saved-network entry, and quick actions.
+                hook { com.takekazex.hypertweak.hook.rules.settings.WifiDetailsHooker }
             }
         }
     }

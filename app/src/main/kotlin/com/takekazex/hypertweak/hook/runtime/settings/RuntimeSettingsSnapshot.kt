@@ -35,6 +35,8 @@ internal data class RuntimeSettingsSnapshot(val revision: Long, val values: Map<
             if (RuntimeSettingsGroups.BACK in groups && BackGestureSettingsSnapshot.read(values) == null) return null
             val powerAction = values[PlatformSettingsKeys.KEY_POWER_BUTTON_ACTION]
             if (powerAction != null && (powerAction !is Int || powerAction !in 0..3)) return null
+            val wifiEntryPos = values[PlatformSettingsKeys.KEY_WIFI_SAVED_NETWORKS_ENTRY_POSITION]
+            if (wifiEntryPos != null && (wifiEntryPos !is Int || wifiEntryPos !in 0..2)) return null
             val cameraKeys = com.takekazex.hypertweak.settings.contract.CameraSettingsKeys
             if (cameraKeys.stringKeys.any { values[it]?.let { value -> value !is String } == true }) return null
             val imeStyle = values[PlatformSettingsKeys.KEY_AOSP_IME_RAISE_STYLE]

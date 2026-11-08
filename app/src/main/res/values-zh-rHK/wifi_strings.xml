@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="wifi_details_title">WLAN 詳情增強</string>
+    <string name="wifi_details_summary">IP 位址分行顯示與分享密碼彈窗</string>
+    <string name="wifi_details_back">返回</string>
+    <string name="wifi_details_section_title">WLAN 設定</string>
+    <string name="wifi_detail_ip_multiline_title">IP 位址分行顯示</string>
+    <string name="wifi_detail_ip_multiline_summary">網絡詳情中每個 IPv4 與 IPv6 位址獨立成行，點擊可選擇複製</string>
+    <string name="wifi_detail_ip_dialog_title">選擇要複製的 IP 位址</string>
+    <string name="wifi_detail_ip_copy_all">複製全部位址</string>
+    <string name="wifi_detail_ip_copied">已複製: %s</string>
+    <string name="wifi_detail_ip_copied_all">已複製全部 IP 位址</string>
+    <string name="wifi_saved_networks_entry_title">「管理已儲存網絡」入口位置</string>
+    <string name="wifi_saved_networks_entry_summary">調整「管理已儲存網絡」捷徑在 WLAN 首頁的位置</string>
+    <string name="wifi_saved_networks_position_default">保持預設（進階設定內部）</string>
+    <string name="wifi_saved_networks_position_accel">「網絡加速」下方</string>
+    <string name="wifi_saved_networks_position_advanced">「進階設定」上方</string>
+    <string name="wifi_saved_network_custom_actions_title">已儲存網絡快捷操作按鈕</string>
+    <string name="wifi_saved_network_custom_actions_summary">將清單右側的刪除按鈕替換為圓形分享按鈕及藍色檢視密碼按鈕</string>
+    <string name="wifi_view_password_title">檢視密碼</string>
+    <string name="wifi_view_password_btn">檢視密碼</string>
+    <string name="wifi_view_password_copy">複製密碼</string>
+    <string name="wifi_view_password_copied">密碼已複製</string>
+    <string name="wifi_view_password_no_pwd">（無密碼）</string>
+    <string name="wifi_view_password_no_pwd_toast">該網絡無密碼</string>
+    <string name="wifi_view_password_close">關閉</string>
+    <string name="wifi_view_password_ssid">網絡名稱：</string>
+    <string name="wifi_view_password_security">安全類型：</string>
+    <string name="wifi_view_password_pwd">密碼：</string>
+</resources>

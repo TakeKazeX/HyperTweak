@@ -262,6 +262,12 @@ internal object RuntimeSettingsParticipants {
         registerForProcess(RuntimeSettingsGroups.SETTINGS_AI) { _ ->
             HyperOsAiEntriesHooker.refreshSettings()
         }
+        registerForProcess(RuntimeSettingsGroups.WIFI_DETAILS) { keys ->
+            if (processName == "com.android.settings") {
+                com.takekazex.hypertweak.hook.rules.settings.WifiDetailsHooker.refreshSettings(keys)
+            }
+            true
+        }
         registerForProcess(RuntimeSettingsGroups.MARKET) { _ -> true }
         registerForProcess(RuntimeSettingsGroups.COMMUNITY) { _ -> true }
         registerForProcess(RuntimeSettingsGroups.SHARE_PANEL) { _ ->

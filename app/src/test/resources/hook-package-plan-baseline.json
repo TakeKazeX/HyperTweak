@@ -190,7 +190,8 @@
       "NotificationMoreSettingsHooker",
       "NotificationBadgeSettingsHooker",
       "GoogleServicesSettingsHooker",
-      "HyperOsAiEntriesHooker"
+      "HyperOsAiEntriesHooker",
+      "WifiDetailsHooker"
     ]
   },
   {
@@ -212,7 +213,8 @@
       "NotificationMoreSettingsHooker",
       "NotificationBadgeSettingsHooker",
       "GoogleServicesSettingsHooker",
-      "HyperOsAiEntriesHooker"
+      "HyperOsAiEntriesHooker",
+      "WifiDetailsHooker"
     ]
   },
   {

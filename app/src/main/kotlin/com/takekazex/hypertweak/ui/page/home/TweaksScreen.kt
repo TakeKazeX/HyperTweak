@@ -211,6 +211,8 @@ fun TweaksScreenContent(
                 }
             }
 
+            com.takekazex.hypertweak.ui.page.wifi.WifiDetailsControls()
+
             SmallTitle(text = stringResource(R.string.purification_title))
             Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
                 ArrowPreference(

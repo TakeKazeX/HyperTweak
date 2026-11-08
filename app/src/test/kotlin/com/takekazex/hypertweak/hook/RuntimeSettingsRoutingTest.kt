@@ -37,6 +37,18 @@ class RuntimeSettingsRoutingTest {
         }
     }
 
+    @Test fun wifiSavedNetworksPositionRoutesToSettingsProcess() {
+        val key = PlatformSettingsKeys.KEY_WIFI_SAVED_NETWORKS_ENTRY_POSITION
+        val values = mapOf<String, Any>(key to 1)
+        val target = Groups.target("com.android.settings")
+        assertEquals(values, Groups.subset(target, values))
+        val snapshot = RuntimeSettingsSnapshot.read(1, values)
+        assertNotNull(snapshot)
+        val ledger = RuntimeSettingsLedger()
+        assertTrue(ledger.accept(snapshot!!))
+        assertEquals(1, ledger.value(key))
+    }
+
     @Test fun arbitraryKeyboardProcessesReceiveStyleDisableSelectionRemovalAndReset() {
         val keyboard = "org.example.keyboard"
         Groups.registerImeTargets(setOf(keyboard))

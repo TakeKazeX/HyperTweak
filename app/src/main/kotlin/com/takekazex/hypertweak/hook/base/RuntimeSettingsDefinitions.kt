@@ -69,6 +69,7 @@ internal object RuntimeSettingsDefinitions {
     const val BARRAGE = "barrage.any_app"
     const val XIAOAI_GESTURES = "xiaoai.gesture_input"
     const val SETTINGS_AI = "settings.hyperos_ai"
+    const val WIFI_DETAILS = "settings.wifi_details"
     const val MARKET = "market.purification"
     const val COMMUNITY = "community.feedback"
     const val SHARE_PANEL = "intentresolver.share_panel"
@@ -204,6 +205,8 @@ internal object RuntimeSettingsDefinitions {
         PlatformSettingsKeys.KEY_NATIVE_PICKER, PlatformSettingsKeys.KEY_NATIVE_PHOTO_PICKER, PlatformSettingsKeys.KEY_NATIVE_FILE_PICKER,
         PlatformSettingsKeys.KEY_SETTINGS_ONDEVICE_MODEL_ENTRY,
         PlatformSettingsKeys.KEY_SETTINGS_GEMINI_ENTRY,
+        PlatformSettingsKeys.KEY_WIFI_DETAIL_IP_MULTILINE,
+        PlatformSettingsKeys.KEY_WIFI_SAVED_NETWORK_CUSTOM_ACTIONS,
         PlatformSettingsKeys.KEY_FORCE_SCREENSHOT, PlatformSettingsKeys.KEY_DARK_MODE_IMMEDIATE_SCHEDULE,
         PlatformSettingsKeys.KEY_SECURITY_CENTER_HIDE_DOLBY_POPUP,
         PlatformSettingsKeys.KEY_SECURITY_CENTER_HIDE_GAME_POPUP,
@@ -432,6 +435,11 @@ internal object RuntimeSettingsDefinitions {
         OFFLINE_CONFIG to Group(setOf("com.miui.securitycenter", "com.android.contacts")) {
             it == PlatformSettingsKeys.KEY_NETWORK_ASSISTANT_IGNORE_OFFLINE ||
                 it == PlatformSettingsKeys.KEY_CONTACTS_BUSINESS_HALL_IGNORE_OFFLINE
+        },
+        WIFI_DETAILS to Group(setOf("com.android.settings")) {
+            it == PlatformSettingsKeys.KEY_WIFI_DETAIL_IP_MULTILINE ||
+                it == PlatformSettingsKeys.KEY_WIFI_SAVED_NETWORKS_ENTRY_POSITION ||
+                it == PlatformSettingsKeys.KEY_WIFI_SAVED_NETWORK_CUSTOM_ACTIONS
         }
     )
 }
