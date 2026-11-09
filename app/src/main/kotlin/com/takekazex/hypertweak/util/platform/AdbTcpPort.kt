@@ -1,125 +1,143 @@
 package com.takekazex.hypertweak.util.platform
 
+import android.content.Context
 import com.takekazex.hypertweak.util.logging.DebugLog
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
-import java.security.SecureRandom
+import java.io.File
+import java.util.UUID
 
-/** Controls the legacy adbd TCP listener. Android's paired wireless debugging is separate. */
+/** Owns the legacy adbd TCP listener. Android's paired wireless debugging is separate. */
 internal object AdbTcpPort {
-    data class State(val port: Int?, val persistent: Boolean)
-    data class Result(val state: State?, val occupied: Boolean = false)
-
-    private val random = SecureRandom()
-    private const val PROPERTY = "service.adb.tcp.port"
-    private const val PERSISTENT = "persist.adb.tcp.port"
-    private const val SCRIPT = """
-        sockets_at() {
-            ss -H -ltnp "sport = :${'$'}1"
-        }
-        is_port() {
-            case "${'$'}1" in ''|*[!0-9]*) return 1;; esac
-            [ "${'$'}1" -ge 1 ] && [ "${'$'}1" -le 65535 ]
-        }
-        read_state() {
-            persisted=$(getprop $PERSISTENT)
-            configured=$(getprop $PROPERTY)
-            candidate=${'$'}{configured:-${'$'}persisted}
-            active=0
-            if is_port "${'$'}candidate"; then
-                sockets=$(sockets_at "${'$'}candidate") || return 1
-                if printf '%s\n' "${'$'}sockets" | grep -Fq '"adbd"'; then active=${'$'}candidate; fi
-            fi
-        }
-        report() {
-            keep=0
-            if is_port "${'$'}persisted"; then keep=1; fi
-            echo "state ${'$'}active ${'$'}keep"
-        }
-        wait_for_port() {
-            for attempt in 1 2 3 4 5 6 7 8 9 10; do
-                sleep 0.2
-                read_state || return 1
-                [ "${'$'}active" = "${'$'}1" ] || continue
-                if [ "${'$'}1" != 0 ]; then return 0; fi
-                [ "${'$'}(getprop init.svc.adbd)" = running ] || continue
-                if is_port "${'$'}old_active"; then
-                    sockets=$(sockets_at "${'$'}old_active") || return 1
-                    printf '%s\n' "${'$'}sockets" | grep -Fq '"adbd"' && continue
-                fi
-                return 0
-            done
-            return 1
-        }
-    """
-
-    suspend fun read(): State? = run("read_state && report").state
-
-    suspend fun setEnabled(enabled: Boolean, customPort: Int?): Result {
-        require(customPort == null || customPort in 1..65535)
-        val candidates = if (!enabled) listOf(0) else if (customPort != null) listOf(customPort) else
-            generateSequence { 49152 + random.nextInt(16384) }.distinct().take(8).toList()
-        return run("""
-            read_state || exit 1
-            old_active=${'$'}active
-            old_configured=${'$'}configured
-            old_persisted=${'$'}persisted
-            port=
-            for candidate in ${candidates.joinToString(" ")}; do
-                if [ "${'$'}candidate" = 0 ] || [ "${'$'}candidate" = "${'$'}active" ]; then
-                    port=${'$'}candidate; break
-                fi
-                sockets=$(ss -H -tan "sport = :${'$'}candidate") || exit 1
-                if [ -z "${'$'}sockets" ]; then port=${'$'}candidate; break; fi
-            done
-            if [ -z "${'$'}port" ]; then echo occupied; exit 0; fi
-            if [ "${'$'}port" = "${'$'}active" ] && [ "${'$'}port" != 0 ]; then report; exit 0; fi
-            if [ "${'$'}port" = 0 ] && [ "${'$'}active" = 0 ]; then
-                if [ -n "${'$'}persisted" ]; then setprop $PERSISTENT '' || exit 1; fi
-                read_state && report
-                exit ${'$'}?
-            fi
-            if setprop $PROPERTY "${'$'}port" && setprop ctl.restart adbd && wait_for_port "${'$'}port"; then
-                # Keep an existing opt-in attached to the verified live port. Turning off clears it.
-                keep_port=''
-                if [ "${'$'}port" != 0 ] && is_port "${'$'}old_persisted"; then keep_port=${'$'}port; fi
-                if { [ "${'$'}keep_port" = "${'$'}old_persisted" ] || setprop $PERSISTENT "${'$'}keep_port"; } &&
-                    read_state && [ "${'$'}active" = "${'$'}port" ] && [ "${'$'}persisted" = "${'$'}keep_port" ]; then
-                    report
-                    exit 0
-                fi
-            fi
-            setprop $PERSISTENT "${'$'}old_persisted"
-            setprop $PROPERTY "${'$'}old_configured" && setprop ctl.restart adbd
-            exit 1
-        """.trimIndent())
+    data class Wifi(val ssid: String, val bssid: String) {
+        val name: String get() = ssid.removeSurrounding("\"")
     }
 
-    suspend fun setPersistent(enabled: Boolean): Result = run("""
-        read_state || exit 1
-        if [ "$enabled" = true ]; then
-            is_port "${'$'}active" || exit 1
-            setprop $PERSISTENT "${'$'}active" || exit 1
-        else
-            # A boot-restored listener may have no service property. Retain its running port.
-            if is_port "${'$'}active" && [ -z "${'$'}configured" ]; then
-                setprop $PROPERTY "${'$'}active" || exit 1
-            fi
-            setprop $PERSISTENT '' || exit 1
-        fi
-        read_state && report
-    """.trimIndent())
+    enum class RestartMode { OFF, BOUND_WIFI, ALWAYS_RANDOM }
 
-    private suspend fun run(command: String): Result = withContext(Dispatchers.IO) {
-        runCatching {
-            val output = NativeRootCommand.run("$SCRIPT\n$command", maxBytes = 4096).decodeToString().trim()
-            if (output == "occupied") return@runCatching Result(null, occupied = true)
-            val fields = output.split(' ')
-            check(fields.size == 3 && fields[0] == "state" && fields[2] in setOf("0", "1"))
-            val port = fields[1].toInt()
-            check(port in 0..65535)
-            Result(State(port.takeIf { it != 0 }, fields[2] == "1"))
-        }.onFailure { DebugLog.w("AdbTcpPort", "Could not read or change the TCP listener", it) }
-            .getOrElse { Result(null) }
+    data class State(
+        val systemTls: Boolean,
+        val restartMode: RestartMode,
+        val bound: Wifi?,
+        val current: Wifi?,
+        val endpoint: String?,
+        val failure: Int?,
+    )
+
+    private const val DIRECTORY = "/data/adb/hypertweak-wireless-adb"
+    private const val MANAGED = "wifi_guard_managed"
+    private val lock = Mutex()
+
+    fun options(context: Context) =
+        context.getSharedPreferences("adb_tcp_options", Context.MODE_PRIVATE)
+
+    fun shouldRestore(context: Context): Boolean {
+        val options = options(context)
+        if (options.getBoolean(MANAGED, false)) return true
+        // Older versions stored only the optional custom port, and wrote boot persistence to
+        // a system property. Probe it when readable so untouched installations never request root.
+        if (options.contains("custom") || options.contains("port")) return true
+        return runCatching {
+            val getprop = Class.forName("android.os.SystemProperties").getMethod("get", String::class.java)
+            listOf("persist.adb.tcp.port", "service.adb.tcp.port").any { property ->
+                ((getprop.invoke(null, property) as? String)?.toIntOrNull() ?: 0) in 1..65535
+            }
+        }.getOrDefault(false)
+    }
+
+    suspend fun restore(context: Context, afterBoot: Boolean = false): Boolean = execute {
+        installGuard(context)
+        val owner = ownerFile(context)
+        if (!owner.isFile) owner.writeText(UUID.randomUUID().toString())
+        if (!markManaged(context)) return@execute false
+        val operation = if (afterBoot) "restore" else "prepare"
+        val savedOptions = options(context)
+        val port = if (savedOptions.getBoolean("custom", false)) {
+            savedOptions.getString("port", "")?.toIntOrNull()?.takeIf { it in 1..65535 } ?: -1
+        } else 0
+        command("$operation ${NativeRootCommand.quote(owner.path)} ${NativeRootCommand.quote(owner.readText())} $port")
+        true
+    } ?: false
+
+    suspend fun read(): State? = execute {
+        val fields = command("status").decodeToString().trimEnd('\n').split('\n')
+        check(fields.size == 10 && fields[0] == "state" && fields[9] == "end")
+        fun wifi(index: Int): Wifi? = fields[index + 1].takeIf(String::isNotEmpty)?.let {
+            Wifi(fields[index], it)
+        }
+        State(
+            systemTls = fields[8] == "system",
+            restartMode = RestartMode.entries[fields[1].toInt()],
+            bound = wifi(2),
+            current = wifi(4),
+            endpoint = fields[6].takeIf(String::isNotEmpty),
+            failure = fields[7].toIntOrNull(),
+        )
+    }
+
+    suspend fun bind(wifi: Wifi?, port: Int): Boolean =
+        change("bind $port ${wifi.arguments()}")
+
+    suspend fun setEnabled(enabled: Boolean, wifi: Wifi?, port: Int): Boolean =
+        if (enabled && wifi != null) change("manual-on $port ${wifi.arguments()}")
+        else if (!enabled) change("manual-off")
+        else false
+
+    suspend fun setRestartMode(mode: RestartMode): Boolean = change("mode ${mode.ordinal}")
+
+    suspend fun setSystemTls(enabled: Boolean): Boolean =
+        change("transport ${if (enabled) "system" else "legacy"}")
+
+    suspend fun updatePort(port: Int): Boolean = change("port $port")
+
+    private fun Wifi?.arguments(): String =
+        NativeRootCommand.quote(this?.ssid.orEmpty()) + " " +
+            NativeRootCommand.quote(this?.bssid.orEmpty())
+
+    private suspend fun change(arguments: String): Boolean = execute {
+        command(arguments)
+        true
+    } ?: false
+
+    suspend fun reset(context: Context): Boolean {
+        if (!shouldRestore(context)) return true
+        return execute {
+            // Revoking the local marker also disarms an existing watchdog if su is unavailable.
+            val owner = ownerFile(context)
+            if (owner.exists() && !owner.delete()) return@execute false
+            val cleared = options(context).edit().clear().commit()
+            installGuard(context)
+            command("reset")
+            cleared
+        } ?: false
+    }
+
+    private fun ownerFile(context: Context) = File(context.noBackupFilesDir, "wireless_adb_owner")
+
+    private fun markManaged(context: Context) =
+        options(context).edit().putBoolean(MANAGED, true).commit()
+
+    private fun installGuard(context: Context) {
+        val source = context.assets.open("diagnostics/wireless-adb.sh").bufferedReader().use { it.readText() }
+        NativeRootCommand.run(
+            "umask 077 && mkdir -p $DIRECTORY && chmod 700 $DIRECTORY && cd $DIRECTORY && " +
+                "printf '%s\\n' ${NativeRootCommand.quote(context.applicationInfo.sourceDir)} > apk.new && " +
+                "mv -f apk.new apk && printf %s ${NativeRootCommand.quote(source)} > guard.new && " +
+                "if cmp -s guard.new guard; then rm -f guard.new; else mv -f guard.new guard; fi",
+            maxBytes = 4096,
+        )
+    }
+
+    private fun command(arguments: String): ByteArray =
+        NativeRootCommand.run("sh $DIRECTORY/guard $arguments", maxBytes = 4096)
+
+    private suspend fun <T> execute(block: () -> T): T? = withContext(Dispatchers.IO) {
+        lock.withLock {
+            runCatching(block)
+                .onFailure { DebugLog.w("AdbTcpPort", "Wireless ADB operation failed", it) }
+                .getOrNull()
+        }
     }
 }

@@ -63,6 +63,7 @@ import top.yukonga.miuix.kmp.utils.overScrollVertical
 fun DebugPage(
     onBack: () -> Unit,
     onNavigateToLogs: () -> Unit,
+    onNavigateToWirelessAdb: () -> Unit,
     hotReloading: Boolean,
     hotReloadTargets: List<String>,
     hotReloadReport: HotReloadReport?,
@@ -128,7 +129,11 @@ fun DebugPage(
             SmallTitle(stringResource(R.string.debug_actions_title))
             Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
                 Column(Modifier.fillMaxWidth()) {
-                    AdbTcpPortPreference()
+                    ArrowPreference(
+                        title = stringResource(R.string.debug_adb_tcp_title),
+                        summary = stringResource(R.string.debug_adb_tcp_summary),
+                        onClick = onNavigateToWirelessAdb,
+                    )
                     Button(
                         onClick = { showHotReloadDialog = true },
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
@@ -211,7 +216,7 @@ fun DebugPage(
 }
 
 private fun launchBiometricAuthentication(context: Context) {
-    val activity = context.findActivity()
+    val activity = context.findDebugActivity()
     if (activity == null) {
         showDebugToast(context, R.string.debug_biometric_unavailable)
         return
@@ -288,8 +293,8 @@ private fun showDebugToast(context: Context, messageRes: Int, vararg args: Any) 
     ).show()
 }
 
-private tailrec fun Context.findActivity(): Activity? = when (this) {
+internal tailrec fun Context.findDebugActivity(): Activity? = when (this) {
     is Activity -> this
-    is ContextWrapper -> baseContext.findActivity()
+    is ContextWrapper -> baseContext.findDebugActivity()
     else -> null
 }

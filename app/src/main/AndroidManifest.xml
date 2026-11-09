@@ -130,6 +130,12 @@
                 <data android:scheme="package" android:path="com.mobiletools.systemhelper" />
             </intent-filter>
         </receiver>
+        <receiver android:name=".app.WirelessAdbStateReceiver" android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
         <!-- Shortcut launches must not resume the background app task by affinity. -->
         <activity
             android:name="com.takekazex.hypertweak.ShortcutEntryActivity"

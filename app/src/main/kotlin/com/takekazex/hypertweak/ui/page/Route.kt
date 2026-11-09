@@ -46,6 +46,7 @@ sealed interface Route : NavKey {
     data object ControlCenterResize : Route
     data object Debug : Route
     data object DeveloperSettings : Route
+    data object WirelessAdb : Route
     data object DebugLogs : Route
     data object DeviceInfo : Route
     data object BatteryInfo : Route
@@ -102,6 +103,7 @@ val Route.saveKey: String
         Route.ControlCenterResize -> "ControlCenterResize"
         Route.Debug -> "Debug"
         Route.DeveloperSettings -> "DeveloperSettings"
+        Route.WirelessAdb -> "WirelessAdb"
         Route.DebugLogs -> "DebugLogs"
         Route.DeviceInfo -> "DeviceInfo"
         Route.BatteryInfo -> "BatteryInfo"
@@ -153,6 +155,7 @@ fun routeFromSaveKey(key: String): Route? = when (key) {
     "ControlCenterResize" -> Route.ControlCenterResize
     "Debug" -> Route.Debug
     "DeveloperSettings" -> Route.DeveloperSettings
+    "WirelessAdb" -> Route.WirelessAdb
     "DebugLogs" -> Route.DebugLogs
     "DeviceInfo" -> Route.DeviceInfo
     "BatteryInfo" -> Route.BatteryInfo

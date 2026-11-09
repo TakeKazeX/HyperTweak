@@ -32,6 +32,7 @@ import com.takekazex.hypertweak.ui.page.update.UpdateAvailablePrompt
 import com.takekazex.hypertweak.ui.theme.MiuixSpec2025Adapter
 import com.takekazex.hypertweak.ui.theme.isEffectivelyDark
 import com.takekazex.hypertweak.ui.theme.rememberDeviceAccentColor
+import com.takekazex.hypertweak.util.platform.AdbTcpPort
 import com.takekazex.hypertweak.util.platform.LocaleHelper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -656,6 +657,9 @@ internal fun AppContent(
                                     Toast.LENGTH_LONG
                                 ).show()
                                 return@launch
+                            }
+                            if (!AdbTcpPort.reset(activity.applicationContext)) {
+                                Toast.makeText(localizedContext, R.string.debug_adb_tcp_reset_failed, Toast.LENGTH_LONG).show()
                             }
                             clearPendingRestartTracking()
                             val restartScopesJob = if (restartAllScopes) {

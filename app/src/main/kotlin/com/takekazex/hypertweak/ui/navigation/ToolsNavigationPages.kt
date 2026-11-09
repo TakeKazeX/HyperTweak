@@ -7,6 +7,7 @@ import com.takekazex.hypertweak.ui.page.app.AboutPage
 import com.takekazex.hypertweak.ui.page.app.CreditsPage
 import com.takekazex.hypertweak.ui.page.platform.HiddenFeaturesPage
 import com.takekazex.hypertweak.ui.page.app.AppShortcutsPage
+import com.takekazex.hypertweak.ui.page.diagnostics.WirelessAdbPage
 import com.takekazex.hypertweak.ui.page.diagnostics.DebugPage
 import com.takekazex.hypertweak.ui.page.diagnostics.DeveloperSettingsPage
 import com.takekazex.hypertweak.ui.page.diagnostics.BatteryInfoPage
@@ -113,6 +114,7 @@ internal fun NavEntryBuilder.toolsPages(settings: NavigationSettings, navControl
             DebugPage(
                 onBack = { navController.pop() },
                 onNavigateToLogs = { navController.navigateTo(Route.DebugLogs) },
+                onNavigateToWirelessAdb = { navController.navigateTo(Route.WirelessAdb) },
                 hotReloading = hotReloading,
                 hotReloadTargets = hotReloadTargets,
                 hotReloadReport = hotReloadReport,
@@ -124,6 +126,9 @@ internal fun NavEntryBuilder.toolsPages(settings: NavigationSettings, navControl
             DeveloperSettingsPage(
                 onBack = { navController.pop() }
             )
+        }
+        entry<Route.WirelessAdb> {
+            WirelessAdbPage(onBack = { navController.pop() })
         }
         entry<Route.DebugLogs> {
             LogsPage(
