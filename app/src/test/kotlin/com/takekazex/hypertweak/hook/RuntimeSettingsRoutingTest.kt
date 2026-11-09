@@ -414,7 +414,7 @@ class RuntimeSettingsRoutingTest {
         }
         listOf("com.miui.securitycenter.remote", "com.miui.securitycenter.cache", "com.miui.securitycenter.power")
             .forEach { assertEquals(Groups.forTarget("com.miui.securitycenter"), Groups.forProcess("$it:worker")) }
-        assertEquals(setOf(Groups.QUICK_SHARE), Groups.forProcess("com.google.android.gms.unstable"))
+        assertTrue(Groups.forProcess("com.google.android.gms.unstable").isEmpty())
         assertEquals(Groups.forTarget("com.android.providers.downloads"), Groups.forProcess("android.process.media"))
         for (process in listOf("com.milink.crossdeviceservice", "com.milink.crossdeviceservice.file",
             "com.xiaomi.vtcamera", "com.milink.service.persistent", "com.milink.runtime")) {

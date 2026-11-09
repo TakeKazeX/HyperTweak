@@ -294,7 +294,6 @@ internal object DebugSettingsCatalog {
         DebugSetting("predictive_back_follow_gesture", "Boolean", true),
         DebugSetting("predictive_back_style", "Int", 1),
         DebugSetting("pure_black_dark_theme", "Boolean", false),
-        DebugSetting("quick_share_enabled", "Boolean", false),
         DebugSetting("recents_card_haptic", "Boolean", false),
         DebugSetting("record_logs", "Boolean", true),
         DebugSetting("remove_gms_restriction", "Boolean", false),

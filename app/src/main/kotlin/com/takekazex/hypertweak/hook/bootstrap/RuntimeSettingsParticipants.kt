@@ -117,9 +117,6 @@ internal object RuntimeSettingsParticipants {
         registerForProcess(RuntimeSettingsGroups.GMS_RESTRICTIONS) { _ ->
             com.takekazex.hypertweak.hook.rules.system.SystemConfigHooker.refreshSettings()
         }
-        registerForProcess(RuntimeSettingsGroups.QUICK_SHARE) { _ ->
-            com.takekazex.hypertweak.hook.rules.gms.QuickSharePhenotypeHooker.refreshSettings()
-        }
         registerForProcess(RuntimeSettingsGroups.PASSKEY) { _ ->
             com.takekazex.hypertweak.hook.rules.system.PasskeyHooker.refreshSettings()
         }
@@ -350,8 +347,7 @@ internal object RuntimeSettingsParticipants {
         // The selected-keyboard set can change after a keyboard process starts; the IME
         // participant must already be present for the dynamic target to receive its snapshot.
         registry.install(always = setOf(RuntimeSettingsGroups.IME)) { id, apply ->
-            if (id == RuntimeSettingsGroups.SECURITY_SIDEBAR || id == RuntimeSettingsGroups.SECURITY_DOCK || id == RuntimeSettingsGroups.DARK_MODE ||
-                id == RuntimeSettingsGroups.QUICK_SHARE)
+            if (id == RuntimeSettingsGroups.SECURITY_SIDEBAR || id == RuntimeSettingsGroups.SECURITY_DOCK || id == RuntimeSettingsGroups.DARK_MODE)
                 dispatcher.registerWithRetryBudget(id, 120, apply)
             else dispatcher.register(id, apply)
         }

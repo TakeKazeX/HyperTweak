@@ -9,7 +9,6 @@ object PlatformSettingsKeys {
     const val KEY_DOWNLOAD_ALWAYS_SHOW_FULL_LINK = "download_always_show_full_link"
     const val KEY_DOWNLOAD_HIDE_XL = "download_hide_xl"
     const val KEY_DOWNLOAD_ADD_NEW_BUTTON = "download_add_new_button"
-    const val KEY_QUICK_SHARE_ENABLED = "quick_share_enabled"
     const val KEY_FULL_SCREEN_TRANSLATE = "circle_to_search_full_screen_translate"
     const val KEY_ASK_ABOUT_SCREEN = "circle_to_search_ask_about_screen"
     const val LOCKSCREEN_FINGERPRINT_AVOID_DEFAULT = 0

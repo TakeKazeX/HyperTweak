@@ -3,7 +3,6 @@ package com.takekazex.hypertweak.hook.bootstrap
 import com.takekazex.hypertweak.hook.rules.aicr.AicrBrowserWhitelistHooker
 import com.takekazex.hypertweak.hook.rules.aicr.AicrDefaultBrowserHooker
 import com.takekazex.hypertweak.hook.rules.aicr.AicrCopyDirectFreeformHooker
-import com.takekazex.hypertweak.hook.rules.gms.QuickSharePhenotypeHooker
 import com.takekazex.hypertweak.hook.rules.googleapp.GoogleAppProcessPolicy
 import com.takekazex.hypertweak.hook.rules.googleapp.GoogleAppRuntime
 import com.takekazex.hypertweak.hook.rules.guardprovider.GuardProviderEnvironmentCheckHooker
@@ -51,11 +50,6 @@ internal object ServiceAppHookPlan {
             "com.miui.powerkeeper" -> {
                 hook { RestartBroadcastHooker }
                 hook { FcmLivePowerKeeperHooker }
-            }
-            "com.google.android.gms" -> {
-                // GMS is a declared scope. Every executing process gets live gates; only the
-                // main process reconciles phenotype overrides through the shared dispatcher.
-                hook { QuickSharePhenotypeHooker }
             }
             "com.google.android.googlequicksearchbox" -> {
                 // Keep the package scope for Lens/OMNI features, but dispatch only in their UI process.

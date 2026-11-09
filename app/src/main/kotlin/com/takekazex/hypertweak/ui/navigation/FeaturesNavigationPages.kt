@@ -116,8 +116,6 @@ internal fun NavEntryBuilder.featuresPages(settings: NavigationSettings, navCont
                 onShowGoogleServicesInSettingsChange = onShowGoogleServicesInSettingsChange,
                 removeGms = removeGms,
                 onRemoveGmsChange = onRemoveGmsChange,
-                quickShareEnabled = quickShareEnabled,
-                onQuickShareEnabledChange = onQuickShareEnabledChange,
                 fullScreenTranslate = fullScreenTranslate,
                 onFullScreenTranslateChange = onFullScreenTranslateChange,
                 askAboutScreen = askAboutScreen,

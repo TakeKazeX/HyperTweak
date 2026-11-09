@@ -54,8 +54,6 @@ class NavigationSettings(
     val onDownloadAddNewButtonChange: (Boolean) -> Unit,
     val removeGms: Boolean,
     val onRemoveGmsChange: (Boolean) -> Unit,
-    val quickShareEnabled: Boolean,
-    val onQuickShareEnabledChange: (Boolean) -> Unit,
     val fullScreenTranslate: Boolean,
     val onFullScreenTranslateChange: (Boolean) -> Unit,
     val askAboutScreen: Boolean,

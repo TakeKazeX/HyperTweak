@@ -8,13 +8,12 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class GoogleServicesSettingsTest {
-    @Test fun allSevenSwitchesRouteToEveryExecutingOwnerAndSurviveUpgradeDisableReset() {
+    @Test fun allSixSwitchesRouteToEveryExecutingOwnerAndSurviveUpgradeDisableReset() {
         val routes = mapOf(
             Keys.KEY_ASK_ABOUT_SCREEN to setOf("com.google.android.googlequicksearchbox"),
             Keys.KEY_FULL_SCREEN_TRANSLATE to setOf("com.google.android.googlequicksearchbox"),
             Keys.KEY_SHOW_GOOGLE_SERVICES_IN_SETTINGS to setOf("com.android.settings"),
             Keys.KEY_REMOVE_GMS_RESTRICTION to setOf("android"),
-            Keys.KEY_QUICK_SHARE_ENABLED to setOf("com.google.android.gms"),
             Keys.KEY_UNLOCK_PASSKEY to setOf("android", "com.android.settings", "com.miui.securitycenter", "com.xiaomi.scanner"),
             Keys.KEY_FCM_LIVE_ENABLED to setOf("android", "com.miui.powerkeeper"),
         )
@@ -41,6 +40,6 @@ class GoogleServicesSettingsTest {
         }
         assertTrue(Groups.GOOGLE_APP in Groups.forProcess("com.google.android.googlequicksearchbox:googleapp"))
         assertTrue(Groups.PASSKEY in Groups.forProcess("com.miui.securitycenter.remote"))
-        assertTrue(Groups.QUICK_SHARE in Groups.forProcess("com.google.android.gms.persistent"))
+        assertTrue(Groups.forProcess("com.google.android.gms.persistent").isEmpty())
     }
 }

@@ -102,7 +102,6 @@ internal object RuntimeSettingsDefinitions {
     const val GOOGLE_APP = "google.omni"
     const val GOOGLE_SETTINGS = "settings.google_services"
     const val GMS_RESTRICTIONS = "system.gms_restrictions"
-    const val QUICK_SHARE = "gms.quick_share"
     const val PASSKEY = "google.passkey"
     const val FCM = "google.fcm"
     const val POLICY_FEATURES = "features.policy"
@@ -165,7 +164,7 @@ internal object RuntimeSettingsDefinitions {
     private val googleKeys = setOf(
         PlatformSettingsKeys.KEY_ASK_ABOUT_SCREEN, PlatformSettingsKeys.KEY_FULL_SCREEN_TRANSLATE,
         PlatformSettingsKeys.KEY_SHOW_GOOGLE_SERVICES_IN_SETTINGS, PlatformSettingsKeys.KEY_REMOVE_GMS_RESTRICTION,
-        PlatformSettingsKeys.KEY_QUICK_SHARE_ENABLED, PlatformSettingsKeys.KEY_UNLOCK_PASSKEY,
+        PlatformSettingsKeys.KEY_UNLOCK_PASSKEY,
         PlatformSettingsKeys.KEY_FCM_LIVE_ENABLED,
     )
     private val policyKeys = setOf(
@@ -279,7 +278,6 @@ internal object RuntimeSettingsDefinitions {
         },
         GOOGLE_SETTINGS to Group(setOf("com.android.settings")) { it == PlatformSettingsKeys.KEY_SHOW_GOOGLE_SERVICES_IN_SETTINGS },
         GMS_RESTRICTIONS to Group(setOf("android")) { it == PlatformSettingsKeys.KEY_REMOVE_GMS_RESTRICTION },
-        QUICK_SHARE to Group(setOf("com.google.android.gms")) { it == PlatformSettingsKeys.KEY_QUICK_SHARE_ENABLED },
         PASSKEY to Group(setOf("android", "com.android.settings", "com.miui.securitycenter", "com.xiaomi.scanner")) {
             it == PlatformSettingsKeys.KEY_UNLOCK_PASSKEY
         },

@@ -29,7 +29,6 @@ internal class AppSettingsState(val storage: AppSettingsStore) {
     var downloadAlwaysShowFullLink by settings.preference { storage.getBoolean(PlatformSettingsKeys.KEY_DOWNLOAD_ALWAYS_SHOW_FULL_LINK, false) }
     var downloadHideXl by settings.preference { storage.getBoolean(PlatformSettingsKeys.KEY_DOWNLOAD_HIDE_XL, false) }
     var downloadAddNewButton by settings.preference { storage.getBoolean(PlatformSettingsKeys.KEY_DOWNLOAD_ADD_NEW_BUTTON, false) }
-    var quickShareEnabled by settings.preference { storage.getBoolean(PlatformSettingsKeys.KEY_QUICK_SHARE_ENABLED, false) }
     var fullScreenTranslate by settings.preference { storage.getBoolean(PlatformSettingsKeys.KEY_FULL_SCREEN_TRANSLATE, false) }
     var askAboutScreen by settings.preference { storage.getBoolean(PlatformSettingsKeys.KEY_ASK_ABOUT_SCREEN, false) }
     var hideFingerprintAod by settings.preference { storage.fingerprint.hideFingerprintAodEnabled() }

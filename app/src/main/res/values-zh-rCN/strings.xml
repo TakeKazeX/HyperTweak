@@ -1151,8 +1151,6 @@
     <string name="tweaks_cts_haptics_title">触发震动</string>
     <string name="tweaks_cts_haptics_summary">长按手势条成功启动圈定即搜后提供触感反馈</string>
     <string name="tweaks_power_button_action_title">长按电源键</string>
-    <string name="tweaks_quick_share_summary">在国行系统上使用 Quick Share</string>
-    <string name="tweaks_quick_share_title">启用快速分享</string>
     <string name="tweaks_full_screen_translate_title">即圈即搜内全屏翻译</string>
     <string name="tweaks_full_screen_translate_summary">在即圈即搜中显示全屏翻译按钮</string>
     <string name="tweaks_ask_about_screen_title">即圈即搜内针对屏幕提问</string>
@@ -1242,7 +1240,7 @@
     <string name="cc_tile_custom_summary">手动输入磁贴规格，逗号分隔</string>
     <string name="cc_tile_custom_dialog_summary">输入快捷开关标识，用逗号分隔，例如 focus,miui:xxx</string>
     <string name="tweaks_system_core_title">Google 服务相关</string>
-    <string name="tweaks_system_core_summary">GMS、快速分享、即圈即搜、通行密钥与 Google 推送</string>
+    <string name="tweaks_system_core_summary">GMS、即圈即搜、通行密钥与 Google 推送</string>
     <string name="tweaks_camera_watermark_summary">相机隐藏模式与相册编辑水印分类</string>
     <string name="tweaks_unify_percentage_style_summary">音量滑块始终显示百分比</string>
     <string name="tweaks_unify_percentage_style_title">统一百分比样式</string>

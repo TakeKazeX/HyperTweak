@@ -70,7 +70,6 @@ internal object RuntimeSettingsGroups {
     const val GOOGLE_APP = RuntimeSettingsDefinitions.GOOGLE_APP
     const val GOOGLE_SETTINGS = RuntimeSettingsDefinitions.GOOGLE_SETTINGS
     const val GMS_RESTRICTIONS = RuntimeSettingsDefinitions.GMS_RESTRICTIONS
-    const val QUICK_SHARE = RuntimeSettingsDefinitions.QUICK_SHARE
     const val PASSKEY = RuntimeSettingsDefinitions.PASSKEY
     const val FCM = RuntimeSettingsDefinitions.FCM
     const val POLICY_FEATURES = RuntimeSettingsDefinitions.POLICY_FEATURES
@@ -94,9 +93,6 @@ internal object RuntimeSettingsGroups {
             base in setOf("com.miui.securitycenter", "com.miui.securitycenter.remote",
                 "com.miui.securitycenter.cache", "com.miui.securitycenter.power",
                 "com.miui.securitycenter.bootaware", "com.miui.securitycenter.uniauth") -> "com.miui.securitycenter"
-            base in setOf("com.google.android.gms.persistent", "com.google.android.gms.unstable",
-                "com.google.android.gms.ui", "com.google.android.gms.learning", "com.google.android.gms.feedback",
-                "com.google.android.gms.remapping1", "com.google.android.gms.room") -> "com.google.android.gms"
             else -> base
         }
     }

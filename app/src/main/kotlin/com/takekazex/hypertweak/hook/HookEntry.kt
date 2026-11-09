@@ -22,7 +22,6 @@ import com.takekazex.hypertweak.hook.bootstrap.PackageHookPlan
 import com.takekazex.hypertweak.hook.bootstrap.RuntimeSettingsParticipants
 import com.takekazex.hypertweak.hook.bootstrap.SystemServerHookPlan
 import com.takekazex.hypertweak.hook.rules.backgesture.AospBackSystemUiHooker
-import com.takekazex.hypertweak.hook.rules.gms.QuickSharePhenotypeHooker
 import com.takekazex.hypertweak.hook.rules.googleapp.GoogleAppProcessPolicy
 import com.takekazex.hypertweak.hook.rules.googleapp.GoogleAppRuntime
 import com.takekazex.hypertweak.hook.rules.module.RestartBroadcastHooker
@@ -672,9 +671,6 @@ class HookEntry : XposedModule() {
         if (packageName == "com.android.systemui") {
             onSystemUiContextReady(appContext)
         }
-        if (packageName == "com.google.android.gms") {
-            QuickSharePhenotypeHooker.onPackageReady(appContext)
-        }
         DebugLog.d("HookEntry", "package ready package=$packageName context=${appContext.packageName}")
     }
 
@@ -716,9 +712,6 @@ class HookEntry : XposedModule() {
             }
             if (state.packageName == "com.android.systemui") {
                 onSystemUiContextReady(appContext)
-            }
-            if (state.packageName == "com.google.android.gms") {
-                QuickSharePhenotypeHooker.onPackageReady(appContext)
             }
             DebugLog.d("HookEntry", "restored package ready package=${state.packageName} context=${appContext.packageName}")
         } else {

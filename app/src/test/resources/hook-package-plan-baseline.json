@@ -396,12 +396,12 @@
   {
     "process": "com.google.android.gms",
     "package": "com.google.android.gms",
-    "targets": ["QuickSharePhenotypeHooker"]
+    "targets": []
   },
   {
     "process": "com.google.android.gms:aux",
     "package": "com.google.android.gms",
-    "targets": ["QuickSharePhenotypeHooker"]
+    "targets": []
   },
   {
     "process": "com.google.android.googlequicksearchbox",

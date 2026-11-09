@@ -82,12 +82,6 @@ internal fun AppContent(
             }
 
             val moduleActive = rememberModuleActivation(settings, restarts, serviceConnected, isModuleActive)
-            /** The committed settings dispatcher reconciles GMS's own phenotype override. */
-            fun handleQuickShareChange(checked: Boolean) {
-                quickShareEnabled = checked
-                settings.storage.putBoolean(PlatformSettingsKeys.KEY_QUICK_SHARE_ENABLED, checked)
-            }
-
             /**
              * Removing the Super Island notification whitelist installs SystemUI hooks (SystemUI is a
              * declared required scope), so the toggle flips the preference and marks the tweak
@@ -274,8 +268,6 @@ internal fun AppContent(
                             removeGms = checked
                             settings.storage.putBoolean(PlatformSettingsKeys.KEY_REMOVE_GMS_RESTRICTION, checked)
                         },
-                        quickShareEnabled = quickShareEnabled,
-                        onQuickShareEnabledChange = { checked -> handleQuickShareChange(checked) },
                         fullScreenTranslate = fullScreenTranslate,
                         onFullScreenTranslateChange = { checked ->
                             handleFullScreenTranslateChange(checked)
