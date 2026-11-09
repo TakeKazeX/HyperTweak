@@ -63,16 +63,11 @@ object DuoPolicy {
         return listOf(dotRow)
     }
 
-    internal fun withRetainedWifiType(content: DuoContent, mobile: MobileSignalState): DuoContent {
-        if (content.wifiLevel == null || content.activeDataSubId != mobile.activeDataSubId) return content
-        return content.copy(networkLabel = mobile.wifiCellularType(wifiDefault = true))
-    }
-
-    internal fun applyVisibility(content: DuoContent, hiddenSimIds: Set<Int>, hideType: Boolean, hideWifi: Boolean): DuoContent {
+    internal fun applyVisibility(content: DuoContent, hiddenSimIds: Set<Int>, hideWifi: Boolean): DuoContent {
         val rows = content.cellularSignalRows.filterNot { it.subId in hiddenSimIds }
         return content.copy(
             wifiGlyphVisible = !hideWifi,
-            networkLabel = content.networkLabel.takeUnless { hideType || content.activeDataSubId in hiddenSimIds },
+            networkLabel = content.networkLabel.takeUnless { content.activeDataSubId in hiddenSimIds },
             cellularSignalRows = rows,
             cellularSignalLevels = if (content.cellularSignalRows.isEmpty()) {
                 content.cellularSignalLevels.takeUnless { content.activeDataSubId in hiddenSimIds }.orEmpty()
@@ -105,7 +100,8 @@ object DuoPolicy {
      * even when there is no active subscription to inspect.
      */
     fun content(battery: DuoBattery?, mobile: MobileSignalState, network: DuoNetwork,
-                dataFirst: Boolean = false, slotOf: (Int) -> Int = { -1 }): DuoContent? {
+                dataFirst: Boolean = false, showTypeWhenDisconnected: Boolean = false,
+                slotOf: (Int) -> Int = { -1 }): DuoContent? {
         if (battery == null || battery.percent !in 0..100) return null
         if (mobile.airplaneMode) {
             return DuoContent(
@@ -118,8 +114,10 @@ object DuoPolicy {
                 airplaneMode = true
             )
         }
-        val sub = mobile.subscriptions[mobile.activeDataSubId]
-        if (sub == null || mobile.activeDataSubId !in mobile.subscriptionOrder || !sub.supportsReplacement) {
+        val offline = network.transport == DuoTransport.NONE
+        val dataSub = mobile.subscriptions[mobile.activeDataSubId]
+        val sub = dataSub ?: if (offline) mobile.rows.firstOrNull { it.supportsReplacement } else null
+        if (sub == null || sub.subId !in mobile.subscriptionOrder || !sub.supportsReplacement) {
             // A device with no SIM (or with the active subscription removed) still owns the
             // combined surface: the battery ring and Wi-Fi state are complete without a cellular
             // row. Unknown/satellite/unsupported subscriptions keep the native cluster.
@@ -148,12 +146,14 @@ object DuoPolicy {
         val noService = sub.kind == MobileSignalKind.NO_SERVICE
         val cellular = sub.dataConnected == true && (network.transport == DuoTransport.CELLULAR ||
             (network.transport == DuoTransport.VPN && network.wifiDefault == false))
-        val label = if (cellular) {
+        val retainedType = showTypeWhenDisconnected && !wifi && dataSub === sub &&
+            sub.kind == MobileSignalKind.CELLULAR && sub.inService == true && sub.dataConnected == false
+        val label = if (cellular || retainedType) {
             // Only render bounded, host-provided labels; don't invent 5G from radio strength.
             val hostLabel = sub.networkType?.trim()?.takeIf {
                 it.isNotEmpty() && it.length <= 8 && it.none(Char::isISOControl)
             }
-            if (hostLabel == null && network.validated) return null
+            if (hostLabel == null && cellular && network.validated) return null
             hostLabel
         } else null
         val noDefaultNetwork = network.transport == DuoTransport.NONE ||

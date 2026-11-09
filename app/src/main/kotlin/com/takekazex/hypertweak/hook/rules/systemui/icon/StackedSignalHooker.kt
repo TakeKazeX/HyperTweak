@@ -58,15 +58,16 @@ object StackedSignalHooker : StaticHooker() {
     private val hideNonDefaultSim by hookSetting(false) { Preferences.hideNonDefaultSim() }
     private val hideSimOne by hookSetting(false) { Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_SIM_ONE, false) }
     private val hideSimTwo by hookSetting(false) { Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_SIM_TWO, false) }
-    private val hideCellularType by hookSetting(false) {
-        Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_TYPE, false)
-    }
     private val settingIconStackedSignalStyle by hookSetting(0) { Preferences.iconStackedSignalStyle() }
     private val settingIconStackedWeight by hookSetting(0f) { Preferences.getFloat(IconSettingsKeys.KEY_ICON_STACKED_WEIGHT, 0f) }
     private val settingIconStackedTypeHideDisconnect by hookSetting(false) {
         Preferences.getBoolean(IconSettingsKeys.KEY_ICON_STACKED_TYPE_HIDE_DISCONNECT, false)
     }
-    private val settingCellularTypeKeepsOnWifi by hookSetting(false) { Preferences.cellularTypeKeepsOnWifi() }
+    private val separateType by hookSetting(false) {
+        Preferences.getBoolean(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_SINGLE, false)
+    }
+    private val keepSeparateTypeOnWifi by hookSetting(false) { Preferences.cellularTypeKeepsOnWifi() }
+    private val keepStackedTypeOnWifi by hookSetting(false) { Preferences.legacyStackedTypeKeepsOnWifi() }
     private val settingIconStackedTypeRoaming by hookSetting(false) {
         Preferences.getBoolean(IconSettingsKeys.KEY_ICON_STACKED_TYPE_ROAMING, false)
     }
@@ -111,7 +112,7 @@ object StackedSignalHooker : StaticHooker() {
     private val assetLoads = SignalAssetLoadState<SignalAssets>(generation, ASSET_LOAD_RETRY_BACKOFF_MS)
     private val installed = generationResource(AtomicBoolean(false)) { it.set(false) }
     private val nativeWifiType = NativeWifiTypeVisibility(this)
-    private var keepNativeTypeOnWifi by generationState { false }
+    private var nativeTypeVisibilityInstalled by generationState { false }
     private val source = MobileSignalSource(
         this, generation, { enabled }, { renderStacked }, { hostContext },
         onAdapterReady = { controller, bindingGeneration ->
@@ -148,7 +149,6 @@ object StackedSignalHooker : StaticHooker() {
     )
     private var publishedSignalKey: SignalRenderKey? by generationState { null }
     private var publishedTypeBitmap: android.graphics.Bitmap? by generationState { null }
-    private var publishedTypeSuppressed by generationState { false }
     private var pendingRender: Runnable? by generationState { null }
 
     /** Hide the whole module-owned stacked slot (signal + type) while WiFi is connected. */
@@ -171,10 +171,8 @@ object StackedSignalHooker : StaticHooker() {
      * the host lays the icon row out from the trailing edge, so removing it shifts the signal icon
      * sideways. See [BitmapAlphaFade].
      */
-    private val typeFade = BitmapAlphaFade(mainHandler)
 
     /** True once the type has faded out and given its box back, so a re-render keeps it collapsed. */
-    private var typeCollapsed by generationState { false }
 
     /** All mutable reducer state is consumed on the main looper. */
 
@@ -225,7 +223,6 @@ object StackedSignalHooker : StaticHooker() {
         val retiredGeneration = assetLoads.advance()
         val retiringBridge = iconBridge
 
-        typeFade.cancel()
 
         pendingRender?.let(mainHandler::removeCallbacks)
 
@@ -255,9 +252,9 @@ object StackedSignalHooker : StaticHooker() {
         options = IconTunerOptions.snapshot()
         renderStacked = settingIconStackedEnabled
         hideMobileOnWifi = settingIconHideMobileOnWifi
-        keepNativeTypeOnWifi = settingCellularTypeKeepsOnWifi && !hideCellularType && !hideMobileOnWifi &&
-            nativeWifiType.install()
-        enabled = keepNativeTypeOnWifi || renderStacked || SignalHandoverEvents.shade.requiresMobileState() ||
+        nativeTypeVisibilityInstalled = separateType &&
+            (keepSeparateTypeOnWifi || !settingIconStackedTypeHideDisconnect) && nativeWifiType.install()
+        enabled = nativeTypeVisibilityInstalled || renderStacked || SignalHandoverEvents.shade.requiresMobileState() ||
             ControlCenterCarrierBlockHooker.requiresMobileState
         typeConfig = readTypeConfig()
         if (!enabled) {
@@ -407,10 +404,15 @@ object StackedSignalHooker : StaticHooker() {
             runCatching { SubscriptionManager.getSlotIndex(it) }.getOrDefault(-1)
         }
         val complete = source.complete
-        if (keepNativeTypeOnWifi) {
-            val activeType = state.activeDataSubId.takeIf {
-                complete && state.wifiCellularType(state.wifiConnected) != null &&
-                    it !in state.hiddenSimIds(hideNonDefaultSim, hideSimOne, hideSimTwo) { id -> slotIndices[id] ?: -1 }
+        if (nativeTypeVisibilityInstalled) {
+            // The native binder owns the label. Bitmap label limits must not gate its text.
+            val wifi = state.wifiConnected
+            val allowType = if (wifi) keepSeparateTypeOnWifi && !hideMobileOnWifi
+                else !settingIconStackedTypeHideDisconnect
+            val activeType = state.wifiDataSubscription(wifiDefault = true)?.subId?.takeIf {
+                allowType && complete && it !in state.hiddenSimIds(hideNonDefaultSim, hideSimOne, hideSimTwo) { id ->
+                    slotIndices[id] ?: -1
+                }
             }
             nativeWifiType.publish(activeType)
         }
@@ -535,7 +537,7 @@ object StackedSignalHooker : StaticHooker() {
             renderRows.map { it.level }, SIGNAL_ALPHA_BG, SIGNAL_ALPHA_ERROR,
             weight = settingIconStackedWeight),
             assets.style.stackedSplitFraction, assets.morphs(renderRows.size, settingIconStackedWeight)) else null
-        if (hideCellularType || state.activeDataSubId in hiddenSimIds) {
+        if (state.activeDataSubId in hiddenSimIds) {
             releaseTypeSlot(bridge)
         } else {
             renderTypeSlot(state, bridge, singleRow = renderRows.size == 1)
@@ -621,12 +623,10 @@ object StackedSignalHooker : StaticHooker() {
 
     private fun renderTypeSlot(state: MobileSignalState, bridge: HostIconBridge, singleRow: Boolean) {
         val output = MobileTypePolicy.resolve(state, typeConfig).copy(isSingle = singleRow)
-        if (output.text.isBlank() || !stackedSlotUsed(SLOT_STACKED_TYPE)) {
+        if (output.text.isBlank() || output.suppressed || !stackedSlotUsed(SLOT_STACKED_TYPE)) {
             releaseTypeSlot(bridge)
             return
         }
-        // Already faded away, and it must stay away: the slot was released so the row closes up.
-        if (output.suppressed && typeCollapsed) return
         val context = hostContext
         val hostFont = context?.let { runCatching { MobileTypeHostMetrics.font(it) }.getOrNull() }
         val hostSizePx = hostFont?.textSizePx
@@ -654,48 +654,19 @@ object StackedSignalHooker : StaticHooker() {
             releaseTypeSlot(bridge)
             return
         }
-        if (publishedTypeBitmap === bitmap && publishedTypeSuppressed == output.suppressed &&
-            bridge.owns(SLOT_STACKED_TYPE)) return
-        publishedTypeBitmap = bitmap
-        publishedTypeSuppressed = output.suppressed
-        val publish: (Float) -> Unit = { alpha ->
-            val frame = if (alpha >= 1f) bitmap else scaledAlphaBitmap(bitmap, alpha)
-            if (bridge.publish(SLOT_STACKED_TYPE, frame, output.text)) {
-                if (!bridge.setVisible(SLOT_STACKED_TYPE, true)) publishedTypeBitmap = null
-            } else {
-                publishedTypeBitmap = null
-            }
-        }
-        if (output.suppressed) {
-            // Fade the glyph out with its box still held, then release the box: a hidden type leaves
-            // no empty gap. `bridge.owns` is false when it was already released.
-            if (bridge.owns(SLOT_STACKED_TYPE)) {
-                typeFade.animate(visible = false, apply = publish) {
-                    typeCollapsed = true
-                    bridge.removeOwned(SLOT_STACKED_TYPE)
-                }
-            } else {
-                typeCollapsed = true
-            }
-            return
-        }
-        typeCollapsed = false
-        if (bridge.owns(SLOT_STACKED_TYPE)) {
-            typeFade.animate(visible = true, apply = publish)
-        } else {
-            // Coming back: take the box transparent and ramp in, so the return is a fade rather
-            // than a pop. The slot is new to the host, so the first paint cannot animate.
-            typeFade.snap(visible = false, apply = publish)
-            typeFade.animate(visible = true, apply = publish)
+        if (publishedTypeBitmap === bitmap && bridge.owns(SLOT_STACKED_TYPE)) return
+        // The holder and its measured width must always describe the same drawable.
+        // A transparent placeholder can survive a host drawable update during slot reattachment.
+        publishedTypeBitmap = bitmap.takeIf {
+            bridge.publish(SLOT_STACKED_TYPE, it, output.text) &&
+                bridge.setVisible(SLOT_STACKED_TYPE, true)
         }
         DebugLog.d(TAG, "cellular type published text=${output.text} bitmap=${bitmap.width}x${bitmap.height}")
     }
 
-    /** Drops the type slot through the fade, so no queued frame can land on a removed holder. */
+    /** Drops the slot as soon as Wi-Fi takes its place. */
     private fun releaseTypeSlot(bridge: HostIconBridge?) {
         bridge ?: return
-        typeFade.cancel()
-        typeCollapsed = false
         publishedTypeBitmap = null
         bridge.removeOwned(SLOT_STACKED_TYPE)
     }
@@ -706,7 +677,7 @@ object StackedSignalHooker : StaticHooker() {
      */
     private fun readTypeConfig(): MobileTypeConfig = MobileTypeConfig(
         hideWhenDisconnected = settingIconStackedTypeHideDisconnect,
-        hideWhenWifiAvailable = !settingCellularTypeKeepsOnWifi,
+        hideWhenWifiAvailable = !keepStackedTypeOnWifi,
         showRoamingPrefix = settingIconStackedTypeRoaming,
         typography = MobileTypeTypographySettings.current,
         small5GaEnabled = settingIconCellularTypeSmall5ga

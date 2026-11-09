@@ -89,14 +89,14 @@ class DuoPolicyTest {
         val switched = mobile().reduce(MobileSignalEvent.ActiveDataSubId(22))
             .reduce(MobileSignalEvent.Subscriptions(listOf(22, 11)))
         val slotOf: (Int) -> Int = { if (it == 11) 0 else 1 }
-        val dataFirst = DuoPolicy.content(battery, switched, cellular, true, slotOf)!!
+        val dataFirst = DuoPolicy.content(battery, switched, cellular, true, slotOf = slotOf)!!
         assertEquals(listOf(22, 11), dataFirst.cellularSignalRows.map { it.subId })
         assertEquals(listOf(1, 4), dataFirst.cellularSignalLevels)
         assertEquals(1, dataFirst.mobileLevel)
         assertEquals("4G", dataFirst.networkLabel)
-        val slotOrder = DuoPolicy.content(battery, switched, cellular, false, slotOf)!!
+        val slotOrder = DuoPolicy.content(battery, switched, cellular, false, slotOf = slotOf)!!
         assertEquals(listOf(11, 22), slotOrder.cellularSignalRows.map { it.subId })
-        val wifi = DuoPolicy.content(battery, switched, DuoNetwork(DuoTransport.WIFI, true, 3), true, slotOf)!!
+        val wifi = DuoPolicy.content(battery, switched, DuoNetwork(DuoTransport.WIFI, true, 3), true, slotOf = slotOf)!!
         assertEquals(22, wifi.activeDataSubId)
         assertEquals(1, wifi.mobileLevel)
     }
@@ -175,6 +175,18 @@ class DuoPolicyTest {
         }
     }
 
+    @Test fun knownOfflineDuoSurvivesMissingActiveDataSubscription() {
+        val idle = mobile().reduce(MobileSignalEvent.DataConnected(11, false))
+        val offline = DuoNetwork(DuoTransport.NONE)
+        val retained = DuoPolicy.content(battery, idle, offline, showTypeWhenDisconnected = true)!!
+        assertEquals("5G-A", retained.networkLabel)
+        val withoutDataSim = idle.reduce(MobileSignalEvent.ActiveDataSubId(-1))
+        val result = DuoPolicy.content(battery, withoutDataSim, offline, showTypeWhenDisconnected = true)!!
+        assertNull(result.networkLabel)
+        assertTrue(result.noInternet)
+        assertEquals(2, result.cellularSignalRows.size)
+    }
+
     @Test fun wifiDotsRetainTheActiveDataSimForTheirHandoff() {
         val wifi = DuoNetwork(DuoTransport.WIFI, true, 4)
         val before = DuoPolicy.content(battery, mobile(), wifi)!!
@@ -185,27 +197,15 @@ class DuoPolicyTest {
         assertEquals(listOf(11, 22), after.cellularSignalRows.map { it.subId })
     }
 
-    @Test fun retainedWifiTypeUsesOnlyTheInServiceDataSimAndKeepsDots() {
-        val state = mobile().reduce(MobileSignalEvent.DataConnected(11, false))
-        val wifi = DuoPolicy.content(battery, state, DuoNetwork(DuoTransport.WIFI, true, 4))!!
-        val kept = DuoPolicy.withRetainedWifiType(wifi, state)
-        assertEquals("5G-A", kept.networkLabel)
-        assertEquals(4, kept.wifiLevelToDraw)
-        assertEquals(listOf(11, 22), DuoPolicy.dotRows(kept, dual = true).map { it.subId })
-        assertNull(DuoPolicy.applyVisibility(kept, setOf(11), hideType = false, hideWifi = false).networkLabel)
-        assertNull(DuoPolicy.applyVisibility(kept, emptySet(), hideType = true, hideWifi = false).networkLabel)
-        assertNull(DuoPolicy.withRetainedWifiType(wifi, state.reduce(MobileSignalEvent.InService(11, false))).networkLabel)
-    }
-
     @Test fun wifiGlyphCanBeHiddenWithoutChangingTheRouteOrShowingAHiddenSim() {
         val wifi = DuoPolicy.content(battery, mobile(), DuoNetwork(DuoTransport.WIFI, true, 4))!!
-        val remaining = DuoPolicy.applyVisibility(wifi, setOf(11), hideType = false, hideWifi = true)
+        val remaining = DuoPolicy.applyVisibility(wifi, setOf(11), hideWifi = true)
         assertEquals(4, remaining.wifiLevel)
         assertNull(remaining.wifiLevelToDraw)
         assertFalse(remaining.hasCellularSignal)
         assertEquals(listOf(22), DuoPolicy.dotRows(remaining, false).map { it.subId })
 
-        val hidden = DuoPolicy.applyVisibility(wifi, setOf(11, 22), hideType = true, hideWifi = true)
+        val hidden = DuoPolicy.applyVisibility(wifi, setOf(11, 22), hideWifi = true)
         assertEquals(wifi.battery, hidden.battery)
         assertTrue(DuoPolicy.dotRows(hidden, true).isEmpty())
     }

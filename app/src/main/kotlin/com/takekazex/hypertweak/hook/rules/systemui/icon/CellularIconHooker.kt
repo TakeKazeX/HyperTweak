@@ -60,6 +60,9 @@ object CellularIconHooker : StaticHooker() {
 
     private var hideActivity by generationState { false }
 
+    private val separateType by hookSetting(false) {
+        Preferences.getBoolean(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_SINGLE, false)
+    }
     private var hideType by generationState { false }
 
     private var hideVoWifi by generationState { false }
@@ -73,7 +76,7 @@ object CellularIconHooker : StaticHooker() {
     override fun onHook() {
         IconTunerFlows.init(classLoader)
         hideActivity = settingIconHideCellularActivity
-        hideType = settingIconHideCellularType
+        hideType = settingIconHideCellularType || separateType
         hideVoWifi = settingIconHideCellularVowifi
         hideVolte = settingIconHideCellularVolte
         hideVolteNoService = settingIconHideCellularVolteNoService
@@ -99,7 +102,6 @@ object CellularIconHooker : StaticHooker() {
             if (hideType) {
                 add("getMobileTypeVisible")
                 add("getMobileTypeImageVisible")
-                add("getMobileTypeSingleVisible")
             }
             if (nativeRoamingMode and 1 != 0) add("getMobileRoamVisible")
             if (nativeRoamingMode and 2 != 0) add("getSmallRoamVisible")
@@ -109,7 +111,11 @@ object CellularIconHooker : StaticHooker() {
         }
         DebugLog.d(TAG, "CellularIcon installing: getters=$getters roamingMode=$nativeRoamingMode")
         getters.forEach { getter ->
-            vmClass.findMethodOrNull { name(getter) }?.hook {
+            val method = vmClass.findMethodOrNull { name(getter); noParams() }
+            if (method != null && (getter == "getMobileTypeVisible" || getter == "getMobileTypeImageVisible")) {
+                deoptimize(method)
+            }
+            method?.hook {
                 before { param -> param.result = IconTunerFlows.falseFlow }
             } ?: DebugLog.hookSkipped(TAG, "$VM_CLASS#$getter", "method not found")
         }

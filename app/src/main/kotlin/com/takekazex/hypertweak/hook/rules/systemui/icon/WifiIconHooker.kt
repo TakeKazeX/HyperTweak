@@ -6,14 +6,15 @@ import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
 import com.takekazex.hypertweak.settings.contract.IconSettingsPreferencePolicy
 
 import com.takekazex.hypertweak.hook.base.HostAccess
-import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 
 import android.annotation.SuppressLint
+import android.view.View
 import android.view.ViewGroup
 import android.view.Gravity
 import android.widget.FrameLayout
 import android.widget.TextView
 import java.util.WeakHashMap
+import java.util.concurrent.atomic.AtomicReference
 import android.os.Handler
 import android.os.Looper
 import java.lang.ref.WeakReference
@@ -21,15 +22,13 @@ import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
-import org.luckypray.dexkit.query.enums.StringMatchType
-import java.io.File
 import kotlin.math.roundToInt
 
 /**
  * Wi-Fi visibility and standard-label options for the existing MIUI Wi-Fi pipeline.
  *
- * Standard mapping is applied to the host's concrete combine transform, so the original Flow
- * object remains intact (the binder and AOD consumers continue to receive the expected type).
+ * Live icon and standard overrides are exposed through the native binder getters. Their original
+ * producers continue to run so a settings change can rebind without waiting for a network event.
  * Padding is applied after the verified `MiuiWifiViewBinder.bind` layout setup and is limited to
  * the host's `wifi_group` view.
  */
@@ -74,11 +73,6 @@ object WifiIconHooker : StaticHooker() {
     private const val HIDDEN_CLASS = "com.android.systemui.statusbar.pipeline.wifi.ui.model.WifiIcon\$Hidden"
     private const val VM_CLASS = "com.android.systemui.statusbar.pipeline.wifi.ui.viewmodel.WifiViewModel"
     private const val BINDER_CLASS = "com.android.systemui.statusbar.pipeline.wifi.ui.binder.MiuiWifiViewBinder"
-    private const val STANDARD_TRANSFORM_CACHE_KEY = "wifiStandardTransform"
-    private const val STANDARD_TRANSFORM_OWNER_MARKER = "WifiViewModelInject"
-    private const val WIFI_ACTIVE_CLASS =
-        "com.android.systemui.statusbar.pipeline.wifi.shared.model.WifiNetworkModel\$Active"
-
     private var hideActivity by generationState { false }
     private var hideUnavailable by generationState { false }
     private var standardMode by generationState { 0 }
@@ -87,6 +81,13 @@ object WifiIconHooker : StaticHooker() {
     private var paddingStart by generationState { 0f }
     private var paddingEnd by generationState { 0f }
     private var activityRight by generationState { false }
+    private val wifiOverride = generationMainResource(AtomicReference<WifiOverride?>()) {
+        it.getAndSet(null)?.subscriptions?.clear()
+    }
+    private data class WifiOverride(
+        val vm: Any, val icon: Any?, val standard: Any?, val subscriptions: HostFlowSubscriptions
+    )
+
     private var restoredDirection: Any? by generationState { null }
     private val standardGravity = generationMainResource(WeakHashMap<TextView, Int>()) { it.clear() }
     private val directionHandles = generationMainResource(ArrayList<HostFlowCollector.Handle>()) { it.clear() }
@@ -114,6 +115,7 @@ object WifiIconHooker : StaticHooker() {
             directionHandles.forEach { it.cancel() }
             directionHandles.clear()
             restoredDirection = null
+            wifiOverride.getAndSet(null)?.subscriptions?.clear()
         }
 
         standardMap = WifiStandardPolicy.DEFAULT_MAP
@@ -138,6 +140,7 @@ object WifiIconHooker : StaticHooker() {
         activityRight = settingIconWifiActivityRight
         hookActivityDirection()
         hookAccessoryLayout()
+        if (hideUnavailable || standardMode in 2..3) hookWifiOverrides()
 
         // The verified OS4 factory receives isWifiDefault as its third boolean.
         // Keep the host flow intact so a route change immediately restores/hides the icon.
@@ -174,7 +177,7 @@ object WifiIconHooker : StaticHooker() {
                     before { param ->
                         val model = param.args.getOrNull(0)
                         if (!retired && WifiRoutePolicy.hide(
-                                activeClass.isInstance(model), param.args.getOrNull(4) as? Boolean, hideUnavailable
+                                activeClass.isInstance(model), param.args.getOrNull(4) as? Boolean, hideConnected = false
                             )) param.result = hiddenInstance
                     }
                 }
@@ -184,19 +187,97 @@ object WifiIconHooker : StaticHooker() {
         // 2. These are stable getter boundaries used by MiuiWifiViewBinder. A field write would be
         // lost because the factory assigns the flows after construction.
         if (hideActivity || standardMode == 1) hookVisibilityGetters()
-        if (standardMode in 2..3) {
-            val activeClass = ACTIVE_CLASS.toClassOrNull()
-            if (activeClass == null) {
-                DebugLog.hookSkipped(TAG, "Wi-Fi standard transform", "active model class not found")
-            } else {
-                hookStandardTransform(activeClass)
-            }
-        }
         if (paddingEnabled) hookPadding()
         DebugLog.hookRegistered(
             TAG,
             "WifiIcon: standardMode=$standardMode padding=$paddingEnabled activityRight=$activityRight"
         )
+    }
+
+    private fun hookWifiOverrides() {
+        val vmClass = VM_CLASS.toClassOrNull() ?: return
+        fun hookGetter(name: String, returnType: String, select: (WifiOverride) -> Any?) {
+            val getter = HostAccess.method(vmClass, name) ?: return
+            if (getter.returnType.name != IconTunerFlows.hostClassName("kotlinx.coroutines.flow", returnType)) return
+            deoptimize(getter)
+            VM_CLASS.replace("WifiViewModel", "LocationBasedWifiViewModel").toClassOrNull()
+                ?.let { HostAccess.method(it, name) }
+                ?.takeIf { it.returnType == getter.returnType }?.let(::deoptimize)
+            val collector = if (name == "getWifiIcon") "3" else "5"
+            "$BINDER_CLASS\$bind\$1\$1\$$collector".toClassOrNull()
+                ?.let { HostAccess.method(it, "invokeSuspend", Any::class.java) }
+                ?.takeIf { it.returnType == Any::class.java }?.let(::deoptimize)
+            getter.hook {
+                after { param ->
+                    wifiOverride.get()?.takeIf { it.vm === param.thisObject }?.let(select)?.let { param.result = it }
+                }
+            }
+        }
+        if (hideUnavailable) hookGetter("getWifiIcon", "StateFlow") { it.icon }
+        if (standardMode in 2..3) hookGetter("getWifiStandard", "Flow") { it.standard }
+        vmClass.declaredConstructors.singleOrNull { constructor ->
+            constructor.parameterCount == 6 &&
+                constructor.parameterTypes[3].name.endsWith(".WifiInteractorImpl") &&
+                constructor.parameterTypes[4].name == IconTunerFlows.hostClassName("kotlinx.coroutines", "CoroutineScope")
+        }?.hook {
+            after { param ->
+                val interactor = param.args.getOrNull(3) ?: return@after
+                val scope = param.args.getOrNull(4) ?: return@after
+                val vm = param.thisObject
+                if (Looper.myLooper() == Looper.getMainLooper()) {
+                    bindWifiOverrides(vm, interactor, scope)
+                } else {
+                    recoveryHandler.post { bindWifiOverrides(vm, interactor, scope) }
+                }
+            }
+        }
+    }
+
+    private fun bindWifiOverrides(vm: Any, interactor: Any, scope: Any) {
+        if (retired || (!hideUnavailable && standardMode !in 2..3) || wifiOverride.get()?.vm === vm) return
+        val subscriptions = HostFlowSubscriptions()
+        runCatching {
+            val iconFlow = readField(vm, "wifiIcon") ?: return
+            val standardFlow = readField(vm, "wifiStandard") ?: return
+            val networkFlow = readField(interactor, "wifiNetwork") ?: return
+            val activeClass = ACTIVE_CLASS.toClass()
+            val hidden = HIDDEN_CLASS.toClass().cachedPublicField("INSTANCE", accessible = false).get(null)
+            var nativeIcon = IconTunerFlows.readFlowValue(iconFlow) ?: hidden
+            var nativeStandard = (IconTunerFlows.readFlowValue(standardFlow) as? Number)?.toInt() ?: 0
+            var network = IconTunerFlows.readFlowValue(networkFlow)
+            val icon = if (hideUnavailable) checkNotNull(IconTunerFlows.createMutableStateFlow(nativeIcon)) else null
+            val standard = if (standardMode in 2..3) checkNotNull(IconTunerFlows.createMutableStateFlow(nativeStandard)) else null
+            fun publish() {
+                val active = activeClass.isInstance(network)
+                icon?.let { IconTunerFlows.setFlowValue(it, if (active) hidden else nativeIcon) }
+                standard?.let {
+                    val raw = if (active) readInt(readField(network, "ext"), "wifiStandard") else null
+                    val mapped = WifiStandardPolicy.resolve(standardMode, raw, nativeStandard, standardMap)
+                    IconTunerFlows.setFlowValue(it, mapped)
+                }
+            }
+            val bound = subscriptions.collect(scope, networkFlow, { !retired }) { value ->
+                network = value
+                publish()
+            } && (icon == null || subscriptions.collect(scope, iconFlow, { !retired }) { value ->
+                nativeIcon = value ?: hidden
+                publish()
+            }) && (standard == null || subscriptions.collect(scope, standardFlow, { !retired }) { value ->
+                nativeStandard = (value as? Number)?.toInt() ?: 0
+                publish()
+            })
+            if (bound) {
+                publish()
+                wifiOverride.getAndSet(WifiOverride(vm, icon, standard, subscriptions))?.subscriptions?.clear()
+                DebugLog.i(TAG, "native Wi-Fi flows rebound hideConnected=${icon != null} standardMode=$standardMode")
+            } else {
+                subscriptions.clear()
+                DebugLog.hookSkipped(TAG, "Wi-Fi live overrides", "native Flow subscription unavailable")
+            }
+        }.onFailure {
+            subscriptions.clear()
+            DebugLog.w(TAG, "Wi-Fi live overrides failed", it)
+        }
     }
 
     private fun hookVisibilityGetters() {
@@ -213,83 +294,6 @@ object WifiIconHooker : StaticHooker() {
                 before { param -> param.result = IconTunerFlows.zeroFlow }
             } ?: DebugLog.hookSkipped(TAG, "$VM_CLASS#$getter", "method not found")
         }
-    }
-
-    /** Changes only the integer emitted by the host's combine transform; the concrete Flow stays. */
-    private fun hookStandardTransform(activeClass: Class<*>) {
-        val transformClass = resolveStandardTransformClass() ?: run {
-            DebugLog.hookSkipped(TAG, "Wi-Fi standard transform", "unique DexKit target not found")
-            return
-        }
-        val invoke = transformClass.declaredMethods.singleOrNull {
-            it.name == "invoke" && it.returnType == Any::class.java
-        }?.apply { isAccessible = true } ?: run {
-            DebugLog.hookSkipped(TAG, "Wi-Fi standard transform", "unique invoke method not found")
-            return
-        }
-        deoptimize(invoke)
-        invoke.hook {
-            after { param ->
-                runCatching {
-                    val original = (param.result as? Number)?.toInt() ?: return@runCatching
-                    val raw = rawStandard(param.args, activeClass)
-                    param.result = WifiStandardPolicy.resolve(standardMode, raw, original, standardMap)
-                }.onFailure { DebugLog.w(TAG, "Wi-Fi standard mapping failed", it) }
-            }
-        }
-    }
-
-    private fun resolveStandardTransformClass(): Class<*>? {
-        val appInfo = hookParam.appInfo ?: return null
-        val apkPath = appInfo.sourceDir ?: return null
-        val baseDir = appInfo.deviceProtectedDataDir ?: appInfo.dataDir ?: return null
-        return DexRuntime.resolveClasses(
-            cacheDir = File(baseDir, "cache"),
-            apkPath = apkPath,
-            classLoader = classLoader,
-            queries = mapOf(
-                STANDARD_TRANSFORM_CACHE_KEY to { bridge ->
-                    val matches = bridge.findMethod {
-                        matcher {
-                            declaredClass {
-                                className(STANDARD_TRANSFORM_OWNER_MARKER, StringMatchType.Contains)
-                            }
-                            name("invokeSuspend")
-                            returnType(Any::class.java)
-                            usingFields {
-                                add {
-                                    declaredClass(WIFI_ACTIVE_CLASS)
-                                    name("ext")
-                                }
-                            }
-                        }
-                    }.toList()
-                    matches.map { it.className }.distinct().singleOrNull()
-                }
-            ),
-            validators = mapOf(
-                STANDARD_TRANSFORM_CACHE_KEY to { type ->
-                    type.name.contains(STANDARD_TRANSFORM_OWNER_MARKER) &&
-                        type.declaredMethods.any { it.name == "invokeSuspend" && it.returnType == Any::class.java } &&
-                        type.declaredMethods.count { it.name == "invoke" && it.returnType == Any::class.java } == 1
-                }
-            )
-        )[STANDARD_TRANSFORM_CACHE_KEY]
-    }
-
-    /** Input ordering and FunctionN arity vary; select the network model by its host type. */
-    private fun rawStandard(args: Array<Any?>, activeClass: Class<*>): Int? {
-        val network = sequence {
-            args.forEach { value ->
-                if (activeClass.isInstance(value)) yield(value)
-                (value as? Array<*>)?.forEach { nested ->
-                    if (activeClass.isInstance(nested)) yield(nested)
-                }
-            }
-        }.singleOrNull() ?: return null
-        val ext = readField(network, "ext")
-        readInt(ext, "wifiStandard")?.let { return it }
-        return readInt(network, "wifiStandard")
     }
 
     private fun hookPadding() {
@@ -421,8 +425,10 @@ object WifiIconHooker : StaticHooker() {
         val vm = HostAccess.provider(component, "wifiViewModelProvider")
         val interactor = HostAccess.provider(component, "wifiInteractorImplProvider")
         val scope = HostAccess.provider(component, "bgApplicationScopeProvider")
+        if (vm != null && interactor != null && scope != null) bindWifiOverrides(vm, interactor, scope)
         val network = interactor?.let { HostAccess.read(it, "wifiNetwork") }
-        val standard = vm?.let { HostAccess.read(it, "wifiStandard") }
+        val standard = wifiOverride.get()?.takeIf { it.vm === vm }?.standard
+            ?: vm?.let { HostAccess.read(it, "wifiStandard") }
         if (vm == null || network == null || standard == null) {
             retryDirection(component, attempt)
             return
@@ -480,6 +486,18 @@ object WifiIconHooker : StaticHooker() {
         updateNetwork(IconTunerFlows.readFlowValue(network))
         directionHandles.addAll(handles.filterNotNull())
         restoredDirection = exposed
+    }
+
+    internal fun nativeGlyph(root: View, signalId: Int): View? {
+        if (signalId == 0) return null
+        val signal = root.findViewById<View>(signalId) ?: return null
+        val groupId = root.resources.getIdentifier("wifi_group", "id", root.context.packageName)
+        var group = signal.parent as? View
+        while (group != null && group !== root) {
+            if (group.id == groupId) return group
+            group = group.parent as? View
+        }
+        return signal
     }
 
     private fun dpToPx(group: ViewGroup, value: Float): Int =

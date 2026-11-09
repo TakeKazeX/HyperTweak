@@ -60,6 +60,11 @@ internal class DuoNetworkSource(private val host: Host, private val main: Handle
         if (callback != null) return
         val manager = context.getSystemService(ConnectivityManager::class.java) ?: return
         val token = host.epoch
+        // Registration does not emit onLost when there was no default network to begin with.
+        // Seed the known offline state so a live enable works with both radios already off.
+        if (runCatching { manager.activeNetwork == null }.getOrDefault(false)) {
+            network = network.copy(transport = DuoTransport.NONE, validated = false)
+        }
         val listener = object : ConnectivityManager.NetworkCallback() {
             override fun onAvailable(value: Network) {
                 if (!host.enabled || token != host.epoch) return

@@ -1,9 +1,21 @@
 package com.takekazex.hypertweak.settings.contract
 
 internal object IconSettingsPreferencePolicy {
+    const val TYPE_ORDER_DEFAULT = 0
+    const val TYPE_ORDER_SWAP = 1
+    const val TYPE_ORDER_RIGHT = 2
+    const val TYPE_ORDER_LEFT = 3
+
+    fun cellularTypeOrder(explicit: Int?, legacySwap: Boolean): Int =
+        explicit?.takeIf { it in TYPE_ORDER_DEFAULT..TYPE_ORDER_LEFT }
+            ?: if (legacySwap) TYPE_ORDER_RIGHT else TYPE_ORDER_DEFAULT
+
     fun keepCellularTypeOnWifi(read: (String) -> Boolean?): Boolean =
         read(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_KEEP_ON_WIFI)
-            ?: (read(IconSettingsKeys.KEY_ICON_STACKED_TYPE_HIDE_WIFI) == false)
+            ?: legacyStackedTypeKeepsOnWifi(read)
+
+    fun legacyStackedTypeKeepsOnWifi(read: (String) -> Boolean?): Boolean =
+        read(IconSettingsKeys.KEY_ICON_STACKED_TYPE_HIDE_WIFI) == false
 
     fun hideNonDefaultSim(read: (String) -> Boolean?): Boolean =
         read(IconSettingsKeys.KEY_ICON_HIDE_NON_DEFAULT_SIM)

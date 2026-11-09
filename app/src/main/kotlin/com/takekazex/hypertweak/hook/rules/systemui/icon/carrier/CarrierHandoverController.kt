@@ -1,6 +1,9 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon.carrier
 
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IconHostPorts
+import com.takekazex.hypertweak.hook.rules.systemui.icon.WifiIconHooker
+import com.takekazex.hypertweak.hook.rules.systemui.icon.StackedSignalHooker
+import com.takekazex.hypertweak.hook.rules.systemui.icon.left.LeftPanelMotion
 import com.takekazex.hypertweak.hook.rules.systemui.icon.SignalHandoverEvents
 import android.os.Handler
 import android.os.Looper
@@ -14,13 +17,13 @@ import java.util.IdentityHashMap
 internal class CarrierHandoverController(private val host: Host) {
     interface Host {
         val enabled: Boolean
-        val artworkReady: Boolean
         val statusBarId: Int
         val fakeStatusBarId: Int
         val wifiSignalId: Int
         val mobileSignalId: Int
         val mobileTypeId: Int
         val mobileGroupId: Int
+        val activeDataSubId: Int
         fun blocks(): Collection<CarrierBlock>
         fun rowFor(view: View): CarrierRowParts?
         fun findStatusContainer(root: ViewGroup): Any?
@@ -28,9 +31,9 @@ internal class CarrierHandoverController(private val host: Host) {
     private companion object { const val TAG = "IconTuner" }
     private val main = Handler(Looper.getMainLooper())
     private fun readInt(target: Any, name: String): Int? = runCatching { HostAccess.read(target, name) as? Int }.getOrNull()
-    fun ownsTarget(view: View) = view in duoTargets
+    fun ownsTarget(view: View) = view in duoTargets || view in motions
     fun retireTarget(view: View) {
-        if (motions.containsKey(view)) {
+        if (view in motions) {
             // Removing a row can stop its last pre-draw; release the overlay/source now.
             // Other living rows reapply their source masks on the next pre-draw.
             releaseHandover()
@@ -38,12 +41,11 @@ internal class CarrierHandoverController(private val host: Host) {
         duoTargets.retire(view)
     }
     fun retire() {
-        motions.values.forEach(CarrierTypeMotion::clear)
-        motions.clear()
+        releaseHandover()
         duoTargets.clear()
-        restoreEndpoints()
     }
-    private val motions = IdentityHashMap<View, CarrierTypeMotion>()
+    private val motions = IdentityHashMap<View, LeftPanelMotion>()
+    private var progress = 0f
     private val duoTargets = CarrierTargetLeases(object : CarrierTargetLeases.Host<View, CarrierRowParts> {
         override fun parts(target: View) = host.rowFor(target)
         override fun ready(target: View, parts: CarrierRowParts) = when (target) {
@@ -65,18 +67,14 @@ internal class CarrierHandoverController(private val host: Host) {
             .onFailure { DebugLog.w(TAG, "carrier hand-over failed", it) }
     }
 
-    /**
-     * Carries native signal and trailing network glyphs through the same hand-over as Duo's middle Wi-Fi layer:
-     * expansion moves the native status-bar source into the label row. Appearance opacity follows
-     * the host fake-row/carrier-layout crossfade, preserving the source palette while dragging.
-     * The source copy is alpha-suppressed only after the overlay has produced a frame.
-     */
+    /** One overlay owns both endpoints until the expanded carrier row can take over. */
     private fun applyHandover(value: Float) {
         if (Looper.myLooper() != Looper.getMainLooper()) {
             main.post { applyHandoverGuarded(value) }
             return
         }
         val clamped = value.coerceIn(0f, 1f)
+        progress = clamped
         if (!host.enabled) {
             releaseHandover()
             return
@@ -87,7 +85,6 @@ internal class CarrierHandoverController(private val host: Host) {
             releaseHandover()
             return
         }
-        if (!host.artworkReady) { releaseHandover(); return }
         drawHandover(clamped)
     }
 
@@ -107,54 +104,57 @@ internal class CarrierHandoverController(private val host: Host) {
                 IconHostPorts.positions.lowerRow(realIcons, fakeIcons, fakeRow.alpha, clamped)
                 lowerRowUpdated = true
             } else IconHostPorts.positions.clearLowerRow()
+            if (fakeRow == null || !fakeRow.isAttachedToWindow ||
+                SignalHandoverEvents.shade.hasActiveProxy(fakeRow)) continue
+            // SystemUI moves the whole mirror, but it has no target in the two-row carrier
+            // layout. Reuse its measured native glyphs for that last leg.
             for (parts in block.rows) {
-                val model = parts.model ?: continue
-                val entries = ArrayList<Pair<ImageView, View?>>(3)
+                val model = parts.model
                 if (parts.cellularReady && parts.signal.drawable != null) {
-                    entries += parts.signal to sourceGlyph(block, wifi = false,
-                        subId = model.subId, signal = true)
+                    val source = nativeSignal(fakeRow, model?.subId)
+                        ?.takeIf { group -> (parts.signal.drawable as? CarrierNativeGlyph)?.source === group }
+                        ?: model?.subId?.let { mobileGroup(fakeRow, it) }?.let { glyph(it, host.mobileSignalId) }
+                    move(parts, parts.signal, source, clamped, used, sources)
                 }
-                parts.wifiBitmap?.takeIf { parts.wifiReady }?.let {
-                    entries += parts.wifi to sourceGlyph(block, wifi = true, subId = null)
+                if (parts.wifiReady && parts.nativeWifi != null) {
+                    move(parts, parts.wifi, WifiIconHooker.nativeGlyph(fakeRow, host.wifiSignalId),
+                        clamped, used, sources)
                 }
-                // A suppressed type stays out of the hand-over: its glyph is faded out on purpose,
-                // and the overlay would otherwise draw it at full alpha while the panel opens.
-                parts.typeBitmap?.takeIf { parts.cellularReady && !parts.typeSuppressed }?.let {
-                    entries += parts.type to sourceGlyph(block, wifi = false, subId = model.subId)
-                }
-                for ((target, source) in entries) {
-                    if (target in duoTargets || target.visibility != View.VISIBLE || target.width <= 0 || target.height <= 0) continue
-                    if (source == null) {
-                        motions.remove(target)?.clear()
-                        leaseNetwork(parts, target, false)
-                        continue
-                    }
-                    val root = target.rootView as? ViewGroup ?: continue
-                    val motion = motions[target] ?: CarrierTypeMotion().also { motions[target] = it }
-                    leaseNetwork(parts, target, true)
-                    val ready = motion.update(root, source, target, clamped, sourceAppearanceAlpha(source))
-                    used += target
-                    sources += source
-                    // The carrier layout already receives the native appearance fade. A second
-                    // progress-based fade would switch palettes while the finger is still moving.
-                    target.alpha = 1f
-                    suppressEndpoint(source, ready)
+                if (parts.cellularReady && !parts.typeSuppressed && parts.typeBitmap != null &&
+                    parts.type !in duoTargets && parts.type.visibility == View.VISIBLE && isUsable(parts.type)) {
+                    val subId = model?.networkSubId
+                    val inline = block.rows.any { it.model?.subId == subId && it.nativeTypeBadge }
+                    move(parts, parts.type, typeGlyph(fakeRow, subId, inline), clamped, used, sources)
                 }
             }
         }
         if (!lowerRowUpdated) IconHostPorts.positions.clearLowerRow()
-        motions.entries.removeIf { (view, motion) ->
-            if (view in used) false else {
-                motion.clear()
-                val parts = host.rowFor(view)
-                if (view !in duoTargets) {
-                    if (parts != null) leaseNetwork(parts, view as ImageView, false)
-                    else view.alpha = 0f
-                }
-                true
-            }
-        }
+        motions.keys.filterNot { it in used }.forEach(::releaseMotion)
         restoreEndpoints(sources)
+    }
+
+    private fun move(
+        parts: CarrierRowParts, target: ImageView, source: View?, value: Float,
+        used: MutableSet<View>, sources: MutableSet<View>
+    ) {
+        if (source == null || !isUsable(source) || target in duoTargets ||
+            target.visibility != View.VISIBLE || !isUsable(target)) return
+        val root = target.rootView as? ViewGroup ?: return
+        leaseNetwork(parts, target, true)
+        val motion = motions.getOrPut(target) { LeftPanelMotion { applyHandoverGuarded(progress) } }
+        used += target
+        sources += source
+        suppressEndpoint(source, motion.update(
+            root, source, target, value,
+            sameArtwork = (target.drawable as? CarrierNativeGlyph)?.source === source
+        ))
+    }
+
+    private fun releaseMotion(target: View) {
+        motions.remove(target)?.clear()
+        if (target !in duoTargets && target is ImageView) {
+            host.rowFor(target)?.let { leaseNetwork(it, target, false) }
+        }
     }
 
     private fun leaseNetwork(parts: CarrierRowParts, target: ImageView, active: Boolean) {
@@ -163,11 +163,7 @@ internal class CarrierHandoverController(private val host: Host) {
 
     fun releaseHandover() {
         IconHostPorts.positions.clearLowerRow()
-        motions.forEach { (view, motion) ->
-            motion.clear()
-            host.rowFor(view)?.let { leaseNetwork(it, view as ImageView, false) }
-        }
-        motions.clear()
+        motions.keys.toList().forEach(::releaseMotion)
         restoreEndpoints()
         host.blocks().forEach { block ->
             block.rows.forEach { parts ->
@@ -178,45 +174,24 @@ internal class CarrierHandoverController(private val host: Host) {
         }
     }
 
-    /**
-     * The glyph the user is looking at while the panel is still closed: the collapsed mirror of the
-     * status bar inside the shade header (`ControlCenterFakeStatusIcons`), which carries the same
-     * bound icons as the home bar.
-     */
-    private fun sourceGlyph(block: CarrierBlock, wifi: Boolean, subId: Int?, signal: Boolean = false): View? {
-        if (host.fakeStatusBarId == 0) return null
-        val header = block.layout.parent as? ViewGroup ?: return null
-        // The fake row is the visible stand-in while the panel is dragged.
-        val fakeRow = header.findViewById<View>(host.fakeStatusBarId) as? ViewGroup
-        if (fakeRow != null && fakeRow.isAttachedToWindow &&
-            !SignalHandoverEvents.shade.hasActiveProxy(fakeRow)
-        ) {
-            glyphIn(fakeRow, wifi, subId, signal)?.let { return it }
-        }
-        // The expanded row has its own palette. If the status-bar mirror is unavailable,
-        // leave the native appearance transition in charge instead of inventing a source color.
-        return null
+    private fun typeGlyph(row: ViewGroup, subId: Int?, inline: Boolean): View? {
+        if (subId == host.activeDataSubId) StackedSignalHooker.duoTypeTarget(row)?.let { return it }
+        val mobile = subId?.let { mobileGroup(row, it) } ?: return null
+        val single = mobile.resources.getIdentifier("mobile_type_single", "id", mobile.context.packageName)
+        return glyph(mobile, single) ?: glyph(mobile, host.mobileTypeId).takeUnless { inline }
     }
 
-    /** The fake row is the native color/opacity owner during the drag, even when alpha-masked. */
-    private fun sourceAppearanceAlpha(source: View): Float {
-        var parent = source.parent as? View
-        while (parent != null) {
-            if (parent.id == host.fakeStatusBarId) return parent.alpha
-            parent = parent.parent as? View
-        }
-        return 1f
-    }
+    private fun glyph(parent: ViewGroup, id: Int): View? = if (id == 0 || !parent.isShown) null else
+        parent.findViewById<View>(id)?.takeIf { it.visibility == View.VISIBLE && isUsable(it) }
 
-    private fun glyphIn(row: ViewGroup, wifi: Boolean, subId: Int?, signal: Boolean): View? {
-        if (wifi) return row.findViewById<View>(host.wifiSignalId)?.takeIf(::isUsable)
-        val group = mobileGroup(row, subId ?: return null) ?: return null
-        // Stacked/Duo routes can hide a whole native holder while its child still has stale
-        // geometry. Let their existing signal motion own that case instead of replaying it.
-        if (signal && !group.isShown) return null
-        val id = if (signal) host.mobileSignalId else host.mobileTypeId
-        if (id == 0) return null
-        return group.findViewById<View>(id)?.takeIf(::isUsable)
+    // A masked holder may retain the laid-out native children. Use their local geometry and
+    // binder artwork without requiring the holder to be visible in the status bar.
+    fun nativeSignal(root: ViewGroup, subId: Int?, includeBadge: Boolean = true): View? {
+        val holder = subId?.let { mobileGroup(root, it) } ?: return null
+        val signal = holder.findViewById<ImageView>(host.mobileSignalId) ?: return null
+        if (signal.drawable == null || signal.visibility != View.VISIBLE || !isUsable(signal)) return null
+        if (!includeBadge) return signal
+        return (signal.parent as? ViewGroup)?.takeIf(::isUsable)
     }
 
     private fun mobileGroup(root: ViewGroup, subId: Int): ViewGroup? {

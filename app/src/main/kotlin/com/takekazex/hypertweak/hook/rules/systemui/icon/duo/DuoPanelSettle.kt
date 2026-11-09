@@ -12,7 +12,8 @@ internal class DuoPanelSettle(from: Float, private val host: Host) : Runnable {
         fun post(task: Runnable)
         fun failed(error: Throwable)
     }
-    private val steps = (1..6).map { step -> from + (1f - from) * step / 6f }
+    private val frameCount = if (from >= 0.95f) 2 else 6
+    private val steps = (1..frameCount).map { step -> from + (1f - from) * step / frameCount }
     private var index = 0
     private var finished = false
     override fun run() {

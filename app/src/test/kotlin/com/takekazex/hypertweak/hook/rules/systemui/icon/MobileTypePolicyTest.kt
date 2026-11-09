@@ -50,22 +50,11 @@ class MobileTypePolicyTest {
     fun disconnectAndWifiRulesOnlyHideWhenRequested() {
         val disconnected = state(listOf(1), 1, "LTE", connected = false, wifi = true)
         assertEquals("LTE", MobileTypePolicy.resolve(disconnected, MobileTypeConfig()).text)
-        assertEquals(
-            "",
-            MobileTypePolicy.resolve(
-                disconnected,
-                MobileTypeConfig(hideWhenDisconnected = true)
-            ).text
-        )
-        assertEquals(
-            "",
-            MobileTypePolicy.resolve(
-                disconnected,
-                MobileTypeConfig(hideWhenDisconnected = true)
-            ).text
-        )
-        // The Wi-Fi rule no longer drops the glyph: it suppresses it, so the renderer can keep the
-        // slot's width and fade the alpha — a collapsing slot shifts its neighbours sideways.
+        val offline = state(listOf(1), 1, "LTE", connected = false, wifi = false)
+        for (state in listOf(disconnected, offline)) {
+            assertEquals("LTE", MobileTypePolicy.resolve(state, MobileTypeConfig()).text)
+            assertEquals("", MobileTypePolicy.resolve(state, MobileTypeConfig(hideWhenDisconnected = true)).text)
+        }
         val suppressed = MobileTypePolicy.resolve(
             disconnected,
             MobileTypeConfig(hideWhenWifiAvailable = true)
@@ -91,11 +80,11 @@ class MobileTypePolicyTest {
     }
 
     @Test
-    fun noWifiAndNoDataNeverShowsCachedType() {
+    fun offlineTypeDoesNotSurviveLossOfService() {
         val idle = state(listOf(1), 1, "5G", connected = false, wifi = false)
-        assertEquals("", MobileTypePolicy.resolve(idle, MobileTypeConfig()).text)
-        assertEquals("5G", MobileTypePolicy.resolve(
-            idle.reduce(MobileSignalEvent.DataConnected(1, true)), MobileTypeConfig()).text)
+        assertEquals("5G", MobileTypePolicy.resolve(idle, MobileTypeConfig()).text)
+        val noService = idle.reduce(MobileSignalEvent.InService(1, false))
+        assertEquals("", MobileTypePolicy.resolve(noService, MobileTypeConfig()).text)
     }
 
     @Test

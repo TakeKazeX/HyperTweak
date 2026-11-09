@@ -223,6 +223,7 @@ class IconSlotPolicyTest {
         assertFalse(IconSlotPolicy.ownsLowerRowMotion("bluetooth", emptySet(), entries))
         assertFalse(IconSlotPolicy.isTwoLineUpperSlot("alarm_clock", entries))
         assertTrue(IconSlotPolicy.ownsLowerRowMotion("alarm_clock", emptySet(), entries))
+        assertFalse(IconSlotPolicy.ownsLowerRowMotion("mobile", emptySet(), setOf("2:mobile")))
         assertFalse(IconSlotPolicy.ownsLowerRowMotion("alarm_clock", setOf("alarm_clock"), entries))
         assertTrue("2:future_indicator" in entries && "unrecognized" in entries)
         entries = IconSlotPolicy.withControlCenterRow(entries, "alarm_clock", 1)

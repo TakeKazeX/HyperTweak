@@ -186,6 +186,9 @@ internal object DebugSettingsService {
                 IconSettingsPreferencePolicy.keepCellularTypeOnWifi { values[it] as? Boolean }
             IconSettingsKeys.KEY_ICON_HIDE_NON_DEFAULT_SIM ->
                 IconSettingsPreferencePolicy.hideNonDefaultSim { values[it] as? Boolean }
+            IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_ORDER -> IconSettingsPreferencePolicy.cellularTypeOrder(
+                values[d.key] as? Int, bool(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_SINGLE_SWAP)
+            )
             IconSettingsKeys.KEY_ICON_WIFI_STANDARD_MODE ->
                 IconSettingsPreferencePolicy.wifiStandardMode(
                     values[d.key] as? Int, bool(IconSettingsKeys.KEY_ICON_HIDE_WIFI_TYPE)

@@ -159,6 +159,11 @@ internal class CarrierPresentation(private val host: Host, private val rowRender
             parts.rowState.restore(parts.row)
             parts.textState.restore(parts.carrierText)
             parts.carrierText.text = parts.nativeCarrierText
+            if (parts.carrierText.textColors === parts.appliedCarrierColors) {
+                parts.nativeCarrierColors?.let(parts.carrierText::setTextColor)
+            }
+            parts.nativeCarrierColors = null
+            parts.appliedCarrierColors = null
             if ((if (parts.slot == 0) hideCarrierOne else hideCarrierTwo)) parts.carrierText.visibility = View.GONE
             parts.row.gravity = parts.gravity
             parts.row.isBaselineAligned = parts.baselineAligned

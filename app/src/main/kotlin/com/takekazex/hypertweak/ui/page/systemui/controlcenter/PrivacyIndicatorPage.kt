@@ -4,6 +4,8 @@ import com.takekazex.hypertweak.ui.components.MiuixExpandableContent
 import com.takekazex.hypertweak.ui.components.slider.rememberSliderEdit
 
 import com.takekazex.hypertweak.ui.components.dialog.IntValueDialog
+import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
+import com.takekazex.hypertweak.settings.contract.IconSettingsPreferencePolicy
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 
 import androidx.annotation.StringRes
@@ -82,7 +84,11 @@ fun PrivacyIndicatorPage(onBack: () -> Unit) {
         @Suppress("UNCHECKED_CAST")
         return prefs.getOrPut(key) {
             when (default) {
-                is Boolean -> settingsStore.getBoolean(key, default)
+                is Boolean -> if (key == IconSettingsKeys.KEY_ICON_HIDE_PRIVACY) {
+                    IconSettingsPreferencePolicy.iconBoolean(key) { candidate ->
+                        if (settingsStore.contains(candidate)) settingsStore.getBoolean(candidate) else null
+                    }
+                } else settingsStore.getBoolean(key, default)
                 is Int -> settingsStore.getInt(key, default)
                 else -> default
             }
@@ -106,6 +112,14 @@ fun PrivacyIndicatorPage(onBack: () -> Unit) {
             .overScrollVertical().nestedScroll(scrollBehavior.nestedScrollConnection)
             .verticalScroll(scrollState)) {
             Spacer(Modifier.height(padding.calculateTopPadding() + 8.dp))
+            SmallTitle(stringResource(R.string.settings_system_ui_section_status_bar))
+            Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+                TunerSwitch(
+                    pref(IconSettingsKeys.KEY_ICON_HIDE_PRIVACY, false),
+                    stringResource(R.string.icon_hide_privacy_indicator),
+                    stringResource(R.string.icon_hide_privacy_indicator_summary)
+                ) { changed(IconSettingsKeys.KEY_ICON_HIDE_PRIVACY, it) }
+            }
             PrivacyHeaderSection(
                 enabled = pref(SystemUiSettingsKeys.KEY_CC_PRIVACY_ENABLED, false),
                 centered = pref(SystemUiSettingsKeys.KEY_CC_PRIVACY_CENTER, true),

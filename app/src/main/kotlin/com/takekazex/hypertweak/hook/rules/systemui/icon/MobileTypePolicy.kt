@@ -6,8 +6,7 @@ import com.takekazex.hypertweak.presentation.icon.MobileSignalState
 data class MobileTypeConfig(
     val hideWhenDisconnected: Boolean = false,
     /**
-     * Wi-Fi carries the data connection: the type is reported as [MobileTypeOutput.suppressed]
-     * instead of absent, so the renderer keeps its box and fades the alpha.
+     * Wi-Fi carries the data connection. Report suppression separately from a missing label.
      */
     val hideWhenWifiAvailable: Boolean = false,
     val showRoamingPrefix: Boolean = false,
@@ -40,8 +39,7 @@ data class MobileTypeOutput(
     val isSingle: Boolean,
     val isRoaming: Boolean,
     /**
-     * The type exists but must not be *readable* right now (Wi-Fi carries the data connection).
-     * Renderers keep the glyph and its width so the slot does not collapse, and fade the alpha.
+     * The type exists, but Wi-Fi owns the network indicator while it carries data.
      */
     val suppressed: Boolean = false
 )
@@ -54,15 +52,14 @@ object MobileTypePolicy {
     fun resolve(state: MobileSignalState, config: MobileTypeConfig): MobileTypeOutput {
         val safe = config.safe()
         val active = state.subscriptions[state.activeDataSubId] ?: return empty(state)
-        val raw = if (state.wifiConnected) {
-            state.wifiCellularType(wifiDefault = true).orEmpty()
-        } else active.networkType?.trim().orEmpty()
+        val raw = when {
+            state.wifiConnected -> state.wifiCellularType(wifiDefault = true).orEmpty()
+            active.dataConnected == false -> active.typeWhileOnWifi().orEmpty()
+            else -> active.networkType?.trim().orEmpty()
+        }
         if (raw.isEmpty()) return empty(state)
-        if (active.dataConnected == false &&
-            (safe.hideWhenDisconnected || !state.wifiConnected)) return empty(state)
-        // Wi-Fi carries the data connection: the type is suppressed rather than dropped, so the
-        // renderer can keep the glyph's box and fade it. `state.wifiConnected` is the same signal
-        // `icon_hide_mobile_on_wifi` uses and mirrors the host's own `!wifiAvailable` rule.
+        if (active.dataConnected == false && safe.hideWhenDisconnected) return empty(state)
+        // The same default-route input also drives the whole-mobile visibility rule.
         val suppressed = safe.hideWhenWifiAvailable && state.wifiConnected
         val roaming = active.roaming == true
         val text = if (safe.showRoamingPrefix && roaming && !raw.startsWith("R")) {

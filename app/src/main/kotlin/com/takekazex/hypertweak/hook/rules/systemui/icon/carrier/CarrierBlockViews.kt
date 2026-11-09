@@ -2,8 +2,8 @@ package com.takekazex.hypertweak.hook.rules.systemui.icon.carrier
 
 import com.takekazex.hypertweak.hook.rules.systemui.icon.MobileTypeConfig
 import com.takekazex.hypertweak.hook.rules.systemui.icon.TwoRowIconLayout
-import com.takekazex.hypertweak.presentation.icon.IconSvgSnapshot
 
+import android.content.res.ColorStateList
 import android.graphics.Typeface
 import android.graphics.Bitmap
 import android.graphics.drawable.GradientDrawable
@@ -16,9 +16,6 @@ import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
-
-/** Captured carrier layout baselines and per-row presentation state. */
-internal class CarrierArtwork(val single: IconSvgSnapshot, val wifi: IconSvgSnapshot)
 
 internal class CarrierViewState(view: View) {
     val params = (view.layoutParams as? LinearLayout.LayoutParams)?.let { LinearLayout.LayoutParams(it) }
@@ -51,6 +48,8 @@ internal class CarrierRowParts(
             ViewGroup.LayoutParams.WRAP_CONTENT)
     }
     var nativeCarrierText: CharSequence = carrierText.text
+    var nativeCarrierColors: ColorStateList? = null
+    var appliedCarrierColors: ColorStateList? = null
     val networkFade = CarrierNetworkCrossfade(type, wifi) { visible ->
         networkSlot.visibility = if (visible) View.VISIBLE else View.GONE
     }
@@ -66,7 +65,9 @@ internal class CarrierRowParts(
     var showHd: Boolean? = null
     var hd: CarrierViewState? = null
     var plus: CarrierViewState? = null
-    var wifiBitmap: Bitmap? = null
+    var nativeSignal: CarrierNativeGlyph? = null
+    var nativeTypeBadge = false
+    var nativeWifi: CarrierNativeGlyph? = null
     var typeBitmap: Bitmap? = null
     var model: CarrierRowModel? = null
     var cellularReady = false
@@ -80,12 +81,15 @@ internal class CarrierRowParts(
 }
 
 internal data class CarrierRowRenderState(
-    val model: CarrierRowModel, val art: CarrierArtwork,
+    val model: CarrierRowModel, val signalIconId: Int?,
+    val nativeSignal: CarrierNativeGlyph?, val signalWidth: Int, val signalHeight: Int,
+    val hasInlineType: Boolean,
     val densityDpi: Int, val fontScale: Float, val rtl: Boolean,
     val iconHeight: Int, val carrier: String, val badgeText: String,
     val single: Boolean, val roaming: Boolean, val keepType: Boolean,
     val config: MobileTypeConfig, val badge: Boolean,
-    val typeface: Typeface?, val textSizePx: Float
+    val typeface: Typeface?, val textSizePx: Float,
+    val wifi: CarrierNativeGlyph?, val wifiWidth: Int, val wifiHeight: Int
 )
 
 /** Reused primitive comparison storage; local captured counters otherwise allocate on R8. */
@@ -124,6 +128,7 @@ internal class CarrierBlock(
     var preDraw: ViewTreeObserver.OnPreDrawListener? = null
     var attachListener: View.OnAttachStateChangeListener? = null
     var maskContainer: Any? = null
+    var nativeWifi: CarrierNativeGlyph? = null
 }
 
 /** Idempotent host environment binding, shared by package readiness and recovered views. */

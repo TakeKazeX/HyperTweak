@@ -84,8 +84,6 @@ class DuoDrawable(context: Context, private val layer: DuoRenderLayer = DuoRende
     var networkOnly = false
     var hideAirplane = false
     var hideNetwork = false
-    var retainedWifiTypeAlpha = 1f
-        set(value) { if (field != value) { field = value; invalidateSelf() } }
     /** Expanded SystemUI keeps a top bolt; independent AOD artwork retains its battery policy. */
     var chargingBoltOnTop = false
     var batteryOnly = false
@@ -159,9 +157,6 @@ class DuoDrawable(context: Context, private val layer: DuoRenderLayer = DuoRende
             } else if (cellular && !hideNetwork && state.networkLabel != null) {
                 drawNetworkLabel(canvas, state, LABEL_CENTER_Y)
             } else if (!batteryOnly && !networkOnly && state.wifiLevel != null) {
-                if (state.networkLabel != null && retainedWifiTypeAlpha > 0f) {
-                    drawNetworkLabel(canvas, state, WIFI_TYPE_CENTER_Y, retainedWifiTypeAlpha, compact = true)
-                }
                 if (!hideSignalDots) drawSignalDots(canvas)
             }
         } finally {
@@ -284,17 +279,8 @@ class DuoDrawable(context: Context, private val layer: DuoRenderLayer = DuoRende
      * Wi-Fi strength climbs from the centre mark outward: level 0 keeps the reserve outline,
      * 1 lights the centre mark, 2 adds the inner arc, and 3 or more adds the outer arc.
      */
-    private val wifiHasType get() = content?.let { it.wifiLevel != null && it.networkLabel != null } == true
-    val compactWifiScale get() = when {
-        wifiHasType -> minOf(.55f, .60f / sizes.wifi)
-        signalDotRows().size > 1 -> .94f
-        else -> 1f
-    }
-    val compactWifiOffsetY get() = when {
-        wifiHasType -> -5f
-        signalDotRows().size > 1 -> -.9f
-        else -> 0f
-    }
+    val compactWifiScale get() = if (signalDotRows().size > 1) .94f else 1f
+    val compactWifiOffsetY get() = if (signalDotRows().size > 1) -.9f else 0f
 
     private fun drawWifi(canvas: Canvas, rawLevel: Int) = canvas.withSave {
         // Two SIM rows occupy more of the lower opening. Give both native and fallback Wi-Fi
@@ -392,19 +378,16 @@ class DuoDrawable(context: Context, private val layer: DuoRenderLayer = DuoRende
         set(value) { if (field != value) { field = value; invalidateSelf() } }
     var networkFontVariationSettings: String? = null
         set(value) { if (field != value) { field = value; invalidateSelf() } }
-    private fun drawNetworkLabel(
-        canvas: Canvas, state: DuoContent, centerY: Float, alpha: Float = 1f, compact: Boolean = false
-    ) = canvas.withSave {
-        val requestedScale = sizes.type * state.typography.scale
-        val scale = if (compact) (requestedScale * .50f).coerceAtMost(.52f) else requestedScale
+    private fun drawNetworkLabel(canvas: Canvas, state: DuoContent, centerY: Float) = canvas.withSave {
+        val scale = sizes.type * state.typography.scale
         scale(scale, scale, CENTER, centerY)
-        drawNetworkLabelUnscaled(this, state, centerY, alpha)
+        drawNetworkLabelUnscaled(this, state, centerY)
     }
 
-    private fun drawNetworkLabelUnscaled(canvas: Canvas, state: DuoContent, centerY: Float, alpha: Float) {
+    private fun drawNetworkLabelUnscaled(canvas: Canvas, state: DuoContent, centerY: Float) {
         val label = state.networkLabel.orEmpty()
         if (label.isEmpty()) return
-        colorOf(foreground, alpha)
+        colorOf(foreground)
         val paint = networkLabelPaint.apply { set(this@DuoDrawable.paint) }
         paint.textAlign = Paint.Align.CENTER
         paint.style = Paint.Style.FILL
@@ -695,7 +678,6 @@ class DuoDrawable(context: Context, private val layer: DuoRenderLayer = DuoRende
         /** The type sits in the lower opening; the signal remains centred in the ring. */
         const val NATIVE_WIFI_SIZE = 16f
         const val LABEL_CENTER_Y = 25.0f
-        private const val WIFI_TYPE_CENTER_Y = 18.5f
 
         // Leave real headroom for the bolt above the arc, with the full path inside the viewport.
         const val COMPACT_RING_SCALE = 0.86f

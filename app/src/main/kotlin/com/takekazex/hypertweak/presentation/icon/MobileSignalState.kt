@@ -68,7 +68,8 @@ data class MobileSubscriptionState(
     val networkType: String? = null,
     val wifiAvailable: Boolean? = null,
     val originalVisible: Boolean = true,
-    val originalDetailVisible: Boolean = true
+    val originalDetailVisible: Boolean = true,
+    val signalIconId: Int? = null
 ) {
     val kind: MobileSignalKind
         get() = when {
@@ -112,7 +113,7 @@ data class MobileSubscriptionState(
 /** Events accepted by [MobileSignalState.reduce]. */
 sealed interface MobileSignalEvent {
     data class Subscriptions(val subIds: List<Int>) : MobileSignalEvent
-    data class SignalModel(val subId: Int, val model: MobileSignalModel) : MobileSignalEvent
+    data class SignalModel(val subId: Int, val model: MobileSignalModel, val signalIconId: Int? = null) : MobileSignalEvent
     data class DataConnected(val subId: Int, val value: Boolean) : MobileSignalEvent
     data class InService(val subId: Int, val value: Boolean) : MobileSignalEvent
     data class Roaming(val subId: Int, val value: Boolean) : MobileSignalEvent
@@ -166,10 +167,15 @@ data class MobileSignalState(
         get() = rows.any { it.wifiAvailable == true }
 
     /** Uses a current, in-service data subscription even if Wi-Fi has suspended cellular data. */
-    internal fun wifiCellularType(wifiDefault: Boolean): String? {
+    internal fun wifiDataSubscription(wifiDefault: Boolean): MobileSubscriptionState? {
         if (!wifiDefault || airplaneMode || activeDataSubId !in subscriptionOrder) return null
-        return subscriptions[activeDataSubId]?.typeWhileOnWifi()
+        return subscriptions[activeDataSubId]?.takeIf {
+            it.kind == MobileSignalKind.CELLULAR && it.inService == true
+        }
     }
+
+    internal fun wifiCellularType(wifiDefault: Boolean): String? =
+        wifiDataSubscription(wifiDefault)?.typeWhileOnWifi()
 
     /**
      * A replacement may be rendered only when every row is a known cellular model.
@@ -229,7 +235,8 @@ data class MobileSignalState(
                 level = event.model.level,
                 numberOfLevels = event.model.numberOfLevels,
                 showExclamationMark = event.model.showExclamationMark,
-                carrierNetworkChange = event.model.carrierNetworkChange
+                carrierNetworkChange = event.model.carrierNetworkChange,
+                signalIconId = event.signalIconId
             )
         }
         is MobileSignalEvent.DataConnected -> updateSubscription(event.subId) {

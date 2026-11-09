@@ -3,8 +3,6 @@ package com.takekazex.hypertweak.hook.rules.systemui.icon.carrier
 import com.takekazex.hypertweak.hook.rules.systemui.icon.MobileTypeConfig
 import com.takekazex.hypertweak.hook.rules.systemui.icon.MobileTypeOutput
 import com.takekazex.hypertweak.hook.rules.systemui.icon.MobileTypeRenderer
-import com.takekazex.hypertweak.presentation.icon.IconSvgRenderConfig
-import com.takekazex.hypertweak.presentation.icon.IconSvgRenderer
 import com.takekazex.hypertweak.presentation.icon.MobileSignalState
 
 import android.content.Context
@@ -25,18 +23,16 @@ import kotlin.math.roundToInt
 
 /** Immutable inputs for one carrier render pass. */
 internal data class CarrierRenderInput(
-    val artwork: CarrierArtwork?, val mobileState: MobileSignalState,
+    val mobileState: MobileSignalState,
     val simNames: Map<Int, String>, val showBadge: Boolean,
-    val keepTypeOnWifi: Boolean, val typeConfig: MobileTypeConfig
+    val keepTypeOnWifi: Boolean, val typeConfig: MobileTypeConfig,
+    val nativeWifi: CarrierNativeGlyph?
 )
 
 /** Bitmap/row presentation only; host subscriptions, masks and handover stay outside. */
 internal class CarrierRowRenderer {
     private companion object {
         const val TAG = "IconTuner"
-        const val SIGNAL_ALPHA_FG = 1f
-        const val SIGNAL_ALPHA_BG = 0.4f
-        const val SIGNAL_ALPHA_ERROR = 0.2f
     }
     private fun readField(target: Any, name: String): Any? = runCatching { HostAccess.read(target, name) }.getOrNull()
     fun clear() { iconHeights.clear() }
@@ -49,7 +45,6 @@ internal class CarrierRowRenderer {
     private val iconHeights = WeakHashMap<Resources, IconHeight>()
 
     fun renderRow(parts: CarrierRowParts, rows: List<CarrierRowModel>, input: CarrierRenderInput) {
-        val art = input.artwork
         val model = rows.firstOrNull { it.slot == parts.slot && it.visible }
         parts.model = model
         // Read the controller's raw custom value, not its merged carrier/SPN output: only the
@@ -63,56 +58,50 @@ internal class CarrierRowRenderer {
         )
         if (parts.carrierText.text.toString() != name.toString()) parts.carrierText.text = name
         parts.carrierText.visibility = if (input.mobileState.airplaneMode || parts.carrierText.text.isNullOrBlank()) View.GONE else View.VISIBLE
-        parts.airplaneText.visibility = if (model?.airplane == true && art != null) View.VISIBLE else View.GONE
-        parts.badge.visibility = if (input.mobileState.airplaneMode || !input.showBadge || art == null || model == null) View.GONE else View.VISIBLE
-        if (art == null || model == null) {
-            // Before reducer/artwork readiness the host label remains usable. An actually absent
+        parts.airplaneText.visibility = if (model?.airplane == true) View.VISIBLE else View.GONE
+        parts.badge.visibility = if (input.mobileState.airplaneMode || !input.showBadge || model == null) View.GONE else View.VISIBLE
+        val tint = syncTint(parts)
+        if (model == null) {
+            // Before reducer readiness the host label remains usable. An actually absent
             // slot is hidden only when another subscription establishes a known row set.
-            parts.row.visibility = if (input.mobileState.airplaneMode || (model == null && rows.any { it.visible })) View.GONE else parts.rowState.visibility
+            parts.row.visibility = if (input.mobileState.airplaneMode || rows.any { it.visible }) View.GONE else parts.rowState.visibility
+            parts.signal.setImageDrawable(null)
             parts.signal.visibility = View.GONE
             parts.networkSlot.visibility = View.GONE
             parts.wifi.visibility = View.GONE
             parts.type.visibility = View.GONE
             parts.networkFade.clear()
             parts.typeSuppressed = false
-            parts.wifiBitmap = null
+            parts.nativeWifi = null
+            parts.wifi.setImageDrawable(null)
             parts.typeBitmap = null
             parts.rendered = null
             return
         }
         parts.row.visibility = View.VISIBLE
-        val tint = runCatching { parts.carrierText.currentTextColor }.getOrDefault(0xFFFFFFFF.toInt())
         val context = parts.row.context
         val densityDpi = context.resources.displayMetrics.densityDpi
         val fontScale = context.resources.configuration.fontScale
         val rtl = context.resources.configuration.layoutDirection == View.LAYOUT_DIRECTION_RTL
-        val state = CarrierRowRenderState(model, art, densityDpi, fontScale, rtl,
+        val nativeWifi = input.nativeWifi.takeIf { model.hasWifi }
+        val signalIconId = model.subId?.let { input.mobileState.subscriptions[it]?.signalIconId }
+            ?.takeIf { model.hasSignal }
+        val nativeSignal = parts.nativeSignal.takeIf { model.hasSignal }
+        val hasInlineType = nativeSignal != null && parts.nativeTypeBadge && model.networkSubId == model.subId
+        val state = CarrierRowRenderState(model, signalIconId,
+            nativeSignal, nativeSignal?.intrinsicWidth ?: 0, nativeSignal?.intrinsicHeight ?: 0,
+            hasInlineType, densityDpi, fontScale, rtl,
             iconHeightPx(context), parts.carrierText.text.toString(), parts.badge.text.toString(),
             input.mobileState.subscriptionOrder.size == 1,
             input.mobileState.subscriptions[model.networkSubId]?.roaming == true, input.keepTypeOnWifi, input.typeConfig, input.showBadge,
-            parts.carrierText.typeface, parts.carrierText.textSize)
-        syncTint(parts)
+            parts.carrierText.typeface, parts.carrierText.textSize, nativeWifi,
+            nativeWifi?.intrinsicWidth ?: 0, nativeWifi?.intrinsicHeight ?: 0)
         if (parts.rendered == state) return
 
-        // In expanded Duo mode the battery ring stays on its own; the network type and Wi-Fi return
-        // to the carrier row alongside each SIM's signal.
-        // Signal strength: one single-signal glyph per card, so an enabled stacked icon is split
-        // back into the two rows instead of being merged.
-        val signalLevel = model.signalLevel
-        val signalBitmap = signalLevel?.let { level ->
-            runCatching {
-                IconSvgRenderer.renderSingle(art.single.document, level, renderConfig(context))
-            }.onFailure { DebugLog.w(TAG, "carrier signal render failed", it) }.getOrNull()
-        }
-        publish(parts.signal, signalBitmap, tint)
+        publishSignal(parts.signal, nativeSignal, signalIconId, iconHeightPx(context), tint)
 
         // Wi-Fi and its type follow the active data SIM (开关 4: types on both rows).
-        val wifiBitmap = model.wifiLevel?.let { level ->
-            runCatching {
-                IconSvgRenderer.renderWifi(art.wifi.document, level, renderConfig(context))
-            }.onFailure { DebugLog.w(TAG, "carrier wifi render failed", it) }.getOrNull()
-        }
-        val typeBitmap = model.typeText?.takeIf { it.isNotBlank() }?.let { text ->
+        val typeBitmap = model.typeText?.takeIf { !hasInlineType && it.isNotBlank() }?.let { text ->
             runCatching {
                 MobileTypeRenderer.render(
                     output = MobileTypeOutput(
@@ -132,47 +121,63 @@ internal class CarrierRowRenderer {
                 )
             }.onFailure { DebugLog.w(TAG, "carrier type render failed", it) }.getOrNull()
         }
-        publishNetwork(parts, typeBitmap, wifiBitmap, tint, input.keepTypeOnWifi)
+        publishNetwork(parts, typeBitmap, nativeWifi, tint, input.keepTypeOnWifi)
         parts.rendered = state.takeIf {
-            (model.signalLevel == null || signalBitmap != null) &&
-                (model.wifiLevel == null || wifiBitmap != null) &&
-                (model.typeText.isNullOrBlank() || typeBitmap != null)
+            (model.signalLevel == null || parts.signal.drawable != null) &&
+                (hasInlineType || model.typeText.isNullOrBlank() || typeBitmap != null)
         }
         parts.row.contentDescription = buildString {
             if (input.showBadge) append(parts.badge.text).append(", ")
             if (model.airplane) append("Airplane mode") else append(parts.carrierText.text)
             model.signalLevel?.let { append(", ").append(it).append("/4") }
             if (!parts.typeSuppressed) model.typeText?.let { append(", ").append(it) }
-            if (wifiBitmap != null) append(", Wi-Fi")
+            if (nativeWifi != null) append(", Wi-Fi")
         }
     }
 
-    /** Palette changes follow the host in the same pre-draw, without rebuilding artwork/layout. */
-    fun syncTint(parts: CarrierRowParts) {
+    /** Match the native glyph's foreground opacity while keeping the host's palette and states. */
+    fun syncTint(parts: CarrierRowParts): Int {
+        val hostColors = parts.carrierText.textColors
+        if (hostColors !== parts.appliedCarrierColors) {
+            val opaqueColors = hostColors.withAlpha(255)
+            parts.nativeCarrierColors = hostColors
+            parts.appliedCarrierColors = opaqueColors
+            parts.carrierText.setTextColor(opaqueColors)
+        }
         val tint = parts.carrierText.currentTextColor
         val density = parts.row.resources.displayMetrics.density
-        if (parts.badgeTint == tint && parts.badgeDensity == density) return
+        if (parts.badgeTint == tint && parts.badgeDensity == density) return tint
         parts.badge.setTextColor(tint)
         parts.airplaneText.setTextColor(tint)
         val colors = ColorStateList.valueOf(tint)
-        parts.signal.imageTintList = colors
-        parts.wifi.imageTintList = colors
+        parts.signal.imageTintList = colors.takeUnless { parts.signal.drawable is CarrierNativeGlyph }
+        parts.wifi.imageTintList = null
         parts.type.imageTintList = colors
         parts.badgeDrawable.cornerRadius = 2 * density
         parts.badgeDrawable.setStroke(density.roundToInt().coerceAtLeast(1), tint)
         parts.badgeTint = tint
         parts.badgeDensity = density
         if (parts.badge.background !== parts.badgeDrawable) parts.badge.background = parts.badgeDrawable
+        return tint
     }
 
     /** One measured trailing position for cellular type and Wi-Fi, including the dual-display option. */
-    private fun publishNetwork(parts: CarrierRowParts, type: Bitmap?, wifi: Bitmap?, tint: Int, keepTypeOnWifi: Boolean) {
+    private fun publishNetwork(parts: CarrierRowParts, type: Bitmap?, wifi: CarrierNativeGlyph?, tint: Int, keepTypeOnWifi: Boolean) {
         // Keep the previous drawable in the same box while its alpha exits. The model bitmap
         // below still becomes null immediately, so a stale Wi-Fi glyph cannot claim the mask.
         if (type != null || parts.type.drawable == null) publish(parts.type, type, tint)
-        if (wifi != null || parts.wifi.drawable == null) publish(parts.wifi, wifi, tint)
+        if (wifi != null) {
+            if (parts.wifi.drawable !== wifi) parts.wifi.setImageDrawable(wifi)
+            val params = parts.wifi.layoutParams
+            if (params.width != wifi.intrinsicWidth || params.height != wifi.intrinsicHeight) {
+                params.width = wifi.intrinsicWidth
+                params.height = wifi.intrinsicHeight
+                parts.wifi.layoutParams = params
+            }
+            parts.wifi.visibility = View.VISIBLE
+        }
         parts.typeBitmap = type
-        parts.wifiBitmap = wifi
+        parts.nativeWifi = wifi
         val mode = CarrierNetworkChoice.select(
             cellular = type != null,
             wifiDefaultAndRendered = wifi != null,
@@ -185,7 +190,7 @@ internal class CarrierRowRenderer {
         val width = CarrierNetworkChoice.requiredWidth(
             minimum = icon,
             cellularWidth = type?.width ?: 0,
-            wifiWidth = wifi?.width ?: 0,
+            wifiWidth = wifi?.intrinsicWidth ?: 0,
             keepBoth = keepTypeOnWifi && type != null,
             gap = gap,
             previousWidth = parts.networkWidth
@@ -195,7 +200,7 @@ internal class CarrierRowRenderer {
             val params = parts.networkSlot.layoutParams
             if (params.width != width) { params.width = width; parts.networkSlot.layoutParams = params }
         }
-        val height = maxOf(icon, type?.height ?: 0, wifi?.height ?: 0)
+        val height = maxOf(icon, type?.height ?: 0, wifi?.intrinsicHeight ?: 0)
         val slotParams = parts.networkSlot.layoutParams
         if (slotParams.height != height) {
             slotParams.height = height
@@ -228,18 +233,27 @@ internal class CarrierRowRenderer {
         view.visibility = View.VISIBLE
     }
 
-    private fun renderConfig(context: Context): IconSvgRenderConfig = IconSvgRenderConfig(
-        iconHeightPx = iconHeightPx(context).coerceIn(1, 512),
-        scale = 1f,
-        alphaFg = SIGNAL_ALPHA_FG,
-        alphaBg = SIGNAL_ALPHA_BG,
-        alphaError = SIGNAL_ALPHA_ERROR,
-        paddingStartPx = 0,
-        paddingEndPx = 0,
-        densityDpi = context.resources.displayMetrics.densityDpi,
-        fontScale = context.resources.configuration.fontScale,
-        configVersion = 3
-    )
+    private fun publishSignal(view: ImageView, native: CarrierNativeGlyph?, resourceId: Int?, fallbackHeight: Int, tint: Int) {
+        val drawable = native ?: resourceId?.let {
+            runCatching { view.context.getDrawable(it) }
+                .onFailure { error -> DebugLog.w(TAG, "carrier native signal resource unavailable", error) }
+                .getOrNull()
+        }
+        if (view.drawable !== drawable) view.setImageDrawable(drawable)
+        view.visibility = if (drawable == null) View.GONE else View.VISIBLE
+        if (drawable == null) return
+        val params = view.layoutParams
+        val height = native?.intrinsicHeight ?: fallbackHeight
+        val width = if (drawable.intrinsicWidth > 0 && drawable.intrinsicHeight > 0) {
+            (height.toFloat() * drawable.intrinsicWidth / drawable.intrinsicHeight).roundToInt()
+        } else height
+        if (params.width != width || params.height != height) {
+            params.width = width
+            params.height = height
+            view.layoutParams = params
+        }
+        view.imageTintList = if (native == null) ColorStateList.valueOf(tint) else null
+    }
 
     fun iconHeightPx(context: Context): Int {
         val resources = context.resources

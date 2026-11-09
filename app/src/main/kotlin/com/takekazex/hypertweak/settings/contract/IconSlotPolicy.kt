@@ -126,9 +126,11 @@ object IconSlotPolicy {
     fun isTwoLineUpperSlot(slot: String, overrides: Set<String> = emptySet()): Boolean =
         controlCenterRow(slot, overrides) == 1
 
-    /** Each slot has exactly one motion owner; migrated left icons never enter the row overlay. */
+    private val nativeMobileSlots = setOf("mobile", "demo_mobile", "stacked_mobile")
+
+    /** Migrated left icons and host mobile holders keep their existing motion owners. */
     fun ownsLowerRowMotion(slot: String, leftOwnedSlots: Set<String>, overrides: Set<String> = emptySet()): Boolean =
-        !isTwoLineUpperSlot(slot, overrides) && slot !in leftOwnedSlots
+        slot !in nativeMobileSlots && !isTwoLineUpperSlot(slot, overrides) && slot !in leftOwnedSlots
 
     val MODULE_SLOTS: List<String> = STACKED_SLOTS + SLOT_ROTATION_LOCK
 

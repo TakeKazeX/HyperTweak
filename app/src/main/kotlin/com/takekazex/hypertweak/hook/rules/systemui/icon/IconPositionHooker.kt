@@ -87,6 +87,13 @@ object IconPositionHooker : StaticHooker() {
     private val duoSlots = setOf("airplane", "mobile", "stacked_mobile", "wifi", "demo_wifi",
         "stacked_mobile_icon", "stacked_mobile_type", "single_mobile_sim1", "single_mobile_sim2")
 
+    private val keepStackedTypeOnWifi by hookSetting(false) { Preferences.legacyStackedTypeKeepsOnWifi() }
+    private var pairedWifiSignalId by generationState { 0 }
+    private val pairedTypeViews = generationMainResource(WeakHashMap<View, Int>()) { views ->
+        views.forEach { (view, visibility) -> if (view.visibility == View.GONE) view.visibility = visibility }
+        views.clear()
+    }
+
     private var options by generationState { IconTunerOptions.snapshot() }
 
     private var restoring by generationState { false }
@@ -97,6 +104,7 @@ object IconPositionHooker : StaticHooker() {
     private var applyingNativeViewVisibility by generationState { false }
     private val nativeViewVisibility = NativeViewVisibilityMask(View.GONE)
     private var mobileViewClass: Class<*>? by generationState { null }
+    private var wifiViewClass: Class<*>? by generationState { null }
 
     private val networkVisibility = generationMainResource(LinkedHashMap<Class<*>, Method>()) { it.clear() }
     private val clipStates = generationMainResource(WeakHashMap<ViewGroup, Pair<Boolean, Boolean>>()) { it.clear() }
@@ -237,25 +245,23 @@ object IconPositionHooker : StaticHooker() {
                 }
             } }
         }
-        hookNativeMobileVisibility()
+        wifiViewClass = "com.android.systemui.statusbar.pipeline.wifi.ui.view.ModernStatusBarWifiView".toClassOrNull()
+        listOfNotNull(mobileViewClass, wifiViewClass).forEach(::hookNativeVisibility)
         DebugLog.i(TAG, "IconPosition hooks installed")
     }
 
     /** MIUI's binder writes View visibility independently of the icon container's visible state. */
-    private fun hookNativeMobileVisibility() {
-        val target = mobileViewClass ?: return
+    private fun hookNativeVisibility(target: Class<*>) {
         ViewVisibilityRouter.visibility(this, target, before = route@{ view, requested ->
             if (applyingNativeViewVisibility || Looper.myLooper() != Looper.getMainLooper()) return@route null
-            val type = mobileViewClass ?: return@route null
-            if (!type.isInstance(view)) return@route null
             val container = view.parent ?: return@route null
-            val slot = findField(type, "slot")?.get(view) as? String ?: return@route null
+            val slot = slotOf(view) ?: return@route null
             nativeViewVisibility.hostRequest(view, requested, slot in maskSlotsFor(container))
         })
     }
 
-    private fun reconcileNativeMobileVisibility(view: View, masked: Boolean) {
-        if (mobileViewClass?.isInstance(view) != true) return
+    private fun reconcileNativeVisibility(view: View, masked: Boolean) {
+        if (mobileViewClass?.isInstance(view) != true && wifiViewClass?.isInstance(view) != true) return
         val visibility = nativeViewVisibility.reconcile(view, view.visibility, masked)
         if (view.visibility == visibility) return
         applyingNativeViewVisibility = true
@@ -342,6 +348,9 @@ object IconPositionHooker : StaticHooker() {
         }
         hookContainerMethod(containerClass, "setIgnoredSlots")
         hookContainerMethod(containerClass, "addIgnoredSlots")
+        if (IconSlotPolicy.SLOT_STACKED_TYPE in options.policy.enabledModuleSlots && !keepStackedTypeOnWifi) {
+            hookPairedNetworkMeasure(containerClass)
+        }
         hookTwoLineHostState(containerClass)
         // View.onLayout is (changed, left, top, right, bottom): five parameters. A four-parameter
         // query silently misses this final host override, leaving every icon at the host's row.
@@ -363,7 +372,51 @@ object IconPositionHooker : StaticHooker() {
                     val active = activeHostLayouts.get()
                     if (active?.peekLast() === container) active.removeLast()
                     if (active?.isEmpty() == true) activeHostLayouts.remove()
+                    if (!retiring) CellularTypeIconHooker.onTypeOrderContainerLayout(container, ::disableClipping)
                 }
+            }
+        }
+    }
+
+    /** Both producers may be visible in the same frame while their independent flows catch up. */
+    private fun hookPairedNetworkMeasure(containerClass: Class<*>) {
+        val intType = Int::class.javaPrimitiveType ?: return
+        val method = HostAccess.method(containerClass, "onMeasure", intType, intType)
+            ?.takeIf { it.returnType == Void.TYPE } ?: return
+        method.hook {
+            before { param ->
+                if (retiring) return@before
+                val container = param.thisObject as? ViewGroup ?: return@before
+                runCatching {
+                    var type: View? = null
+                    var wifiVisible = false
+                    for (index in 0 until container.childCount) {
+                        val child = container.getChildAt(index)
+                        when (val slot = slotOf(child)) {
+                            IconSlotPolicy.SLOT_STACKED_TYPE -> type = child
+                            IconSlotPolicy.SLOT_WIFI, IconSlotPolicy.SLOT_DEMO_WIFI -> {
+                                if (pairedWifiSignalId == 0) {
+                                    pairedWifiSignalId = container.resources.getIdentifier(
+                                        "wifi_signal", "id", "com.android.systemui"
+                                    )
+                                }
+                                val glyph = WifiIconHooker.nativeGlyph(child, pairedWifiSignalId)
+                                wifiVisible = wifiVisible || glyph?.visibility == View.VISIBLE &&
+                                    isHostLayoutVisible(child, slot, container, requireWidth = false)
+                            }
+                        }
+                    }
+                    val label = type ?: return@runCatching
+                    if (wifiVisible) {
+                        if (label.visibility == View.VISIBLE) {
+                            pairedTypeViews.putIfAbsent(label, View.VISIBLE)
+                            label.visibility = View.GONE
+                        }
+                    } else {
+                        val original = pairedTypeViews.remove(label)
+                        if (original != null && label.visibility == View.GONE) label.visibility = original
+                    }
+                }.onFailure { DebugLog.w(TAG, "network seat measurement failed", it) }
             }
         }
     }
@@ -604,9 +657,9 @@ object IconPositionHooker : StaticHooker() {
         )
         for (index in 0 until group.childCount) {
             val child = group.getChildAt(index)
+            val slot = slotOf(child) ?: continue
+            reconcileNativeVisibility(child, slot in slots)
             val entry = networkVisibility.entries.firstOrNull { it.key.isInstance(child) } ?: continue
-            val slot = findField(entry.key, "slot")?.get(child) as? String ?: continue
-            reconcileNativeMobileVisibility(child, slot in slots)
             if (slot in slots) {
                 if (!state.nativeVisibleStates.containsKey(child)) {
                     readNativeVisibleState(child)?.let { state.nativeVisibleStates[child] = it }
@@ -832,11 +885,11 @@ object IconPositionHooker : StaticHooker() {
         return battery
     }
 
-    private fun isHostLayoutVisible(view: View, slot: String, container: ViewGroup): Boolean {
+    private fun isHostLayoutVisible(view: View, slot: String, container: ViewGroup, requireWidth: Boolean = true): Boolean {
         // Child alpha is animated independently during row/proxy handoffs; model visibility is the
         // stable ownership signal. Dropping an alpha-zero child here would change row packing in the
         // middle of the fade and recreate a transient empty slot.
-        if (view.visibility != View.VISIBLE || view.width <= 0) return false
+        if (view.visibility != View.VISIBLE || requireWidth && view.width <= 0) return false
         val ignored = runCatching { ignoredSlotsField?.get(container) as? List<*> }.getOrNull()
         if (ignored?.contains(slot) == true) return false
         val visible = HostAccess.cached(view.javaClass, "icon-position:iconVisibleGetters", java.lang.reflect.Method::class.java) {

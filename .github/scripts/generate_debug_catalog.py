@@ -51,6 +51,9 @@ for p in sorted(SRC.rglob('*.kt')):
 # Reviewed defaults for settings read through shared helper loops/migration readers.
 # Missing display mode inherits the legacy boolean; the fresh-install default is off.
 reads['SystemUiSettingsKeys.KEY_SLIDER_DISPLAY_MODE'] = ('Int', '0', 0)
+# Legacy switches still have executing readers through IconSettingsPreferencePolicy.
+reads['IconSettingsKeys.KEY_ICON_HIDE_SIM_AUTO'] = ('Boolean', 'false', 0)
+reads['IconSettingsKeys.KEY_ICON_STACKED_TYPE_HIDE_WIFI'] = ('Boolean', 'false', 0)
 for key in keys:
     if key.startswith('MarketSettingsKeys.KEY_MARKET_'): reads[key] = ('Boolean','false',0)
     if key.startswith('PackageManagerSettingsKeys.KEY_'): reads[key] = ('Boolean','false',0)
@@ -106,11 +109,10 @@ for k,v in sorted(keys.items(),key=lambda kv:kv[1]):
     if 'presentation.icon.duo.DuoLayout.DEFAULT_ICON_SIZE_DP' in default: default='26'
     lines.append(f'        DebugSetting("{v}", "{typ}", {default}),')
 # Dynamic slot family is bounded by the same host-independent slot contract used by the UI.
-slot_text=(SRC/'ui/page/systemui/icon/IconSlotCatalog.kt').read_text()
-slot_block=slot_text.split('val slots: List<String> = listOf(',1)[1].split(')',1)[0]
 slot_policy=(SRC/'settings/contract/IconSlotPolicy.kt').read_text()
+slot_block=slot_policy.split('val configurableSlots: List<String> = listOf(',1)[1].split(')',1)[0]
 slot_constants=dict(re.findall(r'const val (SLOT_\w+) = "([\w_]+)"',slot_policy))
-slot_block=re.sub(r'IconSlotPolicy\.(SLOT_\w+)',lambda m:f'"{slot_constants[m[1]]}"',slot_block)
+slot_block=re.sub(r'\b(SLOT_\w+)\b',lambda m:f'"{slot_constants[m[1]]}"',slot_block)
 for slot in re.findall(r'"([\w_]+)"',slot_block): lines.append(f'        DebugSetting("icon_tuner_slot_{slot}", "Int", 0),')
 lines += ['    ).associateBy { it.key }','}', '']
 result='\n'.join(lines)

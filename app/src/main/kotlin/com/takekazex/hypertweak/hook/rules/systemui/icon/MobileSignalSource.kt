@@ -356,7 +356,8 @@ internal class MobileSignalSource(
                 return
             }
             if (!isCurrent()) return
-            reduceOnMain(MobileSignalEvent.SignalModel(subId, update()), bindingGeneration)
+            val model = update()
+            reduceOnMain(MobileSignalEvent.SignalModel(subId, model, display.iconId), bindingGeneration)
         }
         fun required(flow: Any, consumer: (Any?) -> Unit): Boolean =
             subscriptions.collect(scope, flow, isCurrent, replay = true, consumer = consumer)

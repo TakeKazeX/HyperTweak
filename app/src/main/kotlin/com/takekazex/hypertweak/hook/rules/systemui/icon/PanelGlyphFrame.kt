@@ -182,16 +182,20 @@ internal class PanelGlyphTravel {
     private var targetRevision = -1
     private var identical = false
     fun draw(canvas: Canvas, source: PanelGlyphFrame, target: PanelGlyphFrame, from: RectF, to: RectF, progress: Float,
-             keepSource: Boolean = false) {
+             keepSource: Boolean = false, styleStart: Float = .8f, sameArtwork: Boolean = false) {
         val p = progress.coerceIn(0f, 1f)
         current.set(from.left + (to.left - from.left) * p, from.top + (to.top - from.top) * p,
             from.right + (to.right - from.right) * p, from.bottom + (to.bottom - from.bottom) * p)
+        if (sameArtwork) {
+            source.draw(canvas, current)
+            return
+        }
         if (sourceRevision != source.revision || targetRevision != target.revision) {
             sourceRevision = source.revision; targetRevision = target.revision
             identical = source.sameShape(target)
         }
         if (identical || keepSource) source.draw(canvas, current, tint = source.blendedColor(target, p)) else {
-            val t = ((p - .8f) / .2f).coerceIn(0f, 1f)
+            val t = ((p - styleStart) / (1f - styleStart)).coerceIn(0f, 1f)
             val style = t * t * (3f - 2f * t)
             source.draw(canvas, current, ((1f - style) * 255).roundToInt())
             target.draw(canvas, current, (style * 255).roundToInt())

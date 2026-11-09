@@ -22,14 +22,13 @@ internal class NativeWifiTypeVisibility(owner: BaseHooker) : HookComponent(owner
             val vm = VM.toClass()
             val interactor = INTERACTOR.toClass()
             val flow = IconTunerFlows.hostClassName("kotlinx.coroutines.flow", "Flow").toClass()
-            val transform = IconTunerFlows.hostClassName("kotlin.jvm.functions", "Function4").toClass()
+            val transform = IconTunerFlows.hostClassName("kotlin.jvm.functions", "Function3").toClass()
             val flowKt = IconTunerFlows.hostClassName("kotlinx.coroutines.flow", "FlowKt").toClass()
             val single = HostAccess.requirePublicMethod(vm, "getMobileTypeSingleVisible", accessible = false)
-            val regular = HostAccess.requirePublicMethod(vm, "getMobileTypeVisible", accessible = false)
             val origin = HostAccess.requirePublicMethod(vm, "getOriginIconInteractor", accessible = false)
             val subId = HostAccess.requirePublicMethod(interactor, "getSubscriptionId", accessible = false)
-            val combine = HostAccess.requirePublicMethod(flowKt, "combine", flow, flow, flow, transform, accessible = false)
-            check(single.returnType == flow && regular.returnType == flow &&
+            val combine = HostAccess.requirePublicMethod(flowKt, "flowCombine", flow, flow, transform, accessible = false)
+            check(single.returnType == flow &&
                 origin.returnType.isAssignableFrom(interactor) && subId.returnType == Int::class.javaPrimitiveType &&
                 flow.isAssignableFrom(combine.returnType))
             val gate = checkNotNull(IconTunerFlows.createMutableStateFlow(NO_SUBSCRIPTION))
@@ -43,18 +42,16 @@ internal class NativeWifiTypeVisibility(owner: BaseHooker) : HookComponent(owner
                         val subscription = origin.invoke(target)?.takeIf(interactor::isInstance) ?: return@runCatching
                         val id = subId.invoke(subscription) as? Int ?: return@runCatching
                         if (id < 0) return@runCatching
-                        val regularVisibility = regular.invoke(target)?.takeIf(flow::isInstance) ?: return@runCatching
                         val reducer = Proxy.newProxyInstance(classLoader, arrayOf(transform)) { proxy, method, args ->
                             when (method.name) {
-                                "invoke" -> args?.getOrNull(0) == true ||
-                                    (args?.getOrNull(1) == false && args.getOrNull(2) == id)
+                                "invoke" -> args?.getOrNull(0) == true || args?.getOrNull(1) == id
                                 "equals" -> proxy === args?.firstOrNull()
                                 "hashCode" -> System.identityHashCode(proxy)
                                 "toString" -> TAG
                                 else -> null
                             }
                         }
-                        combine.invoke(null, original, regularVisibility, gate, reducer)
+                        combine.invoke(null, original, gate, reducer)
                             ?.takeIf(flow::isInstance)?.let { param.result = it }
                     }.onFailure { DebugLog.w(TAG, "could not combine native visibility for one subscription", it) }
                 }

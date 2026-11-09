@@ -16,6 +16,17 @@ import org.junit.Test
 
 class MobileSignalStateTest {
     @Test
+    fun nativeResourceCanChangeWithoutChangingSignalLevel() {
+        val model = MobileSignalModel.cellular(3, 5)
+        val initial = MobileSignalState().reduce(MobileSignalEvent.Subscriptions(listOf(11)))
+            .reduce(MobileSignalEvent.SignalModel(11, model, signalIconId = 1001))
+        val updated = initial.reduce(MobileSignalEvent.SignalModel(11, model, signalIconId = 1002))
+
+        assertEquals(initial.subscriptions[11]?.renderLevel, updated.subscriptions[11]?.renderLevel)
+        assertEquals(1002, updated.subscriptions[11]?.signalIconId)
+    }
+
+    @Test
     fun networkIconScopesAndRouteHidingAreIndependent() {
         val state = MobileSignalState()
             .reduce(MobileSignalEvent.Subscriptions(listOf(11, 22)))
@@ -33,6 +44,21 @@ class MobileSignalStateTest {
         assertTrue(policy.hidesWifi(IconSurface.STATUS_BAR, connected = true))
     }
 
+
+    @Test
+    fun wifiDataSubscriptionDoesNotDependOnTheBitmapLabel() {
+        val state = MobileSignalState()
+            .reduce(MobileSignalEvent.Subscriptions(listOf(11)))
+            .reduce(MobileSignalEvent.ActiveDataSubId(11))
+            .reduce(MobileSignalEvent.SignalModel(11, MobileSignalModel.cellular(4, 5)))
+            .reduce(MobileSignalEvent.InService(11, true))
+            .reduce(MobileSignalEvent.NetworkType(11, "Custom 5G label"))
+
+        assertEquals(11, state.wifiDataSubscription(true)?.subId)
+        assertEquals(null, state.wifiCellularType(true))
+        assertEquals(null, state.wifiDataSubscription(false))
+        assertEquals(null, state.reduce(MobileSignalEvent.InService(11, false)).wifiDataSubscription(true))
+    }
 
     @Test
     fun dataSwitchChangesActiveIdButNeverSwapsSubscriptionRows() {

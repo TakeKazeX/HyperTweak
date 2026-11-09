@@ -3,7 +3,6 @@ package com.takekazex.hypertweak.ui.page.systemui.icon
 import com.takekazex.hypertweak.settings.contract.IconSlotPolicy
 import com.takekazex.hypertweak.settings.contract.IconSlotPolicyConfig
 import com.takekazex.hypertweak.presentation.icon.MobileSignalEvent
-import com.takekazex.hypertweak.presentation.icon.MobileSignalModel
 import com.takekazex.hypertweak.presentation.icon.MobileSignalState
 import com.takekazex.hypertweak.presentation.icon.NetworkIconVisibility
 import com.takekazex.hypertweak.presentation.icon.duo.DuoBattery
@@ -17,6 +16,7 @@ import com.takekazex.hypertweak.settings.contract.IconSurface
  * Pseudo-slot the preview draws with the production Duo glyph. It is never a host slot name.
  */
 internal const val PREVIEW_DUO_SLOT = "duo"
+internal const val PREVIEW_NATIVE_TYPE_SLOT = "preview_native_type"
 
 /** Native per-subscription mobile slots: the ROM binds one of these per active SIM. */
 internal const val SLOT_SINGLE_SIM1 = "single_mobile_sim1"
@@ -71,15 +71,13 @@ internal data class StatusBarPreviewModel(
     val coreSlots: List<String>,
     /** Duo glyph height in dp, already clamped to the same range the hook uses. */
     val duoSizeDp: Float,
-    /**
-     * Whether the network type label (e.g. `5G`) draws left of the signal cluster. The ROM draws
-     * the type inside the mobile view, left of the bars; Duo already carries the type in its glyph.
-     */
-    val showNetworkType: Boolean,
     val duoContent: DuoContent? = null,
     val small5GaEnabled: Boolean = false,
     val typography: com.takekazex.hypertweak.settings.contract.MobileTypeTypography = com.takekazex.hypertweak.settings.contract.MobileTypeTypography()
-)
+) {
+    val showNetworkType: Boolean
+        get() = PREVIEW_NATIVE_TYPE_SLOT in coreSlots || IconSlotPolicy.SLOT_STACKED_TYPE in coreSlots
+}
 
 /** Raw settings the preview reasons about; all values come from the page's live preference state. */
 internal data class StatusBarPreviewInput(
@@ -94,8 +92,10 @@ internal data class StatusBarPreviewInput(
     val duoSizeDp: Float,
     val hideMobileOnWifi: Boolean,
     val hideWifiConnected: Boolean,
-    val showCellularType: Boolean,
+    val useSeparateCellularType: Boolean,
+    val typeOrder: Int = 0,
     val keepCellularTypeOnWifi: Boolean = false,
+    val keepStackedTypeOnWifi: Boolean = false,
     val hideNonDefaultSim: Boolean = false,
     val hideSimOne: Boolean = false,
     val hideSimTwo: Boolean = false,
@@ -144,7 +144,6 @@ internal fun buildStatusBarPreview(input: StatusBarPreviewInput): StatusBarPrevi
     val visibility = NetworkIconVisibility(
         hideMobileOnWifi = input.hideMobileOnWifi,
         hideWifi = input.hideWifiConnected,
-        hideType = !input.showCellularType,
         hideNonDefaultSim = input.hideNonDefaultSim,
         hideSimOne = input.hideSimOne,
         hideSimTwo = input.hideSimTwo,
@@ -153,8 +152,21 @@ internal fun buildStatusBarPreview(input: StatusBarPreviewInput): StatusBarPrevi
     val hidden = visibility.hiddenCellularIds(previewMobileState, IconSurface.STATUS_BAR, wifiDefault = true) { it - 1 }
     val hideWifi = visibility.hidesWifi(IconSurface.STATUS_BAR, connected = true)
     val signal = signalPreviewSlots(input, config, hidden)
+    val showType = 1 !in hidden && signal.isNotEmpty() && !input.duoEnabled
     val core = buildList {
         addAll(signal)
+        if (showType && input.stackedEnabled && input.keepStackedTypeOnWifi &&
+            !previewHidden(IconSlotPolicy.SLOT_STACKED_TYPE, config)
+        ) {
+            add(IconSlotPolicy.SLOT_STACKED_TYPE)
+        } else if (showType && !input.stackedEnabled && input.useSeparateCellularType && input.keepCellularTypeOnWifi) {
+            val index = when (input.typeOrder) {
+                1 -> signal.indexOf(SLOT_SINGLE_SIM1).let { if (it < 0) 0 else it + 1 }
+                2 -> size
+                else -> 0
+            }
+            add(index, PREVIEW_NATIVE_TYPE_SLOT)
+        }
         // Duo folds the battery arc, the network state and the data card into one glyph, so its
         // glyph replaces the whole pinned cluster instead of joining it.
         if (!input.duoEnabled) {
@@ -163,7 +175,7 @@ internal fun buildStatusBarPreview(input: StatusBarPreviewInput): StatusBarPrevi
             // in a separate trailing container rather than in the icon row.
             sortBy { slot ->
                 val hostSlot = when (slot) {
-                    SLOT_SINGLE_SIM1, SLOT_SINGLE_SIM2 -> if (input.stackedEnabled) SLOT_STACKED else IconSlotPolicy.SLOT_MOBILE
+                    SLOT_SINGLE_SIM1, SLOT_SINGLE_SIM2, PREVIEW_NATIVE_TYPE_SLOT -> if (input.stackedEnabled) SLOT_STACKED else IconSlotPolicy.SLOT_MOBILE
                     else -> slot
                 }
                 hostIndex(hostSlot)
@@ -177,13 +189,8 @@ internal fun buildStatusBarPreview(input: StatusBarPreviewInput): StatusBarPrevi
         indicatorSlots = indicators,
         coreSlots = core,
         duoSizeDp = DuoLayout.safeSizeDp(input.duoSizeDp),
-        showNetworkType = input.showCellularType && input.keepCellularTypeOnWifi && 1 !in hidden && signal.isNotEmpty() && !input.duoEnabled &&
-            (!input.stackedEnabled || !previewHidden(IconSlotPolicy.SLOT_STACKED_TYPE, config)),
         duoContent = if (input.duoEnabled) {
-            val content = if (input.keepCellularTypeOnWifi) {
-                DuoPolicy.withRetainedWifiType(previewDuoContent, previewMobileState)
-            } else previewDuoContent
-            DuoPolicy.applyVisibility(content, hidden, hideType = visibility.hideType, hideWifi = hideWifi)
+            DuoPolicy.applyVisibility(previewDuoContent, hidden, hideWifi = hideWifi)
                 .copy(typography = input.typography)
         } else null,
         small5GaEnabled = input.small5GaEnabled,
@@ -201,9 +208,6 @@ internal fun buildStatusBarPreview(input: StatusBarPreviewInput): StatusBarPrevi
 private val previewMobileState = MobileSignalState()
     .reduce(MobileSignalEvent.Subscriptions(listOf(1, 2)))
     .reduce(MobileSignalEvent.ActiveDataSubId(1))
-    .reduce(MobileSignalEvent.SignalModel(1, MobileSignalModel.cellular(4, 5)))
-    .reduce(MobileSignalEvent.InService(1, true))
-    .reduce(MobileSignalEvent.NetworkType(1, "5G"))
 
 private val previewDuoContent = DuoContent(
     DuoBattery(80, false, false), 4, null, 4, false, false,

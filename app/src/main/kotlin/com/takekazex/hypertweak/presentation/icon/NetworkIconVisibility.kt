@@ -8,7 +8,6 @@ import com.takekazex.hypertweak.settings.contract.IconSurface
 internal data class NetworkIconVisibility(
     val hideMobileOnWifi: Boolean = false,
     val hideWifi: Boolean = false,
-    val hideType: Boolean = false,
     val hideNonDefaultSim: Boolean = false,
     val hideSimOne: Boolean = false,
     val hideSimTwo: Boolean = false,

@@ -35,12 +35,12 @@ data class CarrierRowModel(
 data class CarrierBlockConfig(
     /** Switch 4: draw the network type of the SIM that is not the default data line too. */
     val showNonDataType: Boolean = false,
-    /** 连接 WiFi 时依旧显示蜂窝类型: keep the type readable while Wi-Fi carries the data. */
+    /** Preserves the old stacked-type Wi-Fi preference for existing configurations. */
     val keepTypeOnWifi: Boolean = false,
     val dataFirst: Boolean = false,
     val networkOnFirstRow: Boolean = false,
     val hiddenSimIds: Set<Int> = emptySet(),
-    val hideType: Boolean = false
+    val hideTypeWhenDisconnected: Boolean = true
 )
 
 /**
@@ -86,8 +86,9 @@ object CarrierBlockPolicy {
             ?.takeIf { !state.airplaneMode && it.supportsReplacement }
             ?.renderLevel
         val typeText = subscription
-            ?.takeIf { !config.hideType && !state.airplaneMode && it.inService != false &&
-                (state.subscriptions[state.activeDataSubId]?.dataConnected == true || wifiDefault) }
+            ?.takeIf { !state.airplaneMode && it.inService != false &&
+                (wifiDefault || state.subscriptions[state.activeDataSubId]?.dataConnected == true ||
+                    !config.hideTypeWhenDisconnected) }
             ?.let { if (wifiDefault) it.typeWhileOnWifi() else it.networkType?.trim() }
             ?.takeIf { it.isNotEmpty() }
             ?.takeIf { subId == state.activeDataSubId || config.showNonDataType }

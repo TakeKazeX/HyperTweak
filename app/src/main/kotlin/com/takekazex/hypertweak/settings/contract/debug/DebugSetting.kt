@@ -26,7 +26,7 @@ internal data class DebugSetting(val key: String, val type: String, val default:
         key in setOf("predictive_back_style", "lockscreen_fingerprint_avoid",
             "notification_header_date_alignment", "notification_header_time_alignment", "notification_header_weather_type",
             "aod_percent_position") -> 0..2
-        key in setOf("icon_tuner_position", "icon_tuner_wifi_standard_mode", "icon_cellular_roam_mode") -> 0..3
+        key in setOf("icon_tuner_position", "icon_tuner_wifi_standard_mode", "icon_tuner_cellular_type_order", "icon_cellular_roam_mode") -> 0..3
         key == "systemui_control_center_tile_message_duration_ms" -> 0..5000
         key == "lockscreen_charging_detail_interval_ms" -> 1000..10000
         key == "icon_duo_size" -> 16..32

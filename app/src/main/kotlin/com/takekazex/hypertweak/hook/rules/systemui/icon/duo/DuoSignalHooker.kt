@@ -77,7 +77,9 @@ object DuoSignalHooker : StaticHooker() {
     private val settingIconDuoAirplaneScale by hookSetting(100) { Preferences.getInt(IconSettingsKeys.KEY_ICON_DUO_AIRPLANE_SCALE, 100) }
     private val settingIconDuoBatteryScale by hookSetting(100) { Preferences.getInt(IconSettingsKeys.KEY_ICON_DUO_BATTERY_SCALE, 100) }
     private val settingIconDuoPercentScale by hookSetting(100) { Preferences.getInt(IconSettingsKeys.KEY_ICON_DUO_PERCENT_SCALE, 100) }
-    private val keepCellularTypeOnWifi by hookSetting(false) { Preferences.cellularTypeKeepsOnWifi() }
+    private val hideTypeWhenDisconnected by hookSetting(false) {
+        Preferences.getBoolean(IconSettingsKeys.KEY_ICON_STACKED_TYPE_HIDE_DISCONNECT, false)
+    }
     private val settingCcBatteryPercentLeft by hookSetting(false) {
         Preferences.ccBatteryPercentStyle() == CcBatteryPercentStyle.OUTSIDE_LEADING
     }
@@ -411,7 +413,11 @@ object DuoSignalHooker : StaticHooker() {
     /** Reuses the existing mobile reducer; collector-only mode never masks native mobile flows. */
     fun onMobileState(state: MobileSignalState, ready: Boolean) {
         if (!enabled) return
-        val next = if (ready || state.airplaneMode) state else MobileSignalState()
+        val next = when {
+            ready || state.airplaneMode -> state
+            state.subscriptionOrder.isNotEmpty() && state.subscriptionOrder == mobile.subscriptionOrder -> return
+            else -> MobileSignalState()
+        }
         val nextSlots = next.subscriptionOrder.associateWith {
             runCatching { SubscriptionManager.getSlotIndex(it) }.getOrDefault(-1)
         }
@@ -606,7 +612,10 @@ object DuoSignalHooker : StaticHooker() {
                 read(battery, "mBatteryIconView")?.let { read(it, "mBatteryPerformanceModeColor") as? Int }
                 else null
             val freshContent = if (percent != null && charging != null && powerSave != null)
-                DuoPolicy.content(DuoBattery(percent, charging, powerSave, performanceColor), mobile, networkSource.network, dataFirst) { subId ->
+                DuoPolicy.content(
+                    DuoBattery(percent, charging, powerSave, performanceColor), mobile, networkSource.network,
+                    dataFirst, showTypeWhenDisconnected = aod == null && !hideTypeWhenDisconnected
+                ) { subId ->
                     slotIndices[subId] ?: -1
                 } else null
             val content = when {
@@ -625,9 +634,8 @@ object DuoSignalHooker : StaticHooker() {
                     }
                     val hidden = networkVisibility.hiddenCellularIds(mobile, surface,
                         resolved.wifiLevel != null || mobile.wifiConnected) { slotIndices[it] ?: -1 }
-                    val withType = if (keepCellularTypeOnWifi) DuoPolicy.withRetainedWifiType(resolved, mobile) else resolved
                     DuoPolicy.applyVisibility(
-                        withType, hidden, networkVisibility.hideType,
+                        resolved, hidden,
                         networkVisibility.hidesWifi(surface, resolved.wifiLevel != null)
                     )
                 }

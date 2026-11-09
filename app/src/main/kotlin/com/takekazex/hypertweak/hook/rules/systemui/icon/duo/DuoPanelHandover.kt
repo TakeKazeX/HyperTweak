@@ -283,9 +283,6 @@ internal class DuoPanelHandover(private val host: Host) {
     fun updatePanelBinding(binding: DuoBinding) {
         if (binding.surface != DuoSurface.COLLAPSED_PROXY) return
         binding.panelArrival.observe(host.panelProgress, host.panelVisible)
-        // Wi-Fi has its own motion lease. Fade the companion label with the proxy while the
-        // destination's native or carrier label keeps its normal expansion lifecycle.
-        binding.view.icon.retainedWifiTypeAlpha = if (host.panelVisible) 1f - host.panelProgress else 1f
         fun clearPosition() { clearPanelMotion(binding); clearSignalMotions(binding); restoreProxyPosition(binding) }
         if (ControlCenterCarrierBlockHooker.isShadeSwitching()) {
             clearPosition()
@@ -434,7 +431,7 @@ internal class DuoPanelHandover(private val host: Host) {
     ) {
         if (binding.networkMotionSettle != null) return
         val from = binding.networkMotionProgress.coerceIn(0f, 1f)
-        if (from >= 0.95f) {
+        if (from >= 1f) {
             clearPanelMotion(binding)
             binding.networkMotionProgress = 1f
             binding.panelArrival.arrive()
@@ -479,7 +476,9 @@ internal class DuoPanelHandover(private val host: Host) {
     private fun nativeNetworkView(binding: DuoBinding, wifi: Boolean): View? {
         fun byId(root: View, name: String): View? = binding.networkIds[name]?.takeIf { it != 0 }
             ?.let { root.findViewById<View>(it) }?.takeIf { signalEndpointVisible(it, binding.icons) }
-        if (wifi) return byId(binding.icons, "wifi_signal")
+        if (wifi) return binding.networkIds["wifi_signal"]?.let {
+            com.takekazex.hypertweak.hook.rules.systemui.icon.WifiIconHooker.nativeGlyph(binding.icons, it)
+        }?.takeIf { signalEndpointVisible(it, binding.icons) }
         StackedSignalHooker.duoTypeTarget(binding.icons)?.let { return it }
         val group = binding.icons as? ViewGroup ?: return null
         for (i in 0 until group.childCount) {

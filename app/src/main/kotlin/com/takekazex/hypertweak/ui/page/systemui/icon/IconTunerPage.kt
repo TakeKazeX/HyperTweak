@@ -130,7 +130,13 @@ private fun TunerSwitch(
 
 /** A text edit stays local until the user confirms the complete value. */
 @Composable
-private fun IconTextPreference(title: String, value: String, enabled: Boolean, onConfirm: (String) -> Unit) {
+private fun IconTextPreference(
+    title: String,
+    value: String,
+    enabled: Boolean,
+    hint: String? = null,
+    onConfirm: (String) -> Unit
+) {
     val epoch = LocalAppSettingsStore.current.backup.settingsEpochForUi()
     key(epoch, value) {
         var editing by rememberSaveable { mutableStateOf(false) }
@@ -144,6 +150,7 @@ private fun IconTextPreference(title: String, value: String, enabled: Boolean, o
             title = title,
             onDismissRequest = { editing = false },
             content = {
+                hint?.let { Text(it, Modifier.padding(bottom = 12.dp)) }
                 TextField(
                     value = draft,
                     onValueChange = { draft = it },
@@ -213,8 +220,7 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit, onNavig
                     IconSettingsPreferencePolicy.keepCellularTypeOnWifi(::explicitBoolean)
                 IconSettingsKeys.KEY_ICON_HIDE_NON_DEFAULT_SIM ->
                     IconSettingsPreferencePolicy.hideNonDefaultSim(::explicitBoolean)
-                IconSettingsKeys.KEY_ICON_STACKED_ENABLED, IconSettingsKeys.KEY_ICON_IGNORE_SYS_HIDE,
-                IconSettingsKeys.KEY_ICON_HIDE_PRIVACY -> IconSettingsPreferencePolicy.iconBoolean(key, ::explicitBoolean)
+                IconSettingsKeys.KEY_ICON_STACKED_ENABLED, IconSettingsKeys.KEY_ICON_IGNORE_SYS_HIDE -> IconSettingsPreferencePolicy.iconBoolean(key, ::explicitBoolean)
                 else -> settingsStore.getBoolean(key, default)
             } as T
             is Int -> (if (key == IconSettingsKeys.KEY_ICON_STACKED_SIGNAL_STYLE) settingsStore.systemUi.iconStackedSignalStyle()
@@ -260,6 +266,10 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit, onNavig
         stringResource(R.string.icon_slot_mode_hidden)
     )
 
+    val typeOrder = IconSettingsPreferencePolicy.cellularTypeOrder(
+        if (hasValue(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_ORDER)) pref(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_ORDER, 0) else null,
+        pref(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_SINGLE_SWAP, false)
+    )
     val leftMode = IconSettingsPreferencePolicy.leftMode(
         if (hasValue(IconTunerContract.KEY_LEFT_MODE)) pref(IconTunerContract.KEY_LEFT_MODE, 0) else null,
         IconSettingsPreferencePolicy.iconBoolean(IconSettingsKeys.KEY_ICON_LEFT_CONTAINER_ENABLED, ::explicitBoolean)
@@ -315,8 +325,10 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit, onNavig
             hideNonDefaultSim = pref(IconSettingsKeys.KEY_ICON_HIDE_NON_DEFAULT_SIM, false),
             hideSimOne = pref(IconSettingsKeys.KEY_ICON_HIDE_SIM_ONE, false),
             hideSimTwo = pref(IconSettingsKeys.KEY_ICON_HIDE_SIM_TWO, false),
-            showCellularType = !pref(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_TYPE, false),
+            useSeparateCellularType = pref(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_SINGLE, false),
+            typeOrder = typeOrder,
             keepCellularTypeOnWifi = pref(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_KEEP_ON_WIFI, false),
+            keepStackedTypeOnWifi = IconSettingsPreferencePolicy.legacyStackedTypeKeepsOnWifi(::explicitBoolean),
             small5GaEnabled = pref(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_SMALL_5GA, false),
             typography = MobileTypeTypography(
                 pref(IconSettingsKeys.KEY_ICON_TYPE_TYPOGRAPHY, false),
@@ -420,7 +432,6 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit, onNavig
                         CellularSection(
                 activity = pref(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_ACTIVITY, false),
                 type = pref(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_TYPE, false),
-                keepTypeOnWifi = pref(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_KEEP_ON_WIFI, false),
                 roamingMode = IconSettingsPreferencePolicy.nativeRoamingMode(
                     if (hasValue(IconSettingsKeys.KEY_ICON_CELLULAR_ROAM_MODE)) {
                         pref(IconSettingsKeys.KEY_ICON_CELLULAR_ROAM_MODE, 0)
@@ -443,9 +454,12 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit, onNavig
                         )
                         CellularTypeSection(
                 forceSingle = pref(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_SINGLE, false),
+                keepTypeOnWifi = pref(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_KEEP_ON_WIFI, false),
+                hideOnWifi = pref(IconSettingsKeys.KEY_ICON_HIDE_MOBILE_ON_WIFI, false),
                 useCustom = pref(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_CUSTOM, false),
                 customValue = pref(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_CUSTOM_VAL, ""),
-                swapSingle = pref(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_SINGLE_SWAP, false),
+                typeOrder = typeOrder,
+                hideWhenDisconnected = pref(IconSettingsKeys.KEY_ICON_STACKED_TYPE_HIDE_DISCONNECT, false),
                 small5GaEnabled = pref(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_SMALL_5GA, false),
                 typography = MobileTypeTypography(
                     pref(IconSettingsKeys.KEY_ICON_TYPE_TYPOGRAPHY, false),
@@ -532,7 +546,6 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit, onNavig
                 slotModes = slotModes,
                 slotModeOf = { slot -> IconSlotPolicy.modeFor(slot, slotModesByName).value },
                 ignoreSysHide = pref(IconSettingsKeys.KEY_ICON_IGNORE_SYS_HIDE, false),
-                hidePrivacy = pref(IconSettingsKeys.KEY_ICON_HIDE_PRIVACY, false),
                 regionSampling = pref(PlatformSettingsKeys.KEY_STATUSBAR_REGION_SAMPLING, 0),
                 onChange = { key, value -> changed(key, value) }
                         )
@@ -695,7 +708,6 @@ private fun LeftContainerSection(
 private fun CellularSection(
     activity: Boolean,
     type: Boolean,
-    keepTypeOnWifi: Boolean,
     roamingMode: Int,
     voWifi: Boolean,
     volte: Boolean,
@@ -720,12 +732,6 @@ private fun CellularSection(
                 stringResource(R.string.icon_hide_network_type),
                 stringResource(R.string.icon_hide_network_type_summary)
             ) { onChange(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_TYPE, it) }
-            TunerSwitch(
-                keepTypeOnWifi,
-                stringResource(R.string.icon_stacked_type_keep_on_wifi),
-                stringResource(R.string.icon_stacked_type_keep_on_wifi_summary),
-                enabled = !type && !hideOnWifi
-            ) { onChange(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_KEEP_ON_WIFI, it) }
             OverlayDropdownPreference(
                 title = stringResource(R.string.icon_native_roaming),
                 items = listOf(
@@ -828,7 +834,8 @@ private fun WifiSection(
                 IconTextPreference(
                     title = stringResource(R.string.icon_wifi_standard_map),
                     value = standardMap,
-                    enabled = standardMode == 3
+                    enabled = standardMode == 3,
+                    hint = stringResource(R.string.icon_wifi_standard_map_hint)
                 ) { onChange(IconSettingsKeys.KEY_ICON_WIFI_STANDARD_MAP, it) }
             }
             TunerSwitch(
@@ -964,9 +971,12 @@ private fun NotificationMaxIconsRow(maximum: Int, onValueChange: (Int) -> Unit) 
 private fun CellularTypeSection(
     typography: MobileTypeTypography,
     forceSingle: Boolean,
+    keepTypeOnWifi: Boolean,
+    hideOnWifi: Boolean,
     useCustom: Boolean,
     customValue: String,
-    swapSingle: Boolean,
+    typeOrder: Int,
+    hideWhenDisconnected: Boolean,
     small5GaEnabled: Boolean,
     onChange: (String, Any) -> Unit
 ) {
@@ -978,6 +988,12 @@ private fun CellularTypeSection(
                 stringResource(R.string.icon_cellular_type_single),
                 stringResource(R.string.icon_cellular_type_single_summary)
             ) { onChange(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_SINGLE, it) }
+            TunerSwitch(
+                keepTypeOnWifi,
+                stringResource(R.string.icon_stacked_type_keep_on_wifi),
+                stringResource(R.string.icon_stacked_type_keep_on_wifi_summary),
+                enabled = forceSingle && !hideOnWifi
+            ) { onChange(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_KEEP_ON_WIFI, it) }
             TunerSwitch(
                 useCustom,
                 stringResource(R.string.icon_cellular_type_custom),
@@ -1009,10 +1025,23 @@ private fun CellularTypeSection(
                 ) { onChange(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_CUSTOM_VAL, it) }
             }
             TunerSwitch(
-                swapSingle,
-                stringResource(R.string.icon_cellular_type_swap),
-                stringResource(R.string.icon_cellular_type_swap_summary)
-            ) { onChange(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_SINGLE_SWAP, it) }
+                hideWhenDisconnected,
+                stringResource(R.string.icon_stacked_type_hide_disconnect),
+                stringResource(R.string.icon_stacked_type_hide_disconnect_summary),
+                enabled = forceSingle
+            ) { onChange(IconSettingsKeys.KEY_ICON_STACKED_TYPE_HIDE_DISCONNECT, it) }
+            OverlayDropdownPreference(
+                title = stringResource(R.string.icon_cellular_type_swap),
+                summary = stringResource(R.string.icon_cellular_type_swap_summary),
+                items = listOf(
+                    stringResource(R.string.icon_type_order_default),
+                    stringResource(R.string.icon_type_order_swap),
+                    stringResource(R.string.icon_type_order_right),
+                    stringResource(R.string.icon_type_order_left)
+                ),
+                selectedIndex = typeOrder,
+                onSelectedIndexChange = { onChange(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_ORDER, it) }
+            )
         }
     }
 }
@@ -1155,7 +1184,6 @@ private fun SlotsSection(
     slotModes: List<String>,
     slotModeOf: (String) -> Int,
     ignoreSysHide: Boolean,
-    hidePrivacy: Boolean,
     regionSampling: Int,
     onChange: (String, Any) -> Unit
 ) {
@@ -1192,11 +1220,6 @@ private fun SlotsSection(
                 stringResource(R.string.icon_ignore_system_hiding),
                 stringResource(R.string.icon_ignore_system_hiding_summary)
             ) { onChange(IconSettingsKeys.KEY_ICON_IGNORE_SYS_HIDE, it) }
-            TunerSwitch(
-                hidePrivacy,
-                stringResource(R.string.icon_hide_privacy_indicator),
-                stringResource(R.string.icon_hide_privacy_indicator_summary)
-            ) { onChange(IconSettingsKeys.KEY_ICON_HIDE_PRIVACY, it) }
             TunerSwitch(
                 regionSampling != 0,
                 stringResource(R.string.icon_region_sampling),

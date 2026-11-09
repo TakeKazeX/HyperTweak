@@ -350,7 +350,7 @@ object Preferences {
     fun allowThirdPartyTheme(): Boolean = getBoolean(PlatformSettingsKeys.KEY_ALLOW_THIRD_PARTY_THEME, false)
 
     /**
-     * Whether the module-rendered cellular type stays visible while Wi-Fi carries the data
+     * Whether native separate cellular text stays visible while Wi-Fi carries the data
      * connection. Default off: Wi-Fi connected ⇒ no cellular type, matching the host's own single
      * type rule.
      *
@@ -361,6 +361,9 @@ object Preferences {
      */
     fun cellularTypeKeepsOnWifi(): Boolean =
         IconSettingsPreferencePolicy.keepCellularTypeOnWifi(::explicitIconBoolean)
+
+    internal fun legacyStackedTypeKeepsOnWifi(): Boolean =
+        IconSettingsPreferencePolicy.legacyStackedTypeKeepsOnWifi(::explicitIconBoolean)
 
     internal fun ccBatteryPercentStyle() = IconSettingsPreferencePolicy.ccBatteryPercentStyle(
         SystemUiSettingsKeys.KEY_CC_BATTERY_PERCENT_STYLE.let { key ->

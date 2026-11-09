@@ -31,6 +31,16 @@ class DuoPanelSettleTest {
         assertEquals(1f, host.progress.last(), 0f)
         assertEquals(1, host.clears); assertEquals(1, host.arrivals)
     }
+    @Test fun nearlyExpandedStillDrawsBeforeReleasingTheEndpoint() {
+        val host = Host(); host.start(.97f)
+        host.queued.removeFirst().run()
+        assertTrue(host.draws.single() in .97f..<1f)
+        assertEquals(0, host.clears)
+        host.drain()
+        assertEquals(1f, host.draws.last(), 0f)
+        assertEquals(1, host.arrivals)
+    }
+
     @Test fun oldQueuedTaskCannotDrawOrClearAReplacement() {
         val host = Host(); host.start(0f); val old = requireNotNull(host.task)
         host.start(.4f); old.run(); host.drain()

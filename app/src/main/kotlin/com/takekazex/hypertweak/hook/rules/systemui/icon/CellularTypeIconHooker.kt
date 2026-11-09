@@ -5,6 +5,7 @@ import com.takekazex.hypertweak.settings.contract.MobileTypeLabelStyle
 
 import com.takekazex.hypertweak.settings.contract.SmallMobileTypeLabel
 
+import com.takekazex.hypertweak.settings.contract.IconSettingsPreferencePolicy
 import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
 
 import com.takekazex.hypertweak.hook.base.HostAccess
@@ -31,7 +32,7 @@ import kotlin.math.ceil
 /**
  * Cellular type display, ported from Hyper Helper's `CellularTypeIcon` (OS4_ADAPTATION_PLAN.md
  * T4a). The operator config hook preserves the original 15-entry mapping contract; the binder
- * hook covers single-row order, while the native drawable and single-label paths handle their
+ * hook covers native cellular layout, while the native drawable and single-label paths handle their
  * own 5GA suffix formatting.
  */
 object CellularTypeIconHooker : StaticHooker() {
@@ -39,8 +40,12 @@ object CellularTypeIconHooker : StaticHooker() {
     private val settingIconCellularTypeSingle by hookSetting(false) {
         Preferences.getBoolean(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_SINGLE, false)
     }
-    private val settingIconCellularTypeSingleSwap by hookSetting(false) {
-        Preferences.getBoolean(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_SINGLE_SWAP, false)
+    private val settingTypeOrder by hookSetting(0) {
+        val key = IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_ORDER
+        IconSettingsPreferencePolicy.cellularTypeOrder(
+            Preferences.getInt(key, 0).takeIf { Preferences.contains(key) },
+            Preferences.getBoolean(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_SINGLE_SWAP, false)
+        )
     }
     private val settingIconCellularTypeCustom by hookSetting(false) {
         Preferences.getBoolean(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_CUSTOM, false)
@@ -59,6 +64,11 @@ object CellularTypeIconHooker : StaticHooker() {
             it.component?.let(::recoverOperatorConfig)
             typography.recover(it.views)
         }
+        hostRecovery(HostRecoveryPhase.ICONS, icons = true) {
+            if (orderMode != 0) it.views.filterIsInstance<ViewGroup>()
+                .filter { view -> view.javaClass.name == MOBILE_VIEW_CLASS }
+                .forEach(::applyTypeOrder)
+        }
     }
 
     private const val TAG = "IconTuner"
@@ -67,8 +77,11 @@ object CellularTypeIconHooker : StaticHooker() {
     private const val DRAWABLE_CLASS = "com.miui.systemui.statusbar.views.MobileTypeDrawable"
     private const val BINDER_CLASS = "com.android.systemui.statusbar.pipeline.mobile.ui.binder.MiuiMobileIconBinder"
 
+    private const val MOBILE_VIEW_CLASS = "com.android.systemui.statusbar.pipeline.mobile.ui.view.ModernStatusBarMobileView"
+    private val typeOrder = generationMainResource(NativeSeparateTypeOrder()) { it.retire() }
+
     private var forceSingle by generationState { false }
-    private var swapSingle by generationState { false }
+    private var orderMode by generationState { 0 }
     private var customType by generationState { "" }
     private var useCustom by generationState { false }
     private var small5GaEnabled by generationState { false }
@@ -112,27 +125,26 @@ object CellularTypeIconHooker : StaticHooker() {
 
     override fun onHook() {
         forceSingle = settingIconCellularTypeSingle
-        swapSingle = settingIconCellularTypeSingleSwap
+        orderMode = settingTypeOrder
         useCustom = settingIconCellularTypeCustom
         customType = settingIconCellularTypeCustomVal.trim()
         small5GaEnabled = settingIconCellularTypeSmall5ga
 
         typography.install()
         val configEnabled = forceSingle || useCustom
-        val binderEnabled = swapSingle
-        if (!configEnabled && !binderEnabled && !small5GaEnabled) {
+        if (!configEnabled && orderMode == 0 && !small5GaEnabled) {
             DebugLog.hookSkippedDebug(TAG, "CellularTypeIcon", "disabled")
             return
         }
         if (configEnabled) hookOperatorConfig()
-        if (binderEnabled) hookBinder()
+        if (orderMode != 0) hookTypeOrder()
         if (small5GaEnabled) {
             hookSmall5GaTextView()
             hookSmall5GaDrawable()
         }
         DebugLog.hookRegistered(
             TAG,
-            "CellularType: single=$forceSingle swap=$swapSingle small5GA=$small5GaEnabled"
+            "CellularType: single=$forceSingle order=$orderMode small5GA=$small5GaEnabled"
         )
     }
 
@@ -287,12 +299,19 @@ object CellularTypeIconHooker : StaticHooker() {
             return
         }
         val singleField = hierarchyField(configClass, "showMobileDataTypeSingle")
+            ?.takeIf { it.type == Boolean::class.javaPrimitiveType }
         val nameField = hierarchyField(configClass, "mobileTypeName")
-        if (singleField == null && nameField == null) {
-            DebugLog.hookSkipped(TAG, CONFIG_CLASS, "fields not found")
+        if (forceSingle && singleField == null) {
+            DebugLog.hookSkipped(TAG, CONFIG_CLASS, "separate type field not found")
+        }
+        if (singleField == null && nameField == null) return
+        val method = HostAccess.method(policyClass, "getMiuiOperatorConfig", Int::class.javaPrimitiveType!!)
+            ?.takeIf { it.returnType == configClass } ?: run {
+            DebugLog.hookSkipped(TAG, "$POLICY_CLASS#getMiuiOperatorConfig", "method not found")
             return
         }
-        policyClass.findMethodOrNull { name("getMiuiOperatorConfig"); paramCount(1) }?.hook {
+        deoptimize(method)
+        method.hook {
             after { param ->
                 val config = param.result ?: return@after
                 if (!configClass.isInstance(config)) return@after
@@ -314,7 +333,8 @@ object CellularTypeIconHooker : StaticHooker() {
                     }
                 }
             }
-        } ?: DebugLog.hookSkipped(TAG, "$POLICY_CLASS#getMiuiOperatorConfig", "method not found")
+        }
+        DebugLog.hookRegistered(TAG, "native network type operator config")
     }
 
     internal fun recoverOperatorConfig(component: Any) {
@@ -331,39 +351,39 @@ object CellularTypeIconHooker : StaticHooker() {
         }
     }
 
-    /** Applies single-row layout changes after the host has created the complete view hierarchy. */
-    private fun hookBinder() {
-        val binderClass = BINDER_CLASS.toClassOrNull() ?: run {
-            DebugLog.hookSkipped(TAG, BINDER_CLASS, "class not found")
-            return
-        }
-        val bind = binderClass.findMethodOrNull { name("bind"); paramCount(4) } ?: run {
-            DebugLog.hookSkipped(TAG, "$BINDER_CLASS#bind", "method not found")
+    private fun hookTypeOrder() {
+        val binderClass = BINDER_CLASS.toClassOrNull() ?: return
+        val bind = binderClass.declaredMethods.singleOrNull { method ->
+            method.name == "bind" && method.parameterTypes.map { it.name } == listOf(
+                ViewGroup::class.java.name,
+                "com.android.systemui.statusbar.pipeline.mobile.ui.viewmodel.LocationBasedMobileViewModel",
+                "com.android.systemui.statusbar.pipeline.mobile.ui.viewmodel.MiuiMobileIconViewModel",
+                "com.android.systemui.statusbar.pipeline.mobile.ui.MobileViewLogger"
+            )
+        } ?: run {
+            DebugLog.hookSkipped(TAG, "$BINDER_CLASS#bind", "mobile layout binding signature not found")
             return
         }
         bind.hook {
             after { param ->
-                runCatching {
-                    val root = param.args.getOrNull(0) as? ViewGroup ?: return@runCatching
-                    val typeSingle = findView(root, "mobile_type_single") as? TextView
-                    if (swapSingle) swapSingleAndStack(root, typeSingle)
-                }.onFailure { DebugLog.w(TAG, "cellular single type layout update failed", it) }
+                (param.args.firstOrNull() as? ViewGroup)?.let(::applyTypeOrder)
             }
         }
     }
 
-    private fun swapSingleAndStack(root: ViewGroup, typeSingle: TextView?) {
-        val stacked = findView(root, "mobile_signal_container") ?: return
-        val singleParent = typeSingle?.parent as? ViewGroup ?: return
-        val stackedParent = stacked.parent as? ViewGroup ?: return
-        if (singleParent !== stackedParent) return
-        val first = singleParent.indexOfChild(typeSingle)
-        val second = singleParent.indexOfChild(stacked)
-        if (first < 0 || second < 0 || first == second) return
-        singleParent.removeView(typeSingle)
-        singleParent.removeView(stacked)
-        singleParent.addView(stacked, first)
-        singleParent.addView(typeSingle, second)
+    internal fun onTypeOrderContainerLayout(container: ViewGroup, ensureUnclipped: (ViewGroup) -> Unit) {
+        if (orderMode == 0) return
+        runCatching { typeOrder.onContainerLayout(container, orderMode, ensureUnclipped) }
+            .onFailure { DebugLog.w(TAG, "separate type container binding failed", it) }
+    }
+
+    private fun applyTypeOrder(root: ViewGroup) {
+        if (root.javaClass.name != MOBILE_VIEW_CLASS) return
+        runCatching {
+            val signal = findView(root, "mobile_signal_container") ?: return
+            val text = findView(root, "mobile_type_single") as? TextView ?: return
+            typeOrder.bind(root, signal, text, orderMode)
+        }.onFailure { DebugLog.w(TAG, "separate type order update failed", it) }
     }
 
     private fun findView(root: ViewGroup, name: String): android.view.View? {

@@ -14,7 +14,7 @@ import com.takekazex.hypertweak.hook.rules.systemui.icon.signalEndpointVisible
 import com.takekazex.hypertweak.util.logging.DebugLog
 import kotlin.math.abs
 
-/** Retains the left clone's actual ink even while the native HOME window fades out. */
+/** Carries the source artwork to a measured destination, owning its alpha until arrival. */
 internal class LeftPanelMotion(private val onFrameStateChanged: () -> Unit) {
     private var host: ViewGroup? = null
     private var source: View? = null
@@ -25,6 +25,7 @@ internal class LeftPanelMotion(private val onFrameStateChanged: () -> Unit) {
     private var frameReady = false
     private var drawFailed = false
     private var progress = 0f
+    private var sameArtwork = false
     private var drawKey: List<Any?>? = null
     private val sourceFrame = PanelGlyphFrame()
     private val targetFrame = PanelGlyphFrame()
@@ -38,7 +39,7 @@ internal class LeftPanelMotion(private val onFrameStateChanged: () -> Unit) {
             if (source == null || drawFailed || frameReady && progress >= 1f) return
             val save = canvas.saveLayerAlpha(null, if (frameReady) 255 else 0)
             try {
-                travel.draw(canvas, sourceFrame, targetFrame, from, to, progress)
+                travel.draw(canvas, sourceFrame, targetFrame, from, to, progress, sameArtwork = sameArtwork)
                 if (!frameReady) {
                     frameReady = true
                     val owner = host
@@ -57,7 +58,7 @@ internal class LeftPanelMotion(private val onFrameStateChanged: () -> Unit) {
     }
 
     fun update(root: ViewGroup, source: View, target: View, progress: Float,
-               parkedTargetAlpha: Float? = null): Boolean {
+               parkedTargetAlpha: Float? = null, sameArtwork: Boolean = false): Boolean {
         if (!root.isAttachedToWindow || !source.isAttachedToWindow || !target.isAttachedToWindow ||
             root.width <= 0 || root.height <= 0 || source.width <= 0 || source.height <= 0 ||
             !signalEndpointVisible(target, root) || !progress.isFinite()) { clear(); return false }
@@ -78,6 +79,7 @@ internal class LeftPanelMotion(private val onFrameStateChanged: () -> Unit) {
         from.set(sourceFrame.ink); matrix.reset(); source.transformMatrixToGlobal(matrix); matrix.mapRect(from); inverse.mapRect(from)
         to.set(targetFrame.ink); matrix.reset(); target.transformMatrixToGlobal(matrix); matrix.mapRect(to); inverse.mapRect(to)
         this.progress = progress.coerceIn(0f, 1f)
+        this.sameArtwork = sameArtwork
         val ready = frameReady && !drawFailed
         // One moving image through the full drag; do not reveal a stationary endpoint at 75%.
         appliedTargetAlpha = if (ready) savedTargetAlpha * LeftHandover.destinationAlpha(this.progress)
@@ -85,7 +87,7 @@ internal class LeftPanelMotion(private val onFrameStateChanged: () -> Unit) {
         target.alpha = appliedTargetAlpha
         layer.setBounds(0, 0, root.width, root.height)
         val nextKey = listOf(sourceFrame.revision, targetFrame.revision, RectF(from), RectF(to),
-            this.progress, ready, root.width, root.height)
+            this.progress, ready, sameArtwork, root.width, root.height)
         if (drawKey != nextKey) { drawKey = nextKey; layer.invalidateSelf() }
         return ready
     }

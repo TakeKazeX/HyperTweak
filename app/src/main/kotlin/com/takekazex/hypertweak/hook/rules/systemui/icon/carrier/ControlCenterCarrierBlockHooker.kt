@@ -2,19 +2,19 @@
 
 package com.takekazex.hypertweak.hook.rules.systemui.icon.carrier
 
+import com.takekazex.hypertweak.hook.rules.systemui.icon.WifiIconHooker
 import com.takekazex.hypertweak.hook.base.cachedDeclaredMethod
 import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
 import com.takekazex.hypertweak.hook.rules.systemui.icon.ControlCenterHeaderHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.FrameUpdateGate
 import com.takekazex.hypertweak.hook.rules.systemui.icon.HostFlowSubscriptions
-import com.takekazex.hypertweak.hook.rules.systemui.icon.HostIconBridge
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IconHostPorts
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IconTunerFlows
 import com.takekazex.hypertweak.hook.rules.systemui.icon.MobileTypeConfig
 import com.takekazex.hypertweak.hook.rules.systemui.icon.ShadeSwitchMotionPolicy
 import com.takekazex.hypertweak.hook.rules.systemui.icon.SignalHandoverEvents
+import com.takekazex.hypertweak.hook.rules.systemui.icon.StackedSignalHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.TwoRowIconLayout
-import com.takekazex.hypertweak.presentation.icon.IconSvgRepository
 import com.takekazex.hypertweak.presentation.icon.MobileSignalState
 
 import android.annotation.SuppressLint
@@ -39,14 +39,12 @@ import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
-import com.takekazex.hypertweak.settings.contract.SignalSvgStyle
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.io.File
 import java.lang.reflect.Field
 import java.lang.reflect.Method
 import java.util.WeakHashMap
-import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.math.roundToInt
@@ -58,7 +56,6 @@ import org.luckypray.dexkit.query.enums.StringMatchType
  */
 @SuppressLint("StaticFieldLeak")
 object ControlCenterCarrierBlockHooker : StaticHooker() {
-    init { generationCleanup { assetExecutor.shutdownNow() } }
     // Published on settings acceptance; hook callbacks perform no storage reads.
     private val networkVisibility by hookSetting(NetworkIconVisibility()) { IconTunerOptions.networkVisibility() }
 
@@ -74,7 +71,10 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
     private val settingCcCarrierShowNonDataType by hookSetting(false) {
         Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_CARRIER_SHOW_NON_DATA_TYPE, false)
     }
-    private val settingCellularTypeKeepsOnWifi by hookSetting(false) { Preferences.cellularTypeKeepsOnWifi() }
+    private val hideTypeWhenDisconnected by hookSetting(false) {
+        Preferences.getBoolean(IconSettingsKeys.KEY_ICON_STACKED_TYPE_HIDE_DISCONNECT, false)
+    }
+    private val settingCellularTypeKeepsOnWifi by hookSetting(false) { Preferences.legacyStackedTypeKeepsOnWifi() }
     private val settingCcCarrierShowBadge by hookSetting(true) {
         Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_CARRIER_SHOW_BADGE, true)
     }
@@ -107,12 +107,12 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
 
     private val handover = CarrierHandoverController(object : CarrierHandoverController.Host {
         override val enabled get() = ControlCenterCarrierBlockHooker.enabled
-        override val artworkReady get() = artwork != null
         override val statusBarId get() = ControlCenterCarrierBlockHooker.statusBarId
         override val fakeStatusBarId get() = ControlCenterCarrierBlockHooker.fakeStatusBarId
         override val wifiSignalId get() = ControlCenterCarrierBlockHooker.wifiSignalId
         override val mobileSignalId get() = ControlCenterCarrierBlockHooker.mobileSignalId
         override val mobileTypeId get() = ControlCenterCarrierBlockHooker.mobileTypeId
+        override val activeDataSubId get() = mobileState.activeDataSubId
         override val mobileGroupId get() = ControlCenterCarrierBlockHooker.mobileGroupId
         override fun blocks(): Collection<CarrierBlock> = blocks.values
         override fun rowFor(view: View) = rowIndex[view.parent]
@@ -130,13 +130,8 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
     }, rowRenderer)
 
     private val main = Handler(Looper.getMainLooper())
-    private fun newAssetExecutor() = Executors.newSingleThreadExecutor { runnable ->
-        Thread(runnable, "HyperTweak-CarrierBlockAssets").apply { isDaemon = true }
-    }
-    private var assetExecutor = newAssetExecutor()
     private val generation = AtomicLong(0L)
     private val installed = generationResource(AtomicBoolean(false)) { it.set(false) }
-    private val artLock = Any()
 
     /** Carrier rows supply their live host typography; these values are fallback only. */
     private var typeConfig by generationState { MobileTypeConfig(
@@ -166,13 +161,6 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
     private var subscriptionManager: SubscriptionManager? by generationState { null }
     private var subscriptionListener: SubscriptionManager.OnSubscriptionsChangedListener? by generationState { null }
     private var simNames: Map<Int, String> by generationState { emptyMap() }
-    private var svgRepository: IconSvgRepository? by generationState { null }
-    private var artwork: CarrierArtwork? by generationState { null }
-    @Volatile
-    private var artGeneration = Long.MIN_VALUE
-    @Volatile
-    private var artInFlight = Long.MIN_VALUE
-
     private val knownLayouts = generationMainResource(WeakHashMap<ViewGroup, Boolean>()) { it.clear() }
     private var recoveryTask: Runnable? by generationState { null }
     private var recoveryAttempt by generationState { 0 }
@@ -185,9 +173,9 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
     private var fakeStatusBarId by generationState { 0 }
     private var statusBarId by generationState { 0 }
     private var wifiSignalId by generationState { 0 }
-    private var mobileGroupId by generationState { 0 }
-    private var mobileTypeId by generationState { 0 }
     private var mobileSignalId by generationState { 0 }
+    private var mobileTypeId by generationState { 0 }
+    private var mobileGroupId by generationState { 0 }
 
     private var leftTextField: Field? by generationState { null }
     private var rightTextField: Field? by generationState { null }
@@ -211,16 +199,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         val app = context.applicationContext ?: context
         hostContext = app
         resolveIds(context)
-        if (svgRepository == null) {
-            val moduleContext = runCatching {
-                context.createPackageContext(HostIconBridge.MODULE_PACKAGE, Context.CONTEXT_IGNORE_SECURITY)
-            }.onFailure { DebugLog.w(TAG, "carrier module resources unavailable", it) }.getOrNull()
-            svgRepository = moduleContext?.let(::IconSvgRepository)
-        }
-        if (enabled) {
-            bindSimNames(app)
-            scheduleArtworkLoad(generation.get())
-        }
+        if (enabled) bindSimNames(app)
     }
 
     /** Subscription display names include Settings SIM renames; carrier/SPN text does not. */
@@ -343,10 +322,10 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         scheduleRender()
         handover.applyHandoverGuarded(progress)
         val evidence = CarrierRecoveryEvidence(
-            environmentReady = carrierLayoutId != 0 && svgRepository != null,
+            environmentReady = carrierLayoutId != 0,
             hosts = blocks.size,
             rows = blocks.values.sumOf { it.rows.size },
-            artworkReady = artwork != null,
+            artworkReady = mobileState.rows.none { it.supportsReplacement && it.signalIconId == null },
             wifiBound = wifiSubscriptions.isBound,
             mobileBound = IconHostPorts.mobileReady()
         )
@@ -375,17 +354,10 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
     }
 
     override fun onPrepareHotReload() {
-        val token = generation.incrementAndGet()
+        generation.incrementAndGet()
         main.removeCallbacksAndMessages(null)
 
-        assetExecutor.shutdownNow()
-
         wifiSubscriptions.clear()
-
-        synchronized(artLock) {
-            artGeneration = Long.MIN_VALUE
-            artInFlight = Long.MIN_VALUE
-        }
         // Finish host restoration before the lifecycle removes this generation's hooks.
         onMainBlocking {
             subscriptionListener?.let { listener ->
@@ -407,7 +379,6 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
             rowRenderer.clear()
             knownLayouts.clear()
             hostContext = null
-            svgRepository = null
             lastRecoveryEvidence = null
             rowIndex.clear()
             mobileState = MobileSignalState()
@@ -415,11 +386,9 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
             panelVisible = false
         }
         installed.set(false)
-        synchronized(artLock) { if (generation.get() == token) artGeneration = Long.MIN_VALUE }
     }
 
     override fun onHook() {
-        if (assetExecutor.isShutdown) assetExecutor = newAssetExecutor()
         networkOnFirstRow = settingCcNetworkFirstRow
         IconTunerFlows.init(classLoader)
         typeConfig = typeConfig.copy(
@@ -464,9 +433,9 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         fakeStatusBarId = id(resources, "normal_fake_control_center_status_bar")
         statusBarId = id(resources, "normal_control_center_status_bar")
         wifiSignalId = id(resources, "wifi_signal")
-        mobileGroupId = id(resources, "mobile_group")
-        mobileTypeId = id(resources, "mobile_type")
         mobileSignalId = id(resources, "mobile_signal")
+        mobileTypeId = id(resources, "mobile_type")
+        mobileGroupId = id(resources, "mobile_group")
     }
 
     private fun id(resources: android.content.res.Resources, name: String): Int =
@@ -951,7 +920,11 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         block.observer = block.layout.viewTreeObserver
         block.preDraw = ViewTreeObserver.OnPreDrawListener {
             runCatching {
-                if (block.compact) block.rows.forEach(rowRenderer::syncTint)
+                if (block.compact) {
+                    syncNativeWifi(block)
+                    if (syncNativeSignals(block) { it.model }) scheduleRender()
+                    block.rows.forEach(rowRenderer::syncTint)
+                }
                 presentation.updateRowGeometry(block)
                 ControlCenterHeaderHooker.updateCarrierLayout(block.layout, geometryOnly = true)
                 syncMask(block)
@@ -1004,8 +977,6 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
     private fun renderAll() {
         if (!enabled || blocks.isEmpty()) return
         slotIndices = mobileState.subscriptionOrder.associateWith(::slotOf)
-        // A failed SVG read must not pin the block to "no artwork": the next state change retries.
-        if (artwork == null) scheduleArtworkLoad(generation.get())
         val rows = CarrierBlockPolicy.resolve(
             state = mobileState,
             wifiLevel = wifiLevel.takeIf { wifiDefault == true && !hidesWifi() },
@@ -1015,50 +986,23 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
                 dataFirst = dataFirst,
                 networkOnFirstRow = networkOnFirstRow,
                 hiddenSimIds = hiddenSimIds(),
-                hideType = networkVisibility.hideType
+                hideTypeWhenDisconnected = hideTypeWhenDisconnected
             ),
             wifiDefault = wifiDefault ?: mobileState.wifiConnected,
             slotOf = { slotIndices[it] ?: CarrierBlockPolicy.INVALID_SLOT }
         )
         rowOrder = rows.map { it.slot }
-        val rendering = CarrierRenderInput(artwork, mobileState, simNames, showBadge, keepTypeOnWifi, typeConfig)
         blocks.values.toList().forEach { block ->
             if (!block.layout.isAttachedToWindow) return@forEach
             if (block.compact) {
+                val rendering = CarrierRenderInput(
+                    mobileState, simNames, showBadge, keepTypeOnWifi, typeConfig, block.nativeWifi
+                )
+                syncNativeSignals(block) { parts -> rows.firstOrNull { it.slot == parts.slot } }
                 block.rows.forEach { parts -> rowRenderer.renderRow(parts, rows, rendering) }
                 presentation.updateRowGeometry(block)
                 ControlCenterHeaderHooker.updateCarrierLayout(block.layout, geometryOnly = true)
             } else releaseMask(block)
-        }
-    }
-
-    private fun scheduleArtworkLoad(token: Long) {
-        if (!enabled || artwork != null || svgRepository == null) return
-        synchronized(artLock) {
-            if (artGeneration == token || artInFlight == token) return
-            artInFlight = token
-        }
-        assetExecutor.execute {
-            val loaded = runCatching {
-                val repository = svgRepository ?: return@runCatching null
-                val single = repository.loadSignalSingle(SignalSvgStyle.HYPEROS3).getOrNull()
-                    ?: return@runCatching null
-                val wifi = repository.loadWifi().getOrNull() ?: return@runCatching null
-                CarrierArtwork(single, wifi)
-            }.onFailure { DebugLog.w(TAG, "carrier artwork load failed", it) }.getOrNull()
-            main.post {
-                synchronized(artLock) {
-                    if (artInFlight == token) artInFlight = Long.MIN_VALUE
-                }
-                if (!enabled || generation.get() != token) return@post
-                if (loaded != null) {
-                    artwork = loaded
-                    artGeneration = token
-                    DebugLog.i(TAG, "carrier artwork ready")
-                    scheduleRender()
-                    handover.applyHandoverGuarded(progress)
-                }
-            }
         }
     }
 
@@ -1071,6 +1015,62 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
     }
 
     // ---------------------------------------------------------------- status row mask
+
+    private fun syncNativeSignals(block: CarrierBlock, model: (CarrierRowParts) -> CarrierRowModel?): Boolean {
+        val header = block.layout.parent as? ViewGroup ?: return false
+        val fake = header.findViewById<ViewGroup>(fakeStatusBarId)
+        val real = header.findViewById<ViewGroup>(statusBarId)
+        val duo = fake != null && SignalHandoverEvents.shade.hasActiveProxy(fake)
+        val stackedType = !duo && fake?.let(StackedSignalHooker::duoTypeTarget) != null
+        var changed = false
+        for (parts in block.rows) {
+            val row = model(parts)?.takeIf { it.hasSignal }
+            val source = row?.let {
+                // A separately animated type has its own carrier endpoint. Do not also replay it
+                // from a hidden native holder when the gesture starts from Duo or stacked type.
+                val includeBadge = !(row.typeText != null && row.networkSubId == row.subId &&
+                    (duo || stackedType && row.subId == mobileState.activeDataSubId))
+                fake?.let { root -> handover.nativeSignal(root, row.subId, includeBadge) }
+                    ?: real?.let { root -> handover.nativeSignal(root, row.subId, includeBadge) }
+            }
+            val previous = parts.nativeSignal
+            val width = previous?.intrinsicWidth
+            val height = previous?.intrinsicHeight
+            val next = source?.let {
+                val glyph = previous?.takeIf { it.source === source } ?: CarrierNativeGlyph(source)
+                glyph.takeIf { it.update() }
+            }
+            val badge = next?.source?.findViewById<android.widget.ImageView>(mobileTypeId)
+            val hasBadge = badge?.visibility == View.VISIBLE && badge.drawable != null &&
+                badge.width > 0 && badge.height > 0 && badge.alpha > 0f
+            if (previous !== next || width != next?.intrinsicWidth || height != next?.intrinsicHeight ||
+                parts.nativeTypeBadge != hasBadge) changed = true
+            parts.nativeSignal = next
+            parts.nativeTypeBadge = hasBadge
+        }
+        return changed
+    }
+
+    private fun syncNativeWifi(block: CarrierBlock) {
+        val header = block.layout.parent as? ViewGroup
+        val row = header?.findViewById<View>(statusBarId)
+        val source = row?.let { WifiIconHooker.nativeGlyph(it, wifiSignalId) } as? ViewGroup
+        val previous = block.nativeWifi
+        val previousWidth = previous?.intrinsicWidth
+        val previousHeight = previous?.intrinsicHeight
+        val next = if (source != null && wifiDefault == true && wifiLevel != null && !hidesWifi()) {
+            val existing = previous?.takeIf { it.source === source }
+            val ready = existing ?: CarrierNativeGlyph(source).takeIf {
+                source.visibility == View.VISIBLE &&
+                    source.findViewById<android.widget.ImageView>(wifiSignalId)?.drawable != null
+            }
+            ready?.takeIf { it.update() }
+        } else null
+        block.nativeWifi = next
+        if (previous !== next || previousWidth != next?.intrinsicWidth || previousHeight != next?.intrinsicHeight) {
+            scheduleRender()
+        }
+    }
 
     private fun syncMask(block: CarrierBlock) {
         if (!block.compact || !block.layout.isAttachedToWindow || !block.layout.isShown) {
@@ -1087,7 +1087,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         val cellular = CarrierBlockPolicy.replacesStatusSignal(allowedRows.mapNotNull { it.model }, allowed) &&
             allowedRows.all { it.row.isLaidOut && it.signal.isVisible && it.signal.drawable != null }
         val wifiReplacement = block.rows.any {
-            it.wifi.isVisible && it.wifi.width > 0 && it.wifiBitmap != null
+            it.wifi.isVisible && it.wifi.width > 0 && it.nativeWifi != null && it.nativeWifi === block.nativeWifi
         }
         val hideCellular = hidden.isNotEmpty() && allowed.isEmpty()
         val hideWifi = hidesWifi()
@@ -1102,7 +1102,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         }
         block.rows.forEach { parts ->
             parts.cellularReady = acquired && cellular && parts.model?.subId in allowed
-            parts.wifiReady = acquired && !hideWifi && wifiReplacement && parts.wifiBitmap != null
+            parts.wifiReady = acquired && !hideWifi && wifiReplacement && parts.nativeWifi != null && parts.nativeWifi === block.nativeWifi
             val signalReady = parts.cellularReady
             if (!signalReady || !handover.ownsTarget(parts.signal))
                 parts.signal.alpha = if (signalReady) 1f else 0f

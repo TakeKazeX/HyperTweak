@@ -71,7 +71,6 @@ object IconTunerOptions {
     internal fun networkVisibility(): NetworkIconVisibility = NetworkIconVisibility(
         hideMobileOnWifi = Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_MOBILE_ON_WIFI, false),
         hideWifi = Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_WIFI_UNAVAILABLE, false),
-        hideType = Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_TYPE, false),
         hideNonDefaultSim = Preferences.hideNonDefaultSim(),
         hideSimOne = Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_SIM_ONE, false),
         hideSimTwo = Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_SIM_TWO, false),

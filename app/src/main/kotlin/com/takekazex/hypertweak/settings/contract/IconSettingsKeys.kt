@@ -22,6 +22,7 @@ object IconSettingsKeys {
     const val KEY_ICON_HIDE_SIM_TWO = "icon_hide_sim_two"
     const val KEY_ICON_HIDE_MOBILE_ON_WIFI = "icon_hide_mobile_on_wifi"
     const val KEY_ICON_CELLULAR_TYPE_SINGLE = "icon_tuner_cellular_type_single"
+    const val KEY_ICON_CELLULAR_TYPE_ORDER = "icon_tuner_cellular_type_order"
     const val KEY_ICON_CELLULAR_TYPE_SINGLE_SWAP = "icon_tuner_cellular_type_single_swap"
     const val KEY_ICON_CELLULAR_TYPE_CUSTOM = "icon_tuner_cellular_type_custom"
     const val KEY_ICON_CELLULAR_TYPE_CUSTOM_VAL = "icon_tuner_cellular_type_custom_val"

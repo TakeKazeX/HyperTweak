@@ -34,6 +34,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.takekazex.hypertweak.R
+import com.takekazex.hypertweak.settings.contract.IconSlotPolicy
 import com.takekazex.hypertweak.settings.contract.MobileTypeLabelStyle
 import com.takekazex.hypertweak.presentation.icon.duo.DuoContent
 import com.takekazex.hypertweak.presentation.icon.duo.DuoDrawable
@@ -114,32 +115,38 @@ internal fun StatusBarPreview(model: StatusBarPreviewModel, duoSizes: DuoSizes =
             }
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
-            if (model.showNetworkType) {
-                val networkLabel = if (model.small5GaEnabled) {
-                    buildAnnotatedString {
-                        append("5G")
-                        withStyle(
-                            SpanStyle(
-                                fontSize = (NETWORK_TYPE_SP * model.typography.scale * MobileTypeLabelStyle.SMALL_5GA_SUFFIX_SCALE).sp
-                            )
-                        ) { append("A") }
-                    }
-                } else {
-                    buildAnnotatedString { append(stringResource(R.string.icon_preview_network_type)) }
-                }
-                Text(
-                    text = networkLabel,
-                    color = MiuixTheme.colorScheme.onSurface,
-                    fontSize = (NETWORK_TYPE_SP * model.typography.scale).sp,
-                    fontWeight = if (model.typography.enabled) androidx.compose.ui.text.font.FontWeight(model.typography.weight) else null,
-                    modifier = Modifier.padding(end = 2.dp)
-                )
-            }
             model.coreSlots.forEach { slot ->
-                PreviewGlyph(slot, model.duoSizeDp, duoSizes, mirrorAirplane, model.duoContent)
+                if (slot == PREVIEW_NATIVE_TYPE_SLOT || slot == IconSlotPolicy.SLOT_STACKED_TYPE) {
+                    PreviewNetworkType(model)
+                } else {
+                    PreviewGlyph(slot, model.duoSizeDp, duoSizes, mirrorAirplane, model.duoContent)
+                }
             }
         }
     }
+}
+
+@Composable
+private fun PreviewNetworkType(model: StatusBarPreviewModel) {
+    val networkLabel = if (model.small5GaEnabled) {
+        buildAnnotatedString {
+            append("5G")
+            withStyle(
+                SpanStyle(
+                    fontSize = (NETWORK_TYPE_SP * model.typography.scale * MobileTypeLabelStyle.SMALL_5GA_SUFFIX_SCALE).sp
+                )
+            ) { append("A") }
+        }
+    } else {
+        buildAnnotatedString { append(stringResource(R.string.icon_preview_network_type)) }
+    }
+    Text(
+        text = networkLabel,
+        color = MiuixTheme.colorScheme.onSurface,
+        fontSize = (NETWORK_TYPE_SP * model.typography.scale).sp,
+        fontWeight = if (model.typography.enabled) androidx.compose.ui.text.font.FontWeight(model.typography.weight) else null,
+        modifier = Modifier.padding(horizontal = 1.dp)
+    )
 }
 
 @Composable

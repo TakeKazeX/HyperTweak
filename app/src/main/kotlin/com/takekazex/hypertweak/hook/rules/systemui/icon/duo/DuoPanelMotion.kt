@@ -55,6 +55,7 @@ internal class DuoPanelMotion(context: Context, private val airplaneOnly: Boolea
     private var y = 0f
     private var side = 0f
     private var motionProgress = 0f
+    private var wifiHandoff = false
     private var layerAlpha = 255
     private var frameReady = false
     private var drawFailed = false
@@ -63,7 +64,10 @@ internal class DuoPanelMotion(context: Context, private val airplaneOnly: Boolea
             if (drawFailed || side <= 0f) return
             val count = canvas.save()
             try {
-                if (layerAlpha > 0) travel.draw(canvas, sourceFrame, targetFrame, from, to, motionProgress, keepSource = airplaneOnly)
+                if (layerAlpha > 0) travel.draw(
+                    canvas, sourceFrame, targetFrame, from, to, motionProgress, keepSource = airplaneOnly,
+                    styleStart = if (wifiHandoff) .45f else .8f
+                )
                 if (!frameReady) {
                     frameReady = true
                     host?.postInvalidateOnAnimation()
@@ -157,6 +161,7 @@ internal class DuoPanelMotion(context: Context, private val airplaneOnly: Boolea
         inverseRoot.mapRect(from); inverseRoot.mapRect(to)
         x = from.left; y = from.top; side = from.width()
         motionProgress = p
+        wifiHandoff = !airplaneOnly && content.wifiLevel != null
         // Keep native artwork hidden until the matched endpoint. A separate native fade would
         // expose a full-sized destination behind the moving glyph.
         val handoff = if (p >= 1f) 1f else 0f

@@ -576,8 +576,8 @@
     <string name="icon_cellular_type_single">Use Separate Network Type Text</string>
     <string name="icon_cellular_type_single_summary">Use the native separate 4G/5G text style. The system decides when to show it.</string>
     <string name="icon_cellular_type_title">Type Display</string>
-    <string name="icon_cellular_type_swap">Swap Single Type and Signal</string>
-    <string name="icon_cellular_type_swap_summary">Move the single-SIM network label to the right of the signal icon</string>
+    <string name="icon_cellular_type_swap">Separate type position</string>
+    <string name="icon_cellular_type_swap_summary">Swap sides relative to the data SIM, or place the label at either edge of the SIM group.</string>
     <string name="icon_battery_style_title">Control Center Battery</string>
     <string name="icon_battery_style_percent">Percentage Placement</string>
     <string name="icon_battery_style_system">Follow System</string>
@@ -588,7 +588,7 @@
     <string name="icon_stacked_type_hide_disconnect">Hide Type When Data Is Disconnected</string>
     <string name="icon_stacked_type_hide_disconnect_summary">Hide the stacked type label while data is disconnected</string>
     <string name="icon_stacked_type_keep_on_wifi">Keep Cellular Type on Wi-Fi</string>
-    <string name="icon_stacked_type_keep_on_wifi_summary">Keep the active SIM’s 4G/5G label when Wi-Fi carries data. Hiding the network type or cellular icons takes priority.</string>
+    <string name="icon_stacked_type_keep_on_wifi_summary">Keep the active SIM’s separate 4G/5G text when Wi-Fi is the default network.</string>
     <string name="icon_stacked_type_roaming">Prefix Roaming Type</string>
     <string name="icon_stacked_type_roaming_summary">Prefix the active network type with R while roaming</string>
     <string name="icon_hide_carrier_hd">Hide HD Icon</string>
@@ -620,7 +620,7 @@
     <string name="icon_cc_carrier_badge_one">SIM 1 label</string>
     <string name="icon_cc_carrier_badge_two">SIM 2 label</string>
     <string name="icon_cc_carrier_show_non_data_type">Show Non-Data SIM Type</string>
-    <string name="icon_cc_carrier_show_non_data_type_summary">Applies to two-line carrier rows. On Wi-Fi, also enable Keep Cellular Type on Wi-Fi.</string>
+    <string name="icon_cc_carrier_show_non_data_type_summary">Show the network type for the non-data SIM in the two-line carrier display.</string>
     <string name="icon_region_sampling">Force Region Sampling</string>
     <string name="icon_region_sampling_summary">Sample the area behind the status bar so icons and background adapt</string>
     <string name="icon_hide_connected_wifi_icon">Hide Connected Wi-Fi Icon</string>
@@ -630,7 +630,7 @@
     <string name="icon_hide_hd_call">Hide HD Call</string>
     <string name="icon_hide_hd_call_summary">Hide the HD voice indicator</string>
     <string name="icon_hide_network_type">Hide Network Type</string>
-    <string name="icon_hide_network_type_summary">Hide the 4G/5G label while keeping cellular signal strength.</string>
+    <string name="icon_hide_network_type_summary">Hide the 4G/5G badge at the top left of the standard signal icon.</string>
     <string name="icon_hide_mobile_on_wifi">Hide Cellular Signal on Wi-Fi</string>
     <string name="icon_hide_mobile_on_wifi_summary">Hide cellular signal and type when Wi-Fi is the default network.</string>
     <string name="icon_hide_non_default_sim_icon">Hide Non-Default SIM Icon</string>
@@ -639,7 +639,7 @@
     <string name="icon_hide_sim_one_summary">Hide cellular signal and type from physical slot 1.</string>
     <string name="icon_hide_sim_two">Hide SIM 2</string>
     <string name="icon_hide_sim_two_summary">Hide cellular signal and type from physical slot 2.</string>
-    <string name="icon_hide_privacy_indicator">Hide Privacy Indicator</string>
+    <string name="icon_hide_privacy_indicator">Hide Status Bar Privacy Indicator</string>
     <string name="icon_hide_privacy_indicator_summary">Hide the camera/mic privacy dot in the status bar</string>
     <string name="icon_native_roaming">Native Roaming Indicators</string>
     <string name="icon_native_roaming_system">Follow System</string>
@@ -1617,7 +1617,7 @@
     <string name="icon_cc_privacy_reset">Restore recommended style</string>
     <string name="icon_cc_privacy_reset_summary">Centered row, 18 dp icons, 12 sp text, 8 dp downward offset</string>
     <string name="settings_privacy_indicator">Privacy indicator</string>
-    <string name="settings_privacy_indicator_summary">Customize the control-center privacy row</string>
+    <string name="settings_privacy_indicator_summary">Manage privacy indicators in the status bar and control center</string>
     <string name="privacy_value_range">Range: %1$d to %2$d %3$s</string>
     <string name="fullscreen_back_behavior_title">Fullscreen back behavior</string>
     <string name="fullscreen_back_show_bars">Show system bars first</string>
@@ -1979,4 +1979,9 @@
     <string name="wifi_view_password_ssid">SSID: </string>
     <string name="wifi_view_password_security">Security: </string>
     <string name="wifi_view_password_pwd">Password: </string>
+    <string name="icon_type_order_default">Default</string>
+    <string name="icon_type_order_swap">Swap sides</string>
+    <string name="icon_type_order_right">Always right</string>
+    <string name="icon_type_order_left">Always left</string>
+    <string name="icon_wifi_standard_map_hint">Enter one label for all standards, or five comma-separated values for 802.11n, ac, ax, ad and be. Use -1 to hide a label. Example: -1,-1,6,7,7.</string>
 </resources>

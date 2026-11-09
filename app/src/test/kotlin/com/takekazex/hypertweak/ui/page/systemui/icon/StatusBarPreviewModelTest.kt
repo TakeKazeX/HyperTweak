@@ -24,8 +24,10 @@ class StatusBarPreviewModelTest {
         duoSizeDp: Float = 24f,
         hideMobileOnWifi: Boolean = false,
         hideWifiConnected: Boolean = false,
-        showCellularType: Boolean = true,
+        useSeparateCellularType: Boolean = true,
+        typeOrder: Int = 0,
         keepCellularTypeOnWifi: Boolean = true,
+        keepStackedTypeOnWifi: Boolean = false,
         hideSimOne: Boolean = false
     ) = StatusBarPreviewInput(
         position = position,
@@ -39,8 +41,10 @@ class StatusBarPreviewModelTest {
         duoSizeDp = duoSizeDp,
         hideMobileOnWifi = hideMobileOnWifi,
         hideWifiConnected = hideWifiConnected,
-        showCellularType = showCellularType,
+        useSeparateCellularType = useSeparateCellularType,
+        typeOrder = typeOrder,
         keepCellularTypeOnWifi = keepCellularTypeOnWifi,
+        keepStackedTypeOnWifi = keepStackedTypeOnWifi,
         hideSimOne = hideSimOne
     )
 
@@ -193,19 +197,27 @@ class StatusBarPreviewModelTest {
     @Test
     fun networkTypeLabelFollowsTheSettingAndTheSignal() {
         assertTrue(buildStatusBarPreview(input()).showNetworkType)
-        assertFalse(buildStatusBarPreview(input(showCellularType = false)).showNetworkType)
+        assertFalse(buildStatusBarPreview(input(useSeparateCellularType = false)).showNetworkType)
         assertFalse(buildStatusBarPreview(input(hideMobileOnWifi = true)).showNetworkType)
     }
 
     @Test
-    fun wifiTypeRetentionAppliesToAllPreviewFamilies() {
-        for (stacked in listOf(false, true)) {
-            assertFalse(buildStatusBarPreview(input(stackedEnabled = stacked, keepCellularTypeOnWifi = false)).showNetworkType)
-            assertTrue(buildStatusBarPreview(input(stackedEnabled = stacked)).showNetworkType)
-        }
-        assertEquals("5G", buildStatusBarPreview(input(duoEnabled = true)).duoContent?.networkLabel)
-        assertEquals(null, buildStatusBarPreview(input(duoEnabled = true, keepCellularTypeOnWifi = false)).duoContent?.networkLabel)
-        assertEquals(null, buildStatusBarPreview(input(duoEnabled = true, hideSimOne = true)).duoContent?.networkLabel)
+    fun wifiTypeRetentionAffectsOnlySeparateText() {
+        assertFalse(buildStatusBarPreview(input(keepCellularTypeOnWifi = false)).showNetworkType)
+        assertFalse(buildStatusBarPreview(input(stackedEnabled = true)).showNetworkType)
+        assertTrue(buildStatusBarPreview(input(stackedEnabled = true, keepStackedTypeOnWifi = true)).showNetworkType)
+        assertEquals(null, buildStatusBarPreview(input(duoEnabled = true)).duoContent?.networkLabel)
+    }
+
+    @Test
+    fun typeSwapMovesTheLabelWithinTheCellularGroup() {
+        val normal = buildStatusBarPreview(input()).coreSlots
+        val swapped = buildStatusBarPreview(input(typeOrder = 2)).coreSlots
+        assertEquals(SLOT_SINGLE_SIM1, normal[normal.indexOf(PREVIEW_NATIVE_TYPE_SLOT) + 1])
+        assertEquals(SLOT_SINGLE_SIM2, swapped[swapped.indexOf(PREVIEW_NATIVE_TYPE_SLOT) - 1])
+        assertFalse(PREVIEW_NATIVE_TYPE_SLOT in buildStatusBarPreview(input(
+            typeOrder = 2, hideSimOne = true
+        )).coreSlots)
     }
 
     @Test

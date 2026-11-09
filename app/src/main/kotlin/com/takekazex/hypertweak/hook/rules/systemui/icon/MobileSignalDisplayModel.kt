@@ -7,7 +7,8 @@ import com.takekazex.hypertweak.presentation.icon.MobileSubscriptionState
 /** One subscription's final host artwork wins over the generic AOSP strength estimate. */
 internal class MobileSignalDisplayModel(private val iconLevels: Map<Int, Int>) {
     private var model = MobileSignalModel.unknown()
-    private var iconId: Int? = null
+    var iconId: Int? = null
+        private set
 
     fun model(value: MobileSignalModel): MobileSignalModel {
         model = value
@@ -15,7 +16,7 @@ internal class MobileSignalDisplayModel(private val iconLevels: Map<Int, Int>) {
     }
 
     fun icon(value: Int?): MobileSignalModel {
-        iconId = value
+        iconId = value?.takeIf { it > 0 }
         return resolved()
     }
 
