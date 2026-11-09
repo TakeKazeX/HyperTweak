@@ -1,13 +1,11 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
 import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
-import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
-import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
+import com.takekazex.hypertweak.settings.contract.CcBatteryPercentStyle
 
 import com.takekazex.hypertweak.hook.base.HostAccess
 import android.provider.Settings
 import android.view.View
-import androidx.core.view.isGone
 import java.util.WeakHashMap
 import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
@@ -18,14 +16,8 @@ import java.lang.reflect.Field
 /**
  * Control-center battery percentage style (OS4 `MiuiBatteryMeterView`).
  *
- * The stock view renders the system `battery_indicator_style` and, for the CN default (`1`), draws
- * the number inside a hollow glyph. Two switches retarget only the control center's own instances:
- *
- * - 开关 1 (`KEY_CC_BATTERY_PERCENT_OUTSIDE`) forces style `3` — solid icon plus the percentage in
- *   the sibling container outside it — by rewriting the argument of `onBatteryStyleChanged(int)`,
- *   so the host itself performs the icon/percentage visibility swap and measurement.
- * - 开关 2 (`KEY_CC_BATTERY_PERCENT_LEFT`) re-lays that outside percentage on the leading edge
- *   after `onLayout(boolean,int,int,int,int)`, which the host positions on the trailing edge.
+ * Outside placement enters through the host's style setter so it manages visibility and width.
+ * Leading placement reorders the two measured views after the host lays them out.
  *
  * Only the expanded QS battery (`layoutFromTag` 6) uses the chosen style. The collapsed
  * QS_FAKE mirror (`5`) keeps the HOME battery style; SystemUI crossfades those two prepared
@@ -35,18 +27,8 @@ import java.lang.reflect.Field
  * percentage TextViews beside the three-in-one glyph; the retained battery remains `GONE` behind it.
  */
 object CcBatteryStyleHooker : StaticHooker() {
-    private val settingDuoEnabled by hookSetting(false) {
-        Preferences.getBoolean(IconSettingsKeys.KEY_ICON_DUO_ENABLED, false)
-    }
-    private val percentMarks = generationMainResource(WeakHashMap<View, Int>()) { it.clear() }
-
     // Published on settings acceptance; hook callbacks perform no storage reads.
-    private val settingCcBatteryPercentOutside by hookSetting(false) {
-        Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_BATTERY_PERCENT_OUTSIDE, false)
-    }
-    private val settingCcBatteryPercentLeft by hookSetting(false) {
-        Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_BATTERY_PERCENT_LEFT, false)
-    }
+    private val percentStyle by hookSetting(CcBatteryPercentStyle.SYSTEM) { Preferences.ccBatteryPercentStyle() }
 
     init {
         hostRecovery(HostRecoveryPhase.ICONS, icons = true) {
@@ -74,9 +56,9 @@ object CcBatteryStyleHooker : StaticHooker() {
     override fun onHook() {
         retiring = false
         if (!isMainProcess) return
-        val outside = settingCcBatteryPercentOutside
-        leadingPercent = settingCcBatteryPercentLeft
-        if (!outside && !leadingPercent && !settingDuoEnabled) return
+        val style = percentStyle
+        leadingPercent = style == CcBatteryPercentStyle.OUTSIDE_LEADING
+        if (style == CcBatteryPercentStyle.SYSTEM) return
         val battery = BATTERY.toClassOrNull() ?: run {
             DebugLog.hookSkipped(TAG, "control-center battery style", "host class not found")
             return
@@ -91,13 +73,13 @@ object CcBatteryStyleHooker : StaticHooker() {
         // The style setter decides the icon/percentage visibility and the measured width, so the
         // forced style enters through the host's own parameter rather than an after-the-fact
         // visibility patch. `onBatteryStyleChanged` also runs again on island/AOD/state changes,
-        // and these hooks only exist while at least one switch is on.
+        // and these hooks only exist for an outside style.
         battery.findMethodOrNull { name("onBatteryStyleChanged"); paramCount(1) }?.let { method ->
             deoptimize(method)
             method.hook {
                 before { param ->
                     val batteryView = param.thisObject as? View ?: return@before
-                    if (retiring || (!outside && !leadingPercent) || !isControlCenter(batteryView)) return@before
+                    if (retiring || !isControlCenter(batteryView)) return@before
                     val requested = param.args[0] as? Int ?: return@before
                     hostStyles[batteryView] = requested
                     param.args[0] = STYLE_ICON_AND_PERCENT
@@ -119,34 +101,12 @@ object CcBatteryStyleHooker : StaticHooker() {
                 }
             }
         }
-        battery.declaredMethods.filter {
-            (it.name == "onMeasure" && it.parameterCount == 2) ||
-                (it.name == "updateChargeAndText" && it.parameterCount == 0)
-        }.forEach { method ->
-            deoptimize(method)
-            method.hook {
-                before { param ->
-                    if (method.name == "onMeasure") (param.thisObject as? View)?.let { view ->
-                        guarded { hideDuoPercentMark(view) }
-                    }
-                }
-                after { param ->
-                    if (method.name == "updateChargeAndText") (param.thisObject as? View)?.let { view ->
-                        guarded { hideDuoPercentMark(view) }
-                    }
-                }
-            }
-        }
-        DebugLog.hookRegistered(TAG, "control-center battery outside=$outside leading=$leadingPercent")
+        DebugLog.hookRegistered(TAG, "control-center battery style=$style")
     }
 
     override fun onPrepareHotReload() {
         HostAccess.onMain {
             retiring = true
-            percentMarks.entries.toList().forEach { (view, original) ->
-                if (view.isGone) view.visibility = original
-            }
-            percentMarks.clear()
             leadingPercent = false
             hostStyles.entries.toList().forEach { (view, style) ->
                 HostAccess.method(view, "onBatteryStyleChanged", Int::class.javaPrimitiveType!!)?.invoke(view, style)
@@ -161,18 +121,8 @@ object CcBatteryStyleHooker : StaticHooker() {
             // Recover even when both switches are disabled: a previous generation forced style 3.
             val style = Settings.System.getInt(view.context.contentResolver, "battery_indicator_style", 1)
             HostAccess.method(view, "onBatteryStyleChanged", Int::class.javaPrimitiveType!!)?.invoke(view, style)
-            hideDuoPercentMark(view)
             view.requestLayout()
         }
-    }
-
-    private fun hideDuoPercentMark(view: View) {
-        if (retiring || !settingDuoEnabled || !isControlCenter(view)) return
-        val mark = HostAccess.read(view, "mBatteryPercentMarkView") as? View ?: return
-        if (mark.visibility != View.GONE || !percentMarks.containsKey(mark)) {
-            percentMarks[mark] = mark.visibility
-        }
-        if (!mark.isGone) mark.isGone = true
     }
 
     /** Apply the expanded style only to the real QS row. */

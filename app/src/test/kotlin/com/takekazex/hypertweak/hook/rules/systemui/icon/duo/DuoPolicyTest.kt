@@ -185,6 +185,31 @@ class DuoPolicyTest {
         assertEquals(listOf(11, 22), after.cellularSignalRows.map { it.subId })
     }
 
+    @Test fun retainedWifiTypeUsesOnlyTheInServiceDataSimAndKeepsDots() {
+        val state = mobile().reduce(MobileSignalEvent.DataConnected(11, false))
+        val wifi = DuoPolicy.content(battery, state, DuoNetwork(DuoTransport.WIFI, true, 4))!!
+        val kept = DuoPolicy.withRetainedWifiType(wifi, state)
+        assertEquals("5G-A", kept.networkLabel)
+        assertEquals(4, kept.wifiLevelToDraw)
+        assertEquals(listOf(11, 22), DuoPolicy.dotRows(kept, dual = true).map { it.subId })
+        assertNull(DuoPolicy.applyVisibility(kept, setOf(11), hideType = false, hideWifi = false).networkLabel)
+        assertNull(DuoPolicy.applyVisibility(kept, emptySet(), hideType = true, hideWifi = false).networkLabel)
+        assertNull(DuoPolicy.withRetainedWifiType(wifi, state.reduce(MobileSignalEvent.InService(11, false))).networkLabel)
+    }
+
+    @Test fun wifiGlyphCanBeHiddenWithoutChangingTheRouteOrShowingAHiddenSim() {
+        val wifi = DuoPolicy.content(battery, mobile(), DuoNetwork(DuoTransport.WIFI, true, 4))!!
+        val remaining = DuoPolicy.applyVisibility(wifi, setOf(11), hideType = false, hideWifi = true)
+        assertEquals(4, remaining.wifiLevel)
+        assertNull(remaining.wifiLevelToDraw)
+        assertFalse(remaining.hasCellularSignal)
+        assertEquals(listOf(22), DuoPolicy.dotRows(remaining, false).map { it.subId })
+
+        val hidden = DuoPolicy.applyVisibility(wifi, setOf(11, 22), hideType = true, hideWifi = true)
+        assertEquals(wifi.battery, hidden.battery)
+        assertTrue(DuoPolicy.dotRows(hidden, true).isEmpty())
+    }
+
     @Test fun unknownWifiOrDefaultTransportRestoresNativeInsteadOfGuessing() {
         // Wi-Fi transport without a host level means the host model is not ready yet.
         assertNull(DuoPolicy.content(battery, mobile(), DuoNetwork(DuoTransport.WIFI, true)))

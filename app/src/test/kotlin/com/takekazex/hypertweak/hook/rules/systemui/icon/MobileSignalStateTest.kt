@@ -4,6 +4,9 @@ import com.takekazex.hypertweak.presentation.icon.MobileSignalEvent
 import com.takekazex.hypertweak.presentation.icon.MobileSignalKind
 import com.takekazex.hypertweak.presentation.icon.MobileSignalModel
 import com.takekazex.hypertweak.presentation.icon.MobileSignalState
+import com.takekazex.hypertweak.presentation.icon.NetworkIconVisibility
+import com.takekazex.hypertweak.settings.contract.IconSlotMode
+import com.takekazex.hypertweak.settings.contract.IconSurface
 import com.takekazex.hypertweak.presentation.icon.MobileSubscriptionState
 
 import org.junit.Assert.assertEquals
@@ -12,6 +15,25 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class MobileSignalStateTest {
+    @Test
+    fun networkIconScopesAndRouteHidingAreIndependent() {
+        val state = MobileSignalState()
+            .reduce(MobileSignalEvent.Subscriptions(listOf(11, 22)))
+            .reduce(MobileSignalEvent.ActiveDataSubId(11))
+        val slotOf = mapOf(11 to 0, 22 to 1)::getValue
+        val policy = NetworkIconVisibility(
+            hideMobileOnWifi = true, hideWifi = true, hideSimOne = true,
+            slotModes = mapOf("mobile" to IconSlotMode.STATUS_BAR_ONLY.value)
+        )
+
+        assertEquals(setOf(11), policy.hiddenCellularIds(state, IconSurface.STATUS_BAR, false, slotOf))
+        assertEquals(setOf(11, 22), policy.hiddenCellularIds(state, IconSurface.STATUS_BAR, true, slotOf))
+        assertEquals(setOf(11, 22), policy.hiddenCellularIds(state, IconSurface.CONTROL_CENTER, false, slotOf))
+        assertFalse(policy.hidesWifi(IconSurface.STATUS_BAR, connected = false))
+        assertTrue(policy.hidesWifi(IconSurface.STATUS_BAR, connected = true))
+    }
+
+
     @Test
     fun dataSwitchChangesActiveIdButNeverSwapsSubscriptionRows() {
         val first = MobileSignalModel.cellular(level = 4, numberOfLevels = 5)
@@ -123,6 +145,18 @@ class MobileSignalStateTest {
         assertTrue(state.replacementMask(false).isEmpty())
         assertEquals(setOf(1, 2), state.replacementMask(true))
         assertEquals(setOf(2), state.nonDefaultMask(true))
+    }
+
+    @Test
+    fun hidingTheDataSimDoesNotAlsoHideTheOtherPhysicalSlot() {
+        val state = MobileSignalState()
+            .reduce(MobileSignalEvent.Subscriptions(listOf(202, 101)))
+            .reduce(MobileSignalEvent.ActiveDataSubId(101))
+        val slots = mapOf(101 to 0, 202 to 1)
+
+        assertEquals(setOf(101), state.hiddenSimIds(false, true, false, slots::getValue))
+        assertEquals(setOf(202), state.hiddenSimIds(true, false, false, slots::getValue))
+        assertEquals(setOf(101, 202), state.hiddenSimIds(true, true, false, slots::getValue))
     }
 
     @Test

@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.ui.page.systemui.icon
 
+import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
+import com.takekazex.hypertweak.settings.contract.IconSettingsPreferencePolicy
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -21,6 +23,31 @@ class IconTunerPreferenceStateTest {
         val restored = IconTunerPreferenceState.restore(resetPayload).toMutableMap()
         IconTunerPreferenceState.reconcileEpoch(restored, 7)
         assertFalse(restored.containsKey(key))
+    }
+
+    @Test fun currentWifiAndSimSwitchesOverrideLegacyValuesEvenWhenTurnedOff() {
+        val values = mutableMapOf(
+            IconSettingsKeys.KEY_ICON_STACKED_TYPE_HIDE_WIFI to false,
+            IconSettingsKeys.KEY_ICON_HIDE_SIM_AUTO to true
+        )
+
+        assertTrue(IconSettingsPreferencePolicy.keepCellularTypeOnWifi(values::get))
+        assertTrue(IconSettingsPreferencePolicy.hideNonDefaultSim(values::get))
+
+        values[IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_KEEP_ON_WIFI] = false
+        values[IconSettingsKeys.KEY_ICON_HIDE_NON_DEFAULT_SIM] = false
+        assertFalse(IconSettingsPreferencePolicy.keepCellularTypeOnWifi(values::get))
+        assertFalse(IconSettingsPreferencePolicy.hideNonDefaultSim(values::get))
+
+        values.clear()
+        assertFalse(IconSettingsPreferencePolicy.keepCellularTypeOnWifi(values::get))
+        assertFalse(IconSettingsPreferencePolicy.hideNonDefaultSim(values::get))
+    }
+
+    @Test fun explicitWifiStandardModeWinsOverLegacyHide() {
+        assertEquals(1, IconSettingsPreferencePolicy.wifiStandardMode(null, true))
+        assertEquals(0, IconSettingsPreferencePolicy.wifiStandardMode(0, true))
+        assertEquals(3, IconSettingsPreferencePolicy.wifiStandardMode(3, true))
     }
 
     @Test fun oldPayloadAndTemporarilyUnavailableEpochAreHandledWithoutLosingPendingChanges() {

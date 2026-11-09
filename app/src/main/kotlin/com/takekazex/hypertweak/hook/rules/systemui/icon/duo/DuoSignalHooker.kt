@@ -27,6 +27,9 @@ import android.view.ViewTreeObserver
 import android.widget.TextView
 import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
+import com.takekazex.hypertweak.hook.rules.systemui.icon.IconTunerOptions
+import com.takekazex.hypertweak.presentation.icon.NetworkIconVisibility
+import com.takekazex.hypertweak.settings.contract.IconSurface
 import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.hook.rules.aod.AodIconSettings
@@ -37,7 +40,7 @@ import com.takekazex.hypertweak.presentation.icon.MobileSignalState
 import com.takekazex.hypertweak.hook.rules.systemui.icon.SignalHandoverEvents
 import com.takekazex.hypertweak.settings.contract.AodSettingsKeys
 import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
-import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
+import com.takekazex.hypertweak.settings.contract.CcBatteryPercentStyle
 import com.takekazex.hypertweak.util.logging.DebugLog
 import com.takekazex.hypertweak.util.platform.PlatformLevel
 import java.lang.reflect.Field
@@ -52,6 +55,7 @@ import kotlin.math.roundToInt
  */
 object DuoSignalHooker : StaticHooker() {
     // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val networkVisibility by hookSetting(NetworkIconVisibility()) { IconTunerOptions.networkVisibility() }
     private val settingIconMobileRowStyle by hookSetting(0) { Preferences.getInt(IconSettingsKeys.KEY_ICON_MOBILE_ROW_STYLE, 0) }
     private val settingIconCellularTypeSmall5ga by hookSetting(false) {
         Preferences.getBoolean(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_SMALL_5GA, false)
@@ -73,8 +77,9 @@ object DuoSignalHooker : StaticHooker() {
     private val settingIconDuoAirplaneScale by hookSetting(100) { Preferences.getInt(IconSettingsKeys.KEY_ICON_DUO_AIRPLANE_SCALE, 100) }
     private val settingIconDuoBatteryScale by hookSetting(100) { Preferences.getInt(IconSettingsKeys.KEY_ICON_DUO_BATTERY_SCALE, 100) }
     private val settingIconDuoPercentScale by hookSetting(100) { Preferences.getInt(IconSettingsKeys.KEY_ICON_DUO_PERCENT_SCALE, 100) }
+    private val keepCellularTypeOnWifi by hookSetting(false) { Preferences.cellularTypeKeepsOnWifi() }
     private val settingCcBatteryPercentLeft by hookSetting(false) {
-        Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_BATTERY_PERCENT_LEFT, false)
+        Preferences.ccBatteryPercentStyle() == CcBatteryPercentStyle.OUTSIDE_LEADING
     }
 
     init {
@@ -611,6 +616,21 @@ object DuoSignalHooker : StaticHooker() {
                 } ?: binding.view.icon.content
                 aod != null -> freshContent ?: binding.view.icon.content
                 else -> presentationContent(binding, freshContent)
+            }?.let { resolved ->
+                if (aod != null) resolved else {
+                    val surface = when (binding.surface) {
+                        DuoSurface.HOME, DuoSurface.KEYGUARD, DuoSurface.COLLAPSED_PROXY -> IconSurface.STATUS_BAR
+                        DuoSurface.EXPANDED -> IconSurface.CONTROL_CENTER
+                        else -> IconSurface.UNKNOWN
+                    }
+                    val hidden = networkVisibility.hiddenCellularIds(mobile, surface,
+                        resolved.wifiLevel != null || mobile.wifiConnected) { slotIndices[it] ?: -1 }
+                    val withType = if (keepCellularTypeOnWifi) DuoPolicy.withRetainedWifiType(resolved, mobile) else resolved
+                    DuoPolicy.applyVisibility(
+                        withType, hidden, networkVisibility.hideType,
+                        networkVisibility.hidesWifi(surface, resolved.wifiLevel != null)
+                    )
+                }
             }?.copy(typography = com.takekazex.hypertweak.hook.rules.systemui.icon.MobileTypeTypographySettings.current)
             val privacyState = read(binding.parent, "mPrivacyState")?.toString()
             val privacyShowing = DuoPrivacyGeometry.isTransition(privacyState)
@@ -692,8 +712,15 @@ object DuoSignalHooker : StaticHooker() {
                     append(", Airplane mode")
                 } else {
                     append(", ")
-                    append(content.networkLabel ?: content.wifiLevel?.let { "Wi-Fi $it/4" } ?: "Cellular")
-                    append(", SIM ${if (content.noService) "0" else content.mobileLevel}/4")
+                    val wifi = content.wifiLevelToDraw
+                    val signal = content.cellularSignalRows.firstOrNull { it.subId == content.activeDataSubId }
+                        ?: content.cellularSignalRows.firstOrNull()
+                    content.networkLabel?.let {
+                        append(it)
+                        if (wifi != null) append(", ")
+                    }
+                    if (wifi != null) append("Wi-Fi $wifi/4")
+                    if (signal != null) append(", SIM ${signal.level.coerceAtLeast(0)}/4")
                     if (content.noInternet) append(", No internet")
                 }
             }

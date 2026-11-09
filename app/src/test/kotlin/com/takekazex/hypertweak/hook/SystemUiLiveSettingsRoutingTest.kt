@@ -3,6 +3,8 @@ package com.takekazex.hypertweak.hook
 import com.takekazex.hypertweak.hook.runtime.settings.RuntimeSettingsLedger
 import com.takekazex.hypertweak.hook.runtime.settings.RuntimeSettingsSnapshot
 import com.takekazex.hypertweak.settings.contract.AodSettingsKeys
+import com.takekazex.hypertweak.settings.contract.IconSettingsPreferencePolicy
+import com.takekazex.hypertweak.settings.contract.IndependentIconDomain
 
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 
@@ -21,6 +23,21 @@ import org.junit.Test
  */
 class SystemUiLiveSettingsRoutingTest {
     private val systemUi = "com.android.systemui"
+
+    @Test fun independentIconReloadUsesTheActualSnapshotDeltaIncludingRemovedValues() {
+        val sampling = PlatformSettingsKeys.KEY_STATUSBAR_REGION_SAMPLING
+        val notifications = PlatformSettingsKeys.KEY_STATUSBAR_NOTIFICATION_ICON_MAX
+        val baseline = mapOf<String, Any>(sampling to 1, notifications to 4)
+        val policy = IconSettingsPreferencePolicy
+        assertEquals(emptySet<IndependentIconDomain>(), policy.independentReloadDomains(baseline, baseline))
+        assertEquals(setOf(IndependentIconDomain.SAMPLING), policy.independentReloadDomains(baseline, baseline - sampling))
+        assertEquals(
+            setOf(IndependentIconDomain.SAMPLING, IndependentIconDomain.NOTIFICATIONS),
+            policy.independentReloadDomains(baseline, mapOf(sampling to 2, notifications to 5))
+        )
+        assertNull(policy.independentReloadDomains(baseline, baseline + ("icon_tuner_slot_mobile" to 4)))
+        assertNull(policy.independentReloadDomains(null, baseline))
+    }
 
     @Test fun aodOptionsReachBothAodHosts() {
         val keys = listOf(

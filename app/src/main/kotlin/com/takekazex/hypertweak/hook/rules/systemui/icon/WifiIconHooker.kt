@@ -3,6 +3,7 @@ package com.takekazex.hypertweak.hook.rules.systemui.icon
 import com.takekazex.hypertweak.hook.base.cachedPublicField
 import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
 import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
+import com.takekazex.hypertweak.settings.contract.IconSettingsPreferencePolicy
 
 import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
@@ -37,11 +38,16 @@ object WifiIconHooker : StaticHooker() {
     private val settingIconHideWifiActivity by hookSetting(false) {
         Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_WIFI_ACTIVITY, false)
     }
-    private val settingIconHideWifiType by hookSetting(false) { Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_WIFI_TYPE, false) }
     private val settingIconHideWifiUnavailable by hookSetting(false) {
         Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_WIFI_UNAVAILABLE, false)
     }
-    private val settingIconWifiStandardMode by hookSetting(0) { Preferences.getInt(IconSettingsKeys.KEY_ICON_WIFI_STANDARD_MODE, 0) }
+    private val settingIconWifiStandardMode by hookSetting(0) {
+        val key = IconSettingsKeys.KEY_ICON_WIFI_STANDARD_MODE
+        IconSettingsPreferencePolicy.wifiStandardMode(
+            if (Preferences.contains(key)) Preferences.getInt(key, 0) else null,
+            Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_WIFI_TYPE, false)
+        )
+    }
     private val settingIconWifiStandardMap by hookSetting("4,5,6,7,8") {
         Preferences.getString(IconSettingsKeys.KEY_ICON_WIFI_STANDARD_MAP, "4,5,6,7,8")
     }
@@ -74,7 +80,6 @@ object WifiIconHooker : StaticHooker() {
         "com.android.systemui.statusbar.pipeline.wifi.shared.model.WifiNetworkModel\$Active"
 
     private var hideActivity by generationState { false }
-    private var hideType by generationState { false }
     private var hideUnavailable by generationState { false }
     private var standardMode by generationState { 0 }
     private var standardMap by generationState { WifiStandardPolicy.DEFAULT_MAP }
@@ -118,7 +123,6 @@ object WifiIconHooker : StaticHooker() {
         retired = false
         IconTunerFlows.init(classLoader)
         hideActivity = settingIconHideWifiActivity
-        hideType = settingIconHideWifiType
         hideUnavailable = settingIconHideWifiUnavailable
         standardMode = settingIconWifiStandardMode.coerceIn(0, 3)
         standardMap = WifiStandardPolicy.parseMap(
@@ -179,7 +183,7 @@ object WifiIconHooker : StaticHooker() {
 
         // 2. These are stable getter boundaries used by MiuiWifiViewBinder. A field write would be
         // lost because the factory assigns the flows after construction.
-        if (hideActivity || hideType || standardMode == 1) hookVisibilityGetters()
+        if (hideActivity || standardMode == 1) hookVisibilityGetters()
         if (standardMode in 2..3) {
             val activeClass = ACTIVE_CLASS.toClassOrNull()
             if (activeClass == null) {
@@ -202,7 +206,7 @@ object WifiIconHooker : StaticHooker() {
         }
         val getters = buildList {
             if (hideActivity) add("getActivityInOutRes")
-            if (hideType || standardMode == 1) add("getWifiStandard")
+            if (standardMode == 1) add("getWifiStandard")
         }
         getters.forEach { getter ->
             vmClass.findMethodOrNull { name(getter); noParams() }?.hook {

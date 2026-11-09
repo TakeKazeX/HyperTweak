@@ -38,7 +38,9 @@ data class CarrierBlockConfig(
     /** 连接 WiFi 时依旧显示蜂窝类型: keep the type readable while Wi-Fi carries the data. */
     val keepTypeOnWifi: Boolean = false,
     val dataFirst: Boolean = false,
-    val networkOnFirstRow: Boolean = false
+    val networkOnFirstRow: Boolean = false,
+    val hiddenSimIds: Set<Int> = emptySet(),
+    val hideType: Boolean = false
 )
 
 /**
@@ -66,6 +68,7 @@ object CarrierBlockPolicy {
         state: MobileSignalState,
         wifiLevel: Int?,
         config: CarrierBlockConfig,
+        wifiDefault: Boolean = state.wifiConnected,
         slotOf: (Int) -> Int
     ): List<CarrierRowModel> = (0 until ROW_COUNT).map { slot ->
         if (state.airplaneMode) {
@@ -78,21 +81,20 @@ object CarrierBlockPolicy {
         if (subId == null) {
             return@map CarrierRowModel(slot = slot)
         }
-        val subscription = state.subscriptions[subId]
+        val subscription = state.subscriptions[subId].takeUnless { subId in config.hiddenSimIds }
         val signalLevel = subscription
             ?.takeIf { !state.airplaneMode && it.supportsReplacement }
             ?.renderLevel
         val typeText = subscription
-            ?.takeIf { !state.airplaneMode && it.inService != false &&
-                (state.subscriptions[state.activeDataSubId]?.dataConnected == true || state.wifiConnected) }
-            ?.networkType
-            ?.trim()
+            ?.takeIf { !config.hideType && !state.airplaneMode && it.inService != false &&
+                (state.subscriptions[state.activeDataSubId]?.dataConnected == true || wifiDefault) }
+            ?.let { if (wifiDefault) it.typeWhileOnWifi() else it.networkType?.trim() }
             ?.takeIf { it.isNotEmpty() }
             ?.takeIf { subId == state.activeDataSubId || config.showNonDataType }
         // Wi-Fi follows the selected data SIM in either row style.
         val rowWifi = wifiLevel
             ?.coerceIn(0, 4)
-            ?.takeIf { subId == state.activeDataSubId && state.wifiConnected }
+            ?.takeIf { subId == state.activeDataSubId && wifiDefault }
         CarrierRowModel(
             slot = slot,
             subId = subId,
@@ -100,7 +102,7 @@ object CarrierBlockPolicy {
             typeText = typeText,
             wifiLevel = rowWifi,
             // Suppression belongs to the default route, including the row without a Wi-Fi glyph.
-            typeSuppressed = typeText != null && state.wifiConnected && !config.keepTypeOnWifi
+            typeSuppressed = typeText != null && wifiDefault && !config.keepTypeOnWifi
         )
     }.let { rows ->
         if (config.dataFirst && !state.airplaneMode) rows.sortedBy {
@@ -129,6 +131,10 @@ object CarrierBlockPolicy {
         return represented.isNotEmpty() && represented.all { it.hasSignal } &&
             represented.mapNotNull { it.subId }.toSet() == subscriptions.toSet()
     }
+
+    /** A ready cellular row cannot replace default Wi-Fi while its own view is still unready. */
+    internal fun masksWifi(wifiReplacement: Boolean, wifiDefault: Boolean?, cellularReplacement: Boolean): Boolean =
+        wifiReplacement || wifiDefault == false && cellularReplacement
 
     /** Each vertical row gets the full width, not the host's horizontal half/text-width budget. */
     fun textWidth(availableWidth: Int, fixedWidth: Int): Int =

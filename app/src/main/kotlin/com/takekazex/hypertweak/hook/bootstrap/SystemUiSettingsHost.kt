@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.bootstrap
 
+import android.os.SystemClock
+
 import com.takekazex.hypertweak.hook.runtime.reload.HotReloadPackageState
 import com.takekazex.hypertweak.hook.runtime.settings.RuntimeSettingsStore
 import com.takekazex.hypertweak.hook.base.BaseHooker
@@ -30,8 +32,11 @@ import com.takekazex.hypertweak.hook.rules.systemui.icon.left.LeftContainerHooke
 import com.takekazex.hypertweak.hook.rules.systemui.icon.NotificationMaxNumberHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.RegionSamplingHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.StackedSignalHooker
+import com.takekazex.hypertweak.hook.rules.systemui.icon.StatusIconHotReloadRecovery
 import com.takekazex.hypertweak.hook.rules.systemui.icon.WifiIconHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.duo.DuoSignalHooker
+import com.takekazex.hypertweak.settings.contract.IconSettingsPreferencePolicy
+import com.takekazex.hypertweak.settings.contract.IndependentIconDomain
 import com.takekazex.hypertweak.settings.contract.SystemUiLiveSettings
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 import com.takekazex.hypertweak.util.logging.DebugLog
@@ -132,14 +137,35 @@ internal class SystemUiSettingsHost(
         val context = state.appContext ?: return false
         val hooks = iconHookers().filter { it in liveHookers() }
         if (hooks.isEmpty()) return false
-        if (keys.isEmpty() && !iconSettingsInstalledFromDifferentValues()) {
+        val snapshot = iconValueSnapshot()
+        val independent = IconSettingsPreferencePolicy.independentReloadDomains(iconSnapshotAtInstall, snapshot)
+        if (independent?.isEmpty() == true) {
+            if (keys.isNotEmpty()) return true
             DebugLog.d("IconTuner", "full snapshot with unchanged icon values; refreshing policy only")
             StackedSignalHooker.onPackageReady(context)
             ControlCenterCarrierBlockHooker.onPackageReady(context)
             LeftContainerHooker.onPackageReady(context)
             LeftContainerHooker.requestReconcile()
-            com.takekazex.hypertweak.hook.rules.systemui.icon.StatusIconHotReloadRecovery.scheduleIcons(context, liveHookers())
+            StatusIconHotReloadRecovery.scheduleIcons(context, liveHookers())
             return true
+        }
+        val start = SystemClock.elapsedRealtime()
+        if (keys.isNotEmpty() && independent != null) {
+            val selected = independent.map {
+                when (it) {
+                    IndependentIconDomain.SAMPLING -> RegionSamplingHooker
+                    IndependentIconDomain.NOTIFICATIONS -> NotificationMaxNumberHooker
+                }
+            }
+            if (hooks.containsAll(selected)) {
+                ManagedHookReload.run(replacements = selected.map { it to it }) {
+                    StatusIconHotReloadRecovery.scheduleIndependentIcons(context, selected)
+                }
+                iconSnapshotAtInstall = snapshot
+                DebugLog.i("IconTuner", "live independent icon settings attached hooks=${selected.size} " +
+                    "attachMs=${SystemClock.elapsedRealtime() - start}; targeted host recovery queued")
+                return true
+            }
         }
         ManagedHookReload.run(
             replacements = hooks.map { it to it },
@@ -150,11 +176,12 @@ internal class SystemUiSettingsHost(
                 // The icon snapshot is only re-read on events now, so a committed settings change
                 // must reconcile explicitly instead of waiting for a periodic timer.
                 LeftContainerHooker.requestReconcile()
-                com.takekazex.hypertweak.hook.rules.systemui.icon.StatusIconHotReloadRecovery.scheduleIcons(context, liveHookers())
+                StatusIconHotReloadRecovery.scheduleIcons(context, liveHookers())
             }
         )
-        DebugLog.i("IconTuner", "live icon settings attached hooks=${hooks.size}; native host recovery queued")
-        iconSnapshotAtInstall = iconValueSnapshot()
+        DebugLog.i("IconTuner", "live icon settings attached hooks=${hooks.size} " +
+            "attachMs=${SystemClock.elapsedRealtime() - start}; native host recovery queued")
+        iconSnapshotAtInstall = snapshot
         return true
     }
 
@@ -164,20 +191,10 @@ internal class SystemUiSettingsHost(
      * Compared against the live values so a genuinely changed setting still rebuilds the hooks,
      * while the boot resync - which republishes identical values - does not.
      */
-    @Volatile private var iconSnapshotAtInstall: String? = null
+    @Volatile private var iconSnapshotAtInstall: Map<String, Any>? = null
 
-    private fun iconValueSnapshot(): String {
-        val values = RuntimeSettingsStore.values() ?: return ""
-        return values.entries
-            .filter { com.takekazex.hypertweak.settings.contract.IconSettingsPreferencePolicy.affectsIcons(it.key) }
-            .sortedBy { it.key }
-            .joinToString("|") { (key, value) -> key + "=" + value }
-    }
-
-    private fun iconSettingsInstalledFromDifferentValues(): Boolean {
-        val installed = iconSnapshotAtInstall ?: return true
-        return installed != iconValueSnapshot()
-    }
+    private fun iconValueSnapshot(): Map<String, Any>? = RuntimeSettingsStore.values()
+        ?.filterKeys { IconSettingsPreferencePolicy.affectsIcons(it) }
 
     fun recordInstalledIcons() { iconSnapshotAtInstall = iconValueSnapshot() }
 }

@@ -283,6 +283,9 @@ internal class DuoPanelHandover(private val host: Host) {
     fun updatePanelBinding(binding: DuoBinding) {
         if (binding.surface != DuoSurface.COLLAPSED_PROXY) return
         binding.panelArrival.observe(host.panelProgress, host.panelVisible)
+        // Wi-Fi has its own motion lease. Fade the companion label with the proxy while the
+        // destination's native or carrier label keeps its normal expansion lifecycle.
+        binding.view.icon.retainedWifiTypeAlpha = if (host.panelVisible) 1f - host.panelProgress else 1f
         fun clearPosition() { clearPanelMotion(binding); clearSignalMotions(binding); restoreProxyPosition(binding) }
         if (ControlCenterCarrierBlockHooker.isShadeSwitching()) {
             clearPosition()
@@ -335,7 +338,9 @@ internal class DuoPanelHandover(private val host: Host) {
             host.expandedStyle,
             ControlCenterCarrierBlockHooker.ownsNetwork(expanded.icons, wifi)
         )
-        val networkTarget = if (content.airplaneMode && !wifi) null else when (destination) {
+        val sourceVisible = if (wifi) content.wifiLevelToDraw != null
+            else content.hasCellularSignal && content.networkLabel != null
+        val networkTarget = if (!sourceVisible || content.airplaneMode && !wifi) null else when (destination) {
             DuoNetworkDestination.NONE -> null
             DuoNetworkDestination.CARRIER -> ControlCenterCarrierBlockHooker.duoHandoverTarget(
                 expanded.icons, wifi, host.mobile.activeDataSubId)

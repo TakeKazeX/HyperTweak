@@ -23,13 +23,11 @@ import java.io.File
  *
  * OS3 drove this through `LightBarControllerImplInjector.useRegionSampling`; on OS4 the sampling
  * gate moved to `StatusBarRegionSamplingInteractor.regionSampling`, a combine flow of the status
- * bar state and `MiuiConfigurationRepositoryImpl.isNightMode` whose collector starts/stops the
- * `RegionSamplingHelper`. The flow field is typed as the concrete inlined-combine class (verified
+ * bar state and host configuration whose collector starts/stops the `RegionSamplingHelper`. The flow field is typed as the concrete inlined-combine class (verified
  * in smali), so replacing it with a `StateFlow` would fail the collector's check-cast and crash
  * the coroutine. DexKit locates the transform owner by the flow property's semantic marker and
- * validates its `Function3` bridge shape. The hook forces that transform to emit the requested
- * value — mode 1 always samples, mode 2 never does — while leaving the flow intact. Hot reload replays the native
- * cold flow once to refresh the already-running helper.
+ * validates its two- or three-input combine bridge. Only a returned Boolean is overridden.
+ * Hot reload replays the native cold flow once to refresh the already-running helper.
  */
 object RegionSamplingHooker : StaticHooker() {
     // Published on settings acceptance; hook callbacks perform no storage reads.
@@ -44,7 +42,7 @@ object RegionSamplingHooker : StaticHooker() {
     }
 
     private const val TAG = "IconTuner"
-    private const val TRANSFORM_CACHE_KEY = "statusBarRegionSamplingTransform"
+    private const val TRANSFORM_CACHE_KEY = "statusBarRegionSamplingBooleanTransform"
     private const val TRANSFORM_OWNER_MARKER =
         "com.miui.systemui.statusbar.core.StatusBarRegionSamplingInteractor\$regionSampling"
 
@@ -93,15 +91,11 @@ object RegionSamplingHooker : StaticHooker() {
             DebugLog.hookSkipped(TAG, "RegionSampling transform", "unique DexKit target not found")
             return
         }
-        val invoke = transformClass.findMethodOrNull { name("invoke"); paramCount(3) }
-        if (invoke == null) {
-            DebugLog.hookSkipped(TAG, "RegionSampling transform", "Function3 invoke method not found")
-            return
-        }
+        val invoke = transformClass.samplingBridge() ?: return
         deoptimize(invoke)
         val forced = mode == 1
         invoke.hook {
-            before { param -> param.result = forced }
+            after { param -> if (param.result is Boolean) param.result = forced }
         }
         DebugLog.i(TAG, "RegionSampling installed: mode=$mode forced=$forced")
     }
@@ -124,30 +118,27 @@ object RegionSamplingHooker : StaticHooker() {
                                 countMin(1)
                                 add {
                                     name("invoke")
-                                    paramCount(3)
                                     returnType(Any::class.java)
                                 }
                             }
                         }
                     }.toList().singleOrNull { data ->
                         runCatching {
-                            data.getInstance(classLoader).declaredMethods.any {
-                                it.name == "invoke" && it.parameterCount == 3 &&
-                                    it.returnType == Any::class.java
-                            }
+                            data.getInstance(classLoader).samplingBridge() != null
                         }.getOrDefault(false)
                     }?.name
                 }
             ),
             validators = mapOf(
                 TRANSFORM_CACHE_KEY to { type ->
-                    type.name.contains(TRANSFORM_OWNER_MARKER) &&
-                        type.declaredMethods.count {
-                            it.name == "invoke" && it.parameterCount == 3 &&
-                                it.returnType == Any::class.java
-                        } == 1
+                    type.name.contains(TRANSFORM_OWNER_MARKER) && type.samplingBridge() != null
                 }
             )
         )[TRANSFORM_CACHE_KEY]
     }
+    private fun Class<*>.samplingBridge() = declaredMethods.singleOrNull { method ->
+        method.name == "invoke" && method.parameterCount in 3..4 &&
+            method.returnType == Any::class.java && method.parameterTypes.all { it == Any::class.java }
+    }
+
 }

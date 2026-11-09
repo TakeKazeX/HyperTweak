@@ -111,13 +111,10 @@ fun IconOrderPage(onBack: () -> Unit) {
     val storedEntries = remember {
         settingsStore.getStringSet(IconTunerContract.KEY_POSITION_VALUES, emptySet())
     }
-    // Entries the catalog cannot draw are carried over verbatim: the user never sees them here,
-    // and dropping them would silently undo an older hand-written configuration.
-    val offCatalogSlots = remember {
+    val offCatalogEntries = remember(storedEntries) {
         IconSlotPolicy.parseLegacyOrder(storedEntries)
-            .map { it.slot }
-            .filterNot { it in IconSlotCatalog.orderSlots }
-            .distinct()
+            .filterNot { it.slot in IconSlotCatalog.orderSlots }
+            .mapTo(linkedSetOf()) { "${it.index}:${it.slot}" }
     }
 
     var position by rememberSaveable {
@@ -139,7 +136,7 @@ fun IconOrderPage(onBack: () -> Unit) {
     fun persistOrder(slots: List<String>) {
         settingsStore.putStringSet(
             IconTunerContract.KEY_POSITION_VALUES,
-            IconSlotPolicy.orderEntries(slots + offCatalogSlots)
+            IconSlotPolicy.editedOrderEntries(slots, storedEntries)
         )
     }
 
@@ -235,9 +232,9 @@ fun IconOrderPage(onBack: () -> Unit) {
                                     order = IconSlotCatalog.orderSlots
                                     settingsStore.putStringSet(
                                         IconTunerContract.KEY_POSITION_VALUES,
-                                        IconSlotPolicy.orderEntries(offCatalogSlots)
+                                        offCatalogEntries
                                     )
-                                    },
+                                },
                                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
                             )
                         }
@@ -336,11 +333,11 @@ private fun SlotOrderList(
                     dragOffsetY = 0f
                 },
                 onDrag = { deltaY -> dragOffsetY += deltaY },
-                onDragEnd = {
+                onDragEnd = { completed ->
                     val target = (
                         dragIndex + (dragOffsetY / rowHeightPx).roundToInt()
                         ).coerceIn(0, slots.lastIndex)
-                    if (target != dragIndex) {
+                    if (completed && dragIndex in slots.indices && target != dragIndex) {
                         onReorder(slots.toMutableList().apply { add(target, removeAt(dragIndex)) })
                     }
                     dragIndex = -1
@@ -358,7 +355,7 @@ private fun SlotOrderRow(
     translationY: Float,
     onDragStart: () -> Unit,
     onDrag: (Float) -> Unit,
-    onDragEnd: () -> Unit
+    onDragEnd: (Boolean) -> Unit
 ) {
     val info = IconSlotCatalog.of(slot)
     Box(
@@ -381,11 +378,15 @@ private fun SlotOrderRow(
                         ?: return@awaitEachGesture
                     longPress.consume()
                     onDragStart()
-                    drag(longPress.id) { change ->
-                        change.consume()
-                        onDrag(change.position.y - change.previousPosition.y)
+                    var completed = false
+                    try {
+                        completed = drag(longPress.id) { change ->
+                            change.consume()
+                            onDrag(change.position.y - change.previousPosition.y)
+                        }
+                    } finally {
+                        onDragEnd(completed)
                     }
-                    onDragEnd()
                 }
             }
     ) {

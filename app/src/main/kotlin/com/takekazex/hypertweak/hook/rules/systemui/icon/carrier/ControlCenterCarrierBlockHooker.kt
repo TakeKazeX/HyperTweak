@@ -32,6 +32,9 @@ import android.widget.LinearLayout
 import androidx.core.view.isVisible
 import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
+import com.takekazex.hypertweak.hook.rules.systemui.icon.IconTunerOptions
+import com.takekazex.hypertweak.presentation.icon.NetworkIconVisibility
+import com.takekazex.hypertweak.settings.contract.IconSurface
 import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
@@ -57,6 +60,8 @@ import org.luckypray.dexkit.query.enums.StringMatchType
 object ControlCenterCarrierBlockHooker : StaticHooker() {
     init { generationCleanup { assetExecutor.shutdownNow() } }
     // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val networkVisibility by hookSetting(NetworkIconVisibility()) { IconTunerOptions.networkVisibility() }
+
     private val settingCcHideDate by hookSetting(false) { Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_HIDE_DATE, false) }
     private val settingCcCarrierTwoLine by hookSetting(false) { Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_CARRIER_TWO_LINE, false) }
     private val settingCcNetworkFirstRow by hookSetting(false) {
@@ -192,6 +197,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
 
     /** All mutable view state is consumed on the main looper. */
     private var mobileState by generationState { MobileSignalState() }
+    private var slotIndices by generationState { emptyMap<Int, Int>() }
     private var wifiLevel: Int? by generationState { null }
     private var wifiDefault: Boolean? by generationState { null }
     private var progress by generationState { 0f }
@@ -988,20 +994,31 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         }
     }
 
+    private fun hiddenSimIds(): Set<Int> = networkVisibility.hiddenCellularIds(
+        mobileState, IconSurface.CONTROL_CENTER, wifiDefault ?: mobileState.wifiConnected
+    ) { slotIndices[it] ?: CarrierBlockPolicy.INVALID_SLOT }
+
+    private fun hidesWifi(): Boolean =
+        networkVisibility.hidesWifi(IconSurface.CONTROL_CENTER, wifiDefault == true || wifiLevel != null)
+
     private fun renderAll() {
         if (!enabled || blocks.isEmpty()) return
+        slotIndices = mobileState.subscriptionOrder.associateWith(::slotOf)
         // A failed SVG read must not pin the block to "no artwork": the next state change retries.
         if (artwork == null) scheduleArtworkLoad(generation.get())
         val rows = CarrierBlockPolicy.resolve(
             state = mobileState,
-            wifiLevel = wifiLevel.takeIf { wifiDefault == true },
+            wifiLevel = wifiLevel.takeIf { wifiDefault == true && !hidesWifi() },
             config = CarrierBlockConfig(
                 showNonDataType = showNonDataType,
                 keepTypeOnWifi = keepTypeOnWifi,
                 dataFirst = dataFirst,
-                networkOnFirstRow = networkOnFirstRow
+                networkOnFirstRow = networkOnFirstRow,
+                hiddenSimIds = hiddenSimIds(),
+                hideType = networkVisibility.hideType
             ),
-            slotOf = ::slotOf
+            wifiDefault = wifiDefault ?: mobileState.wifiConnected,
+            slotOf = { slotIndices[it] ?: CarrierBlockPolicy.INVALID_SLOT }
         )
         rowOrder = rows.map { it.slot }
         val rendering = CarrierRenderInput(artwork, mobileState, simNames, showBadge, keepTypeOnWifi, typeConfig)
@@ -1064,25 +1081,28 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         val row = header.findViewById<View>(statusBarId) as? ViewGroup ?: return
         val container = findStatusContainer(row) ?: return
         if (block.maskContainer !== container) releaseMask(block)
-        val models = block.rows.mapNotNull { it.model }
-        val cellular = CarrierBlockPolicy.replacesStatusSignal(models, mobileState.subscriptionOrder) && block.rows
-            .filter { it.model?.visible == true }.all {
-                it.row.isLaidOut && it.signal.isVisible && it.signal.drawable != null
-            }
+        val hidden = hiddenSimIds()
+        val allowed = mobileState.subscriptionOrder.filterNot { it in hidden }
+        val allowedRows = block.rows.filter { it.model?.subId in allowed }
+        val cellular = CarrierBlockPolicy.replacesStatusSignal(allowedRows.mapNotNull { it.model }, allowed) &&
+            allowedRows.all { it.row.isLaidOut && it.signal.isVisible && it.signal.drawable != null }
         val wifiReplacement = block.rows.any {
             it.wifi.isVisible && it.wifi.width > 0 && it.wifiBitmap != null
         }
-        // Once the cellular fallback is drawn, a connecting but non-default native Wi-Fi icon
-        // must not appear at the right edge. The fixed network slot still shows cellular there.
-        val mask = CarrierMask(cellular, cellular || wifiReplacement)
+        val hideCellular = hidden.isNotEmpty() && allowed.isEmpty()
+        val hideWifi = hidesWifi()
+        val mask = CarrierMask(
+            cellular = hideCellular || cellular,
+            wifi = hideWifi || CarrierBlockPolicy.masksWifi(wifiReplacement, wifiDefault, cellular)
+        )
         val acquired = IconHostPorts.positions.carrierMask(container, mask)
         if (acquired) {
             block.maskContainer = container
             if (mask.active) maskedContainers[container] = mask else maskedContainers.remove(container)
         }
         block.rows.forEach { parts ->
-            parts.cellularReady = acquired && cellular
-            parts.wifiReady = acquired && wifiReplacement && parts.wifiBitmap != null
+            parts.cellularReady = acquired && cellular && parts.model?.subId in allowed
+            parts.wifiReady = acquired && !hideWifi && wifiReplacement && parts.wifiBitmap != null
             val signalReady = parts.cellularReady
             if (!signalReady || !handover.ownsTarget(parts.signal))
                 parts.signal.alpha = if (signalReady) 1f else 0f

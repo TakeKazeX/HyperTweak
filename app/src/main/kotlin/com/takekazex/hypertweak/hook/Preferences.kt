@@ -29,6 +29,7 @@ import com.takekazex.hypertweak.settings.contract.AppSettingsKeys
 import com.takekazex.hypertweak.settings.contract.BackGestureKeys
 import com.takekazex.hypertweak.settings.contract.CameraSettingsKeys
 import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
+import com.takekazex.hypertweak.settings.contract.IconSettingsPreferencePolicy
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 import com.takekazex.hypertweak.settings.contract.PowerSaveOverrideSelection
 import com.takekazex.hypertweak.settings.contract.ScreenshotSettingsKeys
@@ -167,16 +168,6 @@ object Preferences {
     //   KEY_CC_CARRIER_TWO_LINE          — 开关 3: two rows, [signal] carrier [type/WiFi].
     //   KEY_CC_CARRIER_SHOW_NON_DATA_TYPE— 开关 4: also draw the non-data SIM's type.
     // Shared by carrier rows, stacked signal and Duo: 0 = SIM slot, 1 = data SIM first.
-    // Control-center battery percentage style (see `CcBatteryStyleHooker`). Both switches target
-    // only the control center's own `MiuiBatteryMeterView` instances (the CC header icons and the
-    // fake status bar used while the CC expands); the home status bar, lockscreen and notification
-    // shade keep the system `battery_indicator_style`. When Duo replaces a control-center battery,
-    // its left-percent mode draws the same host percentage beside the three-in-one glyph.
-    //   KEY_CC_BATTERY_PERCENT_OUTSIDE — 开关 1: solid icon with the percentage outside it,
-    //                                    instead of the system's in-glyph number.
-    //   KEY_CC_BATTERY_PERCENT_LEFT — 开关 2: put that outside percentage on the leading edge
-    //                                 (visual left in LTR). The in-glyph number has no left/right
-    //                                 side, so this switch also selects the outside style.
     // Force status-bar region sampling (light-bar samples the region behind the status bar so
     // icons/background adapt), ported from Hyper Helper's `RegionSampling` (key matches upstream
     // i32.c). Int-typed: 0 off, 1 on.
@@ -196,7 +187,7 @@ object Preferences {
      * opacity and reads as a grey, heavy look; lower is lighter and more see-through.
      */
     // Status-bar slot preference key for [slot]; shared by the hooks and the settings UI.
-    fun slotKey(slot: String): String = "icon_tuner_slot_$slot"
+    fun slotKey(slot: String): String = IconSettingsPreferencePolicy.slotKey(slot)
 
     /**
      * The current long-press power action ([POWER_BUTTON_ACTION_*]). Reads
@@ -368,13 +359,25 @@ object Preferences {
      * migrates to "keep showing"; an absent or `true` value stays hidden. The new key always wins
      * once the user touches the replacement switch.
      */
-    fun cellularTypeKeepsOnWifi(): Boolean = when {
-        contains(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_KEEP_ON_WIFI) ->
-            getBoolean(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_KEEP_ON_WIFI, false)
-        contains(IconSettingsKeys.KEY_ICON_STACKED_TYPE_HIDE_WIFI) ->
-            !getBoolean(IconSettingsKeys.KEY_ICON_STACKED_TYPE_HIDE_WIFI, false)
-        else -> false
-    }
+    fun cellularTypeKeepsOnWifi(): Boolean =
+        IconSettingsPreferencePolicy.keepCellularTypeOnWifi(::explicitIconBoolean)
+
+    internal fun ccBatteryPercentStyle() = IconSettingsPreferencePolicy.ccBatteryPercentStyle(
+        SystemUiSettingsKeys.KEY_CC_BATTERY_PERCENT_STYLE.let { key ->
+            if (contains(key)) getInt(key, 0) else null
+        },
+        getBoolean(SystemUiSettingsKeys.KEY_CC_BATTERY_PERCENT_OUTSIDE, false),
+        getBoolean(SystemUiSettingsKeys.KEY_CC_BATTERY_PERCENT_LEFT, false)
+    )
+
+    fun hideNonDefaultSim(): Boolean =
+        IconSettingsPreferencePolicy.hideNonDefaultSim(::explicitIconBoolean)
+
+    internal fun iconBoolean(key: String): Boolean =
+        IconSettingsPreferencePolicy.iconBoolean(key, ::explicitIconBoolean)
+
+    private fun explicitIconBoolean(key: String): Boolean? =
+        if (contains(key)) getBoolean(key, false) else null
 
     fun allowAndroidWidgetsToAssistant(): Boolean = getBoolean(PlatformSettingsKeys.KEY_ALLOW_ANDROID_WIDGETS_TO_ASSISTANT, false)
 

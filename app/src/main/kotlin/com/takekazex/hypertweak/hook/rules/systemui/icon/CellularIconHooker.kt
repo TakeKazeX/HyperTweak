@@ -1,6 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
 import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
+import com.takekazex.hypertweak.settings.contract.IconSettingsPreferencePolicy
 
 import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
@@ -31,14 +32,15 @@ object CellularIconHooker : StaticHooker() {
     private val settingIconHideCellularType by hookSetting(false) {
         Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_TYPE, false)
     }
-    private val settingIconHideCellularRoamGlobal by hookSetting(false) {
-        Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_ROAM_GLOBAL, false)
-    }
-    private val settingIconHideCellularRoam by hookSetting(false) {
-        Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_ROAM, false)
-    }
-    private val settingIconHideCellularSmallRoam by hookSetting(false) {
-        Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_SMALL_ROAM, false)
+    private val nativeRoamingMode by hookSetting(0) {
+        IconSettingsPreferencePolicy.nativeRoamingMode(
+            IconSettingsKeys.KEY_ICON_CELLULAR_ROAM_MODE.let { key ->
+                if (Preferences.contains(key)) Preferences.getInt(key, 0) else null
+            },
+            Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_ROAM, false),
+            Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_SMALL_ROAM, false),
+            Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_ROAM_GLOBAL, false)
+        )
     }
     private val settingIconHideCellularVowifi by hookSetting(false) {
         Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_VOWIFI, false)
@@ -60,12 +62,6 @@ object CellularIconHooker : StaticHooker() {
 
     private var hideType by generationState { false }
 
-    private var hideRoamGlobal by generationState { false }
-
-    private var hideRoam by generationState { false }
-
-    private var hideSmallRoam by generationState { false }
-
     private var hideVoWifi by generationState { false }
 
     private var hideVolte by generationState { false }
@@ -78,15 +74,12 @@ object CellularIconHooker : StaticHooker() {
         IconTunerFlows.init(classLoader)
         hideActivity = settingIconHideCellularActivity
         hideType = settingIconHideCellularType
-        hideRoamGlobal = settingIconHideCellularRoamGlobal
-        hideRoam = settingIconHideCellularRoam
-        hideSmallRoam = settingIconHideCellularSmallRoam
         hideVoWifi = settingIconHideCellularVowifi
         hideVolte = settingIconHideCellularVolte
         hideVolteNoService = settingIconHideCellularVolteNoService
         hideSpeechHd = settingIconHideCellularSpeechHd
 
-        val anyEnabled = hideActivity || hideType || hideRoamGlobal || hideRoam || hideSmallRoam ||
+        val anyEnabled = hideActivity || hideType || nativeRoamingMode != 0 ||
             hideVoWifi || hideVolte || hideVolteNoService || hideSpeechHd
         if (!anyEnabled) {
             DebugLog.hookSkippedDebug(TAG, "CellularIcon", "no icon tuner cellular switches enabled")
@@ -106,12 +99,15 @@ object CellularIconHooker : StaticHooker() {
             if (hideType) {
                 add("getMobileTypeVisible")
                 add("getMobileTypeImageVisible")
+                add("getMobileTypeSingleVisible")
             }
+            if (nativeRoamingMode and 1 != 0) add("getMobileRoamVisible")
+            if (nativeRoamingMode and 2 != 0) add("getSmallRoamVisible")
             if (hideVoWifi) add("getVowifiVisible")
             if (hideVolteNoService) add("getVolteNoService")
             if (hideSpeechHd) add("getSpeechHd")
         }
-        DebugLog.d(TAG, "CellularIcon installing: getters=$getters roam=$hideRoam smallRoam=$hideSmallRoam roamGlobal=$hideRoamGlobal")
+        DebugLog.d(TAG, "CellularIcon installing: getters=$getters roamingMode=$nativeRoamingMode")
         getters.forEach { getter ->
             vmClass.findMethodOrNull { name(getter) }?.hook {
                 before { param -> param.result = IconTunerFlows.falseFlow }
@@ -119,20 +115,6 @@ object CellularIconHooker : StaticHooker() {
         }
         if (hideVolte) hookVolteVisibility(vmClass)
 
-        // 2. Roam indicator methods return the flow directly.
-        if (hideRoam || hideRoamGlobal) {
-            vmClass.findMethodOrNull { name("getMobileRoamVisible") }?.hook {
-                before { param -> param.result = IconTunerFlows.falseFlow }
-            } ?: DebugLog.hookSkipped(TAG, "$VM_CLASS#getMobileRoamVisible", "method not found")
-        }
-        if (hideSmallRoam || hideRoamGlobal) {
-            vmClass.findMethodOrNull { name("getSmallRoamVisible") }?.hook {
-                before { param -> param.result = IconTunerFlows.falseFlow }
-            } ?: DebugLog.hookSkipped(TAG, "$VM_CLASS#getSmallRoamVisible", "method not found")
-        }
-
-        // Global roaming applies to both native roaming consumers. Keep the observer's original
-        // flow intact so disabling this switch and rebuilding binders restores host ownership.
     }
 
     private fun hookVolteVisibility(vmClass: Class<*>) {

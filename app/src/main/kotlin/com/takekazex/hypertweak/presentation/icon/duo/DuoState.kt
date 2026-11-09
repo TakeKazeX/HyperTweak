@@ -41,8 +41,10 @@ data class DuoContent(
     val cellularSignalLevels: List<Int> = listOf(mobileLevel),
     val cellularSignalRows: List<DuoSignalRow> = emptyList(),
     val activeDataSubId: Int? = null,
+    val wifiGlyphVisible: Boolean = true,
     val typography: com.takekazex.hypertweak.settings.contract.MobileTypeTypography = com.takekazex.hypertweak.settings.contract.MobileTypeTypography()
 ) {
+    val wifiLevelToDraw: Int? get() = wifiLevel.takeIf { wifiGlyphVisible }
     val hasCellularSignal: Boolean get() = !airplaneMode && wifiLevel == null && cellularSignalLevels.isNotEmpty()
 }
 
@@ -53,8 +55,29 @@ object DuoPolicy {
         // A device without a SIM has no cellular row to mirror; the Wi-Fi ring alone is complete.
         if (state.cellularSignalRows.isEmpty() && state.cellularSignalLevels.isEmpty()) return emptyList()
         if (dual && state.cellularSignalRows.size > 1) return state.cellularSignalRows.take(2)
-        return listOf(DuoSignalRow(state.activeDataSubId ?: -1, -1,
-            if (state.noService) -1 else state.mobileLevel))
+        val level = if (state.noService) -1 else state.mobileLevel
+        val rows = state.cellularSignalRows
+        val active = rows.firstOrNull { it.subId == state.activeDataSubId }
+        val dotRow = active?.copy(level = level) ?: rows.firstOrNull()
+            ?: DuoSignalRow(state.activeDataSubId ?: -1, -1, level)
+        return listOf(dotRow)
+    }
+
+    internal fun withRetainedWifiType(content: DuoContent, mobile: MobileSignalState): DuoContent {
+        if (content.wifiLevel == null || content.activeDataSubId != mobile.activeDataSubId) return content
+        return content.copy(networkLabel = mobile.wifiCellularType(wifiDefault = true))
+    }
+
+    internal fun applyVisibility(content: DuoContent, hiddenSimIds: Set<Int>, hideType: Boolean, hideWifi: Boolean): DuoContent {
+        val rows = content.cellularSignalRows.filterNot { it.subId in hiddenSimIds }
+        return content.copy(
+            wifiGlyphVisible = !hideWifi,
+            networkLabel = content.networkLabel.takeUnless { hideType || content.activeDataSubId in hiddenSimIds },
+            cellularSignalRows = rows,
+            cellularSignalLevels = if (content.cellularSignalRows.isEmpty()) {
+                content.cellularSignalLevels.takeUnless { content.activeDataSubId in hiddenSimIds }.orEmpty()
+            } else rows.map { it.level }
+        )
     }
 
     fun leadingPercent(surface: DuoSurface, style: DuoExpandedStyle, requested: Boolean): Boolean =

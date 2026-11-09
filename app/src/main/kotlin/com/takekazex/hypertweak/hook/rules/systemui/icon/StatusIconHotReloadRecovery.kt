@@ -4,6 +4,7 @@ import com.takekazex.hypertweak.hook.base.HostAccess
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.view.View
 import android.view.ViewGroup
 import android.view.inspector.WindowInspector
@@ -25,6 +26,28 @@ internal object StatusIconHotReloadRecovery {
 
     fun scheduleIcons(context: Context, hooks: Collection<BaseHooker>) = enqueue(context, hooks, true)
 
+    /** These owners have no slot, manager or overlay dependency. */
+    fun scheduleIndependentIcons(context: Context, hooks: List<BaseHooker>) {
+        main.post {
+            if (!active) return@post
+            val start = SystemClock.elapsedRealtime()
+            runCatching {
+                val app = context.applicationContext ?: context
+                val scope = HostScope(
+                    app,
+                    if (RegionSamplingHooker in hooks) component(app) else null,
+                    if (NotificationMaxNumberHooker in hooks) windowViews() else emptyList()
+                )
+                for (phase in listOf(HostRecoveryPhase.SOURCES, HostRecoveryPhase.ICONS)) {
+                    scope.phase = phase
+                    hooks.forEach { it.recoverHostSurfaces(scope, iconsOnly = true) }
+                }
+                DebugLog.i("HostRecovery", "independent icon recovery owners=${hooks.size} " +
+                    "elapsedMs=${SystemClock.elapsedRealtime() - start}")
+            }.onFailure { DebugLog.w("HostRecovery", "independent icon recovery failed", it) }
+        }
+    }
+
     private fun enqueue(context: Context, hooks: Collection<BaseHooker>, iconsOnly: Boolean) {
         val owners = hooks.toList()
         main.post { if (active) recover(context, owners, iconsOnly) }
@@ -33,8 +56,7 @@ internal object StatusIconHotReloadRecovery {
     private fun recover(context: Context, hooks: List<BaseHooker>, iconsOnly: Boolean) {
         runCatching {
             val app = context.applicationContext ?: context
-            val component = read(app, "mSysUIComponent")
-                ?: read(app, "mInitializer")?.let { invoke(it, "getSysUIComponent") }
+            val component = component(app)
             val scope = HostScope(app, component, windowViews())
             fun dispatch(phase: HostRecoveryPhase) {
                 scope.phase = phase
@@ -87,6 +109,9 @@ internal object StatusIconHotReloadRecovery {
             DebugLog.i("HostRecovery", "hot reload rebound owners=${hooks.size} views=${scope.views.size} managers=${scope.managers.size} progress=${scope.progress} visible=${scope.visible}")
         }.onFailure { DebugLog.w("HostRecovery", "hot reload host discovery failed", it) }
     }
+
+    private fun component(app: Context): Any? = read(app, "mSysUIComponent")
+        ?: read(app, "mInitializer")?.let { invoke(it, "getSysUIComponent") }
 
     private fun windowViews(): List<View> = ArrayList<View>().also { views ->
         WindowInspector.getGlobalWindowViews().forEach { collectViews(it, views) }

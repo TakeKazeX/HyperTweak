@@ -1,6 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
 import com.takekazex.hypertweak.presentation.icon.MobileSignalEvent
+import com.takekazex.hypertweak.presentation.icon.MobileSignalModel
 import com.takekazex.hypertweak.presentation.icon.MobileSignalState
 
 import org.junit.Assert.assertEquals
@@ -22,6 +23,8 @@ class MobileTypePolicyTest {
             .reduce(MobileSignalEvent.ActiveDataSubId(active))
         if (active in ids) {
             result = result
+                .reduce(MobileSignalEvent.SignalModel(active, MobileSignalModel.cellular(3, 5)))
+                .reduce(MobileSignalEvent.InService(active, true))
                 .reduce(MobileSignalEvent.NetworkType(active, type))
                 .reduce(MobileSignalEvent.DataConnected(active, connected == true))
                 .reduce(MobileSignalEvent.WifiAvailable(active, wifi == true))
@@ -75,6 +78,16 @@ class MobileTypePolicyTest {
             MobileTypePolicy.resolve(wifiOff, MobileTypeConfig(hideWhenWifiAvailable = true))
                 .suppressed
         )
+    }
+
+    @Test
+    fun cachedTypeCannotSurviveLossOfServiceOnWifi() {
+        val active = state(listOf(1), 1, "5G", connected = false, wifi = true)
+        assertEquals("5G", MobileTypePolicy.resolve(active, MobileTypeConfig()).text)
+        val noService = active.reduce(MobileSignalEvent.InService(1, false))
+        assertEquals("", MobileTypePolicy.resolve(noService, MobileTypeConfig()).text)
+        val satellite = active.reduce(MobileSignalEvent.NonTerrestrial(1, true))
+        assertEquals("", MobileTypePolicy.resolve(satellite, MobileTypeConfig()).text)
     }
 
     @Test

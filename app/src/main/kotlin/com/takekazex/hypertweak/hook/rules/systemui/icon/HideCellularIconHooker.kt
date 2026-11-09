@@ -30,11 +30,8 @@ import java.util.concurrent.atomic.AtomicLong
  */
 object HideCellularIconHooker : StaticHooker() {
     // Published on settings acceptance; hook callbacks perform no storage reads.
-    private val settingIconStackedEnabled by hookSetting(false) { Preferences.getBoolean(IconSettingsKeys.KEY_ICON_STACKED_ENABLED, false) }
-    private val settingIconHideNonDefaultSim by hookSetting(false) {
-        Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_NON_DEFAULT_SIM, false)
-    }
-    private val settingIconHideSimAuto by hookSetting(false) { Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_SIM_AUTO, false) }
+    private val settingIconStackedEnabled by hookSetting(false) { Preferences.iconBoolean(IconSettingsKeys.KEY_ICON_STACKED_ENABLED) }
+    private val settingIconHideNonDefaultSim by hookSetting(false) { Preferences.hideNonDefaultSim() }
     private val settingIconHideSimOne by hookSetting(false) { Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_SIM_ONE, false) }
     private val settingIconHideSimTwo by hookSetting(false) { Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_SIM_TWO, false) }
     private val settingIconHideMobileOnWifi by hookSetting(false) {
@@ -136,7 +133,7 @@ object HideCellularIconHooker : StaticHooker() {
     override fun onHook() {
         IconTunerFlows.init(classLoader)
         val stackedEnabled = settingIconStackedEnabled
-        hideNonDefault = settingIconHideNonDefaultSim || settingIconHideSimAuto
+        hideNonDefault = settingIconHideNonDefaultSim
         hideSimOne = settingIconHideSimOne
         hideSimTwo = settingIconHideSimTwo
         hideOnWifi = settingIconHideMobileOnWifi
@@ -379,16 +376,10 @@ object HideCellularIconHooker : StaticHooker() {
         val complete = state.subscriptionOrder.isNotEmpty() &&
             state.subscriptionOrder.all { bindings.containsKey(it) }
         val mask = LinkedHashSet<Int>()
-        // The pre-existing SIM options keep their historical behavior: the non-default row is
-        // masked whenever any of them is active. The WiFi rule alone must not mask it.
-        if (hideNonDefault || hideSimOne || hideSimTwo) {
-            mask += state.nonDefaultMask(complete)
-        }
         if (complete) {
-            state.subscriptionOrder.forEach { subId ->
-                val slot = runCatching { SubscriptionManager.getSlotIndex(subId) }
+            mask += state.hiddenSimIds(hideNonDefault, hideSimOne, hideSimTwo) { subId ->
+                runCatching { SubscriptionManager.getSlotIndex(subId) }
                     .getOrDefault(SubscriptionManager.INVALID_SIM_SLOT_INDEX)
-                if ((slot == 0 && hideSimOne) || (slot == 1 && hideSimTwo)) mask += subId
             }
         }
         // WiFi connected hides every mobile row, signal strength included (first Pair member).

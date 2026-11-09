@@ -57,9 +57,23 @@ object IconSlotPolicy {
     )
 
     const val SLOT_MOBILE = "mobile"
+    const val SLOT_STACKED_SIGNAL = "stacked_mobile_icon"
+    const val SLOT_STACKED_TYPE = "stacked_mobile_type"
     const val SLOT_WIFI = "wifi"
     const val SLOT_DEMO_WIFI = "demo_wifi"
     const val SLOT_ROTATION_LOCK = "hypertweak_rotation_lock"
+
+    val configurableSlots: List<String> = listOf(
+        SLOT_ROTATION_LOCK,
+        "handle", "network_speed", "mute", "micphone", "headset", "mikey", "privacy_mode",
+        "nfc", "gps", "missed_call", "managed_profile", "second_space", "ime", "cast",
+        "location", "stealth", "tty", "alarm_clock", "vpn", "ethernet", "handle_battery",
+        "bluetooth", "bluetooth_handsfree_battery", "hotspot", "sound_box_group", "stereo",
+        "sound_box_screen", "sound_box", "wireless_headset", "zen", "volume", "dist_compute",
+        "camera", "glasses", "car", "tv", "pc", "pad", "phone", "hd", "airplane",
+        SLOT_STACKED_SIGNAL, SLOT_STACKED_TYPE,
+        "mobile", "demo_mobile", "no_sim", "wifi", "demo_wifi"
+    )
 
     /** The fake QS row follows the collapsed status bar and must retain its native single row. */
     fun ownsTwoLineControlCenterRow(location: String?): Boolean = location == "QS"
@@ -80,9 +94,9 @@ object IconSlotPolicy {
     ): Boolean = visibleState == 2 && hiddenBySpace && inIslandState == 20 &&
         iconVisible && !iconBlocked && !ignored && !removing && !gone
 
-    val SIGNAL_SLOTS: List<String> = listOf(
-        "stacked_mobile_icon",
-        "stacked_mobile_type",
+    val STACKED_SLOTS = listOf(SLOT_STACKED_SIGNAL, SLOT_STACKED_TYPE)
+
+    val SIGNAL_SLOTS: List<String> = STACKED_SLOTS + listOf(
         "single_mobile_sim1",
         "single_mobile_sim2"
     )
@@ -116,7 +130,7 @@ object IconSlotPolicy {
     fun ownsLowerRowMotion(slot: String, leftOwnedSlots: Set<String>, overrides: Set<String> = emptySet()): Boolean =
         !isTwoLineUpperSlot(slot, overrides) && slot !in leftOwnedSlots
 
-    val MODULE_SLOTS: List<String> = SIGNAL_SLOTS + SLOT_ROTATION_LOCK
+    val MODULE_SLOTS: List<String> = STACKED_SLOTS + SLOT_ROTATION_LOCK
 
     fun rotationLockShowsOnStatusBar(mode: IconSlotMode, leftSelected: Boolean): Boolean = when (mode) {
         IconSlotMode.FOLLOW_SYSTEM -> leftSelected
@@ -240,6 +254,16 @@ object IconSlotPolicy {
         }
         .toCollection(LinkedHashSet())
 
+    /** Keep hidden editor entries at their existing positions when replacing the visible order. */
+    fun editedOrderEntries(displayed: List<String>, previous: Set<String>): Set<String> {
+        val merged = displayed.toMutableList()
+        val placed = parseLegacyOrder(previous).map { it.slot }.distinct()
+        placed.forEachIndexed { index, slot ->
+            if (slot !in displayed) merged.add(index.coerceAtMost(merged.size), slot)
+        }
+        return orderEntries(merged)
+    }
+
     /** Splits an extra-hidden list on every separator the settings UI and the hook accept. */
     fun parseSlotList(value: String): List<String> = value
         .split(',', ' ', '\uFF0C')
@@ -291,6 +315,23 @@ object IconSlotPolicy {
         return IconSlotMode.from(configured ?: 0)
     }
 
+    /** A replacement can narrow the cellular group's scope but cannot make a hidden group visible. */
+    fun blocksSlot(slot: String, surface: IconSurface, config: IconSlotPolicyConfig): Boolean {
+        if (blocksMode(modeFor(slot, config.slotModes, config.extraHiddenSlots), surface)) return true
+        return when (slot) {
+            SLOT_STACKED_SIGNAL -> blocksSlot(SLOT_MOBILE, surface, config)
+            SLOT_STACKED_TYPE -> blocksSlot(SLOT_STACKED_SIGNAL, surface, config)
+            else -> false
+        }
+    }
+
+    private fun blocksMode(mode: IconSlotMode, surface: IconSurface): Boolean = when (mode) {
+        IconSlotMode.HIDE_EVERYWHERE -> true
+        IconSlotMode.STATUS_BAR_ONLY -> surface == IconSurface.CONTROL_CENTER
+        IconSlotMode.CONTROL_CENTER_ONLY -> surface == IconSurface.STATUS_BAR
+        else -> false
+    }
+
     /**
      * Builds the host block/ignored list for one surface. Unknown locations are fail-open for the
      * two one-surface modes; explicit show/hide modes remain deterministic.
@@ -309,6 +350,7 @@ object IconSlotPolicy {
             addAll(result)
             addAll(config.slotModes.keys)
             addAll(config.extraHiddenSlots)
+            addAll(STACKED_SLOTS)
         }
         candidates.forEach { slot ->
             when (modeFor(slot, config.slotModes, config.extraHiddenSlots)) {
@@ -326,6 +368,7 @@ object IconSlotPolicy {
                 }
                 IconSlotMode.HIDE_EVERYWHERE -> result += slot
             }
+            if (slot in STACKED_SLOTS && blocksSlot(slot, surface, config)) result += slot
         }
         return result.toList()
     }

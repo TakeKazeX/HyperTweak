@@ -39,17 +39,7 @@ data class IconSlotInfo(
  */
 object IconSlotCatalog {
     /** Rows shown in the settings page, in host order. */
-    val slots: List<String> = listOf(
-        IconSlotPolicy.SLOT_ROTATION_LOCK,
-        "handle", "network_speed", "mute", "micphone", "headset", "mikey", "privacy_mode",
-        "nfc", "gps", "missed_call", "managed_profile", "second_space", "ime", "cast",
-        "location", "stealth", "tty", "alarm_clock", "vpn", "ethernet", "handle_battery",
-        "bluetooth", "bluetooth_handsfree_battery", "hotspot", "sound_box_group", "stereo",
-        "sound_box_screen", "sound_box", "wireless_headset", "zen", "volume", "dist_compute",
-        "camera", "glasses", "car", "tv", "pc", "pad", "phone", "hd", "airplane",
-        "stacked_mobile_icon", "stacked_mobile_type", "single_mobile_sim1", "single_mobile_sim2",
-        "mobile", "demo_mobile", "no_sim", "wifi", "demo_wifi"
-    )
+    val slots: List<String> = IconSlotPolicy.configurableSlots
 
     /** Catalog keyed by host slot name; `internal` so the unit test can assert full coverage. */
     internal val bySlot: Map<String, IconSlotInfo> = listOf(
@@ -105,8 +95,6 @@ object IconSlotCatalog {
             R.drawable.ic_stat_sys_stacked_icon
         ),
         IconSlotInfo("stacked_mobile_type", R.string.icon_slot_stacked_mobile_type, R.drawable.ic_stat_sys_stacked_type),
-        IconSlotInfo("single_mobile_sim1", R.string.icon_slot_single_sim1, R.drawable.ic_stat_sys_single_sim1),
-        IconSlotInfo("single_mobile_sim2", R.string.icon_slot_single_sim2, R.drawable.ic_stat_sys_single_sim2),
         IconSlotInfo("mobile", R.string.icon_slot_mobile, R.drawable.ic_stat_sys_mobile),
         IconSlotInfo("demo_mobile", R.string.icon_slot_demo_mobile, R.drawable.ic_stat_sys_mobile),
         IconSlotInfo("no_sim", R.string.icon_slot_no_sim, R.drawable.ic_stat_sys_no_sim),

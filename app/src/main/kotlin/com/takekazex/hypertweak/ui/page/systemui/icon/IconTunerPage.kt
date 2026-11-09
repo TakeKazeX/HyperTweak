@@ -11,6 +11,7 @@ import androidx.compose.runtime.setValue
 import com.takekazex.hypertweak.settings.contract.IconTunerContract
 
 import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
+import com.takekazex.hypertweak.settings.contract.IconSettingsPreferencePolicy
 
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 
@@ -19,6 +20,7 @@ import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 import com.takekazex.hypertweak.settings.contract.MobileTypeTypography
 import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
@@ -27,11 +29,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateMapOf
@@ -54,6 +58,8 @@ import com.takekazex.hypertweak.settings.contract.SignalWeight
 import com.takekazex.hypertweak.presentation.icon.duo.DuoLayout
 import com.takekazex.hypertweak.presentation.icon.duo.DuoSizes
 import kotlin.math.roundToInt
+import com.takekazex.hypertweak.ui.effect.AppOverlayDialog
+import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -66,6 +72,7 @@ import top.yukonga.miuix.kmp.basic.TabRowDefaults
 import top.yukonga.miuix.kmp.basic.TabRowWithContour
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextField
+import top.yukonga.miuix.kmp.basic.TextButton
 import com.takekazex.hypertweak.ui.effect.AppTopAppBar as TopAppBar
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
@@ -121,6 +128,50 @@ private fun TunerSwitch(
     )
 }
 
+/** A text edit stays local until the user confirms the complete value. */
+@Composable
+private fun IconTextPreference(title: String, value: String, enabled: Boolean, onConfirm: (String) -> Unit) {
+    val epoch = LocalAppSettingsStore.current.backup.settingsEpochForUi()
+    key(epoch, value) {
+        var editing by rememberSaveable { mutableStateOf(false) }
+        var draft by rememberSaveable { mutableStateOf(value) }
+        ArrowPreference(title = title, summary = value.ifEmpty { null }, enabled = enabled, onClick = {
+            draft = value
+            editing = true
+        })
+        AppOverlayDialog(
+            show = enabled && editing,
+            title = title,
+            onDismissRequest = { editing = false },
+            content = {
+                TextField(
+                    value = draft,
+                    onValueChange = { draft = it },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
+                )
+                Row(Modifier.fillMaxWidth()) {
+                    TextButton(
+                        text = stringResource(R.string.scale_cancel),
+                        onClick = { editing = false },
+                        modifier = Modifier.weight(1f)
+                    )
+                    Spacer(Modifier.width(20.dp))
+                    TextButton(
+                        text = stringResource(R.string.scale_ok),
+                        onClick = {
+                            editing = false
+                            if (draft != value) onConfirm(draft)
+                        },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.textButtonColorsPrimary()
+                    )
+                }
+            }
+        )
+    }
+}
+
 @Composable
 fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit, onNavigateToIconRows: () -> Unit) {
     val settingsStore = LocalAppSettingsStore.current
@@ -134,7 +185,15 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit, onNavig
     }
 
     // Epoch changes invalidate saved page values after reset/restore, including Activity recreation.
-    IconTunerPreferenceState.reconcileEpoch(prefs, settingsStore.backup.settingsEpochForUi())
+    val epoch = settingsStore.backup.settingsEpochForUi()
+    IconTunerPreferenceState.reconcileEpoch(prefs, epoch)
+    val storedPresence = remember(epoch) { mutableMapOf<String, Boolean>() }
+
+    fun hasValue(key: String): Boolean =
+        key in prefs || storedPresence.getOrPut(key) { settingsStore.contains(key) }
+
+    fun explicitBoolean(key: String): Boolean? =
+        if (hasValue(key)) prefs[key] as? Boolean ?: settingsStore.getBoolean(key) else null
 
     @Suppress("UNCHECKED_CAST")
     fun <T> pref(key: String, default: T): T {
@@ -149,7 +208,15 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit, onNavig
         }
         // Load the stored value once; defaults are only for keys never written.
         val stored: T = when (default) {
-            is Boolean -> settingsStore.getBoolean(key, default as Boolean) as T
+            is Boolean -> when (key) {
+                IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_KEEP_ON_WIFI ->
+                    IconSettingsPreferencePolicy.keepCellularTypeOnWifi(::explicitBoolean)
+                IconSettingsKeys.KEY_ICON_HIDE_NON_DEFAULT_SIM ->
+                    IconSettingsPreferencePolicy.hideNonDefaultSim(::explicitBoolean)
+                IconSettingsKeys.KEY_ICON_STACKED_ENABLED, IconSettingsKeys.KEY_ICON_IGNORE_SYS_HIDE,
+                IconSettingsKeys.KEY_ICON_HIDE_PRIVACY -> IconSettingsPreferencePolicy.iconBoolean(key, ::explicitBoolean)
+                else -> settingsStore.getBoolean(key, default)
+            } as T
             is Int -> (if (key == IconSettingsKeys.KEY_ICON_STACKED_SIGNAL_STYLE) settingsStore.systemUi.iconStackedSignalStyle()
                 else settingsStore.getInt(key, default as Int)) as T
             is Float -> settingsStore.getFloat(key, default as Float) as T
@@ -193,21 +260,22 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit, onNavig
         stringResource(R.string.icon_slot_mode_hidden)
     )
 
-    val legacyLeftEnabled = pref(IconSettingsKeys.KEY_ICON_LEFT_CONTAINER_ENABLED, false)
-    val leftMode = pref(
-        IconTunerContract.KEY_LEFT_MODE,
-        if (settingsStore.contains(IconTunerContract.KEY_LEFT_MODE)) {
-            settingsStore.getInt(IconTunerContract.KEY_LEFT_MODE, IconTunerContract.LEFT_MODE_DISABLED)
-        } else if (legacyLeftEnabled) {
-            IconTunerContract.LEFT_MODE_HOME
-        } else {
-            IconTunerContract.LEFT_MODE_DISABLED
+    val leftMode = IconSettingsPreferencePolicy.leftMode(
+        if (hasValue(IconTunerContract.KEY_LEFT_MODE)) pref(IconTunerContract.KEY_LEFT_MODE, 0) else null,
+        IconSettingsPreferencePolicy.iconBoolean(IconSettingsKeys.KEY_ICON_LEFT_CONTAINER_ENABLED, ::explicitBoolean)
+    )
+    val leftSelected = IconTunerContract.leftPreferenceKeys.associateWith {
+        IconSettingsPreferencePolicy.iconBoolean(it, ::explicitBoolean)
+    }
+    val slotModesByName = IconSettingsPreferencePolicy.slotModes(
+        read = { slot ->
+            val key = settingsStore.systemUi.slotKey(slot)
+            if (hasValue(key)) pref(key, 0) else null
+        },
+        extraHidden = IconSettingsPreferencePolicy.extraHiddenSlots { key ->
+            if (hasValue(key)) pref(key, "") else null
         }
     )
-
-    // The preview and the 布局 tab read the same left-placement toggles, so the map is built once
-    // here instead of inside the section.
-    val leftSelected = IconTunerContract.leftPreferenceKeys.associateWith { key -> pref(key, false) }
     // Hoisted drag state feeds both previews without publishing preferences while dragging.
     val duoComponentSliders = listOf(
         rememberSliderEdit(pref(IconSettingsKeys.KEY_ICON_DUO_RING_SCALE, 100).toFloat()),
@@ -228,10 +296,8 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit, onNavig
             position = pref(IconTunerContract.KEY_POSITION, IconSlotPolicyConfig.POSITION_SYSTEM),
             customOrder = pref(IconTunerContract.KEY_POSITION_VALUES, emptySet<String>()),
             reorderHidden = pref(IconTunerContract.KEY_POSITION_REORDER, false),
-            slotModes = IconSlotCatalog.slots.associateWith { pref(settingsStore.systemUi.slotKey(it), 0) },
-            extraHidden = IconSlotPolicy.parseSlotList(
-                pref(IconSettingsKeys.KEY_ICON_EXT_BLOCKED, "")
-            ).toSet(),
+            slotModes = slotModesByName,
+            extraHidden = emptySet(),
             leftSlots = if (leftMode == IconTunerContract.LEFT_MODE_DISABLED) {
                 emptySet()
             } else {
@@ -246,7 +312,11 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit, onNavig
             duoSizeDp = DuoLayout.snapSizeDp(duoSizeSlider.value).toFloat(),
             hideMobileOnWifi = pref(IconSettingsKeys.KEY_ICON_HIDE_MOBILE_ON_WIFI, false),
             hideWifiConnected = pref(IconSettingsKeys.KEY_ICON_HIDE_WIFI_UNAVAILABLE, false),
+            hideNonDefaultSim = pref(IconSettingsKeys.KEY_ICON_HIDE_NON_DEFAULT_SIM, false),
+            hideSimOne = pref(IconSettingsKeys.KEY_ICON_HIDE_SIM_ONE, false),
+            hideSimTwo = pref(IconSettingsKeys.KEY_ICON_HIDE_SIM_TWO, false),
             showCellularType = !pref(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_TYPE, false),
+            keepCellularTypeOnWifi = pref(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_KEEP_ON_WIFI, false),
             small5GaEnabled = pref(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_SMALL_5GA, false),
             typography = MobileTypeTypography(
                 pref(IconSettingsKeys.KEY_ICON_TYPE_TYPOGRAPHY, false),
@@ -313,12 +383,7 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit, onNavig
                         LeftContainerSection(
                             mode = leftMode,
                             leftSelected = leftSelected,
-                            onChange = { key, value ->
-                                changed(key, value)
-                                if (key == IconTunerContract.KEY_LEFT_MODE && value is Int) {
-                                    changed(IconSettingsKeys.KEY_ICON_LEFT_CONTAINER_ENABLED, value != 0)
-                                }
-                            }
+                            onChange = ::changed
                         )
                     }
                     1 -> {
@@ -349,19 +414,21 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit, onNavig
                                 IconSettingsKeys.KEY_ICON_STACKED_TYPE_HIDE_DISCONNECT,
                                 false
                             ),
-                            keepTypeOnWifi = pref(
-                                IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_KEEP_ON_WIFI,
-                                false
-                            ),
                             showRoaming = pref(IconSettingsKeys.KEY_ICON_STACKED_TYPE_ROAMING, false),
                             onChange = { key, value -> changed(key, value) }
                         )
                         CellularSection(
                 activity = pref(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_ACTIVITY, false),
                 type = pref(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_TYPE, false),
-                roam = pref(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_ROAM, false),
-                smallRoam = pref(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_SMALL_ROAM, false),
-                roamGlobal = pref(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_ROAM_GLOBAL, false),
+                keepTypeOnWifi = pref(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_KEEP_ON_WIFI, false),
+                roamingMode = IconSettingsPreferencePolicy.nativeRoamingMode(
+                    if (hasValue(IconSettingsKeys.KEY_ICON_CELLULAR_ROAM_MODE)) {
+                        pref(IconSettingsKeys.KEY_ICON_CELLULAR_ROAM_MODE, 0)
+                    } else null,
+                    pref(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_ROAM, false),
+                    pref(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_SMALL_ROAM, false),
+                    pref(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_ROAM_GLOBAL, false)
+                ),
                 voWifi = pref(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_VOWIFI, false),
                 volte = pref(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_VOLTE, false),
                 volteNoService = pref(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_VOLTE_NO_SERVICE, false),
@@ -390,10 +457,14 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit, onNavig
                     }
                     2 -> WifiSection(
                         activity = pref(IconSettingsKeys.KEY_ICON_HIDE_WIFI_ACTIVITY, false),
-                        type = pref(IconSettingsKeys.KEY_ICON_HIDE_WIFI_TYPE, false),
                         hideConnected = pref(IconSettingsKeys.KEY_ICON_HIDE_WIFI_UNAVAILABLE, false),
                         activityRight = pref(IconSettingsKeys.KEY_ICON_WIFI_ACTIVITY_RIGHT, false),
-                        standardMode = pref(IconSettingsKeys.KEY_ICON_WIFI_STANDARD_MODE, 0),
+                        standardMode = IconSettingsPreferencePolicy.wifiStandardMode(
+                            if (hasValue(IconSettingsKeys.KEY_ICON_WIFI_STANDARD_MODE)) {
+                                pref(IconSettingsKeys.KEY_ICON_WIFI_STANDARD_MODE, 0)
+                            } else null,
+                            pref(IconSettingsKeys.KEY_ICON_HIDE_WIFI_TYPE, false)
+                        ),
                         standardMap = pref(IconSettingsKeys.KEY_ICON_WIFI_STANDARD_MAP, "4,5,6,7,8"),
                         paddingEnabled = pref(IconSettingsKeys.KEY_ICON_WIFI_PADDING, false),
                         paddingStart = pref(IconSettingsKeys.KEY_ICON_WIFI_PADDING_START_VAL, 0f),
@@ -430,9 +501,14 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit, onNavig
                 onChange = { key, value -> changed(key, value) }
                         )
                         BatteryStyleSection(
-                outside = pref(SystemUiSettingsKeys.KEY_CC_BATTERY_PERCENT_OUTSIDE, false),
-                leadingPercent = pref(SystemUiSettingsKeys.KEY_CC_BATTERY_PERCENT_LEFT, false),
-                onChange = { key, value -> changed(key, value) }
+                            style = IconSettingsPreferencePolicy.ccBatteryPercentStyle(
+                                if (hasValue(SystemUiSettingsKeys.KEY_CC_BATTERY_PERCENT_STYLE)) {
+                                    pref(SystemUiSettingsKeys.KEY_CC_BATTERY_PERCENT_STYLE, 0)
+                                } else null,
+                                pref(SystemUiSettingsKeys.KEY_CC_BATTERY_PERCENT_OUTSIDE, false),
+                                pref(SystemUiSettingsKeys.KEY_CC_BATTERY_PERCENT_LEFT, false)
+                            ).ordinal,
+                            onChange = { changed(SystemUiSettingsKeys.KEY_CC_BATTERY_PERCENT_STYLE, it) }
                         )
                         CarrierSection(
                 hideOne = pref(IconSettingsKeys.KEY_ICON_HIDE_CARRIER_ONE, false),
@@ -454,7 +530,7 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit, onNavig
                         )
                         SlotsSection(
                 slotModes = slotModes,
-                slotModeOf = { slot -> pref(settingsStore.systemUi.slotKey(slot), 0) },
+                slotModeOf = { slot -> IconSlotPolicy.modeFor(slot, slotModesByName).value },
                 ignoreSysHide = pref(IconSettingsKeys.KEY_ICON_IGNORE_SYS_HIDE, false),
                 hidePrivacy = pref(IconSettingsKeys.KEY_ICON_HIDE_PRIVACY, false),
                 regionSampling = pref(PlatformSettingsKeys.KEY_STATUSBAR_REGION_SAMPLING, 0),
@@ -476,7 +552,6 @@ private fun StackedSignalSection(
     artworkStyle: Int,
     weight: Float,
     hideWhenDisconnected: Boolean,
-    keepTypeOnWifi: Boolean,
     showRoaming: Boolean,
     onChange: (String, Any) -> Unit
 ) {
@@ -498,13 +573,6 @@ private fun StackedSignalSection(
                     valueLabel = { "${(it * 100).roundToInt()}%" }
                 ) { onChange(IconSettingsKeys.KEY_ICON_STACKED_WEIGHT, it) }
             }
-            // Outside the `if (enabled)` guard on purpose: the rule also drives the two-line
-            // control-center carrier block's type glyph, which works without stacked signal.
-            TunerSwitch(
-                keepTypeOnWifi,
-                stringResource(R.string.icon_stacked_type_keep_on_wifi),
-                stringResource(R.string.icon_stacked_type_keep_on_wifi_summary)
-            ) { onChange(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_KEEP_ON_WIFI, it) }
             MiuixExpandableContent(visible = enabled) {
                 OverlayDropdownPreference(
                     title = stringResource(R.string.icon_stacked_signal_artwork),
@@ -627,9 +695,8 @@ private fun LeftContainerSection(
 private fun CellularSection(
     activity: Boolean,
     type: Boolean,
-    roam: Boolean,
-    smallRoam: Boolean,
-    roamGlobal: Boolean,
+    keepTypeOnWifi: Boolean,
+    roamingMode: Int,
     voWifi: Boolean,
     volte: Boolean,
     volteNoService: Boolean,
@@ -654,20 +721,22 @@ private fun CellularSection(
                 stringResource(R.string.icon_hide_network_type_summary)
             ) { onChange(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_TYPE, it) }
             TunerSwitch(
-                roam,
-                stringResource(R.string.icon_hide_roam_indicator),
-                stringResource(R.string.icon_hide_roam_indicator_summary)
-            ) { onChange(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_ROAM, it) }
-            TunerSwitch(
-                smallRoam,
-                stringResource(R.string.icon_hide_small_roam_indicator),
-                stringResource(R.string.icon_hide_small_roam_indicator_summary)
-            ) { onChange(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_SMALL_ROAM, it) }
-            TunerSwitch(
-                roamGlobal,
-                stringResource(R.string.icon_hide_roam_globally),
-                stringResource(R.string.icon_hide_roam_globally_summary)
-            ) { onChange(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_ROAM_GLOBAL, it) }
+                keepTypeOnWifi,
+                stringResource(R.string.icon_stacked_type_keep_on_wifi),
+                stringResource(R.string.icon_stacked_type_keep_on_wifi_summary),
+                enabled = !type && !hideOnWifi
+            ) { onChange(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_KEEP_ON_WIFI, it) }
+            OverlayDropdownPreference(
+                title = stringResource(R.string.icon_native_roaming),
+                items = listOf(
+                    stringResource(R.string.icon_native_roaming_system),
+                    stringResource(R.string.icon_native_roaming_hide_regular),
+                    stringResource(R.string.icon_native_roaming_hide_small),
+                    stringResource(R.string.icon_native_roaming_hide_both)
+                ),
+                selectedIndex = roamingMode,
+                onSelectedIndexChange = { onChange(IconSettingsKeys.KEY_ICON_CELLULAR_ROAM_MODE, it) }
+            )
             TunerSwitch(
                 voWifi,
                 stringResource(R.string.icon_hide_vowifi),
@@ -715,7 +784,6 @@ private fun CellularSection(
 @Composable
 private fun WifiSection(
     activity: Boolean,
-    type: Boolean,
     hideConnected: Boolean,
     activityRight: Boolean,
     standardMode: Int,
@@ -740,11 +808,6 @@ private fun WifiSection(
                 stringResource(R.string.icon_hide_wifi_activity_summary)
             ) { onChange(IconSettingsKeys.KEY_ICON_HIDE_WIFI_ACTIVITY, it) }
             TunerSwitch(
-                type,
-                stringResource(R.string.icon_hide_wifi_standard),
-                stringResource(R.string.icon_hide_wifi_standard_summary)
-            ) { onChange(IconSettingsKeys.KEY_ICON_HIDE_WIFI_TYPE, it) }
-            TunerSwitch(
                 hideConnected,
                 stringResource(R.string.icon_hide_connected_wifi_icon),
                 stringResource(R.string.icon_hide_connected_wifi_icon_summary)
@@ -758,17 +821,15 @@ private fun WifiSection(
                 title = stringResource(R.string.icon_wifi_standard_mode),
                 summary = stringResource(R.string.icon_wifi_standard_mode_summary),
                 items = standardModes,
-                selectedIndex = (standardMode - 0).coerceIn(0, standardModes.lastIndex),
+                selectedIndex = standardMode,
                 onSelectedIndexChange = { onChange(IconSettingsKeys.KEY_ICON_WIFI_STANDARD_MODE, it) }
             )
             MiuixExpandableContent(visible = standardMode == 3) {
-                TextField(
+                IconTextPreference(
+                    title = stringResource(R.string.icon_wifi_standard_map),
                     value = standardMap,
-                    enabled = standardMode == 3,
-                    onValueChange = { onChange(IconSettingsKeys.KEY_ICON_WIFI_STANDARD_MAP, it) },
-                    label = stringResource(R.string.icon_wifi_standard_map),
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)
-                )
+                    enabled = standardMode == 3
+                ) { onChange(IconSettingsKeys.KEY_ICON_WIFI_STANDARD_MAP, it) }
             }
             TunerSwitch(
                 paddingEnabled,
@@ -941,13 +1002,11 @@ private fun CellularTypeSection(
                 ) { onChange(IconSettingsKeys.KEY_ICON_TYPE_WEIGHT, it.roundToInt()) }
             }
             MiuixExpandableContent(visible = useCustom) {
-                TextField(
+                IconTextPreference(
+                    title = stringResource(R.string.icon_cellular_type_custom_val),
                     value = customValue,
-                    enabled = useCustom,
-                    onValueChange = { onChange(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_CUSTOM_VAL, it) },
-                    label = stringResource(R.string.icon_cellular_type_custom_val),
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)
-                )
+                    enabled = useCustom
+                ) { onChange(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_CUSTOM_VAL, it) }
             }
             TunerSwitch(
                 swapSingle,
@@ -958,35 +1017,20 @@ private fun CellularTypeSection(
     }
 }
 
-/**
- * Control-center battery percentage style.
- *
- * Stock draws the CN default (`battery_indicator_style` 1) as a number inside the battery glyph.
- * The first switch asks the control center's own battery view for the icon-plus-outside-percentage
- * style; the second moves that outside percentage to the leading side (visual left in LTR), which
- * is the only style that has a side to choose, so it also selects it. Both apply to the control
- * center only — see `CcBatteryStyleHooker`.
- */
 @Composable
-private fun BatteryStyleSection(
-    outside: Boolean,
-    leadingPercent: Boolean,
-    onChange: (String, Any) -> Unit
-) {
+private fun BatteryStyleSection(style: Int, onChange: (Int) -> Unit) {
     SmallTitle(stringResource(R.string.icon_battery_style_title))
     Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-        Column(Modifier.fillMaxWidth()) {
-            TunerSwitch(
-                outside,
-                stringResource(R.string.icon_battery_style_outside),
-                stringResource(R.string.icon_battery_style_outside_summary)
-            ) { onChange(SystemUiSettingsKeys.KEY_CC_BATTERY_PERCENT_OUTSIDE, it) }
-            TunerSwitch(
-                leadingPercent,
-                stringResource(R.string.icon_battery_style_left),
-                stringResource(R.string.icon_battery_style_left_summary)
-            ) { onChange(SystemUiSettingsKeys.KEY_CC_BATTERY_PERCENT_LEFT, it) }
-        }
+        OverlayDropdownPreference(
+            title = stringResource(R.string.icon_battery_style_percent),
+            items = listOf(
+                stringResource(R.string.icon_battery_style_system),
+                stringResource(R.string.icon_battery_style_trailing),
+                stringResource(R.string.icon_battery_style_leading)
+            ),
+            selectedIndex = style,
+            onSelectedIndexChange = onChange
+        )
     }
 }
 
@@ -1058,22 +1102,16 @@ private fun CarrierSection(
                 enabled = ccHideDate && ccTwoLine
             ) { onChange(SystemUiSettingsKeys.KEY_CC_CARRIER_SHOW_BADGE, it) }
             MiuixExpandableContent(visible = ccHideDate && ccTwoLine && ccShowBadge) {
-                TextField(
+                IconTextPreference(
+                    title = stringResource(R.string.icon_cc_carrier_badge_one),
                     value = ccBadgeOne,
-                    enabled = ccHideDate && ccTwoLine && ccShowBadge,
-                    onValueChange = { onChange(SystemUiSettingsKeys.KEY_CC_CARRIER_BADGE_ONE, it) },
-                    label = stringResource(R.string.icon_cc_carrier_badge_one),
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)
-                )
-                TextField(
+                    enabled = ccHideDate && ccTwoLine && ccShowBadge
+                ) { onChange(SystemUiSettingsKeys.KEY_CC_CARRIER_BADGE_ONE, it) }
+                IconTextPreference(
+                    title = stringResource(R.string.icon_cc_carrier_badge_two),
                     value = ccBadgeTwo,
-                    enabled = ccHideDate && ccTwoLine && ccShowBadge,
-                    onValueChange = { onChange(SystemUiSettingsKeys.KEY_CC_CARRIER_BADGE_TWO, it) },
-                    label = stringResource(R.string.icon_cc_carrier_badge_two),
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)
-                )
+                    enabled = ccHideDate && ccTwoLine && ccShowBadge
+                ) { onChange(SystemUiSettingsKeys.KEY_CC_CARRIER_BADGE_TWO, it) }
             }
             TunerSwitch(
                 ccShowNonDataType,

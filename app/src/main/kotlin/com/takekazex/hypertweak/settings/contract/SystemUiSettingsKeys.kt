@@ -89,6 +89,7 @@ object SystemUiSettingsKeys {
     const val KEY_CC_PRIVACY_ICON_SIZE = "systemui_cc_privacy_icon_size"
     const val KEY_CC_PRIVACY_TEXT_SIZE = "systemui_cc_privacy_text_size"
     const val KEY_CC_PRIVACY_OFFSET = "systemui_cc_privacy_offset"
+    const val KEY_CC_BATTERY_PERCENT_STYLE = "systemui_cc_battery_percent_style"
     const val KEY_CC_BATTERY_PERCENT_OUTSIDE = "systemui_cc_battery_percent_outside"
     const val KEY_CC_BATTERY_PERCENT_LEFT = "systemui_cc_battery_percent_left"
     const val KEY_CC_ROTATION_LOCK_ICON = "systemui_cc_rotation_lock_icon"

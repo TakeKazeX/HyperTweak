@@ -35,7 +35,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.settings.contract.MobileTypeLabelStyle
-import com.takekazex.hypertweak.presentation.icon.duo.DuoBattery
 import com.takekazex.hypertweak.presentation.icon.duo.DuoContent
 import com.takekazex.hypertweak.presentation.icon.duo.DuoDrawable
 import com.takekazex.hypertweak.presentation.icon.duo.DuoSizes
@@ -136,19 +135,31 @@ internal fun StatusBarPreview(model: StatusBarPreviewModel, duoSizes: DuoSizes =
                     modifier = Modifier.padding(end = 2.dp)
                 )
             }
-            model.coreSlots.forEach { slot -> PreviewGlyph(slot, model.duoSizeDp, duoSizes, mirrorAirplane) }
+            model.coreSlots.forEach { slot ->
+                PreviewGlyph(slot, model.duoSizeDp, duoSizes, mirrorAirplane, model.duoContent)
+            }
         }
     }
 }
 
 @Composable
-private fun PreviewGlyph(slot: String, duoSizeDp: Float, duoSizes: DuoSizes, mirrorAirplane: Boolean) {
+private fun PreviewGlyph(
+    slot: String,
+    duoSizeDp: Float,
+    duoSizes: DuoSizes,
+    mirrorAirplane: Boolean,
+    duoContent: DuoContent? = null
+) {
     if (slot == PREVIEW_DUO_SLOT) {
-        DuoPreviewGlyph(duoSizeDp, duoSizes)
+        if (duoContent != null) DuoPreviewGlyph(duoSizeDp, duoSizes, duoContent)
         return
     }
     StatusBarSlotGlyph(
-        iconRes = IconSlotCatalog.of(slot)?.iconRes ?: IconSlotCatalog.fallbackIconRes(),
+        iconRes = when (slot) {
+            SLOT_SINGLE_SIM1 -> R.drawable.ic_stat_sys_single_sim1
+            SLOT_SINGLE_SIM2 -> R.drawable.ic_stat_sys_single_sim2
+            else -> IconSlotCatalog.of(slot)?.iconRes ?: IconSlotCatalog.fallbackIconRes()
+        },
         tint = MiuixTheme.colorScheme.onSurface,
         modifier = Modifier.graphicsLayer { scaleX = if (slot == "airplane" && mirrorAirplane) -1f else 1f }
     )
@@ -156,13 +167,10 @@ private fun PreviewGlyph(slot: String, duoSizeDp: Float, duoSizes: DuoSizes, mir
 
 /** Uses the production drawable, so the preview cannot drift from the real Duo artwork. */
 @Composable
-private fun DuoPreviewGlyph(duoSizeDp: Float, sizes: DuoSizes) {
+private fun DuoPreviewGlyph(duoSizeDp: Float, sizes: DuoSizes, content: DuoContent) {
     val context = LocalContext.current
-    val drawable = remember(context) {
-        DuoDrawable(context).apply {
-            content = DuoContent(DuoBattery(80, false, false), 4, null, 4, false, false)
-        }
-    }
+    val drawable = remember(context) { DuoDrawable(context) }
+    drawable.content = content
     drawable.sizes = sizes
     drawable.foreground = MiuixTheme.colorScheme.onSurface.toArgb()
     // The hook lays the glyph out at exactly the configured dp, so the mock must too.

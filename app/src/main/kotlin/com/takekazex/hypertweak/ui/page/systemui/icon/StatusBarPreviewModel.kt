@@ -1,9 +1,17 @@
 package com.takekazex.hypertweak.ui.page.systemui.icon
 
-import com.takekazex.hypertweak.settings.contract.IconSlotMode
 import com.takekazex.hypertweak.settings.contract.IconSlotPolicy
 import com.takekazex.hypertweak.settings.contract.IconSlotPolicyConfig
+import com.takekazex.hypertweak.presentation.icon.MobileSignalEvent
+import com.takekazex.hypertweak.presentation.icon.MobileSignalModel
+import com.takekazex.hypertweak.presentation.icon.MobileSignalState
+import com.takekazex.hypertweak.presentation.icon.NetworkIconVisibility
+import com.takekazex.hypertweak.presentation.icon.duo.DuoBattery
+import com.takekazex.hypertweak.presentation.icon.duo.DuoContent
 import com.takekazex.hypertweak.presentation.icon.duo.DuoLayout
+import com.takekazex.hypertweak.presentation.icon.duo.DuoPolicy
+import com.takekazex.hypertweak.presentation.icon.duo.DuoSignalRow
+import com.takekazex.hypertweak.settings.contract.IconSurface
 
 /**
  * Pseudo-slot the preview draws with the production Duo glyph. It is never a host slot name.
@@ -11,14 +19,13 @@ import com.takekazex.hypertweak.presentation.icon.duo.DuoLayout
 internal const val PREVIEW_DUO_SLOT = "duo"
 
 /** Native per-subscription mobile slots: the ROM binds one of these per active SIM. */
-private const val SLOT_SINGLE_SIM1 = "single_mobile_sim1"
-private const val SLOT_SINGLE_SIM2 = "single_mobile_sim2"
+internal const val SLOT_SINGLE_SIM1 = "single_mobile_sim1"
+internal const val SLOT_SINGLE_SIM2 = "single_mobile_sim2"
 
 /** The module's replacement slot for the stacked dual-row signal. */
-private const val SLOT_STACKED = "stacked_mobile_icon"
+private const val SLOT_STACKED = IconSlotPolicy.SLOT_STACKED_SIGNAL
 
 /** Host slot every native per-subscription mobile holder is published under. */
-private const val SLOT_MOBILE = "mobile"
 private const val SLOT_WIFI = "wifi"
 private const val SLOT_BATTERY = "handle_battery"
 
@@ -69,6 +76,7 @@ internal data class StatusBarPreviewModel(
      * the type inside the mobile view, left of the bars; Duo already carries the type in its glyph.
      */
     val showNetworkType: Boolean,
+    val duoContent: DuoContent? = null,
     val small5GaEnabled: Boolean = false,
     val typography: com.takekazex.hypertweak.settings.contract.MobileTypeTypography = com.takekazex.hypertweak.settings.contract.MobileTypeTypography()
 )
@@ -87,6 +95,10 @@ internal data class StatusBarPreviewInput(
     val hideMobileOnWifi: Boolean,
     val hideWifiConnected: Boolean,
     val showCellularType: Boolean,
+    val keepCellularTypeOnWifi: Boolean = false,
+    val hideNonDefaultSim: Boolean = false,
+    val hideSimOne: Boolean = false,
+    val hideSimTwo: Boolean = false,
     val small5GaEnabled: Boolean = false,
     val rotationLockEnabled: Boolean = false,
     val typography: com.takekazex.hypertweak.settings.contract.MobileTypeTypography = com.takekazex.hypertweak.settings.contract.MobileTypeTypography()
@@ -107,7 +119,7 @@ internal fun buildStatusBarPreview(input: StatusBarPreviewInput): StatusBarPrevi
         customOrderEntries = input.customOrder,
         reorderHidden = input.reorderHidden,
         slotModes = modes,
-        enabledModuleSlots = if (input.stackedEnabled) IconSlotPolicy.SIGNAL_SLOTS.toSet() else emptySet(),
+        enabledModuleSlots = if (input.stackedEnabled) IconSlotPolicy.STACKED_SLOTS.toSet() else emptySet(),
         leftSlots = input.leftSlots
     )
     val order = IconSlotPolicy.normalizeOrder(IconSlotCatalog.slots, config)
@@ -126,20 +138,37 @@ internal fun buildStatusBarPreview(input: StatusBarPreviewInput): StatusBarPrevi
     val indicatorSample = if (showRotation) PREVIEW_INDICATOR_SLOTS + rotation else PREVIEW_INDICATOR_SLOTS
     val indicators = indicatorSample
         .filterNot { it in input.leftSlots }
-        .filterNot { previewHidden(it, modes) }
+        .filterNot { previewHidden(it, config) }
         .sortedBy(hostIndex)
         .take(PREVIEW_MAX_INDICATOR_SLOTS)
-    val signal = signalPreviewSlots(input, modes)
+    val visibility = NetworkIconVisibility(
+        hideMobileOnWifi = input.hideMobileOnWifi,
+        hideWifi = input.hideWifiConnected,
+        hideType = !input.showCellularType,
+        hideNonDefaultSim = input.hideNonDefaultSim,
+        hideSimOne = input.hideSimOne,
+        hideSimTwo = input.hideSimTwo,
+        slotModes = modes
+    )
+    val hidden = visibility.hiddenCellularIds(previewMobileState, IconSurface.STATUS_BAR, wifiDefault = true) { it - 1 }
+    val hideWifi = visibility.hidesWifi(IconSurface.STATUS_BAR, connected = true)
+    val signal = signalPreviewSlots(input, config, hidden)
     val core = buildList {
         addAll(signal)
         // Duo folds the battery arc, the network state and the data card into one glyph, so its
         // glyph replaces the whole pinned cluster instead of joining it.
         if (!input.duoEnabled) {
-            if (!input.hideWifiConnected && !previewHidden(SLOT_WIFI, modes)) add(SLOT_WIFI)
+            if (!hideWifi) add(SLOT_WIFI)
             // The order policy may front Wi-Fi; the battery never moves, because the host draws it
             // in a separate trailing container rather than in the icon row.
-            sortBy(hostIndex)
-            if (!previewHidden(SLOT_BATTERY, modes)) add(SLOT_BATTERY)
+            sortBy { slot ->
+                val hostSlot = when (slot) {
+                    SLOT_SINGLE_SIM1, SLOT_SINGLE_SIM2 -> if (input.stackedEnabled) SLOT_STACKED else IconSlotPolicy.SLOT_MOBILE
+                    else -> slot
+                }
+                hostIndex(hostSlot)
+            }
+            if (!previewHidden(SLOT_BATTERY, config)) add(SLOT_BATTERY)
         }
     }
 
@@ -148,7 +177,15 @@ internal fun buildStatusBarPreview(input: StatusBarPreviewInput): StatusBarPrevi
         indicatorSlots = indicators,
         coreSlots = core,
         duoSizeDp = DuoLayout.safeSizeDp(input.duoSizeDp),
-        showNetworkType = input.showCellularType && signal.isNotEmpty() && !input.duoEnabled,
+        showNetworkType = input.showCellularType && input.keepCellularTypeOnWifi && 1 !in hidden && signal.isNotEmpty() && !input.duoEnabled &&
+            (!input.stackedEnabled || !previewHidden(IconSlotPolicy.SLOT_STACKED_TYPE, config)),
+        duoContent = if (input.duoEnabled) {
+            val content = if (input.keepCellularTypeOnWifi) {
+                DuoPolicy.withRetainedWifiType(previewDuoContent, previewMobileState)
+            } else previewDuoContent
+            DuoPolicy.applyVisibility(content, hidden, hideType = visibility.hideType, hideWifi = hideWifi)
+                .copy(typography = input.typography)
+        } else null,
         small5GaEnabled = input.small5GaEnabled,
         typography = input.typography
     )
@@ -161,24 +198,37 @@ internal fun buildStatusBarPreview(input: StatusBarPreviewInput): StatusBarPrevi
  * cards' badged signal icons. Stacked replaces the pair with the module's two-row glyph, and Duo
  * folds signal, WiFi and battery into one glyph.
  */
-private fun signalPreviewSlots(input: StatusBarPreviewInput, modes: Map<String, Int>): List<String> {
-    if (input.hideMobileOnWifi) return emptyList()
+private val previewMobileState = MobileSignalState()
+    .reduce(MobileSignalEvent.Subscriptions(listOf(1, 2)))
+    .reduce(MobileSignalEvent.ActiveDataSubId(1))
+    .reduce(MobileSignalEvent.SignalModel(1, MobileSignalModel.cellular(4, 5)))
+    .reduce(MobileSignalEvent.InService(1, true))
+    .reduce(MobileSignalEvent.NetworkType(1, "5G"))
+
+private val previewDuoContent = DuoContent(
+    DuoBattery(80, false, false), 4, null, 4, false, false,
+    cellularSignalLevels = listOf(4, 2),
+    cellularSignalRows = listOf(DuoSignalRow(1, 0, 4), DuoSignalRow(2, 1, 2)),
+    activeDataSubId = 1
+)
+
+private fun signalPreviewSlots(
+    input: StatusBarPreviewInput,
+    config: IconSlotPolicyConfig,
+    hidden: Set<Int>
+): List<String> {
     if (input.duoEnabled) return listOf(PREVIEW_DUO_SLOT)
-    if (input.stackedEnabled) {
-        return if (previewHidden(SLOT_STACKED, modes)) emptyList() else listOf(SLOT_STACKED)
+    val visible = buildList {
+        if (1 !in hidden) add(SLOT_SINGLE_SIM1)
+        if (2 !in hidden) add(SLOT_SINGLE_SIM2)
     }
-    // Every per-subscription holder is published under the host's `mobile` slot, so that slot's
-    // mode - not the per-SIM customization names - is what hides or shows the native pair.
-    return if (previewHidden(SLOT_MOBILE, modes)) emptyList()
-    else listOf(SLOT_SINGLE_SIM1, SLOT_SINGLE_SIM2)
+    if (!input.stackedEnabled) return visible
+    if (previewHidden(SLOT_STACKED, config)) return emptyList()
+    return if (visible.size > 1) listOf(SLOT_STACKED) else visible
 }
 
-/** A module mode hides a slot from the status bar when it is "hidden" or control-center only. */
-private fun previewHidden(slot: String, modes: Map<String, Int>): Boolean =
-    when (IconSlotPolicy.modeFor(slot, modes)) {
-        IconSlotMode.HIDE_EVERYWHERE, IconSlotMode.CONTROL_CENTER_ONLY -> true
-        else -> false
-    }
+private fun previewHidden(slot: String, config: IconSlotPolicyConfig): Boolean =
+    IconSlotPolicy.blocksSlot(slot, IconSurface.STATUS_BAR, config)
 
 /**
  * The user's left-placed host slots, reduced to glyphs the catalog can draw.

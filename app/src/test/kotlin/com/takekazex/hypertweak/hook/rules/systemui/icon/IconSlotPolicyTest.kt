@@ -1,6 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
 import com.takekazex.hypertweak.hook.rules.systemui.icon.carrier.CarrierMask
+import com.takekazex.hypertweak.settings.contract.CcBatteryPercentStyle
 import com.takekazex.hypertweak.settings.contract.IconSlotPolicy
 
 import com.takekazex.hypertweak.settings.contract.IconTunerContract
@@ -13,6 +14,7 @@ import com.takekazex.hypertweak.settings.contract.IconSlotMode
 import com.takekazex.hypertweak.settings.contract.IconSurface
 
 import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
+import com.takekazex.hypertweak.settings.contract.IconSettingsPreferencePolicy
 
 import com.takekazex.hypertweak.ui.page.systemui.icon.IconSlotCatalog
 import org.junit.Assert.assertEquals
@@ -21,6 +23,69 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class IconSlotPolicyTest {
+    @Test
+    fun currentBooleansAndEmptyExtraListOverrideTheirLegacyValues() {
+        val policy = IconSettingsPreferencePolicy
+        val legacy = mapOf("icon_tuner_stacked_enabled" to true, "statusbar_ignore_sys_hide" to true)
+        assertTrue(policy.iconBoolean(IconSettingsKeys.KEY_ICON_STACKED_ENABLED, legacy::get))
+        assertTrue(policy.iconBoolean(IconSettingsKeys.KEY_ICON_IGNORE_SYS_HIDE, legacy::get))
+        assertFalse(policy.iconBoolean(IconSettingsKeys.KEY_ICON_STACKED_ENABLED,
+            (legacy + (IconSettingsKeys.KEY_ICON_STACKED_ENABLED to false))::get))
+        val hidden = mapOf(policy.LEGACY_EXTRA_BLOCKED to "wifi,gps")
+        assertEquals(listOf("wifi", "gps"), policy.extraHiddenSlots(hidden::get))
+        assertTrue(policy.extraHiddenSlots((hidden + (IconSettingsKeys.KEY_ICON_EXT_BLOCKED to ""))::get).isEmpty())
+    }
+
+    @Test
+    fun stackedScopeNarrowsTheCellularGroupAndItsLabel() {
+        val signal = IconSlotPolicy.SLOT_STACKED_SIGNAL
+        val type = IconSlotPolicy.SLOT_STACKED_TYPE
+        val ccOnly = IconSlotPolicyConfig(slotModes = mapOf(signal to IconSlotMode.CONTROL_CENTER_ONLY.value))
+        assertTrue(IconSlotPolicy.blockedFor(IconSurface.STATUS_BAR, emptyList(), ccOnly).containsAll(listOf(signal, type)))
+        assertFalse(IconSlotPolicy.blockedForTwoLineControlCenter(ccOnly).any { it == signal || it == type })
+
+        val hideMobile = ccOnly.copy(slotModes = ccOnly.slotModes + mapOf(
+            IconSlotPolicy.SLOT_MOBILE to IconSlotMode.STATUS_BAR_ONLY.value,
+            type to IconSlotMode.SHOW_EVERYWHERE.value
+        ))
+        for (surface in listOf(IconSurface.STATUS_BAR, IconSurface.CONTROL_CENTER)) {
+            assertTrue(IconSlotPolicy.classicBlocked(signal, surface, false, hideMobile, emptySet()))
+            assertTrue(IconSlotPolicy.classicBlocked(type, surface, false, hideMobile, emptySet()))
+        }
+    }
+
+    @Test
+    fun newDropdownSelectionsOverrideLegacySettingsIncludingFollowSystem() {
+        val policy = IconSettingsPreferencePolicy
+        assertEquals(CcBatteryPercentStyle.OUTSIDE_LEADING, policy.ccBatteryPercentStyle(null, false, true))
+        assertEquals(CcBatteryPercentStyle.OUTSIDE_TRAILING, policy.ccBatteryPercentStyle(null, true, false))
+        assertEquals(CcBatteryPercentStyle.SYSTEM, policy.ccBatteryPercentStyle(0, true, true))
+        assertEquals(3, policy.nativeRoamingMode(null, false, false, true))
+        assertEquals(1, policy.nativeRoamingMode(null, true, false, false))
+        assertEquals(2, policy.nativeRoamingMode(null, false, true, false))
+        assertEquals(0, policy.nativeRoamingMode(0, true, true, true))
+    }
+
+    @Test
+    fun slotSettingsReadEveryCatalogEntryAndRespectExplicitFollowSystem() {
+        val selected = IconSettingsPreferencePolicy.slotModes(
+            read = mapOf("cast" to 4, "wifi" to 2, "gps" to 0, "location" to 4)::get,
+            extraHidden = listOf("gps", "mute")
+        )
+        assertEquals(IconSlotMode.HIDE_EVERYWHERE, IconSlotPolicy.modeFor("cast", selected))
+        assertEquals(IconSlotMode.HIDE_EVERYWHERE, IconSlotPolicy.modeFor("mute", selected))
+        assertEquals(IconSlotMode.STATUS_BAR_ONLY, IconSlotPolicy.modeFor("demo_wifi", selected))
+        assertEquals(IconSlotMode.FOLLOW_SYSTEM, IconSlotPolicy.modeFor("gps", selected))
+    }
+
+    @Test
+    fun editingOrderRetainsSlotsOutsideTheEditorAtTheirOldPositions() {
+        val previous = setOf("0:wifi", "1:vendor_a", "2:mobile", "3:vendor_b", "4:zen")
+        val saved = IconSlotPolicy.editedOrderEntries(listOf("zen", "mobile", "wifi", "alarm_clock"), previous)
+        assertEquals(listOf("zen", "vendor_a", "mobile", "vendor_b", "wifi", "alarm_clock"),
+            IconSlotPolicy.parseLegacyOrder(saved).map { it.slot })
+    }
+
     @Test
     fun rotationLockRoutesEachModeAndHandsOffToTheLeftClone() {
         val slot = IconSlotPolicy.SLOT_ROTATION_LOCK
@@ -129,7 +194,7 @@ class IconSlotPolicyTest {
             .filter { IconSlotPolicy.isTwoLineUpperSlot(it) }
             .toSet()
         assertEquals(setOf(
-            "stacked_mobile_icon", "stacked_mobile_type", "single_mobile_sim1", "single_mobile_sim2",
+            "stacked_mobile_icon", "stacked_mobile_type",
             "mobile", "demo_mobile", "wifi", "demo_wifi", "network_speed", "airplane", "ethernet", "no_sim", "alarm_clock", "hotspot", "location", "gps", "nfc"
         ), networkSlots)
         for (slot in listOf("zen", "quiet", "mute", "volume", "bluetooth", "headset", "wireless_headset", "vpn", "future_indicator")) {

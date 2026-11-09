@@ -24,7 +24,9 @@ class StatusBarPreviewModelTest {
         duoSizeDp: Float = 24f,
         hideMobileOnWifi: Boolean = false,
         hideWifiConnected: Boolean = false,
-        showCellularType: Boolean = true
+        showCellularType: Boolean = true,
+        keepCellularTypeOnWifi: Boolean = true,
+        hideSimOne: Boolean = false
     ) = StatusBarPreviewInput(
         position = position,
         customOrder = customOrder,
@@ -37,7 +39,9 @@ class StatusBarPreviewModelTest {
         duoSizeDp = duoSizeDp,
         hideMobileOnWifi = hideMobileOnWifi,
         hideWifiConnected = hideWifiConnected,
-        showCellularType = showCellularType
+        showCellularType = showCellularType,
+        keepCellularTypeOnWifi = keepCellularTypeOnWifi,
+        hideSimOne = hideSimOne
     )
 
     private fun allSlots(model: StatusBarPreviewModel) =
@@ -147,6 +151,17 @@ class StatusBarPreviewModelTest {
     }
 
     @Test
+    fun stackedPreviewHonorsParentAndTypeScopeSeparately() {
+        val hiddenGroup = buildStatusBarPreview(input(stackedEnabled = true, slotModes = mapOf("mobile" to 3)))
+        assertFalse("stacked_mobile_icon" in hiddenGroup.coreSlots)
+        assertFalse(hiddenGroup.showNetworkType)
+
+        val hiddenType = buildStatusBarPreview(input(stackedEnabled = true, slotModes = mapOf("stacked_mobile_type" to 3)))
+        assertTrue("stacked_mobile_icon" in hiddenType.coreSlots)
+        assertFalse(hiddenType.showNetworkType)
+    }
+
+    @Test
     fun wifiRulesAdjustTheCoreCluster() {
         assertFalse(allSlots(buildStatusBarPreview(input(hideWifiConnected = true))).contains("wifi"))
         assertFalse(
@@ -156,10 +171,41 @@ class StatusBarPreviewModelTest {
     }
 
     @Test
+    fun hiddenNetworkGlyphsDoNotRemoveTheDuoBatteryPreview() {
+        val model = buildStatusBarPreview(input(
+            duoEnabled = true, hideMobileOnWifi = true, hideWifiConnected = true
+        ))
+
+        assertTrue(PREVIEW_DUO_SLOT in model.coreSlots)
+        assertEquals(4, model.duoContent?.wifiLevel)
+        assertEquals(null, model.duoContent?.wifiLevelToDraw)
+        assertTrue(model.duoContent!!.cellularSignalLevels.isEmpty())
+    }
+
+    @Test
+    fun hidingTheSampleDataSimKeepsTheOtherSignalWithoutItsTypeLabel() {
+        val model = buildStatusBarPreview(input(hideSimOne = true))
+        assertTrue("single_mobile_sim2" in model.coreSlots)
+        assertFalse("single_mobile_sim1" in model.coreSlots)
+        assertFalse(model.showNetworkType)
+    }
+
+    @Test
     fun networkTypeLabelFollowsTheSettingAndTheSignal() {
         assertTrue(buildStatusBarPreview(input()).showNetworkType)
         assertFalse(buildStatusBarPreview(input(showCellularType = false)).showNetworkType)
         assertFalse(buildStatusBarPreview(input(hideMobileOnWifi = true)).showNetworkType)
+    }
+
+    @Test
+    fun wifiTypeRetentionAppliesToAllPreviewFamilies() {
+        for (stacked in listOf(false, true)) {
+            assertFalse(buildStatusBarPreview(input(stackedEnabled = stacked, keepCellularTypeOnWifi = false)).showNetworkType)
+            assertTrue(buildStatusBarPreview(input(stackedEnabled = stacked)).showNetworkType)
+        }
+        assertEquals("5G", buildStatusBarPreview(input(duoEnabled = true)).duoContent?.networkLabel)
+        assertEquals(null, buildStatusBarPreview(input(duoEnabled = true, keepCellularTypeOnWifi = false)).duoContent?.networkLabel)
+        assertEquals(null, buildStatusBarPreview(input(duoEnabled = true, hideSimOne = true)).duoContent?.networkLabel)
     }
 
     @Test

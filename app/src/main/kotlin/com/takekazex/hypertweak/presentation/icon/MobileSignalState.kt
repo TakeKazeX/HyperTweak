@@ -77,6 +77,13 @@ data class MobileSubscriptionState(
             else -> modelKind
         }
 
+    internal fun typeWhileOnWifi(): String? {
+        if (kind != MobileSignalKind.CELLULAR || inService != true) return null
+        return networkType?.trim()?.takeIf {
+            it.isNotEmpty() && it.length <= 8 && it.none(Char::isISOControl)
+        }
+    }
+
     /** Normalizes host levels such as 0..4 or 0..5 to the renderer's fixed 0..4 range. */
     val normalizedLevel: Int
         get() = normalizeLevel(level, numberOfLevels)
@@ -158,6 +165,12 @@ data class MobileSignalState(
     val wifiConnected: Boolean
         get() = rows.any { it.wifiAvailable == true }
 
+    /** Uses a current, in-service data subscription even if Wi-Fi has suspended cellular data. */
+    internal fun wifiCellularType(wifiDefault: Boolean): String? {
+        if (!wifiDefault || airplaneMode || activeDataSubId !in subscriptionOrder) return null
+        return subscriptions[activeDataSubId]?.typeWhileOnWifi()
+    }
+
     /**
      * A replacement may be rendered only when every row is a known cellular model.
      *
@@ -189,6 +202,23 @@ data class MobileSignalState(
         subscriptionOrder.filterTo(LinkedHashSet()) { it != activeDataSubId }
     } else {
         emptySet()
+    }
+
+    fun hiddenSimIds(
+        hideNonDefault: Boolean,
+        hideSimOne: Boolean,
+        hideSimTwo: Boolean,
+        slotOf: (Int) -> Int
+    ): Set<Int> = buildSet {
+        if (hideNonDefault) addAll(nonDefaultMask(true))
+        if (hideSimOne || hideSimTwo) {
+            for (subId in subscriptionOrder) {
+                when (slotOf(subId)) {
+                    0 -> if (hideSimOne) add(subId)
+                    1 -> if (hideSimTwo) add(subId)
+                }
+            }
+        }
     }
 
     fun reduce(event: MobileSignalEvent): MobileSignalState = when (event) {

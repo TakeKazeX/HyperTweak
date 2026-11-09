@@ -16,17 +16,17 @@ internal data class DebugSetting(val key: String, val type: String, val default:
         key == "opened_folder_columns" -> 3..5
         key in setOf("securitycenter_dock_predict_limit", "statusbar_notif_icon_max") -> 0..15
         key in setOf("securitycenter_low_battery_mode", "securitycenter_permission_warning_mode", "securitycenter_anti_peeping_mode", "securitycenter_sidebar_mode",
-            "app_blur_mode", "theme_mode", "icon_left_container_mode") -> 0..2
+            "app_blur_mode", "theme_mode", "icon_left_container_mode", "systemui_cc_battery_percent_style") -> 0..2
         key == "power_button_long_press_action" -> 0..3
         key == "battery_auto_power_save_threshold" -> com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys.MIN_BATTERY_AUTO_POWER_SAVE_THRESHOLD..com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys.MAX_BATTERY_AUTO_POWER_SAVE_THRESHOLD
         key == "volume_key_step_count" -> 1..100
         key == "volume_key_step_scope" || key == "icon_stacked_signal_style" -> 0..1
         key in setOf("aod_duo_center_content", "aosp_ime_raise_style", "floating_bar_style",
             "icon_duo_expanded", "icon_tuner_mobile_row_style", "statusbar_region_sampling") -> 0..1
-        key in setOf("predictive_back_style", "icon_tuner_wifi_standard_mode", "lockscreen_fingerprint_avoid",
+        key in setOf("predictive_back_style", "lockscreen_fingerprint_avoid",
             "notification_header_date_alignment", "notification_header_time_alignment", "notification_header_weather_type",
             "aod_percent_position") -> 0..2
-        key == "icon_tuner_position" -> 0..3
+        key in setOf("icon_tuner_position", "icon_tuner_wifi_standard_mode", "icon_cellular_roam_mode") -> 0..3
         key == "systemui_control_center_tile_message_duration_ms" -> 0..5000
         key == "lockscreen_charging_detail_interval_ms" -> 1000..10000
         key == "icon_duo_size" -> 16..32

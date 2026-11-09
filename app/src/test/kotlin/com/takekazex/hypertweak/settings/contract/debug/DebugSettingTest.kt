@@ -28,6 +28,15 @@ class DebugSettingTest {
         rejects { DebugSettingsCatalog.entries.getValue("launcher_dock_background").decode("bad") }
         rejects { DebugSettingsCatalog.entries.getValue("camera_legendary_moment_mode").decode("bad") }
     }
+    @Test fun iconDropdownsAcceptAllUiModesAndRejectUnknownModes() {
+        val entries = DebugSettingsCatalog.entries
+        for (key in listOf("icon_tuner_wifi_standard_mode", "icon_cellular_roam_mode")) {
+            assertEquals(3, entries.getValue(key).decode(3))
+            rejects { entries.getValue(key).decode(4) }
+        }
+        assertEquals(2, entries.getValue("systemui_cc_battery_percent_style").decode(2))
+        rejects { entries.getValue("systemui_cc_battery_percent_style").decode(3) }
+    }
     @Test fun retiredAndRuntimeKeysCannotBecomeWritableByPresenceInStorage() {
         assertNull(DebugSettingsCatalog.entries["prefs_epoch"])
         assertNull(DebugSettingsCatalog.entries["debug_access_session"])

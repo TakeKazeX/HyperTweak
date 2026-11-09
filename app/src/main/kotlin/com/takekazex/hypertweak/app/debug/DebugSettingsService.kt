@@ -157,6 +157,15 @@ internal object DebugSettingsService {
             ?: PackageManagerSettingsKeys.legacyAuthCreakKeys.any(::bool)
         fun corePatchEnabled() = values[PackageManagerSettingsKeys.KEY_ENABLED] as? Boolean
             ?: PackageManagerSettingsKeys.corePatchKeys.any(::bool) || authCreakEnabled()
+        val slot = d.key.removePrefix(IconSettingsPreferencePolicy.SLOT_KEY_PREFIX)
+        if (slot != d.key && slot in IconSlotPolicy.configurableSlots) {
+            val extra = IconSettingsPreferencePolicy.extraHiddenSlots { values[it] as? String }
+            val selected = IconSettingsPreferencePolicy.slotModes(
+                read = { values[IconSettingsPreferencePolicy.slotKey(it)] as? Int },
+                extraHidden = extra
+            )
+            return IconSlotPolicy.modeFor(slot, selected).value
+        }
         return when (d.key) {
             PlatformSettingsKeys.KEY_NATIVE_PHOTO_PICKER, PlatformSettingsKeys.KEY_NATIVE_FILE_PICKER ->
                 if (explicit) values[d.key] else bool(PlatformSettingsKeys.KEY_NATIVE_PICKER)
@@ -173,10 +182,33 @@ internal object DebugSettingsService {
             in PackageManagerSettingsKeys.corePatchKeys -> corePatchEnabled() && bool(d.key)
             in PackageManagerSettingsKeys.extendedPatchKeys -> bool(d.key)
             in powerKeys -> bool(PlatformSettingsKeys.KEY_POWER_SAVE_OVERRIDE_MASTER) && bool(d.key)
-            IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_KEEP_ON_WIFI -> if (explicit) values[d.key]
-                else if (values.containsKey(IconSettingsKeys.KEY_ICON_STACKED_TYPE_HIDE_WIFI)) !bool(IconSettingsKeys.KEY_ICON_STACKED_TYPE_HIDE_WIFI) else false
-            IconTunerContract.KEY_LEFT_MODE -> values[d.key] ?: if (bool(IconSettingsKeys.KEY_ICON_LEFT_CONTAINER_ENABLED)) 1 else 0
-            IconSettingsKeys.KEY_ICON_STACKED_SIGNAL_STYLE -> values[d.key] ?: if (values["icon_tuner_stacked_icon_svg_stacked"] == 3) 1 else 0
+            IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_KEEP_ON_WIFI ->
+                IconSettingsPreferencePolicy.keepCellularTypeOnWifi { values[it] as? Boolean }
+            IconSettingsKeys.KEY_ICON_HIDE_NON_DEFAULT_SIM ->
+                IconSettingsPreferencePolicy.hideNonDefaultSim { values[it] as? Boolean }
+            IconSettingsKeys.KEY_ICON_WIFI_STANDARD_MODE ->
+                IconSettingsPreferencePolicy.wifiStandardMode(
+                    values[d.key] as? Int, bool(IconSettingsKeys.KEY_ICON_HIDE_WIFI_TYPE)
+                )
+            IconSettingsKeys.KEY_ICON_STACKED_ENABLED, IconSettingsKeys.KEY_ICON_IGNORE_SYS_HIDE,
+            IconSettingsKeys.KEY_ICON_HIDE_PRIVACY, IconSettingsKeys.KEY_ICON_LEFT_CONTAINER_ENABLED,
+            in IconTunerContract.leftPreferenceKeys -> IconSettingsPreferencePolicy.iconBoolean(d.key) { values[it] as? Boolean }
+            IconTunerContract.KEY_LEFT_MODE -> IconSettingsPreferencePolicy.leftMode(
+                values[d.key] as? Int,
+                IconSettingsPreferencePolicy.iconBoolean(IconSettingsKeys.KEY_ICON_LEFT_CONTAINER_ENABLED) { values[it] as? Boolean }
+            )
+            IconSettingsKeys.KEY_ICON_STACKED_SIGNAL_STYLE -> SignalSvgStyle.resolve(
+                explicit, values[d.key] as? Int, values["icon_tuner_stacked_icon_svg_stacked"] as? Int
+            ).storedValue
+            SystemUiSettingsKeys.KEY_CC_BATTERY_PERCENT_STYLE -> IconSettingsPreferencePolicy.ccBatteryPercentStyle(
+                values[d.key] as? Int, bool(SystemUiSettingsKeys.KEY_CC_BATTERY_PERCENT_OUTSIDE),
+                bool(SystemUiSettingsKeys.KEY_CC_BATTERY_PERCENT_LEFT)
+            ).ordinal
+            IconSettingsKeys.KEY_ICON_CELLULAR_ROAM_MODE -> IconSettingsPreferencePolicy.nativeRoamingMode(
+                values[d.key] as? Int, bool(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_ROAM),
+                bool(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_SMALL_ROAM),
+                bool(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_ROAM_GLOBAL)
+            )
             else -> storedOrDefault(d, values)
         }
     }

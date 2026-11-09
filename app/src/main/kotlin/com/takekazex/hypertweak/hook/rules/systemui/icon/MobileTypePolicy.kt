@@ -54,7 +54,9 @@ object MobileTypePolicy {
     fun resolve(state: MobileSignalState, config: MobileTypeConfig): MobileTypeOutput {
         val safe = config.safe()
         val active = state.subscriptions[state.activeDataSubId] ?: return empty(state)
-        val raw = active.networkType?.trim().orEmpty()
+        val raw = if (state.wifiConnected) {
+            state.wifiCellularType(wifiDefault = true).orEmpty()
+        } else active.networkType?.trim().orEmpty()
         if (raw.isEmpty()) return empty(state)
         if (active.dataConnected == false &&
             (safe.hideWhenDisconnected || !state.wifiConnected)) return empty(state)

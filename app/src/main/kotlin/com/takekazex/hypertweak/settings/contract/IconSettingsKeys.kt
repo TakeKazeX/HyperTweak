@@ -4,6 +4,7 @@ package com.takekazex.hypertweak.settings.contract
 object IconSettingsKeys {
     const val KEY_ICON_HIDE_CELLULAR_ACTIVITY = "icon_hide_cellular_activity"
     const val KEY_ICON_HIDE_CELLULAR_TYPE = "icon_hide_cellular_type"
+    const val KEY_ICON_CELLULAR_ROAM_MODE = "icon_cellular_roam_mode"
     const val KEY_ICON_HIDE_CELLULAR_ROAM = "icon_hide_cellular_roam"
     const val KEY_ICON_HIDE_CELLULAR_ROAM_GLOBAL = "icon_hide_cellular_roam_global"
     const val KEY_ICON_HIDE_CELLULAR_SMALL_ROAM = "icon_hide_cellular_small_roam"

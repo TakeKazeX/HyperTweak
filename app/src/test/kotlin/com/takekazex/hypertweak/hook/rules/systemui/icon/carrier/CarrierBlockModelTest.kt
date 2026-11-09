@@ -103,6 +103,28 @@ class CarrierBlockModelTest {
     )
 
     @Test
+    fun carrierRetainsNamesAndWifiWhileFilteringCellularGlyphs() {
+        val rows = CarrierBlockPolicy.resolve(
+            dualSim(), 4, CarrierBlockConfig(showNonDataType = true, hiddenSimIds = setOf(101)),
+            wifiDefault = true, slotOf = slotOf
+        )
+        assertEquals(setOf(101, 202), rows.mapNotNull { it.subId }.toSet())
+        val hidden = rows.single { it.subId == 101 }
+        assertNull(hidden.signalLevel)
+        assertNull(hidden.typeText)
+        assertEquals(4, hidden.wifiLevel)
+        assertTrue(CarrierBlockPolicy.replacesStatusSignal(rows.filter { it.subId == 202 }, listOf(202)))
+    }
+
+    @Test
+    fun defaultWifiKeepsItsNativeFallbackUntilReplacementIsReady() {
+        assertFalse(CarrierBlockPolicy.masksWifi(false, true, true))
+        assertFalse(CarrierBlockPolicy.masksWifi(false, null, true))
+        assertTrue(CarrierBlockPolicy.masksWifi(true, true, false))
+        assertTrue(CarrierBlockPolicy.masksWifi(false, false, true))
+    }
+
+    @Test
     fun rowsFollowPhysicalSlotsNotSubscriptionFlowOrder() {
         // The host reorders subscriptionOrder when the user swaps the default data SIM.
         val state = dualSim(activeData = 202)
