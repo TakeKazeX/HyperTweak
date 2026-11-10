@@ -2,7 +2,7 @@ package com.takekazex.hypertweak.hook.runtime.settings
 
 import android.content.Intent
 import android.os.Bundle
-import com.takekazex.hypertweak.hook.base.RuntimeSettingsGroups
+import com.takekazex.hypertweak.hook.runtime.settings.RuntimeSettingsGroups
 
 internal object RuntimeSettingsProtocol {
     const val CHANGED = "com.takekazex.hypertweak.action.RUNTIME_SETTINGS_CHANGED"

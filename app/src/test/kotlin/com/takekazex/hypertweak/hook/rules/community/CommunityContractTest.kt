@@ -2,7 +2,7 @@ package com.takekazex.hypertweak.hook.rules.community
 
 import com.takekazex.hypertweak.hook.base.dex.DexOperandIndex
 import com.takekazex.hypertweak.hook.base.dex.MethodDescriptorCodec
-import com.takekazex.hypertweak.hook.base.RuntimeSettingsGroups
+import com.takekazex.hypertweak.hook.runtime.settings.RuntimeSettingsGroups
 import com.takekazex.hypertweak.settings.contract.CommunitySettings
 import org.jf.dexlib2.DexFileFactory
 import org.jf.dexlib2.Opcodes

@@ -14,7 +14,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.ui.app.LocalAppSettingsStore
-import com.takekazex.hypertweak.util.NotificationBannerBatch
+import com.takekazex.hypertweak.util.platform.NotificationBannerBatchController
 import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
@@ -25,7 +25,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 internal fun NotificationBannerBatchSection() {
     val settingsStore = LocalAppSettingsStore.current
     val context = LocalContext.current
-    val state by NotificationBannerBatch.state.collectAsState()
+    val state by NotificationBannerBatchController.state.collectAsState()
     var confirmation by rememberSaveable { mutableIntStateOf(0) }
     var waitingForScan by rememberSaveable { mutableStateOf(false) }
     var showReport by remember { mutableStateOf(false) }
@@ -38,11 +38,11 @@ internal fun NotificationBannerBatchSection() {
     fun dismissReport() {
         showReport = false
         showDetails = false
-        NotificationBannerBatch.dismissFeedback()
+        NotificationBannerBatchController.dismissFeedback()
     }
     fun dismissConfirmation() {
         confirmation = 0
-        NotificationBannerBatch.dismissFeedback()
+        NotificationBannerBatchController.dismissFeedback()
     }
 
     LaunchedEffect(state) {
@@ -109,7 +109,7 @@ internal fun NotificationBannerBatchSection() {
                     if (apply && (result == null || result.failed != 0 || result.channels == 0 || state.applied)) return@TextButton
                     confirmation = 0
                     waitingForScan = !apply
-                    NotificationBannerBatch.start(context, apply)
+                    NotificationBannerBatchController.start(context, apply)
                 }
             )
         }

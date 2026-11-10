@@ -5,7 +5,7 @@ import com.takekazex.hypertweak.hook.nativebridge.NativeRuleStateSnapshot
 import com.takekazex.hypertweak.hook.nativebridge.NativeSnapshotLedger
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
-import com.takekazex.hypertweak.hook.base.RuntimeSettingsGroups
+import com.takekazex.hypertweak.hook.runtime.settings.RuntimeSettingsGroups
 import org.junit.Assert.*
 import org.junit.Test
 

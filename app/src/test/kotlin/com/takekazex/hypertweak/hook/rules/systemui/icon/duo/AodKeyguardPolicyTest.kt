@@ -1,6 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon.duo
 
-import com.takekazex.hypertweak.hook.rules.aod.AodIconSettings
+import com.takekazex.hypertweak.hook.rules.systemui.aod.AodIconSettings
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue

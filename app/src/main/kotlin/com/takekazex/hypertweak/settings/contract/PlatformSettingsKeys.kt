@@ -28,6 +28,7 @@ object PlatformSettingsKeys {
     const val KEY_SETTINGS_GLOBAL_INTERFACE = "settings_global_interface"
     const val KEY_SETTINGS_ONDEVICE_MODEL_ENTRY = "settings_ondevice_model_entry"
     const val KEY_SETTINGS_GEMINI_ENTRY = "settings_gemini_entry"
+    // Verified mirrors of device-persistent vendor properties; never replayed at boot or upgrade.
     const val KEY_WIFI_CNSS_DIAG_ENABLED = "wifi_cnss_diag_enabled"
     const val KEY_WIFI_TCPDUMP_ENABLED = "wifi_tcpdump_enabled"
     const val KEY_WIFI_DETAIL_IP_MULTILINE = "wifi_detail_ip_multiline"
@@ -139,9 +140,19 @@ object PlatformSettingsKeys {
     const val DEFAULT_PA_MODEL_SPOOF_DEVICE = "thor"
     const val KEY_PENDING_RESTART_SCOPES = "pending_restart_scopes"
     const val KEY_RECORD_LOGS = "record_logs"
+    // Force status-bar region sampling (light-bar samples the region behind the status bar so
+    // icons/background adapt), ported from Hyper Helper's `RegionSampling` (key matches upstream
+    // i32.c). Int-typed: 0 off, 1 on.
     const val KEY_STATUSBAR_REGION_SAMPLING = "statusbar_region_sampling"
+    // Limit how many notification icons the status bar keeps (ported from Hyper Helper's u32.a/b;
+    // the switch is off by default). The count is Int-typed: minimum 0 (keep no notification
+    // icons), default 3, maximum 15 — see `NotificationIconLimit`, which the settings row and
+    // `NotificationMaxNumberHooker` both use.
     const val KEY_STATUSBAR_NOTIFICATION_MAX = "statusbar_notif_max"
     const val KEY_STATUSBAR_NOTIFICATION_ICON_MAX = "statusbar_notif_icon_max"
+    // Media-editor watermark unlock (com.miui.mediaeditor). See
+    // `MediaEditorWatermarkHooker`; switches are read live, so only the first enable of
+    // KEY_WM_UNLOCK_MASTER needs the editor process restarted (to install the hooks).
     const val KEY_WM_UNLOCK_MASTER = "wm_unlock_master"
     const val KEY_WM_LEICA = "wm_leica"
     const val KEY_WM_XIAOMI = "wm_xiaomi"

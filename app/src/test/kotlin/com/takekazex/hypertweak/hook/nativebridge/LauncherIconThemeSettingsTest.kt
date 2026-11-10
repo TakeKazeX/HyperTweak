@@ -37,7 +37,7 @@ class LauncherIconThemeSettingsTest {
             assertNull(NativeRuleStateSnapshot.read { mapOf(LauncherDesktopKeys.KEY_ICON_THEME_MODE to value) })
         }
         assertNull(NativeRuleStateSnapshot.read { mapOf(LauncherDesktopKeys.KEY_ICON_THEME_COLOR to "#123456") })
-        val registry = com.takekazex.hypertweak.hook.base.RuntimeSettingsGroups
+        val registry = com.takekazex.hypertweak.hook.runtime.settings.RuntimeSettingsGroups
         for (key in listOf(LauncherDesktopKeys.KEY_ICON_THEME_MODE, LauncherDesktopKeys.KEY_ICON_THEME_COLOR)) {
             assertTrue(registry.owners(key).isNotEmpty())
         }

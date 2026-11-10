@@ -7,8 +7,6 @@ internal object PickerReroutePolicy {
         else -> false
     }
 
-    fun enabled(scoped: Boolean?, legacy: Boolean): Boolean = scoped ?: legacy
-
     fun <T> filter(candidates: List<T>, packageName: (T) -> String?): List<T> {
         if (candidates.none { packageName(it) == "com.android.photopicker" }) return candidates
         return candidates.filterTo(ArrayList(candidates.size)) { packageName(it) != "com.android.photopicker" }

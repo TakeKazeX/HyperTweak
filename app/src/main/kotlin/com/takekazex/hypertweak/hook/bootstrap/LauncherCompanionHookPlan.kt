@@ -1,11 +1,11 @@
 package com.takekazex.hypertweak.hook.bootstrap
 
-import com.takekazex.hypertweak.hook.rules.aod.AodStatusIconHooker
+import com.takekazex.hypertweak.hook.rules.systemui.aod.AodStatusIconHooker
 import com.takekazex.hypertweak.hook.rules.mediaeditor.MediaEditorWatermarkHooker
 import com.takekazex.hypertweak.hook.rules.module.RestartBroadcastHooker
 import com.takekazex.hypertweak.hook.rules.personalassistant.AndroidWidgetPickerHooker
 import com.takekazex.hypertweak.hook.rules.personalassistant.ModelSpoofHooker
-import com.takekazex.hypertweak.hook.rules.systemui.AODHooker
+import com.takekazex.hypertweak.hook.rules.systemui.aod.AODHooker
 import com.takekazex.hypertweak.hook.rules.voiceassist.XiaoaiGestureHooker
 
 /** Host-owned installation order; factories run only when the caller installs the plan. */

@@ -2,7 +2,7 @@ package com.takekazex.hypertweak.hook.rules.systemui.icon
 
 import com.takekazex.hypertweak.settings.contract.MobileTypeTypography
 import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
-import com.takekazex.hypertweak.hook.base.RuntimeSettingsGroups as Groups
+import com.takekazex.hypertweak.hook.runtime.settings.RuntimeSettingsGroups as Groups
 import com.takekazex.hypertweak.hook.runtime.settings.RuntimeSettingsLedger
 import com.takekazex.hypertweak.hook.runtime.settings.RuntimeSettingsSnapshot
 import org.junit.Assert.*

@@ -13,7 +13,7 @@ import com.takekazex.hypertweak.hook.runtime.settings.RuntimeSettingsSnapshot
 import android.content.SharedPreferences
 import androidx.core.content.edit
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
-import com.takekazex.hypertweak.util.SettingsDiagnostics
+import com.takekazex.hypertweak.util.logging.SettingsDiagnostics
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.TimeUnit
 

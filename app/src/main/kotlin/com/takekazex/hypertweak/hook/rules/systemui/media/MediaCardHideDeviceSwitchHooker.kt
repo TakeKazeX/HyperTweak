@@ -1,0 +1,487 @@
+package com.takekazex.hypertweak.hook.rules.systemui.media
+
+import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
+import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
+
+import android.view.View
+import android.view.ViewGroup
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
+import com.takekazex.hypertweak.hook.Preferences
+import com.takekazex.hypertweak.hook.base.HookFailurePolicy
+import com.takekazex.hypertweak.hook.base.StaticHooker
+import com.takekazex.hypertweak.hook.base.HostAccess
+import com.takekazex.hypertweak.util.logging.DebugLog
+import java.lang.reflect.Field
+import java.util.WeakHashMap
+import java.util.concurrent.atomic.AtomicBoolean
+
+/**
+ * Hides the device-switch button on the media cards (隐藏设备切换按钮), OS4 SystemUI.
+ *
+ * The button has three independent render chains with their own holder classes:
+ * - shade card (`miui_media_session.xml`): `@id/media_seamless` (a 34dp `LinearLayout` pinned to
+ *   the top-right corner). Its visibility is set by `MiuiMediaViewControllerImpl.setSeamless(
+ *   MediaData)` — `GONE` while casting video, `VISIBLE` otherwise — and that method is the only
+ *   entry every bind walks (`attach` :467 and `onMediaDataChanged` :818), so forcing the holder's
+ *   `seamless` view GONE right after it returns sticks for the lifetime of that holder.
+ * - island (`miui_media_session_island`): the mirror chain
+ *   `MiuiIslandMediaViewBinderImpl.setSeamless(MediaData, MiuiIslandMediaViewHolder)` :887, called
+ *   with both the real and the dummy holder from `onMediaDataChanged` :743-744; the second
+ *   parameter is the holder whose `seamless` view must be hidden.
+ * - notification shade/keyguard AOSP cards (`MediaControlPanel`): `bindPlayer()` makes the
+ *   `MediaViewHolder.seamless` output switch visible and installs its click listener on every
+ *   media refresh, so it needs its own final after-hook.
+ *
+ * The `holder` field on `MiuiMediaViewControllerImpl` and the `seamless` field on both holder
+ * classes are public, so no reflection is needed beyond a plain field read.
+ *
+ * The switch gates hook installation; hot reload restores and rebinds existing native switch views.
+ */
+object MediaCardHideDeviceSwitchHooker : StaticHooker() {
+    // Published on settings acceptance; hook callbacks perform no storage reads.
+    private val settingMediaCardHideDeviceSwitch by hookSetting(false) {
+        Preferences.getBoolean(SystemUiSettingsKeys.KEY_MEDIA_CARD_HIDE_DEVICE_SWITCH, false)
+    }
+
+    init {
+        hostRecovery(HostRecoveryPhase.WINDOWS) {
+            recoverExistingViews(it.views)
+        }
+    }
+
+    private const val TAG = "MediaCardHideDeviceSwitch"
+    private const val SHADE_VC =
+        "com.android.systemui.statusbar.notification.mediacontrol.MiuiMediaViewControllerImpl"
+    private const val SHADE_HOLDER =
+        "com.android.systemui.statusbar.notification.mediacontrol.MiuiMediaViewHolder"
+    private const val ISLAND_BINDER =
+        "com.android.systemui.statusbar.notification.mediaisland.MiuiIslandMediaViewBinderImpl"
+    private const val ISLAND_HOLDER =
+        "com.android.systemui.statusbar.notification.mediaisland.MiuiIslandMediaViewHolder"
+    private const val TRANSFER_MANAGER =
+        "com.android.systemui.statusbar.notification.mediacontrol.MiuiMediaTransferManagerImpl"
+    private const val AOSP_MEDIA_PANEL =
+        "com.android.systemui.media.controls.ui.controller.MediaControlPanel"
+    private const val AOSP_MEDIA_HOLDER =
+        "com.android.systemui.media.controls.ui.view.MediaViewHolder"
+
+    private val mediaSwitchResourceNames = setOf(
+        "media_seamless",
+        "media_seamless_button",
+        "media_seamless_image"
+    )
+
+    private var shadeHolderField: Field? by generationState { null }
+
+    private var shadeSeamlessField: Field? by generationState { null }
+
+    private var islandSeamlessField: Field? by generationState { null }
+
+    private var islandSeamlessButtonField: Field? by generationState { null }
+
+    private var islandSeamlessIconField: Field? by generationState { null }
+
+    private var shadeSeamlessButtonField: Field? by generationState { null }
+
+    private var shadeSeamlessIconField: Field? by generationState { null }
+
+    private var aospHolderField: Field? by generationState { null }
+
+    private var aospSeamlessField: Field? by generationState { null }
+
+    private var aospSeamlessButtonField: Field? by generationState { null }
+
+    private var aospSeamlessIconField: Field? by generationState { null }
+
+    private val mediaSwitchVisibilityIds = generationResource(java.util.concurrent.ConcurrentHashMap<android.content.res.Resources, IntArray>()) { it.clear() }
+
+    private val visibilityGuardLogged = generationResource(AtomicBoolean(false)) { it.set(false) }
+
+    private var enabled by generationState { false }
+    private var applyingVisibility by generationState { false }
+    private val originals = generationMainResource(WeakHashMap<View, Int>()) { it.clear() }
+    /** Every transfer/device chip the hooks have seen, for a settings pass that re-applies. */
+    private val knownViews: MutableSet<View> =
+        java.util.Collections.newSetFromMap(WeakHashMap<View, Boolean>())
+
+    override fun saveHotReloadState(): Any = HostAccess.onMain { originals.keys.toList() }
+    override fun restoreHotReloadState(state: Any?) {
+        HostAccess.onMain {
+            if (enabled) (state as? List<*>)?.filterIsInstance<View>()?.forEach(::hideSeamless)
+        }
+    }
+
+    internal fun recoverExistingViews(views: List<View>) {
+        if (!enabled) return
+        views.filter(::isMediaSwitchView).forEach(::hideSeamless)
+    }
+
+    /**
+     * Accepted-snapshot refresh. The host hooks are installed for the generation and every
+     * callback reads [enabled]; this pass hides the chip on the living cards when enabled and
+     * restores the visibility the host last requested when disabled.
+     */
+    fun refreshSettings() {
+        val next = settingMediaCardHideDeviceSwitch
+        val changed = next != enabled
+        enabled = next
+        HostAccess.onMain {
+            if (enabled) {
+                knownViews.filter { it.isAttachedToWindow }.forEach(::hideSeamless)
+            } else if (changed) {
+                applyingVisibility = true
+                try {
+                    originals.forEach { (view, visibility) -> view.visibility = visibility }
+                    originals.clear()
+                } finally { applyingVisibility = false }
+            }
+        }
+        DebugLog.i(TAG, "settings applied enabled=" + enabled + " chips=" + originals.size)
+    }
+
+    override fun onHook() {
+        shadeHolderField = null
+        shadeSeamlessField = null
+        islandSeamlessField = null
+        shadeSeamlessButtonField = null
+        shadeSeamlessIconField = null
+        islandSeamlessButtonField = null
+        islandSeamlessIconField = null
+        aospHolderField = null
+        aospSeamlessField = null
+        aospSeamlessButtonField = null
+        aospSeamlessIconField = null
+        mediaSwitchVisibilityIds.clear()
+        visibilityGuardLogged.set(false)
+        enabled = settingMediaCardHideDeviceSwitch
+        installVisibilityGuard()
+        installShadeHook()
+        installIslandHook()
+        installTransferManagerHook()
+        installAospMediaPanelHook()
+    }
+
+    override fun onPrepareHotReload() {
+        HostAccess.onMain {
+            applyingVisibility = true
+            try { originals.forEach { (view, visibility) -> view.visibility = visibility } }
+            finally { applyingVisibility = false }
+            originals.clear()
+            knownViews.clear()
+        }
+
+        visibilityGuardLogged.set(false)
+    }
+
+    /**
+     * Final guard for both MIUI and AOSP media layouts. Their bind methods can run in different
+     * orders (and other SystemUI components can refresh the transfer chip later), so guarding the
+     * SystemUI resources resolved from each actual View is the final-write boundary. The cached ID check is
+     * intentionally done before entering the failure wrapper because View#setVisibility is hot.
+     */
+    private fun installVisibilityGuard() {
+        val viewClass = "android.view.View".toClassOrNull() ?: run {
+            DebugLog.hookSkipped(TAG, "android.view.View", "class not found")
+            return
+        }
+        val setVisibility = viewClass.declaredMethods.firstOrNull {
+            it.name == "setVisibility" &&
+                it.parameterTypes.size == 1 &&
+                it.parameterTypes[0] == Int::class.javaPrimitiveType &&
+                it.returnType == Void.TYPE
+        } ?: run {
+            DebugLog.hookSkipped(TAG, "android.view.View#setVisibility", "method not found")
+            return
+        }
+        deoptimize(setVisibility)
+        setVisibility.hook {
+            before { param ->
+                val view = param.thisObject as? View
+                if (enabled && view != null && isMediaSwitchView(view)) {
+                    HookFailurePolicy.open(TAG, "media switch View#setVisibility", Unit) {
+                        val requested = param.args.getOrNull(0) as? Int
+                        if (requested != null && !applyingVisibility) originals[view] = requested
+                        if (requested != null && requested != View.GONE) {
+                            param.args[0] = View.GONE
+                            if (visibilityGuardLogged.compareAndSet(false, true)) {
+                                DebugLog.i(TAG, "final visibility guard engaged for media output switch")
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        DebugLog.d(TAG, "final media output switch visibility guard installed with runtime resource names")
+    }
+
+    // ─── Shade card ───────────────────────────────────────────────────────────
+
+    private fun installShadeHook() {
+        val vc = SHADE_VC.toClassOrNull() ?: run {
+            DebugLog.hookSkipped(TAG, SHADE_VC, "class not found")
+            return
+        }
+        val holderCls = SHADE_HOLDER.toClassOrNull() ?: run {
+            DebugLog.hookSkipped(TAG, SHADE_HOLDER, "class not found")
+            return
+        }
+        shadeHolderField = findField(vc, "holder")
+        if (shadeHolderField == null) {
+            DebugLog.hookSkipped(TAG, "$SHADE_VC#holder", "field not found")
+            return
+        }
+        shadeSeamlessField = findField(holderCls, "seamless")
+        if (shadeSeamlessField == null) {
+            DebugLog.hookSkipped(TAG, "$SHADE_HOLDER#seamless", "field not found")
+            return
+        }
+        shadeSeamlessButtonField = findField(holderCls, "seamlessButton")
+        shadeSeamlessIconField = findField(holderCls, "seamlessIcon")
+        val setSeamless = vc.declaredMethods.firstOrNull {
+            it.name == "setSeamless" && it.parameterTypes.size == 1
+        } ?: run {
+            DebugLog.hookSkipped(TAG, "$SHADE_VC#setSeamless", "method not found")
+            return
+        }
+        deoptimize(setSeamless)
+        setSeamless.hook {
+            after { param ->
+                HookFailurePolicy.open(TAG, "shade setSeamless", Unit) {
+                    val holder = shadeHolderField?.get(param.thisObject) ?: return@open
+                    hideMediaSwitchViews(
+                        holder,
+                        shadeSeamlessField,
+                        shadeSeamlessButtonField,
+                        shadeSeamlessIconField
+                    )
+                }
+            }
+        }
+        DebugLog.d(TAG, "shade media card device switch hidden after setSeamless")
+    }
+
+    // ─── Island ───────────────────────────────────────────────────────────────
+
+    private fun installIslandHook() {
+        val binder = ISLAND_BINDER.toClassOrNull() ?: run {
+            DebugLog.hookSkipped(TAG, ISLAND_BINDER, "class not found")
+            return
+        }
+        val holderCls = ISLAND_HOLDER.toClassOrNull() ?: run {
+            DebugLog.hookSkipped(TAG, ISLAND_HOLDER, "class not found")
+            return
+        }
+        islandSeamlessField = findField(holderCls, "seamless")
+        if (islandSeamlessField == null) {
+            DebugLog.hookSkipped(TAG, "$ISLAND_HOLDER#seamless", "field not found")
+            return
+        }
+        islandSeamlessButtonField = findField(holderCls, "seamlessButton")
+        islandSeamlessIconField = findField(holderCls, "seamlessIcon")
+        val setSeamless = binder.declaredMethods.firstOrNull {
+            it.name == "setSeamless" && it.parameterTypes.size == 2
+        } ?: run {
+            DebugLog.hookSkipped(TAG, "$ISLAND_BINDER#setSeamless", "method not found")
+            return
+        }
+        deoptimize(setSeamless)
+        setSeamless.hook {
+            after { param ->
+                HookFailurePolicy.open(TAG, "island setSeamless", Unit) {
+                    // Real holder + dummy holder, both fed through the same method.
+                    val holder = param.args.getOrNull(1)
+                    hideMediaSwitchViews(
+                        holder,
+                        islandSeamlessField,
+                        islandSeamlessButtonField,
+                        islandSeamlessIconField
+                    )
+                }
+            }
+        }
+        DebugLog.d(TAG, "island media card device switch hidden after setSeamless")
+    }
+
+    // ─── Media transfer refresh ──────────────────────────────────────────────
+
+    /**
+     * `setSeamless()` delegates to this manager on the non-debug path. The manager can update the
+     * transfer chip later from a posted callback, so hiding only immediately after setSeamless()
+     * is not sufficient on OS4.
+     */
+    private fun installTransferManagerHook() {
+        val manager = TRANSFER_MANAGER.toClassOrNull() ?: run {
+            DebugLog.hookSkipped(TAG, TRANSFER_MANAGER, "class not found")
+            return
+        }
+        val applyMediaTransferView = manager.declaredMethods.firstOrNull {
+            it.name == "applyMediaTransferView" &&
+                it.parameterTypes.size == 2 &&
+                it.parameterTypes[0] == ViewGroup::class.java
+        }
+        if (applyMediaTransferView == null) {
+            DebugLog.hookSkipped(TAG, "$TRANSFER_MANAGER#applyMediaTransferView", "method not found")
+        } else {
+            deoptimize(applyMediaTransferView)
+            applyMediaTransferView.hook {
+                after { param ->
+                    HookFailurePolicy.open(TAG, "transfer applyMediaTransferView", Unit) {
+                        hideSeamless(param.args.getOrNull(0) as? ViewGroup)
+                    }
+                }
+            }
+            DebugLog.d(TAG, "media transfer view hidden after applyMediaTransferView")
+        }
+
+        val updateChip = manager.declaredMethods.firstOrNull {
+            it.name == "updateChip" &&
+                it.parameterTypes.size == 1 &&
+                it.parameterTypes[0] == android.widget.ImageView::class.java
+        }
+        if (updateChip == null) {
+            DebugLog.hookSkipped(TAG, "$TRANSFER_MANAGER#updateChip", "method not found")
+        } else {
+            deoptimize(updateChip)
+            updateChip.hook {
+                after { param ->
+                    HookFailurePolicy.open(TAG, "transfer updateChip", Unit) {
+                        hideSeamlessContainer(param.args.getOrNull(0) as? View)
+                    }
+                }
+            }
+            DebugLog.d(TAG, "media transfer view hidden after updateChip")
+        }
+    }
+
+    // ─── AOSP media panel ─────────────────────────────────────────────────────
+
+    /**
+     * Notification shade and keyguard media cards on this build use the AOSP
+     * `MediaControlPanel`, not the MIUI media controller above. `bindPlayer()` makes the output
+     * switch visible and installs its click listener on every app/media refresh, which is why an
+     * app switch can make the button reappear after the MIUI hook already ran.
+     */
+    private fun installAospMediaPanelHook() {
+        val panel = AOSP_MEDIA_PANEL.toClassOrNull() ?: run {
+            DebugLog.hookSkipped(TAG, AOSP_MEDIA_PANEL, "class not found")
+            return
+        }
+        val holderCls = AOSP_MEDIA_HOLDER.toClassOrNull() ?: run {
+            DebugLog.hookSkipped(TAG, AOSP_MEDIA_HOLDER, "class not found")
+            return
+        }
+        aospHolderField = findField(panel, "mMediaViewHolder")
+        aospSeamlessField = findField(holderCls, "seamless")
+        aospSeamlessButtonField = findField(holderCls, "seamlessButton")
+        aospSeamlessIconField = findField(holderCls, "seamlessIcon")
+        if (aospHolderField == null || aospSeamlessField == null) {
+            DebugLog.hookSkipped(TAG, "$AOSP_MEDIA_PANEL#bindPlayer", "holder fields not found")
+            return
+        }
+        val bindPlayer = panel.declaredMethods.firstOrNull {
+            it.name == "bindPlayer" &&
+                it.parameterTypes.size == 2 &&
+                it.parameterTypes[0].name == "com.android.systemui.media.controls.shared.model.MediaData" &&
+                it.parameterTypes[1] == String::class.java
+        } ?: run {
+            DebugLog.hookSkipped(TAG, "$AOSP_MEDIA_PANEL#bindPlayer", "method not found")
+            return
+        }
+        deoptimize(bindPlayer)
+        bindPlayer.hook {
+            after { param ->
+                HookFailurePolicy.open(TAG, "AOSP media bindPlayer", Unit) {
+                    val holder = aospHolderField?.get(param.thisObject) ?: return@open
+                    hideMediaSwitchViews(
+                        holder,
+                        aospSeamlessField,
+                        aospSeamlessButtonField,
+                        aospSeamlessIconField
+                    )
+                }
+            }
+        }
+        DebugLog.i(TAG, "HOOK_OK AOSP notification/keyguard media output switch disabled")
+    }
+
+    // ─── Helpers ──────────────────────────────────────────────────────────────
+
+    private fun hideSeamless(holder: Any?, field: Field?) {
+        if (holder == null || field == null) return
+        val seamless = field.get(holder) as? View ?: return
+        hideSeamless(seamless)
+    }
+
+    private fun hideMediaSwitchViews(
+        holder: Any?,
+        seamlessField: Field?,
+        buttonField: Field?,
+        iconField: Field?
+    ) {
+        hideSeamless(holder, seamlessField)
+        hideViewField(holder, buttonField)
+        hideViewField(holder, iconField)
+    }
+
+    private fun hideViewField(holder: Any?, field: Field?) {
+        val view = runCatching { field?.get(holder) as? View }.getOrNull() ?: return
+        hideSeamless(view)
+        // GONE removes the hit target. Keep native enabled state and click listeners so
+        // disabling the feature can restore the existing holder without another bind.
+    }
+
+    private fun hideSeamless(view: View?) {
+        if (view == null) return
+        knownViews += view
+        if (!enabled) return
+        originals.putIfAbsent(view, view.visibility)
+        applyingVisibility = true
+        try { if (view.visibility != View.GONE) view.visibility = View.GONE }
+        finally { applyingVisibility = false }
+    }
+
+    private fun isMediaSwitchView(view: View): Boolean {
+        if (view.id == View.NO_ID) return false
+        val resources = view.resources
+        val ids = mediaSwitchVisibilityIds.getOrPut(resources) {
+            mediaSwitchResourceNames.map { resources.getIdentifier(it, "id", "com.android.systemui") }
+                .filter { it != 0 }.toIntArray()
+        }
+        if (!ids.contains(view.id)) return false
+        return runCatching {
+            view.resources.getResourceEntryName(view.id) in mediaSwitchResourceNames
+        }.getOrDefault(false)
+    }
+
+    private fun hideSeamlessContainer(view: View?) {
+        var current = view
+        repeat(5) {
+            if (current == null) return
+            if (isMediaSeamlessView(current)) {
+                hideSeamless(current as? ViewGroup)
+                return
+            }
+            current = current.parent as? View
+        }
+        hideSeamless((view?.parent as? ViewGroup))
+    }
+
+    private fun isMediaSeamlessView(view: View): Boolean {
+        return runCatching {
+            view.id != View.NO_ID && view.resources.getResourceEntryName(view.id) == "media_seamless"
+        }.getOrDefault(false)
+    }
+
+    /** Resolves a (public) field, walking the class hierarchy. */
+    private fun findField(cls: Class<*>, name: String): Field? {
+        var type: Class<*>? = cls
+        while (type != null && type != Any::class.java) {
+            try {
+                return HostAccess.requireDeclaredField(type, name, accessible = true)
+            } catch (_: NoSuchFieldException) {
+                type = type.superclass
+            }
+        }
+        return null
+    }
+}

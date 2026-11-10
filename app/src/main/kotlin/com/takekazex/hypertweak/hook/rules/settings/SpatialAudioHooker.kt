@@ -10,7 +10,7 @@ import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.DynamicHooker
 import com.takekazex.hypertweak.hook.base.CompatibleMethodResolver
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
-import com.takekazex.hypertweak.hook.rules.bluetooth.AirPodsScope
+import com.takekazex.hypertweak.hook.rules.shared.AirPodsScope
 
 class SpatialAudioHooker(
     private val pluginContext: android.content.Context? = null,

@@ -6,7 +6,7 @@ import com.takekazex.hypertweak.hook.runtime.reload.HotReloadPackageState
 import com.takekazex.hypertweak.hook.runtime.settings.RuntimeSettingsStore
 import com.takekazex.hypertweak.hook.base.BaseHooker
 import com.takekazex.hypertweak.hook.base.ManagedHookReload
-import com.takekazex.hypertweak.hook.rules.aod.AodStatusIconHooker
+import com.takekazex.hypertweak.hook.rules.systemui.aod.AodStatusIconHooker
 import com.takekazex.hypertweak.hook.rules.systemui.notification.NotificationAbsoluteTimeHooker
 import com.takekazex.hypertweak.hook.rules.systemui.notification.NotificationFontWeightHooker
 import com.takekazex.hypertweak.hook.rules.systemui.notification.NotificationHeaderClockSecondsHooker

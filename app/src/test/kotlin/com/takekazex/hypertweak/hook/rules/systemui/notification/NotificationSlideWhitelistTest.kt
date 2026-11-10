@@ -3,7 +3,7 @@ package com.takekazex.hypertweak.hook.rules.systemui.notification
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 
 import com.takekazex.hypertweak.hook.runtime.settings.RuntimeSettingsSnapshot
-import com.takekazex.hypertweak.hook.base.RuntimeSettingsGroups
+import com.takekazex.hypertweak.hook.runtime.settings.RuntimeSettingsGroups
 import org.junit.Assert.*
 import org.junit.Test
 

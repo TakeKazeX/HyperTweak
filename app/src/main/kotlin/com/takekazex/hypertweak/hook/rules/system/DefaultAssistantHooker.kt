@@ -15,6 +15,7 @@ import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.reflect.Method
+import com.takekazex.hypertweak.hook.base.SystemServerStartupRetry
 
 /**
  * Repairs the platform state that keeps long-press power from reaching the assistant selected in

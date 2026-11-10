@@ -1,6 +1,6 @@
 package com.takekazex.hypertweak.hook.runtime.settings
 
-import com.takekazex.hypertweak.hook.base.RuntimeSettingsGroups
+import com.takekazex.hypertweak.hook.runtime.settings.RuntimeSettingsGroups
 import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
 import org.junit.Assert.*
 import org.junit.Test

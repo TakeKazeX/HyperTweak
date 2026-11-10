@@ -40,6 +40,10 @@ object SystemUiSettingsKeys {
     const val KEY_SLIDER_POPUP_POSITION = "systemui_slider_percentage_popup_position"
     const val KEY_SLIDER_SHOW_PERCENTAGE = "systemui_control_center_slider_show_percentage_enabled"
     const val KEY_SLIDER_SAME_PERCENTAGE_STYLE = "systemui_control_center_slider_same_percentage_style_enabled"
+    // Control Center corner-radius overrides. Each group keeps its own dp value (Float);
+    // 0 means "no override" (follow the system design), any positive value is applied as the
+    // GradientDrawable/outline corner radius of the corresponding control center element.
+    // The hooker converts dp → px at hook time (plugins expect px for these APIs).
     const val KEY_CC_CORNER_ENABLED = "systemui_control_center_corner_enabled"
     const val KEY_CC_CORNER_SLIDER = "systemui_control_center_corner_slider_dp"
     const val KEY_CC_CORNER_TILE = "systemui_control_center_corner_tile_dp"
@@ -69,6 +73,12 @@ object SystemUiSettingsKeys {
     const val KEY_NOTIFICATION_MINI_WINDOW = "notification_mini_window"
     const val KEY_NOTIFICATION_BLOCK_FOLD = "notification_block_fold"
     const val KEY_CC_HIDE_SUPER_ISLAND = "systemui_cc_hide_super_island"
+    // Control-center header carrier block (`ControlCenterHeaderHooker`, `ControlCenterCarrierBlockHooker`):
+    //   KEY_CC_CARRIER_LEFT              — 开关 1: draw the carrier label on the leading edge.
+    //   KEY_CC_HIDE_DATE                 — 开关 2: hide the control center date; also the enabling
+    //                                      switch of 开关 3/4 (a disabled parent greys them out).
+    //   KEY_CC_CARRIER_TWO_LINE          — 开关 3: two rows, [signal] carrier [type/WiFi].
+    //   KEY_CC_CARRIER_SHOW_NON_DATA_TYPE— 开关 4: also draw the non-data SIM's type.
     const val KEY_CC_CARRIER_LEFT = "systemui_cc_carrier_left"
     const val KEY_CC_HIDE_DATE = "systemui_cc_hide_date"
     const val KEY_CC_NETWORK_FIRST_ROW = "systemui_cc_network_first_row"
@@ -93,10 +103,17 @@ object SystemUiSettingsKeys {
     const val KEY_CC_BATTERY_PERCENT_OUTSIDE = "systemui_cc_battery_percent_outside"
     const val KEY_CC_BATTERY_PERCENT_LEFT = "systemui_cc_battery_percent_left"
     const val KEY_CC_ROTATION_LOCK_ICON = "systemui_cc_rotation_lock_icon"
+    // OS4 material style glass tuning (Settings → Display → Visual style, 材质风格). The
+    // SystemUI hook intercepts the blur/blend resources behind 清透磨砂 and 柔光玻璃.
     const val KEY_GLASS_TUNER_ENABLED = "glass_tuner_enabled"
     const val KEY_GLASS_TUNER_BLEND_ALPHA = "glass_tuner_blend_alpha"
     const val KEY_GLASS_TUNER_BLEND_LIGHTNESS = "glass_tuner_blend_lightness"
     const val KEY_GLASS_TUNER_RADIUS_SCALE = "glass_tuner_radius_scale"
     const val KEY_GLASS_TUNER_GLASS_OPACITY = "glass_tuner_glass_opacity"
+    /**
+     * Glass tone multiplier (0.0..2.0, 1.0 = original). Scales the shader's base cast —
+     * luminance mix, brightness and blurred-backdrop saturation — that survives at zero
+     * opacity and reads as a grey, heavy look; lower is lighter and more see-through.
+     */
     const val KEY_GLASS_TUNER_GLASS_TONE = "glass_tuner_glass_tone"
 }

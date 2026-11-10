@@ -1,7 +1,7 @@
 package com.takekazex.hypertweak.ui.state
 
 import androidx.compose.runtime.staticCompositionLocalOf
-import com.takekazex.hypertweak.util.DownloadXlStorage
+import com.takekazex.hypertweak.util.platform.DownloadXlStorage
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow

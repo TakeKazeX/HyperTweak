@@ -160,21 +160,9 @@ object StackedSignalHooker : StaticHooker() {
 
     private var iconBridge: HostIconBridge? by generationState { null }
 
-    /** Bounded retries cover the short gap between package-ready and Dagger component startup. */
-
     private var options by generationState { IconTunerOptions.snapshot() }
 
     private var typeConfig by generationState { MobileTypeConfig() }
-
-    /**
-     * Alpha crossfade for the module-owned type slot. A Wi-Fi hand-off must not collapse the slot:
-     * the host lays the icon row out from the trailing edge, so removing it shifts the signal icon
-     * sideways. See [BitmapAlphaFade].
-     */
-
-    /** True once the type has faded out and given its box back, so a re-render keeps it collapsed. */
-
-    /** All mutable reducer state is consumed on the main looper. */
 
     private data class PublishedSignalPicture(val picture: Picture, val splitFraction: Float,
         val morphs: List<com.takekazex.hypertweak.presentation.icon.duo.SignalBarMorph>)

@@ -10,6 +10,7 @@ import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.hook.base.ThreadActivation
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.reflect.Modifier
+import com.takekazex.hypertweak.hook.base.SystemServerStartupRetry
 
 /** System-server screenshot policy. SKIP_SCREENSHOT and protected buffers are independent. */
 object ForceScreenshotHooker : StaticHooker() {

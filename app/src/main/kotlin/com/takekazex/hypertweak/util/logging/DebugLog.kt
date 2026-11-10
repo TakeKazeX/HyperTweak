@@ -1,6 +1,6 @@
 package com.takekazex.hypertweak.util.logging
 
-import com.takekazex.hypertweak.util.SettingsDiagnostics
+import com.takekazex.hypertweak.util.logging.SettingsDiagnostics
 import android.os.Process
 import android.os.SystemClock
 import android.util.Log

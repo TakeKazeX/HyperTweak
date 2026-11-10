@@ -1,6 +1,6 @@
 package com.takekazex.hypertweak.hook
 
-import com.takekazex.hypertweak.hook.base.RuntimeSettingsGroups as Groups
+import com.takekazex.hypertweak.hook.runtime.settings.RuntimeSettingsGroups as Groups
 import com.takekazex.hypertweak.hook.runtime.settings.RuntimeSettingsLedger
 import com.takekazex.hypertweak.hook.runtime.settings.RuntimeSettingsSnapshot
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys as Keys

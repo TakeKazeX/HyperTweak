@@ -7,7 +7,7 @@ import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import com.takekazex.hypertweak.util.logging.DebugLog
-import com.takekazex.hypertweak.hook.base.RuntimeSettingsGroups
+import com.takekazex.hypertweak.hook.runtime.settings.RuntimeSettingsGroups
 
 /** Publish only the last acknowledged snapshot; rejected editor shadows never become live state. */
 internal object RuntimeSettingsSignal {

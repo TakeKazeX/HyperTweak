@@ -18,9 +18,9 @@ import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.runtime.reload.HotReloadPluginState
 import com.takekazex.hypertweak.hook.base.StaticHooker
-import com.takekazex.hypertweak.hook.rules.aod.AodStatusIconHooker
-import com.takekazex.hypertweak.hook.rules.slider.SliderPercentageHooker
-import com.takekazex.hypertweak.hook.rules.slider.ControlCenterCornerHooker
+import com.takekazex.hypertweak.hook.rules.systemui.aod.AodStatusIconHooker
+import com.takekazex.hypertweak.hook.rules.systemui.slider.SliderPercentageHooker
+import com.takekazex.hypertweak.hook.rules.systemui.slider.ControlCenterCornerHooker
 import com.takekazex.hypertweak.hook.rules.systemui.controlcenter.ControlCenterCardResizeHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.util.concurrent.ConcurrentHashMap
@@ -28,6 +28,8 @@ import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 import com.takekazex.hypertweak.hook.base.HookSessionRegistry
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.CompatibleMethodResolver
+import com.takekazex.hypertweak.hook.rules.systemui.media.MediaPlayerDeviceIconHooker
+import com.takekazex.hypertweak.hook.rules.systemui.media.MediaSuperIslandWhitelistHooker
 
 object SystemUIPluginHooker : StaticHooker() {
     // Published on settings acceptance; hook callbacks perform no storage reads.

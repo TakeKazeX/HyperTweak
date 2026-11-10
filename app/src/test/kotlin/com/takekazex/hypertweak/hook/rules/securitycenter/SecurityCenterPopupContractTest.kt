@@ -7,7 +7,7 @@ import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import com.takekazex.hypertweak.hook.runtime.settings.RuntimeSettingsLedger
 import com.takekazex.hypertweak.hook.runtime.settings.RuntimeSettingsSnapshot
-import com.takekazex.hypertweak.hook.base.RuntimeSettingsGroups
+import com.takekazex.hypertweak.hook.runtime.settings.RuntimeSettingsGroups
 import com.takekazex.hypertweak.hook.base.dex.DexOperandIndex
 import org.junit.Assert.*
 import org.junit.Assume.assumeTrue

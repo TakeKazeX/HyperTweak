@@ -1,17 +1,17 @@
 package com.takekazex.hypertweak.hook.bootstrap
 
-import com.takekazex.hypertweak.hook.rules.systemui.AODHooker
+import com.takekazex.hypertweak.hook.rules.systemui.aod.AODHooker
 import com.takekazex.hypertweak.hook.rules.aicr.AicrDefaultBrowserHooker
 import com.takekazex.hypertweak.hook.rules.systemui.lockscreen.HideFingerprintIcon
 import com.takekazex.hypertweak.hook.rules.systemui.gesturebar.HideBottomBarHooker
 import com.takekazex.hypertweak.hook.rules.systemui.lockscreen.HideLockscreenStatusBarHooker
 import com.takekazex.hypertweak.hook.rules.systemui.lockscreen.KeyguardFingerprintAvoidHooker
-import com.takekazex.hypertweak.hook.rules.systemui.MediaCardHideAppIconHooker
-import com.takekazex.hypertweak.hook.rules.systemui.MediaCardHideDeviceSwitchHooker
+import com.takekazex.hypertweak.hook.rules.systemui.media.MediaCardHideAppIconHooker
+import com.takekazex.hypertweak.hook.rules.systemui.media.MediaCardHideDeviceSwitchHooker
 import com.takekazex.hypertweak.hook.rules.systemui.notification.NotificationMiniWindowHooker
 import com.takekazex.hypertweak.hook.rules.systemui.notification.NotificationWhitelistBypassHooker
 import com.takekazex.hypertweak.hook.rules.systemui.StatusBarHideSilentHooker
-import com.takekazex.hypertweak.hook.rules.systemui.FreeformBlurTransitionHooker
+import com.takekazex.hypertweak.hook.rules.systemui.freeform.FreeformBlurTransitionHooker
 import com.takekazex.hypertweak.hook.rules.securitycenter.AppDetailsIconLaunchHooker
 import com.takekazex.hypertweak.hook.rules.securitycenter.AppDetailsActionsHooker
 import com.takekazex.hypertweak.hook.rules.securitycenter.MoreAppInfoHooker
@@ -34,12 +34,12 @@ import com.takekazex.hypertweak.hook.rules.intentresolver.SharePanelHooker
 import com.takekazex.hypertweak.hook.rules.system.GestureBarTransitionHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 import com.takekazex.hypertweak.hook.rules.backgesture.AospBackSystemUiHooker
-import com.takekazex.hypertweak.hook.base.RuntimeSettingsGroups
+import com.takekazex.hypertweak.hook.runtime.settings.RuntimeSettingsGroups
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.preferences.RuntimeSettingsPreferences
 import com.takekazex.hypertweak.hook.base.BaseHooker
-import com.takekazex.hypertweak.hook.base.SettingsReloadDispatcher
-import com.takekazex.hypertweak.settings.SettingsParticipantRegistry
+import com.takekazex.hypertweak.hook.runtime.settings.SettingsReloadDispatcher
+import com.takekazex.hypertweak.hook.runtime.settings.SettingsParticipantRegistry
 
 /** Process-side effects. The app-side schema never constructs or initializes these hookers. */
 internal object RuntimeSettingsParticipants {

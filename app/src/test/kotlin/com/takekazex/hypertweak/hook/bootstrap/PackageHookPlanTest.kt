@@ -38,10 +38,10 @@ class PackageHookPlanTest {
         for (pkg in com.takekazex.hypertweak.settings.contract.AivsPathPolicy.packages) {
             for (process in listOf(pkg, "$pkg:remote", "$pkg:core")) {
                 assertTrue(names(PackageHookPlan.steps(pkg, process)).contains("AivsDirectoryHooker"))
-                assertTrue(com.takekazex.hypertweak.hook.base.RuntimeSettingsGroups.forProcess(process)
-                    .contains(com.takekazex.hypertweak.hook.base.RuntimeSettingsGroups.PASSIVE_POLICIES))
+                assertTrue(com.takekazex.hypertweak.hook.runtime.settings.RuntimeSettingsGroups.forProcess(process)
+                    .contains(com.takekazex.hypertweak.hook.runtime.settings.RuntimeSettingsGroups.PASSIVE_POLICIES))
             }
-            assertTrue(com.takekazex.hypertweak.hook.base.RuntimeSettingsGroups.owns(pkg,
+            assertTrue(com.takekazex.hypertweak.hook.runtime.settings.RuntimeSettingsGroups.owns(pkg,
                 com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys.KEY_AIVS_REDIRECT))
         }
     }

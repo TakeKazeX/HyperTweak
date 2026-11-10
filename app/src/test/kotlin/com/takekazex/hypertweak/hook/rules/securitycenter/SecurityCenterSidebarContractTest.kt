@@ -1,6 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.securitycenter
 
-import com.takekazex.hypertweak.hook.base.RuntimeSettingsGroups
+import com.takekazex.hypertweak.hook.runtime.settings.RuntimeSettingsGroups
 import com.takekazex.hypertweak.hook.base.dex.DexOperandIndex
 import com.takekazex.hypertweak.hook.rules.securitycenter.sidebar.SecurityCenterSidebarResolver
 import com.takekazex.hypertweak.hook.runtime.settings.RuntimeSettingsLedger

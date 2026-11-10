@@ -24,7 +24,7 @@ import com.takekazex.hypertweak.settings.contract.CameraLegendaryMomentMode
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.core.content.edit
-import com.takekazex.hypertweak.hook.base.RuntimeSettingsGroups
+import com.takekazex.hypertweak.hook.runtime.settings.RuntimeSettingsGroups
 import com.takekazex.hypertweak.settings.contract.AppSettingsKeys
 import com.takekazex.hypertweak.settings.contract.BackGestureKeys
 import com.takekazex.hypertweak.settings.contract.CameraSettingsKeys
@@ -37,7 +37,7 @@ import com.takekazex.hypertweak.settings.contract.ScreenshotSettingsLedger
 import com.takekazex.hypertweak.settings.contract.ScreenshotSettingsSnapshot
 import com.takekazex.hypertweak.settings.contract.SignalSvgStyle
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
-import com.takekazex.hypertweak.util.SettingsDiagnostics
+import com.takekazex.hypertweak.util.logging.SettingsDiagnostics
 import io.github.lingqiqi5211.ezhooktool.xposed.EzXposed
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
@@ -99,8 +99,6 @@ object Preferences {
     }
     internal fun runtimePreferenceSource(): SharedPreferences? = if (isInitialized) remotePrefs else null
     private const val CACHE_NAME = "hypertweak_cache"
-    // Key names
-    /** Copies each screenshot into the clipboard through the host's own write path. */
     private val screenshotSettings = ScreenshotSettingsLedger()
     fun screenshotAutoFrameEnabled(): Boolean = if (RuntimeSettingsStore.owns(ScreenshotSettingsKeys.KEY_SCREENSHOT_AUTO_FRAME)) getBoolean(ScreenshotSettingsKeys.KEY_SCREENSHOT_AUTO_FRAME, false) else screenshotSettings.latest()?.enabled
         ?: getBoolean(ScreenshotSettingsKeys.KEY_SCREENSHOT_AUTO_FRAME, false)
@@ -114,29 +112,7 @@ object Preferences {
     internal fun saveScreenshotSettings(): Array<Any>? = screenshotSettings.save()
     internal fun restoreScreenshotSettings(state: Any?) = screenshotSettings.restore(state)
 
-    // Verified mirrors of device-persistent vendor properties; never replayed at boot or upgrade.
-    // Control Center corner-radius overrides. Each group keeps its own dp value (Float);
-    // 0 means "no override" (follow the system design), any positive value is applied as the
-    // GradientDrawable/outline corner radius of the corresponding control center element.
-    // The hooker converts dp → px at hook time (plugins expect px for these APIs).
-    // AOSP restore.
-    // ─── Notification channel page + fold / silent status-bar filters (experimental 通知) ───
-
-    // Status-bar icon tuner, ported from Hyper Helper's icon tuner (see the reverse-engineering
-    // workspace, cache/xiaomihelper-2bfd4873a4138764). Each switch is read by a SystemUI hook at
-    // hook-install time and requires a SystemUI restart; IconTunerPage keeps its own state and
-    // reports that restart through LocalRestartScopeRequest.
-    // Hide the cellular icon of the non-default SIM when multiple SIMs are active.
-    // Hide the whole mobile signal icon (signal bars and network type) while WiFi is the connected
-    // default network. Applies to the native cellular row and, when stacked signal is enabled, to
-    // the module-owned stacked slot as well.
-    // Cellular type display, ported from Hyper Helper's `CellularTypeIcon` (keys match upstream
-    // f32.m/q/r). Forces the single-carrier type text and/or a custom type name.
-    // Stacked mobile signal — rebuilt on Flux Decor 2.0.3's view-level model (see
-    // docs/FLUX_DECOR_STACKED_SIGNAL_PLAN.md). The SVG keys match Hyper Helper's t32.f-o:
-    // single/stacked styles are independent because their source documents have different id
-    // matrices; style 2 means the validated imported SVG for that side.
-    /** Duo glyph height in dp, clamped by `DuoLayout` to its own range. */
+    /** Pre-0/1 stacked SVG style key, read only to migrate old selections. */
     private const val LEGACY_KEY_ICON_STACKED_SVG_STACKED = "icon_tuner_stacked_icon_svg_stacked"
 
     /** Compatibility read only: new 0/1 wins; old stacked 3 selects the surviving iOS family. */
@@ -157,35 +133,6 @@ object Preferences {
         ).storedValue
     }
 
-    // Carrier label hiding, ported from Hyper Helper's `HideCarrierLabel` (keys match upstream
-    // w22.* / x22.e-f). `KEY_ICON_HIDE_CARRIER_*` cover the status-bar / control-center carrier
-    // rows and the HD icon; `KEY_ICON_HIDE_LS_CARRIER_*` cover the lockscreen header.
-    // Control-center header carrier block (see `ControlCenterHeaderHooker` and
-    // `ControlCenterCarrierBlockHooker`):
-    //   KEY_CC_CARRIER_LEFT              — 开关 1: draw the carrier label on the leading edge.
-    //   KEY_CC_HIDE_DATE                 — 开关 2: hide the control center date; also the enabling
-    //                                      switch of 开关 3/4 (a disabled parent greys them out).
-    //   KEY_CC_CARRIER_TWO_LINE          — 开关 3: two rows, [signal] carrier [type/WiFi].
-    //   KEY_CC_CARRIER_SHOW_NON_DATA_TYPE— 开关 4: also draw the non-data SIM's type.
-    // Shared by carrier rows, stacked signal and Duo: 0 = SIM slot, 1 = data SIM first.
-    // Force status-bar region sampling (light-bar samples the region behind the status bar so
-    // icons/background adapt), ported from Hyper Helper's `RegionSampling` (key matches upstream
-    // i32.c). Int-typed: 0 off, 1 on.
-    // Limit how many notification icons the status bar keeps (ported from Hyper Helper's u32.a/b;
-    // the switch is off by default). The count is Int-typed: minimum 0 (keep no notification
-    // icons), default 3, maximum 15 — see `NotificationIconLimit`, which the settings row and
-    // `NotificationMaxNumberHooker` both use.
-    // Slot show/hide modes (0 = follow system, 1 = show everywhere, 2 = status bar only,
-    // 3 = control center only, 4 = hide everywhere). Keys are generated by [slotKey].
-    // Ignore the system's own icon hiding.
-    // OS4 material style glass tuning (Settings → Display → Visual style, 材质风格). The
-    // SystemUI hook intercepts the blur/blend resources behind 清透磨砂 and 柔光玻璃, so the
-    // page keeps its own state and reports a SystemUI restart through LocalRestartScopeRequest.
-    /**
-     * Glass tone multiplier (0.0..2.0, 1.0 = original). Scales the shader's base cast —
-     * luminance mix, brightness and blurred-backdrop saturation — that survives at zero
-     * opacity and reads as a grey, heavy look; lower is lighter and more see-through.
-     */
     // Status-bar slot preference key for [slot]; shared by the hooks and the settings UI.
     fun slotKey(slot: String): String = IconSettingsPreferencePolicy.slotKey(slot)
 
@@ -252,9 +199,6 @@ object Preferences {
         }
     }
 
-    // Media-editor watermark unlock (com.miui.mediaeditor). See
-    // `MediaEditorWatermarkHooker`; switches are read live, so only the first enable of
-    // KEY_WM_UNLOCK_MASTER needs the editor process restarted (to install the hooks).
     /** Native gesture-line choices and XiaoAI input routing. */
     fun xiaoaiGestureOptions(): Boolean = getBoolean(PlatformSettingsKeys.KEY_XIAOAI_GESTURE_OPTIONS, false)
 
@@ -399,14 +343,6 @@ object Preferences {
 
     fun freeformBlurTransition(): Boolean = getBoolean(PlatformSettingsKeys.KEY_FREEFORM_BLUR_TRANSITION, false)
 
-    // --- Update system (module's own process only) ---
-    // Only user-visible settings live here, so they travel with a settings backup exactly like the
-    // rest of the configuration. Everything transient (last-attempt/last-success timestamps, the
-    // per-channel response cache, skipped versions, the recovery arm and download sidecars) is kept
-    // in the separate app-local `hypertweak_update` file by `util/update/UpdateStateStore`, which is
-    // what keeps that churn out of the user's backup.
-    /** User-supplied `https://` proxy base; blank means "use the built-in preset". */
-
     private lateinit var remotePrefs: SharedPreferences
     // Only the module Application may supply this store via useLocalOnly; never a host cache.
     @Volatile private var localSourcePrefs: SharedPreferences? = null
@@ -539,7 +475,7 @@ object Preferences {
         return remoteEpoch == cacheEpoch
     }
 
-    /** Serializes debug-log writes so log I/O never shares the object monitor with preference reads. */
+    /** The module Application's local store; injected processes have none. */
     private fun appLocalStore(): SharedPreferences? = localSourcePrefs
     internal val appLogs = AppLogStore(::appLocalStore) { getBoolean(PlatformSettingsKeys.KEY_RECORD_LOGS, true) }
     private val logLock get() = appLogs.lock
@@ -754,7 +690,7 @@ object Preferences {
 
     /** Explicit false must beat the legacy combined switch, including runtime snapshot reset. */
     fun nativePickerEnabled(key: String): Boolean =
-        com.takekazex.hypertweak.hook.rules.system.PickerReroutePolicy.enabled(
+        com.takekazex.hypertweak.settings.contract.NativePickerSettings.enabled(
             if (contains(key)) getBoolean(key, false) else null,
             getBoolean(PlatformSettingsKeys.KEY_NATIVE_PICKER, false)
         )

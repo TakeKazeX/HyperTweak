@@ -7,7 +7,7 @@ import android.util.Log
 import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.StaticHooker
-import com.takekazex.hypertweak.hook.rules.bluetooth.AirPodsScope
+import com.takekazex.hypertweak.hook.rules.shared.AirPodsScope
 import java.lang.reflect.Method
 
 object BluetoothPluginHooker : StaticHooker() {

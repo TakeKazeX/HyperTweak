@@ -12,7 +12,7 @@ open class RuntimeSettingsSyncReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != RuntimeSettingsProtocol.REQUEST) return
         val sender = sentFromPackage ?: return
-        if (sender !in com.takekazex.hypertweak.hook.base.RuntimeSettingsGroups.targets ||
+        if (sender !in com.takekazex.hypertweak.hook.runtime.settings.RuntimeSettingsGroups.targets ||
             !SettingsTransport.trusted(context, sender, sentFromUid, sender)) return
         RuntimeSettingsSignal.publishCommitted(sender)
     }

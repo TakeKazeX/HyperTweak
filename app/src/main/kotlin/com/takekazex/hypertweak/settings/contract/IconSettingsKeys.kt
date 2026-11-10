@@ -16,12 +16,19 @@ object IconSettingsKeys {
     const val KEY_ICON_HIDE_WIFI_TYPE = "icon_hide_wifi_type"
     const val KEY_ICON_HIDE_WIFI_UNAVAILABLE = "icon_hide_wifi_unavailable"
     const val KEY_ICON_WIFI_ACTIVITY_RIGHT = "icon_wifi_activity_right"
+    // Hide the cellular icon of the non-default SIM when multiple SIMs are active.
     const val KEY_ICON_HIDE_NON_DEFAULT_SIM = "icon_hide_non_default_sim"
     const val KEY_ICON_HIDE_SIM_AUTO = "icon_hide_sim_auto"
     const val KEY_ICON_HIDE_SIM_ONE = "icon_hide_sim_one"
     const val KEY_ICON_HIDE_SIM_TWO = "icon_hide_sim_two"
+    // Hide the whole mobile signal icon (signal bars and network type) while WiFi is the connected
+    // default network. Applies to the native cellular row and, when stacked signal is enabled, to
+    // the module-owned stacked slot as well.
     const val KEY_ICON_HIDE_MOBILE_ON_WIFI = "icon_hide_mobile_on_wifi"
+    // Cellular type display, ported from Hyper Helper's `CellularTypeIcon` (keys match upstream
+    // f32.m/q/r). Forces the single-carrier type text and/or a custom type name.
     const val KEY_ICON_CELLULAR_TYPE_SINGLE = "icon_tuner_cellular_type_single"
+    // Shared by carrier rows, stacked signal and Duo: 0 = SIM slot, 1 = data SIM first.
     const val KEY_ICON_CELLULAR_TYPE_ORDER = "icon_tuner_cellular_type_order"
     const val KEY_ICON_CELLULAR_TYPE_SINGLE_SWAP = "icon_tuner_cellular_type_single_swap"
     const val KEY_ICON_CELLULAR_TYPE_CUSTOM = "icon_tuner_cellular_type_custom"
@@ -36,6 +43,7 @@ object IconSettingsKeys {
     const val KEY_ICON_DUO_CLICK_EXPAND = "icon_duo_click_expand"
     const val KEY_ICON_DUO_ENABLED = "icon_duo_enabled"
     const val KEY_ICON_DUO_EXPANDED = "icon_duo_expanded"
+    /** Duo glyph height in dp, clamped by `DuoLayout` to its own range. */
     const val KEY_ICON_DUO_SIZE = "icon_duo_size"
     const val KEY_ICON_DUO_RING_SCALE = "icon_duo_ring_scale"
     const val KEY_ICON_DUO_WIFI_SCALE = "icon_duo_wifi_scale"
@@ -45,6 +53,9 @@ object IconSettingsKeys {
     const val KEY_ICON_DUO_AIRPLANE_SCALE = "icon_duo_airplane_scale"
     const val KEY_ICON_DUO_BATTERY_SCALE = "icon_duo_battery_scale"
     const val KEY_ICON_DUO_PERCENT_SCALE = "icon_duo_percent_scale"
+    // Stacked mobile signal, rebuilt on Flux Decor 2.0.3's view-level model. The SVG keys match
+    // Hyper Helper's t32.f-o: single/stacked styles are independent because their source documents
+    // have different id matrices; style 2 means the validated imported SVG for that side.
     const val KEY_ICON_STACKED_SIGNAL_STYLE = "icon_stacked_signal_style"
     const val KEY_ICON_STACKED_ENABLED = "icon_stacked_enabled"
     const val KEY_ICON_STACKED_WEIGHT = "icon_tuner_stacked_weight"
@@ -83,6 +94,9 @@ object IconSettingsKeys {
     const val KEY_ICON_LEFT_AIRPLANE = "icon_left_airplane"
     const val KEY_ICON_LEFT_HEADSET = "icon_left_headset"
     const val KEY_ICON_LEFT_ROTATION_LOCK = "icon_left_rotation_lock"
+    // Carrier label hiding, ported from Hyper Helper's `HideCarrierLabel` (keys match upstream
+    // w22.* / x22.e-f). `KEY_ICON_HIDE_CARRIER_*` cover the status-bar / control-center carrier
+    // rows and the HD icon; `KEY_ICON_HIDE_LS_CARRIER_*` cover the lockscreen header.
     const val KEY_ICON_HIDE_CARRIER_ONE = "statusbar_hide_carrier_one"
     const val KEY_ICON_HIDE_CARRIER_TWO = "statusbar_hide_carrier_two"
     const val KEY_ICON_HIDE_CARRIER_HD = "statusbar_hide_carrier_hd"
@@ -90,6 +104,7 @@ object IconSettingsKeys {
     const val KEY_ICON_HIDE_LS_CARRIER_TWO = "systemui_ls_hide_carrier_two"
     const val KEY_ICON_MOBILE_ROW_STYLE = "icon_tuner_mobile_row_style"
     const val KEY_ICON_EXT_BLOCKED = "icon_ext_blocked"
+    // Ignore the system's own icon hiding.
     const val KEY_ICON_IGNORE_SYS_HIDE = "icon_ignore_sys_hide"
     const val KEY_ICON_HIDE_PRIVACY = "icon_hide_privacy"
 }

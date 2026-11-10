@@ -6,7 +6,7 @@ import com.takekazex.hypertweak.presentation.icon.duo.DuoDrawable
 import com.takekazex.hypertweak.presentation.icon.duo.DuoPolicy
 import com.takekazex.hypertweak.presentation.icon.duo.DuoTopGeometry
 import com.takekazex.hypertweak.presentation.icon.duo.DuoSignalRow
-import com.takekazex.hypertweak.hook.base.RuntimeSettingsGroups
+import com.takekazex.hypertweak.hook.runtime.settings.RuntimeSettingsGroups
 import com.takekazex.hypertweak.hook.runtime.settings.RuntimeSettingsLedger
 import com.takekazex.hypertweak.hook.runtime.settings.RuntimeSettingsSnapshot
 import com.takekazex.hypertweak.settings.contract.IconSettingsKeys

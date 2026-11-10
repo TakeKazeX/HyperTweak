@@ -2,6 +2,8 @@ package com.takekazex.hypertweak.hook.rules.system
 
 import org.junit.Assert.*
 import org.junit.Test
+import com.takekazex.hypertweak.hook.base.RecoveryScheduler
+import com.takekazex.hypertweak.hook.base.SystemServerStartupRetry
 
 class StartupRecoveryTest {
     private class Scheduler : RecoveryScheduler {

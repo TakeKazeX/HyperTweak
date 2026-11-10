@@ -32,7 +32,7 @@ import com.takekazex.hypertweak.presentation.icon.NetworkIconVisibility
 import com.takekazex.hypertweak.settings.contract.IconSurface
 import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.hook.base.StaticHooker
-import com.takekazex.hypertweak.hook.rules.aod.AodIconSettings
+import com.takekazex.hypertweak.hook.rules.systemui.aod.AodIconSettings
 import com.takekazex.hypertweak.hook.rules.systemui.icon.carrier.ControlCenterCarrierBlockHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IconPositionHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IconTunerFlows
@@ -173,7 +173,7 @@ object DuoSignalHooker : StaticHooker() {
         com.takekazex.hypertweak.hook.rules.systemui.icon.duo.prepareDuoSignalArtworkSettings()
         com.takekazex.hypertweak.hook.rules.systemui.icon.duo.prepareDuoPanelHandoverSettings()
         com.takekazex.hypertweak.hook.rules.systemui.icon.duo.prepareDuoIconViewSettings()
-        com.takekazex.hypertweak.hook.rules.aod.prepareAodIconSettingsSettings()
+        com.takekazex.hypertweak.hook.rules.systemui.aod.prepareAodIconSettingsSettings()
         epoch++
         dataFirst = settingIconMobileRowStyle == 1
         small5GaEnabled = settingIconCellularTypeSmall5ga

@@ -15,7 +15,7 @@ import com.takekazex.hypertweak.settings.contract.BackGestureKeys
 
 import com.takekazex.hypertweak.settings.contract.AppSettingsKeys
 
-import com.takekazex.hypertweak.hook.base.RuntimeSettingsGroups as Groups
+import com.takekazex.hypertweak.hook.runtime.settings.RuntimeSettingsGroups as Groups
 import com.takekazex.hypertweak.settings.contract.DockConfig
 import org.junit.Assert.*
 import org.junit.Test
@@ -185,7 +185,7 @@ class RuntimeSettingsRoutingTest {
             it.restore(arrayOf<Any>(1L, hashMapOf(legacy to true), arrayListOf("system.native_picker")))
         }
         assertEquals(true, ledger.value(legacy))
-        fun enabled(key: String) = com.takekazex.hypertweak.hook.rules.system.PickerReroutePolicy.enabled(
+        fun enabled(key: String) = com.takekazex.hypertweak.settings.contract.NativePickerSettings.enabled(
             ledger.value(key) as? Boolean, ledger.value(legacy) as? Boolean ?: false)
         val on = RuntimeSettingsSnapshot.read(2, mapOf(legacy to true), groups)!!
         assertTrue(ledger.accept(on))

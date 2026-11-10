@@ -16,26 +16,12 @@ import com.takekazex.hypertweak.hook.base.BaseHooker
 import com.takekazex.hypertweak.hook.base.DexKitManager
 import com.takekazex.hypertweak.hook.base.HotReloadHandleStore
 import com.takekazex.hypertweak.hook.base.ModuleContext
-import com.takekazex.hypertweak.hook.base.RuntimeSettingsGroups
-import com.takekazex.hypertweak.hook.base.SettingsReloadDispatcher
+import com.takekazex.hypertweak.hook.runtime.settings.RuntimeSettingsGroups
+import com.takekazex.hypertweak.hook.runtime.settings.SettingsReloadDispatcher
 import com.takekazex.hypertweak.hook.bootstrap.PackageHookPlan
+import com.takekazex.hypertweak.hook.bootstrap.ProcessLifecycleHooks
 import com.takekazex.hypertweak.hook.bootstrap.RuntimeSettingsParticipants
 import com.takekazex.hypertweak.hook.bootstrap.SystemServerHookPlan
-import com.takekazex.hypertweak.hook.rules.backgesture.AospBackSystemUiHooker
-import com.takekazex.hypertweak.hook.rules.googleapp.GoogleAppProcessPolicy
-import com.takekazex.hypertweak.hook.rules.googleapp.GoogleAppRuntime
-import com.takekazex.hypertweak.hook.rules.module.RestartBroadcastHooker
-import com.takekazex.hypertweak.hook.rules.securitycenter.battery.BatteryInfoHooker
-import com.takekazex.hypertweak.hook.rules.system.BatteryAutoPowerSaveHooker
-import com.takekazex.hypertweak.hook.rules.systemui.AODHooker
-import com.takekazex.hypertweak.hook.rules.systemui.ExtendUnlockHooker
-import com.takekazex.hypertweak.hook.rules.systemui.gesturebar.HideBottomBarHooker
-import com.takekazex.hypertweak.hook.rules.systemui.lockscreen.HideLockscreenStatusBarHooker
-import com.takekazex.hypertweak.hook.rules.systemui.ProxyLaunchHooker
-import com.takekazex.hypertweak.hook.rules.systemui.SystemUIPluginHooker
-import com.takekazex.hypertweak.hook.rules.systemui.icon.carrier.ControlCenterCarrierBlockHooker
-import com.takekazex.hypertweak.hook.rules.systemui.icon.left.LeftContainerHooker
-import com.takekazex.hypertweak.hook.rules.systemui.icon.StackedSignalHooker
 import com.takekazex.hypertweak.settings.contract.AppSettingsKeys
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 import com.takekazex.hypertweak.hook.bootstrap.ProcessLogging
@@ -138,7 +124,7 @@ class HookEntry : XposedModule() {
     private fun resumeSettingsReload() { settingsHandler.post { settingsReload.resume() } }
 
     private val runtimeContextRetry by lazy {
-        com.takekazex.hypertweak.hook.rules.system.SystemServerStartupRetry("RuntimeSettings", action = {
+        com.takekazex.hypertweak.hook.base.SystemServerStartupRetry("RuntimeSettings", action = {
             val owner = Class.forName("android.app.ActivityThread")
             val thread = owner.getMethod("currentActivityThread").invoke(null) ?: return@SystemServerStartupRetry false
             val context = owner.getMethod("getSystemContext").invoke(thread) as? Context ?: return@SystemServerStartupRetry false
@@ -199,7 +185,7 @@ class HookEntry : XposedModule() {
         // here must be logged, not thrown back into the host's module-load path.
         processName = param.processName
         isSystemServer = param.isSystemServer
-        skipGoogleProcess = !isSystemServer && GoogleAppProcessPolicy.shouldSkipProcess(processName)
+        skipGoogleProcess = !isSystemServer && ProcessLifecycleHooks.shouldSkipProcess(processName)
         if (skipGoogleProcess) return
         RuntimeSettingsStore.configure(processName, isSystemServer)
         try {
@@ -298,11 +284,7 @@ class HookEntry : XposedModule() {
             if (param.packageName == "com.android.systemui") {
                 val appContext = packageStates[param.packageName]?.appContext
                     ?: runCatching { EzXposed.appContextOrNull }.getOrNull()
-                HideBottomBarHooker.onPackageReady(appContext, param.classLoader)
-                // The launcher Overview bridge needs an application context, which package load
-                // does not have yet. Without this the authoritative recent-tasks exit signal is
-                // never registered and the gesture bar falls back to a polling watchdog.
-                AospBackSystemUiHooker.onApplicationContextReady(appContext)
+                ProcessLifecycleHooks.onSystemUiPackageReady(appContext, param.classLoader)
             }
         } catch (t: Throwable) {
             DebugLog.e("HookEntry", "package ready handling failed package=${param.packageName}", t)
@@ -326,7 +308,7 @@ class HookEntry : XposedModule() {
         val ready = try { com.takekazex.hypertweak.hook.base.HotReloadRetirement.run(
             preflight = {
                 if (RuntimeSettingsGroups.forProcess(processName, isSystemServer).isNotEmpty()) cancelSettingsReload()
-                AospBackSystemUiHooker.checkHotReloadReady()
+                ProcessLifecycleHooks.checkHotReloadReady()
                 refreshHotReloadSnapshots()
                 check(DexKitManager.prepareForHotReload()) { "DexKit native bridge users are still active" }
                 val roots = rootHookers.toList()
@@ -344,7 +326,7 @@ class HookEntry : XposedModule() {
                 buildList<() -> Unit> {
                     add { generationRetired = true; remoteSettingsReady = false; preferenceRetryGeneration.incrementAndGet() }
                     if (processName == "com.android.systemui") add {
-                        com.takekazex.hypertweak.hook.rules.systemui.icon.StatusIconHotReloadRecovery.cancel()
+                        ProcessLifecycleHooks.cancelSystemUiRecovery()
                     }
                     roots.forEach { root -> add { root.prepareForHotReload() } }
                     roots.forEach { root -> add { root.resetAfterHotReloadPrepared() } }
@@ -376,7 +358,7 @@ class HookEntry : XposedModule() {
     private fun refreshHotReloadSnapshots() {
         packageStates["com.android.systemui"]?.let { state ->
             packageStates["com.android.systemui"] = state.copy(
-                pluginStates = SystemUIPluginHooker.snapshotHotReloadPlugins()
+                pluginStates = ProcessLifecycleHooks.snapshotSystemUiPlugins()
             )
         }
     }
@@ -384,7 +366,7 @@ class HookEntry : XposedModule() {
     override fun onHotReloaded(param: XposedModuleInterface.HotReloadedParam) {
         processName = param.processName
         isSystemServer = param.isSystemServer
-        skipGoogleProcess = !isSystemServer && GoogleAppProcessPolicy.shouldSkipProcess(processName)
+        skipGoogleProcess = !isSystemServer && ProcessLifecycleHooks.shouldSkipProcess(processName)
         if (skipGoogleProcess) {
             // An upgrade may carry handles from a version that hooked all Google processes.
             // Retire them without restoring package state, preference listeners or DEX workers.
@@ -434,13 +416,11 @@ class HookEntry : XposedModule() {
         // Match upstream's ordering: stable Google callbacks are attached to the carried old
         // executable before the new generation starts its DexKit pass. Retired investigation IDs
         // are neutralized here as well, so they cannot keep stale behavior alive after an update.
-        val googleProcess = processName == GoogleAppRuntime.PACKAGE ||
-            processName.startsWith("${GoogleAppRuntime.PACKAGE}:") ||
-            restoredState.packages.any { it.packageName == GoogleAppRuntime.PACKAGE }
+        val googleProcess = ProcessLifecycleHooks.isGoogleProcess(processName, restoredState.packages.map { it.packageName })
         var googleReplaced = 0
         if (googleProcess) {
             oldHandles.remainingHandles().forEach { handle ->
-                if (GoogleAppRuntime.replaceOldHandle(handle)) {
+                if (ProcessLifecycleHooks.replaceCarriedGoogleHandle(handle)) {
                     oldHandles.markHandled(handle)
                     googleReplaced++
                 }
@@ -499,7 +479,7 @@ class HookEntry : XposedModule() {
         retryHookersAfterHotReload()
         if (isSystemServer) {
             runtimeContextRetry.schedule()
-            com.takekazex.hypertweak.hook.rules.system.DockBackgroundHooker.recoverExistingWindows()
+            ProcessLifecycleHooks.onSystemServerHotReloaded()
         }
         // Publication requires the restored host context. The early hot-reload callback runs
         // before package snapshots are restored and cannot be its only recovery boundary.
@@ -507,7 +487,7 @@ class HookEntry : XposedModule() {
         if (!isSystemServer && processName == "com.android.systemui") {
             val context = restoredState.packages.firstOrNull { it.packageName == processName }?.appContext
             if (context != null) {
-                com.takekazex.hypertweak.hook.rules.systemui.icon.StatusIconHotReloadRecovery.schedule(context, rootHookers)
+                ProcessLifecycleHooks.scheduleSystemUiRecovery(context, rootHookers)
             } else {
                 DebugLog.w("HookEntry", "SystemUI hot reload recovery missing application context")
             }
@@ -663,11 +643,9 @@ class HookEntry : XposedModule() {
 
     private fun onPackageReadyContextAvailable(packageName: String, appContext: Context) {
         Preferences.initLocalCache(appContext)
-        RestartBroadcastHooker.register(appContext)
+        ProcessLifecycleHooks.registerRestartReceiver(appContext)
         attachRuntimeSettingsContext(appContext)
-        if (packageName == BatteryInfoHooker.PACKAGE && processName == packageName) {
-            BatteryInfoHooker.onPackageReady(appContext)
-        }
+        ProcessLifecycleHooks.onPackageContextReady(processName, packageName, appContext)
         if (packageName == "com.android.systemui") {
             onSystemUiContextReady(appContext)
         }
@@ -676,26 +654,10 @@ class HookEntry : XposedModule() {
 
     /** Cold startup and hot reload must publish the same host environment to every consumer. */
     private fun onSystemUiContextReady(context: Context) {
-        AODHooker.refreshSettings()
+        ProcessLifecycleHooks.beforeSystemUiContextAttached()
         nativePublisher()?.attach(context)
         attachRuntimeSettingsContext(context)
-        ProxyLaunchHooker.register(context)
-        ExtendUnlockHooker.syncTrustAgent(context)
-        StackedSignalHooker.onPackageReady(context)
-        ControlCenterCarrierBlockHooker.onPackageReady(context)
-        LeftContainerHooker.onPackageReady(context)
-        // The battery monitor needs a Context to register its receiver; appContext is null while
-        // hooks are attached at package load.
-        BatteryAutoPowerSaveHooker.onPackageReady(context)
-        // The launcher Overview bridge needs an application context, and this is the path that
-        // actually runs for SystemUI: package load has no context, so the earlier registration
-        // attempt inside installSystemUiHooks only logs and defers. Without this call the module
-        // never receives the authoritative Overview enter/exit, and recent-task hiding degrades to
-        // guessing from timers. Device logs on 2026-10-20 confirmed zero registrations.
-        AospBackSystemUiHooker.onApplicationContextReady(context)
-        // Readiness signal for the keyguard status bar discovery fallback; the hooker never treats
-        // the context as a View.
-        HideLockscreenStatusBarHooker.onApplicationContextReady(context)
+        ProcessLifecycleHooks.onSystemUiContextReady(context)
     }
 
     private fun onRestoredPackageReady(
@@ -705,11 +667,9 @@ class HookEntry : XposedModule() {
         val appContext = state.appContext ?: runCatching { EzXposed.appContextOrNull }.getOrNull()
         if (appContext != null) {
             Preferences.initLocalCache(appContext)
-            RestartBroadcastHooker.register(appContext)
+            ProcessLifecycleHooks.registerRestartReceiver(appContext)
             attachRuntimeSettingsContext(appContext)
-            if (state.packageName == BatteryInfoHooker.PACKAGE && processName == state.packageName) {
-                BatteryInfoHooker.onPackageReady(appContext)
-            }
+            ProcessLifecycleHooks.onPackageContextReady(processName, state.packageName, appContext)
             if (state.packageName == "com.android.systemui") {
                 onSystemUiContextReady(appContext)
             }
@@ -719,30 +679,13 @@ class HookEntry : XposedModule() {
         }
 
         if (state.packageName == "com.android.systemui") {
-            HideBottomBarHooker.setHotReloadReplacementHandles(replacementHandles)
-            runCatching {
-                HideBottomBarHooker.onPackageReady(appContext, state.classLoader)
-            }.also {
-                HideBottomBarHooker.setHotReloadReplacementHandles(null)
-            }.onFailure { t ->
-                DebugLog.e("HookEntry", "failed to restore SystemUI package ready hooks", t)
-            }
-            runCatching { AospBackSystemUiHooker.onApplicationContextReady(appContext) }
-                .onFailure { t -> DebugLog.e("HookEntry", "failed to restore the launcher overview bridge", t) }
-            SystemUIPluginHooker.setHotReloadReplacementHandles(replacementHandles)
-            runCatching {
-                SystemUIPluginHooker.restoreHotReloadPlugins(state.pluginStates)
-            }.also {
-                SystemUIPluginHooker.setHotReloadReplacementHandles(null)
-            }.onFailure { t ->
-                DebugLog.e("HookEntry", "failed to restore SystemUI plugin hooks", t)
-            }
+            ProcessLifecycleHooks.restoreSystemUiPackage(appContext, state.classLoader, state.pluginStates, replacementHandles)
         }
     }
 
     private fun currentPluginStates(packageName: String): List<HotReloadPluginState> {
         return if (packageName == "com.android.systemui") {
-            SystemUIPluginHooker.snapshotHotReloadPlugins()
+            ProcessLifecycleHooks.snapshotSystemUiPlugins()
         } else {
             emptyList()
         }
@@ -888,17 +831,17 @@ class HookEntry : XposedModule() {
 
     /** A scoped process may have started before the keyboard was selected. */
     private fun refreshImeSettings(): Boolean {
-        val ime = com.takekazex.hypertweak.hook.rules.ime.AospImeHooker
+        val ime = ProcessLifecycleHooks.imeHooker
         if (ime !in rootHookers) {
             val state = packageStates.values.firstOrNull {
-                com.takekazex.hypertweak.hook.rules.ime.AospImeConfig.shouldHookImePackage(it.packageName)
+                ProcessLifecycleHooks.isImePackage(it.packageName)
             } ?: return true
             attachHooker(ime, state.classLoader, ModuleContext(
                 processName, state.packageName, false, state.isFirstPackage,
                 state.isPackageReady, state.appInfo, state.appContext
             ))
         }
-        return ime.refreshSettings()
+        return ProcessLifecycleHooks.refreshImeSettings()
     }
 
     private fun attachHooker(

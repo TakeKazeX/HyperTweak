@@ -6,7 +6,7 @@ import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import com.takekazex.hypertweak.settings.contract.BackGestureKeys
 
-import com.takekazex.hypertweak.hook.base.RuntimeSettingsGroups
+import com.takekazex.hypertweak.hook.runtime.settings.RuntimeSettingsGroups
 import org.junit.Assert.*
 import org.junit.Test
 

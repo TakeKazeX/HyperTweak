@@ -2,7 +2,7 @@ package com.takekazex.hypertweak.hook.preferences
 
 import com.takekazex.hypertweak.hook.runtime.settings.RuntimeSettingsStore
 import android.content.SharedPreferences
-import com.takekazex.hypertweak.hook.base.RuntimeSettingsGroups
+import com.takekazex.hypertweak.hook.runtime.settings.RuntimeSettingsGroups
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.util.concurrent.CopyOnWriteArraySet
 

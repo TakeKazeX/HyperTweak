@@ -11,8 +11,8 @@ import androidx.core.view.isVisible
 import com.takekazex.hypertweak.hook.base.BaseHooker
 import com.takekazex.hypertweak.hook.base.HookComponent
 import com.takekazex.hypertweak.hook.base.HostAccess
-import com.takekazex.hypertweak.hook.rules.aod.AodIconSettings
-import com.takekazex.hypertweak.hook.rules.systemui.AODHooker
+import com.takekazex.hypertweak.hook.rules.systemui.aod.AodIconSettings
+import com.takekazex.hypertweak.hook.rules.systemui.aod.AODHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IconPositionHooker
 import com.takekazex.hypertweak.settings.contract.AodSettingsKeys
 import com.takekazex.hypertweak.util.logging.DebugLog

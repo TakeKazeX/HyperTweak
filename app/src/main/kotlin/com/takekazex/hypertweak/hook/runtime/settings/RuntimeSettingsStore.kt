@@ -1,6 +1,6 @@
 package com.takekazex.hypertweak.hook.runtime.settings
 
-import com.takekazex.hypertweak.hook.base.RuntimeSettingsGroups
+import com.takekazex.hypertweak.hook.runtime.settings.RuntimeSettingsGroups
 
 internal object RuntimeSettingsStore {
     private val ledger = RuntimeSettingsLedger()

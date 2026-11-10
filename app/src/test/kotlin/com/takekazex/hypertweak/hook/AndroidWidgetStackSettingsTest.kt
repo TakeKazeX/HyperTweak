@@ -7,7 +7,7 @@ import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import org.junit.Assert.*
 import org.junit.Test
-import com.takekazex.hypertweak.hook.base.RuntimeSettingsGroups as Groups
+import com.takekazex.hypertweak.hook.runtime.settings.RuntimeSettingsGroups as Groups
 
 class AndroidWidgetStackSettingsTest {
     @Test fun authoritativeMutationResetAndUpgrade() {

@@ -14,6 +14,7 @@ import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
+import com.takekazex.hypertweak.hook.base.SystemServerStartupRetry
 
 /**
  * Keeps the gesture bar attached to the app while the recents transition is playing

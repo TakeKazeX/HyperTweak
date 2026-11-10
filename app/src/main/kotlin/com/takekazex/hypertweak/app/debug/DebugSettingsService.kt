@@ -3,7 +3,7 @@ package com.takekazex.hypertweak.app.debug
 import android.content.Context
 import com.takekazex.hypertweak.BuildConfig
 import com.takekazex.hypertweak.hook.Preferences
-import com.takekazex.hypertweak.hook.base.RuntimeSettingsGroups
+import com.takekazex.hypertweak.hook.runtime.settings.RuntimeSettingsGroups
 import com.takekazex.hypertweak.hook.XposedServiceManager
 import com.takekazex.hypertweak.settings.contract.*
 import com.takekazex.hypertweak.settings.contract.debug.*

@@ -1,5 +1,5 @@
 import unittest
-from check_architecture import violations
+from check_architecture import hook_unit, hook_violations, violations
 
 
 class ArchitectureGuardTest(unittest.TestCase):
@@ -22,3 +22,35 @@ import com.takekazex.hypertweak.hook.Preferences
         self.assertEqual([(1, "util")], violations("settings", "import com.takekazex.hypertweak.util.RestartUtils"))
         self.assertEqual([], violations("app", "import com.takekazex.hypertweak.hook.Preferences"))
         self.assertEqual([], violations("ui", "import com.takekazex.hypertweak.settings.contract.SettingsValues"))
+
+
+class HookBoundaryTest(unittest.TestCase):
+    def test_units_follow_hook_directories(self):
+        self.assertEqual("root", hook_unit(("HookEntry.kt",)))
+        self.assertEqual("base", hook_unit(("base", "dex", "DexRuntime.kt")))
+        self.assertEqual("rules.systemui", hook_unit(("rules", "systemui", "aod", "AODHooker.kt")))
+
+    def test_infrastructure_and_entry_files_reach_features_only_through_bootstrap(self):
+        feature = "import com.takekazex.hypertweak.hook.rules.systemui.aod.AODHooker"
+        self.assertEqual([(1, "rules.systemui")], hook_violations("root", feature))
+        self.assertEqual([(1, "rules.system")], hook_violations(
+            "preferences", "val x = com.takekazex.hypertweak.hook.rules.system.Policy.enabled()"))
+        self.assertEqual([(1, "rules")], hook_violations("base", "import com.takekazex.hypertweak.hook.rules.*"))
+        self.assertEqual([(1, "bootstrap")], hook_violations(
+            "runtime", "import com.takekazex.hypertweak.hook.bootstrap.SystemUiHookPlan"))
+        self.assertEqual([], hook_violations("root", "import com.takekazex.hypertweak.hook.bootstrap.ProcessLifecycleHooks"))
+        self.assertEqual([], hook_violations("bootstrap", feature))
+        self.assertEqual([], hook_violations("runtime", "import com.takekazex.hypertweak.hook.Preferences"))
+
+    def test_feature_families_use_shared_capabilities_or_declared_collaborations(self):
+        self.assertEqual([(1, "rules.systemui")], hook_violations(
+            "rules.aod", "import com.takekazex.hypertweak.hook.rules.systemui.AODHooker"))
+        self.assertEqual([(1, "rules.bluetooth")], hook_violations(
+            "rules.shared", "import com.takekazex.hypertweak.hook.rules.bluetooth.AirPodsScope"))
+        self.assertEqual([(1, "bootstrap")], hook_violations(
+            "rules.camera", "import com.takekazex.hypertweak.hook.bootstrap.SystemUiHookPlan"))
+        self.assertEqual([], hook_violations("rules.settings", "import com.takekazex.hypertweak.hook.rules.shared.AirPodsScope"))
+        self.assertEqual([], hook_violations("rules.freeform", "import com.takekazex.hypertweak.hook.rules.aicr.AicrCopyDirectAction"))
+        self.assertEqual([], hook_violations("rules.systemui", "import com.takekazex.hypertweak.hook.rules.systemui.icon.Duo"))
+        self.assertEqual([], hook_violations("rules.camera", "import com.takekazex.hypertweak.hook.base.BaseHooker"))
+        self.assertEqual([], hook_violations("rules.camera", "// com.takekazex.hypertweak.hook.rules.systemui.X"))

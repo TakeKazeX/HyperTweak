@@ -6,7 +6,7 @@ import com.takekazex.hypertweak.hook.runtime.settings.RuntimeSettingsStore
 import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
 
 import android.content.SharedPreferences
-import com.takekazex.hypertweak.hook.base.RuntimeSettingsGroups
+import com.takekazex.hypertweak.hook.runtime.settings.RuntimeSettingsGroups
 import java.lang.reflect.Proxy
 import org.junit.Assert.*
 import org.junit.Test

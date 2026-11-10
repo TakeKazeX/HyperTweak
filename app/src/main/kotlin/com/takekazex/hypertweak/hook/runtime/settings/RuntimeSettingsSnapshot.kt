@@ -3,7 +3,7 @@ package com.takekazex.hypertweak.hook.runtime.settings
 import com.takekazex.hypertweak.hook.nativebridge.NativeRuleStateSnapshot
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
-import com.takekazex.hypertweak.hook.base.RuntimeSettingsGroups
+import com.takekazex.hypertweak.hook.runtime.settings.RuntimeSettingsGroups
 
 /** Complete committed registered settings subset; omitted keys mean defaults, not cached remote values. */
 internal data class RuntimeSettingsSnapshot(val revision: Long, val values: Map<String, Any>,

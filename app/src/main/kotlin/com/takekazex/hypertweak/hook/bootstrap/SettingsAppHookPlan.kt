@@ -15,7 +15,7 @@ import com.takekazex.hypertweak.hook.rules.settings.SpatialAudioHooker
 import com.takekazex.hypertweak.hook.rules.settings.VisualPerceptionSettingsHooker
 import com.takekazex.hypertweak.hook.rules.system.AdaptiveRefreshRuntimeHooker
 import com.takekazex.hypertweak.hook.rules.system.PasskeyHooker
-import com.takekazex.hypertweak.hook.rules.systemui.AODHooker
+import com.takekazex.hypertweak.hook.rules.systemui.aod.AODHooker
 
 /** Host-owned installation order; factories run only when the caller installs the plan. */
 internal object SettingsAppHookPlan {
