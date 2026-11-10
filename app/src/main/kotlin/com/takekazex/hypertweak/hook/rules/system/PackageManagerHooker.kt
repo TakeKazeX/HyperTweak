@@ -153,16 +153,19 @@ internal object PackageManagerHooker : StaticHooker() {
             // Disable JAR signature-scheme rollback protection: allow an APK whose
             // newer signature scheme marker was stripped to pass verification.
             val verifier = host("android.util.jar.StrictJarVerifier")
-            verifier.hookAllConstructors {
+            val manifest = host("android.util.jar.StrictJarManifest")
+            verifier.getDeclaredConstructor(String::class.java, manifest, HashMap::class.java,
+                java.lang.Boolean.TYPE).hook("pms.jar_rollback_protection") {
                 before { param ->
                     if ((authCreak || disableIntegrity) && (preparing.active || validating.active) &&
-                        param.args.size == 4 && param.args[3] == true) {
+                        param.args[3] == true) {
                         param.args[3] = false
                     }
                 }
             }
         }
         install("update_signature") { installSignaturePolicy(preparing, reconciling, permissionCheck, updatePair) }
+        install("permission_redeclaration") { installPermissionRedeclarationPolicy(preparing) }
         install("split_signature") {
             val signing = host("android.content.pm.SigningDetails")
             val exactMatch = method(signing, "signaturesMatchExactly", java.lang.Boolean.TYPE, signing)
@@ -200,6 +203,57 @@ internal object PackageManagerHooker : StaticHooker() {
             val gate = pmMethod("PackageManagerServiceImpl", "verifyIsolationViolation", Void.TYPE, parsed, source)
             deoptimize(pmMethod("PackageManagerServiceImpl", "checkInstallRestriction", Void.TYPE, parsed, source))
             gate.overrideWhen("hyperos_isolation", null) { isolation && preparing.active }
+        }
+    }
+
+    private fun installPermissionRedeclarationPolicy(preparing: ThreadActivation) {
+        val helper = pm("InstallPackageHelper")
+        val service = pm("PackageManagerService")
+        val computer = pm("Computer")
+        val state = pm("pkg.PackageStateInternal")
+        val apk = pm("pkg.AndroidPackage")
+        val parsed = host("com.android.internal.pm.parsing.pkg.ParsedPackage")
+        val matchPermissions = method(helper, "doesSignatureMatchForPermissions", java.lang.Boolean.TYPE,
+            String::class.java, parsed, Integer.TYPE)
+        val pmField = HostAccess.requireDeclaredField(helper, "mPm", accessible = true)
+        check(pmField.type == service) { "Unexpected InstallPackageHelper.mPm type" }
+        val snapshot = method(service, "snapshotComputer", computer, accessible = true)
+        val packageState = method(computer, "getPackageStateInternal", state, String::class.java, accessible = true)
+        val disabledSystemPackage = method(computer, "getDisabledSystemPackage", state, String::class.java,
+            accessible = true)
+        val packageName = method(apk, "getPackageName", String::class.java, accessible = true)
+        val sharedUserId = method(apk, "getSharedUserId", String::class.java, accessible = true)
+        val statePackageName = HostAccess.requirePublicMethod(state, "getPackageName", accessible = true)
+        val installedPackage = method(state, "getPkg", host("com.android.internal.pm.parsing.pkg.AndroidPackageInternal"),
+            accessible = true)
+        val isSystem = HostAccess.requirePublicMethod(state, "isSystem", accessible = true)
+        val isUpdatedSystem = HostAccess.requirePublicMethod(state, "isUpdatedSystemApp", accessible = true)
+        val isPrivileged = HostAccess.requirePublicMethod(state, "isPrivileged", accessible = true)
+        val hasSharedUser = HostAccess.requirePublicMethod(state, "hasSharedUser", accessible = true)
+
+        matchPermissions.hook("pms.same_package_permission_redeclaration") {
+            after { param ->
+                if (!updateSignature || !preparing.active || param.throwable != null || param.result != false) {
+                    return@after
+                }
+                val owner = param.args[0] as? String ?: return@after
+                val incoming = param.args[1] ?: return@after
+                val helperInstance = param.thisObject
+                val allow = HookFailurePolicy.open(hookerName, "classify same-package permission redeclaration", false) {
+                    if (owner.isEmpty() || owner == "android" || packageName.invoke(incoming) != owner ||
+                        sharedUserId.invoke(incoming) != null) return@open false
+                    val pmService = pmField.get(helperInstance) ?: return@open false
+                    val packageSnapshot = snapshot.invoke(pmService) ?: return@open false
+                    val installed = packageState.invoke(packageSnapshot, owner) ?: return@open false
+                    statePackageName.invoke(installed) == owner && installedPackage.invoke(installed) != null &&
+                        isSystem.invoke(installed) == false && isUpdatedSystem.invoke(installed) == false &&
+                        isPrivileged.invoke(installed) == false && hasSharedUser.invoke(installed) == false &&
+                        disabledSystemPackage.invoke(packageSnapshot, owner) == null
+                }
+                // This helper authorizes redeclaring an existing definition during install.
+                // Package identity, permission grants and SigningDetails remain owned by PMS.
+                if (allow) param.result = true
+            }
         }
     }
 
