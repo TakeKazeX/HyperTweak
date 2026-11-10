@@ -54,6 +54,9 @@ object DockBackgroundHooker : StaticHooker() {
     private var worker = Executors.newSingleThreadExecutor { Thread(it, "HT-DockIPC").apply { isDaemon = true } }
     private var service: Any? by generationState { null }
     private var context: Context? by generationState { null }
+    // Looked up once: update() runs on every WMS surface pass of the home window.
+    private var powerManager: PowerManager? by generationState { null }
+    private var keyguardManager: android.app.KeyguardManager? by generationState { null }
     private var handler: Handler? by generationState { null }
     private var wmLock: Any by generationState { Any() }
     private val entries = WeakHashMap<Any, Entry>() // WMS global lock only.
@@ -208,6 +211,8 @@ object DockBackgroundHooker : StaticHooker() {
         service = target
         frameDriver = DockFrameDriver(requireNotNull(handler), ::renderFrame)
         context = ctx
+        powerManager = ctx.getSystemService(PowerManager::class.java)
+        keyguardManager = ctx.getSystemService(android.app.KeyguardManager::class.java)
         val generation = epoch.get()
         handler?.post {
             if (stopped || epoch.get() != generation) return@post
@@ -297,9 +302,9 @@ object DockBackgroundHooker : StaticHooker() {
         val config = configSnapshot
         setChannel(config.enabled)
         if (!config.enabled) { observed[window]?.reset(); retire(window); return }
-        val ctx = context ?: return
-        val interactive = ctx.getSystemService(PowerManager::class.java).isInteractive
-        val locked = ctx.getSystemService(android.app.KeyguardManager::class.java).isKeyguardLocked
+        if (context == null) return
+        val interactive = powerManager?.isInteractive ?: return
+        val locked = keyguardManager?.isKeyguardLocked ?: return
         // The native Hotseat state owns visibility while sliding toward the assistant. Its overlay
         // can coexist with a still-visible home row; it is not a Dock visibility boundary.
         val motion = frameChannel?.latest

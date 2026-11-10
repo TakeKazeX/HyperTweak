@@ -104,8 +104,16 @@ data class DockBounds(val x: Int, val y: Int, val width: Int, val height: Int, v
 object DockGeometry {
     private val homeTitles = setOf("com.miui.home/com.miui.home.launcher.Launcher", "com.miui.home/.launcher.Launcher",
         "com.miui.home.launcher.Launcher")
+    /** Last configuration that passed the round-trip check; resolve runs on every WMS surface pass. */
+    @Volatile private var validated: DockConfig? = null
+
+    private fun isValid(config: DockConfig): Boolean {
+        if (validated == config) return true
+        return (DockConfig.decode(config.encode()) != null).also { if (it) validated = config }
+    }
+
     fun resolve(width: Int, height: Int, density: Float, config: DockConfig): DockBounds? {
-        if (width <= 0 || height <= 0 || !density.isFinite() || density <= 0 || DockConfig.decode(config.encode()) == null) return null
+        if (width <= 0 || height <= 0 || !density.isFinite() || density <= 0 || !isValid(config)) return null
         val margin = (config.horizontalMargin * density).roundToInt().coerceAtMost(width / 2)
         val bottom = (config.bottomMargin * density).roundToInt().coerceAtMost(height)
         val panelWidth = width - margin * 2
