@@ -361,11 +361,14 @@ object PowerButtonCtsHooker : StaticHooker() {
         return localWindowManagerPolicy()
     }
 
-    /** The live policy from system_server's own service registry. */
+    /**
+     * The live policy from system_server's own service registry. Both classes live in services.jar,
+     * so they are loaded through the host loader; the module loader cannot see them.
+     */
     private fun localWindowManagerPolicy(): Any? = runCatching {
-        Class.forName("android.os.LocalServices")
+        "com.android.server.LocalServices".toClass()
             .cachedPublicMethod("getService", Class::class.java, accessible = false)
-            .invoke(null, Class.forName("com.android.server.policy.WindowManagerPolicy"))
+            .invoke(null, "com.android.server.policy.WindowManagerPolicy".toClass())
     }.onFailure { t ->
         DebugLog.w(SCOPE, "failed to resolve the window manager policy", t)
     }.getOrNull()
