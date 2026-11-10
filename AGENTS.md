@@ -1,27 +1,35 @@
-# HyperTweak Agent Rules
+# HyperTweak agent rules
 
-## Scope and completion
-- Complete the requested work, applicable checks, fixes caused by the change, and directly affected documentation before reporting back. Reuse existing authorization for routine steps; honor explicit research-only or review-before-edit requests.
-- Inspect `git status` before editing and preserve unrelated changes. Read the implementation and references needed for this task, not a fixed stack of documents. Reuse unchanged evidence within the task.
-- Report the result, checks performed, and remaining limitations. If external input blocks one step, finish independent work and identify the specific blocker; do not claim unverified behavior passed.
+HyperTweak hooks closed-source Xiaomi system apps. These apps change with every OTA, and most failures only show up on a real device. The rules below follow from that.
 
-## Read on demand
-- Use [CLAUDE.md](CLAUDE.md) for project boundaries and source locations when unfamiliar with the affected area.
-- For host signatures, process routing, compatibility, or known regressions, search the relevant section of local `docs/FEATURE_DETAIL.md`. It is optional, git-ignored research: do not read it wholesale or block solely because it is absent. Current source and verified target artifacts take precedence; update only directly affected notes.
-- Use [task workflows](.github/AGENT_WORKFLOWS.md) for validation selection, reverse-engineering cache details, release preparation, device delivery, or Git cleanup. Load only the relevant section; historical plans are evidence, not standing instructions to repeat completed work.
+## Working style
+- Finish the task end to end: the change, the checks that fit it, fixes for anything the change broke, and the docs it makes stale. If the user asked for research only, or to review before you edit, do only that.
+- Check `git status` first and leave unrelated changes alone.
+- Read only what the task needs. [CLAUDE.md](CLAUDE.md) maps the project, and `.github/agent/` holds the details for each area. Current source and verified host artifacts outrank any written note, including these.
+- In the final report, keep three things apart: what you verified, what you only built or compiled, and what still needs the user to check on the device. Never report behavior you did not observe as working.
 
-## Hook and UI changes
-- Before changing a host hook, establish the target build's class, signature, executing processes, and effect path. Reuse a verified matching baseline; recheck affected targets after an OTA or target APK change.
-- Never select native hook targets through launcher-version/build-ID tables, fixed RVAs, or a known-version fallback. Discover targets uniquely through current-image instruction structure, call/data-flow relationships, and decoded field/CID operands. Build IDs and full hashes identify artifacts and isolate caches only. Reject missing, changed, or ambiguous contracts; extend the structural resolver rather than adding a version-specific address. See `docs/LAUNCHER_UNPACK_RESEARCH_MANUAL.md` and `docs/NATIVE_HOOK_IMPLEMENTATION_MANUAL.md` when doing this work.
-- Isolate exceptions at process, reflection, and system-callback boundaries; use null-safe platform casts and cache reflection on hot paths. Resolve obfuscated targets by signatures and behavior, not names alone.
-- New features must support live setting changes through the shared runtime-settings registry/dispatcher and APK-update migration through the existing lifecycle. Refresh existing host instances, restore state across generations, and recover hosts when upgrading from a version with no saved feature state; verify enable, disable, reset, and upgrade paths. Document any host limitation explicitly.
-- Read runtime and cross-process settings through `Preferences`; keep hook handles in the existing lifecycle layer. Cover every executing manifest-declared process and the applicable LSPosed scope.
-- Preserve the Compose/Miuix design. For affected UI, account for narrow screens, large fonts, scrolling, applicable loading/empty states, and state retention.
-- Keep extracted APK/JARs and decompiler output outside the repository under `/Users/ink/developer/reverse`; identify reused artifacts by complete SHA-256.
-- Keep feature documentation and research Markdown in `docs/`, not in source directories. Preserve root repository entry documents and `.github` workflow/release documentation.
+## Hooking host code
+- Before changing a hook, confirm four things on the actual target build: the class, the signature, the processes that run it, and the path to the visible effect. You can reuse a baseline verified for the same build. After an OTA or a host APK change, recheck the affected targets.
+- Resolve targets structurally, from signatures, operand roles, call/data flow and decoded field/CID operands. Never resolve them from names alone, from version/build-ID tables, or from fixed RVAs. This applies to DEX and native code alike. Build IDs and hashes only identify artifacts and key caches. If a contract is missing or ambiguous, reject it and leave native behavior untouched; never guess.
+- Catch exceptions at process, reflection and system-callback boundaries. Use null-safe platform casts, and cache reflection on hot paths through `HostAccess`.
+- Read settings through `Preferences`; UI code goes through `AppSettingsStore`. Keep hook handles in the `BaseHooker` lifecycle. Cover every process that runs the code, and the matching LSPosed scope.
+- Every feature must handle live setting changes through the shared runtime-settings dispatcher. It must also survive hot reload and APK upgrade: refresh living host instances, restore state across generations, and recover hosts that were upgraded from a build that saved no state for the feature. Check enable, disable, reset and upgrade. Write down any limitation of the host.
+- Do not modify LSPosed configuration, scopes or the LSPosed service while debugging.
 
-## Verification and delivery boundaries
-- Match checks to changed behavior: documentation needs no Gradle build; logic needs relevant compilation/tests; UI-sensitive changes need lint; hook mechanics and R8-sensitive changes need a release build and targeted artifact checks. Use the workflow table for commands and wider checks.
-- Once applicable checks pass, repeat or broaden them only for new changes, failures, or unresolved risks. Do not add tests that merely restate an implementation.
-- After completing implementation changes and applicable checks, install the resulting APK on the connected device, refresh/restart the affected processes or native payload as needed, and review relevant logs for errors by default; this standing authorization does not require another delivery request. Honor explicit research-only, no-install, or review-before-delivery instructions. Report an unavailable device or failed delivery accurately. The user performs device UI testing; do not capture screenshots or automate device UI. Builds, installation, clean logs, and `HOOK_OK` do not prove visible or audio behavior.
-- On a commit request, selectively stage intended changes, inspect the staged diff, run whitespace checks, and use a Conventional Commit prefix. Report the commit and remaining status; push only when requested. Cleanup does not implicitly authorize deleting research, branches, or user changes.
+## UI
+- Follow the host's Miuix/HyperOS design language and reuse Miuix components. Do not invent custom styles.
+- Check narrow screens, large fonts, scrolling, loading/empty states and state retention for any UI you touch.
+
+## Files and artifacts
+- Extracted APKs/JARs and decompiler output go outside the repo, in the `reverse/` directory next to the main checkout (`../reverse` from the repository root). Identify them by their full SHA-256.
+- `docs/` holds local, git-ignored research. Agent-facing reference material lives in `.github/agent/`. When you add or change a mechanism, update the section of the matching reference file. Keep `CLAUDE.md` an index: it loads into every session, so detail added there costs context on every task.
+
+## Verification and delivery
+- Pick checks by what changed. The table is in [workflows](.github/agent/workflows.md#choose-validation-by-changed-behavior). Documentation-only changes need no Gradle run. Do not repeat checks that already passed unless the code changed again. Do not write tests that only restate the implementation.
+- Standing authorization: after implementation changes pass their checks, install the APK on the connected device. Restart or refresh the affected processes or native payload, then read the relevant logs. An explicit no-install, research-only or review-first instruction overrides this.
+- The user does the device UI testing. Do not take screenshots or automate the device UI. A successful build, a clean install, quiet logs or `HOOK_OK` do not prove visible or audible behavior.
+
+## Git
+- Commit only when asked. Fixes are committed after the user confirms on the device that they work.
+- Stage only changes that belong to the commit, review the staged diff, run `git diff --cached --check`, and write an English Conventional Commit message. Push only when asked.
+- Cleanup never implies deleting research, caches, branches or user changes.

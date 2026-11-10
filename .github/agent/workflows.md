@@ -1,6 +1,6 @@
 # HyperTweak task workflows
 
-Read only the section needed for the current task. These workflows supplement [AGENTS.md](../AGENTS.md); they are not a sequential checklist for every change.
+Read only the section the current task needs. These workflows supplement [AGENTS.md](../../AGENTS.md); they are not a checklist to run for every change.
 
 ## Choose validation by changed behavior
 
@@ -16,25 +16,24 @@ Read only the section needed for the current task. These workflows supplement [A
 
 Run tasks with `./gradlew`. For Kotlin-only compilation use `:app:compileDebugKotlin`; include `:app:compileDebugJavaWithJavac` when Java is affected, or use `:app:assembleDebug` when a complete debug artifact is needed. Filter JVM tests with `:app:testDebugUnitTest --tests '<test-class-or-pattern>'` when the affected behavior is isolated.
 
-For the root settings interface or diagnostic collector, see `docs/DEBUG_DIAGNOSTICS.md`.
-Run the shared settings/DebugSetting/DebugAccessSession JVM regressions, the Python script
-tests below, `generate_debug_catalog.py --check`, and shell syntax validation for
-`app/src/main/assets/diagnostics/collector.sh`. Release verification includes the provider
-manifest entry, protocol strings and script asset. Device probes must restore each tested
-setting's original explicit/absent state and distinguish backend commits from host effects.
+Combine selected tasks in one invocation where useful; do not separately repeat compilation already covered by a selected task. Preserve the requested build channel. Use `BUILD_CHANNEL=stable` only for stable-channel builds, not every release-variant check.
+
+Fix failures caused by the change and rerun affected checks. Report unrelated failures or unavailable dependencies accurately; they do not justify unrelated repairs or repeated identical attempts. A code-delivery task can finish with explicitly pending manual acceptance; a request to prove device behavior cannot be marked verified without that evidence.
+
+## Build toolchain
+
+Configuration Cache is enabled with `problems=fail`; fix incompatibilities rather than
+switching artifact builds to warn mode. AGP is pinned to `9.5.0-rc01` because it removes
+the internal `Configuration.setVisible` calls deprecated by Gradle 9.8; `9.4.1` still
+emits them. When changing the build toolchain, run the applicable checks with
+`--warning-mode all`, then repeat the same task set to verify Configuration Cache reuse.
+
+## Architecture and lifecycle
 
 Architecture changes also run `python3 .github/scripts/check_architecture.py`,
 `python3 .github/scripts/check_hook_callbacks.py`, and
 `python3 -m unittest discover -s .github/scripts -p 'test_*.py'`. The guard covers
 Kotlin/Java imports and fully qualified source references, not reflection or runtime wiring.
-Standalone native compiler commands must include the NativeRules root plus its `bridge`,
-`resolver`, `rules`, `runtime`, `support` and `transport` subdirectories; Python runners
-share these explicit flags via `app/src/test/cpp/native_test_paths.py`.
-Portable native ownership/IPC/transport checks run through
-`python3 app/src/test/cpp/run_portable_native_tests.py` (ASan/UBSan, no target artifacts).
-Linux CI adds `--include-linux-worker` for eventfd/fork/remap tests. On macOS use
-the dedicated Android compiler/Bionic worker command below when device checks are requested.
-Host APK/ELF and assembly ABI checks remain separately selected; this suite does not replace them.
 
 API-102 retirement has a commit boundary: state capture and framework saved-state publication
 must succeed before destructive cleanup. Preflight failures reject replacement; after cleanup
@@ -43,11 +42,18 @@ Do not report a partially retired owner as a healthy old generation. Settings qu
 may cancel unstarted bulk/Dock work; started commits must return their actual receipt before
 the caller updates local mirrors or reports success/failure. These waits belong on IO dispatchers.
 
-Configuration Cache is enabled with `problems=fail`; fix incompatibilities rather than
-switching artifact builds to warn mode. AGP is pinned to `9.5.0-rc01` because it removes
-the internal `Configuration.setVisible` calls deprecated by Gradle 9.8; `9.4.1` still
-emits them. When changing the build toolchain, run the applicable checks with
-`--warning-mode all`, then repeat the same task set to verify Configuration Cache reuse.
+## Debug settings and diagnostics
+
+For the root settings interface or diagnostic collector, see `docs/DEBUG_DIAGNOSTICS.md`.
+Run the shared settings/DebugSetting/DebugAccessSession JVM regressions, the Python script
+tests below, `generate_debug_catalog.py --check`, and shell syntax validation for
+`app/src/main/assets/diagnostics/collector.sh`. Release verification includes the provider
+manifest entry, protocol strings and script asset. Device probes must restore each tested
+setting's original explicit/absent state and distinguish backend commits from host effects.
+
+## Feature validation recipes
+
+### Stacked cellular signal artwork
 
 For stacked cellular signal artwork, run the `SignalSvgStyle`, `PreferencesSignalSvgStyle`,
 `SignalAssetLoadState`, `SignalArtworkGeometry`, `SignalWeight`, `MobileTypePolicy` and
@@ -60,6 +66,8 @@ not prove visible handoff quality. Device acceptance is user-driven: both styles
 handoff, enable/disable, reset/restore and upgrading existing hosts. Do not automate device UI
 or equate asset-loading/HOOK_OK logs with visible correctness.
 
+### Native photo/file pickers
+
 For native photo/file picker routing, run `PickerReroute*` and runtime-settings JVM
 regressions with `PICKER_APK`, `PICKER_SERVICES` and `PICKER_MIUI_SERVICES` set to the
 verified Photopicker APK, services.jar and miui-services.jar. The host tests verify the
@@ -67,6 +75,8 @@ private vendor helper and its caller, the PM nine-argument overload, and Hyper's
 component chain. After the release build, inspect retained host class/method strings and
 both scope declarations. User checks cover new media/file requests, Hyper browse, disable,
 reset and module upgrade; existing picker windows must be reopened.
+
+### Copy Direct browser routing
 
 For Copy Direct browser routing, set `AICR_APK` to the verified installed AI engine APK when
 running the AICR tests. `AicrPanelDispatchHostContractTest` verifies the unique native AI Panel
@@ -77,7 +87,7 @@ contract checks, build `:app:assembleContractProbe`, then
 run `python3 app/src/test/android/aicr/run_panel_dispatch_probe.py <local-AICR.apk>
 --module-apk <contractProbe-HyperTweak.apk> --browsers
 <current-default-package> [other-installed-browser-packages] --output
-/Users/ink/developer/reverse/research/<task>/probe` to exercise production rewriting with the
+../reverse/research/<task>/probe` to exercise production rewriting with the
 host's actual ToolRequest/Kotlin JSON classes and installed application labels in an isolated
 ART process. Production release has no test-only reflection keep roots. The contractProbe
 variant retains those roots under `src/test/android/aicr/`; never install or publish that APK.
@@ -93,6 +103,27 @@ system font map explicitly because app_process does not run normal application b
 No windows are added and no device screenshots are captured. It checks APK identity and starts no activities; it does not install/restart the
 module or establish visible gradient/color acceptance.
 
+### Assistant widget catalog
+
+For assistant catalog changes, set `PERSONAL_ASSISTANT_APK` to the verified
+assistant APK when running `:app:testDebugUnitTest`; the target-bytecode test
+checks the independent native footer lifecycle, both catalog producers, navigator, model, cell geometry and native Miuix chooser contracts. Native receiver dispatch changes also require the host
+`native_rule_settings_dispatch_test.cpp` under ASan/UBSan, which covers an original
+receiver consuming its Intent and ensures capture precedes forwarding.
+
+## Native launcher rules
+
+Standalone native compiler commands must include the NativeRules root plus its `bridge`,
+`resolver`, `rules`, `runtime`, `support` and `transport` subdirectories; Python runners
+share these explicit flags via `app/src/test/cpp/native_test_paths.py`.
+Portable native ownership/IPC/transport checks run through
+`python3 app/src/test/cpp/run_portable_native_tests.py` (ASan/UBSan, no target artifacts).
+Linux CI adds `--include-linux-worker` for eventfd/fork/remap tests. On macOS use
+the dedicated Android compiler/Bionic worker command below when device checks are requested.
+Host APK/ELF and assembly ABI checks remain separately selected; this suite does not replace them.
+
+### Dart state observer
+
 For Dart state-observer assembly changes, execute the production observer offline
 with Unicorn and pyelftools using the installed Android NDK compiler:
 
@@ -103,6 +134,8 @@ python3 app/src/test/cpp/run_dart_state_abi_test.py /absolute/path/to/NDK-clang
 This checks independent Overview exit publication, owner fencing, exact source and
 boolean validation, retirement, and preservation of registers, SIMD, SP and NZCV.
 Actual recent-task exit and next-gesture behavior remain manual device acceptance.
+
+### Recent-task card haptics
 
 For recent-task card haptics, compile `recents_haptic_policy_test.cpp` and
 `recents_haptic_rule_test.cpp` (the latter links `dart_image.cpp` and
@@ -117,6 +150,8 @@ Actual card-switch timing and haptic strength remain manual device acceptance.
 When changing notification dispatch discovery, exercise both lazy-instance and
 constant-receiver shapes. Reject duplicate entries across either family and
 inconsistent constant receivers; retain the real entry ABI.
+
+### Stacked-folder preview
 
 For stacked-folder preview changes, compile `folder_stack_rule_test.cpp` with
 `dart_image.cpp`, `dart_targets.cpp` and `dart_resolution_cache.cpp` under ASan/UBSan against the verified external
@@ -136,6 +171,8 @@ lookup is not a frame repaint: preview refresh timing, opening/closing, clicks a
 drag/drop remain manual device acceptance. Run `native_rule_settings_record_test.cpp`
 under ASan/UBSan for persisted schemas 1–7, disabled defaults on migration and
 invalid-field/checksum rejection.
+
+### Desktop icon size
 
 For desktop icon size changes, run
 `python3 app/src/test/cpp/run_icon_scale_test.py /absolute/path/to/verified/libapp.so`
@@ -160,8 +197,10 @@ schema 9; test schemas 1–7 migrating with grid override absent, schemas 1–6 
 V1–V5 exports in the release artifact. The preview is approximate and its row/column
 controls remain drafts until explicit Confirm, which submits through the native grid bridge. Actual ordinary/theme/Dock/folder sizes, disable,
 reset/restore, cold start and orientation remain manual user acceptance. Install the
-validated build and refresh affected processes/native payloads under AGENTS.md standing
+validated build and refresh affected processes/native payloads under the AGENTS.md standing
 authorization, then inspect logs. Do not automate device UI.
+
+### Desktop icon theme
 
 For desktop icon theme changes, run `run_icon_theme_test.py <verified-libapp.so>`
 for structural targets, cached-address revalidation, patch rollback, passive disable,
@@ -181,6 +220,8 @@ refresh; no native thread calls Dart. Install the release APK and activate the H
 spawner's new payload as needed, then inspect the actual mapped APK and runtime
 identity. Visible icon colors, theme-source coverage and brightness transitions
 remain user acceptance. Current scope and shape limitations: `docs/DESKTOP_ICON_THEME.md`.
+
+### Desktop rows/columns
 
 For desktop row/column changes, run `run_desktop_grid_test.py <verified-libapp.so>`
 under ASan/UBSan and `run_desktop_grid_abi_test.py <NDK-clang>` with Unicorn/pyelftools.
@@ -205,6 +246,8 @@ not trigger a false rollback. Real database contents, widgets,
 orientation, cold start, upgrade and restoring the original layout require user UI
 acceptance. Do not enable grid layouts automatically as a delivery check.
 
+### Preparation, cache and remap
+
 For native launcher preparation/cache/remap changes, also run the host regression harness against the verified target `libapp.so`:
 
 ```sh
@@ -215,6 +258,8 @@ It covers cache identity and corruption, relocation, readiness/input deferral, r
 Worker preparation changes also require the Bionic runtime regression below: a rejected
 optional contract must leave grid target/layout preparation and partial-completion ACK
 available, with idle sleep, bounded external retries and settings-generation recovery.
+
+### Android widget stack
 
 For Android-widget-stack target or shim changes, compile `widget_stack_target_test.cpp`
 with `dart_image.cpp` / `dart_targets.cpp` / `dart_resolution_cache.cpp` under ASan/UBSan
@@ -229,6 +274,8 @@ preparation deferral, paired install, remap repair, foreign-patch rejection and 
 Provider binding, RemoteViews rendering, card paging, drag/dissolve and restart recovery remain
 manual device acceptance.
 
+### Assistant widget shim
+
 For assistant-widget target or shim changes, compile `assistant_widget_target_test.cpp`
 with `dart_image.cpp` / `dart_targets.cpp` against the verified snapshot, and execute
 the actual production assembly offline with `run_assistant_widget_abi_test.py <NDK-clang>`
@@ -238,11 +285,7 @@ Dart registers/SP and NZCV, ordinary-widget size bypass, native-success receiver
 remap and foreign-hook ownership checks. Actual widget binding, placement, RemoteViews
 updates and restart restoration remain manual device acceptance.
 
-For assistant catalog changes, set `PERSONAL_ASSISTANT_APK` to the verified
-assistant APK when running `:app:testDebugUnitTest`; the target-bytecode test
-checks the independent native footer lifecycle, both catalog producers, navigator, model, cell geometry and native Miuix chooser contracts. Native receiver dispatch changes also require the host
-`native_rule_settings_dispatch_test.cpp` under ASan/UBSan, which covers an original
-receiver consuming its Intent and ensures capture precedes forwarding.
+### Back-gesture status query and receiver
 
 For native back-gesture status query or receiver changes, run
 `python3 app/src/test/cpp/run_backgesture_status_query_test.py`. It executes the
@@ -250,6 +293,8 @@ production capture and dispatch functions with a consuming OEM receiver under
 ASan/UBSan: ordinary settings publications, authenticated queries, foreign/malformed
 requests, unavailable APIs, owner retirement and original-callback failure. Capture
 borrowed Intent data before forwarding and reply only after the original succeeds.
+
+### Broadcast transport and publication receipts
 
 For native broadcast allocation/cleanup or Dart publication receipt/retry changes, run
 `python3 app/src/test/cpp/run_broadcast_transport_test.py`. It compiles the actual
@@ -261,7 +306,11 @@ entry for the same production tests. Run the existing status-query, GOT-chain, o
 IPC harnesses when changing their integration. State-observer changes also need the
 production assembly ABI test above. Host stubs do not prove device broadcast delivery.
 
+### Eventfd worker and loader callbacks
+
 For changes to the actual eventfd worker or loader callbacks, also compile `app/src/test/cpp/native_rule_runtime_test.cpp` together with `native_rule_runtime.cpp` using the installed Android NDK `clang++`, `--target=aarch64-linux-android35`, `-std=c++17`, `-static-libstdc++`, the explicit NativeRules include directories from the rule above and `-Wl,--wrap=dlopen -Wl,--wrap=dlclose`. With device verification requested, run the resulting executable in `/data/local/tmp` and remove it afterward. This Bionic regression simulates LSPosed synchronous callback re-entry, rejects stale/conflicting revisions, and checks completed-worker idleness and updates arriving during preparation. A host-only scheduling test does not exercise Bionic TLS/loader behavior.
+
+### Dart publication worker and observer retirement
 
 For Dart publication eventfd/fork or observer-remap retirement changes, run
 `python3 app/src/test/cpp/run_dart_state_worker_test.py --android-compiler <NDK-clang++>`
@@ -272,11 +321,11 @@ the gate closed. The runner removes its device executable. Linux can run the sam
 with ASan/UBSan by omitting the compiler; macOS lacks eventfd and requires the Android path.
 Keep the broadcast publisher/transport, native rule runtime and cache/remap regressions above.
 
+### Opened-folder column shim
+
 For folder Dart shim/register/stack changes, compile and execute `app/src/test/cpp/folder_columns_abi_test.cpp`, `folder_columns_abi_test.S` and the actual `folder_columns_hook.S` using the same Android NDK target and static runtime. This verifies the real assembly with synthetic Dart thread/static storage, including cache changes, native-default restoration, sentinels and receiver/argument/NZCV preservation. Host hook stubs cannot establish these ABI properties; actual folder open/close, Home return and preview acceptance remain manual.
 
-Combine selected tasks in one invocation where useful; do not separately repeat compilation already covered by a selected task. Preserve the requested build channel. Use `BUILD_CHANNEL=stable` only for stable-channel builds, not every release-variant check.
-
-Fix failures caused by the change and rerun affected checks. Report unrelated failures or unavailable dependencies accurately; they do not justify unrelated repairs or repeated identical attempts. A code-delivery task can finish with explicitly pending manual acceptance; a request to prove device behavior cannot be marked verified without that evidence.
+### Back-gesture IPC
 
 For back-gesture IPC changes, run
 `python3 app/src/test/cpp/run_backgesture_ipc_test.py` and
@@ -300,7 +349,7 @@ for device delivery; Java hot reload alone cannot update a mapped native payload
 
 Use this section when inspecting host APK/JAR behavior or changing the target baseline.
 
-- Root: `/Users/ink/developer/reverse`; derived cache: `/Users/ink/developer/reverse/cache/<component>-<first-16-SHA-256>/`.
+- Root: `../reverse` (sibling of the main checkout); derived cache: `../reverse/cache/<component>-<first-16-SHA-256>/`.
 - Keep applicable `input/`, `jadx/`, `apktool/`, and `SHA256SUMS` entries. Verify the full input SHA-256 before first reuse in a task; retain that evidence while the input remains unchanged. The short directory suffix alone is not verification.
 - Reuse matching cached output. Use JADX for navigation and APKTool/smali for manifests, resources, or uncertain decompilation; run only the tools needed for the question.
 - Select baselines by component and target build. Dated research is historical evidence; an OTA or changed target APK invalidates assumptions about affected signatures and behavior.
