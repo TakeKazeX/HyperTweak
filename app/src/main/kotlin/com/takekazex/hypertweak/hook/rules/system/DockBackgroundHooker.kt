@@ -16,6 +16,7 @@ import android.os.IBinder
 import android.os.Looper
 import android.os.PowerManager
 import android.os.SystemClock
+import android.os.UserManager
 import android.view.SurfaceControlViewHost
 import android.view.WindowManager
 import com.takekazex.hypertweak.settings.contract.DockConfig
@@ -262,7 +263,8 @@ object DockBackgroundHooker : StaticHooker() {
             }
         }.also { ctx.registerReceiver(it, IntentFilter().apply {
             addAction(Intent.ACTION_SCREEN_OFF); addAction(Intent.ACTION_SCREEN_ON)
-            addAction(Intent.ACTION_USER_PRESENT); addAction(Intent.ACTION_CONFIGURATION_CHANGED)
+            addAction(Intent.ACTION_USER_PRESENT); addAction(Intent.ACTION_USER_UNLOCKED)
+            addAction(Intent.ACTION_CONFIGURATION_CHANGED)
             addAction(DockFrameChannel.REQUEST)
         }, Context.RECEIVER_EXPORTED) }
         displays = ctx.getSystemService(DisplayManager::class.java)
@@ -440,7 +442,13 @@ object DockBackgroundHooker : StaticHooker() {
                     entry.rendererUid = rendererUid
                     entry.parcel = parcel
                     if (parcel == null || renderer == null) {
-                        DebugLog.w(TAG, "material host unavailable: ${reply?.getString("error")}")
+                        // The module is not direct-boot aware: before the first unlock its provider
+                        // cannot start. Backoff still applies, and unlock/USER_PRESENT recovers.
+                        if (provider == null && ipcContext?.getSystemService(UserManager::class.java)?.isUserUnlocked == false) {
+                            DebugLog.d(TAG, "material host waits for user unlock")
+                        } else {
+                            DebugLog.w(TAG, "material host unavailable: ${reply?.getString("error") ?: if (provider == null) "provider unavailable" else "empty reply"}")
+                        }
                         fail(current, entry); return@synchronized
                     }
                     runCatching {
