@@ -201,8 +201,34 @@ sealed class BaseHooker {
             return
         }
         DebugLog.d("BaseHooker", "hooking $hookerName")
+        val problemsBefore = DebugLog.reportedProblemCount()
+        val registrationsBefore = registrations
         onHook()
+        auditInstallation(problemsBefore, registrationsBefore)
     }
+
+    /**
+     * An enabled feature that leaves no hook, child, subscription or pending DEX preparation behind
+     * is not working. Unless the hooker already reported why, that outcome must never be silent.
+     */
+    private fun auditInstallation(problemsBefore: Int, registrationsBefore: Int) {
+        if (registrations != registrationsBefore || hookHandles.isNotEmpty() || subscriptions.isNotEmpty() ||
+            childHookers.isNotEmpty() || dexPreparations.hasPreparations || !expectsHooks
+        ) return
+        if (DebugLog.reportedProblemCount() != problemsBefore) return
+        DebugLog.hookSkipped(hookerName, hookerName, "enabled but installed nothing and reported no reason")
+    }
+
+    /** False for hookers whose onHook legitimately performs one-shot work without hooks. */
+    protected open val expectsHooks: Boolean get() = true
+
+    @Volatile private var registrations = 0
+
+    /**
+     * Records that this hooker's installation was handed to a later host boundary (for example the
+     * camera config provider). The audit then waits for that boundary instead of reporting silence.
+     */
+    internal fun noteDeferredInstallation() { registrations++ }
 
     open fun onInit() {}
 
@@ -283,7 +309,15 @@ sealed class BaseHooker {
                 failure = failure,
             ) },
             failure = { DebugLog.hookFailed(hookerName, "prepare targets: $name", it) },
-            resolve = resolve,
+            // A resolution without a usable target leaves the feature uninstalled. It is reported
+            // here once for every feature, so no resolver can make a missing host contract silent.
+            resolve = {
+                resolve().also {
+                    if (it == null && !dexPreparations.isRetired) {
+                        DebugLog.hookSkipped(hookerName, "prepare targets: $name", "no usable target on this host build")
+                    }
+                }
+            },
         ) { target ->
             val started = android.os.SystemClock.uptimeMillis()
             installDexContract { install(target) }
@@ -558,6 +592,7 @@ sealed class BaseHooker {
         managed: Boolean
     ): XposedInterface.HookHandle {
         DebugLog.hookRegistered(hookerName, "$target id=${handle.id}")
+        registrations++
         if (!managed) return handle
         return ownManagedHandle(handle)
     }

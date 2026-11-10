@@ -131,7 +131,18 @@ object DebugLog {
 
     private fun currentThreshold(): Int = backend.level()
 
+    private val reportedProblems = ThreadLocal.withInitial { 0 }
+
+    /**
+     * Warnings, errors and hook-skip reasons (any level) written on this thread, so an installer can
+     * tell whether a hooker explained an outcome that installed nothing.
+     */
+    fun reportedProblemCount(): Int = reportedProblems.get()!!
+
     private fun write(priority: Int, scope: String, message: String, throwable: Throwable?) {
+        // Counted before threshold filtering: a configured quiet level must not turn an explained
+        // skip into an "unexplained" one.
+        if (priority >= Log.WARN || message.startsWith("HOOK_SKIPPED")) reportedProblems.set(reportedProblems.get()!! + 1)
         // Successful target registration is diagnostic detail. Severity never depends on words
         // like "error" appearing inside a successful operation's description.
         val effective = if (priority == Log.INFO && message.startsWith("HOOK_OK")) Log.DEBUG else priority

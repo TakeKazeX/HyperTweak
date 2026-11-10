@@ -9,6 +9,8 @@ internal class DexPreparationOwner {
     private val tasks = HashMap<String, Pair<Long, DexPreparation>>()
 
     fun activate() = synchronized(lock) { isRetired = false }
+    /** Whether any feature has queued background resolution for the current generation. */
+    val hasPreparations: Boolean get() = synchronized(lock) { tasks.isNotEmpty() }
     private fun current(token: Long) = !isRetired && generation == token
 
     fun <T : Any> prepare(
