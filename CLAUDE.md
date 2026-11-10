@@ -4,7 +4,9 @@
 
 ## Platform
 - HyperTweak is a Xiaomi HyperOS module on libxposed API 102. Its settings UI uses Compose/Miuix, and its native code is `arm64-v8a`.
-- The support floor is OS3 / Android 16 (API 36). The primary target is OS4 / Android 17 (API 37). Android 15 is unsupported. Gate on platform level with `util/platform/PlatformLevel.kt`.
+- OS4 / Android 17 (API 37) is the only maintained target, and features are built and verified there. Gate on platform level with `util/platform/PlatformLevel.kt`.
+- `minSdk` stays 36, so the APK still installs on OS3 / Android 16. OS3 is unmaintained and has no test device. Do not add OS3-specific paths or spend effort on OS3 parity. On OS3 a feature may simply be unavailable, but its resolution must still fail closed rather than crash.
+- Android 15 is unsupported.
 - Build facts (SDKs, plugins, signing, shrinking) live in `build.gradle.kts`, `app/build.gradle.kts`, `gradle.properties` and the Gradle wrapper.
 - A `release` variant is not necessarily stable-channel or production-signed.
 - The `assembleContractProbe` APK is test-only: never install or publish it.

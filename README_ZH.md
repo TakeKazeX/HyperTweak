@@ -12,7 +12,7 @@
   <p align="center">
     <a href="https://github.com/TakeKazeX/HyperTweak/actions"><img src="https://img.shields.io/github/actions/workflow/status/TakeKazeX/HyperTweak/ci.yml?branch=main&style=flat-square&logo=github-actions&logoColor=white&label=CI" alt="Build Status"></a>
     <a href="https://kotlinlang.org"><img src="https://img.shields.io/badge/Kotlin-2.4-blue?style=flat-square&logo=kotlin&logoColor=white" alt="Kotlin"></a>
-    <a href="https://developer.android.com"><img src="https://img.shields.io/badge/Android-16%20%7C%2017-green?style=flat-square&logo=android&logoColor=white" alt="Android Support"></a>
+    <a href="https://developer.android.com"><img src="https://img.shields.io/badge/HyperOS%204-Android%2017-green?style=flat-square&logo=android&logoColor=white" alt="Android Support"></a>
     <a href="LICENSE"><img src="https://img.shields.io/github/license/TakeKazeX/HyperTweak?style=flat-square&color=orange" alt="License"></a>
   </p>
 </div>
@@ -58,7 +58,9 @@
 ### 开发环境要求
 - **Build Tool**: Gradle 9.7.1
 - **Target SDK**: Android 17 (API 37) / HyperOS 4
-- **Min SDK**: Android 16 (API 36) / HyperOS 3
+- **Min SDK**: Android 16 (API 36) / HyperOS 3（可安装，但已不再维护）
+
+> HyperTweak 基于澎湃 OS 4 / Android 17 开发和测试。澎湃 OS 3 已不再维护和测试：大部分功能面向 OS4，在 OS3 上可能缺失或不可用。
 
 ### 本地编译
 在项目根目录下，执行以下命令构建 Release 版本：

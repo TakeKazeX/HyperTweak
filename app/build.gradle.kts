@@ -22,8 +22,8 @@ android {
 
     defaultConfig {
         applicationId = "com.takekazex.hypertweak"
-        // HyperOS OS3 (Android 16 / API 36) is the oldest supported platform; Android 15 was never
-        // a supported target.
+        // HyperOS 4 (Android 17) is the only maintained target. API 36 keeps the APK installable on
+        // HyperOS 3, which is unmaintained and untested; Android 15 was never a supported target.
         minSdk = 36
         targetSdk = 37
         val explicitVersionCode = System.getenv("VERSION_CODE")?.toIntOrNull()
