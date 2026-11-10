@@ -87,6 +87,17 @@ class LoggingTest {
         assertEquals("REPEATED", summary.event); assertEquals("", summary.stack)
         assertTrue(limiter.accept(record(), 101))
     }
+    @Test fun `drain deadline exists only while a repeat window is open`() {
+        val limiter = LogRepeatLimiter(windowMs = 100)
+        assertNull(limiter.nextDeadline())
+        limiter.accept(record(), 10)
+        limiter.accept(record("E"), 40)
+        assertEquals(110L, limiter.nextDeadline())
+        limiter.drain(110)
+        assertEquals(140L, limiter.nextDeadline())
+        limiter.drain(140)
+        assertNull(limiter.nextDeadline())
+    }
     @Test fun `different exception stacks and levels cannot suppress each other`() {
         val limiter = LogRepeatLimiter()
         assertTrue(limiter.accept(record(), 0))

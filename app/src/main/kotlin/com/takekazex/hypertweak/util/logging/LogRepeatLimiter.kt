@@ -10,10 +10,14 @@ class LogRepeatLimiter(private val windowMs: Long = 60000, private val capacity:
         val key = listOf(record.level, record.scope, record.message, record.stack)
         val state = states[key]
         if (state != null) { state.count++; return false }
-        // Do not suppress a new issue when the table is full. The periodic drain frees it.
+        // Do not suppress a new issue when the table is full. The scheduled drain frees it.
         if (states.size < capacity) states[key] = State(record, now)
         return true
     }
+
+    /** Elapsed-realtime instant when the oldest window closes, or null while nothing is tracked. */
+    @Synchronized
+    fun nextDeadline(): Long? = states.values.minOfOrNull { it.since }?.plus(windowMs)
 
     @Synchronized
     fun drain(now: Long, force: Boolean = false): List<LogRecord> {

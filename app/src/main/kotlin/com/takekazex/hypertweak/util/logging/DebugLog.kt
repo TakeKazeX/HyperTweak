@@ -37,6 +37,7 @@ object DebugLog {
 
     @Volatile
     private var pendingFlush: ScheduledFuture<*>? = null
+    private var pendingDrain: ScheduledFuture<*>? = null
 
     @Volatile
     private var flushExecutor: ScheduledExecutorService? = null
@@ -106,6 +107,8 @@ object DebugLog {
         synchronized(this) {
             pendingFlush?.cancel(false)
             pendingFlush = null
+            pendingDrain?.cancel(false)
+            pendingDrain = null
             flushExecutor?.shutdown()
             flushExecutor = null
         }
@@ -155,6 +158,26 @@ object DebugLog {
         )
         repeatLimiter.drain(SystemClock.elapsedRealtime()).forEach(::enqueue)
         if (repeatLimiter.accept(record, SystemClock.elapsedRealtime())) enqueue(record, throwable)
+        scheduleRepeatDrain()
+    }
+
+    /**
+     * Arms one drain for the oldest open repeat window. Nothing is scheduled while the limiter is
+     * empty, so an idle process has no periodic logger wakeup; each drain re-arms only for the
+     * windows that remain open.
+     */
+    @Synchronized
+    private fun scheduleRepeatDrain() {
+        if (pendingDrain?.isDone == false) return
+        val deadline = repeatLimiter.nextDeadline() ?: return
+        val delay = (deadline - SystemClock.elapsedRealtime()).coerceAtLeast(0L)
+        pendingDrain = runCatching {
+            getFlushExecutor().schedule({
+                synchronized(this) { pendingDrain = null }
+                repeatLimiter.drain(SystemClock.elapsedRealtime()).forEach(::enqueue)
+                scheduleRepeatDrain()
+            }, delay, TimeUnit.MILLISECONDS)
+        }.getOrNull()
     }
 
     private fun enqueue(record: LogRecord, throwable: Throwable? = null) {
@@ -192,12 +215,7 @@ object DebugLog {
         flushExecutor?.takeUnless { it.isShutdown }?.let { return it }
         return Executors.newSingleThreadScheduledExecutor { runnable ->
             Thread(runnable, "HyperTweakDebugLog").apply { isDaemon = true }
-        }.also { executor ->
-            flushExecutor = executor
-            executor.scheduleWithFixedDelay({
-                repeatLimiter.drain(SystemClock.elapsedRealtime()).forEach(::enqueue)
-            }, 60L, 60L, TimeUnit.SECONDS)
-        }
+        }.also { flushExecutor = it }
     }
 
     private fun flushPendingLines() = synchronized(flushLock) {
