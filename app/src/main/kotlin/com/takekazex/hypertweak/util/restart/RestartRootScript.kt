@@ -10,30 +10,51 @@ internal object RestartRootScript {
         return SYSTEM_UI
     }
 
-    // Restart SystemUI immediately, pinned to the PID and kernel start ticks seen at dispatch.
+    // Restart every SystemUI instance immediately, each pinned to the PID and kernel start ticks
+    // seen at dispatch. A device may list several (secondary users, or a process that has not
+    // finished exiting); confirmation requires a new user-0 process outside the killed set.
     internal val SYSTEM_UI = """
         identity() {
             [ -r /proc/"${'$'}1"/stat ] || return 1
             sed 's/.*) //' /proc/"${'$'}1"/stat | awk '{print ${'$'}20}'
         }
-        target=${'$'}(pidof com.android.systemui) || exit 1
-        case "${'$'}target" in ''|*[!0-9]*) exit 1;; esac
-        original=${'$'}(identity "${'$'}target")
-        case "${'$'}original" in ''|*[!0-9]*) exit 1;; esac
-        [ "${'$'}(pidof com.android.systemui)" = "${'$'}target" ] || exit 2
-        [ "${'$'}(identity "${'$'}target")" = "${'$'}original" ] || exit 2
-        kill -9 "${'$'}target" || exit 3
-        printf 'HT_RESTART_KILLED pid=%s\n' "${'$'}target"
+        owner() {
+            [ -r /proc/"${'$'}1"/status ] || return 1
+            awk '/^Uid:/ { print int(${'$'}2 / 100000); exit }' /proc/"${'$'}1"/status
+        }
+        instances() {
+            pidof com.android.systemui | tr ' ' '\n' | sort -n | tr '\n' ' '
+        }
+        pidof com.android.systemui >/dev/null || exit 1
+        targets=${'$'}(instances)
+        pinned=''
+        for pid in ${'$'}targets; do
+            case "${'$'}pid" in *[!0-9]*) exit 1;; esac
+            ticks=${'$'}(identity "${'$'}pid")
+            case "${'$'}ticks" in ''|*[!0-9]*) exit 1;; esac
+            pinned="${'$'}pinned ${'$'}pid:${'$'}ticks"
+        done
+        [ -n "${'$'}pinned" ] || exit 1
+        [ "${'$'}(instances)" = "${'$'}targets" ] || exit 2
+        for entry in ${'$'}pinned; do
+            [ "${'$'}(identity "${'$'}{entry%%:*}")" = "${'$'}{entry#*:}" ] || exit 2
+        done
+        for entry in ${'$'}pinned; do
+            pid=${'$'}{entry%%:*}
+            if ! kill -9 "${'$'}pid" 2>/dev/null; then
+                [ "${'$'}(identity "${'$'}pid")" = "${'$'}{entry#*:}" ] && exit 3
+            fi
+            printf 'HT_RESTART_KILLED pid=%s\n' "${'$'}pid"
+        done
         attempts=0
         while [ "${'$'}attempts" -lt 20 ]; do
-            replacement=${'$'}(pidof com.android.systemui)
-            case "${'$'}replacement" in
-                ''|*[!0-9]*) ;;
-                *) if [ "${'$'}replacement" != "${'$'}target" ]; then
-                       printf 'HT_RESTART_STARTED pid=%s\nHT_RESTART_OK\n' "${'$'}replacement"
-                       exit 0
-                   fi;;
-            esac
+            for replacement in ${'$'}(instances); do
+                case "${'$'}replacement" in ''|*[!0-9]*) continue;; esac
+                case " ${'$'}targets " in *" ${'$'}replacement "*) continue;; esac
+                [ "${'$'}(owner "${'$'}replacement")" = 0 ] || continue
+                printf 'HT_RESTART_STARTED pid=%s\nHT_RESTART_OK\n' "${'$'}replacement"
+                exit 0
+            done
             attempts=${'$'}((attempts + 1))
             sleep 1
         done
