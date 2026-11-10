@@ -3,6 +3,8 @@ package com.takekazex.hypertweak.hook.rules.systemui
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import android.content.ComponentName
+import java.util.Collections
+import java.util.WeakHashMap
 import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
 import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
@@ -40,8 +42,15 @@ object AospSystemUiPluginBlockHooker : StaticHooker() {
         if (settingAospPowerMenu) add(GLOBAL_ACTIONS_PLUGIN)
         if (settingAospVolumePanel) add(VOLUME_DIALOG_PLUGIN)
     }
+    private val actions = setOf("com.android.systemui.action.PLUGIN_GLOBAL_ACTIONS",
+        "com.android.systemui.action.PLUGIN_VOLUME")
     private var component: Any? by generationState { null }
     private var applied: Set<String>? by generationState { null }
+    // Action managers seen at the plugin funnel: on a cold start no recovery scope supplies the
+    // SystemUI component, yet these are exactly the managers a live change must reload.
+    private val seenManagers = generationResource(Collections.newSetFromMap(WeakHashMap<Any, Boolean>())) {
+        synchronized(it) { it.clear() }
+    }
 
     init {
         hostRecovery(HostRecoveryPhase.CONTENT) { scope ->
@@ -53,19 +62,22 @@ object AospSystemUiPluginBlockHooker : StaticHooker() {
     fun refreshSettings(): Boolean = HookFailurePolicy.open(TAG, "reload plugins", false) {
         val wanted = blockedClasses
         if (applied == wanted) return@open true
-        val host = component ?: return@open false
-        val root = HostAccess.read(host, "referenceGlobalRootComponentImpl") ?: return@open false
-        val manager = HostAccess.provider(root, "providesPluginManagerImplProvider") ?: return@open false
-        // Snapshot under the same monitor as PluginManagerImpl's add/remove listener operations.
-        val managers = synchronized(manager) {
-            (HostAccess.read(manager, "pluginMap") as? Map<*, *>)?.values?.filterNotNull()?.toList()
-        } ?: return@open false
-        managers.filter {
-            HostAccess.read(it, "action") in setOf("com.android.systemui.action.PLUGIN_GLOBAL_ACTIONS",
-                "com.android.systemui.action.PLUGIN_VOLUME")
-        }.forEach { checkNotNull(HostAccess.method(it, "loadAll")).invoke(it) }
+        val managers = (componentManagers() ?: emptyList()) + synchronized(seenManagers) { seenManagers.toList() }
+        // Nothing has been loaded through the funnel yet: the hook applies `wanted` at first load.
+        managers.filter { HostAccess.read(it, "action") in actions }.distinct()
+            .forEach { checkNotNull(HostAccess.method(it, "loadAll")).invoke(it) }
         applied = wanted
         true
+    }
+
+    private fun componentManagers(): List<Any>? {
+        val host = component ?: return null
+        val root = HostAccess.read(host, "referenceGlobalRootComponentImpl") ?: return null
+        val manager = HostAccess.provider(root, "providesPluginManagerImplProvider") ?: return null
+        // Snapshot under the same monitor as PluginManagerImpl's add/remove listener operations.
+        return synchronized(manager) {
+            (HostAccess.read(manager, "pluginMap") as? Map<*, *>)?.values?.filterNotNull()?.toList()
+        }
     }
 
     override fun onHook() {
@@ -91,6 +103,7 @@ object AospSystemUiPluginBlockHooker : StaticHooker() {
             loadPluginComponent.hook {
                 before { param ->
                     HookFailurePolicy.open(TAG, "loadPluginComponent", Unit) {
+                        param.thisObject?.let { synchronized(seenManagers) { seenManagers.add(it) } }
                         val component = param.args.getOrNull(0) as? ComponentName ?: return@open
                         if (component.className in blockedClasses) {
                             param.result = null
