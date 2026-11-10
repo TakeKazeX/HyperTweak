@@ -172,7 +172,7 @@ class MiuiImeBottomHooker : StaticHooker() {
     }
 
     private fun hookNativeStyle(bottomManager: Class<*>) {
-        val serviceClass = INPUT_METHOD_SERVICE.toClassOrNull() ?: return
+        val serviceClass = INPUT_METHOD_SERVICE.toClassOrNull() ?: run { DebugLog.hookSkipped("MiuiImeBottomHooker", "$INPUT_METHOD_SERVICE", "not found on host"); return }
         HostAccess.declaredMethod(bottomManager, "isImeSupport", serviceClass, accessible = true)?.let { method ->
             deoptimize(method)
             method.hook {
@@ -181,7 +181,7 @@ class MiuiImeBottomHooker : StaticHooker() {
                 }
             }
         }
-        val util = "com.miui.inputmethod.InputMethodUtil".toClassOrNull() ?: return
+        val util = "com.miui.inputmethod.InputMethodUtil".toClassOrNull() ?: run { DebugLog.hookSkipped("MiuiImeBottomHooker", "com.miui.inputmethod.InputMethodUtil", "not found on host"); return }
         HostAccess.declaredMethod(util, "isMiuiBottomEnabled", Context::class.java, accessible = true)?.let { method ->
             deoptimize(method)
             method.hook {

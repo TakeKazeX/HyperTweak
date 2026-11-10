@@ -22,15 +22,15 @@ object SystemConfigHooker : StaticHooker() {
 
     override fun onHook() {
         retired = false
-        val pm = "com.android.server.pm.PackageManagerService".toClassOrNull() ?: return
+        val pm = "com.android.server.pm.PackageManagerService".toClassOrNull() ?: run { DebugLog.hookSkipped("SystemConfigHooker", "com.android.server.pm.PackageManagerService", "not found on host"); return }
         val hasFeature = HostAccess.requireDeclaredMethod(pm, "hasSystemFeature", String::class.java,
             Int::class.javaPrimitiveType, accessible = false)
-        val binder = "com.android.server.pm.PackageManagerService\$IPackageManagerImpl".toClassOrNull() ?: return
+        val binder = "com.android.server.pm.PackageManagerService\$IPackageManagerImpl".toClassOrNull() ?: run { DebugLog.hookSkipped("SystemConfigHooker", "com.android.server.pm.PackageManagerService\$IPackageManagerImpl", "not found on host"); return }
         val allFeatures = HostAccess.requireDeclaredMethod(binder, "getSystemAvailableFeatures", accessible = false)
-        val slice = "android.content.pm.ParceledListSlice".toClassOrNull() ?: return
+        val slice = "android.content.pm.ParceledListSlice".toClassOrNull() ?: run { DebugLog.hookSkipped("SystemConfigHooker", "android.content.pm.ParceledListSlice", "not found on host"); return }
         val getList = HostAccess.requirePublicMethod(slice, "getList", accessible = false)
         val constructor = slice.getConstructor(List::class.java)
-        val appPm = "android.app.ApplicationPackageManager".toClassOrNull() ?: return
+        val appPm = "android.app.ApplicationPackageManager".toClassOrNull() ?: run { DebugLog.hookSkipped("SystemConfigHooker", "android.app.ApplicationPackageManager", "not found on host"); return }
         invalidate = HostAccess.requireDeclaredMethod(appPm, "invalidateHasSystemFeatureCache", accessible = false)
         deoptimize(hasFeature)
         hasFeature.hook("system.gms_feature_query") {

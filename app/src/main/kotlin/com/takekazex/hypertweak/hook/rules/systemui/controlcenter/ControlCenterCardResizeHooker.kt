@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.controlcenter
 
+import com.takekazex.hypertweak.util.logging.DebugLog
 import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 
@@ -238,7 +239,7 @@ class ControlCenterCardResizeHooker : DynamicHooker() {
             Log.w(TAG, "ControlCenterResize: QSRecord not found")
             return
         }
-        val specGetter = CompatibleMethodResolver.find(record, "getSpec") ?: return
+        val specGetter = CompatibleMethodResolver.find(record, "getSpec") ?: run { DebugLog.hookSkipped("ControlCenterCardResizeHooker", "CompatibleMethodResolver.find(record, \"getSpec\")", "not found on host"); return }
         val isCard = CompatibleMethodResolver.find(
             record, "isCard", returnType = Boolean::class.javaPrimitiveType
         )
@@ -298,8 +299,8 @@ class ControlCenterCardResizeHooker : DynamicHooker() {
 
     /** Forces configured tile records onto the module-private card item type. */
     private fun installTileCardTypeHook() {
-        val record = RECORD_NAME.toClassOrNull() ?: return
-        val specGetter = CompatibleMethodResolver.find(record, "getSpec") ?: return
+        val record = RECORD_NAME.toClassOrNull() ?: run { DebugLog.hookSkipped("ControlCenterCardResizeHooker", "$RECORD_NAME", "not found on host"); return }
+        val specGetter = CompatibleMethodResolver.find(record, "getSpec") ?: run { DebugLog.hookSkipped("ControlCenterCardResizeHooker", "CompatibleMethodResolver.find(record, \"getSpec\")", "not found on host"); return }
         val isCard = CompatibleMethodResolver.find(
             record, "isCard", returnType = Boolean::class.javaPrimitiveType
         )
@@ -399,7 +400,7 @@ class ControlCenterCardResizeHooker : DynamicHooker() {
         val onBind = listController.declaredMethods.firstOrNull {
             it.name == "onBindViewHolder" && it.parameterTypes.size == 2
         } ?: return
-        val textModeField = findField(listController, "textMode") ?: return
+        val textModeField = findField(listController, "textMode") ?: run { DebugLog.hookSkipped("ControlCenterCardResizeHooker", "findField(listController, \"textMode\")", "not found on host"); return }
         val cardHolderCls =
             "miui.systemui.controlcenter.panel.main.qs.QSCardViewHolder".toClassOrNull() ?: return
         val textModeSetter = cardHolderCls.declaredMethods.firstOrNull {
@@ -422,8 +423,8 @@ class ControlCenterCardResizeHooker : DynamicHooker() {
 
     /** Applies configured heights (and the media width) after every bind of a managed holder. */
     private fun installBindSizeHook() {
-        val adapter = ADAPTER_NAME.toClassOrNull() ?: return
-        val holderCls = HOLDER_NAME.toClassOrNull() ?: return
+        val adapter = ADAPTER_NAME.toClassOrNull() ?: run { DebugLog.hookSkipped("ControlCenterCardResizeHooker", "$ADAPTER_NAME", "not found on host"); return }
+        val holderCls = HOLDER_NAME.toClassOrNull() ?: run { DebugLog.hookSkipped("ControlCenterCardResizeHooker", "$HOLDER_NAME", "not found on host"); return }
         val onBind = adapter.declaredMethods.firstOrNull {
             it.name == "onBindViewHolder" && it.parameterTypes.size == 3 &&
                 it.parameterTypes[0] == holderCls
@@ -565,7 +566,7 @@ class ControlCenterCardResizeHooker : DynamicHooker() {
     private fun installCardUpdateSizeHook() {
         val cardViewCls = "miui.systemui.controlcenter.qs.tileview.QSCardItemView".toClassOrNull()
             ?: return
-        val updateSize = CompatibleMethodResolver.find(cardViewCls, "updateSize") ?: return
+        val updateSize = CompatibleMethodResolver.find(cardViewCls, "updateSize") ?: run { DebugLog.hookSkipped("ControlCenterCardResizeHooker", "CompatibleMethodResolver.find(cardViewCls, \"updateSize\")", "not found on host"); return }
         updateSize.hook {
             after { param ->
                 if (!enabled()) return@after
@@ -588,7 +589,7 @@ class ControlCenterCardResizeHooker : DynamicHooker() {
      * (`distributor.notifyChanged` posts MSG_NOTIFY_CHANGED), so it never lands mid-layout.
      */
     private fun installLiveApplyHook() {
-        val adapter = ADAPTER_NAME.toClassOrNull() ?: return
+        val adapter = ADAPTER_NAME.toClassOrNull() ?: run { DebugLog.hookSkipped("ControlCenterCardResizeHooker", "$ADAPTER_NAME", "not found on host"); return }
         val changeVisible = adapter.declaredMethods.firstOrNull {
             it.name == "changeItemVisible" && it.parameterTypes.size == 3 &&
                 it.parameterTypes.all { p -> p == Boolean::class.javaPrimitiveType }

@@ -129,13 +129,13 @@ object PasskeyHooker : StaticHooker() {
 
     private fun hookSystemServer() {
         // RequestSession constructor hook
-        val cRequestSession = "com.android.server.credentials.RequestSession".toClassOrNull() ?: return
+        val cRequestSession = "com.android.server.credentials.RequestSession".toClassOrNull() ?: run { DebugLog.hookSkipped("PasskeyHooker", "com.android.server.credentials.RequestSession", "not found on host"); return }
         val fHybridService = runCatching {
             HostAccess.requireDeclaredField(cRequestSession, "mHybridService", accessible = true)
         }.getOrNull() ?: return
 
-        val aClass = "com.android.server.credentials.RequestSession\$SessionLifetime".toClassOrNull() ?: return
-        val callingAppInfoClass = "android.service.credentials.CallingAppInfo".toClassOrNull() ?: return
+        val aClass = "com.android.server.credentials.RequestSession\$SessionLifetime".toClassOrNull() ?: run { DebugLog.hookSkipped("PasskeyHooker", "com.android.server.credentials.RequestSession\$SessionLifetime", "not found on host"); return }
+        val callingAppInfoClass = "android.service.credentials.CallingAppInfo".toClassOrNull() ?: run { DebugLog.hookSkipped("PasskeyHooker", "android.service.credentials.CallingAppInfo", "not found on host"); return }
         
         val constructorRequestSession = runCatching {
             cRequestSession.getDeclaredConstructor(
@@ -156,8 +156,8 @@ object PasskeyHooker : StaticHooker() {
             }
         }
 
-        val classIntentFactory = "android.credentials.selection.IntentFactory".toClassOrNull() ?: return
-        val classIntentCreationResultBuilder = "android.credentials.selection.IntentCreationResult\$Builder".toClassOrNull() ?: return
+        val classIntentFactory = "android.credentials.selection.IntentFactory".toClassOrNull() ?: run { DebugLog.hookSkipped("PasskeyHooker", "android.credentials.selection.IntentFactory", "not found on host"); return }
+        val classIntentCreationResultBuilder = "android.credentials.selection.IntentCreationResult\$Builder".toClassOrNull() ?: run { DebugLog.hookSkipped("PasskeyHooker", "android.credentials.selection.IntentCreationResult\$Builder", "not found on host"); return }
         val mGetOemOverrideComponentName = runCatching {
             HostAccess.requireDeclaredMethod(classIntentFactory,
                 "getOemOverrideComponentName",
@@ -293,7 +293,7 @@ object PasskeyHooker : StaticHooker() {
      * GMS goes to its Password Manager activity, everything else to the app-details page.
      */
     private fun hookSettingsActivityLaunchFallback() {
-        val combinedProviderInfoClass = "com.android.settings.applications.credentials.CombinedProviderInfo".toClassOrNull() ?: return
+        val combinedProviderInfoClass = "com.android.settings.applications.credentials.CombinedProviderInfo".toClassOrNull() ?: run { DebugLog.hookSkipped("PasskeyHooker", "com.android.settings.applications.credentials.CombinedProviderInfo", "not found on host"); return }
         combinedProviderInfoClass.findMethodOrNull {
             name("launchSettingsActivityIntent")
             parameterTypes(Context::class.java, CharSequence::class.java, CharSequence::class.java, Int::class.javaPrimitiveType!!)
@@ -364,7 +364,7 @@ object PasskeyHooker : StaticHooker() {
     private fun hookCombiPreferenceSwitchCommit() {
         val combiPreferenceClass =
             "com.android.settings.applications.credentials.CredentialManagerPreferenceController\$CombiPreference".toClassOrNull() ?: return
-        val preferenceViewHolderClass = "androidx.preference.PreferenceViewHolder".toClassOrNull() ?: return
+        val preferenceViewHolderClass = "androidx.preference.PreferenceViewHolder".toClassOrNull() ?: run { DebugLog.hookSkipped("PasskeyHooker", "androidx.preference.PreferenceViewHolder", "not found on host"); return }
         val bind = combiPreferenceClass.findMethodOrNull {
             name("onBindViewHolder")
             parameterTypes(preferenceViewHolderClass)

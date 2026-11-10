@@ -9,6 +9,9 @@ import com.takekazex.hypertweak.hook.base.StaticHooker
 
 /** Updates the native cached PWM capability and restores the vendor value on disable/retirement. */
 object AdaptiveRefreshRuntimeHooker : StaticHooker() {
+    /** Installs no method hook by design: it writes a host static field and deoptimizes its readers. */
+    override val expectsHooks = false
+
     // Published on settings acceptance; hook callbacks perform no storage reads.
     private val settingUnlockAdaptiveRefreshPro by hookSetting(false) { Preferences.unlockAdaptiveRefreshPro() }
 

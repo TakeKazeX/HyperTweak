@@ -76,7 +76,7 @@ object FcmLivePowerKeeperHooker : StaticHooker() {
 
         val gmsObserverClass = "com.miui.powerkeeper.utils.GmsObserver".toClassOrNull()
         if (gmsObserverClass == null) {
-            DebugLog.d(hookerName, "GmsObserver class unavailable on this PowerKeeper build")
+            DebugLog.hookSkipped(hookerName, "com.miui.powerkeeper.utils.GmsObserver", "class not found")
             return
         }
 

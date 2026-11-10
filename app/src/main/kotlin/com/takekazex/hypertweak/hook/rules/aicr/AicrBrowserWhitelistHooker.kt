@@ -25,8 +25,14 @@ object AicrBrowserWhitelistHooker : StaticHooker() {
     private object Feature : DexFeature { override val id = "aicr.browser_whitelist"; override val schema = 1 }
 
     override fun onHook() {
-        if (!isMainProcess) return
-        val apk = hookParam.appInfo?.sourceDir ?: return
+        if (!isMainProcess) {
+            DebugLog.hookSkippedDebug(hookerName, Feature.id, "not the main process")
+            return
+        }
+        val apk = hookParam.appInfo?.sourceDir ?: run {
+            DebugLog.hookSkipped(hookerName, Feature.id, "host APK path unavailable")
+            return
+        }
         prepareDexTargets(name = Feature.id, resolve = {
             DexRuntime.resolve(feature = Feature, apkPath = apk, cacheDir = dexCacheDirectory,
                 appInfo = hookParam.appInfo, cacheEmpty = true,

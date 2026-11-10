@@ -68,9 +68,9 @@ internal class NativeMobileTypeTypography(owner: BaseHooker) : HookComponent(own
     fun install() {
         active = true
         MobileTypeTypographySettings.current
-        val type = "com.miui.systemui.statusbar.views.MobileTypeDrawable".toClassOrNull() ?: return
+        val type = "com.miui.systemui.statusbar.views.MobileTypeDrawable".toClassOrNull() ?: run { DebugLog.hookSkipped("NativeMobileTypeTypography", "com.miui.systemui.statusbar.views.MobileTypeDrawable", "not found on host"); return }
         drawableClass = type
-        val measure = HostAccess.declaredMethod(type, "measure", accessible = true) ?: return
+        val measure = HostAccess.declaredMethod(type, "measure", accessible = true) ?: run { DebugLog.hookSkipped("NativeMobileTypeTypography", "HostAccess.declaredMethod(type, \"measure\", accessible = true)", "not found on host"); return }
         deoptimize(measure)
         measure.hook {
             before { param -> guarded {
@@ -80,7 +80,7 @@ internal class NativeMobileTypeTypography(owner: BaseHooker) : HookComponent(own
                 }
             } }
         }
-        val binder = "com.android.systemui.statusbar.pipeline.mobile.ui.binder.MiuiMobileIconBinder".toClassOrNull() ?: return
+        val binder = "com.android.systemui.statusbar.pipeline.mobile.ui.binder.MiuiMobileIconBinder".toClassOrNull() ?: run { DebugLog.hookSkipped("NativeMobileTypeTypography", "com.android.systemui.statusbar.pipeline.mobile.ui.binder.MiuiMobileIconBinder", "not found on host"); return }
         binder.declaredMethods.singleOrNull { it.name == "updateMobileTypeSize" &&
             it.parameterTypes.contentEquals(arrayOf(android.content.Context::class.java, type)) }?.let { method ->
             deoptimize(method)

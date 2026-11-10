@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon.left
 
+import com.takekazex.hypertweak.hook.base.orSkip
 import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IconManagerHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IconTunerFlows
@@ -510,14 +511,14 @@ object LeftContainerHooker : StaticHooker() {
         // Capture the lockscreen manager only after KeyguardStatusBarViewController has completed
         // onViewAttached(): that is when mTintedIconManager and its group are initialized.
         KEYGUARD_VIEW_CONTROLLER_CLASS.toClassOrNull()?.let { controllerClass ->
-            controllerClass.findMethodOrNull { name("onViewAttached"); noParams() }?.hook {
+            controllerClass.findMethodOrNull { name("onViewAttached"); noParams() }.orSkip("LeftContainerHooker", "controllerClass#onViewAttached")?.hook {
                 after { param ->
                     runCatching { captureKeyguardState(param.thisObject) }
                         .onFailure { DebugLog.w(TAG, "lockscreen state capture failed", it) }
                     reconcileAll()
                 }
             } ?: DebugLog.hookSkipped(TAG, "$KEYGUARD_VIEW_CONTROLLER_CLASS#onViewAttached", "method not found")
-            controllerClass.findMethodOrNull { name("onViewDetached"); noParams() }?.hook {
+            controllerClass.findMethodOrNull { name("onViewDetached"); noParams() }.orSkip("LeftContainerHooker", "controllerClass#onViewDetached")?.hook {
                 before { param ->
                     runCatching { detachKeyguardState(param.thisObject) }
                         .onFailure { DebugLog.w(TAG, "lockscreen teardown failed", it) }
@@ -537,7 +538,7 @@ object LeftContainerHooker : StaticHooker() {
 
         // The home view can detach/re-attach without recreating its manager. Teardown is kept
         // reversible and the state object remains available for the next attachment.
-        statusBarViewClass.findMethodOrNull { name("onDetachedFromWindow"); noParams() }?.hook {
+        statusBarViewClass.findMethodOrNull { name("onDetachedFromWindow"); noParams() }.orSkip("LeftContainerHooker", "statusBarViewClass#onDetachedFromWindow")?.hook {
             before { param ->
                 runCatching { detachHomeState(param.thisObject) }
                     .onFailure { DebugLog.w(TAG, "home left-container teardown failed", it) }
@@ -549,7 +550,7 @@ object LeftContainerHooker : StaticHooker() {
         // before the root is attached, so setDarkIconManager() may capture a state that is
         // immediately torn down by shouldRender(). Reconcile again after the root is attached;
         // otherwise unlock has no icon event left to trigger clone creation.
-        statusBarViewClass.findMethodOrNull { name("onAttachedToWindow"); noParams() }?.hook {
+        statusBarViewClass.findMethodOrNull { name("onAttachedToWindow"); noParams() }.orSkip("LeftContainerHooker", "statusBarViewClass#onAttachedToWindow")?.hook {
             after { param ->
                 val root = param.thisObject as? ViewGroup ?: return@after
                 mainHandler.post {

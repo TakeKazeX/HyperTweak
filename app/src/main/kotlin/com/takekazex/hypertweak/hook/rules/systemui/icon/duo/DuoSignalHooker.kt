@@ -1,6 +1,7 @@
 @file:Suppress("StaticFieldLeak")
 package com.takekazex.hypertweak.hook.rules.systemui.icon.duo
 
+import com.takekazex.hypertweak.hook.base.orSkip
 import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
 import com.takekazex.hypertweak.presentation.icon.duo.NativeWifiDrawable
 
@@ -233,7 +234,7 @@ object DuoSignalHooker : StaticHooker() {
             DebugLog.hookSkipped(TAG, "native Wi-Fi tint artwork", "resource transformer signature unavailable")
         }
         // No hooks on global View/ImageView draw, visibility or tint methods.
-        batteryClass.findMethodOrNull { name("onAttachedToWindow"); paramCount(0) }?.hook {
+        batteryClass.findMethodOrNull { name("onAttachedToWindow"); paramCount(0) }.orSkip("DuoSignalHooker", "batteryClass#onAttachedToWindow")?.hook {
             after { param -> (param.thisObject as? View)?.let { battery ->
                 val token = epoch
                 if (Looper.myLooper() == Looper.getMainLooper()) {
@@ -243,7 +244,7 @@ object DuoSignalHooker : StaticHooker() {
                 }
             } }
         }
-        batteryClass.findMethodOrNull { name("onDetachedFromWindow"); paramCount(0) }?.hook {
+        batteryClass.findMethodOrNull { name("onDetachedFromWindow"); paramCount(0) }.orSkip("DuoSignalHooker", "batteryClass#onDetachedFromWindow")?.hook {
             before { param -> (param.thisObject as? View)?.let { battery -> guarded { detach(battery) } } }
         }
         visibilityMethod?.hook {
@@ -300,7 +301,7 @@ object DuoSignalHooker : StaticHooker() {
                 } }
             }
         }
-        parentClass.declaredMethods.singleOrNull { it.name == "setIsHideBattery" && it.parameterCount == 1 }?.hook {
+        parentClass.declaredMethods.singleOrNull { it.name == "setIsHideBattery" && it.parameterCount == 1 }.orSkip("DuoSignalHooker", "parentClass#setIsHideBattery")?.hook {
             before { param ->
                 val binding = bindings.values.firstOrNull { it.parent === param.thisObject } ?: return@before
                 binding.hostHideBattery = param.args[0] as? Boolean ?: return@before
@@ -848,7 +849,7 @@ object DuoSignalHooker : StaticHooker() {
 
     /** Reuse the actual panel progress, but anchor Duo to Duo rather than native signal widths. */
     private fun hookProxyCompensation() {
-        val type = "com.android.systemui.controlcenter.shade.ControlCenterHeaderExpandController\$controlCenterCallback\$1".toClassOrNull() ?: return
+        val type = "com.android.systemui.controlcenter.shade.ControlCenterHeaderExpandController\$controlCenterCallback\$1".toClassOrNull() ?: run { DebugLog.hookSkipped("DuoSignalHooker", "com.android.systemui.controlcenter.shade.ControlCenterHeaderExpandController\$controlCenterCallback\$1", "not found on host"); return }
         val method = type.declaredMethods.singleOrNull {
             it.name == "onExpansionChanged" && it.parameterTypes.contentEquals(arrayOf(Float::class.javaPrimitiveType))
         } ?: return
@@ -871,12 +872,12 @@ object DuoSignalHooker : StaticHooker() {
                 bindings.values.toList().forEach(panelHandover::updatePanelBinding)
             } }
         }
-        type.findMethodOrNull { name("onStretchHeightChanged"); paramCount(1) }?.hook {
+        type.findMethodOrNull { name("onStretchHeightChanged"); paramCount(1) }.orSkip("DuoSignalHooker", "type#onStretchHeightChanged")?.hook {
             after { param -> guarded {
                 panelStretchHeight = (param.args.getOrNull(0) as? Number)?.toFloat() ?: 0f
             } }
         }
-        type.findMethodOrNull { name("onVisibleChanged"); paramCount(1) }?.hook {
+        type.findMethodOrNull { name("onVisibleChanged"); paramCount(1) }.orSkip("DuoSignalHooker", "type#onVisibleChanged")?.hook {
             after { param -> guarded {
                 if (ControlCenterCarrierBlockHooker.isShadeSwitching()) {
                     clearShadeSwitchMotion()
@@ -891,7 +892,7 @@ object DuoSignalHooker : StaticHooker() {
                 bindings.values.toList().forEach(panelHandover::updatePanelBinding)
             } }
         }
-        type.findMethodOrNull { name("onAppearanceChanged"); paramCount(2) }?.hook {
+        type.findMethodOrNull { name("onAppearanceChanged"); paramCount(2) }.orSkip("DuoSignalHooker", "type#onAppearanceChanged")?.hook {
             after { param -> guarded {
                 if (ControlCenterCarrierBlockHooker.isShadeSwitching()) {
                     clearShadeSwitchMotion()
@@ -1087,7 +1088,7 @@ object DuoSignalHooker : StaticHooker() {
     }
 
     private fun hookWifi() {
-        val vm = WIFI_VM.toClassOrNull() ?: return
+        val vm = WIFI_VM.toClassOrNull() ?: run { DebugLog.hookSkipped("DuoSignalHooker", "$WIFI_VM", "not found on host"); return }
         vm.declaredConstructors.filter { ctor ->
             ctor.parameterCount == 6 && ctor.parameterTypes[3].name.endsWith(".WifiInteractorImpl") &&
                 ctor.parameterTypes[4].name == IconTunerFlows.hostClassName("kotlinx.coroutines", "CoroutineScope")

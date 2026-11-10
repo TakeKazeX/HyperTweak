@@ -60,7 +60,7 @@ class LiveUpdateIconHooker : DynamicHooker() {
     }
 
     override fun onHook() {
-        val owner = "miui.systemui.dynamicisland.module.IslandIconViewHolder".toClassOrNull() ?: return
+        val owner = "miui.systemui.dynamicisland.module.IslandIconViewHolder".toClassOrNull() ?: run { DebugLog.hookSkipped("LiveUpdateIconHooker", "miui.systemui.dynamicisland.module.IslandIconViewHolder", "not found on host"); return }
         val data = classLoader.loadClass("com.android.systemui.plugins.miui.dynamicisland.DynamicIslandData")
         val setIcon = HostAccess.requireDeclaredMethod(owner, "setIcon", data, accessible = true)
         check(setIcon.returnType == Void.TYPE)

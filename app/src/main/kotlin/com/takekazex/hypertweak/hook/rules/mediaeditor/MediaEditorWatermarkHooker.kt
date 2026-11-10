@@ -133,7 +133,7 @@ object MediaEditorWatermarkHooker : StaticHooker() {
         when {
             c.cloudWmData != null -> hookCloudDataConstructor(c)
             c.modernCloud != null -> hookModernCloudData(c.modernCloud)
-            else -> DebugLog.d(TAG, "cloud watermark field rewrite unavailable on this build")
+            else -> DebugLog.hookSkipped(TAG, "cloud watermark fields", "neither legacy nor v3 model resolved")
         }
 
         // 3. Downloaded-resource filter: force the debug property read to true when resolvable.
@@ -143,7 +143,7 @@ object MediaEditorWatermarkHooker : StaticHooker() {
                     param.result = true
                 }
             }
-        } ?: DebugLog.d(TAG, "cloud watermark debug gate unavailable on this build")
+        } ?: DebugLog.hookSkipped(TAG, "cloud watermark debug gate", "not resolved on this build")
 
         // 4. Bulk download of every cloud watermark resource when the dispatcher graph resolved.
         val modern = c.modernCloud
@@ -154,7 +154,7 @@ object MediaEditorWatermarkHooker : StaticHooker() {
             c.vyILoad != null && c.yyM != null && c.yyMDispatcher != null &&
                 c.listenerIface != null && c.cloudWmItem != null ->
                 hookBulkDownload(c)
-            else -> DebugLog.d(TAG, "cloud watermark bulk download unavailable on this build")
+            else -> DebugLog.hookSkipped(TAG, "cloud watermark bulk download", "dispatcher graph not resolved")
         }
     }
 
@@ -383,8 +383,8 @@ object MediaEditorWatermarkHooker : StaticHooker() {
         val constructor = modern.fetcherConstructor ?: return
         val fetcherMethod = modern.fetcherMethod ?: return
         val listener = modern.listenerIface ?: return
-        val itemClass = CLOUD_WM_ITEM.toClassOrNull() ?: return
-        val categoryClass = CLOUD_WM_CATEGORY.toClassOrNull() ?: return
+        val itemClass = CLOUD_WM_ITEM.toClassOrNull() ?: run { DebugLog.hookSkipped("MediaEditorWatermarkHooker", "$CLOUD_WM_ITEM", "not found on host"); return }
+        val categoryClass = CLOUD_WM_CATEGORY.toClassOrNull() ?: run { DebugLog.hookSkipped("MediaEditorWatermarkHooker", "$CLOUD_WM_CATEGORY", "not found on host"); return }
         val fetcher = runCatching { constructor.newInstance() }
             .onFailure { DebugLog.w(TAG, "v3 cloud fetcher construction failed", it) }
             .getOrNull() ?: return

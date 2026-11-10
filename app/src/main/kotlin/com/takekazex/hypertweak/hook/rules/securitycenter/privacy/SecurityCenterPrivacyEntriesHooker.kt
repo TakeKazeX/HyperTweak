@@ -112,9 +112,13 @@ object SecurityCenterPrivacyEntriesHooker : StaticHooker() {
     }
 
     private fun ensureSemanticTargets(allowCachedStartup: Boolean = false) {
-        if (semanticTargetsInstalled ||
-            (antiPeepingMode() == PlatformSettingsKeys.SECURITY_CENTER_ANTI_PEEPING_SYSTEM_DEFAULT &&
-                (!hookParam.isMainProcess || !isFrontCameraAssistantEnabled()))) return
+        if (semanticTargetsInstalled) return
+        if (antiPeepingMode() == PlatformSettingsKeys.SECURITY_CENTER_ANTI_PEEPING_SYSTEM_DEFAULT &&
+            (!hookParam.isMainProcess || !isFrontCameraAssistantEnabled())
+        ) {
+            DebugLog.hookSkippedDebug(TAG, "securitycenter.privacy", "anti-peeping follows system; no semantic override wanted")
+            return
+        }
         val apkPath = hookParam.appInfo?.sourceDir
         if (apkPath.isNullOrBlank()) {
             DebugLog.w(TAG, "target APK path unavailable; semantic overrides skipped")

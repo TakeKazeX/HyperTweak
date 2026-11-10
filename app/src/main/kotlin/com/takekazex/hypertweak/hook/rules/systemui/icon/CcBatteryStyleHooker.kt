@@ -55,10 +55,16 @@ object CcBatteryStyleHooker : StaticHooker() {
 
     override fun onHook() {
         retiring = false
-        if (!isMainProcess) return
+        if (!isMainProcess) {
+            DebugLog.hookSkippedDebug(TAG, "control-center battery style", "not the main process")
+            return
+        }
         val style = percentStyle
         leadingPercent = style == CcBatteryPercentStyle.OUTSIDE_LEADING
-        if (style == CcBatteryPercentStyle.SYSTEM) return
+        if (style == CcBatteryPercentStyle.SYSTEM) {
+            DebugLog.hookSkippedDebug(TAG, "control-center battery style", "system style selected")
+            return
+        }
         val battery = BATTERY.toClassOrNull() ?: run {
             DebugLog.hookSkipped(TAG, "control-center battery style", "host class not found")
             return

@@ -8,7 +8,7 @@ import com.takekazex.hypertweak.hook.base.SystemServerStartupRetry
 /** Stable framework lifecycle boundary; no ROM version, phase number or obfuscated member table. */
 object SystemServerReadinessHooker : StaticHooker() {
     override fun onHook() {
-        val owner = "com.android.server.SystemServiceManager".toClassOrNull() ?: return
+        val owner = "com.android.server.SystemServiceManager".toClassOrNull() ?: run { DebugLog.hookSkipped("SystemServerReadinessHooker", "com.android.server.SystemServiceManager", "not found on host"); return }
         val boundaries = owner.declaredMethods.filter {
             it.name == "startBootPhase" && !Modifier.isStatic(it.modifiers) &&
                 it.returnType == Void.TYPE && it.parameterTypes.lastOrNull() == Int::class.javaPrimitiveType &&

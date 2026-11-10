@@ -76,6 +76,9 @@ import com.takekazex.hypertweak.hook.base.SystemServerStartupRetry
  * against the public stub jar.
  */
 object DefaultAssistantHooker : StaticHooker() {
+    /** Installs no method hook by design: it aligns a setting and observes it; initializeSettings reports failures. */
+    override val expectsHooks = false
+
     // Published on settings acceptance; hook callbacks perform no storage reads.
     private val settingPowerButtonAction by hookSetting(PlatformSettingsKeys.POWER_BUTTON_ACTION_DISABLED) { Preferences.powerButtonAction() }
 

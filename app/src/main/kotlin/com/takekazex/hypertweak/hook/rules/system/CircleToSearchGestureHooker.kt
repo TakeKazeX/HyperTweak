@@ -62,6 +62,9 @@ import com.takekazex.hypertweak.hook.base.SystemServerStartupRetry
  *   means. A `ContentObserver` re-applies it if something else moves it.
  */
 object CircleToSearchGestureHooker : StaticHooker() {
+    /** Installs no method hook by design: it aligns a setting and observes it; initializeSettings reports failures. */
+    override val expectsHooks = false
+
     // Published on settings acceptance; hook callbacks perform no storage reads.
     private val settingContextualSearchLongPress by hookSetting(false) { Preferences.contextualSearchLongPress() }
 

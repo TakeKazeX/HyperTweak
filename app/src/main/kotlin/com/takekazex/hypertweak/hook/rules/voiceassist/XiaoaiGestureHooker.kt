@@ -33,9 +33,15 @@ object XiaoaiGestureHooker : StaticHooker() {
     private data class Access(val keyboard: Method, val consumer: Method)
 
     override fun onHook() {
-        if (hookParam.processName != "com.miui.voiceassist") return
+        if (hookParam.processName != "com.miui.voiceassist") {
+            DebugLog.hookSkippedDebug(TAG, XiaoaiGestureFeature.id, "not the voice-assist main process")
+            return
+        }
         retired = false
-        val apk = hookParam.appInfo?.sourceDir ?: return
+        val apk = hookParam.appInfo?.sourceDir ?: run {
+            DebugLog.hookSkipped(TAG, XiaoaiGestureFeature.id, "host APK path unavailable")
+            return
+        }
         resolve(apk, true)?.let(::install) ?: prepareDexTargets(XiaoaiGestureFeature.id,
             resolve = { resolve(apk, false) }, install = ::install)
     }

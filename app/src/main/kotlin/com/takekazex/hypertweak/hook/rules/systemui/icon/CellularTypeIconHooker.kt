@@ -352,7 +352,7 @@ object CellularTypeIconHooker : StaticHooker() {
     }
 
     private fun hookTypeOrder() {
-        val binderClass = BINDER_CLASS.toClassOrNull() ?: return
+        val binderClass = BINDER_CLASS.toClassOrNull() ?: run { DebugLog.hookSkipped("CellularTypeIconHooker", "$BINDER_CLASS", "not found on host"); return }
         val bind = binderClass.declaredMethods.singleOrNull { method ->
             method.name == "bind" && method.parameterTypes.map { it.name } == listOf(
                 ViewGroup::class.java.name,

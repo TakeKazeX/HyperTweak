@@ -116,7 +116,7 @@ object ControlCenterHeaderHooker : StaticHooker() {
         privacyCentered = settingCcPrivacyCenter
         privacyOffset = settingCcPrivacyOffset.coerceIn(-16, 24)
         if (!carrierLeft && !hideDate) return
-        val controller = CONTROLLER_CLASS.toClassOrNull() ?: return
+        val controller = CONTROLLER_CLASS.toClassOrNull() ?: run { DebugLog.hookSkipped("ControlCenterHeaderHooker", "$CONTROLLER_CLASS", "not found on host"); return }
         // Lifecycle hooks also cover compiled callers that inline the small visibility helpers.
         listOf("updateConstraint", "updateDateVisibility", "updateCarrierAndPrivacyVisible",
             "onInit", "onConfigChanged", "onScreenLayoutSizeChanged", "updateDimens").forEach { name ->
@@ -171,7 +171,7 @@ object ControlCenterHeaderHooker : StaticHooker() {
     }
 
     private fun hookClockPolicy() {
-        val clock = CLOCK_CLASS.toClassOrNull() ?: return
+        val clock = CLOCK_CLASS.toClassOrNull() ?: run { DebugLog.hookSkipped("ControlCenterHeaderHooker", "$CLOCK_CLASS", "not found on host"); return }
         listOf("onAttachedToWindow", "updateClockVisibility").forEach { name ->
             clock.findMethodOrNull { name(name); noParams() }?.let { method ->
                 deoptimize(method)

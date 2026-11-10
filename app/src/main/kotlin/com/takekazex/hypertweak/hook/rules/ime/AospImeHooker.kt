@@ -145,7 +145,7 @@ object AospImeHooker : StaticHooker() {
     private var refreshing by generationState { false }
 
     private fun hookServiceLifecycle() {
-        val type = INPUT_METHOD_SERVICE.toClassOrNull() ?: return
+        val type = INPUT_METHOD_SERVICE.toClassOrNull() ?: run { DebugLog.hookSkipped("AospImeHooker", "$INPUT_METHOD_SERVICE", "not found on host"); return }
         HostAccess.declaredMethod(type, "initViews", accessible = true)?.let { method ->
             deoptimize(method)
             method.hook {
@@ -387,7 +387,7 @@ object AospImeHooker : StaticHooker() {
             return
         }
 
-        val properties = "android.os.SystemProperties".toClassOrNull() ?: return
+        val properties = "android.os.SystemProperties".toClassOrNull() ?: run { DebugLog.hookSkipped("AospImeHooker", "android.os.SystemProperties", "not found on host"); return }
         val modDevice = HostAccess.requireDeclaredMethod(properties, "get", String::class.java,
             String::class.java, accessible = true).invoke(null, "ro.product.mod_device", "") as? String ?: ""
         val nativeInternational = modDevice.contains("_global")

@@ -51,7 +51,7 @@ object AonGestureSettingsHooker : StaticHooker() {
     )
 
     override fun onHook() {
-        val clazz = CLASS.toClassOrNull() ?: return
+        val clazz = CLASS.toClassOrNull() ?: run { DebugLog.hookSkipped("AonGestureSettingsHooker", "$CLASS", "not found on host"); return }
         val onResume = clazz.declaredMethods.firstOrNull {
             it.name == "onResume" && it.parameterTypes.isEmpty()
         } ?: return

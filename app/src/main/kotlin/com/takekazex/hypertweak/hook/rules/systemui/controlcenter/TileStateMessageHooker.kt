@@ -37,7 +37,7 @@ class TileStateMessageHooker : DynamicHooker() {
     @Volatile private var retiring = false
 
     override fun onHook() {
-        val controller = "miui.systemui.controlcenter.panel.main.header.MessageHeaderController".toClassOrNull() ?: return
+        val controller = "miui.systemui.controlcenter.panel.main.header.MessageHeaderController".toClassOrNull() ?: run { DebugLog.hookSkipped("TileStateMessageHooker", "miui.systemui.controlcenter.panel.main.header.MessageHeaderController", "not found on host"); return }
         // Select the slot by its owner/runnable/config relationship, not an anonymous class suffix.
         val slot = controller.declaredFields.map { it.type }.distinct().single { type ->
             type.enclosingClass == controller && type.declaredFields.any { it.type == Runnable::class.java }

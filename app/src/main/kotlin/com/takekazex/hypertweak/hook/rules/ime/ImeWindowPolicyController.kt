@@ -63,7 +63,7 @@ internal class ImeWindowPolicyController(owner: BaseHooker) : HookComponent(owne
     }
 
     private fun installCaptionPolicy() {
-        val type = "android.view.InsetsController".toClassOrNull() ?: return
+        val type = "android.view.InsetsController".toClassOrNull() ?: run { DebugLog.hookSkipped("ImeWindowPolicyController", "android.view.InsetsController", "not found on host"); return }
         val caption = WindowInsets.Type.captionBar()
         // Sogou requests hidden system bars, which includes the locally provided IME caption.
         // Preserve the other requested types, including IME hide and predictive-back requests.

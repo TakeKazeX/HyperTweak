@@ -553,7 +553,7 @@ object NotificationHeaderHooker : StaticHooker() {
     }
 
     private fun installShadeHeaderClipHooks() {
-        val animatorClass = SHADE_HEADER_HEIGHT_ANIMATOR_CLASS.toClassOrNull() ?: return
+        val animatorClass = SHADE_HEADER_HEIGHT_ANIMATOR_CLASS.toClassOrNull() ?: run { DebugLog.hookSkipped("NotificationHeaderHooker", "$SHADE_HEADER_HEIGHT_ANIMATOR_CLASS", "not found on host"); return }
         animatorClass.hookAllConstructors {
             after { param -> guarded("shade header height animator capture") {
                 shadeHeaderHeightAnimators[param.thisObject] = true
@@ -615,7 +615,7 @@ object NotificationHeaderHooker : StaticHooker() {
     }
 
     private fun installNotificationTopPaddingHook() {
-        val controllerClass = NOTIFICATION_TOP_PADDING_CONTROLLER_CLASS.toClassOrNull() ?: return
+        val controllerClass = NOTIFICATION_TOP_PADDING_CONTROLLER_CLASS.toClassOrNull() ?: run { DebugLog.hookSkipped("NotificationHeaderHooker", "$NOTIFICATION_TOP_PADDING_CONTROLLER_CLASS", "not found on host"); return }
         controllerClass.declaredMethods
             .filter { it.name == "getTopPadding" && it.parameterCount == 0 }
             .forEach { method ->
@@ -638,7 +638,7 @@ object NotificationHeaderHooker : StaticHooker() {
                 }
             }
 
-        val panelClass = NOTIFICATION_PANEL_VIEW_CONTROLLER_CLASS.toClassOrNull() ?: return
+        val panelClass = NOTIFICATION_PANEL_VIEW_CONTROLLER_CLASS.toClassOrNull() ?: run { DebugLog.hookSkipped("NotificationHeaderHooker", "$NOTIFICATION_PANEL_VIEW_CONTROLLER_CLASS", "not found on host"); return }
         panelClass.declaredMethods
             .filter { it.name == "requestScrollerTopPaddingUpdate" && it.parameterCount == 0 }
             .forEach { method ->
@@ -677,7 +677,7 @@ object NotificationHeaderHooker : StaticHooker() {
                 }
             }
 
-        val qsControllerClass = QUICK_SETTINGS_CONTROLLER_CLASS.toClassOrNull() ?: return
+        val qsControllerClass = QUICK_SETTINGS_CONTROLLER_CLASS.toClassOrNull() ?: run { DebugLog.hookSkipped("NotificationHeaderHooker", "$QUICK_SETTINGS_CONTROLLER_CLASS", "not found on host"); return }
         qsControllerClass.declaredMethods
             .filter { it.name == "getHeaderHeight" && it.parameterCount == 0 }
             .forEach { method ->

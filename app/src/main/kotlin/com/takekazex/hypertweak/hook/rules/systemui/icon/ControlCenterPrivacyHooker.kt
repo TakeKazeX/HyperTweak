@@ -151,16 +151,16 @@ object ControlCenterPrivacyHooker : StaticHooker() {
         // Hooks stay installed while the master is off so enabling it applies live; every
         // callback is gated by [enabled]/[retiring].
         applySettings()
-        val viewClass = VIEW.toClassOrNull() ?: return
-        controllerClass = CONTROLLER.toClassOrNull() ?: return
-        val headerClass = HEADER.toClassOrNull() ?: return
+        val viewClass = VIEW.toClassOrNull() ?: run { DebugLog.hookSkipped("ControlCenterPrivacyHooker", "$VIEW", "not found on host"); return }
+        controllerClass = CONTROLLER.toClassOrNull() ?: run { DebugLog.hookSkipped("ControlCenterPrivacyHooker", "$CONTROLLER", "not found on host"); return }
+        val headerClass = HEADER.toClassOrNull() ?: run { DebugLog.hookSkipped("ControlCenterPrivacyHooker", "$HEADER", "not found on host"); return }
         // Reject incomplete host contracts before changing any views.
         if (listOf("mPrivacyText", "mIconCamera", "mIconMic", "mIconLocation", "mIconScreen",
                 "mPrivacyBackground", "mIconDot", "mEndSpace").any { field(viewClass, it) == null }) {
             DebugLog.hookSkipped(TAG, "privacy header", "missing native children")
             return
         }
-        val dependencyType = "com.android.systemui.Dependency".toClassOrNull() ?: return
+        val dependencyType = "com.android.systemui.Dependency".toClassOrNull() ?: run { DebugLog.hookSkipped("ControlCenterPrivacyHooker", "com.android.systemui.Dependency", "not found on host"); return }
         dependencyClass = dependencyType
         dependencyGet = dependencyType.declaredMethods.singleOrNull {
             it.name == "getDependencyInner" && it.parameterTypes.contentEquals(arrayOf(Class::class.java))

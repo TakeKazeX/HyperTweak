@@ -21,6 +21,9 @@ import com.takekazex.hypertweak.util.platform.ProxyLaunchProtocol
  * start a caller-supplied component.
  */
 object ProxyLaunchHooker : StaticHooker() {
+    /** Installs no method hook by design: its receiver is registered from onPackageReady. */
+    override val expectsHooks = false
+
     private const val TAG = "ProxyLaunch"
 
     private val TARGETS = mapOf(

@@ -24,6 +24,7 @@ internal object CameraApplicationInit {
     private val completedLoaders = WeakHashMap<ClassLoader, Boolean>()
 
     fun afterConfigProviderCreate(hooker: BaseHooker, action: () -> Unit) {
+        hooker.noteDeferredInstallation()
         val loader = hooker.classLoader
         if (hooker.hookParam.isPackageReady) {
             postAction(hooker, action)

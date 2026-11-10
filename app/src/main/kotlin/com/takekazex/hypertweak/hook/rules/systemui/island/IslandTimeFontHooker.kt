@@ -74,7 +74,7 @@ class IslandTimeFontHooker : DynamicHooker() {
     }
 
     override fun onHook() {
-        val base = "miui.systemui.dynamicisland.module.BaseIslandModuleViewHolder".toClassOrNull() ?: return
+        val base = "miui.systemui.dynamicisland.module.BaseIslandModuleViewHolder".toClassOrNull() ?: run { DebugLog.hookSkipped("IslandTimeFontHooker", "miui.systemui.dynamicisland.module.BaseIslandModuleViewHolder", "not found on host"); return }
         val template = classLoader.loadClass("miui.systemui.dynamicisland.model.IslandTemplate")
         val data = classLoader.loadClass("com.android.systemui.plugins.miui.dynamicisland.DynamicIslandData")
         val currentData = HostAccess.requirePublicMethod(base, "getDynamicIslandData", accessible = false)

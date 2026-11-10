@@ -28,6 +28,9 @@ private val settingBatteryAutoPowerSaveThreshold by hookSetting(PlatformSettings
 
 /** Owns the battery monitor in SystemUI once its application context is available. */
 object BatteryAutoPowerSaveHooker : StaticHooker() {
+    /** Installs no method hook by design: its monitor starts from onPackageReady. */
+    override val expectsHooks = false
+
 
     private const val TAG = "BatteryAutoPowerSave"
     private const val PACKAGE = "com.android.systemui"

@@ -173,7 +173,7 @@ object ScreenshotAutoFrameHooker : StaticHooker() {
                     }
                     val composeStarted = System.nanoTime()
                     val framed = access.render(original) ?: run {
-                        DebugLog.d(TAG, "native frame material unavailable or incompatible; saving original")
+                        DebugLog.w(TAG, "native frame material unavailable or incompatible; saving original")
                         return@boundary
                     }
                     val composeMs = (System.nanoTime() - composeStarted) / 1_000_000

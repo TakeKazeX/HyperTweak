@@ -407,7 +407,7 @@ object WifiDetailsHooker : StaticHooker() {
     }
 
     private fun hookSavedAccessPointButtons() {
-        val savedPrefClass = "com.android.settings.wifi.SavedAccessPointPreference".toClassOrNull() ?: return
+        val savedPrefClass = "com.android.settings.wifi.SavedAccessPointPreference".toClassOrNull() ?: run { DebugLog.hookSkipped("WifiDetailsHooker", "com.android.settings.wifi.SavedAccessPointPreference", "not found on host"); return }
 
         val onBindMethod = savedPrefClass.declaredMethods.firstOrNull {
             it.name == "onBindViewHolder" && it.parameterTypes.size == 1

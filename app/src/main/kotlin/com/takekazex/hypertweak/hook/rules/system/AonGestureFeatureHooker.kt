@@ -72,7 +72,7 @@ object AonGestureFeatureHooker : StaticHooker() {
 
     override fun onHook() {
         retired = false
-        val clazz = CONTROLLER_CLASS.toClassOrNull() ?: return
+        val clazz = CONTROLLER_CLASS.toClassOrNull() ?: run { DebugLog.hookSkipped("AonGestureFeatureHooker", "$CONTROLLER_CLASS", "not found on host"); return }
         val update = clazz.declaredMethods.firstOrNull {
             it.name == "updateSupprotFeature" && it.parameterTypes.isEmpty()
         }

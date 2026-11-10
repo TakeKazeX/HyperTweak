@@ -2,6 +2,7 @@
 
 package com.takekazex.hypertweak.hook.rules.systemui.lockscreen
 
+import com.takekazex.hypertweak.hook.base.orSkip
 import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 
@@ -199,7 +200,7 @@ object HideLockscreenStatusBarHooker : StaticHooker() {
             )
         }
         val controllerClass = "com.android.systemui.statusbar.phone.KeyguardStatusBarViewController".toClassOrNull()
-        controllerClass?.findMethodOrNull { name("onViewAttached"); noParams() }?.hook {
+        controllerClass?.findMethodOrNull { name("onViewAttached"); noParams() }.orSkip("HideLockscreenStatusBarHooker", "controllerClass#onViewAttached")?.hook {
             after { param ->
                 runCatching {
                     HostAccess.onMain {
@@ -230,7 +231,7 @@ object HideLockscreenStatusBarHooker : StaticHooker() {
                 }
             }.onFailure { DebugLog.w("HideLockscreenStatusBar", "constructor hook unavailable", it) }
         }
-        targetClass.findMethodOrNull { name("onFinishInflate"); paramCount(0) }?.hook {
+        targetClass.findMethodOrNull { name("onFinishInflate"); paramCount(0) }.orSkip("HideLockscreenStatusBarHooker", "targetClass#onFinishInflate")?.hook {
             after { param -> (param.thisObject as? View)?.let(::remember) }
         } ?: DebugLog.hookSkipped(
             "HideLockscreenStatusBar",

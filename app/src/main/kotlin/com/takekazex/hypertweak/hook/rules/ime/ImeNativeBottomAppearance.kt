@@ -113,7 +113,7 @@ internal class ImeNativeBottomAppearance(owner: BaseHooker) : HookComponent(owne
     }
 
     private fun hookInputDispatch(input: View) {
-        val method = HostAccess.method(input, "dispatchApplyWindowInsets", WindowInsets::class.java) ?: return
+        val method = HostAccess.method(input, "dispatchApplyWindowInsets", WindowInsets::class.java) ?: run { DebugLog.hookSkipped("ImeNativeBottomAppearance", "HostAccess.method(input, \"dispatchApplyWindowInsets\", WindowInsets::class.java)", "not found on host"); return }
         if (!dispatchHooks.add(method)) return
         deoptimize(method)
         method.hook {

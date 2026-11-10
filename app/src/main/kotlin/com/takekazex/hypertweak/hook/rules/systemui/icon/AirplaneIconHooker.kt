@@ -17,7 +17,7 @@ object AirplaneIconHooker : StaticHooker() {
 
     override fun onHook() {
         if (!settingIconMirrorAirplane) return
-        val type = "com.android.systemui.statusbar.StatusBarIconView".toClassOrNull() ?: return
+        val type = "com.android.systemui.statusbar.StatusBarIconView".toClassOrNull() ?: run { DebugLog.hookSkipped("AirplaneIconHooker", "com.android.systemui.statusbar.StatusBarIconView", "not found on host"); return }
         val slot = runCatching { HostAccess.requireDeclaredField(type, "mSlot", accessible = true) }
             .getOrNull() ?: return
         val method = runCatching { HostAccess.requireDeclaredMethod(type, "onDraw", Canvas::class.java, accessible = false) }.getOrNull()

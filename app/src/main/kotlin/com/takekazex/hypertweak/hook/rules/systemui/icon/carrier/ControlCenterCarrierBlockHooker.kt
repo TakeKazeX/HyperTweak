@@ -542,7 +542,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
     }
 
     private fun hookRowMaxWidth() {
-        val rowClass = ROW_CLASS.toClassOrNull() ?: return
+        val rowClass = ROW_CLASS.toClassOrNull() ?: run { DebugLog.hookSkipped("ControlCenterCarrierBlockHooker", "$ROW_CLASS", "not found on host"); return }
         rowClass.findMethodOrNull { name("setMaxWidth"); paramCount(1) }?.let { method ->
             deoptimize(method)
             method.hook { before { param ->
@@ -609,7 +609,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
 
     /** Shade switching owns the header motion; a carrier hand-over must not run on that path. */
     private fun hookShadeSwitching() {
-        val combined = COMBINED_HEADER_CLASS.toClassOrNull() ?: return
+        val combined = COMBINED_HEADER_CLASS.toClassOrNull() ?: run { DebugLog.hookSkipped("ControlCenterCarrierBlockHooker", "$COMBINED_HEADER_CLASS", "not found on host"); return }
         combined.findMethodOrNull { name("onSwitchingChanged"); paramCount(1) }?.let { method ->
             deoptimize(method)
             method.hook {

@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.controlcenter
 
+import com.takekazex.hypertweak.util.logging.DebugLog
 import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 
@@ -238,7 +239,7 @@ class ControlCenterCardsEditHooker : DynamicHooker() {
     private fun installCardSpanHook() {
         val record = "miui.systemui.controlcenter.panel.main.qs.QSRecord".toClassOrNull()
             ?: return
-        val spec = CompatibleMethodResolver.find(record, "getSpec") ?: return
+        val spec = CompatibleMethodResolver.find(record, "getSpec") ?: run { DebugLog.hookSkipped("ControlCenterCardsEditHooker", "CompatibleMethodResolver.find(record, \"getSpec\")", "not found on host"); return }
         val span = CompatibleMethodResolver.find(
             record, "getSpanSize", returnType = Int::class.javaPrimitiveType
         ) ?: return
@@ -376,7 +377,7 @@ class ControlCenterCardsEditHooker : DynamicHooker() {
      */
     @Suppress("ClickableViewAccessibility")
     private fun installEditTouchBlockHook() {
-        val adapter = ADAPTER_NAME.toClassOrNull() ?: return
+        val adapter = ADAPTER_NAME.toClassOrNull() ?: run { DebugLog.hookSkipped("ControlCenterCardsEditHooker", "$ADAPTER_NAME", "not found on host"); return }
         val holderCls =
             "miui.systemui.controlcenter.panel.main.recyclerview.MainPanelItemViewHolder".toClassOrNull()
                 ?: return
@@ -444,7 +445,7 @@ class ControlCenterCardsEditHooker : DynamicHooker() {
      * the mode to NORMAL: restores the saved host touch listeners and clears holder transforms.
      */
     private fun installModeSweepHook() {
-        val adapter = ADAPTER_NAME.toClassOrNull() ?: return
+        val adapter = ADAPTER_NAME.toClassOrNull() ?: run { DebugLog.hookSkipped("ControlCenterCardsEditHooker", "$ADAPTER_NAME", "not found on host"); return }
         val notifyChanged = adapter.declaredMethods.firstOrNull {
             it.name == "notifyChanged" && it.parameterTypes.size == 2 &&
                 it.parameterTypes.all { p -> p == Boolean::class.javaPrimitiveType }
@@ -495,7 +496,7 @@ class ControlCenterCardsEditHooker : DynamicHooker() {
         val adapter = ADAPTER_NAME.toClassOrNull()
             ?: run { Log.w(TAG, "ControlCenterCardsEdit: MainPanelAdapter not found"); return }
         val distribute = editor.resolveDistributeContent(adapter) ?: return
-        val mapField = editor.findContentMapField(adapter) ?: return
+        val mapField = editor.findContentMapField(adapter) ?: run { DebugLog.hookSkipped("ControlCenterCardsEditHooker", "editor.findContentMapField(adapter)", "not found on host"); return }
         distribute.hook {
             after { param ->
                 lastAdapter = param.thisObject
@@ -575,7 +576,7 @@ class ControlCenterCardsEditHooker : DynamicHooker() {
      * the class name.
      */
     private fun installMoveHooks() {
-        val adapter = ADAPTER_NAME.toClassOrNull() ?: return
+        val adapter = ADAPTER_NAME.toClassOrNull() ?: run { DebugLog.hookSkipped("ControlCenterCardsEditHooker", "$ADAPTER_NAME", "not found on host"); return }
         suppressAnimator = editor.resolveAnimatorSuppressor(adapter)
         adapterModeField = editor.findField(adapter, "mode")
         editor.attachedHoldersField = editor.findField(adapter, "attachedHolders")
@@ -822,7 +823,7 @@ class ControlCenterCardsEditHooker : DynamicHooker() {
     private fun installTopCardOrderHook() {
         val controller = "miui.systemui.controlcenter.panel.main.qs.QSCardsController".toClassOrNull()
             ?: return
-        val method = CompatibleMethodResolver.find(controller, "getListItems") ?: return
+        val method = CompatibleMethodResolver.find(controller, "getListItems") ?: run { DebugLog.hookSkipped("ControlCenterCardsEditHooker", "CompatibleMethodResolver.find(controller, \"getListItems\")", "not found on host"); return }
         method.hook {
             after { param ->
                 if (!enabled()) return@after

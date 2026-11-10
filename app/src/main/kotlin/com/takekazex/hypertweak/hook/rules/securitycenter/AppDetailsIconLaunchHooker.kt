@@ -41,13 +41,13 @@ object AppDetailsIconLaunchHooker : DynamicHooker() {
         if (hookParam.processName != PACKAGE) return
         retired = false
         ready = false
-        val title = TITLE.toClassOrNull() ?: return
+        val title = TITLE.toClassOrNull() ?: run { DebugLog.hookSkipped("AppDetailsIconLaunchHooker", "$TITLE", "not found on host"); return }
         // The public override survives holder obfuscation; no holder class/member names are pinned.
         val bind = title.declaredMethods.singleOrNull {
             it.name == "onBindViewHolder" && it.parameterCount == 1 && it.returnType == Void.TYPE
         } ?: return
         val itemView = bind.parameterTypes.single().cachedPublicField("itemView", accessible = false)
-        val fragment = "com.miui.appmanager.fragment.ApplicationsDetailsFragment".toClassOrNull() ?: return
+        val fragment = "com.miui.appmanager.fragment.ApplicationsDetailsFragment".toClassOrNull() ?: run { DebugLog.hookSkipped("AppDetailsIconLaunchHooker", "com.miui.appmanager.fragment.ApplicationsDetailsFragment", "not found on host"); return }
         val resume = HostAccess.requireDeclaredMethod(fragment, "onResume", accessible = false)
         val getActivity = HostAccess.requirePublicMethod(fragment, "getActivity", accessible = false)
         bind.hook {

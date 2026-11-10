@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.glass
 
+import com.takekazex.hypertweak.hook.base.orSkip
 import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.presentation.glass.scaleBlendArrayColors
 import com.takekazex.hypertweak.presentation.glass.scaleColorAlpha
@@ -212,10 +213,10 @@ object GlassMaterialHooker : StaticHooker() {
     override fun onHook() {
         readSettings()
         // Collect baselines even while disabled so the first enable updates already-created views.
-        SHADE_BLUR.toClassOrNull()?.hookAllConstructors {
+        SHADE_BLUR.toClassOrNull().orSkip("GlassMaterialHooker", SHADE_BLUR)?.hookAllConstructors {
             after { param -> shadeBlur = WeakReference(param.thisObject) }
         }
-        BLUR_UTILS.toClassOrNull()?.hookAllConstructors {
+        BLUR_UTILS.toClassOrNull().orSkip("GlassMaterialHooker", BLUR_UTILS)?.hookAllConstructors {
             after { param -> blurUtils = WeakReference(param.thisObject) }
         }
         installFunnels()

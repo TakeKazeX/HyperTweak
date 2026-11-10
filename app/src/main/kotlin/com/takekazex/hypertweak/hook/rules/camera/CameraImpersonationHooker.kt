@@ -314,7 +314,7 @@ object CameraImpersonationHooker : StaticHooker() {
         val formatRef = semantics.dex.code(ref).reads.filter {
             it.definingClass == ref.definingClass && it.type == "Ljava/lang/String;"
         }.distinctBy { it.toString() }.singleOrNull() ?: return
-        val formatField = semantics.dex.field(formatRef, classLoader) ?: return
+        val formatField = semantics.dex.field(formatRef, classLoader) ?: run { DebugLog.hookSkipped("CameraImpersonationHooker", "semantics.dex.field(formatRef, classLoader)", "not found on host"); return }
         deoptimize(oMethod)
         // Saved format for the current invocation. before/after of one call always run on the
         // same thread; J0 updates views sequentially, so the pairs never interleave.
@@ -466,7 +466,7 @@ object CameraImpersonationHooker : StaticHooker() {
         }
 
         if (resolved.size != 1) {
-            DebugLog.d(TAG, "tint-color provider path matches=${resolved.size}; refusing ambiguous gate")
+            DebugLog.hookSkipped(TAG, "tint-color provider gate", "matches=${resolved.size}; refusing ambiguous gate")
             return null
         }
         return resolved.values.single()
@@ -485,7 +485,7 @@ object CameraImpersonationHooker : StaticHooker() {
                 method.returnType == ActivityInfo::class.java &&
                 !Modifier.isAbstract(method.modifiers)
         } ?: run {
-            DebugLog.d(TAG, "PackageManager receiver-info implementation unavailable")
+            DebugLog.hookSkipped(TAG, "ApplicationPackageManager#getReceiverInfo", "implementation not found")
             return
         }
 
@@ -913,7 +913,7 @@ object CameraImpersonationHooker : StaticHooker() {
                 holder = holder.superclass
             }
             val groupField0 = groupField ?: run {
-                DebugLog.d(TAG, "mPreferenceGroup not found on $fragClass; top row skipped")
+                DebugLog.w(TAG, "mPreferenceGroup not found on $fragClass; top row skipped")
                 return
             }
             val screen = groupField0.get(fragment) ?: return
@@ -947,7 +947,7 @@ object CameraImpersonationHooker : StaticHooker() {
             DebugLog.w(TAG, "content-credential preference field is not unique (${fields.size})")
             return
         }
-        val field = semantics.dex.field(reference, classLoader) ?: return
+        val field = semantics.dex.field(reference, classLoader) ?: run { DebugLog.hookSkipped("CameraImpersonationHooker", "semantics.dex.field(reference, classLoader)", "not found on host"); return }
         if (!Modifier.isStatic(field.modifiers) || field.type != java.lang.Boolean.TYPE) return
         runCatching {
             field.getBoolean(null) // Initialize the host before applying the user override.

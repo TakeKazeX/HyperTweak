@@ -57,7 +57,7 @@ object AODHooker : StaticHooker() {
         com.takekazex.hypertweak.hook.rules.systemui.aod.prepareAodIconSettingsSettings()
         generation++
         enabled = settingAodFullscreen
-        val parser = "miui.util.FeatureParser".toClassOrNull() ?: return
+        val parser = "miui.util.FeatureParser".toClassOrNull() ?: run { DebugLog.hookSkipped("AODHooker", "miui.util.FeatureParser", "not found on host"); return }
         val get = HostAccess.requireDeclaredMethod(parser, "getBoolean", String::class.java, Boolean::class.javaPrimitiveType, accessible = false)
         // API-102 can attach this generation before the old generation's hook is removed.
         // Read the original implementation, otherwise the old forced true becomes our baseline.
@@ -156,7 +156,7 @@ object AODHooker : StaticHooker() {
     /** Select the real native implementation once, even for a default-off process startup. */
     private fun installManagerBridge(managerType: Class<*>) {
         val factoryName = "com.miui.keyguard.dagger.MiuiKeyguardModule_Companion_ProvidesMiuiFullAodManagerFactory"
-        val api = "com.miui.interfaces.keyguard.IMiuiFullAodManager".toClassOrNull() ?: return
+        val api = "com.miui.interfaces.keyguard.IMiuiFullAodManager".toClassOrNull() ?: run { DebugLog.hookSkipped("AODHooker", "com.miui.interfaces.keyguard.IMiuiFullAodManager", "not found on host"); return }
         val factory = factoryName.toClassOrNull()?.declaredMethods?.singleOrNull {
             it.name == "providesMiuiFullAodManager" && it.parameterCount == 1 && it.returnType == api
         } ?: return

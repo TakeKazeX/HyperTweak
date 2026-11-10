@@ -12,6 +12,9 @@ import java.lang.reflect.Modifier
 
 /** Enables the stock international Settings branches inside com.android.settings only. */
 object GlobalSettingsInterfaceHooker : StaticHooker() {
+    /** Installs no method hook by design: it writes a host static field. */
+    override val expectsHooks = false
+
     // Published on settings acceptance; hook callbacks perform no storage reads.
     private val settingSettingsGlobalInterface by hookSetting(false) {
         Preferences.getBoolean(PlatformSettingsKeys.KEY_SETTINGS_GLOBAL_INTERFACE, false)

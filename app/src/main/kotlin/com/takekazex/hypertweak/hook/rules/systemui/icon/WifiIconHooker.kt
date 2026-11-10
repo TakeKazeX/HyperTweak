@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import com.takekazex.hypertweak.hook.base.orSkip
 import com.takekazex.hypertweak.hook.base.cachedPublicField
 import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
 import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
@@ -195,9 +196,9 @@ object WifiIconHooker : StaticHooker() {
     }
 
     private fun hookWifiOverrides() {
-        val vmClass = VM_CLASS.toClassOrNull() ?: return
+        val vmClass = VM_CLASS.toClassOrNull() ?: run { DebugLog.hookSkipped("WifiIconHooker", "$VM_CLASS", "not found on host"); return }
         fun hookGetter(name: String, returnType: String, select: (WifiOverride) -> Any?) {
-            val getter = HostAccess.method(vmClass, name) ?: return
+            val getter = HostAccess.method(vmClass, name) ?: run { DebugLog.hookSkipped("WifiIconHooker", "HostAccess.method(vmClass, name)", "not found on host"); return }
             if (getter.returnType.name != IconTunerFlows.hostClassName("kotlinx.coroutines.flow", returnType)) return
             deoptimize(getter)
             VM_CLASS.replace("WifiViewModel", "LocationBasedWifiViewModel").toClassOrNull()
@@ -290,7 +291,7 @@ object WifiIconHooker : StaticHooker() {
             if (standardMode == 1) add("getWifiStandard")
         }
         getters.forEach { getter ->
-            vmClass.findMethodOrNull { name(getter); noParams() }?.hook {
+            vmClass.findMethodOrNull { name(getter); noParams() }.orSkip("WifiIconHooker", "vmClass")?.hook {
                 before { param -> param.result = IconTunerFlows.zeroFlow }
             } ?: DebugLog.hookSkipped(TAG, "$VM_CLASS#$getter", "method not found")
         }
@@ -347,7 +348,7 @@ object WifiIconHooker : StaticHooker() {
     @SuppressLint("RtlHardcoded") // Match the native inoutLeft collector's absolute LEFT/RIGHT.
     private fun hookAccessoryLayout() {
         if (!activityRight || hideActivity) return
-        val binderClass = BINDER_CLASS.toClassOrNull() ?: return
+        val binderClass = BINDER_CLASS.toClassOrNull() ?: run { DebugLog.hookSkipped("WifiIconHooker", "$BINDER_CLASS", "not found on host"); return }
         binderClass.findMethodOrNull { name("bind"); paramCount(2) }?.let { method ->
             deoptimize(method)
             method.hook { after { param ->

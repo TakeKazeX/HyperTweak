@@ -152,12 +152,12 @@ object IconManagerHooker : StaticHooker() {
                     .onFailure { DebugLog.w(TAG, "initial icon policy failed", it) }
             }
         }
-        val controller = "com.android.systemui.statusbar.phone.ui.StatusBarIconControllerImpl".toClassOrNull() ?: return
+        val controller = "com.android.systemui.statusbar.phone.ui.StatusBarIconControllerImpl".toClassOrNull() ?: run { DebugLog.hookSkipped("IconManagerHooker", "com.android.systemui.statusbar.phone.ui.StatusBarIconControllerImpl", "not found on host"); return }
         val minimalismField = hierarchyField(controller, "mMinimalismModeController") ?: return
         val minimalismMethod = minimalismField.type.methods.singleOrNull {
             it.name == "isMininalismModeOn" && it.parameterCount == 0
         } ?: return
-        val icon = "com.android.systemui.statusbar.StatusBarIconView".toClassOrNull() ?: return
+        val icon = "com.android.systemui.statusbar.StatusBarIconView".toClassOrNull() ?: run { DebugLog.hookSkipped("IconManagerHooker", "com.android.systemui.statusbar.StatusBarIconView", "not found on host"); return }
         val slotField = hierarchyField(icon, "mSlot") ?: return
         val refreshGroup = controller.findMethodOrNull { name("refreshIconGroup"); paramCount(1) }
         refreshGroup?.let { method ->

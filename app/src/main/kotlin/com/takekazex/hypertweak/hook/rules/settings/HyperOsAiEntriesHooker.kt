@@ -34,7 +34,10 @@ object HyperOsAiEntriesHooker : StaticHooker() {
     init { generationCleanup { retired = true } }
 
     override fun onHook() {
-        if (hookParam.packageName != PACKAGE || !isMainProcess) return
+        if (hookParam.packageName != PACKAGE || !isMainProcess) {
+            DebugLog.hookSkippedDebug(TAG, "AI entries", "not the Settings main process")
+            return
+        }
         retired = false
         fragmentActivity = hostClass("androidx.fragment.app.FragmentActivity")
         val screen = hostClass("androidx.preference.PreferenceScreen") ?: return

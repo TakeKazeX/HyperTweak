@@ -12,6 +12,9 @@ import com.takekazex.hypertweak.util.restart.RestartProtocol
 import java.util.concurrent.ConcurrentHashMap
 
 object RestartBroadcastHooker : StaticHooker() {
+    /** Installs no method hook by design: its receiver is registered from onPackageReady. */
+    override val expectsHooks = false
+
     private val registeredPackages = ConcurrentHashMap.newKeySet<String>()
     private val receivers = ConcurrentHashMap<String, Pair<Context, BroadcastReceiver>>()
 

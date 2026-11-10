@@ -19,8 +19,8 @@ object AivsDirectoryHooker : StaticHooker() {
     override fun onHook() {
         val pkg = hookParam.packageName
         if (pkg !in AivsPathPolicy.packages) return
-        val files = "com.xiaomi.aivsbluetoothsdk.utils.FileUtil".toClassOrNull() ?: return
-        val voice = "com.xiaomi.aivsbluetoothsdk.voice.VoiceManager".toClassOrNull() ?: return
+        val files = "com.xiaomi.aivsbluetoothsdk.utils.FileUtil".toClassOrNull() ?: run { DebugLog.hookSkipped("AivsDirectoryHooker", "com.xiaomi.aivsbluetoothsdk.utils.FileUtil", "not found on host"); return }
+        val voice = "com.xiaomi.aivsbluetoothsdk.voice.VoiceManager".toClassOrNull() ?: run { DebugLog.hookSkipped("AivsDirectoryHooker", "com.xiaomi.aivsbluetoothsdk.voice.VoiceManager", "not found on host"); return }
         val strings = Array(4) { String::class.java }
         val splice = files.declaredMethods.singleOrNull {
             it.name == "splicingFilePath" && Modifier.isStatic(it.modifiers) &&

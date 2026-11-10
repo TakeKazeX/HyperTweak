@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.notification
 
+import com.takekazex.hypertweak.hook.base.orSkip
 import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 
@@ -209,7 +210,7 @@ object NotificationHeaderClockSecondsHooker : StaticHooker() {
             "method not found"
         )
 
-        resolvedClockClass.findMethodOrNull { name("onAttachedToWindow"); noParams() }?.hook {
+        resolvedClockClass.findMethodOrNull { name("onAttachedToWindow"); noParams() }.orSkip("NotificationHeaderClockSecondsHooker", "resolvedClockClass#onAttachedToWindow")?.hook {
             after { param ->
                 HookFailurePolicy.open(TAG, "onAttachedToWindow", Unit) {
                     val view = param.thisObject as? TextView ?: return@open
@@ -224,7 +225,7 @@ object NotificationHeaderClockSecondsHooker : StaticHooker() {
             "method not found"
         )
 
-        resolvedClockClass.findMethodOrNull { name("onDetachedFromWindow"); noParams() }?.hook {
+        resolvedClockClass.findMethodOrNull { name("onDetachedFromWindow"); noParams() }.orSkip("NotificationHeaderClockSecondsHooker", "resolvedClockClass#onDetachedFromWindow")?.hook {
             after { param ->
                 HookFailurePolicy.open(TAG, "onDetachedFromWindow", Unit) {
                     val view = param.thisObject as? View ?: return@open

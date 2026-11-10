@@ -36,7 +36,7 @@ object VisualPerceptionSettingsHooker : StaticHooker() {
     private val aonGestureGates = setOf("isSupportAonGesture")
 
     override fun onHook() {
-        val clazz = CLASS.toClassOrNull() ?: return
+        val clazz = CLASS.toClassOrNull() ?: run { DebugLog.hookSkipped("VisualPerceptionSettingsHooker", "$CLASS", "not found on host"); return }
         val names = visualPerceptionGates + aonGestureGates
         var count = 0
         clazz.declaredMethods.filter { method ->

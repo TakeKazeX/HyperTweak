@@ -27,6 +27,9 @@ import java.util.concurrent.TimeoutException
 
 /** Privileged, on-demand battery reads in Security Center's main application process. */
 object BatteryInfoHooker : StaticHooker() {
+    /** Serves on-demand battery requests through a receiver registered at package ready; no hooks. */
+    override val expectsHooks = false
+
     // Published on settings acceptance; hook callbacks perform no storage reads.
     private val settingLanguage by hookSetting(0) { Preferences.getInt(AppSettingsKeys.KEY_LANGUAGE, 0) }
 

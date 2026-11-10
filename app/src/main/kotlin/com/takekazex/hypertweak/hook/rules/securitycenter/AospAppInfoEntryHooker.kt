@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.securitycenter
 
+import com.takekazex.hypertweak.hook.base.orSkip
 import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
@@ -89,7 +90,7 @@ object AospAppInfoEntryHooker : StaticHooker() {
             return
         }
 
-        CompatibleMethodResolver.find(fragment, "onResume")?.hook {
+        CompatibleMethodResolver.find(fragment, "onResume").orSkip("AospAppInfoEntryHooker", "CompatibleMethodResolver#onResume")?.hook {
             after { param -> HookFailurePolicy.open(TAG, "resume app info", Unit) {
                 addAppInfoPreference(param.thisObject)
             } }

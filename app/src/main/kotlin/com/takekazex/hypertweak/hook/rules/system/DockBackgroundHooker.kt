@@ -141,7 +141,7 @@ object DockBackgroundHooker : StaticHooker() {
 
     override fun onHook() {
         if (!com.takekazex.hypertweak.util.platform.PlatformLevel.isOs4) return
-        val clazz = "com.android.server.wm.WindowState".toClassOrNull() ?: return
+        val clazz = "com.android.server.wm.WindowState".toClassOrNull() ?: run { DebugLog.hookSkipped("DockBackgroundHooker", "com.android.server.wm.WindowState", "not found on host"); return }
         val prepareMethod = clazz.declaredMethods.singleOrNull { it.name == "prepareSurfaces" && it.parameterCount == 0 && it.returnType == Void.TYPE }
             ?: error("WMS prepare boundary unavailable")
         val remove = clazz.declaredMethods.singleOrNull { it.name == "removeImmediately" && it.parameterCount == 0 && it.returnType == Void.TYPE }

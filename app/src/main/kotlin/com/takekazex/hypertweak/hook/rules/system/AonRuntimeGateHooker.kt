@@ -81,7 +81,7 @@ object AonRuntimeGateHooker : StaticHooker() {
             } }
         }
 
-        val resources = "android.content.res.Resources".toClassOrNull() ?: return
+        val resources = "android.content.res.Resources".toClassOrNull() ?: run { DebugLog.hookSkipped("AonRuntimeGateHooker", "android.content.res.Resources", "not found on host"); return }
         val method = runCatching {
             HostAccess.requireDeclaredMethod(resources, "getBoolean", Int::class.javaPrimitiveType, accessible = false)
         }.getOrNull() ?: return

@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.module
 
+import com.takekazex.hypertweak.hook.base.orSkip
 import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
@@ -150,7 +151,7 @@ object SettingsHooker : StaticHooker() {
         }
 
         // 2. Hook setIcon in HeaderAdapter to set our custom icon from module resources
-        clzHeaderAdapter?.declaredMethods?.firstOrNull { it.name == "setIcon" }?.hook {
+        clzHeaderAdapter?.declaredMethods?.firstOrNull { it.name == "setIcon" }.orSkip("SettingsHooker", "clzHeaderAdapter#setIcon")?.hook {
             intercept { chain ->
                 val param = chain.args
                 val headerViewHolder = param[0]

@@ -65,9 +65,9 @@ object NotificationAbsoluteTimeHooker : StaticHooker() {
         retiring = false
         // All notification headers execute in the main SystemUI process; screenshot/tuner services do not.
         if (!isMainProcess) return
-        val type = "android.widget.DateTimeView".toClassOrNull() ?: return
-        val header = HEADER.toClassOrNull() ?: return
-        val wrapper = WRAPPER.toClassOrNull() ?: return
+        val type = "android.widget.DateTimeView".toClassOrNull() ?: run { DebugLog.hookSkipped("NotificationAbsoluteTimeHooker", "android.widget.DateTimeView", "not found on host"); return }
+        val header = HEADER.toClassOrNull() ?: run { DebugLog.hookSkipped("NotificationAbsoluteTimeHooker", "$HEADER", "not found on host"); return }
+        val wrapper = WRAPPER.toClassOrNull() ?: run { DebugLog.hookSkipped("NotificationAbsoluteTimeHooker", "$WRAPPER", "not found on host"); return }
         boundary("resolve") {
             timeField = HostAccess.requireDeclaredField(type, "mTimeMillis", accessible = true)
             relativeField = HostAccess.requireDeclaredField(type, "mShowRelativeTime", accessible = true)
