@@ -28,7 +28,7 @@ class CameraSemanticApkTest {
   val buffer = ByteArray(65536)
   while (true) { val count = stream.read(buffer); if (count < 0) break; digest.update(buffer, 0, count) }
  }
- org.junit.Assert.assertEquals("1cec1ff2203d9d1c358b7ea24f6db5b62adeb5d3f6ceca48b0fa1df932d685d9",
+ org.junit.Assert.assertEquals("fc3922743a7a526d7eab5e818d769144ce789088dd2016607866cb731dea0b8e",
   digest.digest().joinToString("") { "%02x".format(it) })
  val start = System.nanoTime()
  val dex = DexOperandIndex.fixture(apk)
@@ -80,9 +80,11 @@ class CameraSemanticApkTest {
   listOf("launch classification", "CAPTURE|STREET", "Ljava/lang/String;", ""),
   listOf("guide", "pref_camera_global_guide_shown_key", "Z", ""),
   listOf("shutter selector", "key_shutter_sound", "I", ""),
-  listOf("sort order", "pref_camera_sort_modes_key", "[I", "Lv2/U;"),
+  // The funnel takes one obfuscated module-state object; production also constrains its owner.
+  listOf("sort order", "pref_camera_sort_modes_key", "[I", "L*"),
   listOf("persisted support", "all_support_mode_list", "Z", "I")
- )) refs(key, dex.strings(*anchors.split('|').toTypedArray()).filter { it.returnType == result && it.parameterTypes.joinToString("") == params && (key != "guide" || dex.hasNumber(it,2)) })
+ )) refs(key, dex.strings(*anchors.split('|').toTypedArray()).filter { it.returnType == result && (it.parameterTypes.joinToString("") == params ||
+  params == "L*" && it.parameterTypes.size == 1 && it.parameterTypes[0].startsWith("L")) && (key != "guide" || dex.hasNumber(it,2)) })
  val quality = dex.strings("pref_camera_jpegquality_key").filter { ref -> dex.classDefinition(ref.returnType)?.accessFlags?.and(0x4000) != 0 && dex.classDefinition(ref.returnType) != null }
  refs("quality capability", quality.flatMap { dex.code(it).calls }.map { it.method }.filter { DexOperandIndex.isInstanceGetter(it,config,"Z") })
  refs("Leica style/sounds",dex.strings("leica_default","leica_mechanical").flatMap { dex.code(it).calls }.map { it.method }.filter { DexOperandIndex.isInstanceGetter(it,config,"Z") })

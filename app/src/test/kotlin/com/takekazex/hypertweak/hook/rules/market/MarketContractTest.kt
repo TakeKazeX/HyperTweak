@@ -21,9 +21,13 @@ class MarketContractTest {
         println("MISSING=" + MarketTargets.all.filter { "target:${it.descriptor}" !in contract })
         println("NO_CALLERS=" + MarketTargets.all.filter { t -> contract.keys.none { it.startsWith("caller:${t.descriptor}:") } })
         println("INITIALIZERS=" + contract.values.filter { "-><clinit>" in it })
-        for (target in MarketTargets.all) {
-            assertEquals(target.descriptor, contract["target:${target.descriptor}"])
-            assertTrue("No executing caller: ${target.descriptor}", contract.keys.any { it.startsWith("caller:${target.descriptor}:") })
+        fun called(target: MarketTarget) = contract.keys.any { it.startsWith("caller:${target.descriptor}:") }
+        for (target in MarketTargets.all) assertEquals(target.descriptor, contract["target:${target.descriptor}"])
+        // A store update may stop calling one redundant boundary (13.x no longer calls
+        // needShowAdsWithSourceFile; isSourceFileShowAdStyle carries that path). Its hook stays
+        // harmless, but every policy must still reach the host through an executing caller.
+        for ((key, targets) in MarketTargets.all.groupBy { it.key }) {
+            assertTrue("No executing caller for policy $key", targets.any(::called))
         }
         assertTrue("Cannot reflect class initializers", contract.values.none { "-><clinit>" in it })
         println("MARKET_CONTRACT targets=${MarketTargets.all.size} entries=${contract.size}")

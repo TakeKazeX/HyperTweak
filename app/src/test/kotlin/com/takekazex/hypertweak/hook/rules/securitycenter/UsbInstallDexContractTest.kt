@@ -141,7 +141,7 @@ class UsbInstallDexContractTest {
             }
         }
         assertEquals(
-            "f3d338484cc5fd3f3fec9e8d9d0b4c6370923fba0f5e0d81975a45e914cbc776",
+            "e53a09e38772327e059f74cdaf02e8b3674f9f001e3eea29f10f77fda25448c6",
             digest.digest().joinToString("") { "%02x".format(it) },
         )
 
