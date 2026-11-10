@@ -23,6 +23,7 @@ import java.util.Collections
 import java.util.WeakHashMap
 import kotlin.math.max
 import kotlin.math.roundToInt
+import com.takekazex.hypertweak.util.platform.ResourceLookup
 
 /**
  * Owns AOSP and HyperOS bottom styles in selected keyboard processes, including living services
@@ -266,7 +267,7 @@ object AospImeHooker : StaticHooker() {
                 HostAccess.requireDeclaredMethod(bottom, "onDestroy", accessible = true).invoke(null)
                 restoreNativeLayoutMutations(service, root)
             }
-            val areaId = service.resources.getIdentifier("miui_bottom_area", "id", "android")
+            val areaId = ResourceLookup.identifier(service.resources, "miui_bottom_area", "id", "android")
             val area = if (areaId != 0) root.findViewById<View>(areaId) as? android.view.ViewGroup else null
             area?.removeAllViews()
             if (aospRaiseActive(service)) area?.visibility = View.GONE
@@ -312,7 +313,7 @@ object AospImeHooker : StaticHooker() {
     @Suppress("ResourceType")
     private fun restoreNativeLayoutMutations(service: InputMethodService, root: View) {
         if (service.isFullscreenMode) return
-        val layoutId = service.resources.getIdentifier("input_method", "layout", "android")
+        val layoutId = ResourceLookup.identifier(service.resources, "input_method", "layout", "android")
         if (layoutId == 0) return
         val template = android.view.LayoutInflater.from(service).inflate(layoutId, null)
         val input = root.findViewById<View>(16908318)
@@ -715,7 +716,7 @@ object AospImeHooker : StaticHooker() {
 
     private fun resolveNavBackId(resources: Resources): Int {
         if (navBackIdCached != -1) return navBackIdCached
-        val resolved = resources.getIdentifier("input_method_nav_back", "id", "android")
+        val resolved = ResourceLookup.identifier(resources, "input_method_nav_back", "id", "android")
         navBackIdCached = resolved
         return resolved
     }

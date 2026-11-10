@@ -13,6 +13,7 @@ import android.widget.ImageView
 import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.util.IdentityHashMap
+import com.takekazex.hypertweak.util.platform.ResourceLookup
 
 internal class CarrierHandoverController(private val host: Host) {
     interface Host {
@@ -185,7 +186,7 @@ internal class CarrierHandoverController(private val host: Host) {
     private fun typeGlyph(row: ViewGroup, subId: Int?): View? {
         if (subId == host.activeDataSubId) StackedSignalHooker.duoTypeTarget(row)?.let { return it }
         val mobile = subId?.let { mobileGroup(row, it) } ?: return null
-        val single = mobile.resources.getIdentifier("mobile_type_single", "id", mobile.context.packageName)
+        val single = ResourceLookup.identifier(mobile.resources, "mobile_type_single", "id", mobile.context.packageName)
         return glyph(mobile, single) ?: glyph(mobile, host.mobileTypeId)
     }
 

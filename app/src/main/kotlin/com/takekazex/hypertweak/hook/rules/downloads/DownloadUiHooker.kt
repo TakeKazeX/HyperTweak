@@ -32,6 +32,7 @@ import java.lang.reflect.Method
 import java.lang.reflect.Modifier
 import java.io.File
 import kotlin.math.roundToInt
+import com.takekazex.hypertweak.util.platform.ResourceLookup
 
 /** Hooks the Download Manager UI features that live next to the provider-side .xlDownload hook. */
 object DownloadUiHooker : StaticHooker() {
@@ -526,7 +527,7 @@ object DownloadUiHooker : StaticHooker() {
 
     private fun findMoreButton(activity: Activity?, context: Context): View? {
         val decor = activity?.window?.decorView ?: return null
-        val id = decor.resources.getIdentifier(MORE_BUTTON_ID, "id", context.packageName)
+        val id = ResourceLookup.identifier(decor.resources, MORE_BUTTON_ID, "id", context.packageName)
         return id.takeIf { it != 0 }?.let { decor.findViewById(it) }
     }
 
@@ -543,7 +544,7 @@ object DownloadUiHooker : StaticHooker() {
         val styleAttr = if (buttonClass.name.endsWith("OverflowMenuButton")) {
             android.R.attr.actionOverflowButtonStyle
         } else {
-            context.resources.getIdentifier(END_ACTION_BUTTON_STYLE, "attr", context.packageName)
+            ResourceLookup.identifier(context.resources, END_ACTION_BUTTON_STYLE, "attr", context.packageName)
         }
         val button = runCatching {
             val constructor = buttonClass.getDeclaredConstructor(
@@ -568,7 +569,7 @@ object DownloadUiHooker : StaticHooker() {
         )
         button.minimumWidth = nativeSize
         button.minimumHeight = nativeSize
-        val iconId = context.resources.getIdentifier(
+        val iconId = ResourceLookup.identifier(context.resources, 
             ACTION_MENU_CHILD_ICON_ID,
             "id",
             context.packageName
@@ -577,7 +578,7 @@ object DownloadUiHooker : StaticHooker() {
             setNativeNewIcon(it)
             it.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
         }
-        val textId = context.resources.getIdentifier(
+        val textId = ResourceLookup.identifier(context.resources, 
             ACTION_MENU_CHILD_TEXT_ID,
             "id",
             context.packageName
@@ -624,7 +625,7 @@ object DownloadUiHooker : StaticHooker() {
     }
 
     private fun refreshNativeNewButton(button: View) {
-        val iconId = button.resources.getIdentifier(
+        val iconId = ResourceLookup.identifier(button.resources, 
             ACTION_MENU_CHILD_ICON_ID,
             "id",
             button.context.packageName
@@ -670,7 +671,7 @@ object DownloadUiHooker : StaticHooker() {
         } else {
             "miuix_action_icon_new_light"
         }
-        val drawableId = button.resources.getIdentifier(
+        val drawableId = ResourceLookup.identifier(button.resources, 
             drawableName,
             "drawable",
             button.context.packageName
@@ -757,9 +758,9 @@ object DownloadUiHooker : StaticHooker() {
             it.name == "getView" && it.parameterTypes.isEmpty()
         }?.let { runCatching { it.invoke(owner) as? View }.getOrNull() } ?: return
         val packageName = root.context.packageName
-        val sourceId = root.resources.getIdentifier("from_uri", "id", packageName)
-        val copyId = root.resources.getIdentifier("from_content", "id", packageName)
-        val layoutId = root.resources.getIdentifier("from_layout", "id", packageName)
+        val sourceId = ResourceLookup.identifier(root.resources, "from_uri", "id", packageName)
+        val copyId = ResourceLookup.identifier(root.resources, "from_content", "id", packageName)
+        val layoutId = ResourceLookup.identifier(root.resources, "from_layout", "id", packageName)
         if (sourceId == 0 || copyId == 0) return
 
         val source = root.findViewById<TextView>(sourceId) ?: return
@@ -793,7 +794,7 @@ object DownloadUiHooker : StaticHooker() {
     }
 
     private fun hostString(context: Context, name: String): String? = runCatching {
-        val id = context.resources.getIdentifier(name, "string", context.packageName)
+        val id = ResourceLookup.identifier(context.resources, name, "string", context.packageName)
         id.takeIf { it != 0 }?.let(context::getString)
     }.getOrNull()
 

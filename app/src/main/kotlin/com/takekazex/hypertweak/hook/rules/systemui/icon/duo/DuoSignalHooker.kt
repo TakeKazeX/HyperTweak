@@ -48,6 +48,7 @@ import java.lang.reflect.Field
 import java.lang.reflect.Method
 import java.util.IdentityHashMap
 import kotlin.math.roundToInt
+import com.takekazex.hypertweak.util.platform.ResourceLookup
 
 /**
  * OS4 battery-layout adapter. Original battery objects remain attached and receive host callbacks.
@@ -448,8 +449,8 @@ object DuoSignalHooker : StaticHooker() {
         if (!source.isAttachedToWindow) return
         val resources = source.resources
         val packageName = source.context.packageName
-        val heightId = resources.getIdentifier("battery_meter_height", "dimen", packageName)
-        val widthId = resources.getIdentifier("battery_meter_width", "dimen", packageName)
+        val heightId = ResourceLookup.identifier(resources, "battery_meter_height", "dimen", packageName)
+        val widthId = ResourceLookup.identifier(resources, "battery_meter_width", "dimen", packageName)
         if (heightId == 0 || widthId == 0) return
         runCatching {
             val width = resources.getDimensionPixelSize(widthId)

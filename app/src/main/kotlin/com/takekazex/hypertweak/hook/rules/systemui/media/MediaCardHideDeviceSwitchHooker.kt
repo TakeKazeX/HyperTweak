@@ -14,6 +14,7 @@ import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.reflect.Field
 import java.util.WeakHashMap
 import java.util.concurrent.atomic.AtomicBoolean
+import com.takekazex.hypertweak.util.platform.ResourceLookup
 
 /**
  * Hides the device-switch button on the media cards (隐藏设备切换按钮), OS4 SystemUI.
@@ -444,7 +445,7 @@ object MediaCardHideDeviceSwitchHooker : StaticHooker() {
         if (view.id == View.NO_ID) return false
         val resources = view.resources
         val ids = mediaSwitchVisibilityIds.getOrPut(resources) {
-            mediaSwitchResourceNames.map { resources.getIdentifier(it, "id", "com.android.systemui") }
+            mediaSwitchResourceNames.map { ResourceLookup.identifier(resources, it, "id", "com.android.systemui") }
                 .filter { it != 0 }.toIntArray()
         }
         if (!ids.contains(view.id)) return false

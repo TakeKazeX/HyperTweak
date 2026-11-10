@@ -9,6 +9,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.ViewTreeObserver
 import android.widget.TextView
+import com.takekazex.hypertweak.util.platform.ResourceLookup
 
 /** One live battery-row binding and the view state it must restore. */
 internal class DuoBinding(val battery: View, val parent: ViewGroup, val icons: View,
@@ -19,7 +20,7 @@ internal class DuoBinding(val battery: View, val parent: ViewGroup, val icons: V
     var observer: ViewTreeObserver? = null
     var preDraw: ViewTreeObserver.OnPreDrawListener? = null
     var hostHideBattery = false
-    val privacyId = battery.resources.getIdentifier("mini_state_container", "id", battery.context.packageName)
+    val privacyId = ResourceLookup.identifier(battery.resources, "mini_state_container", "id", battery.context.packageName)
     var privacyView: View? = null
     val privacyRect = RectF()
     var privacyInset = 0
@@ -40,7 +41,7 @@ internal class DuoBinding(val battery: View, val parent: ViewGroup, val icons: V
     val panelArrival = DuoPanelArrival(panelInitiallySettled)
     var networkMotionSettle: Runnable? = null
     val networkIds = listOf("wifi_signal", "mobile_type_single", "mobile_type", "mobile_signal").associateWith {
-        battery.resources.getIdentifier(it, "id", battery.context.packageName)
+        ResourceLookup.identifier(battery.resources, it, "id", battery.context.packageName)
     }
     var missingSince = -1L
     var expiry: Runnable? = null

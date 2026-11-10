@@ -16,6 +16,7 @@ import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
+import com.takekazex.hypertweak.util.platform.ResourceLookup
 
 internal class CarrierViewState(view: View) {
     val params = (view.layoutParams as? LinearLayout.LayoutParams)?.let { LinearLayout.LayoutParams(it) }
@@ -37,7 +38,7 @@ internal class CarrierRowParts(
     val type: ImageView
 ) {
     val airplaneText = TextView(row.context).apply {
-        val id = resources.getIdentifier("airplane_mode", "string", "com.android.systemui")
+        val id = ResourceLookup.identifier(resources, "airplane_mode", "string", "com.android.systemui")
         text = if (id != 0) context.getString(id) else carrierText.text
         setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
         includeFontPadding = false

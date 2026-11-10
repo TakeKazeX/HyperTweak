@@ -24,6 +24,7 @@ import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 import kotlin.math.roundToInt
+import com.takekazex.hypertweak.util.platform.ResourceLookup
 
 /**
  * Wi-Fi visibility and standard-label options for the existing MIUI Wi-Fi pipeline.
@@ -310,7 +311,7 @@ object WifiIconHooker : StaticHooker() {
             after { param ->
                 runCatching {
                     val root = param.args.getOrNull(0) as? ViewGroup ?: return@runCatching
-                    val groupId = root.resources.getIdentifier(
+                    val groupId = ResourceLookup.identifier(root.resources, 
                         "wifi_group",
                         "id",
                         "com.android.systemui"
@@ -355,8 +356,8 @@ object WifiIconHooker : StaticHooker() {
                 if (retired || !activityRight || hideActivity) return@after
                 runCatching {
                     val root = param.args.getOrNull(0) as? ViewGroup ?: return@runCatching
-                    val standardId = root.resources.getIdentifier("wifi_standard", "id", "com.android.systemui")
-                    val activityId = root.resources.getIdentifier("wifi_activity", "id", "com.android.systemui")
+                    val standardId = ResourceLookup.identifier(root.resources, "wifi_standard", "id", "com.android.systemui")
+                    val activityId = ResourceLookup.identifier(root.resources, "wifi_activity", "id", "com.android.systemui")
                     val standard = if (standardId != 0) root.findViewById<android.view.View>(standardId) as? TextView else null
                     standard?.let(::placeStandardLeft)
                     val activity = if (activityId != 0) root.findViewById<android.view.View>(activityId) else null
@@ -492,7 +493,7 @@ object WifiIconHooker : StaticHooker() {
     internal fun nativeGlyph(root: View, signalId: Int): View? {
         if (signalId == 0) return null
         val signal = root.findViewById<View>(signalId) ?: return null
-        val groupId = root.resources.getIdentifier("wifi_group", "id", root.context.packageName)
+        val groupId = ResourceLookup.identifier(root.resources, "wifi_group", "id", root.context.packageName)
         var group = signal.parent as? View
         while (group != null && group !== root) {
             if (group.id == groupId) return group

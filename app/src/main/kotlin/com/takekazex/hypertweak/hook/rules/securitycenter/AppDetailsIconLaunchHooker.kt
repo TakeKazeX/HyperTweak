@@ -18,6 +18,7 @@ import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.util.WeakHashMap
+import com.takekazex.hypertweak.util.platform.ResourceLookup
 
 /** The host title has no stock click listener. Only its icon gains a launcher action. */
 object AppDetailsIconLaunchHooker : DynamicHooker() {
@@ -84,7 +85,7 @@ object AppDetailsIconLaunchHooker : DynamicHooker() {
     private fun bindRoot(root: View) {
         if (retired || !ready) return
         val host = activity(root.context)?.takeIf { it.javaClass.name == DETAILS } ?: return
-        val id = root.resources.getIdentifier("app_manager_details_appicon", "id", PACKAGE)
+        val id = ResourceLookup.identifier(root.resources, "app_manager_details_appicon", "id", PACKAGE)
         if (id == 0) return
         val icon = root.findViewById<View>(id) as? ImageView ?: return
         val enabled = settingAppDetailsIconLaunch

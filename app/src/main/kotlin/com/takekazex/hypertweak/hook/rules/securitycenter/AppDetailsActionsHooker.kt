@@ -22,6 +22,7 @@ import org.luckypray.dexkit.result.MethodData
 import java.lang.reflect.Field
 import java.lang.reflect.Method
 import java.util.WeakHashMap
+import com.takekazex.hypertweak.util.platform.ResourceLookup
 
 /** Adjusts the two native menu items while leaving the host's action dispatch in charge. */
 object AppDetailsActionsHooker : DynamicHooker() {
@@ -187,7 +188,7 @@ object AppDetailsActionsHooker : DynamicHooker() {
 
     private fun bindReport(targets: Targets, fragment: Any, activity: Activity) {
         val item = targets.reportItem.get(fragment) as? MenuItem ?: return
-        val reportId = activity.resources.getIdentifier("app_report", "id", PACKAGE)
+        val reportId = ResourceLookup.identifier(activity.resources, "app_report", "id", PACKAGE)
         if (reportId == 0 || item.itemId != reportId) return
         if (hideReport && item.isVisible) {
             remember(item)

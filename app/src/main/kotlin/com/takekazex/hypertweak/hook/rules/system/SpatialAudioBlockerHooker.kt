@@ -16,6 +16,7 @@ import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.hook.rules.shared.AirPodsScope
 import org.luckypray.dexkit.DexKitBridge
+import com.takekazex.hypertweak.util.platform.ResourceLookup
 
 /** Hooks the concrete AirPods and MiLink paths found in the shipped APKs. */
 object SpatialAudioBlockerHooker : StaticHooker() {
@@ -395,7 +396,7 @@ object SpatialAudioBlockerHooker : StaticHooker() {
     }
 
     private fun ancTitleId(view: View, loader: ClassLoader?): Int = runCatching {
-        view.resources.getIdentifier("anc_title", "id", "com.miui.circulate.world").takeIf { it != 0 }
+        ResourceLookup.identifier(view.resources, "anc_title", "id", "com.miui.circulate.world").takeIf { it != 0 }
             ?: Class.forName("com.miui.circulate.world.R\$id", false, loader ?: view.context.classLoader)
             .cachedDeclaredField("anc_title", accessible = false).getInt(null)
     }.getOrDefault(0)

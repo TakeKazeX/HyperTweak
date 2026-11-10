@@ -23,6 +23,7 @@ import java.lang.ref.WeakReference
 import java.lang.reflect.Field
 import java.lang.reflect.Method
 import java.util.WeakHashMap
+import com.takekazex.hypertweak.util.platform.ResourceLookup
 
 /**
  * 图标左置 — shows selected status-bar slots (勿扰 zen, 静音/振动 volume+mute, 热点 hotspot,
@@ -810,7 +811,7 @@ object LeftContainerHooker : StaticHooker() {
         if (view.javaClass.name != KEYGUARD_VIEW_CLASS) return
         val manager = hierarchyField(view.javaClass, "mTintedIconManager")?.get(view) ?: return
         val right = hierarchyField(manager.javaClass, "mGroup")?.get(manager) as? ViewGroup ?: return
-        val resourceId = { name: String -> view.resources.getIdentifier(name, "id", "com.android.systemui") }
+        val resourceId = { name: String -> ResourceLookup.identifier(view.resources, name, "id", "com.android.systemui") }
         val leftFrame = view.findViewById(resourceId("keyguard_left_frame")) as? ViewGroup ?: return
         val clock = view.findViewById<View>(resourceId("keyguard_clock")) ?: return
         val alarm = view.findViewById<View>(resourceId("ll_alarm_container")) ?: return
@@ -1023,7 +1024,7 @@ object LeftContainerHooker : StaticHooker() {
     private fun captureManager(root: ViewGroup, manager: Any, groupField: Field): LeftState? {
         val right = groupField.get(manager) as? ViewGroup ?: return null
         val res = root.resources
-        fun id(name: String): Int = res.getIdentifier(name, "id", "com.android.systemui")
+        fun id(name: String): Int = ResourceLookup.identifier(res, name, "id", "com.android.systemui")
         val statusIconsId = id("statusIcons")
         if (statusIconsId == 0 || right.id != statusIconsId) {
             return null // not the home status-bar manager (e.g. secondary display variant)
@@ -1057,7 +1058,7 @@ object LeftContainerHooker : StaticHooker() {
         synchronized(states) {
             val state = states[manager]
             if (state == null || state.leftHost !== root.findViewById(
-                    root.resources.getIdentifier(
+                    ResourceLookup.identifier(root.resources, 
                         "phone_status_bar_left_container", "id", "com.android.systemui"
                     )
                 )

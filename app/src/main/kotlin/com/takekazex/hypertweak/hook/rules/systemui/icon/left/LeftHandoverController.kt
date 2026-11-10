@@ -9,6 +9,7 @@ import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.util.WeakHashMap
 import kotlin.math.abs
+import com.takekazex.hypertweak.util.platform.ResourceLookup
 
 internal class LeftHandoverController(private val host: Host) {
     interface Host {
@@ -236,7 +237,7 @@ internal class LeftHandoverController(private val host: Host) {
     /** `R.id.statusIcons` of a control-center row; resolved through the row's own resources. */
     private fun statusIconsContainer(row: ViewGroup): ViewGroup? {
         if (statusIconsId == 0) {
-            statusIconsId = row.resources.getIdentifier("statusIcons", "id", "com.android.systemui")
+            statusIconsId = ResourceLookup.identifier(row.resources, "statusIcons", "id", "com.android.systemui")
         }
         val id = statusIconsId
         if (id == 0) return null

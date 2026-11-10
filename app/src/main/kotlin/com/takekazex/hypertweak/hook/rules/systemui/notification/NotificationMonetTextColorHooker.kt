@@ -23,6 +23,7 @@ import java.lang.ref.WeakReference
 import java.lang.reflect.Field
 import java.lang.reflect.Method
 import java.util.WeakHashMap
+import com.takekazex.hypertweak.util.platform.ResourceLookup
 
 /** Neutralize native notification text at palette and final content/color binding boundaries. */
 object NotificationMonetTextColorHooker : StaticHooker() {
@@ -441,9 +442,9 @@ object NotificationMonetTextColorHooker : StaticHooker() {
                 "notification_time_color", "notification_action_text_color",
                 "notification_title_color_with_bg_dark", "notification_text_color_with_bg_dark",
                 "notification_time_color_with_bg_dark").mapNotNull { name ->
-                resources.getIdentifier(name, "color", "com.android.systemui").takeIf { it != 0 }
+                ResourceLookup.identifier(resources, name, "color", "com.android.systemui").takeIf { it != 0 }
             } + listOf("materialColorOnSurface", "materialColorShadow").mapNotNull { name ->
-                resources.getIdentifier(name, "color", "android").takeIf { it != 0 }
+                ResourceLookup.identifier(resources, name, "color", "android").takeIf { it != 0 }
             }
         } }
         return ids.mapNotNull { runCatching { context.getColor(it) }.getOrNull() }.toSet()

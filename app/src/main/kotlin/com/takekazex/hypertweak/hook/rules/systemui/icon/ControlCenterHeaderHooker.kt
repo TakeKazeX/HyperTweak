@@ -24,6 +24,7 @@ import java.lang.reflect.Field
 import java.util.WeakHashMap
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import com.takekazex.hypertweak.util.platform.ResourceLookup
 
 /** Control-center-only date policy and compact carrier/battery constraints. */
 object ControlCenterHeaderHooker : StaticHooker() {
@@ -381,7 +382,7 @@ object ControlCenterHeaderHooker : StaticHooker() {
         val resources = view.resources
         val cached = resourceIds[resources]?.takeIf { it.configuration == resources.configuration }
             ?: ResourceIds(resources).also { resourceIds[resources] = it }
-        return cached.values.getOrPut(name) { resources.getIdentifier(name, "id", "com.android.systemui") }
+        return cached.values.getOrPut(name) { ResourceLookup.identifier(resources, name, "id", "com.android.systemui") }
     }
 
     private fun read(owner: Any, name: String): Any? = field(owner.javaClass, name)?.get(owner)

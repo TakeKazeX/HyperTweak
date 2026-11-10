@@ -36,6 +36,7 @@ import java.lang.reflect.Method
 import java.lang.reflect.Modifier
 import java.text.Collator
 import java.util.concurrent.atomic.AtomicBoolean
+import com.takekazex.hypertweak.util.platform.ResourceLookup
 
 /** Existing PA classic-widget entry -> native provider chooser -> PA AppWidgetHost. */
 object AndroidWidgetPickerHooker : StaticHooker() {
@@ -125,7 +126,7 @@ object AndroidWidgetPickerHooker : StaticHooker() {
                             is View -> first
                             else -> resolved.footerRoot.invoke(param.thisObject) as? View
                         } ?: return@runCatching
-                        val id = activity.resources.getIdentifier("picker_nav_footer", "id", activity.packageName)
+                        val id = ResourceLookup.identifier(activity.resources, "picker_nav_footer", "id", activity.packageName)
                         if (id != 0) root.findViewById<View>(id)?.visibility = if (enabled()) View.VISIBLE else View.GONE
                     }.onFailure { DebugLog.w(TAG, "native footer binding failed", it) }
                 }
@@ -203,7 +204,7 @@ object AndroidWidgetPickerHooker : StaticHooker() {
     private fun show(activity: Activity, choices: List<Choice>, contract: Contract) {
         runCatching {
             val builder = contract.builder.newInstance(activity, 0)
-            val titleId = activity.resources.getIdentifier("pa_picker_classic_widget", "string", activity.packageName)
+            val titleId = ResourceLookup.identifier(activity.resources, "pa_picker_classic_widget", "string", activity.packageName)
             contract.title.invoke(builder, activity.getString(titleId))
             contract.items.invoke(builder, choices.map { it.label as CharSequence }.toTypedArray(), -1,
                 DialogInterface.OnClickListener { selected, index ->
@@ -260,7 +261,7 @@ object AndroidWidgetPickerHooker : StaticHooker() {
     }
 
     private fun message(context: Context, name: String) {
-        val id = context.resources.getIdentifier(name, "string", context.packageName)
+        val id = ResourceLookup.identifier(context.resources, name, "string", context.packageName)
         if (id != 0) Toast.makeText(context, id, Toast.LENGTH_SHORT).show()
     }
 

@@ -35,6 +35,7 @@ import com.takekazex.hypertweak.util.wifi.WifiIpAddressText
 import java.lang.ref.WeakReference
 import java.net.Inet4Address
 import java.net.Inet6Address
+import com.takekazex.hypertweak.util.platform.ResourceLookup
 
 object WifiDetailsHooker : StaticHooker() {
     private const val TAG = "WifiDetailsHooker"
@@ -381,7 +382,7 @@ object WifiDetailsHooker : StaticHooker() {
                 if (existing != null && oldParent === target && order.invoke(existing) == targetOrder) return
 
                 val context = getContext.invoke(host) as? Context ?: return
-                val title = context.resources.getIdentifier("saved_wifi", "string", context.packageName)
+                val title = ResourceLookup.identifier(context.resources, "saved_wifi", "string", context.packageName)
                 check(title != 0) { "Saved network title unavailable" }
                 val shortcut = create.newInstance(context)
                 setKey.invoke(shortcut, PREF_KEY_SAVED_WIFI_ENTRY)
@@ -422,8 +423,8 @@ object WifiDetailsHooker : StaticHooker() {
                     val view = runCatching { holder.javaClass.getField("itemView").get(holder) as? View }.getOrNull()
                         ?: return@after
 
-                    val btnDeleteId = view.context.resources.getIdentifier("btn_delete", "id", "com.android.settings")
-                    val checkboxId = view.context.resources.getIdentifier("checkbox", "id", "com.android.settings")
+                    val btnDeleteId = ResourceLookup.identifier(view.context.resources, "btn_delete", "id", "com.android.settings")
+                    val checkboxId = ResourceLookup.identifier(view.context.resources, "checkbox", "id", "com.android.settings")
 
                     val btnDelete = if (btnDeleteId != 0) view.findViewById<View>(btnDeleteId) else null
                     val checkbox = if (checkboxId != 0) view.findViewById<View>(checkboxId) else null
@@ -478,8 +479,8 @@ object WifiDetailsHooker : StaticHooker() {
                     }?.apply { isAccessible = true }
                     val view = viewField?.get(preference) as? View ?: return@after
 
-                    val btnDeleteId = view.context.resources.getIdentifier("btn_delete", "id", "com.android.settings")
-                    val checkboxId = view.context.resources.getIdentifier("checkbox", "id", "com.android.settings")
+                    val btnDeleteId = ResourceLookup.identifier(view.context.resources, "btn_delete", "id", "com.android.settings")
+                    val checkboxId = ResourceLookup.identifier(view.context.resources, "checkbox", "id", "com.android.settings")
                     val btnDelete = if (btnDeleteId != 0) view.findViewById<View>(btnDeleteId) else null
                     val checkbox = if (checkboxId != 0) view.findViewById<View>(checkboxId) else null
 
@@ -527,9 +528,9 @@ object WifiDetailsHooker : StaticHooker() {
         }
 
         fun dp(value: Int) = (value * density + 0.5f).toInt()
-        val inlineStyle = context.resources.getIdentifier("Widget.Button.Inline", "style", context.packageName)
-        val shareIcon = context.resources.getIdentifier("ic_share", "drawable", context.packageName)
-        val shareLabel = context.resources.getIdentifier("share", "string", context.packageName)
+        val inlineStyle = ResourceLookup.identifier(context.resources, "Widget.Button.Inline", "style", context.packageName)
+        val shareIcon = ResourceLookup.identifier(context.resources, "ic_share", "drawable", context.packageName)
+        val shareLabel = ResourceLookup.identifier(context.resources, "share", "string", context.packageName)
         val buttonTint = ColorStateList(
             arrayOf(intArrayOf(android.R.attr.state_pressed), intArrayOf()),
             intArrayOf(0x330d84ff, 0x180d84ff)

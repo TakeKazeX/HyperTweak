@@ -22,6 +22,7 @@ import java.time.ZoneId
 import java.util.Date
 import java.util.Locale
 import java.util.WeakHashMap
+import com.takekazex.hypertweak.util.platform.ResourceLookup
 
 /** Only native notification headers enroll framework DateTimeViews; MIUI/custom bodies are untouched. */
 object NotificationAbsoluteTimeHooker : StaticHooker() {
@@ -82,7 +83,7 @@ object NotificationAbsoluteTimeHooker : StaticHooker() {
             content.hook("notification_absolute_time_bind") {
                 after { param -> boundary("bind") {
                     val root = wrapperViewField?.get(param.thisObject) as? View ?: return@boundary
-                    if (timeId == 0) timeId = root.resources.getIdentifier("time", "id", "android")
+                    if (timeId == 0) timeId = ResourceLookup.identifier(root.resources, "time", "id", "android")
                     val view = root.findViewById<View>(timeId) as? TextView ?: return@boundary
                     if (!type.isInstance(view)) return@boundary
                     enroll(view)
@@ -112,7 +113,7 @@ object NotificationAbsoluteTimeHooker : StaticHooker() {
     internal fun recoverExistingView(candidate: View) = boundary("existing header") {
         val view = candidate as? TextView ?: return@boundary
         if (retiring || timeField?.declaringClass?.isInstance(view) != true) return@boundary
-        if (timeId == 0) timeId = view.resources.getIdentifier("time", "id", "android")
+        if (timeId == 0) timeId = ResourceLookup.identifier(view.resources, "time", "id", "android")
         if (timeId == 0 || view.id != timeId) return@boundary
         // The view inventory also contains custom bodies and promoted/AOD clocks. Only recover
         // the standard framework header's time, including headers of existing notification groups.
@@ -142,7 +143,7 @@ object NotificationAbsoluteTimeHooker : StaticHooker() {
         val clock = DateFormat.getTimeFormat(view.context).format(Date(time))
         val text = when (display.label) {
             NotificationTimePolicy.Label.NOW -> {
-                if (nowTextId == 0) nowTextId = view.resources.getIdentifier("now_string_shortest", "string", "android")
+                if (nowTextId == 0) nowTextId = ResourceLookup.identifier(view.resources, "now_string_shortest", "string", "android")
                 view.resources.getString(nowTextId)
             }
             NotificationTimePolicy.Label.TODAY -> clock

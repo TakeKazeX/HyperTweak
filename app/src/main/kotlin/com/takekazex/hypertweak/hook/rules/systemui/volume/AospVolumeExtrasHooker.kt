@@ -223,10 +223,10 @@ object AospVolumeExtrasHooker : StaticHooker() {
     private fun installExtras(binder: Any?, dialog: Dialog) {
         val decor = dialog.window?.decorView ?: return
         val resources = decor.resources
-        val rootId = resources.getIdentifier("volume_dialog", "id", SYSTEM_UI_PACKAGE)
+        val rootId = ResourceLookup.identifier(resources, "volume_dialog", "id", SYSTEM_UI_PACKAGE)
         val root = if (rootId != 0) decor.findViewById<View>(rootId) else decor
-        val mainId = resources.getIdentifier("volume_dialog_main_slider_container", "id", SYSTEM_UI_PACKAGE)
-        val bottomId = resources.getIdentifier("volume_dialog_bottom_section_container", "id", SYSTEM_UI_PACKAGE)
+        val mainId = ResourceLookup.identifier(resources, "volume_dialog_main_slider_container", "id", SYSTEM_UI_PACKAGE)
+        val bottomId = ResourceLookup.identifier(resources, "volume_dialog_bottom_section_container", "id", SYSTEM_UI_PACKAGE)
         val sliderContainer = if (mainId != 0) root.findViewById<View>(mainId) as? ViewGroup else null
         val bottomContainer = if (bottomId != 0) root.findViewById<View>(bottomId) as? LinearLayout else null
         if (sliderContainer == null || bottomContainer == null) {
@@ -241,7 +241,7 @@ object AospVolumeExtrasHooker : StaticHooker() {
         // The Compose slider content (the vertical track + note icon) lives inside this
         // real View. Measuring against it (not the FrameLayout) gives the percentage an
         // overlay that shares the track's coordinate space and follows the icon.
-        val composeSliderId = resources.getIdentifier(COMPOSE_SLIDER_ID, "id", SYSTEM_UI_PACKAGE)
+        val composeSliderId = ResourceLookup.identifier(resources, COMPOSE_SLIDER_ID, "id", SYSTEM_UI_PACKAGE)
         val composeView = if (composeSliderId != 0) root.findViewById<View>(composeSliderId) else null
         val percentage = TextView(context).apply {
             tag = PERCENT_TAG
@@ -275,7 +275,7 @@ object AospVolumeExtrasHooker : StaticHooker() {
         val dnd = ImageButton(context).apply {
             tag = DND_TAG
             setImageDrawable(DndDrawable(dp(context, 24)))
-            val backgroundId = resources.getIdentifier("ripple_drawable_20dp", "drawable", SYSTEM_UI_PACKAGE)
+            val backgroundId = ResourceLookup.identifier(resources, "ripple_drawable_20dp", "drawable", SYSTEM_UI_PACKAGE)
             if (backgroundId != 0) setBackgroundResource(backgroundId)
             val color = resolveColor(context, "materialColorPrimary", android.R.color.white)
             (drawable as? DndDrawable)?.setTintColor(color)
@@ -288,7 +288,7 @@ object AospVolumeExtrasHooker : StaticHooker() {
             isFocusable = true
             setTag(VIEW_TAG)
         }
-        val sizeId = resources.getIdentifier("volume_dialog_button_size", "dimen", SYSTEM_UI_PACKAGE)
+        val sizeId = ResourceLookup.identifier(resources, "volume_dialog_button_size", "dimen", SYSTEM_UI_PACKAGE)
         val size = if (sizeId != 0) resources.getDimensionPixelSize(sizeId) else dp(context, 48)
         val dndParams = LinearLayout.LayoutParams(size, size).apply {
             gravity = Gravity.CENTER_HORIZONTAL
@@ -428,7 +428,7 @@ object AospVolumeExtrasHooker : StaticHooker() {
         runCatching { HostAccess.requireDeclaredField(this, name, accessible = true) }.getOrNull()
 
     private fun resolveColor(context: Context, name: String, fallback: Int): Int {
-        val id = context.resources.getIdentifier(name, "color", SYSTEM_UI_PACKAGE)
+        val id = ResourceLookup.identifier(context.resources, name, "color", SYSTEM_UI_PACKAGE)
         return if (id != 0) runCatching { context.getColor(id) }.getOrDefault(context.getColor(fallback))
         else context.getColor(fallback)
     }

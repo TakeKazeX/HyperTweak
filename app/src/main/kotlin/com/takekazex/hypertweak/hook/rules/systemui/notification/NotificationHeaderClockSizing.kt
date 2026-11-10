@@ -7,6 +7,7 @@ import java.lang.reflect.Field
 import java.lang.reflect.Method
 import java.util.WeakHashMap
 import kotlin.math.roundToInt
+import com.takekazex.hypertweak.util.platform.ResourceLookup
 
 /** Native clock baselines survive live reapplication and restore before generation retirement. */
 internal class NotificationHeaderClockSizing(
@@ -49,12 +50,12 @@ internal class NotificationHeaderClockSizing(
         )
         val context = read(controller, "context") as? Context ?: return
         val resources = context.resources
-        val shadeId = resources.getIdentifier(
+        val shadeId = ResourceLookup.identifier(resources, 
             "shade_header_notification_clock_text_size",
             "dimen",
             "com.android.systemui"
         )
-        val flipId = resources.getIdentifier(
+        val flipId = ResourceLookup.identifier(resources, 
             "qs_control_header_clock_flip_size",
             "dimen",
             "com.android.systemui"

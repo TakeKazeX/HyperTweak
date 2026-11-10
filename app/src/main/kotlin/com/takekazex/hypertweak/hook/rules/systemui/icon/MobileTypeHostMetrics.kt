@@ -7,6 +7,7 @@ import android.graphics.Typeface
 import android.widget.TextView
 import java.lang.ref.WeakReference
 import java.util.WeakHashMap
+import com.takekazex.hypertweak.util.platform.ResourceLookup
 
 /** The standalone slot replaces mobile_type_single, not either half-height SIM label. */
 internal object MobileTypeHostMetrics {
@@ -26,7 +27,7 @@ internal object MobileTypeHostMetrics {
         }?.let { return it.font }
         // MiuiMobileIconBinder applies this appearance to mobile_type_single. In contrast,
         // statusbar_signal_size belongs to MobileTypeDrawable's small per-SIM labels.
-        val appearance = context.resources.getIdentifier(
+        val appearance = ResourceLookup.identifier(context.resources, 
             "TextAppearance.StatusBar.Clock", "style", "com.android.systemui"
         )
         if (appearance == 0) return null

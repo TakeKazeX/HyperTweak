@@ -14,6 +14,7 @@ import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.reflect.Field
 import java.util.WeakHashMap
 import androidx.core.view.isGone
+import com.takekazex.hypertweak.util.platform.ResourceLookup
 
 /**
  * Hides the source-app icon overlay on the media cards (封面隐藏来源应用图标), OS4 SystemUI.
@@ -77,7 +78,7 @@ object MediaCardHideAppIconHooker : StaticHooker() {
         views.filterIsInstance<ViewGroup>().forEach { root ->
             val name = runCatching { root.resources.getResourceEntryName(root.id) }.getOrNull()
             if (name != "mi_media_controls") return@forEach
-            val id = root.resources.getIdentifier("icon", "id", "com.android.systemui")
+            val id = ResourceLookup.identifier(root.resources, "icon", "id", "com.android.systemui")
             if (id != 0) root.findViewById<View>(id)?.let { icon ->
                 // All three verified native templates declare this overlay visible, and
                 // their binders never change visibility. Older generations hid it permanently

@@ -48,6 +48,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.math.roundToInt
 import org.luckypray.dexkit.query.enums.StringMatchType
+import com.takekazex.hypertweak.util.platform.ResourceLookup
 
 /**
  * Compact control-center rows. Settings custom carrier names precede SIM subscription names,
@@ -440,7 +441,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
     }
 
     private fun id(resources: android.content.res.Resources, name: String): Int =
-        runCatching { resources.getIdentifier(name, "id", "com.android.systemui") }
+        runCatching { ResourceLookup.identifier(resources, name, "id", "com.android.systemui") }
             .getOrDefault(0)
 
     // ---------------------------------------------------------------- hooks

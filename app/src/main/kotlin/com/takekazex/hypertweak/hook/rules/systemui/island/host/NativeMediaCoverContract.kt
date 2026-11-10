@@ -4,6 +4,7 @@ import com.takekazex.hypertweak.hook.base.HostAccess
 import android.view.View
 import android.widget.ImageView
 import java.lang.reflect.Proxy
+import com.takekazex.hypertweak.util.platform.ResourceLookup
 
 /** Uses the expanded media card's animator from its own (SystemUI) classloader. */
 internal class NativeMediaCoverContract(loader: ClassLoader, systemUiLoader: ClassLoader) {
@@ -39,7 +40,7 @@ internal class NativeMediaCoverContract(loader: ClassLoader, systemUiLoader: Cla
 
     private fun tags(view: View): Pair<Int, Int> = tags ?: run {
         val resources = view.context.packageManager.getResourcesForApplication("com.android.systemui")
-        fun id(name: String) = resources.getIdentifier(name, "id", "com.android.systemui").also {
+        fun id(name: String) = ResourceLookup.identifier(resources, name, "id", "com.android.systemui").also {
             check(it != 0) { "Missing native flip tag $name" }
         }
         (id("miuix_animation_tag_is_flip") to id("miuix_animation_tag_flip_rotation_y")).also { tags = it }

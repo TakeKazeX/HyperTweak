@@ -30,6 +30,7 @@ import java.util.IdentityHashMap
 import java.util.WeakHashMap
 import kotlin.math.abs
 import androidx.core.view.isGone
+import com.takekazex.hypertweak.util.platform.ResourceLookup
 
 /**
  * Applies the order policy at OS4's list factory and mirrors the block policy to modern containers.
@@ -158,7 +159,7 @@ object IconPositionHooker : StaticHooker() {
     internal fun recoverSlotOrder(controller: Any, context: Context) {
         val list = HostAccess.read(controller, "mStatusBarIconList") ?: error("Missing host icon list")
         if (originalSlotOrder.isEmpty()) {
-            val id = context.resources.getIdentifier("config_statusBarIcons", "array", "com.android.systemui")
+            val id = ResourceLookup.identifier(context.resources, "config_statusBarIcons", "array", "com.android.systemui")
             check(id != 0) { "Missing native status icon order" }
             originalSlotOrder = context.resources.getStringArray(id).toList()
         }
@@ -396,7 +397,7 @@ object IconPositionHooker : StaticHooker() {
                             IconSlotPolicy.SLOT_STACKED_TYPE -> type = child
                             IconSlotPolicy.SLOT_WIFI, IconSlotPolicy.SLOT_DEMO_WIFI -> {
                                 if (pairedWifiSignalId == 0) {
-                                    pairedWifiSignalId = container.resources.getIdentifier(
+                                    pairedWifiSignalId = ResourceLookup.identifier(container.resources, 
                                         "wifi_signal", "id", "com.android.systemui"
                                     )
                                 }
@@ -807,7 +808,7 @@ object IconPositionHooker : StaticHooker() {
             items += TwoRowIconLayout.Item(index, occupiedWidth(view), IconSlotPolicy.isTwoLineUpperSlot(slot, rowOverrides))
             children[index] = view to state
         }
-        val spacingId = container.resources.getIdentifier("status_bar_system_icon_spacing", "dimen", "com.android.systemui")
+        val spacingId = ResourceLookup.identifier(container.resources, "status_bar_system_icon_spacing", "dimen", "com.android.systemui")
         val spacing = if (spacingId != 0) container.resources.getDimensionPixelSize(spacingId).toFloat() else 0f
         val positions = TwoRowIconLayout.positions(items,
             upperRight = anchors.upperRight,
@@ -855,7 +856,7 @@ object IconPositionHooker : StaticHooker() {
             rowRoot = rowRoot.parent as? ViewGroup
         }
         val header = rowRoot?.parent as? ViewGroup ?: return null
-        val carrierId = header.resources.getIdentifier(
+        val carrierId = ResourceLookup.identifier(header.resources, 
             "normal_control_center_carrier_layout", "id", "com.android.systemui"
         )
         if (carrierId == 0) return null
@@ -872,7 +873,7 @@ object IconPositionHooker : StaticHooker() {
             }?.get(parent) as? View
         }.getOrNull()
         val battery = layoutBattery ?: run {
-            val batteryId = parent.resources.getIdentifier(
+            val batteryId = ResourceLookup.identifier(parent.resources, 
                 "battery", "id", "com.android.systemui"
             )
             if (batteryId == 0) return null

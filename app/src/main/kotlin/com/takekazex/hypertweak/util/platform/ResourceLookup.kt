@@ -1,9 +1,17 @@
 package com.takekazex.hypertweak.util.platform
 
 import android.content.Context
+import android.content.res.AssetManager
 import android.content.res.Resources
-import java.util.concurrent.ConcurrentHashMap
+import java.util.WeakHashMap
 
+/**
+ * Memoized [Resources.getIdentifier]. A name lookup walks the package string pools and costs tens of
+ * microseconds, which is significant on layout, bind and frame paths; identifiers never change for
+ * the lifetime of one [AssetManager]. Results, including misses, are kept per AssetManager so a
+ * plugin's or another package's Resources cannot answer for a different asset set; a rebuilt
+ * AssetManager (overlay or loader change) starts empty and its old entries are collected with it.
+ */
 object ResourceLookup {
     private data class Key(
         val packageName: String,
@@ -11,7 +19,7 @@ object ResourceLookup {
         val name: String
     )
 
-    private val idCache = ConcurrentHashMap<Key, Int>()
+    private val idCache = WeakHashMap<AssetManager, HashMap<Key, Int>>()
 
     fun identifier(
         resources: Resources,
@@ -19,10 +27,12 @@ object ResourceLookup {
         type: String,
         packageName: String
     ): Int {
+        val assets = resources.assets
         val key = Key(packageName, type, name)
-        return idCache.getOrPut(key) {
-            resources.getIdentifier(name, type, packageName)
-        }
+        synchronized(idCache) { idCache[assets]?.get(key) }?.let { return it }
+        val id = resources.getIdentifier(name, type, packageName)
+        synchronized(idCache) { idCache.getOrPut(assets) { HashMap() }[key] = id }
+        return id
     }
 
     fun identifier(

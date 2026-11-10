@@ -20,6 +20,7 @@ import java.util.WeakHashMap
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import androidx.core.view.isGone
+import com.takekazex.hypertweak.util.platform.ResourceLookup
 
 /** Owns the reversible, orientation-dependent layout state for each OS4 notification header. */
 internal class NotificationHeaderLayoutController(
@@ -718,7 +719,7 @@ internal class NotificationHeaderLayoutController(
     }
 
     private fun statusBarFallbackPx(root: View): Int {
-        val id = root.resources.getIdentifier("status_bar_height", "dimen", "android")
+        val id = ResourceLookup.identifier(root.resources, "status_bar_height", "dimen", "android")
         return if (id == 0) 0 else root.resources.getDimensionPixelSize(id)
     }
 
@@ -737,7 +738,7 @@ internal class NotificationHeaderLayoutController(
     }
 
     private fun dimension(view: View, name: String): Int {
-        val id = view.resources.getIdentifier(name, "dimen", "com.android.systemui")
+        val id = ResourceLookup.identifier(view.resources, name, "dimen", "com.android.systemui")
         return if (id == 0) 0 else view.resources.getDimensionPixelSize(id)
     }
 
@@ -768,7 +769,7 @@ internal class NotificationHeaderLayoutController(
     private fun read(owner: Any, name: String): Any? = field(owner.javaClass, name)?.get(owner)
 
     private fun id(view: View, name: String): Int =
-        view.resources.getIdentifier(name, "id", "com.android.systemui")
+        ResourceLookup.identifier(view.resources, name, "id", "com.android.systemui")
 
     companion object {
         private const val PARENT_ID = 0

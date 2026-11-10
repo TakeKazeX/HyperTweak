@@ -14,6 +14,7 @@ import com.takekazex.hypertweak.hook.rules.systemui.island.model.SafeInsets
 import com.takekazex.hypertweak.hook.rules.systemui.island.policy.layout.IslandContentSize
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.reflect.InvocationTargetException
+import com.takekazex.hypertweak.util.platform.ResourceLookup
 
 /** Adapter from the narrow coordinator ports to the pre-resolved native registry. */
 internal class NativeIslandHost(val access: NativeIslandAccess) : IslandHostPorts {
@@ -248,7 +249,7 @@ internal class NativeIslandHost(val access: NativeIslandAccess) : IslandHostPort
     override fun musicDemand(view: Any): MusicDemandDimensions? = try {
         val root = view as View
         fun dimension(name: String): Int {
-            val id = root.resources.getIdentifier(name, "dimen", "miui.systemui.plugin")
+            val id = ResourceLookup.identifier(root.resources, name, "dimen", "miui.systemui.plugin")
             check(id != 0) { "Missing native music dimension $name" }
             return root.resources.getDimensionPixelSize(id)
         }

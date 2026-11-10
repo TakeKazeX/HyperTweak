@@ -23,6 +23,7 @@ import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.ref.WeakReference
 import java.lang.reflect.Method
 import java.util.WeakHashMap
+import com.takekazex.hypertweak.util.platform.ResourceLookup
 
 /**
  * Adds seconds to the status-bar clock or to the large clock at the top of the expanded notification
@@ -277,7 +278,7 @@ object NotificationHeaderClockSecondsHooker : StaticHooker() {
         synchronized(callbacksLock) {
             statusBarClockId.takeIf { it != 0 }?.let { return it }
             statusBarClockId = runCatching {
-                view.resources.getIdentifier(
+                ResourceLookup.identifier(view.resources, 
                     STATUS_BAR_CLOCK_ENTRY,
                     "id",
                     SYSTEM_UI_PACKAGE

@@ -16,6 +16,7 @@ import java.lang.ref.WeakReference
 import java.lang.reflect.Field
 import java.lang.reflect.Method
 import java.util.WeakHashMap
+import com.takekazex.hypertweak.util.platform.ResourceLookup
 
 /** Adapts verified native data to the existing title; never changes its metrics, paint or hierarchy. */
 internal class AicrBubbleTitleRenderer private constructor(
@@ -41,7 +42,7 @@ internal class AicrBubbleTitleRenderer private constructor(
             else first to last
         }.orEmpty().distinct()
         if (label.isBlank() || ranges.isEmpty()) return false
-        val id = root.resources.getIdentifier("bubble_title", "id", root.context.packageName)
+        val id = ResourceLookup.identifier(root.resources, "bubble_title", "id", root.context.packageName)
         val view = root.findViewById<View>(id) as? TextView ?: return false
         // Aggregated cards use a different title. Do not color a same-length unrelated string.
         if (view.text.toString() != content) return false

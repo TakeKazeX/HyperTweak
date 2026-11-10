@@ -42,6 +42,7 @@ import java.lang.reflect.Constructor
 import java.lang.reflect.Method
 import java.util.WeakHashMap
 import kotlin.math.roundToInt
+import com.takekazex.hypertweak.util.platform.ResourceLookup
 
 /** Restyles native privacy children. Native expansion/Folme remain the sole animation owner. */
 object ControlCenterPrivacyHooker : StaticHooker() {
@@ -780,7 +781,7 @@ object ControlCenterPrivacyHooker : StaticHooker() {
         constructors.getOrPut(params.javaClass) {
             params.javaClass.getConstructor(ViewGroup.LayoutParams::class.java)
         }.newInstance(params) as ViewGroup.LayoutParams
-    private fun id(view: View, name: String) = view.resources.getIdentifier(name, "id", view.context.packageName)
+    private fun id(view: View, name: String) = ResourceLookup.identifier(view.resources, name, "id", view.context.packageName)
     private fun dp(view: View, value: Int) = (value * view.resources.displayMetrics.density).roundToInt()
     private fun setInt(owner: Any, name: String, value: Int) { field(owner.javaClass, name)?.setInt(owner, value) }
     private fun field(type: Class<*>, name: String): Field? = HostAccess.field(type, name)

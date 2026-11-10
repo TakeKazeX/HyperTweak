@@ -20,6 +20,7 @@ import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.ref.WeakReference
 import java.util.WeakHashMap
 import kotlin.math.roundToInt
+import com.takekazex.hypertweak.util.platform.ResourceLookup
 
 /** Immutable inputs for one carrier render pass. */
 internal data class CarrierRenderInput(
@@ -262,7 +263,7 @@ internal class CarrierRowRenderer {
                 cached.assets.get() === resources.assets) return cached.pixels
         }
         val height = runCatching {
-            val id = resources.getIdentifier("status_bar_icon_height", "dimen", "com.android.systemui")
+            val id = ResourceLookup.identifier(resources, "status_bar_icon_height", "dimen", "com.android.systemui")
             if (id != 0) resources.getDimensionPixelSize(id) else null
         }.getOrNull()
         val pixels = CarrierBlockPolicy.iconHeight(height, density)

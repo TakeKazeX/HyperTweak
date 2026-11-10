@@ -6,6 +6,7 @@ import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
+import com.takekazex.hypertweak.util.platform.ResourceLookup
 
 /**
  * Experimental: links the orphaned AON gesture pages (左右挥手 / 隔空暂停或播放) into the 隔空手势
@@ -125,5 +126,5 @@ object AonGestureSettingsHooker : StaticHooker() {
     }
 
     private fun stringId(ctx: Context, name: String): Int =
-        ctx.resources.getIdentifier(name, "string", ctx.packageName)
+        ResourceLookup.identifier(ctx.resources, name, "string", ctx.packageName)
 }

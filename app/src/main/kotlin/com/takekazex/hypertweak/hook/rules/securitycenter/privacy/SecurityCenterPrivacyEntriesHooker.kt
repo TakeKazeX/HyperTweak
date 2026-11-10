@@ -16,6 +16,7 @@ import com.takekazex.hypertweak.util.logging.DebugLog
 import io.github.lingqiqi5211.ezhooktool.core.callMethodOrNull
 import org.json.JSONObject
 import java.lang.reflect.Modifier
+import com.takekazex.hypertweak.util.platform.ResourceLookup
 
 /** Keeps the native Security Center privacy and camera entries in their original preference pages. */
 object SecurityCenterPrivacyEntriesHooker : StaticHooker() {
@@ -466,9 +467,9 @@ object SecurityCenterPrivacyEntriesHooker : StaticHooker() {
             (it as? Enum<*>)?.name == "RANDOM_RECOMMENDATION"
         } ?: return null
         val resources = context.resources
-        val titleId = resources.getIdentifier("beauty_fc_assistant", "string", PACKAGE)
-        val summaryId = resources.getIdentifier("beauty_fc_assistant_summary_common", "string", PACKAGE)
-        val iconId = resources.getIdentifier("ic_beauty_settings", "drawable", PACKAGE)
+        val titleId = ResourceLookup.identifier(resources, "beauty_fc_assistant", "string", PACKAGE)
+        val summaryId = ResourceLookup.identifier(resources, "beauty_fc_assistant_summary_common", "string", PACKAGE)
+        val iconId = ResourceLookup.identifier(resources, "ic_beauty_settings", "drawable", PACKAGE)
         if (titleId == 0 || summaryId == 0 || iconId == 0) return null
 
         data.callMethodOrNull("setTitle", resources.getString(titleId))

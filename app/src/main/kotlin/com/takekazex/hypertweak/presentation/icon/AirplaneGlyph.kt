@@ -3,6 +3,7 @@ package com.takekazex.hypertweak.presentation.icon
 import android.content.Context
 import android.graphics.drawable.Drawable
 import com.takekazex.hypertweak.util.logging.DebugLog
+import com.takekazex.hypertweak.util.platform.ResourceLookup
 
 /** Shared host-resource artwork for live status icons and settings previews. */
 object AirplaneGlyph {
@@ -15,7 +16,7 @@ object AirplaneGlyph {
         }.getOrNull()
         val native = host?.let {
             runCatching {
-                val id = it.resources.getIdentifier("stat_sys_signal_flightmode", "drawable", "com.android.systemui")
+                val id = ResourceLookup.identifier(it.resources, "stat_sys_signal_flightmode", "drawable", "com.android.systemui")
                 if (id == 0) null else it.getDrawable(id)?.mutate()
             }.getOrNull()
         }
@@ -24,7 +25,7 @@ object AirplaneGlyph {
         return runCatching {
             val module = if (context.packageName == MODULE_PACKAGE) context
                 else context.createPackageContext(MODULE_PACKAGE, 0)
-            val id = module.resources.getIdentifier("ic_stat_sys_airplane", "drawable", MODULE_PACKAGE)
+            val id = ResourceLookup.identifier(module.resources, "ic_stat_sys_airplane", "drawable", MODULE_PACKAGE)
             if (id == 0) null else module.getDrawable(id)?.mutate()
         }.onFailure { DebugLog.w("AirplaneIcon", "native glyph unavailable", it) }.getOrNull()
     }

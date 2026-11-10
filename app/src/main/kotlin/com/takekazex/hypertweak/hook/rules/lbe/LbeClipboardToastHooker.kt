@@ -18,6 +18,7 @@ import java.io.File
 import java.lang.ref.Reference
 import java.lang.reflect.Field
 import java.lang.reflect.Method
+import com.takekazex.hypertweak.util.platform.ResourceLookup
 
 /**
  * Shows the clipboard-reading warning as a normal Android Toast instead of the vendor overlay.
@@ -244,7 +245,7 @@ object LbeClipboardToastHooker : StaticHooker() {
     private fun clipboardToastText(context: Context, label: String): CharSequence {
         // The warning text is the host's own resource: AuthManager and Security Center each ship
         // `overlay_read_clip_toast` with the same "%1$s accessed the clipboard" format.
-        val resourceId = context.resources.getIdentifier(
+        val resourceId = ResourceLookup.identifier(context.resources, 
             TOAST_TEXT_RES_NAME,
             "string",
             context.packageName

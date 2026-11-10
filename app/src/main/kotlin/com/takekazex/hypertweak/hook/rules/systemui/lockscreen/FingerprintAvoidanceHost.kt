@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Rect
 import com.takekazex.hypertweak.hook.base.HostAccess
 import java.lang.reflect.Method
+import com.takekazex.hypertweak.util.platform.ResourceLookup
 
 /** Stable, shape-checked native boundary. No Kotlin class names belonging to the module's R8. */
 internal class FingerprintAvoidanceHost(loader: ClassLoader) {
@@ -48,7 +49,7 @@ internal class FingerprintAvoidanceHost(loader: ClassLoader) {
         val configuration = lazy(read(panel, "miuiConfigurationRepository"))
         val repoConfiguration = lazy(read(repo, "miuiConfigurationRepository"))
         fun dimension(owner: Any, name: String): Any {
-            val id = context.resources.getIdentifier(name, "dimen", context.packageName)
+            val id = ResourceLookup.identifier(context.resources, name, "dimen", context.packageName)
             check(id != 0) { "Missing native dimension $name" }
             return checkNotNull(HostAccess.requirePublicMethod(owner.javaClass, "getDimension", Integer.TYPE, accessible = true).invoke(owner, id))
         }

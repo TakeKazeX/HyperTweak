@@ -25,6 +25,7 @@ import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.ref.WeakReference
 import java.util.concurrent.atomic.AtomicBoolean
+import com.takekazex.hypertweak.util.platform.ResourceLookup
 
 /**
  * Hides the gesture bar (小白条) and keeps it hidden for exactly as long as recent tasks owns the
@@ -489,7 +490,7 @@ object HideBottomBarHooker : StaticHooker() {
 
     private fun resolveNavigationBarHeightResIds(context: Context) {
         runCatching {
-            navBarHeightSystemUiResId = context.resources.getIdentifier(
+            navBarHeightSystemUiResId = ResourceLookup.identifier(context.resources, 
                 "navigation_bar_height", "dimen", "com.android.systemui"
             )
         }

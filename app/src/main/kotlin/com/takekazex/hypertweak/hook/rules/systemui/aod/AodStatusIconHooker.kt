@@ -33,6 +33,7 @@ import java.text.NumberFormat
 import java.util.IdentityHashMap
 import java.util.Locale
 import androidx.core.view.isVisible
+import com.takekazex.hypertweak.util.platform.ResourceLookup
 
 /** Adapter for the AOD plugin's battery row, usually hosted inside SystemUI. */
 class AodStatusIconHooker : DynamicHooker() {
@@ -638,7 +639,7 @@ class AodStatusIconHooker : DynamicHooker() {
     private fun findNamedView(root: View, name: String): View? = findViewByName(root, name)
 
     private fun resourceId(context: Context, name: String): Int = runCatching {
-        context.resources.getIdentifier(name, "id", context.packageName)
+        ResourceLookup.identifier(context.resources, name, "id", context.packageName)
     }.getOrDefault(0)
 
     private fun loadClass(name: String): Class<*>? = runCatching { classLoader.loadClass(name) }.getOrNull()

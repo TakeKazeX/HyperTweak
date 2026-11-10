@@ -27,6 +27,7 @@ import java.util.Locale
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 import kotlin.coroutines.EmptyCoroutineContext
+import com.takekazex.hypertweak.util.platform.ResourceLookup
 
 /** Gives the native Security Center share action an immutable, named copy of its selected APK. */
 object NamedApkShareHooker : DynamicHooker() {
@@ -120,7 +121,7 @@ object NamedApkShareHooker : DynamicHooker() {
                 val fragment = chain.thisObject ?: return@intercept chain.proceed()
                 val queued = HookFailurePolicy.open(TAG, "prepare named APK", false) {
                     val activity = getActivity.invoke(fragment) as? Activity ?: return@open false
-                    val shareId = activity.resources.getIdentifier("app_share", "id", PACKAGE)
+                    val shareId = ResourceLookup.identifier(activity.resources, "app_share", "id", PACKAGE)
                     if (shareId == 0 || item.itemId != shareId || !item.isVisible || !item.isEnabled) return@open false
                     if (pending != null) return@open true
                     val source = targets.source.get(fragment) as? File ?: return@open false

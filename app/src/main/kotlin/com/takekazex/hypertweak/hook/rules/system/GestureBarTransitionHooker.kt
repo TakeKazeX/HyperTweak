@@ -15,6 +15,7 @@ import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 import com.takekazex.hypertweak.hook.base.SystemServerStartupRetry
+import com.takekazex.hypertweak.util.platform.ResourceLookup
 
 /**
  * Keeps the gesture bar attached to the app while the recents transition is playing
@@ -282,7 +283,7 @@ object GestureBarTransitionHooker : StaticHooker() {
             deoptimize(method)
         }.onFailure { DebugLog.hookFailed(TAG, "native recents attach gate", it) }.getOrNull() ?: return
 
-        val attachResourceId = Resources.getSystem().getIdentifier(
+        val attachResourceId = ResourceLookup.identifier(Resources.getSystem(), 
             "config_attachNavBarToAppDuringTransition", "bool", "android"
         )
         if (attachResourceId == 0) {

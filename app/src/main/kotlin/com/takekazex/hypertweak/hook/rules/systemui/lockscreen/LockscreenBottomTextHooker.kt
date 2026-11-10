@@ -15,6 +15,7 @@ import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
+import com.takekazex.hypertweak.util.platform.ResourceLookup
 
 /**
  * Filters only the text/status elements at the bottom of the interactive lockscreen.
@@ -373,7 +374,7 @@ object LockscreenBottomTextHooker : StaticHooker() {
         val resources = view.resources
         val packageNames = listOf("com.android.systemui", view.context.packageName).distinct()
         fun id(name: String): Int = packageNames.firstNotNullOfOrNull { packageName ->
-            runCatching { resources.getIdentifier(name, "id", packageName) }
+            runCatching { ResourceLookup.identifier(resources, name, "id", packageName) }
                 .getOrNull()
                 ?.takeIf { it != 0 }
         } ?: 0

@@ -17,6 +17,7 @@ import java.lang.reflect.Field
 import java.lang.reflect.Method
 import java.util.WeakHashMap
 import androidx.core.view.isGone
+import com.takekazex.hypertweak.util.platform.ResourceLookup
 
 /** Hide dates in keyguard clocks throughout lockscreen/full-AOD transitions, excluding previews. */
 object LockscreenDateHooker : StaticHooker() {
@@ -229,7 +230,7 @@ object LockscreenDateHooker : StaticHooker() {
                 // active clock's own resources, preserving the separate lunar/owner labels.
                 listOf("current_date", "current_week", "current_week_rote", "local_date", "resident_date")
                     .forEach { name ->
-                        val id = clock.resources.getIdentifier(name, "id", "com.android.systemui")
+                        val id = ResourceLookup.identifier(clock.resources, name, "id", "com.android.systemui")
                         if (id != 0) (clock.findViewById<View>(id) as? TextView)?.let { dates += it }
                     }
             }

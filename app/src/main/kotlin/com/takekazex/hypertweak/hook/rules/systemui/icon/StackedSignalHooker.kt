@@ -37,6 +37,7 @@ import java.util.concurrent.atomic.AtomicLong
 import org.luckypray.dexkit.DexKitBridge
 import org.luckypray.dexkit.query.enums.StringMatchType
 import org.luckypray.dexkit.result.MethodData
+import com.takekazex.hypertweak.util.platform.ResourceLookup
 
 /**
  * Publishes the custom cellular signal as a normal SystemUI icon-controller slot.
@@ -691,7 +692,7 @@ object StackedSignalHooker : StaticHooker() {
 
     private fun renderIconHeight(context: Context?): Int {
         return context?.let {
-            val id = it.resources.getIdentifier(
+            val id = ResourceLookup.identifier(it.resources, 
                 "status_bar_icon_height",
                 "dimen",
                 "com.android.systemui"

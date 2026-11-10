@@ -21,6 +21,7 @@ import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.util.Locale
+import com.takekazex.hypertweak.util.platform.ResourceLookup
 
 /**
  * Adds an overflow-menu entry to Security Center's app manager that opens Settings' AOSP "All apps"
@@ -159,7 +160,7 @@ object AospAppManagerEntryHooker : StaticHooker() {
     }
 
     private fun endMenuGroupId(context: Context): Int = runCatching {
-        context.resources.getIdentifier(END_MENU_GROUP_RES, "id", context.packageName)
+        ResourceLookup.identifier(context.resources, END_MENU_GROUP_RES, "id", context.packageName)
     }.getOrNull()?.takeIf { it != 0 } ?: Menu.NONE
 
     private fun createAllAppsIntent(): Intent = Intent(Intent.ACTION_MAIN).apply {

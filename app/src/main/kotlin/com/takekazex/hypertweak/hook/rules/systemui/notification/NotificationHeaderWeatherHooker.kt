@@ -25,6 +25,7 @@ import java.util.Locale
 import java.util.WeakHashMap
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import com.takekazex.hypertweak.util.platform.ResourceLookup
 
 /** Appends Xiaomi Weather provider data to the date in the OS4 notification header. */
 object NotificationHeaderWeatherHooker : StaticHooker() {
@@ -426,7 +427,7 @@ object NotificationHeaderWeatherHooker : StaticHooker() {
 
     @Suppress("DiscouragedApi")
     private fun id(view: View, name: String): Int =
-        view.resources.getIdentifier(name, "id", "com.android.systemui")
+        ResourceLookup.identifier(view.resources, name, "id", "com.android.systemui")
 
     private fun read(owner: Any, name: String): Any? = field(owner.javaClass, name)?.get(owner)
 

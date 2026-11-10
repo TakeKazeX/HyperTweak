@@ -28,6 +28,7 @@ import java.util.IdentityHashMap
 import java.util.WeakHashMap
 import java.util.Collections
 import kotlin.math.ceil
+import com.takekazex.hypertweak.util.platform.ResourceLookup
 
 /**
  * Cellular type display, ported from Hyper Helper's `CellularTypeIcon` (OS4_ADAPTATION_PLAN.md
@@ -185,7 +186,7 @@ object CellularTypeIconHooker : StaticHooker() {
     private fun resolveSingleTypeViewId(view: TextView): Int {
         mobileTypeSingleViewId.takeIf { it != 0 }?.let { return it }
         val id = runCatching {
-            view.resources.getIdentifier("mobile_type_single", "id", "com.android.systemui")
+            ResourceLookup.identifier(view.resources, "mobile_type_single", "id", "com.android.systemui")
         }.getOrDefault(0)
         if (id != 0) mobileTypeSingleViewId = id
         return id
@@ -387,7 +388,7 @@ object CellularTypeIconHooker : StaticHooker() {
     }
 
     private fun findView(root: ViewGroup, name: String): android.view.View? {
-        val id = root.resources.getIdentifier(name, "id", "com.android.systemui")
+        val id = ResourceLookup.identifier(root.resources, name, "id", "com.android.systemui")
         return id.takeIf { it != 0 }?.let(root::findViewById)
     }
 
