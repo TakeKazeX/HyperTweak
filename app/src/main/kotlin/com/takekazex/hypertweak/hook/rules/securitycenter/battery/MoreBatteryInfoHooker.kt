@@ -35,8 +35,8 @@ import java.util.Locale
  * Keeps the native battery-protection rows, explicitly fills temperature/cycle values, and adds
  * design/full-charge capacity rows.
  *
- * The current Security Center 13.2.7 handler is
- * `ChargeProtectFragment$c`; the handler is resolved from its current class shape and the four
+ * The refresh handler is resolved from the fragment's shape ([ChargeProtectHandlerContract]);
+ * its obfuscated nested name moved between Security Center releases. The four
  * battery readers are resolved only from their stable DEX string keys. Cycle count uses the
  * sysfs and IMiCharge interfaces instead of version-specific obfuscated reader names.
  */
@@ -51,8 +51,6 @@ object MoreBatteryInfoHooker : StaticHooker() {
     private const val PACKAGE = "com.miui.securitycenter"
     private const val CHARGE_PROTECT_FRAGMENT =
         "com.miui.powercenter.nightcharge.ChargeProtectFragment"
-    private const val CHARGE_PROTECT_HANDLER =
-        "com.miui.powercenter.nightcharge.ChargeProtectFragment\$c"
     private const val MSG_REFRESH_BATTERY_INFO = 1
 
     private const val BATTERY_INFO_CATEGORY = "preference_key_category_battery_info"
@@ -212,16 +210,12 @@ object MoreBatteryInfoHooker : StaticHooker() {
     }
 
     private fun hookChargeProtectHandler() {
-        val handlerClass = CHARGE_PROTECT_HANDLER.toClassOrNull() ?: run {
-            DebugLog.hookSkipped(TAG, CHARGE_PROTECT_HANDLER, "class not found")
+        val fragmentClass = CHARGE_PROTECT_FRAGMENT.toClassOrNull() ?: run {
+            DebugLog.hookSkipped(TAG, CHARGE_PROTECT_FRAGMENT, "class not found")
             return
         }
-        val handleMessage = CompatibleMethodResolver.find(
-            handlerClass,
-            "handleMessage",
-            parameterTypes = listOf(Message::class.java)
-        ) ?: run {
-            DebugLog.hookSkipped(TAG, "$CHARGE_PROTECT_HANDLER#handleMessage", "method not found")
+        val handleMessage = ChargeProtectHandlerContract.resolve(fragmentClass) ?: run {
+            DebugLog.hookSkipped(TAG, "$CHARGE_PROTECT_FRAGMENT handler#handleMessage", "no unique handler field")
             return
         }
 
