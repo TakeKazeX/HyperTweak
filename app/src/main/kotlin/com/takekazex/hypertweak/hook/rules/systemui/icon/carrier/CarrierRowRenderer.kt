@@ -87,10 +87,9 @@ internal class CarrierRowRenderer {
         val signalIconId = model.subId?.let { input.mobileState.subscriptions[it]?.signalIconId }
             ?.takeIf { model.hasSignal }
         val nativeSignal = parts.nativeSignal.takeIf { model.hasSignal }
-        val hasInlineType = nativeSignal != null && parts.nativeTypeBadge && model.networkSubId == model.subId
         val state = CarrierRowRenderState(model, signalIconId,
             nativeSignal, nativeSignal?.intrinsicWidth ?: 0, nativeSignal?.intrinsicHeight ?: 0,
-            hasInlineType, densityDpi, fontScale, rtl,
+            densityDpi, fontScale, rtl,
             iconHeightPx(context), parts.carrierText.text.toString(), parts.badge.text.toString(),
             input.mobileState.subscriptionOrder.size == 1,
             input.mobileState.subscriptions[model.networkSubId]?.roaming == true, input.keepTypeOnWifi, input.typeConfig, input.showBadge,
@@ -98,10 +97,11 @@ internal class CarrierRowRenderer {
             nativeWifi?.intrinsicWidth ?: 0, nativeWifi?.intrinsicHeight ?: 0)
         if (parts.rendered == state) return
 
-        publishSignal(parts.signal, nativeSignal, signalIconId, iconHeightPx(context), tint)
+        publishSignal(parts.signal, nativeSignal, signalIconId, iconHeightPx(context))
 
         // Wi-Fi and its type follow the active data SIM (开关 4: types on both rows).
-        val typeBitmap = model.typeText?.takeIf { !hasInlineType && it.isNotBlank() }?.let { text ->
+        val inlineType = nativeSignal?.children != null
+        val typeBitmap = model.typeText?.takeIf { !inlineType && it.isNotBlank() }?.let { text ->
             runCatching {
                 MobileTypeRenderer.render(
                     output = MobileTypeOutput(
@@ -124,13 +124,13 @@ internal class CarrierRowRenderer {
         publishNetwork(parts, typeBitmap, nativeWifi, tint, input.keepTypeOnWifi)
         parts.rendered = state.takeIf {
             (model.signalLevel == null || parts.signal.drawable != null) &&
-                (hasInlineType || model.typeText.isNullOrBlank() || typeBitmap != null)
+                (inlineType || model.typeText.isNullOrBlank() || typeBitmap != null)
         }
         parts.row.contentDescription = buildString {
             if (input.showBadge) append(parts.badge.text).append(", ")
             if (model.airplane) append("Airplane mode") else append(parts.carrierText.text)
             model.signalLevel?.let { append(", ").append(it).append("/4") }
-            if (!parts.typeSuppressed) model.typeText?.let { append(", ").append(it) }
+            if (inlineType || !parts.typeSuppressed) model.typeText?.let { append(", ").append(it) }
             if (nativeWifi != null) append(", Wi-Fi")
         }
     }
@@ -150,8 +150,7 @@ internal class CarrierRowRenderer {
         parts.badge.setTextColor(tint)
         parts.airplaneText.setTextColor(tint)
         val colors = ColorStateList.valueOf(tint)
-        parts.signal.imageTintList = colors.takeUnless { parts.signal.drawable is CarrierNativeGlyph }
-        parts.wifi.imageTintList = null
+        parts.signal.setColorFilter(tint)
         parts.type.imageTintList = colors
         parts.badgeDrawable.cornerRadius = 2 * density
         parts.badgeDrawable.setStroke(density.roundToInt().coerceAtLeast(1), tint)
@@ -233,7 +232,7 @@ internal class CarrierRowRenderer {
         view.visibility = View.VISIBLE
     }
 
-    private fun publishSignal(view: ImageView, native: CarrierNativeGlyph?, resourceId: Int?, fallbackHeight: Int, tint: Int) {
+    private fun publishSignal(view: ImageView, native: CarrierNativeGlyph?, resourceId: Int?, fallbackHeight: Int) {
         val drawable = native ?: resourceId?.let {
             runCatching { view.context.getDrawable(it) }
                 .onFailure { error -> DebugLog.w(TAG, "carrier native signal resource unavailable", error) }
@@ -252,7 +251,6 @@ internal class CarrierRowRenderer {
             params.height = height
             view.layoutParams = params
         }
-        view.imageTintList = if (native == null) ColorStateList.valueOf(tint) else null
     }
 
     fun iconHeightPx(context: Context): Int {

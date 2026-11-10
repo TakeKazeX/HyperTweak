@@ -3,6 +3,7 @@ package com.takekazex.hypertweak.hook.rules.systemui.icon.left
 import android.graphics.Canvas
 import android.graphics.ColorFilter
 import android.graphics.Matrix
+import android.graphics.Picture
 import android.graphics.PixelFormat
 import android.graphics.RectF
 import android.graphics.drawable.Drawable
@@ -26,6 +27,7 @@ internal class LeftPanelMotion(private val onFrameStateChanged: () -> Unit) {
     private var drawFailed = false
     private var progress = 0f
     private var sameArtwork = false
+    private var sourcePicture: Picture? = null
     private var drawKey: List<Any?>? = null
     private val sourceFrame = PanelGlyphFrame()
     private val targetFrame = PanelGlyphFrame()
@@ -48,7 +50,8 @@ internal class LeftPanelMotion(private val onFrameStateChanged: () -> Unit) {
                 }
             } catch (error: Throwable) {
                 drawFailed = true; frameReady = false
-                restoreTarget(); source?.alpha = 1f
+                restoreTarget()
+                if (sourcePicture == null) source?.alpha = 1f else host?.post { onFrameStateChanged() }
                 DebugLog.w("IconTuner", "left icon transition drawing failed", error)
             } finally { canvas.restoreToCount(save) }
         }
@@ -58,12 +61,16 @@ internal class LeftPanelMotion(private val onFrameStateChanged: () -> Unit) {
     }
 
     fun update(root: ViewGroup, source: View, target: View, progress: Float,
-               parkedTargetAlpha: Float? = null, sameArtwork: Boolean = false): Boolean {
+               parkedTargetAlpha: Float? = null, sameArtwork: Boolean = false, sourcePicture: Picture? = null): Boolean {
         if (!root.isAttachedToWindow || !source.isAttachedToWindow || !target.isAttachedToWindow ||
             root.width <= 0 || root.height <= 0 || source.width <= 0 || source.height <= 0 ||
             !signalEndpointVisible(target, root) || !progress.isFinite()) { clear(); return false }
         if (host !== root) { clear(); host = root; root.overlay.add(layer) }
-        if (this.source !== source) { this.source = source; frameReady = false; drawFailed = false }
+        if (this.source !== source || (this.sourcePicture == null) != (sourcePicture == null)) {
+            this.source = source; frameReady = false; drawFailed = false
+            sourceFrame.invalidateView()
+            this.sourcePicture = null
+        }
         if (this.target !== target) {
             restoreTarget(); this.target = target
             savedTargetAlpha = parkedTargetAlpha ?: target.alpha
@@ -73,7 +80,13 @@ internal class LeftPanelMotion(private val onFrameStateChanged: () -> Unit) {
             savedTargetAlpha = parkedTargetAlpha; holdTargetUntilReady = true
         }
         if (abs(target.alpha - appliedTargetAlpha) > .001f) savedTargetAlpha = target.alpha
-        if (!sourceFrame.captureView(source) || !targetFrame.captureView(target)) { clear(); return false }
+        val sourceReady = when {
+            sourcePicture == null -> sourceFrame.captureView(source)
+            this.sourcePicture === sourcePicture -> true
+            else -> sourceFrame.capture(sourcePicture.width, sourcePicture.height) { it.drawPicture(sourcePicture) }
+        }
+        if (!sourceReady || !targetFrame.captureView(target)) { clear(); return false }
+        this.sourcePicture = sourcePicture
         matrix.reset(); root.transformMatrixToGlobal(matrix)
         if (!matrix.invert(inverse)) { clear(); return false }
         from.set(sourceFrame.ink); matrix.reset(); source.transformMatrixToGlobal(matrix); matrix.mapRect(from); inverse.mapRect(from)
@@ -97,7 +110,7 @@ internal class LeftPanelMotion(private val onFrameStateChanged: () -> Unit) {
     }
     fun clear() {
         restoreTarget(); host?.overlay?.remove(layer)
-        host = null; source = null; frameReady = false; drawFailed = false
+        host = null; source = null; sourcePicture = null; frameReady = false; drawFailed = false
         drawKey = null
         from.setEmpty(); to.setEmpty()
     }

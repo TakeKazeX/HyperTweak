@@ -10,6 +10,11 @@ internal class CarrierEndpointAlphas<T : Any>(
     private class State(var saved: Float, var applied: Float)
     private val states = IdentityHashMap<T, State>()
 
+    fun originalAlpha(target: T): Float {
+        val current = read(target)
+        return states[target]?.takeIf { abs(current - it.applied) < .001f }?.saved ?: current
+    }
+
     fun suppress(target: T, ready: Boolean) {
         val current = read(target)
         val state = states[target] ?: State(current, current).also { states[target] = it }

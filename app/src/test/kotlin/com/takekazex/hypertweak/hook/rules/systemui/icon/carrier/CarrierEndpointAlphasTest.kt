@@ -13,6 +13,7 @@ class CarrierEndpointAlphasTest {
         assertEquals(.7f, source.alpha, 0f)
         leases.suppress(source, true)
         assertEquals(0f, source.alpha, 0f)
+        assertEquals(.7f, leases.originalAlpha(source), 0f)
         leases.suppress(source, true)
         leases.restore()
         assertEquals(.7f, source.alpha, 0f)
@@ -24,6 +25,7 @@ class CarrierEndpointAlphasTest {
         val leases = leases(); val source = Endpoint(1f)
         leases.suppress(source, true)
         source.alpha = .4f
+        assertEquals(.4f, leases.originalAlpha(source), 0f)
         leases.suppress(source, true)
         assertEquals(0f, source.alpha, 0f)
         leases.suppress(source, false)

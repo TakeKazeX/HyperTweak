@@ -5,6 +5,9 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.os.Looper;
+import android.view.View;
+import android.view.ViewGroup;
+import android.widget.FrameLayout;
 import android.widget.ImageView;
 import dalvik.system.PathClassLoader;
 import java.lang.reflect.Method;
@@ -17,6 +20,11 @@ public final class PanelGlyphProbe {
     }
     public static final class AttachedImage extends ImageView {
         public AttachedImage(Context context) { super(context); }
+        @Override public boolean isAttachedToWindow() { return true; }
+    }
+    public static final class MobileHolder extends FrameLayout {
+        public final int subId = 12;
+        public MobileHolder(Context context) { super(context); }
         @Override public boolean isAttachedToWindow() { return true; }
     }
     public static final class InvalidationCounter implements android.graphics.drawable.Drawable.Callback {
@@ -96,19 +104,148 @@ public final class PanelGlyphProbe {
         ImageView wifi = new ImageView(context);
         ImageView mobileType = new ImageView(context);
         signal.setImageBitmap(bitmap);
-        Object original = signal.getDrawable();
+        wifi.setImageBitmap(bitmap);
+        signal.layout(0, 0, 16, 16);
+        wifi.layout(0, 0, 16, 16);
         Object parts = partsType.getConstructors()[0].newInstance(0, new android.widget.LinearLayout(context),
             label, signal, new android.widget.TextView(context), new android.widget.FrameLayout(context), wifi, mobileType);
         Class<?> rendererType = loader.loadClass("com.takekazex.hypertweak.hook.rules.systemui.icon.carrier.CarrierRowRenderer");
         Object renderer = rendererType.getConstructor().newInstance();
         Method sync = rendererType.getMethod("syncTint", partsType);
+        label.setTextColor(Color.WHITE);
+        sync.invoke(renderer, parts);
+        check((Boolean) capture.invoke(frame, signal, null), "fallback signal capture");
+        check((Integer) colorAt.invoke(frame, 8f, 8f) == Color.WHITE, "fallback signal follows carrier palette");
+
+        FrameLayout mirror = new FrameLayout(context);
+        mirror.layout(0, 0, 48, 16);
+        MobileHolder holder = new MobileHolder(context);
+        mirror.addView(holder);
+        AttachedImage bars = new AttachedImage(context);
+        bars.setId(1234);
+        ImageView inlineType = new AttachedImage(context);
+        inlineType.setId(1235);
+        inlineType.setImageBitmap(bitmap);
+        holder.addView(bars);
+        holder.addView(inlineType);
+        ImageView otherBadge = new ImageView(context);
+        otherBadge.setImageBitmap(bitmap);
+        holder.addView(otherBadge);
+        Bitmap barsBitmap = Bitmap.createBitmap(16, 16, Bitmap.Config.ARGB_8888);
+        Canvas barsCanvas = new Canvas(barsBitmap);
+        Paint barsPaint = new Paint();
+        barsPaint.setColor(Color.BLACK);
+        barsCanvas.drawRect(0, 0, 8, 16, barsPaint);
+        barsPaint.setAlpha(96);
+        barsCanvas.drawRect(8, 8, 16, 16, barsPaint);
+        bars.setImageBitmap(barsBitmap);
+        holder.layout(0, 0, 48, 16);
+        bars.layout(0, 0, 16, 16);
+        inlineType.layout(16, 0, 32, 16);
+        otherBadge.layout(32, 0, 48, 16);
+
+        String handoverName = "com.takekazex.hypertweak.hook.rules.systemui.icon.carrier.CarrierHandoverController";
+        Class<?> handoverType = loader.loadClass(handoverName);
+        Class<?> hostType = loader.loadClass(handoverName + "$Host");
+        Object carrierHost = java.lang.reflect.Proxy.newProxyInstance(loader, new Class<?>[]{hostType}, (proxy, method, values) ->
+            switch (method.getName()) {
+                case "getMobileSignalId" -> bars.getId();
+                case "getMobileTypeId" -> inlineType.getId();
+                case "findStatusContainer" -> mirror;
+                default -> throw new AssertionError(method.getName());
+            });
+        Object handover = handoverType.getConstructor(hostType).newInstance(carrierHost);
+        View selected = (View) handoverType.getMethod("nativeSignal", ViewGroup.class, Integer.class)
+            .invoke(handover, mirror, holder.subId);
+        check(selected == bars, "carrier signal uses the native bars as the base glyph");
+        Method selectBadge = handoverType.getMethod("inlineBadge", View.class);
+        check(selectBadge.invoke(handover, bars) == inlineType, "visible native badge is eligible for handover");
+        inlineType.setVisibility(View.GONE);
+        check(selectBadge.invoke(handover, bars) == null, "hidden native badge is ineligible");
+        inlineType.setVisibility(View.VISIBLE);
+        Class<?> nativeType = loader.loadClass("com.takekazex.hypertweak.hook.rules.systemui.icon.carrier.CarrierNativeGlyph");
+        var glyphConstructor = nativeType.getConstructor(View.class, java.util.List.class);
+        android.graphics.drawable.Drawable nativeBars = (android.graphics.drawable.Drawable)
+            glyphConstructor.newInstance(selected, null);
+        check((Boolean) nativeType.getMethod("update").invoke(nativeBars), "record native signal");
+        signal.setImageDrawable(nativeBars);
         for (int color : new int[]{Color.WHITE, Color.BLACK, Color.GRAY, Color.WHITE}) {
             label.setTextColor(color);
             sync.invoke(renderer, parts);
-            for (ImageView glyph : new ImageView[]{signal, wifi, mobileType})
-                check(glyph.getImageTintList().getDefaultColor() == color, "carrier tint follows each host color");
-            check(signal.getDrawable() == original, "palette updates must retain artwork");
+            check((Boolean) capture.invoke(frame, signal, null), "native signal capture");
+            check((Integer) colorAt.invoke(frame, 4f, 8f) == color, "native bars follow the carrier palette");
+            int faintBar = (Integer) colorAt.invoke(frame, 12f, 12f);
+            check(Color.alpha(faintBar) == 96, "recoloring must preserve bar opacity");
+            check((Integer) colorAt.invoke(frame, 12f, 4f) == Color.TRANSPARENT, "recoloring must preserve transparent pixels");
+            check(signal.getDrawable() == nativeBars, "palette updates must retain artwork");
+            check(mobileType.getImageTintList().getDefaultColor() == color, "trailing type follows the carrier palette");
+            check((Boolean) capture.invoke(frame, wifi, null) && (Integer) colorAt.invoke(frame, 8f, 8f) == Color.BLUE,
+                "Wi-Fi retains its own palette");
         }
+        android.graphics.drawable.Drawable combined = (android.graphics.drawable.Drawable)
+            glyphConstructor.newInstance(holder, java.util.List.of(bars, inlineType));
+        check((Boolean) nativeType.getMethod("update").invoke(combined), "record native signal and type together");
+        signal.setImageDrawable(combined);
+        signal.layout(0, 0, 48, 16);
+        check((Boolean) capture.invoke(frame, signal, null), "combined carrier glyph capture");
+        check((Integer) colorAt.invoke(frame, 4f, 8f) == Color.WHITE &&
+            (Integer) colorAt.invoke(frame, 24f, 8f) == Color.WHITE, "both bars and inline type take the carrier color");
+        check((Integer) colorAt.invoke(frame, 40f, 8f) == Color.TRANSPARENT, "unrelated native badge stays out of the capture");
+        android.graphics.Picture nativePicture = (android.graphics.Picture) nativeType.getMethod("getPicture").invoke(combined);
+        Bitmap originalPalette = Bitmap.createBitmap(48, 16, Bitmap.Config.ARGB_8888);
+        new Canvas(originalPalette).drawPicture(nativePicture);
+        check(originalPalette.getPixel(4, 8) == Color.BLACK && originalPalette.getPixel(24, 8) == Color.BLUE,
+            "the moving overlay starts with the source palette");
+        signal.setImageDrawable(nativeBars);
+        signal.layout(0, 0, 16, 16);
+        check((Boolean) capture.invoke(frame, signal, null) &&
+            ((android.graphics.RectF) ink.invoke(frame)).right <= 16f, "bars-only replacement sheds the native type badge");
+
+        AttachedRoot carrierRoot = new AttachedRoot(context);
+        carrierRoot.layout(0, 0, 120, 16);
+        carrierRoot.addView(mirror);
+        AttachedImage carrierTarget = new AttachedImage(context);
+        carrierRoot.addView(carrierTarget);
+        carrierTarget.layout(64, 0, 112, 16);
+        carrierTarget.setImageDrawable(combined);
+        carrierTarget.setColorFilter(Color.WHITE);
+        Class<?> leftMotionType = loader.loadClass("com.takekazex.hypertweak.hook.rules.systemui.icon.left.LeftPanelMotion");
+        Class<?> function0 = loader.loadClass("kotlin.jvm.functions.Function0");
+        Object onFrame = java.lang.reflect.Proxy.newProxyInstance(loader, new Class<?>[]{function0},
+            (proxy, method, values) -> loader.loadClass("kotlin.Unit").getField("INSTANCE").get(null));
+        Object leftMotion = leftMotionType.getConstructor(function0).newInstance(onFrame);
+        Method move = leftMotionType.getMethod("update", ViewGroup.class, View.class, View.class,
+            float.class, Float.class, boolean.class, android.graphics.Picture.class);
+        java.lang.reflect.Field carrierLayerField = leftMotionType.getDeclaredField("layer");
+        carrierLayerField.setAccessible(true);
+        var carrierLayer = (android.graphics.drawable.Drawable) carrierLayerField.get(leftMotion);
+        Bitmap travelBitmap = Bitmap.createBitmap(120, 16, Bitmap.Config.ARGB_8888);
+        Canvas travelCanvas = new Canvas(travelBitmap);
+        for (float progress : new float[]{.5f, .99f, .5f}) {
+            move.invoke(leftMotion, carrierRoot, holder, carrierTarget, progress, null, false, nativePicture);
+            carrierLayer.draw(travelCanvas);
+            travelBitmap.eraseColor(Color.TRANSPARENT);
+            carrierLayer.draw(travelCanvas);
+            int offset = Math.round(64 * progress);
+            int badgePixel = travelBitmap.getPixel(offset + 24, 8);
+            check(progress == .5f ? badgePixel == Color.BLUE : Color.red(badgePixel) > 240,
+                "inline type moves to the target and returns with the source color: progress=" + progress
+                    + ", pixel=" + Integer.toHexString(badgePixel));
+            check(travelBitmap.getPixel(offset + 40, 8) == Color.TRANSPARENT,
+                "the native sibling outside the composite does not travel");
+        }
+        inlineType.setAlpha(0f);
+        inlineType.setColorFilter(Color.GREEN);
+        check((Boolean) nativeType.getMethod("update").invoke(combined), "record a changed badge while its source is masked");
+        var refreshedPicture = (android.graphics.Picture) nativeType.getMethod("getPicture").invoke(combined);
+        check(refreshedPicture != nativePicture, "an appearance update publishes a new source snapshot");
+        move.invoke(leftMotion, carrierRoot, holder, carrierTarget, .5f, null, false, refreshedPicture);
+        travelBitmap.eraseColor(Color.TRANSPARENT);
+        carrierLayer.draw(travelCanvas);
+        check(travelBitmap.getPixel(56, 8) == Color.GREEN, "the moving badge updates during a held gesture");
+        leftMotionType.getMethod("clear").invoke(leftMotion);
+        check(carrierTarget.getAlpha() == 1f, "ending a carrier gesture restores the destination alpha");
+
         // Exercise the actual round-dot/fallback outer filter, including interrupted reversals.
         AttachedRoot root = new AttachedRoot(context); root.layout(0, 0, 64, 32);
         AttachedImage source = new AttachedImage(context), target = new AttachedImage(context);
@@ -144,6 +281,7 @@ public final class PanelGlyphProbe {
         check(counter.frames == 0, "held gesture must not keep invalidating an unchanged overlay");
         motionType.getMethod("clear").invoke(motion);
         check(Math.abs(target.getAlpha() - .6f) < .001f, "clear restores native endpoint alpha");
-        System.out.println("PASS: idle recaptures, live tint, bitmap mutation, carrier palette reversals, moving-dot black-to-white interpolation at .25/.5/.75 and reverse, 200 held updates without extra invalidation, alpha restoration");
+        System.out.println("PASS: idle recaptures, live tint, bitmap mutation, carrier badge selection and travel, "
+            + "masked badge updates, moving-dot tint interpolation and reversal, held updates and alpha restoration");
     }
 }

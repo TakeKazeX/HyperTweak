@@ -103,6 +103,37 @@ class CarrierBlockModelTest {
     )
 
     @Test
+    fun onlyOrdinarySignalUsesTheNativeBadgeOfTheSameSim() {
+        val mobile = dualSim(activeData = 202, secondType = "5G")
+        val ordinary = resolve(mobile)
+        assertNull(ordinary[0].typeText)
+        assertTrue(ordinary[0].allowsNativeBadge(stackedSignal = false, duoSignal = false))
+        val active = ordinary[1]
+        assertTrue(active.allowsNativeBadge(stackedSignal = false, duoSignal = false))
+        assertFalse(active.allowsNativeBadge(stackedSignal = true, duoSignal = false))
+        assertFalse(active.allowsNativeBadge(stackedSignal = false, duoSignal = true))
+        assertFalse(active.allowsNativeBadge(stackedSignal = true, duoSignal = true))
+        assertEquals("5G", active.typeText)
+
+        val moved = resolve(mobile, networkOnFirstRow = true)
+        assertEquals("5G", moved[0].typeText)
+        assertFalse(moved[0].allowsNativeBadge(stackedSignal = false, duoSignal = false))
+    }
+
+    @Test
+    fun wifiCanSuppressTheSeparateTypeWhileTheNativeBadgeFollowsTheSignal() {
+        val mobile = dualSim(activeData = 202, secondType = "5G")
+        val wifi = CarrierBlockPolicy.resolve(
+            mobile, 3, CarrierBlockConfig(showNonDataType = true), wifiDefault = true, slotOf = slotOf
+        )
+        assertEquals("5G", wifi[1].typeText)
+        assertTrue(wifi[1].typeSuppressed)
+        assertTrue(wifi[1].allowsNativeBadge(stackedSignal = false, duoSignal = false))
+        assertFalse(wifi[1].allowsNativeBadge(stackedSignal = true, duoSignal = false))
+        assertFalse(wifi[1].allowsNativeBadge(stackedSignal = false, duoSignal = true))
+    }
+
+    @Test
     fun carrierRetainsNamesAndWifiWhileFilteringCellularGlyphs() {
         val rows = CarrierBlockPolicy.resolve(
             dualSim(), 4, CarrierBlockConfig(showNonDataType = true, hiddenSimIds = setOf(101)),

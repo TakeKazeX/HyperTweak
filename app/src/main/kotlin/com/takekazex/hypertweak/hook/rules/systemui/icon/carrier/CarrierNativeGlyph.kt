@@ -2,19 +2,26 @@ package com.takekazex.hypertweak.hook.rules.systemui.icon.carrier
 
 import android.graphics.Canvas
 import android.graphics.ColorFilter
+import android.graphics.Paint
 import android.graphics.Picture
 import android.graphics.PixelFormat
+import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.TextView
+import com.takekazex.hypertweak.hook.base.HostAccess
 
-/** Replays an icon group drawn by the native binder, even when its original slot is masked. */
-internal class CarrierNativeGlyph(val source: View) : Drawable() {
-    private val picture = Picture()
+/** Replays native binder artwork even when its original slot is masked. */
+internal class CarrierNativeGlyph(
+    val source: View,
+    val children: List<View>? = null
+) : Drawable() {
+    var picture = Picture()
+        private set
+    private val paint = Paint()
     private var appearance: List<Any?>? = null
-    private var opacity = 255
 
     override fun getIntrinsicWidth() = picture.width
     override fun getIntrinsicHeight() = picture.height
@@ -28,15 +35,26 @@ internal class CarrierNativeGlyph(val source: View) : Drawable() {
             if (group == null) {
                 addArtwork(source)
             } else {
-                for (index in 0 until group.childCount) {
-                    val child = group.getChildAt(index)
+                if (children != null) {
+                    add(source.scrollX)
+                    add(source.scrollY)
+                }
+                for (index in 0 until (children?.size ?: group.childCount)) {
+                    val child = children?.get(index) ?: group.getChildAt(index)
                     add(child)
                     add(child.visibility)
-                    add(child.alpha)
+                    if (children == null) add(child.alpha)
                     add(child.left)
                     add(child.top)
                     add(child.translationX)
                     add(child.translationY)
+                    if (children != null) {
+                        add(child.scaleX)
+                        add(child.scaleY)
+                        add(child.pivotX)
+                        add(child.pivotY)
+                        add(child.rotation)
+                    }
                     add(child.width)
                     add(child.height)
                     addArtwork(child)
@@ -44,13 +62,26 @@ internal class CarrierNativeGlyph(val source: View) : Drawable() {
             }
         }
         if (next == appearance) return true
-        val canvas = picture.beginRecording(source.width, source.height)
+        val nextPicture = Picture()
+        val canvas = nextPicture.beginRecording(source.width, source.height)
         try {
-            // Direct draw preserves the children even when the original slot is masked.
-            source.draw(canvas)
+            if (children == null) {
+                source.draw(canvas)
+            } else for (child in children) {
+                // The drag may own these views' alphas. Capture their artwork in parent coordinates.
+                val save = canvas.save()
+                try {
+                    canvas.translate((child.left - source.scrollX).toFloat(), (child.top - source.scrollY).toFloat())
+                    canvas.concat(child.matrix)
+                    child.draw(canvas)
+                } finally {
+                    canvas.restoreToCount(save)
+                }
+            }
         } finally {
-            picture.endRecording()
+            nextPicture.endRecording()
         }
+        picture = nextPicture
         appearance = next
         invalidateSelf()
         return true
@@ -59,13 +90,20 @@ internal class CarrierNativeGlyph(val source: View) : Drawable() {
     private fun MutableList<Any?>.addArtwork(view: View) {
         when (view) {
             is ImageView -> {
-                add(view.drawable)
-                add(view.drawable?.level)
+                val drawable = view.drawable
+                add(drawable)
+                add(drawable?.level)
+                add(drawable?.alpha)
+                add((drawable as? BitmapDrawable)?.bitmap?.generationId)
+                // The native binder changes the label in place, including same-width changes.
+                if (drawable?.javaClass?.name == "com.miui.systemui.statusbar.views.MobileTypeDrawable") {
+                    add(runCatching { HostAccess.read(drawable, "mMobileType") as? String }.getOrNull())
+                }
                 add(view.imageTintList)
                 add(view.imageMatrix)
                 add(view.imageAlpha)
                 add(view.colorFilter)
-                add(view.drawable?.colorFilter)
+                add(drawable?.colorFilter)
             }
             is TextView -> {
                 add(view.text.toString())
@@ -76,8 +114,10 @@ internal class CarrierNativeGlyph(val source: View) : Drawable() {
     }
 
     override fun draw(canvas: Canvas) {
-        if (picture.width <= 0 || picture.height <= 0 || opacity == 0) return
-        val save = canvas.saveLayerAlpha(null, opacity)
+        if (picture.width <= 0 || picture.height <= 0 || paint.alpha == 0) return
+        val save = canvas.saveLayer(
+            bounds.left.toFloat(), bounds.top.toFloat(), bounds.right.toFloat(), bounds.bottom.toFloat(), paint
+        )
         try {
             canvas.translate(bounds.left.toFloat(), bounds.top.toFloat())
             canvas.scale(bounds.width().toFloat() / picture.width, bounds.height().toFloat() / picture.height)
@@ -88,13 +128,22 @@ internal class CarrierNativeGlyph(val source: View) : Drawable() {
     }
 
     override fun setAlpha(alpha: Int) {
-        if (opacity != alpha) {
-            opacity = alpha
+        if (paint.alpha != alpha) {
+            paint.alpha = alpha
             invalidateSelf()
         }
     }
 
-    override fun setColorFilter(colorFilter: ColorFilter?) = Unit
+    override fun getAlpha() = paint.alpha
+
+    override fun getColorFilter(): ColorFilter? = paint.colorFilter
+
+    override fun setColorFilter(colorFilter: ColorFilter?) {
+        if (paint.colorFilter != colorFilter) {
+            paint.colorFilter = colorFilter
+            invalidateSelf()
+        }
+    }
 
     @Deprecated("Deprecated in Java")
     override fun getOpacity() = PixelFormat.TRANSLUCENT

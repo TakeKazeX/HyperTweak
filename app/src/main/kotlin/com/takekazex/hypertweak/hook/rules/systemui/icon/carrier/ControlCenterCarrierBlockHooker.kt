@@ -13,7 +13,6 @@ import com.takekazex.hypertweak.hook.rules.systemui.icon.IconTunerFlows
 import com.takekazex.hypertweak.hook.rules.systemui.icon.MobileTypeConfig
 import com.takekazex.hypertweak.hook.rules.systemui.icon.ShadeSwitchMotionPolicy
 import com.takekazex.hypertweak.hook.rules.systemui.icon.SignalHandoverEvents
-import com.takekazex.hypertweak.hook.rules.systemui.icon.StackedSignalHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.TwoRowIconLayout
 import com.takekazex.hypertweak.presentation.icon.MobileSignalState
 
@@ -68,6 +67,8 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         Preferences.getBoolean(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_SMALL_5GA, false)
     }
     private val settingIconMobileRowStyle by hookSetting(0) { Preferences.getInt(IconSettingsKeys.KEY_ICON_MOBILE_ROW_STYLE, 0) }
+    private val stackedSignal by hookSetting(false) { Preferences.iconBoolean(IconSettingsKeys.KEY_ICON_STACKED_ENABLED) }
+    private val duoSignal by hookSetting(false) { Preferences.getBoolean(IconSettingsKeys.KEY_ICON_DUO_ENABLED, false) }
     private val settingCcCarrierShowNonDataType by hookSetting(false) {
         Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_CARRIER_SHOW_NON_DATA_TYPE, false)
     }
@@ -834,7 +835,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         .firstOrNull { it.maskContainer === container && it.compact && it.layout.isShown }
         ?.rows?.firstNotNullOfOrNull { parts ->
             val target = if (wifi && parts.wifiReady) parts.wifi else if (!wifi &&
-                parts.cellularReady && !parts.typeSuppressed && subId != null &&
+                parts.cellularReady && !parts.typeSuppressed && parts.typeBitmap != null && subId != null &&
                 parts.model?.networkSubId == subId) parts.type else null
             target?.takeIf { handover.isUsable(it) && it.drawable != null && parts.row.isShown }
         }
@@ -1020,33 +1021,28 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         val header = block.layout.parent as? ViewGroup ?: return false
         val fake = header.findViewById<ViewGroup>(fakeStatusBarId)
         val real = header.findViewById<ViewGroup>(statusBarId)
-        val duo = fake != null && SignalHandoverEvents.shade.hasActiveProxy(fake)
-        val stackedType = !duo && fake?.let(StackedSignalHooker::duoTypeTarget) != null
+        val stacked = stackedSignal
+        val duo = duoSignal
         var changed = false
         for (parts in block.rows) {
             val row = model(parts)?.takeIf { it.hasSignal }
-            val source = row?.let {
-                // A separately animated type has its own carrier endpoint. Do not also replay it
-                // from a hidden native holder when the gesture starts from Duo or stacked type.
-                val includeBadge = !(row.typeText != null && row.networkSubId == row.subId &&
-                    (duo || stackedType && row.subId == mobileState.activeDataSubId))
-                fake?.let { root -> handover.nativeSignal(root, row.subId, includeBadge) }
-                    ?: real?.let { root -> handover.nativeSignal(root, row.subId, includeBadge) }
+            val bars = row?.subId?.let { subId ->
+                fake?.let { handover.nativeSignal(it, subId) }
+                    ?: real?.let { handover.nativeSignal(it, subId) }
             }
             val previous = parts.nativeSignal
             val width = previous?.intrinsicWidth
             val height = previous?.intrinsicHeight
-            val next = source?.let {
-                val glyph = previous?.takeIf { it.source === source } ?: CarrierNativeGlyph(source)
+            val next = bars?.let {
+                val badge = if (row.allowsNativeBadge(stacked, duo)) handover.inlineBadge(bars) else null
+                val source = badge?.parent as? ViewGroup ?: bars
+                val children = badge?.let { listOf(bars, it) }
+                val glyph = previous?.takeIf { it.source === source && it.children == children }
+                    ?: CarrierNativeGlyph(source, children)
                 glyph.takeIf { it.update() }
             }
-            val badge = next?.source?.findViewById<android.widget.ImageView>(mobileTypeId)
-            val hasBadge = badge?.visibility == View.VISIBLE && badge.drawable != null &&
-                badge.width > 0 && badge.height > 0 && badge.alpha > 0f
-            if (previous !== next || width != next?.intrinsicWidth || height != next?.intrinsicHeight ||
-                parts.nativeTypeBadge != hasBadge) changed = true
+            if (previous !== next || width != next?.intrinsicWidth || height != next?.intrinsicHeight) changed = true
             parts.nativeSignal = next
-            parts.nativeTypeBadge = hasBadge
         }
         return changed
     }

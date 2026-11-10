@@ -66,7 +66,6 @@ internal class CarrierRowParts(
     var hd: CarrierViewState? = null
     var plus: CarrierViewState? = null
     var nativeSignal: CarrierNativeGlyph? = null
-    var nativeTypeBadge = false
     var nativeWifi: CarrierNativeGlyph? = null
     var typeBitmap: Bitmap? = null
     var model: CarrierRowModel? = null
@@ -83,7 +82,6 @@ internal class CarrierRowParts(
 internal data class CarrierRowRenderState(
     val model: CarrierRowModel, val signalIconId: Int?,
     val nativeSignal: CarrierNativeGlyph?, val signalWidth: Int, val signalHeight: Int,
-    val hasInlineType: Boolean,
     val densityDpi: Int, val fontScale: Float, val rtl: Boolean,
     val iconHeight: Int, val carrier: String, val badgeText: String,
     val single: Boolean, val roaming: Boolean, val keepType: Boolean,

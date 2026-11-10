@@ -29,6 +29,10 @@ data class CarrierRowModel(
     val hasSignal: Boolean get() = visible && signalLevel != null
     val hasType: Boolean get() = visible && !typeText.isNullOrEmpty()
     val hasWifi: Boolean get() = visible && wifiLevel != null
+
+    // A visible native badge follows its signal even if Wi-Fi suppresses the separate type slot.
+    internal fun allowsNativeBadge(stackedSignal: Boolean, duoSignal: Boolean): Boolean =
+        !stackedSignal && !duoSignal && hasSignal && subId != null && subId == networkSubId
 }
 
 /** User choices that change only the row mapping, never the host data. */

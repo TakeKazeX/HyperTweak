@@ -111,10 +111,11 @@ internal class CarrierHandoverController(private val host: Host) {
             for (parts in block.rows) {
                 val model = parts.model
                 if (parts.cellularReady && parts.signal.drawable != null) {
-                    val source = nativeSignal(fakeRow, model?.subId)
-                        ?.takeIf { group -> (parts.signal.drawable as? CarrierNativeGlyph)?.source === group }
-                        ?: model?.subId?.let { mobileGroup(fakeRow, it) }?.let { glyph(it, host.mobileSignalId) }
-                    move(parts, parts.signal, source, clamped, used, sources)
+                    val bars = nativeSignal(fakeRow, model?.subId)
+                    val composite = (parts.signal.drawable as? CarrierNativeGlyph)?.takeIf {
+                        bars != null && it.children?.firstOrNull() === bars
+                    }
+                    move(parts, parts.signal, composite?.source ?: bars, clamped, used, sources, composite)
                 }
                 if (parts.wifiReady && parts.nativeWifi != null) {
                     move(parts, parts.wifi, WifiIconHooker.nativeGlyph(fakeRow, host.wifiSignalId),
@@ -122,9 +123,7 @@ internal class CarrierHandoverController(private val host: Host) {
                 }
                 if (parts.cellularReady && !parts.typeSuppressed && parts.typeBitmap != null &&
                     parts.type !in duoTargets && parts.type.visibility == View.VISIBLE && isUsable(parts.type)) {
-                    val subId = model?.networkSubId
-                    val inline = block.rows.any { it.model?.subId == subId && it.nativeTypeBadge }
-                    move(parts, parts.type, typeGlyph(fakeRow, subId, inline), clamped, used, sources)
+                    move(parts, parts.type, typeGlyph(fakeRow, model?.networkSubId), clamped, used, sources)
                 }
             }
         }
@@ -135,7 +134,7 @@ internal class CarrierHandoverController(private val host: Host) {
 
     private fun move(
         parts: CarrierRowParts, target: ImageView, source: View?, value: Float,
-        used: MutableSet<View>, sources: MutableSet<View>
+        used: MutableSet<View>, sources: MutableSet<View>, composite: CarrierNativeGlyph? = null
     ) {
         if (source == null || !isUsable(source) || target in duoTargets ||
             target.visibility != View.VISIBLE || !isUsable(target)) return
@@ -143,11 +142,20 @@ internal class CarrierHandoverController(private val host: Host) {
         leaseNetwork(parts, target, true)
         val motion = motions.getOrPut(target) { LeftPanelMotion { applyHandoverGuarded(progress) } }
         used += target
-        sources += source
-        suppressEndpoint(source, motion.update(
+        val ready = motion.update(
             root, source, target, value,
-            sameArtwork = (target.drawable as? CarrierNativeGlyph)?.source === source
-        ))
+            // The cellular endpoint is recolored for the carrier row even if it replays this view.
+            sameArtwork = target.colorFilter == null && (target.drawable as? CarrierNativeGlyph)?.source === source,
+            sourcePicture = composite?.picture
+        )
+        val components = composite?.children
+        if (components == null) {
+            sources += source
+            endpointAlphas.suppress(source, ready)
+        } else for (child in components) {
+            sources += child
+            endpointAlphas.suppress(child, ready)
+        }
     }
 
     private fun releaseMotion(target: View) {
@@ -174,24 +182,35 @@ internal class CarrierHandoverController(private val host: Host) {
         }
     }
 
-    private fun typeGlyph(row: ViewGroup, subId: Int?, inline: Boolean): View? {
+    private fun typeGlyph(row: ViewGroup, subId: Int?): View? {
         if (subId == host.activeDataSubId) StackedSignalHooker.duoTypeTarget(row)?.let { return it }
         val mobile = subId?.let { mobileGroup(row, it) } ?: return null
         val single = mobile.resources.getIdentifier("mobile_type_single", "id", mobile.context.packageName)
-        return glyph(mobile, single) ?: glyph(mobile, host.mobileTypeId).takeUnless { inline }
+        return glyph(mobile, single) ?: glyph(mobile, host.mobileTypeId)
     }
 
     private fun glyph(parent: ViewGroup, id: Int): View? = if (id == 0 || !parent.isShown) null else
         parent.findViewById<View>(id)?.takeIf { it.visibility == View.VISIBLE && isUsable(it) }
 
-    // A masked holder may retain the laid-out native children. Use their local geometry and
-    // binder artwork without requiring the holder to be visible in the status bar.
-    fun nativeSignal(root: ViewGroup, subId: Int?, includeBadge: Boolean = true): View? {
+    // A masked holder can still supply the bars. Its network-type badge has a separate view.
+    fun nativeSignal(root: ViewGroup, subId: Int?): View? {
+        if (host.mobileSignalId == 0) return null
         val holder = subId?.let { mobileGroup(root, it) } ?: return null
-        val signal = holder.findViewById<ImageView>(host.mobileSignalId) ?: return null
-        if (signal.drawable == null || signal.visibility != View.VISIBLE || !isUsable(signal)) return null
-        if (!includeBadge) return signal
-        return (signal.parent as? ViewGroup)?.takeIf(::isUsable)
+        val signal = holder.findViewById<View>(host.mobileSignalId) as? ImageView ?: return null
+        return signal.takeIf {
+            it.drawable != null && it.visibility == View.VISIBLE && isUsable(it)
+        }
+    }
+
+    fun inlineBadge(bars: View): View? {
+        if (host.mobileTypeId == 0) return null
+        val parent = bars.parent as? ViewGroup ?: return null
+        if (parent.visibility != View.VISIBLE || !isUsable(parent)) return null
+        val badge = parent.findViewById<View>(host.mobileTypeId) as? ImageView ?: return null
+        return badge.takeIf {
+            it.parent === parent && it.visibility == View.VISIBLE && it.drawable != null &&
+                isUsable(it) && endpointAlphas.originalAlpha(it) > 0f
+        }
     }
 
     private fun mobileGroup(root: ViewGroup, subId: Int): ViewGroup? {
@@ -216,8 +235,6 @@ internal class CarrierHandoverController(private val host: Host) {
      */
     fun isUsable(view: View): Boolean =
         view.isAttachedToWindow && view.width > 0 && view.height > 0
-
-    private fun suppressEndpoint(view: View, ready: Boolean) = endpointAlphas.suppress(view, ready)
 
     fun restoreEndpoints(retained: Set<View> = emptySet()) = endpointAlphas.restore(retained)
 
