@@ -11,6 +11,7 @@ import com.takekazex.hypertweak.hook.rules.systemui.island.ThreeIslandHooker
 import com.takekazex.hypertweak.hook.rules.systemui.island.IslandTimeFontHooker
 import com.takekazex.hypertweak.hook.rules.systemui.island.LiveUpdateIconHooker
 import com.takekazex.hypertweak.hook.rules.systemui.island.IslandPullDownHooker
+import com.takekazex.hypertweak.hook.rules.systemui.island.IslandLottieResumeHooker
 import android.content.ComponentName
 import android.content.Context
 import android.content.ContextWrapper
@@ -50,6 +51,7 @@ object SystemUIPluginHooker : StaticHooker() {
         val liveUpdateIconHooker: LiveUpdateIconHooker,
         val timeFontHooker: IslandTimeFontHooker,
         val pullDownHooker: IslandPullDownHooker,
+        val lottieResumeHooker: IslandLottieResumeHooker,
         var cardsEditHooker: ControlCenterCardsEditHooker? = null,
         var cardResizeHooker: ControlCenterCardResizeHooker? = null,
         var mediaDeviceIconHooker: MediaPlayerDeviceIconHooker? = null,
@@ -251,6 +253,8 @@ object SystemUIPluginHooker : StaticHooker() {
                             detach(session.timeFontHooker)
                             runCatching { session.pullDownHooker.prepareForHotReload() }
                             detach(session.pullDownHooker)
+                            runCatching { session.lottieResumeHooker.prepareForHotReload() }
+                            detach(session.lottieResumeHooker)
                             runCatching { session.superIslandHooker.prepareForHotReload() }
                             detach(session.superIslandHooker)
                             runCatching { session.volumeKeyHooker.prepareForHotReload() }
@@ -374,6 +378,7 @@ object SystemUIPluginHooker : StaticHooker() {
                 liveUpdateIconHooker = liveUpdateIconHooker,
                 timeFontHooker = timeFontHooker,
                 pullDownHooker = IslandPullDownHooker(),
+                lottieResumeHooker = IslandLottieResumeHooker(),
                 mediaSuperIslandWhitelistHooker = mediaSuperIslandWhitelistHooker,
                 classLoader = state.classLoader
             ).also { session ->
@@ -421,6 +426,8 @@ object SystemUIPluginHooker : StaticHooker() {
                 .onFailure { DebugLog.e("SystemUIPlugin", "failed to attach live-update island icons", it) }
             runCatching { attach(session.pullDownHooker, state.classLoader) }
                 .onFailure { DebugLog.e("SystemUIPlugin", "failed to attach island pull-down stretch", it) }
+            runCatching { attach(session.lottieResumeHooker, state.classLoader) }
+                .onFailure { DebugLog.e("SystemUIPlugin", "failed to attach island Lottie resume", it) }
             runCatching { attach(superIslandHooker, state.classLoader) }
                 .onFailure { DebugLog.e("SystemUIPlugin", "failed to attach Control Center Super Island hook", it) }
             runCatching { attach(hooker, state.classLoader) }

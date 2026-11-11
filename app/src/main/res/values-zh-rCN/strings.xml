@@ -1627,6 +1627,8 @@
     <string name="tweaks_island_narrow_time_font_summary">时钟、录音机的超级岛时间数字使用原生窄字体，修改后即时生效。</string>
     <string name="tweaks_island_pull_down_stretch_title">下拉时拉伸内容</string>
     <string name="tweaks_island_pull_down_stretch_summary">下拉展开的超级岛打开小窗时，内容随外框纵向拉伸并逐渐模糊。修改立即生效。</string>
+    <string name="tweaks_island_lottie_resume_title">收起后保持动态图标</string>
+    <string name="tweaks_island_lottie_resume_summary">展开的超级岛收起后，倒计时、秒表等动态图标继续播放，不再停在第一帧。修改从下一次超级岛动画起生效。</string>
     <string name="tweaks_remove_island_placeholder_title">移除超级岛结构空位</string>
     <string name="tweaks_remove_island_placeholder_summary">移除左右内容区为对称平衡而额外撑出的空白，按实际内容收紧；关闭后保留平衡宽度。独立于三岛调度，修改后即时生效。</string>
     <string name="tweaks_super_island_summary">布局、图标、时间字体与白名单设置</string>

@@ -46,6 +46,7 @@ fun SuperIslandPage(
     islandLiveUpdateIcon: Boolean,
     islandNarrowTimeFont: Boolean,
     islandPullDownStretch: Boolean,
+    islandLottieResume: Boolean,
     onThreeIslandsChange: (Boolean) -> Unit,
     onLandscapeFullIslandsChange: (Boolean) -> Unit,
     onLandscapeMoreIslandsChange: (Boolean) -> Unit,
@@ -53,6 +54,7 @@ fun SuperIslandPage(
     onIslandLiveUpdateIconChange: (Boolean) -> Unit,
     onIslandNarrowTimeFontChange: (Boolean) -> Unit,
     onIslandPullDownStretchChange: (Boolean) -> Unit,
+    onIslandLottieResumeChange: (Boolean) -> Unit,
     focusNotificationUnlockWhitelist: Boolean,
     onFocusNotificationUnlockWhitelistChange: (Boolean) -> Unit,
     mediaSuperIslandUnlockWhitelist: Boolean,
@@ -133,6 +135,12 @@ fun SuperIslandPage(
                         onCheckedChange = onIslandPullDownStretchChange,
                         title = stringResource(R.string.tweaks_island_pull_down_stretch_title),
                         summary = stringResource(R.string.tweaks_island_pull_down_stretch_summary)
+                    )
+                    SwitchPreference(
+                        checked = islandLottieResume,
+                        onCheckedChange = onIslandLottieResumeChange,
+                        title = stringResource(R.string.tweaks_island_lottie_resume_title),
+                        summary = stringResource(R.string.tweaks_island_lottie_resume_summary)
                     )
                     SwitchPreference(
                         checked = focusNotificationUnlockWhitelist,

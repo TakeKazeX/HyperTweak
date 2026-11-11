@@ -314,4 +314,36 @@ class NativeIslandTargetApkTest {
         val blur = classes.getValue("Lmiui/systemui/util/MiBlurCompat;")
         assertTrue(AccessFlags.STATIC.isSet(method(blur, "getBackgroundMaterialOpened", "Landroid/content/Context;").accessFlags))
     }
+
+    @Test fun `the anim bridge listener resumes paused island Lottie only behind its flag`() {
+        val path = System.getenv("SYSTEMUI_PLUGIN_APK")?.let(::File)
+        assumeTrue(path?.isFile == true)
+        val container = DexFileFactory.loadDexContainer(path!!, Opcodes.getDefault())
+        val classes = container.dexEntryNames.flatMap { container.getEntry(it)!!.dexFile.classes }.associateBy { it.type }
+        val root = "Lmiui/systemui/dynamicisland/"
+        val listener = classes.getValue(root + "event/DynamicIslandEventCoordinator\$initAnimEventBridge\$1;")
+        assertTrue(root + "anim/ui/viewbinder/AnimEventBridge\$Listener;" in listener.interfaces)
+        val fields = listener.fields.filterNot { AccessFlags.STATIC.isSet(it.accessFlags) }
+        assertEquals(listOf("lottiePausedByAnim"), fields.filter { it.type == "Z" }.map { it.name })
+        assertEquals("Ljava/util/Set;", fields.single { it.name == "pausedLottieKeys" }.type)
+        assertEquals("Ljava/util/Map;", fields.single { it.name == "pendingLottiePauseMap" }.type)
+        fun method(name: String, event: String) = listener.methods.single {
+            it.name == name && it.parameterTypes.map(CharSequence::toString) == listOf(root + "anim/model/AnimEvent\$$event;")
+        }
+        fun instructions(name: String, event: String) = method(name, event).implementation!!.instructions.toList()
+        fun refs(name: String, event: String) = instructions(name, event).mapNotNull { (it as? ReferenceInstruction)?.reference }
+        fun flagWrites(name: String, event: String) = instructions(name, event).count {
+            it.opcode == org.jf.dexlib2.Opcode.IPUT_BOOLEAN &&
+                ((it as ReferenceInstruction).reference as org.jf.dexlib2.iface.reference.FieldReference).name == "lottiePausedByAnim"
+        }
+        // Start pauses pending keys and writes the flag on both branches, including the empty-pending one.
+        assertTrue(refs("onAnimTrulyStarted", "Started").any { it is MethodReference && it.name == "pauseForIslandAnim" })
+        assertEquals(2, flagWrites("onAnimTrulyStarted", "Started"))
+        // Only the two end events resume, and each clears the flag after resuming the paused keys.
+        listOf("onAnimTrulyFinished" to "Finished", "onAnimCancelled" to "Cancelled").forEach { (name, event) ->
+            assertEquals("V", method(name, event).returnType)
+            assertTrue(refs(name, event).any { it is MethodReference && it.name == "resumeAfterIslandAnim" })
+            assertEquals(1, flagWrites(name, event))
+        }
+    }
 }
