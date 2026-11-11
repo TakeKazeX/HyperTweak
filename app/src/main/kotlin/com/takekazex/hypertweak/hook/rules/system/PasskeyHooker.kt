@@ -45,6 +45,8 @@ object PasskeyHooker : StaticHooker() {
         val holder = java.lang.ref.WeakReference(holder)
     }
     private val rows = generationMainResource(ArrayList<BoundRow>()) { it.clear() }
+    // Switches this generation wired, mapped to the CombiPreference they commit for.
+    private val wiredSwitches = generationMainResource(java.util.WeakHashMap<CompoundButton, Any>()) { it.clear() }
     private var bindMethod: Method? by generationState { null }
 
     fun refreshSettings(): Boolean = HostAccess.onMain {
@@ -146,6 +148,13 @@ object PasskeyHooker : StaticHooker() {
             )
         }.getOrNull()
 
+        // Upstream HyperPasskey: the provider-session factories construct RequestSession state on
+        // hot paths; keep them interpreted so compiled callers cannot bypass the constructor hook.
+        listOf("com.android.server.credentials.ProviderGetSession",
+            "com.android.server.credentials.ProviderCreateSession").forEach { className ->
+            className.toClassOrNull()?.declaredMethods?.filter { it.name == "createNewSession" }?.forEach { deoptimize(it) }
+                ?: DebugLog.d(TAG, "$className unavailable; skipping createNewSession deoptimization")
+        }
         constructorRequestSession?.hook {
             after { param ->
                 HookFailurePolicy.open(TAG, "RequestSession#hybridService", Unit) {
@@ -216,10 +225,12 @@ object PasskeyHooker : StaticHooker() {
 
     private fun hookSettings(cacheDir: File, apkPath: String) {
         val defaultCombinedPickerClass = "com.android.settings.applications.credentials.DefaultCombinedPicker".toClassOrNull()
+        // Every flip target is deoptimized to match upstream HyperPasskey. Compiled code still
+        // re-reads the static IS_INTERNATIONAL_BUILD field, so this is cheap insurance, not a known fix.
         defaultCombinedPickerClass?.findMethodOrNull {
             name("setDefaultKey")
             parameterTypes(String::class.java)
-        }?.hook {
+        }?.also { deoptimize(it) }?.hook {
             intercept { chain ->
                 handleIsInternationalBuild(chain)
             }
@@ -231,7 +242,7 @@ object PasskeyHooker : StaticHooker() {
             defaultCombinedPreferenceControllerClass.findMethodOrNull {
                 name("getCombinedProviderInfos")
                 parameterTypes(credentialManagerClass, Int::class.javaPrimitiveType!!)
-            }?.hook {
+            }?.also { deoptimize(it) }?.hook {
                 intercept { chain ->
                     handleIsInternationalBuild(chain)
                 }
@@ -272,7 +283,7 @@ object PasskeyHooker : StaticHooker() {
             listenerClass.findMethodOrNull {
                 name("onLeftSideClicked")
                 parameterTypes()
-            }?.hook {
+            }?.also { deoptimize(it) }?.hook {
                 intercept { chain ->
                     handleIsInternationalBuild(chain)
                 }
@@ -377,51 +388,76 @@ object PasskeyHooker : StaticHooker() {
                     rows.removeAll { it.preference.get() == null || it.holder.get() == null || it.holder.get() === holder }
                     rows += BoundRow(param.thisObject, holder)
                     if (featureEnabled) wireCombiPreferenceSwitch(param.thisObject, holder)
+                    else unwireCombiPreferenceSwitch(param.thisObject, holder)
                 }
             }
         }
     }
 
-    private fun wireCombiPreferenceSwitch(preference: Any?, viewHolder: Any?) {
-        if (preference == null || viewHolder == null) {
-            DebugLog.i(TAG, "DIAG wire skipped pref=${preference != null} vh=${viewHolder != null}")
-            return
-        }
+    /** The row's non-SlidingSwitch widget; the native SlidingSwitch path already commits. */
+    private fun findRowSwitch(preference: Any, viewHolder: Any): CompoundButton? {
         val itemView = runCatching {
             HostAccess.requirePublicField(viewHolder.javaClass, "itemView", accessible = false).get(viewHolder) as? View
         }.getOrNull()
         if (itemView == null) {
-            DebugLog.i(TAG, "DIAG wire skipped: no itemView")
-            return
+            DebugLog.d(TAG, "credential row switch skipped: no itemView")
+            return null
         }
         val context = runCatching {
             HostAccess.requirePublicMethod(preference.javaClass, "getContext", accessible = false).invoke(preference) as? Context
         }.getOrNull()
         if (context == null) {
-            DebugLog.i(TAG, "DIAG wire skipped: no context")
-            return
+            DebugLog.d(TAG, "credential row switch skipped: no context")
+            return null
         }
         var switchId = ResourceLookup.identifier(context, "switchWidget", "id", "com.android.settings")
         if (switchId == 0) {
             switchId = ResourceLookup.identifier(context, "switchWidget", "id", "com.android.settingslib")
         }
         if (switchId == 0) {
-            DebugLog.i(TAG, "DIAG wire skipped: switchWidget id not found")
-            return
+            DebugLog.d(TAG, "credential row switch skipped: switchWidget id not found")
+            return null
         }
         val switch = itemView.findViewById<View>(switchId) as? CompoundButton
         if (switch == null) {
-            DebugLog.i(TAG, "DIAG wire skipped: widget not a CompoundButton id=$switchId")
+            DebugLog.d(TAG, "credential row switch skipped: widget not a CompoundButton id=$switchId")
+            return null
+        }
+        return switch.takeUnless { it.javaClass.name == "miuix.slidingwidget.widget.SlidingSwitch" }
+    }
+
+    private fun switchField(preference: Any): Field? = runCatching {
+        HostAccess.requireDeclaredField(preference.javaClass, "mSwitch", accessible = true)
+    }.getOrNull()
+
+    /**
+     * Detaches [switch] from the row it was wired for, including that row's `mSwitch` link. Only
+     * called right after a bind: `PrimarySwitchPreference.onBindViewHolder` has already replaced
+     * our click listener with its own, so the listener itself is left alone.
+     */
+    private fun releaseSwitch(switch: CompoundButton) {
+        val owner = wiredSwitches.remove(switch) ?: return
+        switchField(owner)?.let { field -> if (field.get(owner) === switch) field.set(owner, null) }
+    }
+
+    /** Disabled or retired: the row returns to the host's own (non-committing) switch handling. */
+    private fun unwireCombiPreferenceSwitch(preference: Any?, viewHolder: Any?) {
+        if (preference == null || viewHolder == null) return
+        findRowSwitch(preference, viewHolder)?.let(::releaseSwitch)
+    }
+
+    private fun wireCombiPreferenceSwitch(preference: Any?, viewHolder: Any?) {
+        if (preference == null || viewHolder == null) {
+            DebugLog.d(TAG, "credential row switch skipped pref=${preference != null} vh=${viewHolder != null}")
             return
         }
-        // The native path already wires the commit listener for SlidingSwitch.
-        if (switch.javaClass.name == "miuix.slidingwidget.widget.SlidingSwitch") return
+        val switch = findRowSwitch(preference, viewHolder) ?: return
 
         val listenerField = runCatching {
             HostAccess.requireDeclaredField(preference.javaClass, "mOnClickListener", accessible = true)
         }.getOrNull()
         if (listenerField == null) {
-            DebugLog.i(TAG, "DIAG wire skipped: no mOnClickListener field")
+            DebugLog.d(TAG, "credential row switch skipped: no mOnClickListener field")
             return
         }
         val onCheckChanged = runCatching {
@@ -431,24 +467,39 @@ object PasskeyHooker : StaticHooker() {
                 Boolean::class.javaPrimitiveType!!, accessible = false)
         }.getOrNull()
         if (onCheckChanged == null) {
-            DebugLog.i(TAG, "DIAG wire skipped: no onCheckChanged method in ${listenerField.type.name}")
+            DebugLog.d(TAG, "credential row switch skipped: no onCheckChanged method in ${listenerField.type.name}")
             return
         }
         val checkedField = runCatching {
             HostAccess.requireDeclaredField(preference.javaClass, "mChecked", accessible = true)
         }.getOrNull()
 
-        switch.setOnCheckedChangeListener { _, checked ->
-            val listener = listenerField.get(preference) ?: return@setOnCheckedChangeListener
+        // A recycled holder may still carry the previous row's commit target.
+        if (wiredSwitches[switch] !== preference) releaseSwitch(switch)
+
+        // Commit only user clicks (upstream HyperPasskey's Android 17 fix). A checked-change
+        // listener also fires for programmatic setChecked — the host's rebind of a recycled row and
+        // the state sync below — and would enable or disable a provider nobody touched.
+        switch.setOnClickListener {
+            val listener = listenerField.get(preference) ?: return@setOnClickListener
+            val checked = switch.isChecked
             val accepted = runCatching {
                 onCheckChanged.invoke(listener, preference, checked) as? Boolean ?: true
-            }.getOrDefault(true)
+            }.onFailure { DebugLog.w(TAG, "credential provider toggle failed", it) }.getOrDefault(true)
             if (!accepted) {
                 // Provider limit reached: revert exactly like the native SlidingSwitch path.
                 checkedField?.setBoolean(preference, false)
                 switch.isChecked = false
             }
         }
+        wiredSwitches[switch] = preference
+        // Native binding publishes only a SlidingSwitch here; publishing this widget lets the
+        // controller's later CombiPreference.setChecked reach the visible switch.
+        switchField(preference)?.set(preference, switch)
+        runCatching {
+            HostAccess.requireDeclaredMethod(preference.javaClass, "maybeUpdateContentDescription", accessible = true)
+                .invoke(preference)
+        }.onFailure { DebugLog.d(TAG, "credential row content description unavailable: $it") }
 
         // AOSP builds the rows before the controller refreshes mEnabledPackageNames, and the
         // controller's own sync (`setAvailableServices` -> `mPrefs.setChecked`) only reaches
@@ -475,6 +526,8 @@ object PasskeyHooker : StaticHooker() {
                     switch.isChecked = enabled
                 }
             }
+        } else if (checkedField != null && switch.isChecked != checkedField.getBoolean(preference)) {
+            switch.isChecked = checkedField.getBoolean(preference)
         }
     }
 
