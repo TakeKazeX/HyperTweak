@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.ui.page.systemui.icon
 
+import com.takekazex.hypertweak.settings.contract.IconSlotPolicy
 import com.takekazex.hypertweak.settings.contract.IconSlotPolicyConfig
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -28,7 +29,8 @@ class StatusBarPreviewModelTest {
         typeOrder: Int = 0,
         keepCellularTypeOnWifi: Boolean = true,
         keepStackedTypeOnWifi: Boolean = false,
-        hideSimOne: Boolean = false
+        hideSimOne: Boolean = false,
+        rotationLockEnabled: Boolean = false
     ) = StatusBarPreviewInput(
         position = position,
         customOrder = customOrder,
@@ -45,7 +47,8 @@ class StatusBarPreviewModelTest {
         typeOrder = typeOrder,
         keepCellularTypeOnWifi = keepCellularTypeOnWifi,
         keepStackedTypeOnWifi = keepStackedTypeOnWifi,
-        hideSimOne = hideSimOne
+        hideSimOne = hideSimOne,
+        rotationLockEnabled = rotationLockEnabled
     )
 
     private fun allSlots(model: StatusBarPreviewModel) =
@@ -69,6 +72,26 @@ class StatusBarPreviewModelTest {
         assertTrue(model.leftSlots.contains("bluetooth"))
         assertFalse(model.indicatorSlots.contains("bluetooth"))
         assertFalse(model.coreSlots.contains("bluetooth"))
+    }
+
+    @Test
+    fun rotationLockDefaultsToControlCenterAndLeftPlacementBringsItToTheBar() {
+        val rotation = IconSlotPolicy.SLOT_ROTATION_LOCK
+        assertFalse(allSlots(buildStatusBarPreview(input(rotationLockEnabled = true))).contains(rotation))
+
+        val left = buildStatusBarPreview(input(rotationLockEnabled = true, leftSlots = setOf(rotation)))
+        assertTrue(left.leftSlots.contains(rotation))
+        assertFalse(left.indicatorSlots.contains(rotation))
+
+        // An explicit status-bar mode shows it on the right without left placement.
+        val statusBar = buildStatusBarPreview(input(rotationLockEnabled = true, slotModes = mapOf(rotation to 2)))
+        assertTrue(statusBar.indicatorSlots.contains(rotation))
+
+        // An explicit control-center-only mode wins over left placement.
+        val controlCenterOnly = buildStatusBarPreview(input(
+            rotationLockEnabled = true, leftSlots = setOf(rotation), slotModes = mapOf(rotation to 3)
+        ))
+        assertFalse(allSlots(controlCenterOnly).contains(rotation))
     }
 
     @Test

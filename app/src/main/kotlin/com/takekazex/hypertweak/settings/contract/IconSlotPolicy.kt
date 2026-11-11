@@ -134,6 +134,12 @@ object IconSlotPolicy {
 
     val MODULE_SLOTS: List<String> = STACKED_SLOTS + SLOT_ROTATION_LOCK
 
+    /**
+     * The host has no native rule for the module rotation icon, so its [IconSlotMode.FOLLOW_SYSTEM]
+     * default is control-center only. Placing it left is the explicit request to draw it in the
+     * status bar; an explicit slot mode still wins either way. If the left clone cannot be built,
+     * the icon falls back to the right cluster instead of disappearing (see [ownedSlotsFor]).
+     */
     fun rotationLockShowsOnStatusBar(mode: IconSlotMode, leftSelected: Boolean): Boolean = when (mode) {
         IconSlotMode.FOLLOW_SYSTEM -> leftSelected
         IconSlotMode.SHOW_EVERYWHERE, IconSlotMode.STATUS_BAR_ONLY -> true
