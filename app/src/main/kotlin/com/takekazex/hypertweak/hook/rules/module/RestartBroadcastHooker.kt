@@ -6,6 +6,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.os.Process
 import androidx.core.content.ContextCompat
+import com.takekazex.hypertweak.hook.base.HostApplicationContext
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 import com.takekazex.hypertweak.util.restart.RestartProtocol
@@ -27,13 +28,18 @@ object RestartBroadcastHooker : StaticHooker() {
     }
 
     fun register(context: Context) {
-        val appContext = context.applicationContext ?: context
-        val pkgName = appContext.packageName ?: return
+        val pkgName = context.packageName ?: return
 
         // Do not register inside our own app to avoid killing the manager UI.
         if (pkgName == "com.takekazex.hypertweak") return
         if (!registeredPackages.add(pkgName)) return
+        // The attach-time context would key the receiver on a ContextImpl that hot reload cannot unregister.
+        HostApplicationContext.whenPublished(context) { register(it, pkgName) }
+    }
 
+    private fun register(appContext: Context, pkgName: String) {
+        // unregisterAll() clears the claim when hot reload retires this generation first.
+        if (!registeredPackages.contains(pkgName) || receivers.containsKey(pkgName)) return
         try {
             val filter = IntentFilter(RestartProtocol.ACTION)
             val receiver = object : BroadcastReceiver() {

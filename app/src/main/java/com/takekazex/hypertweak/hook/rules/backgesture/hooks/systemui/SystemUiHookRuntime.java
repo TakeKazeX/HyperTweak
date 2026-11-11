@@ -1,6 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.backgesture.hooks.systemui;
 
 import com.takekazex.hypertweak.settings.contract.BackGestureKeys;
+import com.takekazex.hypertweak.hook.base.HostApplicationContext;
 
 import android.annotation.SuppressLint;
 import android.app.ActivityThread;
@@ -553,6 +554,8 @@ public abstract class SystemUiHookRuntime extends SystemUiAnimationRuntime {
         setMiuiOverviewVisible(false);
     }
 
+    private boolean miuiOverviewReceiverDeferred;
+
     /**
      * Registers the MiuiHome launcher-state receiver as soon as a real SystemUI application
      * context exists.
@@ -571,18 +574,34 @@ public abstract class SystemUiHookRuntime extends SystemUiAnimationRuntime {
         }
         Context appContext = context.getApplicationContext();
         ensureMiuiOverviewStateReceiver(appContext != null ? appContext : context);
-        moduleLog(Log.INFO, TAG, "Launcher overview bridge requested, registered="
-                + (miuiOverviewReceiver != null));
+        moduleLog(Log.INFO, TAG, "Launcher overview bridge requested, "
+                + (miuiOverviewReceiver != null ? "registered"
+                : miuiOverviewReceiverDeferred ? "deferred until application publish"
+                : "not registered"));
     }
 
     protected synchronized void ensureMiuiOverviewStateReceiver(Context context) {
+        ensureMiuiOverviewStateReceiver(context, true);
+    }
+
+    private synchronized void ensureMiuiOverviewStateReceiver(Context context, boolean deferUnpublished) {
         if (!acceptingBackInputInstalls || miuiOverviewReceiver != null || context == null) {
             return;
         }
-        // getApplicationContext() can return null for a context that is itself the application
-        // (or for a partially initialised one). Falling back to the supplied context is what keeps
-        // the registration below from dereferencing null.
+        // A null application means the host is still inside Application.attach. A receiver
+        // registered now is keyed on the bare ContextImpl, so hot reload could never unregister it
+        // and the retired generation would keep receiving launcher state.
         Context resolved = context.getApplicationContext();
+        if (resolved == null && deferUnpublished) {
+            if (!miuiOverviewReceiverDeferred) {
+                miuiOverviewReceiverDeferred = true;
+                HostApplicationContext.INSTANCE.whenPublished(context, published -> {
+                    synchronized (this) { miuiOverviewReceiverDeferred = false; }
+                    ensureMiuiOverviewStateReceiver(published, false);
+                });
+            }
+            return;
+        }
         Context appContext = resolved != null ? resolved : context;
         BroadcastReceiver receiver = new BroadcastReceiver() {
             @Override

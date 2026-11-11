@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import androidx.core.content.ContextCompat
+import com.takekazex.hypertweak.hook.base.HostApplicationContext
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 import com.takekazex.hypertweak.util.platform.ProxyLaunchProtocol
@@ -34,19 +35,31 @@ object ProxyLaunchHooker : StaticHooker() {
     )
 
     private var registration: Pair<Context, BroadcastReceiver>? by generationState { null }
+    private var registrationPending by generationState { false }
 
     override fun onHook() {
         // Registered from HookEntry.onPackageReady once an application Context exists.
     }
 
+    @Synchronized
     override fun onPrepareHotReload() {
+        registrationPending = false
         unregister()
     }
 
+    @Synchronized
     fun register(context: Context) {
-        if (registration != null) return
-        val appContext = context.applicationContext ?: context
+        if (registration != null || registrationPending) return
+        registrationPending = true
+        // The attach-time context would key the receiver on a ContextImpl that hot reload cannot unregister.
+        HostApplicationContext.whenPublished(context) { registerPublished(it) }
+    }
 
+    @Synchronized
+    private fun registerPublished(appContext: Context) {
+        if (!registrationPending) return
+        registrationPending = false
+        if (registration != null) return
         try {
             val receiver = object : BroadcastReceiver() {
                 override fun onReceive(ctx: Context, intent: Intent) {

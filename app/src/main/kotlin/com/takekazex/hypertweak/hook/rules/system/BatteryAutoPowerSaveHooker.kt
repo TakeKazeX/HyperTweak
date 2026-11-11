@@ -17,6 +17,7 @@ import androidx.core.content.ContextCompat
 import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
+import com.takekazex.hypertweak.hook.base.HostApplicationContext
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 import io.github.lingqiqi5211.ezhooktool.xposed.EzXposed
@@ -40,6 +41,7 @@ object BatteryAutoPowerSaveHooker : StaticHooker() {
     // silently stop watching the battery.
     @delegate:SuppressLint("StaticFieldLeak")
     private var monitor: BatteryMonitor? by generationState { null }
+    private var monitorPending by generationState { false }
 
     override fun onHook() {
         settingBatteryAutoPowerSaveEnabled
@@ -52,9 +54,17 @@ object BatteryAutoPowerSaveHooker : StaticHooker() {
 
     @Synchronized
     fun onPackageReady(context: Context) {
-        if (hookParam.packageName != PACKAGE || monitor != null) return
-        val appContext = context.applicationContext ?: context
-        if (appContext.packageName != PACKAGE) return
+        if (hookParam.packageName != PACKAGE || monitor != null || monitorPending) return
+        monitorPending = true
+        // The attach-time context would key the receiver on a ContextImpl that hot reload cannot unregister.
+        HostApplicationContext.whenPublished(context) { startMonitor(it) }
+    }
+
+    @Synchronized
+    private fun startMonitor(appContext: Context) {
+        if (!monitorPending) return
+        monitorPending = false
+        if (monitor != null || appContext.packageName != PACKAGE) return
         // The monitor registers regardless of the two switches: an accepted change reaches the
         // living monitor through refreshSettings instead of needing a SystemUI restart. An idle
         // monitor whose features are both off performs no battery work (see [BatteryMonitor.evaluate]).
@@ -86,6 +96,7 @@ object BatteryAutoPowerSaveHooker : StaticHooker() {
 
     @Synchronized
     override fun onPrepareHotReload() {
+        monitorPending = false
         monitor?.close()
     }
 }
