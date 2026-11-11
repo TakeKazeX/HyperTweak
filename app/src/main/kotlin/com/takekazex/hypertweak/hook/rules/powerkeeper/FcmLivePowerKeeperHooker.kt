@@ -34,6 +34,23 @@ object FcmLivePowerKeeperHooker : StaticHooker() {
         refreshSettings()
     }
 
+    // Only boot-classpath types cross generations: host observers keyed to their last requested limit.
+    override fun saveHotReloadState(): Any? =
+        synchronized(networkRequests) { WeakHashMap(networkRequests) }.takeIf { it.isNotEmpty() }
+
+    // Retirement restored the host's own limit; the replacement re-applies its policy at once instead
+    // of waiting for PowerKeeper's next reachability report. A build that saved no state also never
+    // reverted (its refresh could not invoke the package-private method), so Greeze still holds its value.
+    override fun restoreHotReloadState(state: Any?) {
+        val saved = state as? Map<*, *> ?: return
+        synchronized(networkRequests) {
+            saved.forEach { (observer, requested) ->
+                if (observer != null && requested is Boolean) networkRequests[observer] = requested
+            }
+        }
+        if (!refreshSettings()) DebugLog.w(hookerName, "network policy was not re-applied after hot reload")
+    }
+
     fun refreshSettings(): Boolean = HostAccess.onMain {
         val method = networkUpdate ?: return@onMain true
         var applied = true
@@ -83,9 +100,10 @@ object FcmLivePowerKeeperHooker : StaticHooker() {
         // PowerKeeper 4.2.00 reports Google reachability to Greeze through this method. Its
         // argument is the network-limit state, so force false before the Binder update.
         hookOptionalTarget("GmsObserver.updateFrameworkGmsNetStatus(boolean)") {
+            // Package-private on 4.2.00; refreshSettings() invokes it reflectively, so it must be accessible.
             val method = HostAccess.requireDeclaredMethod(gmsObserverClass,
                 "updateFrameworkGmsNetStatus",
-                Boolean::class.javaPrimitiveType, accessible = false)
+                Boolean::class.javaPrimitiveType, accessible = true)
             networkUpdate = method
             method.hook {
                 before { param ->
