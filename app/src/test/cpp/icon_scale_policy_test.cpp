@@ -29,4 +29,5 @@ int main() {
  const auto invalid=BoundDesktopIconRequest(.34f,.72f,.54f,maximum);
  assert(invalid.minimum==.72f&&invalid.maximum==.54f);
  assert(ValidIconPercent(-1)&&ValidIconPercent(50)&&ValidIconPercent(150)&&ValidIconPercent(175)&&ValidIconPercent(200)&&!ValidIconPercent(49)&&!ValidIconPercent(201));
+ assert(EffectiveIconPercent(100)==100&&EffectiveIconPercent(150)==150&&EffectiveIconPercent(200)==150&&EffectiveIconPercent(-1)==-1);
 }

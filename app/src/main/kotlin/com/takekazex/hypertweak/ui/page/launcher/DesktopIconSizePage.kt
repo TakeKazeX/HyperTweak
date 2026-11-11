@@ -96,7 +96,7 @@ internal fun DesktopIconSizePage(onBack: () -> Unit) {
         if (!write.saving) {
             saved = store.launcher.desktopIconPercent()
             enabled = saved != -1
-            progress = if (saved == -1) 250 else (saved - 50) * 5
+            progress = if (saved == -1) DesktopIconPreviewGeometry.DEFAULT_PROGRESS else DesktopIconPreviewGeometry.progressOf(saved)
         }
     }
     LaunchedEffect(gridWrite) {
@@ -166,10 +166,10 @@ internal fun DesktopIconSizePage(onBack: () -> Unit) {
                     summary = stringResource(R.string.desktop_icon_size_summary), enabled = enabled, onClick = { editing = true },
                     bottomAction = {
                         Slider(value = progress.toFloat(), onValueChange = {
-                            progress = it.roundToInt().coerceIn(0, 750)
+                            progress = it.roundToInt().coerceIn(0, DesktopIconPreviewGeometry.MAX_PROGRESS)
                             submit((DesktopIconPreviewGeometry.relativeScale(progress) * 100).roundToInt())
                         },
-                            valueRange = 0f..750f, enabled = enabled, showKeyPoints = true, keyPoints = (0..750 step 125).map { it.toFloat() }, magnetThreshold = 0.01f,
+                            valueRange = 0f..DesktopIconPreviewGeometry.MAX_PROGRESS.toFloat(), enabled = enabled, showKeyPoints = true, keyPoints = (0..DesktopIconPreviewGeometry.MAX_PROGRESS step 125).map { it.toFloat() }, magnetThreshold = 0.01f,
                             modifier = Modifier.semantics { contentDescription = description })
                     })
             }
@@ -236,9 +236,9 @@ internal fun DesktopIconSizePage(onBack: () -> Unit) {
         }
 
         IntValueDialog(show = editing, title = stringResource(R.string.desktop_icon_size),
-            summary = stringResource(R.string.desktop_icon_size_summary), suffix = "%", range = 50..200,
+            summary = stringResource(R.string.desktop_icon_size_summary), suffix = "%", range = LauncherDesktopKeys.MIN_PERCENT..LauncherDesktopKeys.MAX_PERCENT,
             currentValue = { percent }, emptyValue = percent,
-            onValueConfirmed = { progress = (it - 50) * 5; submit(it) }, onDismissRequest = { editing = false })
+            onValueConfirmed = { progress = DesktopIconPreviewGeometry.progressOf(it); submit(it) }, onDismissRequest = { editing = false })
     }
 
 }

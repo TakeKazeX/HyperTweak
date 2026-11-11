@@ -8,10 +8,13 @@ internal object DesktopIconPreviewGeometry {
     data class Layout(val cells: List<Cell>, val baselineSize: Float, val iconSize: Float, val cellWidth: Float)
 
     const val DEFAULT_PROGRESS = 250
+    /** Five progress steps per percent, from 50% to 150%. */
+    const val MAX_PROGRESS = 500
     fun relativeScale(progress: Int): Float {
-        require(progress in 0..750)
+        require(progress in 0..MAX_PROGRESS)
         return 0.5f + progress / 500f
     }
+    fun progressOf(percent: Int): Int = ((percent - 50) * 5).coerceIn(0, MAX_PROGRESS)
 
     fun resolve(width: Float, height: Float, columns: Int, rows: Int, progress: Int,
                 textHeight: Float, margin: Float): Layout {

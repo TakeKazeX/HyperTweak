@@ -14,7 +14,7 @@ internal object NativeRuleMutation {
             LauncherDesktopKeys.KEY_ICON_THEME_MODE -> base.copy(iconThemeMode = value as Int, revision = revision)
             LauncherDesktopKeys.KEY_ICON_THEME_COLOR -> base.copy(iconThemeColor = value as Int, revision = revision)
             LauncherDesktopKeys.KEY_GRID -> base.copy(desktopGrid = value as Int, revision = revision)
-            LauncherDesktopKeys.KEY_ICON_SIZE_PERCENT -> base.copy(iconPercent = value as Int, revision = revision)
+            LauncherDesktopKeys.KEY_ICON_SIZE_PERCENT -> base.copy(iconPercent = requireNotNull(LauncherDesktopKeys.storedPercent(value as Int)) { "invalid icon percent" }, revision = revision)
             PlatformSettingsKeys.KEY_HIDE_RECENTS_CLEAR_BUTTON -> base.copy(hidden = value as Boolean, revision = revision)
             PlatformSettingsKeys.KEY_OPENED_FOLDER_COLUMNS -> base.copy(columns = value as Int, revision = revision)
             PlatformSettingsKeys.KEY_CONTEXTUAL_SEARCH_LONG_PRESS -> base.copy(contextualSearch = value as Boolean, revision = revision)

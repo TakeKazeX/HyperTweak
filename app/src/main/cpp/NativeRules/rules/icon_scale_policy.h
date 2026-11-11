@@ -3,9 +3,12 @@
 #include <algorithm>
 #include <cmath>
 namespace hypertweak::native {
-// Absolute provider limit; the user setting separately limits relative size to 200%.
+// Absolute provider limit; the user setting separately limits relative size to 150%.
 constexpr double kDesktopIconAbsoluteMaximum = 4.0;
+constexpr int kDesktopIconMaximumPercent = 150;
+// Older carriers may still deliver up to 200%; those requests apply as the maximum.
 inline bool ValidIconPercent(int value) { return value==-1 || (value>=50 && value<=200); }
+inline int EffectiveIconPercent(int value) { return std::min(value,kDesktopIconMaximumPercent); }
 inline double DesktopIconMaximum(double current,double width,double size,double padding) {
  if (!std::isfinite(width) || width<=4 || !std::isfinite(size) || size<=0 ||
      !std::isfinite(padding) || !std::isfinite(current) || current<=0 || current>4 ||

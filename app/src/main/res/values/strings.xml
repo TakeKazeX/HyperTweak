@@ -1802,7 +1802,7 @@
     <string name="desktop_icon_sample_app">App</string>
     <string name="desktop_icon_size">Icon size</string>
     <string name="desktop_icon_preview_percent">Preview size · %1$d%%</string>
-    <string name="desktop_icon_size_summary">50–200% of the original desktop size. Larger icons may overlap labels or nearby icons. Tap to enter a value.</string>
+    <string name="desktop_icon_size_summary">50–150% of the original desktop size. Larger icons may overlap labels or nearby icons. Tap to enter a value.</string>
     <string name="desktop_icon_preview_columns">Desktop columns</string>
     <string name="desktop_icon_preview_rows">Desktop rows</string>
     <string name="desktop_icon_override">Custom icon size</string>

@@ -15,5 +15,14 @@ internal object LauncherDesktopKeys {
     fun gridColumns(code: Int): Int { require(code in 1..12); return 4 + (code - 1) / 4 }
     fun gridRows(code: Int): Int { require(code in 1..12); return 5 + (code - 1) % 4 }
     const val FOLLOW_HOST = -1
-    fun validPercent(value: Int): Boolean = value == FOLLOW_HOST || value in 50..200
+    const val MIN_PERCENT = 50
+    const val MAX_PERCENT = 150
+    private const val LEGACY_MAX_PERCENT = 200
+    fun validPercent(value: Int): Boolean = value == FOLLOW_HOST || value in MIN_PERCENT..MAX_PERCENT
+    /** Older builds stored up to 200%; icons stop growing visibly past 150%, so those values read as the new maximum. */
+    fun storedPercent(value: Int): Int? = when {
+        validPercent(value) -> value
+        value in MAX_PERCENT..LEGACY_MAX_PERCENT -> MAX_PERCENT
+        else -> null
+    }
 }

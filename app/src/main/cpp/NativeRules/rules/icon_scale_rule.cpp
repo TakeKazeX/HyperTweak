@@ -47,7 +47,9 @@ bool Number(uintptr_t rx,uintptr_t heap,uintptr_t null,uintptr_t sentinel,double
 }
 }
 void SetDesktopIconPercent(int percent) {
-    if (ValidIconPercent(percent) && __atomic_exchange_n(&requested,percent,__ATOMIC_ACQ_REL)!=percent)
+    if (!ValidIconPercent(percent)) return;
+    percent=EffectiveIconPercent(percent);
+    if (__atomic_exchange_n(&requested,percent,__ATOMIC_ACQ_REL)!=percent)
         __atomic_store_n(&g_desktop_icon_stage,0u,__ATOMIC_RELAXED);
 }
 int DesktopIconPercentRequested() { return __atomic_load_n(&requested,__ATOMIC_ACQUIRE); }

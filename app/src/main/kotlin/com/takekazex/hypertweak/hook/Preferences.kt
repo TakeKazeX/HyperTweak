@@ -876,7 +876,7 @@ object Preferences {
             true
         }.onFailure { SettingsDiagnostics.w("DesktopGrid", "settings commit failed", it) }.getOrDefault(false)
     }
-    fun desktopIconPercent(): Int = getInt(LauncherDesktopKeys.KEY_ICON_SIZE_PERCENT, -1).takeIf(LauncherDesktopKeys::validPercent) ?: -1
+    fun desktopIconPercent(): Int = LauncherDesktopKeys.storedPercent(getInt(LauncherDesktopKeys.KEY_ICON_SIZE_PERCENT, -1)) ?: -1
 
     fun commitDesktopIconPercent(value: Int): Boolean {
         require(LauncherDesktopKeys.validPercent(value))

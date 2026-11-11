@@ -50,9 +50,10 @@ internal data class NativeRuleStateSnapshot(val hidden: Boolean, val columns: In
             val resolvedColumns = columns ?: 3
             val resolvedRevision = revision ?: 0L
             val resolvedEpoch = epoch ?: 0L
-            if (!LauncherDesktopKeys.validGrid(grid ?: 0) || resolvedRevision < 0L || resolvedEpoch < 0L || resolvedColumns !in 3..5 || !LauncherDesktopKeys.validPercent(iconPercent ?: -1)) return null
+            if (!LauncherDesktopKeys.validGrid(grid ?: 0) || resolvedRevision < 0L || resolvedEpoch < 0L || resolvedColumns !in 3..5) return null
+            val resolvedPercent = LauncherDesktopKeys.storedPercent(iconPercent ?: -1) ?: return null
             NativeRuleStateSnapshot(hidden ?: false, resolvedColumns, contextual ?: false,
-                resolvedRevision, resolvedEpoch, widgets ?: false, haptic ?: false, stack ?: false, widgetStack ?: false, xiaoaiOptions ?: false, iconPercent ?: -1, grid ?: 0, themeMode ?: 0, themeColor ?: LauncherDesktopKeys.DEFAULT_ICON_COLOR)
+                resolvedRevision, resolvedEpoch, widgets ?: false, haptic ?: false, stack ?: false, widgetStack ?: false, xiaoaiOptions ?: false, resolvedPercent, grid ?: 0, themeMode ?: 0, themeColor ?: LauncherDesktopKeys.DEFAULT_ICON_COLOR)
         }.getOrNull()
     }
 }

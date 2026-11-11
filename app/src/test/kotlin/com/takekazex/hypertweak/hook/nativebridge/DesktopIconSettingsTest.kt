@@ -10,10 +10,16 @@ class DesktopIconSettingsTest {
         for (value in listOf<Any>(-2, 0, 49, 201, 100L, "100", true)) {
             assertNull(NativeRuleStateSnapshot.read { mapOf(LauncherDesktopKeys.KEY_ICON_SIZE_PERCENT to value) })
         }
-        for (value in listOf(-1, 50, 100, 150, 175, 200)) {
+        for (value in listOf(-1, 50, 100, 150)) {
             val snapshot = NativeRuleStateSnapshot.read { mapOf(LauncherDesktopKeys.KEY_ICON_SIZE_PERCENT to value) }!!
             assertEquals(value, snapshot.settingsValues()[LauncherDesktopKeys.KEY_ICON_SIZE_PERCENT])
         }
+        // Values stored by builds that allowed 200% read as the 150% maximum.
+        for (value in listOf(151, 175, 200)) {
+            val snapshot = NativeRuleStateSnapshot.read { mapOf(LauncherDesktopKeys.KEY_ICON_SIZE_PERCENT to value) }!!
+            assertEquals(150, snapshot.iconPercent)
+        }
+        assertFalse(LauncherDesktopKeys.validPercent(175))
     }
 
     @Test fun sizeSurvivesIndependentNativeEditsAndClassloaderReplacement() {
