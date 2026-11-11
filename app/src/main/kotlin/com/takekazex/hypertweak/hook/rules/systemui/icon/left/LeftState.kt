@@ -6,7 +6,8 @@ import android.widget.LinearLayout
 
 internal class LeftState(
         val leftHost: ViewGroup,
-        val clock: View,
+        /** The host child the container follows in [leftHost]; null starts the row. */
+        val anchor: View?,
         val rightContainer: ViewGroup,
         val manager: Any,
         val isKeyguard: Boolean = false,
@@ -22,6 +23,9 @@ internal class LeftState(
         val clones = HashMap<String, View>()
         /** Slots with a valid clone; only these may be hidden in the right cluster. */
         var migratedSlots: Set<String> = emptySet()
+        /** Last logged migration outcome, so the log reports changes only. */
+        var migrationReport: String? = null
+        var pendingMigrationReport: String? = null
         /** Original keyguard clock/alarm placement, used to restore the host tree exactly. */
         val anchorEntries = ArrayList<AnchorEntry>()
         var anchorWrapper: LinearLayout? = null

@@ -49,8 +49,10 @@ import com.takekazex.hypertweak.util.platform.ResourceLookup
  *   when the selection changes, so toggling the master or a single slot takes effect live in both
  *   directions (the right cluster shows the icon again within ~1.5 s when switched off).
  * - **Left rendering**: for each selected slot a fresh `StatusBarIconView` clone is created in a
- *   LinearLayout inserted right after the clock (`R.id.phone_status_bar_left_container`,
- *   status_bar.xml: clock → [left icons] → chips → notification area). Its `layoutParams` are
+ *   LinearLayout inserted right after the clock (stock: `R.id.phone_status_bar_left_container`,
+ *   status_bar.xml: clock → [left icons] → chips → notification area). Custom ROMs wrap or move the
+ *   clock, so the row is the nearest horizontal ancestor of the clock that does not hold the system
+ *   icons ([LeftAnchorPolicy]), with the start of the stock row as fallback. Its `layoutParams` are
  *   copied from the system's own right-cluster view of the same slot on every sync, so the box
  *   and the glyph (`set(mIcon)` plus the native `adjustViewBounds` behavior) match the right
  *   cluster exactly — this avoids the sizing drift the earlier view-relocation version had. The clones are small boxes
@@ -282,7 +284,7 @@ object LeftContainerHooker : StaticHooker() {
     // Only framework objects and collections cross the module class-loader boundary.
     override fun saveHotReloadState(): Any = onMainBlocking {
         listOf(states.values.map { state ->
-            listOf(state.leftHost, state.clock, state.rightContainer, state.manager,
+            listOf(state.leftHost, state.anchor, state.rightContainer, state.manager,
                 state.isKeyguard, state.barRoot, state.anchorEntries.map {
                     listOf(it.view, it.parent, it.index, it.layoutParams)
                 }, state.islandHandler)
@@ -300,10 +302,10 @@ object LeftContainerHooker : StaticHooker() {
             (saved.getOrNull(0) as? List<*>)?.forEach { item ->
                 val row = item as? List<*> ?: return@forEach
                 val host = row.getOrNull(0) as? ViewGroup ?: return@forEach
-                val clock = row.getOrNull(1) as? View ?: return@forEach
+                val anchor = row.getOrNull(1) as? View
                 val right = row.getOrNull(2) as? ViewGroup ?: return@forEach
                 val manager = row.getOrNull(3) ?: return@forEach
-                val restored = LeftState(host, clock, right, manager,
+                val restored = LeftState(host, anchor, right, manager,
                     row.getOrNull(4) == true, row.getOrNull(5) as? View)
                 (row.getOrNull(6) as? List<*>)?.forEach anchor@{ value ->
                     val entry = value as? List<*> ?: return@anchor
@@ -819,7 +821,10 @@ object LeftContainerHooker : StaticHooker() {
         synchronized(states) {
             val existing = states[manager]
             if (existing != null && existing.leftHost === leftFrame && existing.isKeyguard) return
-            if (anchors.any { it.parent !== leftFrame }) return
+            if (anchors.any { it.parent !== leftFrame }) {
+                rejectCapture("lockscreen clock parent is ${viewName(clock.parent as? View)}, not keyguard_left_frame")
+                return
+            }
             existing?.let {
                 presentation.teardownState(it)
                 states.remove(manager)
@@ -1027,25 +1032,86 @@ object LeftContainerHooker : StaticHooker() {
         fun id(name: String): Int = ResourceLookup.identifier(res, name, "id", "com.android.systemui")
         val statusIconsId = id("statusIcons")
         if (statusIconsId == 0 || right.id != statusIconsId) {
-            return null // not the home status-bar manager (e.g. secondary display variant)
-        }
-        val leftHost = root.findViewById<View>(id("phone_status_bar_left_container")) as? ViewGroup
-        val clock = root.findViewById<View>(id("clock"))
-        if (leftHost == null || clock == null) {
-            DebugLog.hookSkipped(TAG, "phone_status_bar_left_container", "view not found")
+            // Not the home status-bar manager (e.g. secondary display variant).
+            rejectCapture("icon group is ${viewName(right)}, not statusIcons")
             return null
         }
-        if (leftHost.indexOfChild(clock) < 0) return null
+        val anchor = resolveHomeAnchor(root, right) ?: return null
 
         // The pristine host block list is captured by `IconManagerHooker` from the static OS4 lists
         // it registers (`RIGHT_BLOCK_LIST` / `CONTROL_CENTER_BLOCK_LIST`); this hook no longer keeps
         // its own copy, which is what let the two disagree.
 
-        val state = LeftState(leftHost, clock, right, manager, barRoot = root)
+        // A re-capture for the same manager must not leave the previous container in the tree.
+        states.remove(manager)?.let(presentation::teardownState)
+        val state = LeftState(anchor.host, anchor.after, right, manager, barRoot = root)
         state.islandHandler = resolveIslandHandler(root)
         state.islandShowing = readIslandShowing(state.islandHandler)
         states[manager] = state
+        DebugLog.i(TAG, "left container captured home root=${System.identityHashCode(root)} " +
+            "row=${viewName(anchor.host)} ${anchor.description}")
         return state
+    }
+
+    private class HomeAnchor(val host: ViewGroup, val after: View?, val description: String)
+
+    /**
+     * Finds where the home left icons go: right after the clock, in the nearest horizontal row above
+     * it ([LeftAnchorPolicy]). When the clock is missing or sits in a row the icons cannot join
+     * (a ROM that centers or right-aligns it), the icons start the stock left container instead.
+     */
+    private fun resolveHomeAnchor(root: ViewGroup, right: ViewGroup): HomeAnchor? {
+        fun find(name: String): View? = ResourceLookup.identifier(root.resources, name, "id", "com.android.systemui")
+            .takeIf { it != 0 }?.let { root.findViewById(it) }
+        val clock = find("clock")?.takeIf { !it.isInside(right) }
+        if (clock != null) {
+            val chain = ArrayList<ViewGroup>()
+            var parent = clock.parent as? ViewGroup
+            while (parent != null) {
+                chain += parent
+                if (parent === root) break
+                parent = parent.parent as? ViewGroup
+            }
+            val levels = chain.map { LeftAnchorPolicy.Level(isHorizontalRow(it), right.isInside(it)) }
+            LeftAnchorPolicy.hostLevel(levels)?.let { index ->
+                val after = if (index == 0) clock else chain[index - 1]
+                return HomeAnchor(chain[index], after, if (index == 0) "after=clock" else "after=${viewName(after)}")
+            }
+        }
+        val stock = find("phone_status_bar_left_container") as? ViewGroup
+        if (stock != null && isHorizontalRow(stock) && !right.isInside(stock)) {
+            return HomeAnchor(stock, null, "after=start clockParent=${viewName(clock?.parent as? View)}")
+        }
+        rejectCapture("no horizontal row for left icons clockParent=${viewName(clock?.parent as? View)} " +
+            "stock=${viewName(stock)}")
+        return null
+    }
+
+    private fun isHorizontalRow(view: ViewGroup): Boolean =
+        view is LinearLayout && view.orientation == LinearLayout.HORIZONTAL
+
+    /** True when this view is [ancestor] or one of its descendants. */
+    private fun View.isInside(ancestor: ViewGroup): Boolean {
+        var current: View? = this
+        while (current != null) {
+            if (current === ancestor) return true
+            current = current.parent as? View
+        }
+        return false
+    }
+
+    /** Capture rejections are layout facts that repeat on every attach, so each is logged once. */
+    private val loggedRejections = generationMainResource(HashSet<String>()) { it.clear() }
+
+    private fun rejectCapture(reason: String) {
+        if (loggedRejections.add(reason)) DebugLog.w(TAG, "left container disabled: $reason")
+    }
+
+    private fun viewName(view: View?): String {
+        if (view == null) return "none"
+        val id = if (view.id == View.NO_ID) "no-id" else
+            runCatching { view.resources.getResourceEntryName(view.id) }.getOrDefault("0x${Integer.toHexString(view.id)}")
+        return "${view.javaClass.name}#$id"
     }
 
     /** Re-capture/reconcile the home manager after its view has re-entered the window. */
@@ -1057,12 +1123,9 @@ object LeftContainerHooker : StaticHooker() {
         val manager = hierarchyField(root.javaClass, "mDarkIconManager")?.get(root) ?: return
         synchronized(states) {
             val state = states[manager]
-            if (state == null || state.leftHost !== root.findViewById(
-                    ResourceLookup.identifier(root.resources, 
-                        "phone_status_bar_left_container", "id", "com.android.systemui"
-                    )
-                )
-            ) {
+            val right = groupField.get(manager) as? ViewGroup
+            val anchor = right?.let { resolveHomeAnchor(root, it) }
+            if (state == null || anchor == null || state.leftHost !== anchor.host || state.anchor !== anchor.after) {
                 captureManager(root, manager, groupField)
             }
         }

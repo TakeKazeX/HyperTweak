@@ -33,9 +33,9 @@ class LeftStateTest {
     @Test fun anchorRecordsRetainExactParentIndexAndLayoutIdentity() {
         val row = state(true)
         val params = ViewGroup.LayoutParams(23, 45)
-        val entry = AnchorEntry(row.clock, row.leftHost, 3, params)
+        val entry = AnchorEntry(row.anchor!!, row.leftHost, 3, params)
         row.anchorEntries.add(entry)
-        assertSame(row.clock, row.anchorEntries.single().view)
+        assertSame(row.anchor!!, row.anchorEntries.single().view)
         assertSame(row.leftHost, row.anchorEntries.single().parent)
         assertSame(params, row.anchorEntries.single().layoutParams)
         assertEquals(3, row.anchorEntries.single().index)
@@ -48,7 +48,7 @@ class LeftStateTest {
         val previous = state(true)
         previous.islandShowing = true
         previous.islandHandler = Any()
-        previous.anchorEntries.add(AnchorEntry(previous.clock, previous.leftHost, 1, null))
+        previous.anchorEntries.add(AnchorEntry(previous.anchor!!, previous.leftHost, 1, null))
         val replacement = state(true)
         assertFalse(replacement.islandShowing)
         assertNull(replacement.islandHandler)

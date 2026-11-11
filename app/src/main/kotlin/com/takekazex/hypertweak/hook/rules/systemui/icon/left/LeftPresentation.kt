@@ -41,7 +41,8 @@ internal class LeftPresentation(private val host: Host, private val cloner: Left
         val index = if (state.isKeyguard) {
             parent?.childCount ?: return null
         } else {
-            state.leftHost.indexOfChild(state.clock) + 1
+            // A moved anchor (indexOfChild = -1) also lands at the start of the row.
+            state.anchor?.let { state.leftHost.indexOfChild(it) + 1 } ?: 0
         }
         parent?.addView(left, index)
         state.leftContainer = left
@@ -137,6 +138,7 @@ internal class LeftPresentation(private val host: Host, private val cloner: Left
         }
 
         // 2. Create / refresh clones in right-container order.
+        val failed = LinkedHashSet<String>()
         var targetIndex = 0
         for (i in 0 until right.childCount) {
             val child = right.getChildAt(i)
@@ -144,8 +146,13 @@ internal class LeftPresentation(private val host: Host, private val cloner: Left
             val slot = host.slotOf(child) ?: continue
             if (slot !in slots) continue
             val existing = state.clones[slot]
-            val clone = existing ?: createClone(state, child, slot) ?: continue
+            val clone = existing ?: createClone(state, child, slot)
+            if (clone == null) {
+                failed += slot
+                continue
+            }
             if (!cloner.updateClone(clone, child)) {
+                failed += slot
                 state.clones.remove(slot)
                 runCatching { (clone.parent as? ViewGroup)?.removeView(clone) }
                 cloner.forget(clone)
@@ -163,6 +170,7 @@ internal class LeftPresentation(private val host: Host, private val cloner: Left
             }
             targetIndex++
         }
+        reportMigration(state, slots, failed)
         if (state.clones.isEmpty()) {
             // Do not leave an empty marked container (or a keyguard anchor wrapper) behind while
             // the source icon is still unavailable. The next host icon event can retry cleanly.
@@ -171,6 +179,27 @@ internal class LeftPresentation(private val host: Host, private val cloner: Left
         }
         state.migratedSlots = state.clones.keys.toSet()
         applyVisibility(state)
+    }
+
+    /**
+     * Logs which requested slots really moved. A slot that stays on the right is either `absent`
+     * (the row has no view for it yet) or `failed` (its clone could not be built), and these need
+     * different fixes. Logged only when the settled outcome changes: a host group rebuild re-adds
+     * icons one by one, so the report is deferred to the end of the current main-thread pass.
+     */
+    private fun reportMigration(state: LeftState, wanted: Set<String>, failed: Set<String>) {
+        val moved = state.clones.keys.sorted()
+        val absent = (wanted - state.clones.keys - failed).sorted()
+        val pending = state.pendingMigrationReport
+        state.pendingMigrationReport = "moved=$moved failed=${failed.sorted()} absent=$absent"
+        if (pending != null) return
+        state.leftHost.post {
+            val report = state.pendingMigrationReport ?: return@post
+            state.pendingMigrationReport = null
+            if (report == state.migrationReport) return@post
+            state.migrationReport = report
+            DebugLog.i(TAG, "left migration surface=${if (state.isKeyguard) "keyguard" else "home"} $report")
+        }
     }
 
     /** The only writer of container visibility, shared by all host callbacks. */
