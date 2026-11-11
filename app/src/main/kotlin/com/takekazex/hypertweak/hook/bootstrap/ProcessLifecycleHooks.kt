@@ -46,6 +46,14 @@ internal object ProcessLifecycleHooks {
     // Every package with an application context
     fun registerRestartReceiver(appContext: Context) = RestartBroadcastHooker.register(appContext)
 
+    /**
+     * Registration above runs for every scoped package, but only some hook plans list
+     * RestartBroadcastHooker as a root. Hot reload must therefore retire the receiver here, or
+     * processes like camera, phone and personalassistant gain one receiver (and keep one retired
+     * module class loader alive) per reload.
+     */
+    fun retireRestartReceiver() = RestartBroadcastHooker.unregisterAll()
+
     fun onPackageContextReady(processName: String, packageName: String, appContext: Context) {
         if (packageName == BatteryInfoHooker.PACKAGE && processName == packageName) {
             BatteryInfoHooker.onPackageReady(appContext)

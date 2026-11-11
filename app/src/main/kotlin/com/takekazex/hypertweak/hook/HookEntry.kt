@@ -331,6 +331,7 @@ class HookEntry : XposedModule() {
                     roots.forEach { root -> add { root.prepareForHotReload() } }
                     roots.forEach { root -> add { root.resetAfterHotReloadPrepared() } }
                     add { rootHookers.clear() }
+                    add { ProcessLifecycleHooks.retireRestartReceiver() }
                     if (processName.substringBefore(':') == "com.android.systemui") add {
                         com.takekazex.hypertweak.hook.bootstrap.SystemUiIconPorts.retire(this@HookEntry)
                     }
