@@ -78,6 +78,28 @@ class ControlCenterSuperIslandHostTest {
         assertTrue(consumer.calls().any { it.name == "setTempHide" })
     }
 
+    @Test fun `a forced hide edge carries the native change mark through its own event`() {
+        val classes = classes()
+        val state = classes.getValue("${prefix}DynamicIslandWindowState;")
+        assertTrue(state.methods.any {
+            it.name == "setTempHiddenChange" && it.parameterTypes.map(CharSequence::toString) == listOf("Ljava/lang/Boolean;")
+        })
+        // The native collector marks the change before applying its edge.
+        val collector = classes.values.filter {
+            it.type.startsWith("${prefix}DynamicIslandWindowViewController\$registerTempHiddenChanged\$")
+        }.flatMap { it.methods }.filter { it.name == "emit" && it.implementation != null }
+            .map { it.calls().map(MethodReference::getName) }
+            .single { "setTempHiddenChange" in it && "access\$applyTempHidden" in it }
+        assertTrue(collector.indexOf("setTempHiddenChange") < collector.indexOf("access\$applyTempHidden"))
+        // Only the temp-hidden event keeps the mark; restore transitions read it from the context.
+        val pre = classes.getValue("Lmiui/systemui/dynamicisland/event/DynamicIslandEventCoordinator;")
+            .methods.single { it.name == "preHandleEvent" }
+        assertTrue(pre.calls().any { it.name == "setTempHiddenChange" })
+        val context = classes.getValue("Lmiui/systemui/dynamicisland/anim/domain/interactor/AnimTransitionResolver\$TransitionContext\$Companion;")
+            .methods.single { it.name == "from" }
+        assertTrue(context.calls().any { it.name == "getTempHiddenChange" })
+    }
+
     @Test fun `nullable readiness fields cover the throwing getter and native event no-op`() {
         val view = classes().getValue("${prefix}DynamicIslandWindowView;")
         val componentGetter = view.methods.single { it.name == "getViewComponent" }

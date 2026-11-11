@@ -63,6 +63,9 @@ class ControlCenterSuperIslandHooker : DynamicHooker() {
         val swiping = getter(state, "getControlCenterPanelSwipeToAppearance")
         val tempHidden = getter(state, "getTempHidden")
         val type = getter(state, "getTempHiddenType")
+        // The native tempHidden collector marks this before applying a hide edge. Only then do
+        // islands resolve the restore as TempHiddenTo*, whose temp_hidden_to_show re-shows holders.
+        val markChange = HostAccess.requireDeclaredMethod(state, "setTempHiddenChange", Boolean::class.javaObjectType, accessible = true)
         val getState = getter(controller, "getWindowState")
         val getController = getter(view, "getWindowViewController")
         val coordinator = "miui.systemui.dynamicisland.event.DynamicIslandEventCoordinator".toClassOrNull()
@@ -97,6 +100,9 @@ class ControlCenterSuperIslandHooker : DynamicHooker() {
             if (!readyController.isReady(islandView)) return
             // Native combined tempHidden may stay false when only Control Center changes.
             // Explicitly dispatch its event on our edge, preserving all other native hide causes.
+            // Without the change mark, the restore resolves as an ordinary island change and every
+            // module holder (lottie, third-party spectrum) stays paused after its onHidden.
+            markChange.invoke(windowState, true)
             hideEvent.invoke(islandView, forced || value(windowState, tempHidden, hiddenValue), type.invoke(windowState))
             synchronized(forcedControllers) {
                 if (forced) forcedControllers[owner] = true else forcedControllers.remove(owner)
