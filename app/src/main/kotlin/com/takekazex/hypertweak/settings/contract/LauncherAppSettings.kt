@@ -3,6 +3,8 @@ package com.takekazex.hypertweak.settings.contract
 internal interface LauncherAppSettings {
     fun desktopGrid(): Int = 0
     fun commitDesktopGrid(value: Int): Boolean = false
+    /** One-time handover from the retired Dock surface style; true when it enabled the native glass. */
+    fun migrateLegacyDockBackground(): Boolean = false
     fun desktopIconPercent(): Int
     fun commitDesktopIconPercent(value: Int): Boolean
     fun openedFolderColumns(): Int

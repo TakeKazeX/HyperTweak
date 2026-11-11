@@ -56,8 +56,6 @@ internal data class RuntimeSettingsSnapshot(val revision: Long, val values: Map<
                 val mode = values[key]
                 if (mode != null && (mode !is Int || mode !in 0..2)) return null
             }
-            val dock = values[com.takekazex.hypertweak.settings.contract.DockConfig.KEY]
-            if (dock != null && (dock !is String || com.takekazex.hypertweak.settings.contract.DockConfig.decode(dock) == null)) return null
             return RuntimeSettingsSnapshot(revision, values.toMap(), groups.toSet())
         }
     }
@@ -98,8 +96,10 @@ internal class RuntimeSettingsLedger {
         val revision = data.getOrNull(0) as? Long ?: return
         val raw = data.getOrNull(1) as? Map<*, *> ?: return
         if (raw.keys.any { it !is String }) return
-        val groups = if (data.size == 2) setOf(RuntimeSettingsGroups.ICONS, RuntimeSettingsGroups.ISLANDS)
+        val saved = if (data.size == 2) setOf(RuntimeSettingsGroups.ICONS, RuntimeSettingsGroups.ISLANDS)
             else (data.getOrNull(2) as? List<*>)?.takeIf { it.all { value -> value is String } }?.filterIsInstance<String>()?.toSet() ?: return
+        // An older generation may carry a group this build retired; its keys have no owner here.
+        val groups = saved intersect RuntimeSettingsGroups.affected(null)
         @Suppress("UNCHECKED_CAST") // Keys were verified as String immediately above.
         RuntimeSettingsSnapshot.read(revision, raw as Map<String, *>, groups)?.let(::accept)
     }

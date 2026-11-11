@@ -16,9 +16,8 @@ struct NativeRuleSettingsSnapshot {
     int32_t desktop_grid = 0;
     int32_t icon_theme_mode = 0;
     int64_t grid_nonce = 0;
-    bool dock_channel = false;
-    int32_t dock_port = 0;
-    int64_t dock_token0 = 0, dock_token1 = 0;
+    bool native_pad_dock = false;
+    int32_t dock_glass = -1;  // absent: the default geometry
 };
 // Intent/Context belong to the native receiver callback. Capture only primitive
 // values before forwarding: the downstream receiver may consume its arguments.

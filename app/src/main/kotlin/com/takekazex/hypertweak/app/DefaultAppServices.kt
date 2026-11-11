@@ -45,7 +45,7 @@ internal object DefaultAppServices : AppServicePorts {
                 settings.launcher.openedFolderColumns() != PlatformSettingsKeys.DEFAULT_OPENED_FOLDER_COLUMNS ||
                 settings.backGesture.contextualSearchLongPress() ||
                 (PlatformLevel.isOs4 && settings.getBoolean(PlatformSettingsKeys.KEY_HIDE_GESTURE_BAR_RECENTS, false)) ||
-                (PlatformLevel.isOs4 && DockConfig.decode(settings.getString(DockConfig.KEY, DockConfig().encode()))?.enabled == true)
+                (PlatformLevel.isOs4 && settings.getBoolean(PlatformSettingsKeys.KEY_NATIVE_PAD_DOCK, false))
         }
     )
     override val nativeRules = object : NativeRulePublisher {

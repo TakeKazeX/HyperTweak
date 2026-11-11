@@ -1,11 +1,13 @@
 package com.takekazex.hypertweak.hook.nativebridge
 
 import com.takekazex.hypertweak.settings.contract.LauncherDesktopKeys
+import com.takekazex.hypertweak.settings.contract.NativeDockGlassGeometry
 
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 internal data class NativeRuleStateSnapshot(val hidden: Boolean, val columns: Int, val contextualSearch: Boolean,
-    val revision: Long = 0, val epoch: Long = 0, val assistantWidgets: Boolean = false, val recentsHaptic: Boolean = false, val folderStack: Boolean = false, val widgetStack: Boolean = false, val xiaoaiOptions: Boolean = false, val iconPercent: Int = -1, val desktopGrid: Int = 0, val iconThemeMode: Int = 0, val iconThemeColor: Int = LauncherDesktopKeys.DEFAULT_ICON_COLOR) {
+    val revision: Long = 0, val epoch: Long = 0, val assistantWidgets: Boolean = false, val recentsHaptic: Boolean = false, val folderStack: Boolean = false, val widgetStack: Boolean = false, val xiaoaiOptions: Boolean = false, val iconPercent: Int = -1, val desktopGrid: Int = 0, val iconThemeMode: Int = 0, val iconThemeColor: Int = LauncherDesktopKeys.DEFAULT_ICON_COLOR,
+    val nativePadDock: Boolean = false, val dockGlass: Int = NativeDockGlassGeometry.DEFAULT_PACKED) {
     fun settingsValues(): Map<String, Any> = mapOf(
         PlatformSettingsKeys.KEY_HIDE_RECENTS_CLEAR_BUTTON to hidden, PlatformSettingsKeys.KEY_OPENED_FOLDER_COLUMNS to columns,
         PlatformSettingsKeys.KEY_CONTEXTUAL_SEARCH_LONG_PRESS to contextualSearch,
@@ -18,6 +20,8 @@ internal data class NativeRuleStateSnapshot(val hidden: Boolean, val columns: In
         LauncherDesktopKeys.KEY_ICON_THEME_COLOR to iconThemeColor,
         LauncherDesktopKeys.KEY_GRID to desktopGrid,
         LauncherDesktopKeys.KEY_ICON_SIZE_PERCENT to iconPercent,
+        PlatformSettingsKeys.KEY_NATIVE_PAD_DOCK to nativePadDock,
+        PlatformSettingsKeys.KEY_NATIVE_DOCK_GLASS to dockGlass,
         PlatformSettingsKeys.KEY_NATIVE_RULE_REVISION to revision, "prefs_epoch" to epoch)
     companion object {
         val REPLAY_DELAYS_MS = longArrayOf(0, 250, 1_000, 3_000, 10_000)
@@ -41,6 +45,10 @@ internal data class NativeRuleStateSnapshot(val hidden: Boolean, val columns: In
             val iconPercent = values[LauncherDesktopKeys.KEY_ICON_SIZE_PERCENT]
             val revision = values[PlatformSettingsKeys.KEY_NATIVE_RULE_REVISION]
             val epoch = values["prefs_epoch"]
+            val nativePadDock = values[PlatformSettingsKeys.KEY_NATIVE_PAD_DOCK]
+            if (nativePadDock != null && nativePadDock !is Boolean) return null
+            val dockGlass = values[PlatformSettingsKeys.KEY_NATIVE_DOCK_GLASS]
+            if ((dockGlass != null && dockGlass !is Int) || NativeDockGlassGeometry.unpack(dockGlass ?: NativeDockGlassGeometry.DEFAULT_PACKED) == null) return null
             // Reject the whole snapshot on any type mismatch; a partial read is never a default.
             if ((grid != null && grid !is Int) || (iconPercent != null && iconPercent !is Int) || (xiaoaiOptions != null && xiaoaiOptions !is Boolean) || (widgetStack != null && widgetStack !is Boolean) || (stack != null && stack !is Boolean) || (hidden != null && hidden !is Boolean) || (columns != null && columns !is Int) ||
                 (haptic != null && haptic !is Boolean) || (contextual != null && contextual !is Boolean) ||
@@ -53,7 +61,8 @@ internal data class NativeRuleStateSnapshot(val hidden: Boolean, val columns: In
             if (!LauncherDesktopKeys.validGrid(grid ?: 0) || resolvedRevision < 0L || resolvedEpoch < 0L || resolvedColumns !in 3..5) return null
             val resolvedPercent = LauncherDesktopKeys.storedPercent(iconPercent ?: -1) ?: return null
             NativeRuleStateSnapshot(hidden ?: false, resolvedColumns, contextual ?: false,
-                resolvedRevision, resolvedEpoch, widgets ?: false, haptic ?: false, stack ?: false, widgetStack ?: false, xiaoaiOptions ?: false, resolvedPercent, grid ?: 0, themeMode ?: 0, themeColor ?: LauncherDesktopKeys.DEFAULT_ICON_COLOR)
+                resolvedRevision, resolvedEpoch, widgets ?: false, haptic ?: false, stack ?: false, widgetStack ?: false, xiaoaiOptions ?: false, resolvedPercent, grid ?: 0, themeMode ?: 0, themeColor ?: LauncherDesktopKeys.DEFAULT_ICON_COLOR, nativePadDock ?: false,
+                dockGlass ?: NativeDockGlassGeometry.DEFAULT_PACKED)
         }.getOrNull()
     }
 }

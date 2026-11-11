@@ -140,61 +140,6 @@ class SettingsMutationWriterTest {
         assertEquals(5, s.local.persisted[PlatformSettingsKeys.KEY_OPENED_FOLDER_COLUMNS])
         assertEquals(0L, RuntimeSettingsSignal.lastAcknowledged()!!.values["prefs_epoch"])
     }
-    @Test fun dockCommitValidatesRollsBackAndUpdatesMirrorOnlyAfterAcknowledgement() = isolated { s, writer ->
-        val key = com.takekazex.hypertweak.settings.contract.DockConfig.KEY
-        val old = com.takekazex.hypertweak.settings.contract.DockConfig().encode()
-        val next = com.takekazex.hypertweak.settings.contract.DockConfig(enabled = true).encode()
-        assertFalse(writer.commitDockBackground("invalid"))
-        assertEquals(0, s.remote.commits)
-        assertTrue(writer.commitDockBackground(old))
-        s.remote.shadowBeforeAcknowledgement = true
-        s.remote.rejectNext = true
-        assertFalse(writer.commitDockBackground(next))
-        assertEquals(old, s.remote.persisted[key])
-        assertEquals(old, s.remote.values[key])
-        assertEquals(old, s.local.persisted[key])
-        assertTrue(writer.commitDockBackground(next))
-        assertEquals(next, s.remote.persisted[key])
-        assertEquals(next, s.local.persisted[key])
-        assertEquals(listOf(key, key), s.invalidated)
-    }
-
-    @Test fun queuedDockCommitAndBulkReplacementCannotWaitOnEachOthersLocks() = isolated { s, writer ->
-        val release = java.util.concurrent.CountDownLatch(1)
-        val bulkAttempt = java.util.concurrent.CountDownLatch(1)
-        val dockResult = java.util.concurrent.atomic.AtomicBoolean()
-        val bulkResult = java.util.concurrent.atomic.AtomicBoolean()
-        s.serializedWriter.execute { release.await() }
-        val dock = Thread {
-            dockResult.set(writer.commitDockBackground(com.takekazex.hypertweak.settings.contract.DockConfig().encode()))
-        }
-        val bulk = Thread {
-            bulkAttempt.countDown()
-            synchronized(s.settingsMutationLock) {
-                bulkResult.set(writer.commitRemoteMutation(NativeRuleStateSnapshot(false, 3, false, epoch = 1),
-                    emptyMap<String, Any>()) { clear(); putLong("prefs_epoch", 1) })
-            }
-        }
-        try {
-            dock.start()
-            val queue = (s.serializedWriter as java.util.concurrent.ThreadPoolExecutor).queue
-            val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(2)
-            while (queue.isEmpty() && System.nanoTime() < deadline) Thread.yield()
-            assertFalse("Dock transaction must be queued", queue.isEmpty())
-            bulk.start()
-            assertTrue(bulkAttempt.await(2, TimeUnit.SECONDS))
-            val waitDeadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(2)
-            while (bulk.state == Thread.State.RUNNABLE && System.nanoTime() < waitDeadline) Thread.yield()
-            release.countDown()
-            dock.join(2_000)
-            bulk.join(2_000)
-            assertFalse("Dock/bulk lock cycle", dock.isAlive || bulk.isAlive)
-            assertTrue(dockResult.get())
-            assertTrue(bulkResult.get())
-            assertEquals(1L, s.remote.persisted["prefs_epoch"])
-            assertFalse(s.remote.persisted.containsKey(com.takekazex.hypertweak.settings.contract.DockConfig.KEY))
-        } finally { release.countDown(); dock.join(10_000); bulk.join(10_000) }
-    }
     @Test fun synchronousStringWaitsForEarlierWritesAndRemotePersistence() = isolated { s, writer ->
         writer.write { putString("order", "first") }
         writer.putStringSynchronous("order", "second")

@@ -1,6 +1,7 @@
 package com.takekazex.hypertweak.hook.nativebridge
 
 import com.takekazex.hypertweak.settings.contract.LauncherDesktopKeys
+import com.takekazex.hypertweak.settings.contract.NativeDockGlassGeometry
 
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
@@ -23,6 +24,8 @@ internal object NativeRuleMutation {
             PlatformSettingsKeys.KEY_ANDROID_WIDGET_STACK -> base.copy(widgetStack = value as Boolean, revision = revision)
             PlatformSettingsKeys.KEY_FOLDER_STACK_PREVIEW -> base.copy(folderStack = value as Boolean, revision = revision)
             PlatformSettingsKeys.KEY_RECENTS_CARD_HAPTIC -> base.copy(recentsHaptic = value as Boolean, revision = revision)
+            PlatformSettingsKeys.KEY_NATIVE_PAD_DOCK -> base.copy(nativePadDock = value as Boolean, revision = revision)
+            PlatformSettingsKeys.KEY_NATIVE_DOCK_GLASS -> base.copy(dockGlass = requireNotNull(NativeDockGlassGeometry.unpack(value as Int)) { "invalid Dock glass geometry" }.pack(), revision = revision)
             else -> error("unsupported native setting")
         }
         require(LauncherDesktopKeys.validIconThemeMode(next.iconThemeMode) && LauncherDesktopKeys.validGrid(next.desktopGrid) && next.columns in 3..5 && next.revision >= 0 && LauncherDesktopKeys.validPercent(next.iconPercent))

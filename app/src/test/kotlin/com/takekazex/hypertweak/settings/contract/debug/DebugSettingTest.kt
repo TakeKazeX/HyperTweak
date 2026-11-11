@@ -25,7 +25,6 @@ class DebugSettingTest {
         rejects { columns.decode(2) }
         rejects { DebugSetting("text", "String", "").decode("x".repeat(16_385)) }
         rejects { DebugSetting("set", "StringSet", emptySet<String>()).decode(JSONArray(listOf("ok", 3))) }
-        rejects { DebugSettingsCatalog.entries.getValue("launcher_dock_background").decode("bad") }
         rejects { DebugSettingsCatalog.entries.getValue("camera_legendary_moment_mode").decode("bad") }
     }
     @Test fun iconDropdownsAcceptAllUiModesAndRejectUnknownModes() {

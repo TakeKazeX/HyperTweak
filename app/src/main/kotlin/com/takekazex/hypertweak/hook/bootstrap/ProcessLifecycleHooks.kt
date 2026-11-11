@@ -11,7 +11,6 @@ import com.takekazex.hypertweak.hook.rules.ime.AospImeHooker
 import com.takekazex.hypertweak.hook.rules.module.RestartBroadcastHooker
 import com.takekazex.hypertweak.hook.rules.securitycenter.battery.BatteryInfoHooker
 import com.takekazex.hypertweak.hook.rules.system.BatteryAutoPowerSaveHooker
-import com.takekazex.hypertweak.hook.rules.system.DockBackgroundHooker
 import com.takekazex.hypertweak.hook.rules.systemui.ExtendUnlockHooker
 import com.takekazex.hypertweak.hook.rules.systemui.ProxyLaunchHooker
 import com.takekazex.hypertweak.hook.rules.systemui.SystemUIPluginHooker
@@ -122,8 +121,6 @@ internal object ProcessLifecycleHooks {
 
     fun scheduleSystemUiRecovery(context: Context, roots: Collection<BaseHooker>) =
         StatusIconHotReloadRecovery.schedule(context, roots)
-
-    fun onSystemServerHotReloaded() = DockBackgroundHooker.recoverExistingWindows()
 
     // IME processes selected after startup
     val imeHooker: BaseHooker get() = AospImeHooker

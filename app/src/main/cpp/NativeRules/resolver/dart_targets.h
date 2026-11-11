@@ -133,7 +133,10 @@ TargetResult ResolveTarget(const Image& image, const TargetSpec& spec);
 extern const TargetSpec kRecentsClearButtonTarget;
 extern const TargetSpec kFolderColumnsTarget;
 extern const TargetSpec kAssistantWidgetTarget;
-extern const TargetSpec kDockFrameTarget;
+extern const TargetSpec kNativeDockRefreshTarget;
+extern const TargetSpec kNativeDockRouteTarget;
+extern const TargetSpec kNativeDockInteractionTarget;
+extern const TargetSpec kNativeDockGlassTarget;
 extern const TargetSpec kRecentsHapticTarget;
 struct RecentsHapticLayout {
     uint32_t start = 0, end = 0, update = 0, metrics = 0, number = 0;
@@ -200,8 +203,107 @@ bool VerifyFolderStackChildren(uintptr_t address, bool loop);
 bool VerifyDockUnlockLayout(const Image&, uintptr_t);
 struct DockTickLayout { uintptr_t site; int receiver, scale, y, value; };
 bool DecodeDockTickLayout(const Image&, uintptr_t, DockTickLayout*);
-struct DockFrameLayout { uintptr_t begin, visible, hidden[2]; int alpha, offset, scale, origin; uint32_t pool, double_cid; };
-bool DecodeDockFrameLayout(const Image&, uintptr_t, DockFrameLayout*);
+
+struct NativeDockRefreshLayout {
+    int32_t binding_frame_slot;
+    uint32_t root_field;
+    uint32_t build_owner_field;
+};
+bool DecodeNativeDockRefresh(const Image&, uintptr_t frame, uintptr_t binding_bridge, uintptr_t reassemble,
+                             NativeDockRefreshLayout*);
+
+enum class NativeDockGate : size_t { kSlot, kPadVisibility, kPhoneVisibility, kController, kDrag, kGeometry, kCount };
+struct NativeDockRouteLayout {
+    uint32_t static_table_field;
+    uint32_t device_config_slot;
+    uint32_t home_state_slot;
+    uint32_t widgets_binding_slot;
+    uint32_t pad_field;
+    uint32_t fold_field;
+    uintptr_t slot_skip;
+    uintptr_t pad_visibility_fallback;
+    uintptr_t phone_hide;
+    uintptr_t phone_fold_show;
+    uintptr_t controller_pad;
+    uintptr_t drag_return;
+    uintptr_t drag_first_call;
+    uintptr_t geometry_fallback;
+};
+bool DecodeNativeDockRoute(const Image&, const uintptr_t* sites, NativeDockRouteLayout*);
+
+struct NativeDockInteractionLayout {
+    uint32_t static_table_field;
+    uint32_t manager_slot;
+    uint32_t sentinel_pool_offset;
+    uint32_t dragging_rx_field;
+    uint32_t rx_value_field;
+    uint32_t drop_guard_field;
+};
+bool DecodeNativeDockInteraction(const Image&, uintptr_t observer, NativeDockInteractionLayout*);
+
+struct NativeDockGlassLayout {
+    uint32_t flag_field;
+    uintptr_t branch_skip;
+    uintptr_t factory_stub;
+    uintptr_t factory_return;  // return PC of the Hotseat background call
+    uintptr_t glass_entry;
+    uintptr_t strategy_frame;
+    // Stock words displaced by the return gate, replayed with decoded operands.
+    int32_t resume_list_slot;
+    int32_t resume_result_slot;
+    uint32_t resume_length_field;
+    // LayoutBuilder constraints argument of the Hotseat builder frame.
+    int32_t constraints_arg;
+    uint32_t max_height_field;
+    // EdgeInsets arithmetic tail: four unboxed slots copied into a new object.
+    uintptr_t insets_entry;
+    uint32_t insets_frame;
+    int32_t insets_slots[4];  // left, top, right, bottom
+    uint32_t insets_cid;
+    // Padding tail: child returned by a call, padding read from the frame.
+    uintptr_t padding_return;
+    uint32_t padding_frame;
+    int32_t padding_slot;
+    uint32_t padding_cid;
+    // Hotseat item builder frame: the center call and the unlock wrapper.
+    int32_t controller_slot;     // Hotseat builder slot passed as the controller
+    uint32_t build_frame;
+    int32_t build_child_slot;
+    uint32_t center_call;        // object pool offset of the switchable call pair
+    uintptr_t center_return;
+    int32_t center_item_slot;
+    int32_t center_slot;
+    uint32_t center_field;
+    uintptr_t wrap_entry;        // allocation call of the unlock wrapper
+    int32_t wrap_position_slot;
+    uint32_t wrap_cid;
+    int32_t title_slot;
+    uint32_t title_field;
+    uint32_t title_pool;         // object pool offset reloaded after the gate
+    uint32_t fixed_field;        // item-cell flag; false lets the unlock animation run
+    // Adaptive width: the Hotseat builder slot whose context field holds the
+    // item list passed to the item builder, and the column count of the cell
+    // width the builder derives from its constraints (maxWidth / columns).
+    int32_t items_context_slot;
+    uint32_t items_field;
+    uint32_t columns;
+    // The item builder's inline Dock cell width: a flag on one static
+    // singleton picks config.cell_field + cell_extra or config.alt_cell_field,
+    // where config is the value of an Rx field on another static singleton.
+    uint32_t static_table;       // thread offset of the static field table
+    uint32_t sentinel_pool;      // object pool offset of the uninitialized sentinel
+    uint32_t cell_flag_static;
+    uint32_t cell_flag_field;
+    uint32_t config_static;
+    uint32_t config_rx_field;
+    uint32_t rx_value_field;
+    uint32_t cell_field;
+    uint32_t alt_cell_field;
+    double cell_extra;
+};
+bool DecodeNativeDockGlass(const Image&, uintptr_t gate, uintptr_t factory, uintptr_t glass,
+                           uintptr_t insets, uintptr_t padding, uintptr_t center, uintptr_t wrap,
+                           NativeDockGlassLayout*);
 
 struct IconThemeObserverLayout { uint32_t static_slot, registered_field, cid; uintptr_t registration; };
 bool DecodeIconThemeObserver(const Image&,uintptr_t owner,uintptr_t bootstrap,uintptr_t refresh,IconThemeObserverLayout*);

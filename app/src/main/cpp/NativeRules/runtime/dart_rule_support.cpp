@@ -238,14 +238,13 @@ bool ResolveDartSites(void* dart_handle, const dart::TargetSpec& spec,
     return true;
 }
 
-bool PrepareDartRuleTargets(void* handle, bool clear_button, bool folder_columns, bool assistant_widgets, bool dock_frame, bool recents_haptic, bool folder_stack, bool widget_stack, bool xiaoai_options, bool icon_scale, bool icon_theme) {
+bool PrepareDartRuleTargets(void* handle, bool clear_button, bool folder_columns, bool assistant_widgets, bool recents_haptic, bool folder_stack, bool widget_stack, bool xiaoai_options, bool icon_scale, bool icon_theme) {
     g_allow_scan = true;
     DartResolution result{};
     bool success = true;
     if (clear_button) success = ResolveDartSites(handle, dart::kRecentsClearButtonTarget, &result);
     if (folder_columns) success = ResolveDartSites(handle, dart::kFolderColumnsTarget, &result) && success;
     if (assistant_widgets) success = ResolveDartSites(handle, dart::kAssistantWidgetTarget, &result) && success;
-    if (dock_frame) success = ResolveDartSites(handle, dart::kDockFrameTarget, &result) && success;
     if (recents_haptic) success = ResolveDartSites(handle, dart::kRecentsHapticTarget, &result) && success;
     if (folder_stack) success = ResolveDartSites(handle, dart::kFolderStackTarget, &result) && success;
     if (xiaoai_options) success = ResolveDartSites(handle, dart::kXiaoaiGestureOptionsTarget, &result) && success;
@@ -261,6 +260,17 @@ bool PrepareDesktopGridTargets(void* handle) {
  g_allow_scan=true;DartResolution result{};
  const bool success=ResolveDartSites(handle,dart::kDesktopGridTarget,&result);
  g_allow_scan=false;return success;
+}
+bool PrepareDartTargetSet(void* handle, const dart::TargetSpec* const* specs,
+                          DartResolution* results, size_t count) {
+    const bool previous = g_allow_scan;
+    g_allow_scan = true;
+    bool success = true;
+    for (size_t index = 0; index < count; ++index) {
+        success = ResolveDartSites(handle, *specs[index], &results[index]) && success;
+    }
+    g_allow_scan = previous;
+    return success;
 }
 void InvalidateFailedDartRuleTargets() {
     pthread_mutex_lock(&g_cache_lock);

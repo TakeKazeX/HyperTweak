@@ -545,7 +545,10 @@ const TargetSpec kAssistantWidgetTarget = {
     "assistant_android_widgets", "libapp.so", kAssistantWidgetSites,
     sizeof(kAssistantWidgetSites) / sizeof(kAssistantWidgetSites[0])};
 
-#include "dock_frame_target.inc"
+#include "dock_native_refresh_target.inc"
+#include "dock_native_route_target.inc"
+#include "dock_native_interaction_target.inc"
+#include "dock_native_glass_target.inc"
 #include "recents_haptic_target.inc"
 #include "folder_stack_target.inc"
 #include "widget_stack_target.inc"
@@ -561,7 +564,10 @@ const TargetSpec* const kTargetSpecs[] = {
     &kRecentsClearButtonTarget,
     &kFolderColumnsTarget,
     &kAssistantWidgetTarget,
-    &kDockFrameTarget,
+    &kNativeDockRefreshTarget,
+    &kNativeDockRouteTarget,
+    &kNativeDockInteractionTarget,
+    &kNativeDockGlassTarget,
     &kRecentsHapticTarget,
     &kFolderStackTarget,
     &kWidgetStackTarget,

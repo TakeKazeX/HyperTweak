@@ -2,7 +2,6 @@
   "SystemServerReadinessHooker",
   "SystemServerFreeformHooker",
   "AospBackSystemHooker",
-  "DockBackgroundHooker",
   "ForceScreenshotHooker",
   "SystemConfigHooker",
   "GestureBarTransitionHooker",

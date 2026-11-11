@@ -1,6 +1,7 @@
 package com.takekazex.hypertweak.hook.nativebridge
 
 import com.takekazex.hypertweak.settings.contract.LauncherDesktopKeys
+import com.takekazex.hypertweak.settings.contract.NativeDockGlassGeometry
 
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
@@ -24,11 +25,18 @@ internal class NativeSnapshotLedger {
     }
     @Synchronized fun latest(): NativeRuleStateSnapshot? = current
     @Synchronized fun save(): Array<Any>? = current?.let {
-        arrayOf(it.hidden, it.columns, it.contextualSearch, it.revision, it.epoch, it.assistantWidgets, it.recentsHaptic, it.folderStack, it.widgetStack, it.xiaoaiOptions, it.iconPercent, it.desktopGrid, it.iconThemeMode, it.iconThemeColor)
+        val base = arrayOf<Any>(it.hidden, it.columns, it.contextualSearch, it.revision, it.epoch, it.assistantWidgets, it.recentsHaptic, it.folderStack, it.widgetStack, it.xiaoaiOptions, it.iconPercent, it.desktopGrid, it.iconThemeMode, it.iconThemeColor)
+        // Slot 14 was the retired icon-theme refresh switch. Trailing slots appear only
+        // when they differ from their defaults, so an older generation still restores.
+        when {
+            it.dockGlass != NativeDockGlassGeometry.DEFAULT_PACKED -> base + false + it.nativePadDock + it.dockGlass
+            it.nativePadDock -> base + false + true
+            else -> base
+        }
     }
     fun restore(state: Any?) {
         val values = state as? Array<*> ?: return
-        if (values.size !in 6..15 || values.any { it == null }) return
+        if (values.size !in 6..17 || values.any { it == null }) return
         NativeRuleStateSnapshot.read { mapOf(PlatformSettingsKeys.KEY_HIDE_RECENTS_CLEAR_BUTTON to values[0],
             PlatformSettingsKeys.KEY_OPENED_FOLDER_COLUMNS to values[1], PlatformSettingsKeys.KEY_CONTEXTUAL_SEARCH_LONG_PRESS to values[2],
             PlatformSettingsKeys.KEY_NATIVE_RULE_REVISION to values[3], "prefs_epoch" to values[4], PlatformSettingsKeys.KEY_ALLOW_ANDROID_WIDGETS_TO_ASSISTANT to values[5],
@@ -39,6 +47,8 @@ internal class NativeSnapshotLedger {
             LauncherDesktopKeys.KEY_ICON_SIZE_PERCENT to (values.getOrNull(10) ?: -1),
             LauncherDesktopKeys.KEY_GRID to (values.getOrNull(11) ?: 0),
             LauncherDesktopKeys.KEY_ICON_THEME_MODE to (values.getOrNull(12) ?: 0),
-            LauncherDesktopKeys.KEY_ICON_THEME_COLOR to (values.getOrNull(13) ?: LauncherDesktopKeys.DEFAULT_ICON_COLOR)) }?.let(::offer)
+            LauncherDesktopKeys.KEY_ICON_THEME_COLOR to (values.getOrNull(13) ?: LauncherDesktopKeys.DEFAULT_ICON_COLOR),
+            PlatformSettingsKeys.KEY_NATIVE_PAD_DOCK to (values.getOrNull(15) ?: false),
+            PlatformSettingsKeys.KEY_NATIVE_DOCK_GLASS to (values.getOrNull(16) ?: NativeDockGlassGeometry.DEFAULT_PACKED)) }?.let(::offer)
     }
 }

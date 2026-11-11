@@ -31,7 +31,6 @@ internal object SystemServerHookPlan {
         hook { SystemServerReadinessHooker }
         hook { SystemServerFreeformHooker }
         hook { AospBackSystemHooker }
-        hook { com.takekazex.hypertweak.hook.rules.system.DockBackgroundHooker }
         hook { com.takekazex.hypertweak.hook.rules.system.ForceScreenshotHooker }
         hook { SystemConfigHooker }
         // The enabled com.android.systemui.gesture.line.overlay turns

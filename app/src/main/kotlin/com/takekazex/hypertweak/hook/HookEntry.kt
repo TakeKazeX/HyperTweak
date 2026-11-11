@@ -477,10 +477,7 @@ class HookEntry : XposedModule() {
         logHotReloadHandleDiff(oldHandleIds, oldHandles)
         unhookRemainingOldHandles(oldHandles)
         retryHookersAfterHotReload()
-        if (isSystemServer) {
-            runtimeContextRetry.schedule()
-            ProcessLifecycleHooks.onSystemServerHotReloaded()
-        }
+        if (isSystemServer) runtimeContextRetry.schedule()
         // Publication requires the restored host context. The early hot-reload callback runs
         // before package snapshots are restored and cannot be its only recovery boundary.
         publishNativeRuleSwitches()

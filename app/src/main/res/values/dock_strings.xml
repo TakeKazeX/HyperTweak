@@ -1,25 +1,14 @@
 <resources>
     <string name="dock_title">Dock background</string>
-    <string name="dock_summary">Native soft glass or clear frosted material, following the system theme</string>
-    <string name="dock_material">Material style</string>
-    <string name="dock_glass">Soft glass</string>
-    <string name="dock_frosted">Clear frosted</string>
+    <string name="dock_summary">Keep the phone Dock and its animations, and draw its background with the launcher’s own HyperOS glass.</string>
     <string name="dock_preview_icons">Sample icons stay in place while you adjust the background. The desktop follows the system theme.</string>
     <string name="dock_height">Height</string>
     <string name="dock_horizontal">Horizontal margin</string>
     <string name="dock_bottom">Bottom margin</string>
     <string name="dock_radius">Corner radius</string>
     <string name="dock_reset">Reset dimensions</string>
-    <string name="dock_save_failed">Could not save Dock settings. Previous settings were retained.</string>
-    <string name="dock_layout_tab">Layout</string>
-    <string name="dock_glass_tab">Glass</string>
-    <string name="dock_blur">Blur radius</string>
-    <string name="dock_tint">Background tint opacity</string>
-    <string name="dock_reset_glass">Reset glass</string>
-    <string name="dock_opacity">Glass opacity</string>
-    <string name="dock_opacity_summary">Affects the whole glass, including highlights and refraction.</string>
-    <string name="dock_brightness">Brightness adjustment</string>
-    <string name="dock_brightness_summary">Adjusts glass brightness while retaining its opacity and optical parameters. Zero keeps native brightness.</string>
-    <string name="dock_shading">Darkening strength</string>
-    <string name="dock_shading_summary">Zero disables the dark tint on bright wallpaper; 100% restores native darkening.</string>
+    <string name="dock_native_geometry">Glass size</string>
+    <string name="dock_native_height_summary">0 fills the Dock area.</string>
+    <string name="dock_adaptive_width">Fit width to icons</string>
+    <string name="dock_adaptive_width_summary">Like the tablet Dock, the glass narrows by one icon cell for each icon fewer than a full row, and keeps one cell when the Dock is empty. The horizontal margin is fixed while this is on.</string>
 </resources>

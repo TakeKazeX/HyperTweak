@@ -17,11 +17,6 @@ internal class NativeRuleStatePublisher {
     private val handler = Handler(Looper.getMainLooper())
     private val token = Any()
     private var context: Context? = null
-    private var dockPort = 0
-    private var dockToken0 = 0L
-    private var dockToken1 = 0L
-    private var dockOfferVersion = 0L
-    private var dockEndpointKnown = false
     private var gridApplied = -1
     private var gridNonce = 0L
     private var revision = 0L
@@ -81,19 +76,6 @@ internal class NativeRuleStatePublisher {
                         intent.getLongExtra(RecentsCardHaptics.EVENT_TIME, 0L))
                 return
             }
-            if (intent.action == com.takekazex.hypertweak.dock.DockFrameChannel.OFFER) {
-                if (!SettingsTransport.trusted(context, sentFromPackage, sentFromUid, "android") || sentFromUid != Process.SYSTEM_UID) return
-                val port = intent.getIntExtra("port", -1)
-                val t0 = intent.getLongExtra("token0", 0)
-                val t1 = intent.getLongExtra("token1", 0)
-                val version = intent.getLongExtra("version", 0)
-                if (version <= dockOfferVersion || port !in 0..65535 || (port != 0 && (t0 == 0L || t1 == 0L))) return
-                dockEndpointKnown = true
-                dockOfferVersion = version
-                dockPort = port; dockToken0 = t0; dockToken1 = t1
-                publish() // The same endpoint offer also rebinds a newly started launcher process.
-                return
-            }
             if (intent.action == Intent.ACTION_BOOT_COMPLETED || intent.action == Intent.ACTION_USER_UNLOCKED || intent.action == Intent.ACTION_CONFIGURATION_CHANGED) {
                 publish()
             }
@@ -120,14 +102,10 @@ internal class NativeRuleStatePublisher {
                     addAction("com.takekazex.hypertweak.action.DESKTOP_GRID_NATIVE_STATE")
                     addAction(RecentsCardHaptics.ACTION)
                     addAction("com.takekazex.hypertweak.action.NATIVE_RULE_PREPARED")
-                    addAction(com.takekazex.hypertweak.dock.DockFrameChannel.OFFER)
                 }, Context.RECEIVER_EXPORTED)
                 receiverRegistered = true
             }.onFailure { DebugLog.w("NativeRules", "boot settings publisher registration failed", it) }
             DebugLog.i("NativeRules", "SystemUI native settings publisher attached observer=$receiverRegistered")
-            runCatching { SettingsTransport.send(application,
-                Intent(com.takekazex.hypertweak.dock.DockFrameChannel.REQUEST).setPackage("android")) }
-                .onFailure { DebugLog.w("DockMotion", "channel resync request failed", it) }
             publish()
         }
     }
@@ -176,13 +154,11 @@ internal class NativeRuleStatePublisher {
                 .putExtra("hypertweak_rule_xiaoai_options", snapshot.xiaoaiOptions)
                 .putExtra("hypertweak_rule_desktop_grid", snapshot.desktopGrid)
                 .putExtra("hypertweak_rule_icon_theme_mode", snapshot.iconThemeMode)
+                .putExtra("hypertweak_rule_native_pad_dock", snapshot.nativePadDock)
+                .putExtra("hypertweak_rule_dock_glass", snapshot.dockGlass)
                 .putExtra("hypertweak_grid_nonce", gridNonce)
                 .putExtra("hypertweak_rule_icon_percent", snapshot.iconPercent)
                 .putExtra("sender_uid", Process.myUid())
-            if (dockEndpointKnown) intent.putExtra("hypertweak_rule_dock_channel", true)
-                .putExtra("hypertweak_rule_dock_port", dockPort)
-                .putExtra("hypertweak_rule_dock_token0", dockToken0)
-                .putExtra("hypertweak_rule_dock_token1", dockToken1)
             SettingsTransport.send(context, intent)
             if (forwarded != snapshot) {
                 forwarded = snapshot

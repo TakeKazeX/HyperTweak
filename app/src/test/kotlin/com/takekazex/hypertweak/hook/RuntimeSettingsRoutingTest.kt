@@ -16,7 +16,6 @@ import com.takekazex.hypertweak.settings.contract.BackGestureKeys
 import com.takekazex.hypertweak.settings.contract.AppSettingsKeys
 
 import com.takekazex.hypertweak.hook.runtime.settings.RuntimeSettingsGroups as Groups
-import com.takekazex.hypertweak.settings.contract.DockConfig
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -427,7 +426,7 @@ class RuntimeSettingsRoutingTest {
     @Test fun everyExistingLiveRouteHasExplicitConsumersIncludingScreenshotEditorAndSystemServer() {
         assertEquals(setOf(Groups.SCREENSHOT), Groups.forProcess("com.miui.screenshot"))
         assertEquals(Groups.forProcess("com.miui.screenshot"), Groups.forProcess("com.miui.screenshot:photo_editor"))
-        assertEquals(setOf(Groups.POWER_BUTTON, Groups.EXPERIMENTAL_CAPABILITIES, Groups.IME, Groups.BACK, Groups.DOCK, Groups.VOLUME, Groups.FREEFORM, Groups.GESTURE_BAR, Groups.FORCE_SCREENSHOT, Groups.DARK_MODE, Groups.NATIVE_PHOTO_PICKER, Groups.NATIVE_FILE_PICKER, Groups.AOSP_INSTALLER, Groups.PACKAGE_MANAGER,
+        assertEquals(setOf(Groups.POWER_BUTTON, Groups.EXPERIMENTAL_CAPABILITIES, Groups.IME, Groups.BACK, Groups.VOLUME, Groups.FREEFORM, Groups.GESTURE_BAR, Groups.FORCE_SCREENSHOT, Groups.DARK_MODE, Groups.NATIVE_PHOTO_PICKER, Groups.NATIVE_FILE_PICKER, Groups.AOSP_INSTALLER, Groups.PACKAGE_MANAGER,
             Groups.GMS_RESTRICTIONS, Groups.PASSKEY, Groups.FCM, Groups.POLICY_FEATURES),
             Groups.forProcess("system_server", true))
         assertEquals(setOf(Groups.XMSF), Groups.forProcess("com.xiaomi.xmsf:push"))
@@ -456,11 +455,11 @@ class RuntimeSettingsRoutingTest {
         val values = mapOf<String, Any>(PlatformSettingsKeys.KEY_THREE_ISLANDS to true,
             ScreenshotSettingsKeys.KEY_SCREENSHOT_AUTO_FRAME to true, ScreenshotSettingsKeys.KEY_SCREENSHOT_FRAME_EDITOR_MODE to 1,
             BackGestureKeys.KEY_BACK_GESTURE_ENABLED to true, PlatformSettingsKeys.KEY_VOLUME_KEY_STEP_COUNT to 50,
-            DockConfig.KEY to DockConfig(enabled = true).encode(), "icon_duo_enabled" to true)
+            "icon_duo_enabled" to true)
         val screenshot = Groups.subset("com.miui.screenshot", values)
         assertEquals(setOf(ScreenshotSettingsKeys.KEY_SCREENSHOT_AUTO_FRAME, ScreenshotSettingsKeys.KEY_SCREENSHOT_FRAME_EDITOR_MODE), screenshot.keys)
         val server = Groups.subset("android", values)
-        assertTrue(server.containsKey(DockConfig.KEY))
+        assertTrue(server.containsKey(PlatformSettingsKeys.KEY_VOLUME_KEY_STEP_COUNT))
         assertTrue(server.containsKey(BackGestureKeys.KEY_BACK_GESTURE_ENABLED))
         assertFalse(server.containsKey(PlatformSettingsKeys.KEY_THREE_ISLANDS))
         assertFalse(server.containsKey("icon_duo_enabled"))
@@ -476,6 +475,14 @@ class RuntimeSettingsRoutingTest {
         assertTrue(ledger.accept(updated))
         assertTrue(ledger.owns(ScreenshotSettingsKeys.KEY_SCREENSHOT_AUTO_FRAME))
         assertEquals(true, ledger.value(ScreenshotSettingsKeys.KEY_SCREENSHOT_AUTO_FRAME))
+    }
+    @Test fun oldGenerationSnapshotWithRetiredGroupKeepsItsLiveDomains() {
+        // The retired system_server Dock surface group and its key, saved by an older generation.
+        val saved = arrayOf<Any>(11L, hashMapOf(PlatformSettingsKeys.KEY_VOLUME_KEY_STEP_COUNT to 30,
+            "launcher_dock_background" to "6|1|0|94|10|36|28|110|100|100|0|0"), arrayListOf(Groups.VOLUME, "launcher.dock"))
+        val ledger = RuntimeSettingsLedger().also { it.restore(saved) }
+        assertEquals(30, ledger.value(PlatformSettingsKeys.KEY_VOLUME_KEY_STEP_COUNT))
+        assertFalse(ledger.owns("launcher_dock_background"))
     }
     @Test fun processScopedSnapshotsSurviveReplacementWithoutClaimingOtherDomains() {
         val screenshot = RuntimeSettingsSnapshot.read(20, mapOf(ScreenshotSettingsKeys.KEY_SCREENSHOT_AUTO_FRAME to true), setOf(Groups.SCREENSHOT))!!
@@ -506,22 +513,21 @@ class RuntimeSettingsRoutingTest {
         assertEquals(setOf(Groups.NATIVE), restored.latest()!!.groups)
         assertFalse(restored.owns(BackGestureKeys.KEY_BACK_GESTURE_ENABLED))
     }
-    @Test fun invalidScreenshotNativeBackAndDockConfigurationsAreRejectedBeforePublication() {
+    @Test fun invalidScreenshotNativeAndBackConfigurationsAreRejectedBeforePublication() {
         assertNull(RuntimeSettingsSnapshot.read(1, mapOf(ScreenshotSettingsKeys.KEY_SCREENSHOT_FRAME_EDITOR_MODE to 2)))
         assertNull(RuntimeSettingsSnapshot.read(1, mapOf(ScreenshotSettingsKeys.KEY_SCREENSHOT_AUTO_FRAME to "true")))
         assertNull(RuntimeSettingsSnapshot.read(1, mapOf(PlatformSettingsKeys.KEY_OPENED_FOLDER_COLUMNS to 6)))
         assertNull(RuntimeSettingsSnapshot.read(1, mapOf(BackGestureKeys.KEY_BACK_GESTURE_ENABLED to "true")))
-        assertNull(RuntimeSettingsSnapshot.read(1, mapOf(DockConfig.KEY to "corrupt")))
         assertNull(RuntimeSettingsSnapshot.read(1, emptyMap<String, Any>(), setOf("unregistered")))
     }
     @Test fun commonAcknowledgedMutationPreservesOtherDomainsWhileResetReplacesThemTogether() {
         val original = RuntimeSettingsSnapshot.read(1, mapOf(ScreenshotSettingsKeys.KEY_SCREENSHOT_AUTO_FRAME to true,
-            BackGestureKeys.KEY_BACK_GESTURE_ENABLED to true, DockConfig.KEY to DockConfig(enabled = true).encode()))!!
+            BackGestureKeys.KEY_BACK_GESTURE_ENABLED to true))!!
         val next = original.mutate(PlatformSettingsKeys.KEY_VOLUME_KEY_STEP_COUNT, 30, 2)!!
         assertEquals(true, next.values[ScreenshotSettingsKeys.KEY_SCREENSHOT_AUTO_FRAME])
         assertEquals(true, next.values[BackGestureKeys.KEY_BACK_GESTURE_ENABLED])
         assertEquals(setOf(Groups.VOLUME), Groups.changed(original.values, next.values))
-        assertEquals(setOf(Groups.SCREENSHOT, Groups.BACK, Groups.DOCK, Groups.VOLUME),
+        assertEquals(setOf(Groups.SCREENSHOT, Groups.BACK, Groups.VOLUME),
             Groups.changed(next.values, emptyMap()))
     }
 }

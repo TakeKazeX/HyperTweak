@@ -25,7 +25,6 @@ internal object RuntimeSettingsGroups {
     const val SCREENSHOT = RuntimeSettingsDefinitions.SCREENSHOT
     const val BACK = RuntimeSettingsDefinitions.BACK
     const val NATIVE = RuntimeSettingsDefinitions.NATIVE
-    const val DOCK = RuntimeSettingsDefinitions.DOCK
     const val VOLUME = RuntimeSettingsDefinitions.VOLUME
     const val XMSF = RuntimeSettingsDefinitions.XMSF
     const val AICR_FREEFORM = RuntimeSettingsDefinitions.AICR_FREEFORM

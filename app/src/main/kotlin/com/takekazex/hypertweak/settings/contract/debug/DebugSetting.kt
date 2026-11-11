@@ -1,14 +1,13 @@
 package com.takekazex.hypertweak.settings.contract.debug
 
 import com.takekazex.hypertweak.settings.contract.CameraLegendaryMomentMode
-import com.takekazex.hypertweak.settings.contract.DockConfig
 import org.json.JSONArray
 import org.json.JSONObject
 
 /** Explicit public inventory. Internal bookkeeping and unknown/retired keys are never writable. */
 internal data class DebugSetting(val key: String, val type: String, val default: Any?) {
     val sensitive: Boolean get() = type == "StringSet" || key.contains("url") || key.contains("packages") ||
-        key.contains("order") || key.contains("custom") || key == DockConfig.KEY || key.contains("spoof_")
+        key.contains("order") || key.contains("custom") || key.contains("spoof_")
     val writable: Boolean get() = type != "Unknown"
     val range: IntRange? get() = when {
         key == com.takekazex.hypertweak.settings.contract.LauncherDesktopKeys.KEY_ICON_THEME_MODE -> 0..4
@@ -75,7 +74,6 @@ internal data class DebugSetting(val key: String, val type: String, val default:
         if (key == "update_proxy_mode") require(value in setOf("official", "third_party")) { "INVALID_PROXY_MODE" }
         if (key in setOf("aosp_ime_nav_bar_start", "aosp_ime_nav_bar_end"))
             require(value in setOf("back", "home_handle", "ime_switcher", "space")) { "INVALID_IME_BUTTON" }
-        if (key == DockConfig.KEY) require(value is String && DockConfig.decode(value) != null) { "INVALID_DOCK_CONFIG" }
         if (key == "camera_legendary_moment_mode") require(value in CameraLegendaryMomentMode.MODES) { "INVALID_CAMERA_MODE" }
         return value
     }

@@ -263,7 +263,7 @@ int main(int argc, char** argv) {
     SetAndroidWidgetStackEnabled(true);
     assert(!ApplyAndroidWidgetStackRule(reinterpret_cast<void*>(1))); // no input scan
     assert(strcmp(AndroidWidgetStackRuleReason(), "dart_preparation_pending") == 0);
-    assert(PrepareDartRuleTargets(reinterpret_cast<void*>(1), false, false, false, false, false, false, true));
+    assert(PrepareDartRuleTargets(reinterpret_cast<void*>(1), false, false, false, false, false, true));
     auto* drag_gate = snapshot.data() + stack_contract.sites[0].offset;
     auto* target_gate = snapshot.data() + stack_contract.sites[1].offset;
     uint32_t drag_word = 0u, target_word = 0u, drag_branch = 0u, target_branch = 0u;
@@ -315,14 +315,14 @@ int main(int argc, char** argv) {
     identity[16] ^= 2u; // independent image identity, without relying on cache internals
     records.clear();
     memset(snapshot.data() + widget_offset, 0, 16u); // deliberate unavailable family
-    assert(!PrepareDartRuleTargets(reinterpret_cast<void*>(1), true, true, true, true, true, true, true, true));
+    assert(!PrepareDartRuleTargets(reinterpret_cast<void*>(1), true, true, true, true, true, true, true));
     DartResolution clear_before{};
     assert(ResolveDartSites(reinterpret_cast<void*>(1), dart::kRecentsClearButtonTarget, &clear_before));
     const uintptr_t clear_target = clear_before.Find("insert_overlay");
     assert(clear_target != 0u);
     memset(reinterpret_cast<void*>(clear_target), 0xa5, 16u); // installed/foreign patch: never rescan or overwrite it
     InvalidateFailedDartRuleTargets();
-    assert(!PrepareDartRuleTargets(reinterpret_cast<void*>(1), true, true, true, true, true, true, true, true));
+    assert(!PrepareDartRuleTargets(reinterpret_cast<void*>(1), true, true, true, true, true, true, true));
     DartResolution clear_after{};
     assert(ResolveDartSites(reinterpret_cast<void*>(1), dart::kRecentsClearButtonTarget, &clear_after));
     assert(clear_after.Find("insert_overlay") == clear_target);

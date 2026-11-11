@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "native_rule_runtime.h"
 #include "native_rule_settings_record.h"
-#include "dock_frame_rule.h"
+#include "dock_native_rule.h"
 #include "recents_haptic_rule.h"
 #include "folder_stack_rule.h"
 #include "widget_stack_rule.h"
@@ -42,6 +42,8 @@ uint64_t Now() {
 }
 pthread_mutex_t g_settings_lock = PTHREAD_MUTEX_INITIALIZER;
 SettingsRecord g_settings{};
+uint32_t g_dock_glass = kNativeDockGlassDefault;
+bool g_dock_glass_dirty = false;
 NativeRulePreparationGate g_gate{};
 bool g_received_settings = false;
 bool g_settings_dirty = false;
@@ -92,6 +94,7 @@ void ApplySettings(const SettingsRecord& record) {
     SetDesktopIconPercent(static_cast<int>((record.options >> 6u)&255u)-1);
     SetDesktopGrid(static_cast<int>((record.options>>14u)&15u));
     SetIconTheme(record.options >> 18u & 7u);
+    SetNativeDockEnabled((record.options & kNativePadDockOption) != 0u);
 }
 bool Prepare() {
     NativeRuleLibraryQuery internal_query;
@@ -111,6 +114,11 @@ bool Prepare() {
             __atomic_store_n(&g_source, "snapshot_restored", __ATOMIC_RELEASE);
             LogInfo("native rules restored last Preferences snapshot");
         }
+        NativeDockGlassRecord glass{};
+        if (ReadNativeRecord("dock_glass", &glass, sizeof(glass)) && RestoreNativeDockGlass(glass)) {
+            g_dock_glass = glass.geometry;
+            (void)SetNativeDockGlassGeometry(g_dock_glass);
+        }
     }
     if (g_settings_dirty) {
         const bool saved = WriteNativeRecord("settings", &g_settings, sizeof(g_settings));
@@ -118,19 +126,26 @@ bool Prepare() {
         g_settings_dirty = false;
         LogInfo("native Preferences snapshot saved=%d", saved ? 1 : 0);
     }
+    if (g_dock_glass_dirty) {
+        // Its own record: the options word has no room, and the geometry changes rarely.
+        NativeDockGlassRecord glass{kNativeDockGlassSchema, g_dock_glass, 0u};
+        glass.checksum = NativeDockGlassChecksum(glass);
+        if (!WriteNativeRecord("dock_glass", &glass, sizeof(glass))) LogWarn("native Dock glass geometry persistence failed");
+        g_dock_glass_dirty = false;
+    }
     PrepareDesktopGridStorage();
     const bool clear = ClearButtonHiddenRequested();
     const bool folder = FolderColumnsRequested() != 3;
     const bool widgets = AssistantWidgetAllowedRequested();
     void* handle = g_dart_handle;
     pthread_mutex_unlock(&g_settings_lock);
-    const bool dock = DockFrameRequested();
+    const bool native_dock = NativeDockRequested();
     const bool haptic = RecentsHapticRequested();
     const bool stack = FolderStackRequested();
     const bool widget_stack = AndroidWidgetStackRequested();
     const bool xiaoai_options = XiaoaiGestureOptionsRequested();
     const bool icon_scale = DesktopIconScaleNeedsPreparation() || DesktopGridNeedsPreparation();
-    if (!clear && !folder && !widgets && !dock && !haptic && !stack && !widget_stack && !xiaoai_options && !icon_scale && !IconThemeNeedsPreparation()) return true;
+    if (!clear && !folder && !widgets && !native_dock && !haptic && !stack && !widget_stack && !xiaoai_options && !icon_scale && !IconThemeNeedsPreparation()) return true;
     if (handle == nullptr) {
         // Fallback for an AOT image loaded before our observer. Keep this one
         // reference for the process lifetime; ready inputs never repeat dlopen.
@@ -141,12 +156,13 @@ bool Prepare() {
         else { dlclose(handle); handle = g_dart_handle; }
         pthread_mutex_unlock(&g_settings_lock);
     }
-    const bool rules_ready=PrepareDartRuleTargets(handle, clear, folder, widgets, dock, haptic, stack, widget_stack, xiaoai_options, icon_scale, IconThemeNeedsPreparation());
+    const bool rules_ready=PrepareDartRuleTargets(handle, clear, folder, widgets, haptic, stack, widget_stack, xiaoai_options, icon_scale, IconThemeNeedsPreparation());
     // Optional contracts fail independently. A rejected theme must not prevent
     // preparing the grid's own verified targets and metadata on this worker.
     const bool grid_ready=!DesktopGridNeedsPreparation() ||
         (PrepareDesktopGridTargets(handle) && PrepareDesktopGridLayout(handle));
-    return rules_ready&&grid_ready;
+    const bool dock_ready = !native_dock || PrepareNativeDockRule(handle);
+    return rules_ready && grid_ready && dock_ready;
 }
 void* Run(void*) {
     (void)pthread_setname_np(pthread_self(), "HT-RulePrepare");
@@ -216,7 +232,7 @@ void ObserveNativeRuleDartLibrary(void* handle) {
     pthread_mutex_unlock(&g_settings_lock);
     if (changed) { InvalidateFailedDartRuleTargets(); RequestNativeRulePreparation(); }
 }
-bool ReceiveNativeRuleSettings(bool hidden, int32_t columns, bool contextual_search, int64_t revision, bool assistant_widgets, bool recents_haptic, bool folder_stack, bool widget_stack, bool xiaoai_options, int32_t icon_percent, int32_t desktop_grid, int32_t icon_theme_mode) {
+bool ReceiveNativeRuleSettings(bool hidden, int32_t columns, bool contextual_search, int64_t revision, bool assistant_widgets, bool recents_haptic, bool folder_stack, bool widget_stack, bool xiaoai_options, int32_t icon_percent, int32_t desktop_grid, int32_t icon_theme_mode, bool native_pad_dock, int32_t dock_glass) {
     if (!HyperTweakIsLauncherProcess() || columns < 3 || columns > 5 || revision < 0 || !ValidIconPercent(icon_percent) || (!ValidDesktopGrid(desktop_grid) || icon_theme_mode < 0 || icon_theme_mode > 4)) return false;
     pthread_mutex_lock(&g_settings_lock);
     // JNI remains a fallback. The authenticated SystemUI publisher owns live
@@ -226,10 +242,14 @@ bool ReceiveNativeRuleSettings(bool hidden, int32_t columns, bool contextual_sea
         return false;
     }
     SettingsRecord next{kNativeRuleSettingsSchema, hidden ? 1u : 0u, columns,
-        (contextual_search ? 1u : 0u) | (assistant_widgets ? 2u : 0u) | (recents_haptic ? 4u : 0u) | (folder_stack ? 8u : 0u) | (widget_stack ? 16u : 0u) | (xiaoai_options ? 32u : 0u) | (static_cast<uint32_t>(icon_percent+1) << 6u) | (static_cast<uint32_t>(desktop_grid)<<14u) | (static_cast<uint32_t>(icon_theme_mode)<<18u), 0u};
+        (contextual_search ? 1u : 0u) | (assistant_widgets ? 2u : 0u) | (recents_haptic ? 4u : 0u) | (folder_stack ? 8u : 0u) | (widget_stack ? 16u : 0u) | (xiaoai_options ? 32u : 0u) | (static_cast<uint32_t>(icon_percent+1) << 6u) | (static_cast<uint32_t>(desktop_grid)<<14u) | (static_cast<uint32_t>(icon_theme_mode)<<18u) |
+            (native_pad_dock ? kNativePadDockOption : 0u), 0u};
     next.checksum = NativeRuleSettingsChecksum(next);
+    // An absent or malformed geometry is the default, never a partial update.
+    const uint32_t glass = ValidNativeDockGlassGeometry(dock_glass) ? static_cast<uint32_t>(dock_glass) : kNativeDockGlassDefault;
     const bool changed = !g_received_settings || next.hidden != g_settings.hidden ||
-                         next.columns != g_settings.columns || next.options != g_settings.options;
+                         next.columns != g_settings.columns || next.options != g_settings.options ||
+                         glass != g_dock_glass;
     if (revision > 0 && revision == g_systemui_revision && changed) {
         pthread_mutex_unlock(&g_settings_lock);
         return false;
@@ -237,10 +257,13 @@ bool ReceiveNativeRuleSettings(bool hidden, int32_t columns, bool contextual_sea
     g_systemui_revision = revision;
     g_received_settings = true;
     g_settings = next;
+    if (glass != g_dock_glass) g_dock_glass_dirty = true;
+    g_dock_glass = glass;
     __atomic_store_n(&g_source, revision > 0 ? "systemui_live" : "preferences_jni", __ATOMIC_RELEASE);
     if (changed) {
         g_settings_dirty = true;
         ApplySettings(next);
+        (void)SetNativeDockGlassGeometry(glass);
         g_gate.Changed();
         LogInfo("native settings received revision=%lld hidden=%u columns=%d widgets=%u source=%s",
                 static_cast<long long>(revision), next.hidden, next.columns, (next.options >> 1u) & 1u,
@@ -260,7 +283,7 @@ void ApplyPreparedNativeRules() {
     ApplyClearButtonRule(handle);
     ApplyFolderColumnsRule(handle);
     ApplyAssistantWidgetRule(handle);
-    (void)ApplyDockFrameRule(handle);
+    (void)ApplyNativeDockRule(handle);
     (void)ApplyRecentsHapticRule(handle);
     (void)ApplyFolderStackRule(handle);
     (void)ApplyAndroidWidgetStackRule(handle);
@@ -271,6 +294,7 @@ void ApplyPreparedNativeRules() {
     const bool missing = strcmp(ClearButtonRuleReason(), "dart_preparation_pending") == 0 ||
                          strcmp(FolderColumnsRuleReason(), "dart_preparation_pending") == 0 ||
                          strcmp(AssistantWidgetRuleReason(), "dart_preparation_pending") == 0 ||
+                         strcmp(NativeDockRuleReason(), "dart_preparation_pending") == 0 ||
                          strcmp(RecentsHapticRuleReason(), "dart_preparation_pending") == 0 ||
                          strcmp(FolderStackRuleReason(), "dart_preparation_pending") == 0 ||
                          strcmp(AndroidWidgetStackRuleReason(), "dart_preparation_pending") == 0 ||
@@ -316,12 +340,8 @@ bool TryNotifyDesktopGridPreparation() {
  if(queue){const uint64_t event=1u;(void)write(fd,&event,sizeof(event));}
  return true;
 }
-void NotifyDockFramePreparation() {
-    pthread_mutex_lock(&g_settings_lock); g_gate.Changed(); pthread_mutex_unlock(&g_settings_lock);
-    InvalidateFailedDartRuleTargets(); RequestNativeRulePreparation();
-}
 void ResetNativeRuleRuntimeAfterFork() {
-    ResetDockFrameAfterFork();
+    ResetNativeDockAfterFork();
     ResetRecentsHapticAfterFork();
     ResetFolderStackAfterFork();
     ResetAndroidWidgetStackAfterFork();

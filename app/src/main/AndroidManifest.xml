@@ -186,14 +186,6 @@
             android:grantUriPermissions="false"
             tools:ignore="ExportedContentProvider" />
 
-        <!-- Lifecycle-managed native background SurfacePackages; create/release require system UID. -->
-        <provider
-            android:name="com.takekazex.hypertweak.dock.DockSurfaceProvider"
-            android:authorities="com.takekazex.hypertweak.dock"
-            android:exported="true"
-            android:grantUriPermissions="false"
-            tools:ignore="ExportedContentProvider" />
-
         <!-- Exposes the aggregated cross-process debug log over content:// so an agent (adb /
              scripting) can dump/read it without opening the app. Exported read-only: the write path
              stores only into the module's own files dir, never caller-supplied locations. -->

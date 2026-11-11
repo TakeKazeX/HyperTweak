@@ -10,16 +10,14 @@ keys = {}
 for p in sorted((SRC/'settings/contract').glob('*Keys.kt')):
     for n, v in re.findall(r'const val (KEY_\w+) = "([^"$]+)"', p.read_text()):
         keys[p.stem+'.'+n] = v
-for cls, n, val in [('DockConfig','KEY','launcher_dock_background'), ('IconTunerContract','KEY_POSITION','icon_tuner_position'),('IconTunerContract','KEY_POSITION_VALUES','icon_tuner_position_val'),('IconTunerContract','KEY_POSITION_REORDER','icon_tuner_position_reorder'),('IconTunerContract','KEY_LEFT_MODE','icon_left_container_mode')]:
-    if cls == 'DockConfig':
-        val = re.search(r'const val KEY = "([^"]+)"',(SRC/'settings/contract/DockConfig.kt').read_text())[1]
+for cls, n, val in [('IconTunerContract','KEY_POSITION','icon_tuner_position'),('IconTunerContract','KEY_POSITION_VALUES','icon_tuner_position_val'),('IconTunerContract','KEY_POSITION_REORDER','icon_tuner_position_reorder'),('IconTunerContract','KEY_LEFT_MODE','icon_left_container_mode')]:
     keys[cls+'.'+n] = val
 reads = {}
 for p in sorted(SRC.rglob('*.kt')):
     if p == OUT: continue
     text = p.read_text()
     imports = {x.rsplit('.',1)[-1]:x for x in re.findall(r'^import ([\w.]+)$',text,re.M)}
-    for m in re.finditer(r'\b(getBoolean|getInt|getFloat|getStringSet|getString|pref|backGestureBoolean)\(\s*((?:\w+Keys|IconTunerContract|DockConfig)\.\w+)\s*',text):
+    for m in re.finditer(r'\b(getBoolean|getInt|getFloat|getStringSet|getString|pref|backGestureBoolean)\(\s*((?:\w+Keys|IconTunerContract)\.\w+)\s*',text):
         method, key = m[1], m[2]
         if key not in keys: continue
         tail = text[m.end():]
@@ -87,7 +85,6 @@ manual = {
  'IconTunerContract.KEY_POSITION_VALUES':('StringSet','emptySet<String>()'),
  'IconTunerContract.KEY_POSITION_REORDER':('Boolean','false'),
  'IconTunerContract.KEY_LEFT_MODE':('Int','0'),
- 'DockConfig.KEY':('String','com.takekazex.hypertweak.settings.contract.DockConfig().encode()'),
 }
 # Unused legacy artwork constants have no executing reader; never invent a default or
 # advertise a supported write merely because an old key remains in the contract.

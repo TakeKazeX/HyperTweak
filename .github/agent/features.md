@@ -148,14 +148,24 @@ Screenshot auto-framing resolves its full-screen request/save/worker/preview gra
 MediaStore fields with `ScreenshotFrameResolver`, using operand roles and call relationships.
 No APK hash allowlist, version mapping, or obfuscated member table is used. Missing or ambiguous
 contracts prevent save enrollment. `SCREENSHOT_APK` runs bytecode and renamed/duplicate/missing
-contract tests against a real APK. `FRAMEWORK_JAR` checks Dock native capture and IME root contracts.
-The Dock host uses only its own ViewRoot/RenderNode sampling state when the platform rejects
-its cross-window blur admission; it never edits the global admission policy. WMS retains an
-unstable provider connection for each Dock renderer lease to preserve Android's dependency
-accounting; retirement releases it on the IPC worker. Vendor Greeze policy separately receives
-our live renderer lease while the screen is interactive and unlocked, since it cannot see a
-windowless child Surface's producer UID through ordinary window accounting. Screen-off,
-lock, disable and retirement release that protection; no other application UID is changed.
+contract tests against a real APK. `FRAMEWORK_JAR` checks IME root contracts.
+The Dock background is the native Dock glass only: the phone Hotseat stays and only its
+background becomes the Launcher's own HyperOS 4 glass, entering with the unlock animation.
+The page has one switch (`launcher_native_pad_dock`), a live preview and the glass size
+card (an adaptive width switch, then height with 0 = fill, horizontal margin, bottom offset,
+radius) backed by `launcher_native_dock_glass`; slider drags drive the preview, releases write
+the setting. The adaptive switch is a flag bit of the same packed value, so reset, backup and
+the native snapshot carry it; "reset dimensions" keeps its state. With it on, the horizontal
+margin slider is disabled and shows the default margin the Launcher uses
+(`NativeDockGlassGeometry.effectiveMargin`), and the preview shows three centered icons and
+the glass one cell narrower.
+The old WMS Surface style and its Launcher frame observer are removed. An earlier generation
+retires its own Surfaces, motion channel and renderer leases in `onPrepareHotReload`. Opening
+the page calls `migrateLegacyDockBackground`, which removes `launcher_dock_background` in one
+acknowledged patch and enables the native switch if the old style was on. The preview renders
+the default Bionic glass token on a plain View with the same insets as the native factory
+(`NativeDockGlassPreviewGeometry`). Native target and frame contracts are in
+[native.md](native.md#native-dock-glass).
 IME raising obtains
 the current layout from `InputMethodService.mRootView`, without private resource integers.
 

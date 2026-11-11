@@ -773,7 +773,7 @@ object Preferences {
 
     fun putBoolean(key: String, value: Boolean) {
         memoInvalidate(key)
-        write(localKey = key, nativeMutation = if (key == PlatformSettingsKeys.KEY_HIDE_RECENTS_CLEAR_BUTTON || key == PlatformSettingsKeys.KEY_CONTEXTUAL_SEARCH_LONG_PRESS || key == PlatformSettingsKeys.KEY_ALLOW_ANDROID_WIDGETS_TO_ASSISTANT || key == PlatformSettingsKeys.KEY_RECENTS_CARD_HAPTIC || key == PlatformSettingsKeys.KEY_FOLDER_STACK_PREVIEW || key == PlatformSettingsKeys.KEY_ANDROID_WIDGET_STACK || key == PlatformSettingsKeys.KEY_XIAOAI_GESTURE_OPTIONS) key to value else null,
+        write(localKey = key, nativeMutation = if (key == PlatformSettingsKeys.KEY_HIDE_RECENTS_CLEAR_BUTTON || key == PlatformSettingsKeys.KEY_CONTEXTUAL_SEARCH_LONG_PRESS || key == PlatformSettingsKeys.KEY_ALLOW_ANDROID_WIDGETS_TO_ASSISTANT || key == PlatformSettingsKeys.KEY_RECENTS_CARD_HAPTIC || key == PlatformSettingsKeys.KEY_FOLDER_STACK_PREVIEW || key == PlatformSettingsKeys.KEY_ANDROID_WIDGET_STACK || key == PlatformSettingsKeys.KEY_XIAOAI_GESTURE_OPTIONS || key == PlatformSettingsKeys.KEY_NATIVE_PAD_DOCK) key to value else null,
             runtimeMutation = if (RuntimeSettingsSnapshot.owns(key)) key to value else null) { putBoolean(key, value) }
     }
 
@@ -791,7 +791,7 @@ object Preferences {
 
     fun putInt(key: String, value: Int) {
         memoInvalidate(key)
-        write(localKey = key, nativeMutation = if (key == LauncherDesktopKeys.KEY_ICON_THEME_MODE || key == LauncherDesktopKeys.KEY_ICON_THEME_COLOR || key == PlatformSettingsKeys.KEY_OPENED_FOLDER_COLUMNS || key == LauncherDesktopKeys.KEY_ICON_SIZE_PERCENT || key == LauncherDesktopKeys.KEY_GRID) key to value else null,
+        write(localKey = key, nativeMutation = if (key == LauncherDesktopKeys.KEY_ICON_THEME_MODE || key == LauncherDesktopKeys.KEY_ICON_THEME_COLOR || key == PlatformSettingsKeys.KEY_OPENED_FOLDER_COLUMNS || key == LauncherDesktopKeys.KEY_ICON_SIZE_PERCENT || key == LauncherDesktopKeys.KEY_GRID || key == PlatformSettingsKeys.KEY_NATIVE_DOCK_GLASS) key to value else null,
             runtimeMutation = if (RuntimeSettingsSnapshot.owns(key)) key to value else null) { putInt(key, value) }
     }
 
@@ -866,7 +866,23 @@ object Preferences {
         write(localKey = key, runtimeMutation = if (RuntimeSettingsSnapshot.owns(key)) key to value else null) { putString(key, value) }
     }
 
-    fun commitDockBackground(value: String): Boolean = mutations.commitDockBackground(value)
+    /** The retired WMS Surface Dock style, read only to hand an enabled switch to the native glass. */
+    private const val KEY_LEGACY_DOCK_BACKGROUND = "launcher_dock_background"
+
+    /** Removes the retired Dock setting in one transaction, enabling the native glass if it was on. */
+    fun migrateLegacyDockBackground(): Boolean {
+        if (!contains(KEY_LEGACY_DOCK_BACKGROUND)) return false
+        // Encoded as "version|enabled|...": only the enabled field survives the retirement.
+        val enabled = getString(KEY_LEGACY_DOCK_BACKGROUND, "").split('|').getOrNull(1) == "1"
+        return runCatching {
+            mutations.patch(if (enabled) mapOf(PlatformSettingsKeys.KEY_NATIVE_PAD_DOCK to true) else emptyMap(),
+                setOf(KEY_LEGACY_DOCK_BACKGROUND), null) {}
+            memoInvalidate(KEY_LEGACY_DOCK_BACKGROUND)
+            memoInvalidate(PlatformSettingsKeys.KEY_NATIVE_PAD_DOCK)
+            SettingsDiagnostics.i("DockBackground", "legacy setting retired, native glass ${if (enabled) "enabled" else "unchanged"}")
+            enabled
+        }.onFailure { SettingsDiagnostics.w("DockBackground", "legacy setting retirement failed", it) }.getOrDefault(false)
+    }
 
     fun desktopGrid(): Int = getInt(LauncherDesktopKeys.KEY_GRID, 0).takeIf(LauncherDesktopKeys::validGrid) ?: 0
     fun commitDesktopGrid(value: Int): Boolean {

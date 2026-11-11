@@ -12,7 +12,6 @@
 #include "dart_runtime_resolver.h"
 #include "dart_state_publisher.h"
 #include "broadcast_transport.h"
-#include "dock_frame_rule.h"
 #include "launcher_profiles.h"
 #include "native_config.h"
 #include "native_rule_runtime.h"
@@ -1161,15 +1160,8 @@ bool CaptureNativeRuleSettingsIntent(void* intent, hypertweak::native::NativeRul
     (void)ReadNativeI32(extras, "hypertweak_rule_desktop_grid", &output->desktop_grid);
     (void)ReadNativeI32(extras, "hypertweak_rule_icon_theme_mode", &output->icon_theme_mode);
     (void)ReadNativeI64(extras, "hypertweak_grid_nonce", &output->grid_nonce);
-    bool channel = false;
-    if (ReadNativeBool(extras, "hypertweak_rule_dock_channel", &channel) && channel) {
-        if (!ReadNativeI32(extras, "hypertweak_rule_dock_port", &output->dock_port) ||
-            !ReadNativeI64(extras, "hypertweak_rule_dock_token0", &output->dock_token0) ||
-            !ReadNativeI64(extras, "hypertweak_rule_dock_token1", &output->dock_token1) ||
-            output->dock_port < 0 || output->dock_port > 65535 ||
-            (output->dock_port != 0 && (output->dock_token0 == 0 || output->dock_token1 == 0))) return RejectNativeRuleSnapshot(6u);
-        output->dock_channel = true;
-    }
+    (void)ReadNativeBool(extras, "hypertweak_rule_native_pad_dock", &output->native_pad_dock);
+    (void)ReadNativeI32(extras, "hypertweak_rule_dock_glass", &output->dock_glass);
     return true;
 }
 bool SendNativeBroadcast(const char* action, void* extras);
@@ -1179,8 +1171,8 @@ extern "C" bool HyperTweakNotifyNativeRulePrepared() {
 }
 void AcceptNativeRuleSettings(const hypertweak::native::NativeRuleSettingsSnapshot& snapshot) {
     if (hypertweak::native::ReceiveNativeRuleSettings(snapshot.hidden, snapshot.columns,
-            snapshot.contextual, snapshot.revision, snapshot.widgets, snapshot.recents_haptic, snapshot.folder_stack, snapshot.widget_stack, snapshot.xiaoai_options, snapshot.icon_percent, snapshot.desktop_grid, snapshot.icon_theme_mode)) {
-        if (snapshot.dock_channel) (void)hypertweak::native::ConfigureDockFrame(snapshot.dock_port, snapshot.dock_token0, snapshot.dock_token1);
+            snapshot.contextual, snapshot.revision, snapshot.widgets, snapshot.recents_haptic, snapshot.folder_stack, snapshot.widget_stack, snapshot.xiaoai_options, snapshot.icon_percent, snapshot.desktop_grid, snapshot.icon_theme_mode,
+            snapshot.native_pad_dock, snapshot.dock_glass)) {
         hypertweak::native::ApplyPreparedNativeRules();
         static int64_t grid_nonce_handled=0;
         if (snapshot.grid_nonce > grid_nonce_handled && hypertweak::native::TryNotifyDesktopGridPreparation()) grid_nonce_handled=snapshot.grid_nonce;

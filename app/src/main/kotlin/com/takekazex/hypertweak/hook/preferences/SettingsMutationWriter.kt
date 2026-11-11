@@ -188,6 +188,8 @@ internal class SettingsMutationWriter(private val storage: Storage) {
                                     putBoolean(PlatformSettingsKeys.KEY_FOLDER_STACK_PREVIEW, snapshot.folderStack)
                                     putBoolean(PlatformSettingsKeys.KEY_ANDROID_WIDGET_STACK, snapshot.widgetStack)
                                     putBoolean(PlatformSettingsKeys.KEY_XIAOAI_GESTURE_OPTIONS, snapshot.xiaoaiOptions)
+                                    putBoolean(PlatformSettingsKeys.KEY_NATIVE_PAD_DOCK, snapshot.nativePadDock)
+                                    putInt(PlatformSettingsKeys.KEY_NATIVE_DOCK_GLASS, snapshot.dockGlass)
                                     putInt(LauncherDesktopKeys.KEY_ICON_THEME_MODE, snapshot.iconThemeMode)
                                     putInt(LauncherDesktopKeys.KEY_ICON_THEME_COLOR, snapshot.iconThemeColor)
                                     putInt(LauncherDesktopKeys.KEY_GRID, snapshot.desktopGrid)
@@ -239,46 +241,6 @@ internal class SettingsMutationWriter(private val storage: Storage) {
         if (isLocalOnly || localSourcePrefs === remotePrefs) return commit()
         return runCatching { AcknowledgedSettingsTask.run(serializedWriter) { commit() } }
             .onFailure { SettingsDiagnostics.e("Preferences", "waiting for settings mutation failed", it) }.getOrDefault(false)
-    }
-
-    /** Atomically commits the complete Dock configuration; only an acknowledgement updates the mirror. */
-    fun commitDockBackground(value: String): Boolean = synchronized(settingsMutationLock) {
-        if (com.takekazex.hypertweak.settings.contract.DockConfig.decode(value) == null || !isInitialized) return false
-        val key = com.takekazex.hypertweak.settings.contract.DockConfig.KEY
-        fun commit(): Boolean {
-            val previousRuntime = if (isLocalOnly) null else RuntimeSettingsSignal.lastAcknowledged()
-            val previous = if (previousRuntime != null) previousRuntime.values[key] as? String else remotePrefs.getString(key, null)
-            return try {
-                val runtime = if (isLocalOnly) null else RuntimeSettingsSignal.prepare(key, value)
-                val editor = remotePrefs.edit().putString(key, value)
-                runtime?.let { RuntimeSettingsSignal.write(editor, it) }
-                if (!editor.commit()) {
-                    val restore = remotePrefs.edit()
-                    if (previous == null) restore.remove(key) else restore.putString(key, previous)
-                    previousRuntime?.let { RuntimeSettingsSignal.write(restore, it) }
-                    check(restore.commit()) { "Dock settings rollback rejected" }
-                    false
-                } else {
-                    localSourcePrefs?.takeIf { it !== remotePrefs }?.edit(commit = true) { putString(key, value) }
-                    if (runtime != null) RuntimeSettingsSignal.acknowledge(runtime)
-                    storage.invalidate(key)
-                    SettingsDiagnostics.i("DockBackground", "settings committed $value")
-                    true
-                }
-            } catch (error: Exception) {
-                runCatching {
-                    val restore = remotePrefs.edit()
-                    if (previous == null) restore.remove(key) else restore.putString(key, previous)
-                    previousRuntime?.let { RuntimeSettingsSignal.write(restore, it) }
-                    check(restore.commit()) { "Dock settings rollback rejected" }
-                }.onFailure { SettingsDiagnostics.w("DockBackground", "settings rollback failed", it) }
-                SettingsDiagnostics.w("DockBackground", "settings commit failed", error)
-                false
-            }
-        }
-        return if (isLocalOnly || localSourcePrefs === remotePrefs) commit()
-        else runCatching { AcknowledgedSettingsTask.run(serializedWriter) { commit() } }
-            .onFailure { SettingsDiagnostics.w("DockBackground", "settings acknowledgement failed", it) }.getOrDefault(false)
     }
 
     /**

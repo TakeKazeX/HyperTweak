@@ -161,7 +161,6 @@ internal object RuntimeSettingsParticipants {
             true
         }
         registerForProcess(RuntimeSettingsGroups.NATIVE) { _ -> actions.publishNative(); true }
-        registerForProcess(RuntimeSettingsGroups.DOCK) { _ -> com.takekazex.hypertweak.hook.rules.system.DockBackgroundHooker.refreshSettings() }
         registerForProcess(RuntimeSettingsGroups.VOLUME) { _ -> if (isSystemServer) VolumeKeyStepsHooker.refreshConfiguration(); true }
         // The settings store publishes the hook snapshots before dispatch.
         registerForProcess(RuntimeSettingsGroups.FREEFORM) { _ -> true }

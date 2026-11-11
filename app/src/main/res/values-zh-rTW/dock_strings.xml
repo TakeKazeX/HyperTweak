@@ -1,25 +1,14 @@
 <resources>
     <string name="dock_title">Dock 背景</string>
-    <string name="dock_summary">原生柔光玻璃或清透磨砂，跟隨系統亮暗模式</string>
-    <string name="dock_material">材質風格</string>
-    <string name="dock_glass">柔光玻璃</string>
-    <string name="dock_frosted">清透磨砂</string>
+    <string name="dock_summary">保留手機 Dock 及其動畫，背景改用小米桌面內建的 HyperOS 玻璃材質。</string>
     <string name="dock_preview_icons">調節背景時範例圖示保持原位。實際桌面跟隨系統亮暗模式。</string>
     <string name="dock_height">高度</string>
     <string name="dock_horizontal">水平邊距</string>
     <string name="dock_bottom">底部邊距</string>
     <string name="dock_radius">圓角</string>
     <string name="dock_reset">重設尺寸</string>
-    <string name="dock_save_failed">Dock 設定儲存失敗，已保留原設定。</string>
-    <string name="dock_layout_tab">佈局</string>
-    <string name="dock_glass_tab">玻璃</string>
-    <string name="dock_blur">模糊半徑</string>
-    <string name="dock_tint">底色濃度</string>
-    <string name="dock_reset_glass">重設玻璃參數</string>
-    <string name="dock_opacity">玻璃不透明度</string>
-    <string name="dock_opacity_summary">同時影響整體玻璃、邊緣高光與折射。</string>
-    <string name="dock_brightness">亮度調節</string>
-    <string name="dock_brightness_summary">調節玻璃亮度，保留不透明度和光學參數。0 為原生亮度。</string>
-    <string name="dock_shading">壓暗強度</string>
-    <string name="dock_shading_summary">0 關閉亮桌布上的深色混合，100% 恢復原生壓暗。</string>
+    <string name="dock_native_geometry">玻璃尺寸</string>
+    <string name="dock_native_height_summary">0 表示填滿 Dock 區域。</string>
+    <string name="dock_adaptive_width">寬度隨圖示數量變化</string>
+    <string name="dock_adaptive_width_summary">與平板 Dock 一樣，圖示每少一個，玻璃就收窄一格；沒有圖示時保留一格寬度。開啟後水平邊距固定，無法調整。</string>
 </resources>

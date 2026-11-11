@@ -14,7 +14,7 @@ Kotlin sources: `app/src/main/kotlin/com/takekazex/hypertweak/`.
 - Directory ownership: UI pages are grouped under `ui/page/<feature>/`, shared dialogs under `ui/components/dialog/`; `Route.kt` remains in `ui/page/` for stable navigation identity. Utilities are grouped under `util/{logging,restart,scope,device,platform,diagnostics,update}/`. Hook support lives in `hook/preferences/`, `hook/runtime/{settings,reload}/`, `hook/nativebridge/`, and `hook/logging/`; `HookEntry`, `Preferences`, `NativeRules`, receiver and service entry names remain stable. SystemUI gesturebar/notification/controlcenter/lockscreen, icon carrier/left and SecurityCenter battery/sidebar/privacy each keep their feature family together.
 - `hook/`: process entry and feature hooks; `hook/base/`: shared resolution and lifecycle infrastructure.
 - `hook/bootstrap/`: explicit package/system-server installation plans and process-side settings participants. `HookEntry` retains DEX-session, loader, handle and generation ownership; participant coverage is validated before dispatcher registration. `ProcessLifecycleHooks` owns which concrete hookers run at process/context/hot-reload boundaries, so `HookEntry` imports no feature. `.github/scripts/check_architecture.py` also enforces hook internals: hook-root files and `base`/`runtime`/`preferences`/`nativebridge`/`logging` never reference `rules`; feature families reference only `rules.shared` plus the commented `FEATURE_COLLABORATIONS` allowlist.
-- `settings/contract/`: storage-independent domain keys/defaults, shared lockscreen options, Dock configuration, icon slot/control policies, signal artwork style and screenshot snapshot parsing. Callers use domain `*Keys` directly; `Preferences` remains the runtime read/write boundary without duplicate constant aliases. Storage diagnostics use `SettingsDiagnostics`, bound by `DebugLog` at process bootstrap, with a non-recursive platform fallback.
+- `settings/contract/`: storage-independent domain keys/defaults, shared lockscreen options, native Dock glass geometry, icon slot/control policies, signal artwork style and screenshot snapshot parsing. Callers use domain `*Keys` directly; `Preferences` remains the runtime read/write boundary without duplicate constant aliases. Storage diagnostics use `SettingsDiagnostics`, bound by `DebugLog` at process bootstrap, with a non-recursive platform fallback.
 - `ui/`: Compose screens; `util/`: shared utilities, including `PlatformLevel.kt` for OS3/OS4 gates.
 - `HookEntry` initializes processes; `Preferences` is the runtime/cross-process settings boundary; `BaseHooker` owns hook lifecycle. `hook/base/dex` owns feature descriptors, APK identity caches, serialized resolution and cancellable background preparation; `DexKitManager` is the native bridge backend; consumers use `DexRuntime` and `BaseHooker.prepareDexTargets` instead of managing bridge, worker, cache or cancellation state. Runtime settings refresh existing island policies without reinstalling or scanning DEX on the main thread.
 - `ui/app/` owns the app Compose shell, observable setting values and persisted restart baselines. MainActivity injects the `AppSettingsStore` contract backed by `app/PreferencesAppSettings`; AppContent, AppSettingsState and AppRestartTracker share that store for effective migration reads, acknowledged writes, reset and flush. `MainActivity` retains Activity lifecycle/platform entry points. `AppContent` accepts a ComponentActivity, the Activity-owned UpdateManager and a module-status callback; it does not import MainActivity. `AppStartupEffects` owns launch effects; `app/AppActivationCoordinator` owns service-rebind/reinstall decisions and acknowledged first-run cleanup. Fresh-install evidence remains intact until cleanup succeeds. `ui/state/ReloadableSettings` uses the same readers for initial values and service-rebind/reset refreshes. The app shell also provides `LocalAppSettingsStore` to all navigation pages and dialogs; `AppSettingsStore` composes nine feature capabilities over the 12-operation `SettingsValues` storage port (backup, fingerprint, power button, back gesture, camera, launcher, SystemUI, platform and power saving); `ui/page` captures this port before invoking callbacks rather than importing Preferences. Effective migration readers, backup/restore, batched back-gesture writes and flush remain delegated to PreferencesAppSettings.
@@ -56,7 +56,7 @@ App records are stored by the existing AppLogStore; LogRepository receives its r
 
 `RuntimeSettingsGroups` registers setting ownership, destinations and resync authorization.
 Every explicit live-settings group uses the common snapshot/dispatcher: icons, islands,
-screenshot, back gesture, native launcher settings, Dock, volume-key steps, XMSF focus
+screenshot, back gesture, native launcher settings (including the Dock glass), volume-key steps, XMSF focus
 authentication, gesture-bar surfaces, security/offline checks, Security Center privacy and
 warnings, cross-package clipboard and bubble notifications, and the SystemUI domains added
 by the 2026-10-22 live-settings audit (`systemui.aod`, `.keyguard`, `.notification_header`,
@@ -82,11 +82,11 @@ module suppression (lockscreen status bar).
 `Preferences` commits complete acknowledged subsets through
 `RuntimeSettingsSignal`; `RuntimeSettingsReceiver` delivers per-destination scoped snapshots
 to `SettingsReloadDispatcher`. Legacy saved scopes cannot invent defaults for newly migrated
-features. Bulk reset/restore and Dock commits use the same acknowledgement and rollback path.
+features. Bulk reset/restore uses the same acknowledgement and rollback path.
 
 `ManagedHookReload` / `BaseHooker.replaceChildren` own hook recreation and host state recovery;
 islands use fresh instances. The vendored back runtime reads the common preferences facade.
-Native launcher delivery and Dock rendering remain output/host adapters, with their old
+Native launcher delivery remains an output/host adapter, with their old
 independent settings inputs removed. API-102 replacement cancels dispatch, carries the
 scoped primitive snapshot, closes old observers and resumes registered participants after
 restoration. Dedicated native binary updates retain their own acceptance boundary; Java hook

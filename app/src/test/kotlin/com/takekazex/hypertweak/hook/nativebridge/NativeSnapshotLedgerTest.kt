@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.nativebridge
 
+import com.takekazex.hypertweak.settings.contract.NativeDockGlassGeometry
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import org.junit.Assert.*
@@ -50,5 +51,44 @@ class NativeSnapshotLedgerTest {
         assertEquals(committed, replacement.latest())
         replacement.restore(arrayOf<Any>(false, 3, false, "wrong", 5L))
         assertEquals(committed, replacement.latest())
+    }
+    @Test fun `Pad Dock survives reload and the retired icon bit stays retired`() {
+        val stock = NativeRuleStateSnapshot(false, 3, false)
+        val previous = NativeSnapshotLedger().apply { offer(stock) }
+        val oldIconRefresh = previous.save()!! + true
+        assertEquals(stock, NativeSnapshotLedger().apply { restore(oldIconRefresh) }.latest())
+        val selected = stock.copy(nativePadDock = true, revision = 1)
+        assertTrue(previous.offer(selected))
+        assertEquals(selected, NativeSnapshotLedger().apply { restore(previous.save()) }.latest())
+        assertNull(NativeRuleStateSnapshot.read { mapOf(PlatformSettingsKeys.KEY_NATIVE_PAD_DOCK to "true") })
+    }
+    @Test fun `Dock glass geometry survives reload and rejects malformed values`() {
+        val geometry = NativeDockGlassGeometry(height = 72, margin = 16, bottom = 8, radius = 24).pack()
+        val stock = NativeRuleStateSnapshot(false, 3, false)
+        val previous = NativeSnapshotLedger().apply { offer(stock) }
+        assertEquals(14, previous.save()!!.size)
+        val custom = stock.copy(dockGlass = geometry, revision = 1)
+        assertTrue(previous.offer(custom))
+        assertEquals(17, previous.save()!!.size)
+        assertEquals(custom, NativeSnapshotLedger().apply { restore(previous.save()) }.latest())
+        assertEquals(custom.copy(revision = 2, dockGlass = NativeDockGlassGeometry.DEFAULT_PACKED),
+            NativeRuleMutation.apply(custom, PlatformSettingsKeys.KEY_NATIVE_DOCK_GLASS, NativeDockGlassGeometry.DEFAULT_PACKED, 2))
+        assertTrue(runCatching { NativeRuleMutation.apply(custom, PlatformSettingsKeys.KEY_NATIVE_DOCK_GLASS, 121, 2) }.isFailure)
+        assertNull(NativeRuleStateSnapshot.read { mapOf(PlatformSettingsKeys.KEY_NATIVE_DOCK_GLASS to (65 shl 24)) })
+        assertNull(NativeRuleStateSnapshot.read { mapOf(PlatformSettingsKeys.KEY_NATIVE_DOCK_GLASS to -1) })
+        assertNull(NativeRuleStateSnapshot.read { mapOf(PlatformSettingsKeys.KEY_NATIVE_DOCK_GLASS to 1L) })
+        assertEquals(NativeDockGlassGeometry.DEFAULT_PACKED, NativeRuleStateSnapshot.read { emptyMap<String, Any>() }!!.dockGlass)
+    }
+    @Test fun `adaptive Dock width rides in the geometry height byte`() {
+        val adaptive = NativeDockGlassGeometry(height = 72, margin = 16, bottom = 8, radius = 24, adaptive = true)
+        val packed = adaptive.pack()
+        assertEquals(72 or 0x80 or (16 shl 8) or (8 shl 16) or (24 shl 24), packed)
+        assertEquals(adaptive, NativeDockGlassGeometry.unpack(packed))
+        assertEquals(adaptive.copy(adaptive = false), NativeDockGlassGeometry.unpack(packed and 0x80.inv()))
+        assertEquals(packed, NativeRuleStateSnapshot.read { mapOf(PlatformSettingsKeys.KEY_NATIVE_DOCK_GLASS to packed) }!!.dockGlass)
+        assertEquals(packed, NativeRuleMutation.apply(NativeRuleStateSnapshot(false, 3, false),
+            PlatformSettingsKeys.KEY_NATIVE_DOCK_GLASS, packed, 1).dockGlass)
+        // The flag is no height: 0x80 | 121 still carries an out-of-range height.
+        assertNull(NativeDockGlassGeometry.unpack(0x80 or 121))
     }
 }

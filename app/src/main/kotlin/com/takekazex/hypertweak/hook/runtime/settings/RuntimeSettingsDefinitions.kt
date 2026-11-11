@@ -17,7 +17,6 @@ import com.takekazex.hypertweak.settings.contract.AppSettingsKeys
 
 import com.takekazex.hypertweak.settings.contract.SystemUiLiveSettings
 import com.takekazex.hypertweak.settings.contract.IconSettingsPreferencePolicy
-import com.takekazex.hypertweak.settings.contract.DockConfig
 
 
 /** Key predicates and process ownership. IDs remain in RuntimeSettingsGroups. */
@@ -44,7 +43,6 @@ internal object RuntimeSettingsDefinitions {
     const val SCREENSHOT = "screenshot.frame"
     const val BACK = "gesture.back"
     const val NATIVE = "launcher.native"
-    const val DOCK = "launcher.dock"
     const val VOLUME = "system.volume"
     const val XMSF = "xmsf.focus"
     const val AICR_FREEFORM = "aicr.freeform"
@@ -151,7 +149,8 @@ internal object RuntimeSettingsDefinitions {
     )
     private val nativeKeys = setOf(LauncherDesktopKeys.KEY_ICON_THEME_MODE, LauncherDesktopKeys.KEY_ICON_THEME_COLOR, LauncherDesktopKeys.KEY_GRID, LauncherDesktopKeys.KEY_ICON_SIZE_PERCENT, PlatformSettingsKeys.KEY_HIDE_RECENTS_CLEAR_BUTTON, PlatformSettingsKeys.KEY_OPENED_FOLDER_COLUMNS,
         PlatformSettingsKeys.KEY_CONTEXTUAL_SEARCH_LONG_PRESS, PlatformSettingsKeys.KEY_ALLOW_ANDROID_WIDGETS_TO_ASSISTANT,
-        PlatformSettingsKeys.KEY_NATIVE_RULE_REVISION, PlatformSettingsKeys.KEY_RECENTS_CARD_HAPTIC, PlatformSettingsKeys.KEY_FOLDER_STACK_PREVIEW, PlatformSettingsKeys.KEY_ANDROID_WIDGET_STACK, PlatformSettingsKeys.KEY_XIAOAI_GESTURE_OPTIONS, "prefs_epoch")
+        PlatformSettingsKeys.KEY_NATIVE_RULE_REVISION, PlatformSettingsKeys.KEY_RECENTS_CARD_HAPTIC, PlatformSettingsKeys.KEY_FOLDER_STACK_PREVIEW, PlatformSettingsKeys.KEY_ANDROID_WIDGET_STACK, PlatformSettingsKeys.KEY_XIAOAI_GESTURE_OPTIONS, PlatformSettingsKeys.KEY_NATIVE_PAD_DOCK,
+        PlatformSettingsKeys.KEY_NATIVE_DOCK_GLASS, "prefs_epoch")
     private val aospUiKeys = setOf(
         PlatformSettingsKeys.KEY_AOSP_POWER_MENU, PlatformSettingsKeys.KEY_AOSP_VOLUME_PANEL,
         PlatformSettingsKeys.KEY_AOSP_VOLUME_HAPTIC_MIUI, PlatformSettingsKeys.KEY_EXTEND_UNLOCK_FIX,
@@ -228,6 +227,7 @@ internal object RuntimeSettingsDefinitions {
         PlatformSettingsKeys.KEY_KEEP_SYSTEM_SOUNDS_IN_POWER_SAVE,
         PlatformSettingsKeys.KEY_KEEP_WAKEUP_GESTURES_IN_POWER_SAVE,
         PlatformSettingsKeys.KEY_XIAOAI_GESTURE_OPTIONS,
+        PlatformSettingsKeys.KEY_NATIVE_PAD_DOCK,
         SystemUiSettingsKeys.KEY_NOTIFICATION_WHITELIST_BYPASS,
         PlatformSettingsKeys.KEY_SHARE_PANEL_SHOW_ALL,
         AppSettingsKeys.KEY_APP_DETAILS_ICON_LAUNCH,
@@ -327,7 +327,6 @@ internal object RuntimeSettingsDefinitions {
         },
         BACK to Group(systemUi + setOf("android", "com.miui.home")) { it in backKeys },
         NATIVE to Group(systemUi + "com.miui.home") { it in nativeKeys },
-        DOCK to Group(setOf("android")) { it == DockConfig.KEY },
         VOLUME to Group(systemUi + "android") { it == PlatformSettingsKeys.KEY_VOLUME_KEY_STEP_ENABLED || it == PlatformSettingsKeys.KEY_VOLUME_KEY_STEP_COUNT || it == PlatformSettingsKeys.KEY_VOLUME_KEY_STEP_SCOPE },
         XMSF to Group(setOf("com.xiaomi.xmsf")) { it == PlatformSettingsKeys.KEY_XMSF_UNLOCK_FOCUS_AUTH },
         FREEFORM to Group(systemUi + "android") { it in FreeformSettingsKeys.keys },

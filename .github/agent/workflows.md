@@ -39,7 +39,7 @@ API-102 retirement has a commit boundary: state capture and framework saved-stat
 must succeed before destructive cleanup. Preflight failures reject replacement; after cleanup
 starts, run every retirement step and accept the next generation even if one step fails.
 Do not report a partially retired owner as a healthy old generation. Settings queue deadlines
-may cancel unstarted bulk/Dock work; started commits must return their actual receipt before
+may cancel unstarted bulk work; started commits must return their actual receipt before
 the caller updates local mirrors or reports success/failure. These waits belong on IO dispatchers.
 
 ## Debug settings and diagnostics
@@ -121,6 +121,23 @@ Portable native ownership/IPC/transport checks run through
 Linux CI adds `--include-linux-worker` for eventfd/fork/remap tests. On macOS use
 the dedicated Android compiler/Bionic worker command below when device checks are requested.
 Host APK/ELF and assembly ABI checks remain separately selected; this suite does not replace them.
+
+For Native Dock glass, run `dart_probe` on the current Launcher snapshot for the
+`native_dock_glass`, `native_dock_route`, `native_dock_refresh` and `native_dock_interaction` families.
+Exercise conflicting calls/fields, partial installs and the frame admission/restore
+path, then run `python3 app/src/test/cpp/run_native_dock_abi_test.py <NDK-clang>`.
+It executes the branch, factory (insets for fill, clamped and unbounded heights;
+adaptive margins for fewer, full, overfull and empty rows, both cell flag values, a
+foreign list class, missing columns, non-finite width and a missing table, flag holder,
+config holder or Rx value),
+the stage-1 Padding/glass frame chain, the stage-2 item frame and center call, the
+center gate (owned frame, missing center, host frames), the wrap gate (owned return,
+title replay and item center diagnostics), every resume path and idle recovery. Geometry
+persistence is covered by `native_rule_settings_record_test.cpp` and the snapshot
+ledger tests; the visible size, edges and animation remain device acceptance.
+Check real Launcher visibility, icon launch/return, long press, drag and persistence,
+lock/resume and live disable. Runtime logs establish activation and legacy lease
+retirement separately from manual UI acceptance.
 
 ### Dart state observer
 

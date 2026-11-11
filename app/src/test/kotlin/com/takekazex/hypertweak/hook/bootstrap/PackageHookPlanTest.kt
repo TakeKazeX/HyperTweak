@@ -60,7 +60,7 @@ class PackageHookPlanTest {
             .bufferedReader().use { it.readText() }
         val baseline = JSONArray(json)
         val expected = (0 until baseline.length()).map { baseline.getString(it) }
-        assertEquals(24, expected.size)
+        assertEquals(23, expected.size)
         assertEquals(expected, names(SystemServerHookPlan.steps(false)))
         assertEquals(expected + "AospImeSystemHooker", names(SystemServerHookPlan.steps(true)))
         val observed = mutableListOf<String>()

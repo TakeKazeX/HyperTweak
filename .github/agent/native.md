@@ -56,6 +56,142 @@ Authoring a new hook:
 
 Native settings have two event paths: framework remote preference callbacks and authenticated app-to-SystemUI notifications after acknowledged commits. Native setters derive a complete desired native subset from the last acknowledgement. Ordinary remote commits send only differences against both that acknowledgement and the current editor shadow, so rejected shadow values cannot contaminate a later commit; reset/restore and clear-based rollbacks explicitly repopulate the complete desired subset. Successful native commits reconcile the app-local mirror only when no newer edit is queued. Failed reset or backup restoration replaces the entire map captured on the serialized writer so newly introduced keys cannot survive rollback. Requests use the app acknowledgement ledger, not a possibly uncommitted mutable editor map. `native_rules_revision` is runtime bookkeeping, excluded from portable backups; reset epochs supersede older commits. `NativeSnapshotLedger` rejects stale/conflicting snapshots and carries only bootstrap primitive values across classloader replacement. SystemUI attaches its receiver even while its remote channel is recovering, requests an app snapshot on readiness/boot/unlock and finishes publication after restoring package state. All transport replays/retries are finite; retired publishers close their receivers and queued work. Normal setting changes never invoke native activation or root.
 
+### Native Dock glass
+
+This is the only Dock background style; the old WMS Surface style is retired. It keeps
+the phone Hotseat with its own animation, edit, recents and size behavior, and replaces
+only the background child with the Launcher's HyperOS 4 glass, wrapped in the Hotseat's
+own unlock animation widget so it enters with the icons. The settings key and native
+option bit keep their historical `native_pad_dock` names.
+
+`native_dock_glass` matches the phone Hotseat LayoutBuilder's optional background
+branch, which appends the factory result only while a captured Rx flag is true. The
+captured flag displacement comes from the branch. The `tbnz` skip must land on the
+list-without-background move. The factory must be a single allocation whose stub
+differs from the glass arm's stub. The glass arm is `_buildStrategy`'s first mode arm.
+Its prologue must spill state, mode and the radius as an unboxed double into the
+0x20-byte frame. The arm fills radius, tint and opacity only from that frame and the
+object pool. The same family also decodes the geometry wrapper:
+- The Hotseat return site: the three displaced words after the factory call give the
+  child-list and result slots and the list length field. The constraints argument slot
+  and `maxHeight` field come from the LayoutBuilder body.
+- `EdgeInsets operator +`: the four unboxed frame slots stored to left/top/right/bottom
+  in field order, the frame size and the allocation stub's class id.
+- The Padding builder fragment: its padding slot must be fed by
+  `bl insets_stub; stur x0, [fp, #slot]`, its child call's return PC must store the
+  child, and the Padding class id comes from its allocation stub. Of several insets
+  candidates (EdgeInsets and EdgeInsetsDirectional), only the one whose stub feeds a
+  Padding fragment is accepted.
+- The item builder (`_buildItems`, found from the closure's `ldur x6, [fp, #S]; bl`
+  call): the Dock center call is a switchable call through a pool pair whose receiver
+  is the context field that the x6 spill feeds and that the closure slot `S` holds
+  (stored only before the gate). The fragment after it gives the item slot, center slot
+  and info field it displaces. The unlock wrapper allocation (class id distinct from
+  Padding and EdgeInsets) must store child, position, kind 2 (hotseat), fixed `true`
+  and screen −1, then the title (field 0x2b) from its slot, followed by a pool load.
+  No branch may land inside either 16-byte window; the frame size, child slot and
+  position slot come from these stores.
+
+The probe resolves on 9239 (center 0x10dcd40, wrap 0x10dcf98) and 9226 (0x11047ac,
+0x1104a04). It rejects mutations of the branch shape, flag
+operand, skip target, factory call, strategy prologue and glass stores, and of the
+insets field store, insets slot load, padding slot store/load, child store, the
+return-site resume words, the context capture field, the center receiver field and
+call register, the wrapper kind, fixed flag and title fields, the controller argument
+register, a controller slot rewritten after the gate, a branch into either window, and the item-cell flag store or its `true` value.
+
+`native_dock_refresh` finds the scheduler's successful
+return only when the normal and exceptional exits restore the same idle phase and clear
+the same timestamp on the saved receiver. It derives the root and build-owner fields
+from the original Flutter reassemble bridge and requires the draw path to read both
+fields in the same roles. The bridge's original calls identify the Element entry.
+It rejects a duplicate frame or changes to the frame return, exception cleanup, root
+field or Element dispatch.
+
+`native_dock_route` and `native_dock_interaction` are still resolved, but none of their
+sites are patched. They supply the HomePage binding, DeviceConfig form-factor fields
+and drag guards that the idle admission check reads.
+
+Five glass gates and one scheduler idle shim install as a bank. The branch gate
+forces the background child only for the selected isolate. The factory gate acts only
+on the verified Hotseat call's return PC; every other path tail-calls the stock
+allocation stub. No module PC is ever on the Dart stack, and native code runs only
+between host fragments:
+1. Factory gate: reads `maxHeight` from the LayoutBuilder constraints, computes the
+   insets, opens an `EdgeInsets +` frame (tagged slots null, unboxed slots filled) and
+   enters its allocation. That returns to the Hotseat call's return site.
+2. Return gate, stage 1 (same thread, result class EdgeInsets): opens the Padding
+   builder frame returning to the Hotseat site with the insets in its live padding
+   slot, then the glass strategy frame returning into the Padding child call, and
+   enters the glass arm.
+3. Return gate, stage 2 (result class Padding): opens an item builder frame whose
+   saved PC is the Hotseat site, keeps the Padding in its child slot (every other
+   tagged slot null), and performs the center call on the captured controller with
+   the genuine center-call return PC.
+4. Center gate, stage 3, only in that owned frame (its saved PC is the Hotseat site):
+   stores the center Offset in the position slot and enters the wrapper allocation.
+   A non-object center returns the plain Padding instead. Every other frame replays
+   the displaced words.
+5. Wrap gate: always replays the title store. At stage 4 in the owned frame it clears
+   the wrapper's item-cell flag (field 0x27, stored `true` by the host), pops the
+   frame and returns the wrapper to the Hotseat site, where the return gate resumes
+   the Hotseat code. Any other stage or result replays and resumes.
+
+The flag matters: with it set, `_UnlockWidgetState.isCurrentScreen` needs item info
+(container −101…−106) or a matching screen id, so a wrapper without info logs
+`canRunUnlockAnim, null, false, …` and never animates. Cleared, it counts as current
+screen, and `_resolveCellLocationInfo` falls back to the wrapper's position (the Dock
+center) for kind 2, the same supported path the indicator and search bar wrappers use.
+
+Geometry is relative to the Hotseat LayoutBuilder area (about 102 dp on HyperOS 4
+phones): left = right = margin, bottom = bottom offset, top = max(0, maxHeight −
+bottom − height). Height 0 fills the area, and an unbounded maxHeight (≥ 4096) gets
+no top inset. The setting `launcher_native_dock_glass` packs height | margin << 8 |
+bottom << 16 | radius << 24; every byte stays below 128 except bit 7 of the height
+byte, the adaptive width flag (`kNativeDockGlassAdaptive`, Kotlin `ADAPTIVE_BIT`), and
+the Kotlin `NativeDockGlassGeometry.DEFAULT` must equal the native `kNativeDockGlassDefault`. It
+travels in the native rule snapshot (`hypertweak_rule_dock_glass`, absent or malformed
+= default), is persisted in its own checksummed `dock_glass` record only when it
+changes, and is restored with the settings record at bootstrap. A change while the
+glass is selected sets the recovery flag, so the next idle frame rebuilds once. The
+factory gate records the last `maxHeight` and the center gate the last center; the
+idle log prints both. The settings page preview mirrors these insets on a measured
+area (`NativeDockGlassPreviewGeometry`), which is never sent to the Launcher.
+
+Adaptive width (optional contract, off by default). The phone Hotseat keeps a fixed
+cell (`GridController.dockCellWidth`) and centers fewer icons, so with the flag set the
+factory gate uses the default full-row margin (the packed margin is ignored) and adds
+(columns − max(n, 1)) × cell / 2 to both sides, capped at half the width: an empty row
+keeps one cell, n ≥ columns or unbounded width keep the margin. The cell is read the way
+the item builder computes it: static table `[THR + table]`, a flag holder static whose
+bool field is tested with the host's own `tbnz #4` (true → `config.cell + extra`, false →
+`config.alt`), and `config` = the `currentConfig` holder static → Rx field → Rx value. A
+null, sentinel (`pp[sentinel]`) or non-object at any step, or a cell outside
+(0, maxWidth), keeps the margin. The decoder takes, from the Hotseat builder, the
+`ldur xC, [fp, #slot]; ldur w5, [xC, #items]; add x5, x5, heap` load before the item
+builder call (followed only by frame reloads, the slot written only before the gate) and
+the single `ldur d, [x, #maxWidth]; fmov d, #columns; fdiv` (an integer 3–6). The item
+builder must spill x5, publish it into its own context and iterate it with the resume
+length field, and contain exactly one `kCell` sequence (flag load, `tbnz #4`, two
+`currentConfig` calls on the same receiver, `fmov #extra`, `fadd`, the alt load, then a
+halved add to the item x); `currentConfig` must be the static-or-find getter whose Rx
+getter rejects the sentinel. Any mismatch leaves columns 0 and the glass at fixed width,
+logged once. At run time the list must have the child list's class id and a Smi length.
+9239 and 9226 both decode slot −8, field 0x13, 4 columns, table 0x78, flag 0x27c0/0xe7,
+config 0x2828 → 0x2f → 0x13, cell 0x77 + 20, alt 0x2b (the device measures a 94.4 dp
+pitch). Mutations of the fmov, fdiv, maxWidth load, x5 load/add, argument reloads, a
+post-gate slot store, the builder spill, publish and length field, and of every structural
+word of `kCell` and its static prelude disable it; operand-only flips re-decode
+consistently. The factory also records maxWidth, n and the cell, and the wrap gate's host
+path records the first and last item unlock center x since that factory (integer
+registers only); the selection log prints them. The glass width changes when the
+Hotseat rebuilds after an item change; it does not animate, and during a drag the host
+keeps the full-row layout until the drop.
+
+The idle callback requires a live phone HomePage and inactive drag and drop guards. It
+then sets the isolate-local selection and tail-transfers to the host's Element
+reassemble with the original caller PC. Disable restores stock on the same boundary.
+
 ## Native binary upgrade
 
 The hot-reload dialog includes a separate native-update action requiring root and an up-to-date SystemUI Java target. `NativeUpgradeManager` compares the actual payload hashes in the signed mapped/installed APKs. HYOS may label its root spawner `usap64`; ownership is established from the launcher's parent, exact executable, uid and `/proc` start time, not its displayed name or a ROM table. A changed native image is activated by guarded spawner replacement following upstream `abe7d4d6f880422d7faef973bd9c90457d662495`. Verification checks the new process family, current APK inode mapping and the native `runtime_identity` record (version/pid/start time/checksum). This is a launcher-process refresh, not same-process `.so` unloading. The previous complete signed APK is retained for explicit PackageManager rollback with data preserved. Root IO, output sizes and activation waits are bounded; an interrupted activation is reported after reopening. Temporary mapped APK copies are removed on inspection failure, and successful process checks are not restored as current facts from the journal. Rollback always resolves the current spawner afresh and records failures. Code loading/initialization does not prove native feature UI acceptance.

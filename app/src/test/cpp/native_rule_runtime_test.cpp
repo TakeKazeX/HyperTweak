@@ -47,9 +47,13 @@ void SetFolderColumns(int32_t value) { columns.store(value); }
 bool ClearButtonHiddenRequested() { return hidden.load(); }
 int32_t FolderColumnsRequested() { return columns.load(); }
 bool ApplyClearButtonRule(void*) { return true; }
-bool DockFrameRequested() { return false; }
-bool ApplyDockFrameRule(void*) { return true; }
-void ResetDockFrameAfterFork() {}
+void SetNativeDockEnabled(bool) {}
+bool SetNativeDockGlassGeometry(uint32_t) { return true; }
+bool NativeDockRequested() { return false; }
+bool PrepareNativeDockRule(void*) { return true; }
+bool ApplyNativeDockRule(void*) { return true; }
+const char* NativeDockRuleReason() { return "disabled"; }
+void ResetNativeDockAfterFork() {}
 void SetAndroidWidgetStackEnabled(bool value) { widget_stack.store(value); }
 bool AndroidWidgetStackRequested() { return widget_stack.load(); }
 bool ApplyAndroidWidgetStackRule(void*) { return true; }
@@ -101,7 +105,7 @@ void InvalidateFailedDartRuleTargets() {}
 void ResetDartRulePreparationAfterFork() {}
 void LockDartRulePreparationForFork() {}
 void UnlockDartRulePreparationAfterFork() {}
-bool PrepareDartRuleTargets(void*, bool, bool, bool, bool, bool, bool, bool, bool, bool, bool) {
+bool PrepareDartRuleTargets(void*, bool, bool, bool, bool, bool, bool, bool, bool, bool) {
     ++preparations;
     entered.store(true);
     while (block.load()) usleep(1000);
