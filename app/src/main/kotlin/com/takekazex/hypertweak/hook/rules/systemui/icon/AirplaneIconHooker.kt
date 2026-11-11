@@ -1,6 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
 import com.takekazex.hypertweak.hook.base.HostAccess
+import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
 import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
 
 import android.graphics.Canvas
@@ -14,6 +15,16 @@ import com.takekazex.hypertweak.util.logging.DebugLog
 object AirplaneIconHooker : StaticHooker() {
     // Published on settings acceptance; hook callbacks perform no storage reads.
     private val settingIconMirrorAirplane by hookSetting(false) { Preferences.getBoolean(IconSettingsKeys.KEY_ICON_MIRROR_AIRPLANE, false) }
+
+    init {
+        // The mirror only applies at draw time: redraw the living airplane views after the hook
+        // is installed or removed, so a toggle shows without the icon groups being rebuilt.
+        hostRecovery(HostRecoveryPhase.ICONS, icons = true) { scope ->
+            val type = "com.android.systemui.statusbar.StatusBarIconView".toClassOrNull() ?: return@hostRecovery
+            val slot = HostAccess.field(type, "mSlot") ?: return@hostRecovery
+            scope.views.filter { type.isInstance(it) && slot.get(it) == "airplane" }.forEach(View::invalidate)
+        }
+    }
 
     override fun onHook() {
         if (!settingIconMirrorAirplane) return

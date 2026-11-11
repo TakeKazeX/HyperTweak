@@ -166,6 +166,28 @@ object IconPositionHooker : StaticHooker() {
         rewriteIconList(list)
     }
 
+    /**
+     * Re-merges every tracked container's ignored slots after a policy-only settings change. Slot
+     * order is untouched: order changes still rebuild the groups. Main thread only.
+     */
+    internal fun refreshPolicy() {
+        if (retiring) return
+        options = IconTunerOptions.snapshot()
+        rowOverrides = settingCcIconRowOverrides
+        val tracked = synchronized(stateLock) { containerStates.entries.map { it.key to it.value } }
+        tracked.forEach { (container, state) ->
+            runCatching {
+                val merged = blockedFor(container, surfaceFor(container, state.hostIgnored), state.hostIgnored)
+                if (merged != state.lastApplied) {
+                    state.lastApplied = merged
+                    restoreIgnoredSlots(container, merged)
+                }
+                // The control-center row split is re-derived on layout even when nothing is hidden.
+                (container as? View)?.requestLayout()
+            }.onFailure { DebugLog.w(TAG, "live icon policy refresh failed", it) }
+        }
+    }
+
     internal fun recoverExistingContainers(views: List<View>) {
         views.filter { it.javaClass.name == CONTAINER_CLASS }.forEach { container ->
             runCatching {

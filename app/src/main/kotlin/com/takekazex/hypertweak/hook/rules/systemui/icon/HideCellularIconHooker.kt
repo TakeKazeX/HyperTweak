@@ -137,14 +137,10 @@ object HideCellularIconHooker : StaticHooker() {
         hideSimOne = settingIconHideSimOne
         hideSimTwo = settingIconHideSimTwo
         hideOnWifi = settingIconHideMobileOnWifi
-        if (stackedEnabled ||
-            (!hideNonDefault && !hideSimOne && !hideSimTwo && !hideOnWifi)
-        ) {
-            DebugLog.hookSkippedDebug(
-                TAG,
-                "HideCellularIcon",
-                if (stackedEnabled) "stacked signal owns visibility" else "hide sim options off"
-            )
+        // Installed while every option is off too: the exposed flows are then already bound, so a
+        // toggle only re-applies the mask and the host binder animates the row in place.
+        if (stackedEnabled) {
+            DebugLog.hookSkippedDebug(TAG, "HideCellularIcon", "stacked signal owns visibility")
             return
         }
         enabled = true
@@ -307,11 +303,10 @@ object HideCellularIconHooker : StaticHooker() {
             DebugLog.w(TAG, "MIUI visibility flow not collectable subId=$subId")
             return
         }
-        // Same source the stacked type policy uses; only needed while the WiFi rule is on.
-        val wifiAvailableFlow = if (hideOnWifi) {
-            readField(actualMiuiViewModel, "iconInteractor")
-                ?.let { readField(it, "wifiAvailable") }
-        } else null
+        // Same source the stacked type policy uses. Collected while the WiFi rule is off too, so
+        // turning it on never has to re-register a VM whose exposed flow a binder already holds.
+        val wifiAvailableFlow = readField(actualMiuiViewModel, "iconInteractor")
+            ?.let { readField(it, "wifiAvailable") }
         val wifiHandle = wifiAvailableFlow?.let { flow ->
             HostFlowCollector.collect(
                 scope = scope,
@@ -339,6 +334,20 @@ object HideCellularIconHooker : StaticHooker() {
         bindings[subId] = Binding(actualMiuiViewModel, handle, wifiHandle)
         pendingBindings.remove(actualMiuiViewModel)
         applyMask()
+    }
+
+    /** Re-applies changed SIM/Wi-Fi hiding options to the registered rows in place. */
+    fun refreshSettings() {
+        HostAccess.onMain {
+            if (!enabled) return@onMain
+            hideNonDefault = settingIconHideNonDefaultSim
+            hideSimOne = settingIconHideSimOne
+            hideSimTwo = settingIconHideSimTwo
+            hideOnWifi = settingIconHideMobileOnWifi
+            applyMask()
+            DebugLog.i(TAG, "SIM visibility refreshed rows=${bindings.size} nonDefault=$hideNonDefault " +
+                "sim1=$hideSimOne sim2=$hideSimTwo onWifi=$hideOnWifi")
+        }
     }
 
     private fun reduceOnMain(event: MobileSignalEvent, bindingGeneration: Long) {

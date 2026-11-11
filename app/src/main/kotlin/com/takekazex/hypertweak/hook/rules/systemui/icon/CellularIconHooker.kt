@@ -14,15 +14,18 @@ import com.takekazex.hypertweak.util.logging.DebugLog
  *
  * `MiuiCellularIconVM` exposes its visibility flags as `ReadonlyStateFlow` fields; every
  * consumer — the per-SIM `MiuiMobileIconVMImpl`'s `transformLatest` lambdas and
- * `MiuiMobileIconBinder` — reads them through the `MiuiMobileIconViewModel` getters. The hook
- * replaces enabled visibility flows with hidden values of the expected type. The fields are assigned *after*
+ * `MiuiMobileIconBinder` — reads them through the `MiuiMobileIconViewModel` getters. Each getter
+ * returns the host flow combined with a [LiveFlowGate], which emits the hidden value of the
+ * expected type while its option is on. The fields are assigned *after*
  * construction by the factory `MiuiMobileIconVMImpl$$ExternalSyntheticLambda0.invoke()` (verified
  * in smali/jadx on OS4.0.0.15.XPMCNXM), so an after-constructor write — what upstream does — is
  * clobbered right after it lands and has no effect on OS4; forcing the getters instead covers the
  * real read path. Roam visibility is split across the VM getters (`getMobileRoamVisible`,
  * `getSmallRoamVisible`) and a `StatusBarIconObserver.roamSettingBlock` field for the global
  * block. Global hiding now shares the native roaming getter boundaries instead of overwriting
- * the observer field; rebuilding native icon groups reconnects existing binder collections.
+ * the observer field. The getters stay hooked while every option is off, so a settings change only
+ * flips a gate and the bound binders re-emit; only a freshly installed generation needs the icon
+ * groups rebuilt to reach binders that collected the previous generation's flows.
  */
 object CellularIconHooker : StaticHooker() {
     // Published on settings acceptance; hook callbacks perform no storage reads.
@@ -58,101 +61,101 @@ object CellularIconHooker : StaticHooker() {
     private const val TAG = "IconTuner"
     private const val VM_CLASS = "com.android.systemui.statusbar.pipeline.mobile.ui.viewmodel.MiuiCellularIconVM"
 
-    private var hideActivity by generationState { false }
-
     private val separateType by hookSetting(false) {
         Preferences.getBoolean(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_SINGLE, false)
     }
-    private var hideType by generationState { false }
 
-    private var hideVoWifi by generationState { false }
+    /** One gate per option; every getter stays hooked, so a toggle only flips its gate. */
+    private class Gates {
+        val activity = LiveFlowGate("cellular activity", false)
+        val type = LiveFlowGate("cellular type", false)
+        val roam = LiveFlowGate("roaming", false)
+        val smallRoam = LiveFlowGate("small roaming", false)
+        val vowifi = LiveFlowGate("VoWiFi", false)
+        val volte = LiveFlowGate("VoLTE", false)
+        val volteNoService = LiveFlowGate("VoLTE no service", false)
+        val speechHd = LiveFlowGate("HD voice", false)
+    }
 
-    private var hideVolte by generationState { false }
+    private var gates: Gates? by generationState { null }
 
-    private var hideVolteNoService by generationState { false }
-
-    private var hideSpeechHd by generationState { false }
+    private val pairName by lazy { IconTunerFlows.hostClassName("kotlin", "Pair") }
+    private val hiddenPair by lazy { IconTunerFlows.createPair(false, false) }
 
     override fun onHook() {
         IconTunerFlows.init(classLoader)
-        hideActivity = settingIconHideCellularActivity
-        hideType = settingIconHideCellularType || separateType
-        hideVoWifi = settingIconHideCellularVowifi
-        hideVolte = settingIconHideCellularVolte
-        hideVolteNoService = settingIconHideCellularVolteNoService
-        hideSpeechHd = settingIconHideCellularSpeechHd
-
-        val anyEnabled = hideActivity || hideType || nativeRoamingMode != 0 ||
-            hideVoWifi || hideVolte || hideVolteNoService || hideSpeechHd
-        if (!anyEnabled) {
-            DebugLog.hookSkippedDebug(TAG, "CellularIcon", "no icon tuner cellular switches enabled")
-            return
-        }
-
-        // 1. ViewModel visibility getters: force a shared false flow. The factory assigns the
-        //    fields after construction, so the fields themselves cannot be replaced in a ctor
-        //    hook; the getters are the only read path (impl transformLatest lambdas + binder).
+        // 1. ViewModel visibility getters: the factory assigns the fields after construction, so
+        //    the getters are the only read path (impl transformLatest lambdas + binder). Each one
+        //    returns the host flow combined with its gate.
         val vmClass = VM_CLASS.toClassOrNull()
         if (vmClass == null) {
             DebugLog.hookSkipped(TAG, VM_CLASS, "class not found")
             return
         }
-        val getters = buildList {
-            if (hideActivity) add("getInOutVisible")
-            if (hideType) {
-                add("getMobileTypeVisible")
-                add("getMobileTypeImageVisible")
-            }
-            if (nativeRoamingMode and 1 != 0) add("getMobileRoamVisible")
-            if (nativeRoamingMode and 2 != 0) add("getSmallRoamVisible")
-            if (hideVoWifi) add("getVowifiVisible")
-            if (hideVolteNoService) add("getVolteNoService")
-            if (hideSpeechHd) add("getSpeechHd")
-        }
-        DebugLog.d(TAG, "CellularIcon installing: getters=$getters roamingMode=$nativeRoamingMode")
-        getters.forEach { getter ->
+        val gates = Gates().also { gates = it }
+        applySettings(gates)
+        val visibility = listOf(
+            "getInOutVisible" to gates.activity,
+            "getMobileTypeVisible" to gates.type,
+            "getMobileTypeImageVisible" to gates.type,
+            "getMobileRoamVisible" to gates.roam,
+            "getSmallRoamVisible" to gates.smallRoam,
+            "getVowifiVisible" to gates.vowifi,
+            "getVolteNoService" to gates.volteNoService,
+            "getSpeechHd" to gates.speechHd,
+            "getVolteVisibleGlobal" to gates.volte
+        )
+        var hooked = 0
+        visibility.forEach { (getter, gate) ->
             val method = vmClass.findMethodOrNull { name(getter); noParams() }
-            if (method != null && (getter == "getMobileTypeVisible" || getter == "getMobileTypeImageVisible")) {
-                deoptimize(method)
+            if (method == null) {
+                DebugLog.hookSkipped(TAG, "$VM_CLASS#$getter", "method not found")
+                return@forEach
             }
-            method?.hook {
-                before { param -> param.result = IconTunerFlows.falseFlow }
-            } ?: DebugLog.hookSkipped(TAG, "$VM_CLASS#$getter", "method not found")
-        }
-        if (hideVolte) hookVolteVisibility(vmClass)
-
-    }
-
-    private fun hookVolteVisibility(vmClass: Class<*>) {
-        val getterName = "getVolteVisibleGlobal"
-        val flowType = IconTunerFlows.hostClassName("kotlinx.coroutines.flow", "Flow").toClassOrNull()
-        val getter = vmClass.findMethodOrNull { name(getterName); noParams() }
-        if (flowType == null || getter == null || !flowType.isAssignableFrom(getter.returnType)) {
-            DebugLog.hookSkipped(TAG, "$VM_CLASS#$getterName", "unsupported VoLTE getter")
-            return
-        }
-
-        val pairName = IconTunerFlows.hostClassName("kotlin", "Pair")
-        val hiddenPairFlow by lazy {
-            runCatching {
-                val pair = checkNotNull(IconTunerFlows.createPair(false, false))
-                IconTunerFlows.createReadonlyStateFlow(pair)
-            }.onFailure { DebugLog.w(TAG, "could not create hidden VoLTE Pair flow", it) }.getOrNull()
-        }
-        getter.hook {
-            after { param ->
-                if (param.throwable != null) return@after
-                val original = param.result ?: return@after
-                val value = IconTunerFlows.readFlowValue(original)
-                val replacement = when {
-                    value is Boolean -> IconTunerFlows.falseFlow
-                    value?.javaClass?.name == pairName &&
-                        MobileSignalVisibility.pairValueOf(value) != null -> hiddenPairFlow
-                    else -> null
+            if (getter == "getMobileTypeVisible" || getter == "getMobileTypeImageVisible") deoptimize(method)
+            val returnType = method.returnType
+            method.hook {
+                after { param ->
+                    if (param.throwable != null) return@after
+                    val original = param.result ?: return@after
+                    gate.wrap(original, returnType, ::hiddenValue)?.let { param.result = it }
                 }
-                // The international binder casts emissions to Pair and uses the second flag for visibility.
-                if (getter.returnType.isInstance(replacement)) param.result = replacement
             }
+            hooked++
         }
+        DebugLog.hookRegistered(TAG, "CellularIcon live gates getters=$hooked ${describe(gates)}")
     }
+
+    /**
+     * Applies changed cellular options to the bound icons: each gate re-emits through the host
+     * binder that already collects it, so nothing is rebound.
+     */
+    fun refreshSettings() {
+        val current = gates ?: return
+        applySettings(current)
+        DebugLog.i(TAG, "CellularIcon live gates refreshed ${describe(current)}")
+    }
+
+    private fun applySettings(gates: Gates) {
+        gates.activity.set(settingIconHideCellularActivity)
+        gates.type.set(settingIconHideCellularType || separateType)
+        gates.roam.set(nativeRoamingMode and 1 != 0)
+        gates.smallRoam.set(nativeRoamingMode and 2 != 0)
+        gates.vowifi.set(settingIconHideCellularVowifi)
+        gates.volte.set(settingIconHideCellularVolte)
+        gates.volteNoService.set(settingIconHideCellularVolteNoService)
+        gates.speechHd.set(settingIconHideCellularSpeechHd)
+    }
+
+    /** Hidden value of the getter's own emission type. */
+    private fun hiddenValue(value: Any?): Any? = when {
+        value is Boolean -> false
+        // The international VoLTE binder casts emissions to Pair and uses the second flag.
+        value?.javaClass?.name == pairName && MobileSignalVisibility.pairValueOf(value) != null -> hiddenPair ?: value
+        else -> value
+    }
+
+    private fun describe(gates: Gates) = "activity=${gates.activity.hidden} type=${gates.type.hidden} " +
+        "roam=${gates.roam.hidden}/${gates.smallRoam.hidden} vowifi=${gates.vowifi.hidden} " +
+        "volte=${gates.volte.hidden} noService=${gates.volteNoService.hidden} hd=${gates.speechHd.hidden}"
 }

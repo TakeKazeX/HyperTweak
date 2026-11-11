@@ -5,6 +5,8 @@ import com.takekazex.hypertweak.hook.runtime.settings.RuntimeSettingsSnapshot
 import com.takekazex.hypertweak.settings.contract.AodSettingsKeys
 import com.takekazex.hypertweak.settings.contract.IconSettingsPreferencePolicy
 import com.takekazex.hypertweak.settings.contract.IndependentIconDomain
+import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
+import com.takekazex.hypertweak.settings.contract.IconTunerContract
 
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 
@@ -37,6 +39,90 @@ class SystemUiLiveSettingsRoutingTest {
         )
         assertNull(policy.independentReloadDomains(baseline, baseline + ("icon_tuner_slot_mobile" to 4)))
         assertNull(policy.independentReloadDomains(null, baseline))
+    }
+
+    @Test fun slotVisibilityAndLeftPlacementApplyInPlace() {
+        val policy = IconSettingsPreferencePolicy
+        val baseline = mapOf<String, Any>("icon_tuner_slot_bluetooth" to 0)
+        val policyOnly = setOf(IndependentIconDomain.POLICY)
+        assertEquals(policyOnly, policy.independentReloadDomains(baseline, mapOf("icon_tuner_slot_bluetooth" to 4)))
+        assertEquals(policyOnly, policy.independentReloadDomains(baseline, baseline + (IconSettingsKeys.KEY_ICON_LEFT_ZEN to true)))
+        assertEquals(policyOnly, policy.independentReloadDomains(baseline, baseline + (IconTunerContract.KEY_LEFT_MODE to 1)))
+        assertEquals(
+            setOf(IndependentIconDomain.POLICY, IndependentIconDomain.SAMPLING),
+            policy.independentReloadDomains(baseline, mapOf(
+                "icon_tuner_slot_bluetooth" to 4, PlatformSettingsKeys.KEY_STATUSBAR_REGION_SAMPLING to 1
+            ))
+        )
+        // The network pipeline reads its modes at install, and hidden-first ordering moves slots.
+        assertNull(policy.independentReloadDomains(baseline, baseline + ("icon_tuner_slot_wifi" to 4)))
+        assertNull(policy.independentReloadDomains(baseline, baseline + ("icon_tuner_slot_network_speed" to 4)))
+        val reorder = baseline + (IconTunerContract.KEY_POSITION_REORDER to true)
+        assertNull(policy.independentReloadDomains(reorder, reorder + ("icon_tuner_slot_bluetooth" to 4)))
+        // Anything else still rebuilds the icon hooks.
+        assertNull(policy.independentReloadDomains(baseline, baseline + (IconSettingsKeys.KEY_ICON_STACKED_ENABLED to true)))
+    }
+
+    @Test fun ownerScopedIconOptionsNeverRebuildTheIconGroups() {
+        val policy = IconSettingsPreferencePolicy
+        fun domains(key: String, reorder: Boolean = false, extra: Map<String, Any> = emptyMap()) =
+            policy.domainsFor(key, mapOf<String, Any>(IconTunerContract.KEY_POSITION_REORDER to reorder) + extra)
+        val duo = setOf(IndependentIconDomain.DUO)
+        assertEquals(duo, domains(IconSettingsKeys.KEY_ICON_DUO_TOP_PERCENT))
+        assertEquals(duo, domains(IconSettingsKeys.KEY_ICON_DUO_CLICK_EXPAND))
+        assertEquals(duo, domains(IconSettingsKeys.KEY_ICON_DUO_PERCENT_SCALE))
+        // Duo itself switches the battery container and the island layout.
+        assertNull(domains(IconSettingsKeys.KEY_ICON_DUO_ENABLED))
+
+        val header = IndependentIconDomain.CONTROL_CENTER_HEADER
+        assertEquals(setOf(header, IndependentIconDomain.DUO), domains(SystemUiSettingsKeys.KEY_CC_CARRIER_LEFT))
+        assertEquals(setOf(header, IndependentIconDomain.DUO), domains(IconSettingsKeys.KEY_ICON_HIDE_LS_CARRIER_ONE))
+        assertEquals(setOf(header, IndependentIconDomain.DUO, IndependentIconDomain.POLICY),
+            domains(SystemUiSettingsKeys.KEY_CC_CARRIER_TWO_LINE))
+        // The privacy group refreshes its own chip; the header only places it.
+        assertEquals(setOf(header), domains(SystemUiSettingsKeys.KEY_CC_PRIVACY_OFFSET))
+        assertEquals(emptySet<IndependentIconDomain>(), domains(SystemUiSettingsKeys.KEY_CC_PRIVACY_NAMES))
+
+        assertEquals(setOf(IndependentIconDomain.CC_BATTERY, IndependentIconDomain.DUO),
+            domains(SystemUiSettingsKeys.KEY_CC_BATTERY_PERCENT_STYLE))
+        assertEquals(setOf(IndependentIconDomain.ROTATION_LOCK, IndependentIconDomain.POLICY),
+            domains(SystemUiSettingsKeys.KEY_CC_ROTATION_LOCK_ICON))
+        assertEquals(setOf(IndependentIconDomain.AIRPLANE, IndependentIconDomain.DUO),
+            domains(IconSettingsKeys.KEY_ICON_MIRROR_AIRPLANE))
+        assertEquals(setOf(IndependentIconDomain.POLICY), domains(SystemUiSettingsKeys.KEY_CC_ICON_ROW_OVERRIDES, reorder = true))
+
+        // Hidden-first ordering turns a visibility change into a slot move.
+        assertNull(domains(SystemUiSettingsKeys.KEY_CC_ROTATION_LOCK_ICON, reorder = true))
+        assertNull(domains(SystemUiSettingsKeys.KEY_CC_HIDE_DATE, reorder = true))
+        assertEquals(duo, domains(IconSettingsKeys.KEY_ICON_DUO_SIZE, reorder = true))
+        // Pipeline gates re-emit through the binders that already collect them.
+        assertEquals(setOf(IndependentIconDomain.CELLULAR), domains(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_ACTIVITY))
+        assertEquals(setOf(IndependentIconDomain.CELLULAR), domains(IconSettingsKeys.KEY_ICON_CELLULAR_ROAM_MODE))
+        val wifi = setOf(IndependentIconDomain.WIFI)
+        assertEquals(wifi, domains(IconSettingsKeys.KEY_ICON_HIDE_WIFI_ACTIVITY))
+        assertEquals(wifi, domains(IconSettingsKeys.KEY_ICON_WIFI_ACTIVITY_RIGHT))
+        assertEquals(wifi, domains(IconSettingsKeys.KEY_ICON_WIFI_PADDING_START_VAL))
+        assertEquals(wifi, domains(IconSettingsKeys.KEY_ICON_WIFI_STANDARD_MODE))
+        val mirrors = setOf(IndependentIconDomain.DUO, header)
+        assertEquals(mirrors + IndependentIconDomain.WIFI, domains(IconSettingsKeys.KEY_ICON_HIDE_WIFI_UNAVAILABLE))
+        assertEquals(mirrors + IndependentIconDomain.SIM_VISIBILITY, domains(IconSettingsKeys.KEY_ICON_HIDE_MOBILE_ON_WIFI))
+        // The stacked replacement owns the rows while it is on.
+        assertEquals(mirrors + IndependentIconDomain.STACKED, domains(IconSettingsKeys.KEY_ICON_HIDE_SIM_ONE,
+            extra = mapOf(IconSettingsKeys.KEY_ICON_STACKED_ENABLED to true)))
+        assertEquals(mirrors + IndependentIconDomain.STACKED, domains(IconSettingsKeys.KEY_ICON_MOBILE_ROW_STYLE))
+        assertEquals(mirrors + IndependentIconDomain.STACKED, domains(IconSettingsKeys.KEY_ICON_STACKED_TYPE_HIDE_DISCONNECT))
+        // A separate native label installs its Wi-Fi visibility hook from the type options.
+        assertNull(domains(IconSettingsKeys.KEY_ICON_STACKED_TYPE_HIDE_DISCONNECT,
+            extra = mapOf(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_SINGLE to true)))
+        assertEquals(setOf(IndependentIconDomain.CELLULAR_TYPE), domains(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_ORDER))
+        assertEquals(mirrors + IndependentIconDomain.CELLULAR_TYPE + IndependentIconDomain.STACKED,
+            domains(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_SMALL_5GA))
+        assertEquals(emptySet<IndependentIconDomain>(), domains(IconSettingsKeys.KEY_ICON_STACKED_ALPHA_FG))
+        assertEquals(emptySet<IndependentIconDomain>(), domains(SystemUiSettingsKeys.KEY_CC_HIDE_SUPER_ISLAND))
+        // These decide which hooks or slots exist.
+        assertNull(domains(IconSettingsKeys.KEY_ICON_STACKED_SIGNAL_STYLE))
+        assertNull(domains(IconSettingsKeys.KEY_ICON_STACKED_ENABLED))
+        assertNull(domains(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_SINGLE))
     }
 
     @Test fun aodOptionsReachBothAodHosts() {

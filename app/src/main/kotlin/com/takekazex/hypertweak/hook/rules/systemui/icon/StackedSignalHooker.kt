@@ -267,6 +267,26 @@ object StackedSignalHooker : StaticHooker() {
         DebugLog.hookRegistered(TAG, "model-driven stacked signal slot")
     }
 
+    /**
+     * Re-renders the published replacement for changed weight, row-order, SIM and type-label
+     * options. The module slot keeps its holder, so only its drawable changes. The signal style
+     * and anything that decides which hooks exist still reinstall the hooker.
+     */
+    fun refreshSettings() {
+        HostAccess.onMain {
+            if (!enabled) return@onMain
+            dataFirst = settingIconMobileRowStyle == 1
+            options = IconTunerOptions.snapshot()
+            hideMobileOnWifi = settingIconHideMobileOnWifi
+            typeConfig = readTypeConfig()
+            MobileTypeRenderer.clearCache()
+            publishedTypeBitmap = null
+            renderCurrent()
+            DebugLog.i(TAG, "stacked signal settings refreshed render=$renderStacked dataFirst=$dataFirst " +
+                "onWifi=$hideMobileOnWifi")
+        }
+    }
+
     private fun orderedSignalRows(state: MobileSignalState, hiddenSimIds: Set<Int>): List<DuoSignalRow> =
         DuoSignalRows.ordered(
             state.rows.filterNot { it.subId in hiddenSimIds }.map {

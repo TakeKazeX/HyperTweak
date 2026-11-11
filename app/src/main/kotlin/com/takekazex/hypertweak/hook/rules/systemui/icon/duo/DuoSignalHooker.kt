@@ -485,7 +485,7 @@ object DuoSignalHooker : StaticHooker() {
             panelVisible && panelProgress >= 0.999f)
         binding.hostHideBattery = read(parent, "mIsHideBattery") as? Boolean ?: false
         binding.rowPhase = aodController.phaseFor(binding.keyguardRoot)
-        binding.view.iconSizeDp = iconSizeDp
+        binding.view.setIconSize(iconSizeDp)
         binding.view.setPaddingRelative((4f * battery.resources.displayMetrics.density).roundToInt(), 0, 0, 0)
         captureAirplaneMaskBaseline(binding)
         bindings[battery] = binding
@@ -670,7 +670,7 @@ object DuoSignalHooker : StaticHooker() {
             binding.view.icon.showTopPercent = aod == null && settingDuoTopPercent
             binding.view.icon.cellularDots = aod == null && settingDuoCellularDots
             binding.view.icon.dualSignalDots = aod == null && settingDuoDualDots
-            binding.view.icon.sizes = componentSizes
+            binding.view.setSizes(componentSizes)
             binding.view.icon.foreground = foreground(binding)
             binding.view.icon.nativeWifi = nativeWifiGlyph(binding)
             val networkFont = runCatching {
@@ -1112,11 +1112,22 @@ object DuoSignalHooker : StaticHooker() {
      * and reconciles the existing bindings. A host that was already attached while the first AOD
      * option was off is covered; a transient dozing read never overwrites a proven phase.
      */
-    fun refreshAodSettings() {
+    fun refreshAodSettings() = refreshLiveSettings("AOD")
+
+    /**
+     * Applies changed Duo options (percent, click target, sizes, dots, expanded style) and the
+     * control-center options it mirrors to the living bindings in place. The glyph keeps its view,
+     * so the next frame simply draws the new options instead of the status bar being rebuilt.
+     */
+    fun refreshSettings() = refreshLiveSettings("icon")
+
+    private fun refreshLiveSettings(source: String) {
         if (!enabled) {
-            DebugLog.hookSkippedDebug(TAG, "AOD settings refresh", "Duo module disabled")
+            DebugLog.hookSkippedDebug(TAG, "$source settings refresh", "Duo module disabled")
             return
         }
+        dataFirst = settingIconMobileRowStyle == 1
+        small5GaEnabled = settingIconCellularTypeSmall5ga
         standardEnabled = settingIconDuoEnabled
         expandedStyle = if (settingIconDuoExpanded == 0)
             DuoExpandedStyle.KEEP_DUO else DuoExpandedStyle.RESTORE_NATIVE
@@ -1136,10 +1147,15 @@ object DuoSignalHooker : StaticHooker() {
         val token = epoch
         main.post { if (enabled && token == epoch) guarded {
             bindings.values.toList().forEach { binding ->
-                binding.view.iconSizeDp = iconSizeDp
+                // Capture what is on screen first, then apply, then animate between the two.
+                val before = binding.view.settingsState()
+                val frame = binding.view.captureSettingsFrame()
+                binding.view.setIconSize(iconSizeDp)
                 reconcile(binding)
+                binding.view.animateSettingsChange(before, frame)
+                binding.view.invalidate()
             }
-            DebugLog.i(TAG, "AOD settings refreshed records=" + bindings.size +
+            DebugLog.i(TAG, "$source settings refreshed records=" + bindings.size +
                 " standardDuo=" + standardEnabled)
         } }
     }

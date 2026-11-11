@@ -26,6 +26,14 @@ internal object StatusIconHotReloadRecovery {
 
     fun scheduleIcons(context: Context, hooks: Collection<BaseHooker>) = enqueue(context, hooks, true)
 
+    /**
+     * Recovers only [hooks], which never mutate the slot list or rely on rebound icon views, so
+     * the native icon groups stay attached and the status bar keeps its views.
+     */
+    fun scheduleScoped(context: Context, hooks: List<BaseHooker>) {
+        main.post { if (active) recover(context, hooks, iconsOnly = true, rebuild = false) }
+    }
+
     /** These owners have no slot, manager or overlay dependency. */
     fun scheduleIndependentIcons(context: Context, hooks: List<BaseHooker>) {
         main.post {
@@ -50,10 +58,11 @@ internal object StatusIconHotReloadRecovery {
 
     private fun enqueue(context: Context, hooks: Collection<BaseHooker>, iconsOnly: Boolean) {
         val owners = hooks.toList()
-        main.post { if (active) recover(context, owners, iconsOnly) }
+        main.post { if (active) recover(context, owners, iconsOnly, rebuild = true) }
     }
 
-    private fun recover(context: Context, hooks: List<BaseHooker>, iconsOnly: Boolean) {
+    private fun recover(context: Context, hooks: List<BaseHooker>, iconsOnly: Boolean, rebuild: Boolean) {
+        val start = SystemClock.elapsedRealtime()
         runCatching {
             val app = context.applicationContext ?: context
             val component = component(app)
@@ -90,10 +99,12 @@ internal object StatusIconHotReloadRecovery {
                 }
             dispatch(HostRecoveryPhase.ADAPTER_POLICY)
             dispatch(HostRecoveryPhase.ADAPTER)
-            val controller = scope.controller ?: error("Missing existing SystemUI icon controller")
-            check(scope.managers.isNotEmpty()) { "No existing icon managers" }
-            rebuildIconGroups(controller, scope.managers) { dispatch(HostRecoveryPhase.SLOT_ORDER) }
-            scope.views = windowViews()
+            if (rebuild) {
+                val controller = scope.controller ?: error("Missing existing SystemUI icon controller")
+                check(scope.managers.isNotEmpty()) { "No existing icon managers" }
+                rebuildIconGroups(controller, scope.managers) { dispatch(HostRecoveryPhase.SLOT_ORDER) }
+                scope.views = windowViews()
+            }
             val expansion = IconTunerFlows.readExpansionSnapshot(component)
             scope.progress = expansion.progress
             scope.visible = expansion.visible
@@ -106,7 +117,9 @@ internal object StatusIconHotReloadRecovery {
             scope.coroutineScope = component?.let { provider(it, "bgApplicationScopeProvider") }
             scope.wifiInteractor = component?.let { provider(it, "wifiInteractorImplProvider") }
             dispatch(HostRecoveryPhase.NETWORK)
-            DebugLog.i("HostRecovery", "hot reload rebound owners=${hooks.size} views=${scope.views.size} managers=${scope.managers.size} progress=${scope.progress} visible=${scope.visible}")
+            DebugLog.i("HostRecovery", "hot reload rebound owners=${hooks.size} rebuild=$rebuild " +
+                "views=${scope.views.size} managers=${scope.managers.size} progress=${scope.progress} " +
+                "visible=${scope.visible} elapsedMs=${SystemClock.elapsedRealtime() - start}")
         }.onFailure { DebugLog.w("HostRecovery", "hot reload host discovery failed", it) }
     }
 

@@ -13,5 +13,16 @@ data class DuoSizes(
 ) {
     companion object {
         fun ratio(percent: Int): Float = percent.coerceIn(50, 150) / 100f
+
+        /** Component-wise interpolation, so a size change grows each part instead of jumping. */
+        fun lerp(from: DuoSizes, to: DuoSizes, fraction: Float): DuoSizes {
+            val t = fraction.coerceIn(0f, 1f)
+            fun mix(a: Float, b: Float) = a + (b - a) * t
+            return DuoSizes(
+                mix(from.ring, to.ring), mix(from.wifi, to.wifi), mix(from.cellular, to.cellular),
+                mix(from.type, to.type), mix(from.dots, to.dots), mix(from.airplane, to.airplane),
+                mix(from.battery, to.battery), mix(from.percent, to.percent)
+            )
+        }
     }
 }

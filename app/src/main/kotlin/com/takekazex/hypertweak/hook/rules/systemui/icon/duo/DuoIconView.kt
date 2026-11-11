@@ -17,6 +17,10 @@ import android.graphics.drawable.Drawable
 import android.view.View
 import android.view.MotionEvent
 import android.view.animation.LinearInterpolator
+import android.view.animation.PathInterpolator
+import android.graphics.PorterDuff
+import android.graphics.PorterDuffXfermode
+import com.takekazex.hypertweak.presentation.icon.duo.DuoSizes
 import android.widget.TextView
 import androidx.core.view.isVisible
 import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
@@ -94,6 +98,124 @@ internal class DuoIconView(context: Context) : View(context) {
     private var percentGapPx = 0f
     private var percentBelow = false
     private var animator: ValueAnimator? = null
+
+    /** Options a settings change can switch; any difference crossfades from the previous frame. */
+    internal data class SettingsState(
+        val topPercent: Boolean, val cellularDots: Boolean, val dualDots: Boolean,
+        val mirrorAirplane: Boolean, val batteryOnly: Boolean, val percent: String,
+        val percentBelow: Boolean, val sizes: DuoSizes, val iconSizeDp: Float
+    ) {
+        fun sameArtwork(other: SettingsState) =
+            copy(sizes = other.sizes, iconSizeDp = other.iconSizeDp) == other
+    }
+
+    /** What is drawn now, including an in-flight resize; the starting point of the next change. */
+    fun settingsState() = settingsState(icon.sizes, iconSizeDp)
+
+    private fun settingsState(sizes: DuoSizes, dp: Float) = SettingsState(icon.showTopPercent,
+        icon.cellularDots, icon.dualSignalDots, icon.mirrorAirplane, icon.batteryOnly,
+        percentText + percentMark, percentBelow, sizes, dp)
+
+    private var settingsSnapshot: Picture? = null
+    private var snapshotWidth = 0
+    private var snapshotHeight = 0
+    private var settingsFade = 1f
+    private var settingsAnimator: ValueAnimator? = null
+    private var sizesFrom: DuoSizes? = null
+    private var sizesTarget = DuoSizes()
+    private var iconSizeFrom = 0f
+    private var iconSizeTarget = iconSizeDp
+    private val addPaint = Paint().apply { xfermode = PorterDuffXfermode(PorterDuff.Mode.ADD) }
+
+    /** Records the frame the user currently sees, before a settings change mutates it. */
+    fun captureSettingsFrame(): Picture? {
+        if (!isAttachedToWindow || !isLaidOut || width <= 0 || height <= 0 ||
+            !ValueAnimator.areAnimatorsEnabled()) return null
+        return runCatching {
+            Picture().also { picture ->
+                // Includes a crossfade still in flight, so a quick second toggle retargets smoothly.
+                drawWithSettingsTransition(picture.beginRecording(width, height))
+                picture.endRecording()
+            }
+        }.onFailure { DebugLog.w(TAG, "Duo settings frame capture failed", it) }.getOrNull()
+    }
+
+    /**
+     * Animates from [before] to the options now applied. Sizes interpolate per component and the
+     * glyph box resizes along with them; switched artwork (percent, dots, mirror) crossfades from
+     * [frame] additively, so the unchanged ring keeps its full opacity throughout.
+     */
+    fun animateSettingsChange(before: SettingsState, frame: Picture?) {
+        val after = settingsState(sizesTarget, iconSizeTarget)
+        if (after == before || frame == null) return
+        val crossfade = !before.sameArtwork(after)
+        val resize = before.sizes != after.sizes || before.iconSizeDp != after.iconSizeDp
+        settingsAnimator?.cancel()
+        if (crossfade) {
+            settingsSnapshot = frame
+            snapshotWidth = width
+            snapshotHeight = height
+            settingsFade = 0f
+        }
+        if (resize) {
+            sizesFrom = before.sizes
+            iconSizeFrom = before.iconSizeDp
+            applyAnimatedSizes(0f)
+        }
+        settingsAnimator = ValueAnimator.ofFloat(0f, 1f).apply {
+            duration = SETTINGS_TRANSITION_MS
+            interpolator = PathInterpolator(0.25f, 0.1f, 0.25f, 1f)
+            addUpdateListener {
+                val fraction = it.animatedValue as Float
+                if (crossfade) settingsFade = fraction
+                if (resize) applyAnimatedSizes(fraction)
+                invalidate()
+            }
+            addListener(object : android.animation.AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: android.animation.Animator) = finishSettingsTransition()
+            })
+            start()
+        }
+    }
+
+    /** The settled component sizes; an in-flight resize keeps drawing its interpolated value. */
+    fun setSizes(target: DuoSizes) {
+        sizesTarget = target
+        if (sizesFrom == null) icon.sizes = target
+    }
+
+    /** The settled glyph height; an in-flight resize keeps measuring its interpolated value. */
+    fun setIconSize(dp: Float) {
+        iconSizeTarget = dp
+        if (sizesFrom == null && iconSizeDp != dp) {
+            iconSizeDp = dp
+            requestLayout()
+        }
+    }
+
+    private fun applyAnimatedSizes(fraction: Float) {
+        val from = sizesFrom ?: return
+        icon.sizes = DuoSizes.lerp(from, sizesTarget, fraction)
+        val dp = iconSizeFrom + (iconSizeTarget - iconSizeFrom) * fraction
+        if (dp != iconSizeDp) {
+            iconSizeDp = dp
+            requestLayout()
+        }
+    }
+
+    private fun finishSettingsTransition() {
+        settingsSnapshot = null
+        settingsFade = 1f
+        if (sizesFrom != null) {
+            sizesFrom = null
+            icon.sizes = sizesTarget
+            if (iconSizeDp != iconSizeTarget) {
+                iconSizeDp = iconSizeTarget
+                requestLayout()
+            }
+        }
+        invalidate()
+    }
 
     /** Mirrors the native percent TextViews beside the glyph or below an expanded battery ring. */
     fun setPercent(
@@ -261,6 +383,9 @@ internal class DuoIconView(context: Context) : View(context) {
     override fun onDetachedFromWindow() {
         tapGesture.setTarget(null)
         finishTransition()
+        settingsAnimator?.cancel()
+        settingsAnimator = null
+        finishSettingsTransition()
         super.onDetachedFromWindow()
     }
     override fun verifyDrawable(who: android.graphics.drawable.Drawable): Boolean = who === icon || super.verifyDrawable(who)
@@ -276,7 +401,34 @@ internal class DuoIconView(context: Context) : View(context) {
             resolveSize(maxOf(desired, suggestedMinimumHeight), heightMeasureSpec)
         )
     }
-    override fun onDraw(canvas: Canvas) {
+    override fun onDraw(canvas: Canvas) = drawWithSettingsTransition(canvas)
+
+    private fun drawWithSettingsTransition(canvas: Canvas) {
+        val snapshot = settingsSnapshot
+        if (snapshot == null) {
+            drawContent(canvas)
+            return
+        }
+        val fade = settingsFade.coerceIn(0f, 1f)
+        val save = canvas.saveLayer(null, null)
+        try {
+            canvas.save()
+            // The glyph is anchored to its end edge, so a resized box keeps the old frame aligned.
+            val dx = if (layoutDirection == View.LAYOUT_DIRECTION_RTL) 0f else (width - snapshotWidth).toFloat()
+            canvas.translate(dx, (height - snapshotHeight) / 2f)
+            canvas.saveLayerAlpha(null, ((1f - fade) * 255f).roundToInt())
+            canvas.drawPicture(snapshot)
+            canvas.restore()
+            canvas.restore()
+            addPaint.alpha = (fade * 255f).roundToInt()
+            canvas.saveLayer(null, addPaint)
+            drawContent(canvas)
+        } finally {
+            canvas.restoreToCount(save)
+        }
+    }
+
+    private fun drawContent(canvas: Canvas) {
         val iconSide = drawnIconSidePx()
         val iconTop = (height - iconSide) / 2
         val rtl = layoutDirection == View.LAYOUT_DIRECTION_RTL
@@ -429,5 +581,6 @@ internal class DuoIconView(context: Context) : View(context) {
         const val PERCENT_BELOW_MAX_WIDTH_FRACTION = 0.72f
         const val PERCENT_BELOW_MAX_HEIGHT_FRACTION = 0.42f
         const val PERCENT_BELOW_CENTER_Y = 0.84f
+        const val SETTINGS_TRANSITION_MS = 320L
     }
 }

@@ -81,7 +81,15 @@ explicit host phase from `MiuiFullAodManager.isDozing` (`mToLockScreen` alone is
 lit/unknown state, and only the accepted ordinary Duo switch replaces it; AOD options apply
 only in AOD phases, and every suppression sets one release-able ownership flag.
 Snapshots carry their committed changed keys, so a domain that owns several hooks
-routes each key to the hooker that applies it. A switchable feature never substitutes
+routes each key to the hooker that applies it. Status-bar icon keys are routed by
+`IconSettingsPreferencePolicy.domainsFor`: slot visibility/left placement/CC row split, Duo,
+stacked and the network pipeline reconcile living views in place, and control-center,
+lock-screen, native-type and single-slot owners are recreated alone through
+`StatusIconHotReloadRecovery.scheduleScoped`. Neither path rebuilds the native icon groups.
+Pipeline getters stay hooked while their option is off and return the host flow combined with a
+`LiveFlowGate` (host `FlowKt.flowCombine`) or a module flow that re-publishes, so the bound
+binder re-emits. Only structural keys (Duo/stacked switches, signal style, separate type, slot
+order, pipeline slot modes, system-hide/privacy) keep the full transaction. A switchable feature never substitutes
 zero for "no override" (corner radius) and keeps the host request separate from the
 module suppression (lockscreen status bar).
 `Preferences` commits complete acknowledged subsets through

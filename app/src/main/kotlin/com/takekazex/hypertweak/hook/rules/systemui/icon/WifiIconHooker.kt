@@ -30,9 +30,11 @@ import com.takekazex.hypertweak.util.platform.ResourceLookup
  * Wi-Fi visibility and standard-label options for the existing MIUI Wi-Fi pipeline.
  *
  * Live icon and standard overrides are exposed through the native binder getters. Their original
- * producers continue to run so a settings change can rebind without waiting for a network event.
- * Padding is applied after the verified `MiuiWifiViewBinder.bind` layout setup and is limited to
- * the host's `wifi_group` view.
+ * producers continue to run, and the module flows re-publish on a settings change, so the bound
+ * binder updates without a rebind or a network event. The activity arrows and their direction are
+ * [LiveFlowGate]s. Padding and accessory placement are applied after the verified
+ * `MiuiWifiViewBinder.bind` layout setup, limited to the host's `wifi_group` view, and re-applied
+ * (or restored) on the recorded roots when a setting changes.
  */
 object WifiIconHooker : StaticHooker() {
     // Published on settings acceptance; hook callbacks perform no storage reads.
@@ -86,8 +88,9 @@ object WifiIconHooker : StaticHooker() {
     private val wifiOverride = generationMainResource(AtomicReference<WifiOverride?>()) {
         it.getAndSet(null)?.subscriptions?.clear()
     }
-    private data class WifiOverride(
-        val vm: Any, val icon: Any?, val standard: Any?, val subscriptions: HostFlowSubscriptions
+    private class WifiOverride(
+        val vm: Any, val icon: Any, val standard: Any, val subscriptions: HostFlowSubscriptions,
+        val publish: () -> Unit
     )
 
     private var restoredDirection: Any? by generationState { null }
@@ -111,6 +114,18 @@ object WifiIconHooker : StaticHooker() {
                 }
             }
             standardGravity.clear()
+            activityGravity.forEach { (view, original) ->
+                (view.layoutParams as? FrameLayout.LayoutParams)?.let { params ->
+                    params.gravity = original
+                    view.layoutParams = params
+                }
+            }
+            activityGravity.clear()
+            originalPadding.forEach { (group, padding) ->
+                group.setPaddingRelative(padding[0], padding[1], padding[2], padding[3])
+            }
+            originalPadding.clear()
+            boundRoots.clear()
             recoveryTask?.let(recoveryHandler::removeCallbacks)
             recoveryTask = null
             directionEpoch = ++directionAttempt
@@ -140,9 +155,11 @@ object WifiIconHooker : StaticHooker() {
             settingIconWifiPaddingEndVal
         )
         activityRight = settingIconWifiActivityRight
+        // Every Wi-Fi option stays hooked while it is off: a settings change re-publishes the
+        // module flows the binder already collects, or re-applies the layout to the bound views.
         hookActivityDirection()
-        hookAccessoryLayout()
-        if (hideUnavailable || standardMode in 2..3) hookWifiOverrides()
+        hookBinderLayout()
+        hookWifiOverrides()
 
         // The verified OS4 factory receives isWifiDefault as its third boolean.
         // Keep the host flow intact so a route change immediately restores/hides the icon.
@@ -188,8 +205,7 @@ object WifiIconHooker : StaticHooker() {
 
         // 2. These are stable getter boundaries used by MiuiWifiViewBinder. A field write would be
         // lost because the factory assigns the flows after construction.
-        if (hideActivity || standardMode == 1) hookVisibilityGetters()
-        if (paddingEnabled) hookPadding()
+        hookVisibilityGetters()
         DebugLog.hookRegistered(
             TAG,
             "WifiIcon: standardMode=$standardMode padding=$paddingEnabled activityRight=$activityRight"
@@ -215,8 +231,8 @@ object WifiIconHooker : StaticHooker() {
                 }
             }
         }
-        if (hideUnavailable) hookGetter("getWifiIcon", "StateFlow") { it.icon }
-        if (standardMode in 2..3) hookGetter("getWifiStandard", "Flow") { it.standard }
+        hookGetter("getWifiIcon", "StateFlow") { it.icon }
+        hookGetter("getWifiStandard", "Flow") { it.standard }
         vmClass.declaredConstructors.singleOrNull { constructor ->
             constructor.parameterCount == 6 &&
                 constructor.parameterTypes[3].name.endsWith(".WifiInteractorImpl") &&
@@ -236,7 +252,7 @@ object WifiIconHooker : StaticHooker() {
     }
 
     private fun bindWifiOverrides(vm: Any, interactor: Any, scope: Any) {
-        if (retired || (!hideUnavailable && standardMode !in 2..3) || wifiOverride.get()?.vm === vm) return
+        if (retired || wifiOverride.get()?.vm === vm) return
         val subscriptions = HostFlowSubscriptions()
         runCatching {
             val iconFlow = readField(vm, "wifiIcon") ?: return
@@ -247,31 +263,31 @@ object WifiIconHooker : StaticHooker() {
             var nativeIcon = IconTunerFlows.readFlowValue(iconFlow) ?: hidden
             var nativeStandard = (IconTunerFlows.readFlowValue(standardFlow) as? Number)?.toInt() ?: 0
             var network = IconTunerFlows.readFlowValue(networkFlow)
-            val icon = if (hideUnavailable) checkNotNull(IconTunerFlows.createMutableStateFlow(nativeIcon)) else null
-            val standard = if (standardMode in 2..3) checkNotNull(IconTunerFlows.createMutableStateFlow(nativeStandard)) else null
+            val icon = checkNotNull(IconTunerFlows.createMutableStateFlow(nativeIcon))
+            val standard = checkNotNull(IconTunerFlows.createMutableStateFlow(nativeStandard))
+            // Reads the current options on every pass, so a settings change only re-publishes.
             fun publish() {
                 val active = activeClass.isInstance(network)
-                icon?.let { IconTunerFlows.setFlowValue(it, if (active) hidden else nativeIcon) }
-                standard?.let {
-                    val raw = if (active) readInt(readField(network, "ext"), "wifiStandard") else null
-                    val mapped = WifiStandardPolicy.resolve(standardMode, raw, nativeStandard, standardMap)
-                    IconTunerFlows.setFlowValue(it, mapped)
-                }
+                IconTunerFlows.setFlowValue(icon, if (hideUnavailable && active) hidden else nativeIcon)
+                val raw = if (active) readInt(readField(network, "ext"), "wifiStandard") else null
+                val mapped = if (standardMode == 1) 0
+                    else WifiStandardPolicy.resolve(standardMode, raw, nativeStandard, standardMap)
+                IconTunerFlows.setFlowValue(standard, mapped)
             }
             val bound = subscriptions.collect(scope, networkFlow, { !retired }) { value ->
                 network = value
                 publish()
-            } && (icon == null || subscriptions.collect(scope, iconFlow, { !retired }) { value ->
+            } && subscriptions.collect(scope, iconFlow, { !retired }) { value ->
                 nativeIcon = value ?: hidden
                 publish()
-            }) && (standard == null || subscriptions.collect(scope, standardFlow, { !retired }) { value ->
+            } && subscriptions.collect(scope, standardFlow, { !retired }) { value ->
                 nativeStandard = (value as? Number)?.toInt() ?: 0
                 publish()
-            })
+            }
             if (bound) {
                 publish()
-                wifiOverride.getAndSet(WifiOverride(vm, icon, standard, subscriptions))?.subscriptions?.clear()
-                DebugLog.i(TAG, "native Wi-Fi flows rebound hideConnected=${icon != null} standardMode=$standardMode")
+                wifiOverride.getAndSet(WifiOverride(vm, icon, standard, subscriptions, ::publish))?.subscriptions?.clear()
+                DebugLog.i(TAG, "native Wi-Fi flows rebound hideConnected=$hideUnavailable standardMode=$standardMode")
             } else {
                 subscriptions.clear()
                 DebugLog.hookSkipped(TAG, "Wi-Fi live overrides", "native Flow subscription unavailable")
@@ -287,18 +303,56 @@ object WifiIconHooker : StaticHooker() {
             DebugLog.hookSkipped(TAG, VM_CLASS, "class not found")
             return
         }
-        val getters = buildList {
-            if (hideActivity) add("getActivityInOutRes")
-            if (standardMode == 1) add("getWifiStandard")
-        }
-        getters.forEach { getter ->
-            vmClass.findMethodOrNull { name(getter); noParams() }.orSkip("WifiIconHooker", "vmClass")?.hook {
-                before { param -> param.result = IconTunerFlows.zeroFlow }
-            } ?: DebugLog.hookSkipped(TAG, "$VM_CLASS#$getter", "method not found")
+        // The activity arrows stay hooked while the option is off, so a toggle only flips the gate
+        // and the bound binder re-emits; resource 0 is the host's "no arrows" value.
+        val gate = LiveFlowGate("Wi-Fi activity", hideActivity).also { activityGate = it }
+        vmClass.findMethodOrNull { name("getActivityInOutRes"); noParams() }?.let { getter ->
+            val returnType = getter.returnType
+            getter.hook {
+                after { param ->
+                    if (param.throwable != null) return@after
+                    val original = param.result ?: return@after
+                    gate.wrap(original, returnType) { value -> if (value is Number) 0 else value }
+                        ?.let { param.result = it }
+                }
+            }
+        } ?: DebugLog.hookSkipped(TAG, "$VM_CLASS#getActivityInOutRes", "method not found")
+    }
+
+    private var activityGate: LiveFlowGate? by generationState { null }
+
+    private var directionGate: LiveFlowGate? by generationState { null }
+    private val boundRoots = generationMainResource(WeakHashMap<ViewGroup, Unit>()) { it.clear() }
+    private val originalPadding = generationMainResource(WeakHashMap<View, IntArray>()) { it.clear() }
+    private val activityGravity = generationMainResource(WeakHashMap<View, Int>()) { it.clear() }
+
+    /**
+     * Applies every Wi-Fi option to the bound icon in place: the activity and direction gates and
+     * the override flows re-emit through the binder that collects them, and the padding and
+     * accessory placement are re-applied to the views the binder already laid out.
+     */
+    fun refreshSettings() {
+        HostAccess.onMain {
+            if (retired) return@onMain
+            hideActivity = settingIconHideWifiActivity
+            hideUnavailable = settingIconHideWifiUnavailable
+            standardMode = settingIconWifiStandardMode.coerceIn(0, 3)
+            standardMap = WifiStandardPolicy.parseMap(settingIconWifiStandardMap)
+            paddingEnabled = settingIconWifiPadding
+            paddingStart = safeFloat(settingIconWifiPaddingStartVal)
+            paddingEnd = safeFloat(settingIconWifiPaddingEndVal)
+            activityRight = settingIconWifiActivityRight
+            activityGate?.set(hideActivity)
+            directionGate?.set(activityRight && !hideActivity)
+            wifiOverride.get()?.publish?.invoke()
+            boundRoots.keys.toList().forEach(::applyBinderLayout)
+            DebugLog.i(TAG, "Wi-Fi settings refreshed hideActivity=$hideActivity hideConnected=$hideUnavailable " +
+                "standardMode=$standardMode padding=$paddingEnabled activityRight=$activityRight roots=${boundRoots.size}")
         }
     }
 
-    private fun hookPadding() {
+    /** Records each root the native binder lays out and applies the current padding/placement. */
+    private fun hookBinderLayout() {
         val binderClass = BINDER_CLASS.toClassOrNull() ?: run {
             DebugLog.hookSkipped(TAG, BINDER_CLASS, "class not found")
             return
@@ -307,66 +361,14 @@ object WifiIconHooker : StaticHooker() {
             DebugLog.hookSkipped(TAG, "$BINDER_CLASS#bind", "method not found")
             return
         }
+        deoptimize(bind)
         bind.hook {
             after { param ->
-                runCatching {
-                    val root = param.args.getOrNull(0) as? ViewGroup ?: return@runCatching
-                    val groupId = ResourceLookup.identifier(root.resources, 
-                        "wifi_group",
-                        "id",
-                        "com.android.systemui"
-                    )
-                    val group = if (groupId != 0) root.findViewById<ViewGroup>(groupId) else null
-                    (group ?: root).setPaddingRelative(
-                        dpToPx(root, paddingStart),
-                        (group ?: root).paddingTop,
-                        dpToPx(root, paddingEnd),
-                        (group ?: root).paddingBottom
-                    )
-                }.onFailure { DebugLog.w(TAG, "Wi-Fi padding update failed", it) }
+                if (retired) return@after
+                val root = param.args.getOrNull(0) as? ViewGroup ?: return@after
+                boundRoots[root] = Unit
+                applyBinderLayout(root)
             }
-        }
-    }
-
-    /** `inoutLeft=false` is the verified host value for placing the activity indicator right. */
-    private fun hookActivityDirection() {
-        val vmClass = VM_CLASS.toClassOrNull() ?: run {
-            DebugLog.hookSkipped(TAG, VM_CLASS, "class not found")
-            return
-        }
-        vmClass.findMethodOrNull { name("getInoutLeft"); noParams() }?.let { getter ->
-            deoptimize(getter)
-            getter.hook {
-                before { param ->
-                    if (activityRight && !hideActivity) param.result = IconTunerFlows.falseFlow
-                    else restoredDirection?.let { param.result = it }
-                }
-            }
-        } ?: DebugLog.hookSkipped(TAG, "$VM_CLASS#getInoutLeft", "method not found")
-    }
-
-    /** The native XML anchors both accessories right; forcing arrows right must move the label. */
-    @SuppressLint("RtlHardcoded") // Match the native inoutLeft collector's absolute LEFT/RIGHT.
-    private fun hookAccessoryLayout() {
-        if (!activityRight || hideActivity) return
-        val binderClass = BINDER_CLASS.toClassOrNull() ?: run { DebugLog.hookSkipped("WifiIconHooker", "$BINDER_CLASS", "not found on host"); return }
-        binderClass.findMethodOrNull { name("bind"); paramCount(2) }?.let { method ->
-            deoptimize(method)
-            method.hook { after { param ->
-                if (retired || !activityRight || hideActivity) return@after
-                runCatching {
-                    val root = param.args.getOrNull(0) as? ViewGroup ?: return@runCatching
-                    val standardId = ResourceLookup.identifier(root.resources, "wifi_standard", "id", "com.android.systemui")
-                    val activityId = ResourceLookup.identifier(root.resources, "wifi_activity", "id", "com.android.systemui")
-                    val standard = if (standardId != 0) root.findViewById<android.view.View>(standardId) as? TextView else null
-                    standard?.let(::placeStandardLeft)
-                    val activity = if (activityId != 0) root.findViewById<android.view.View>(activityId) else null
-                    (activity?.layoutParams as? FrameLayout.LayoutParams)?.let { params ->
-                        params.gravity = Gravity.RIGHT or Gravity.BOTTOM
-                        activity.layoutParams = params
-                    }
-                }.onFailure { DebugLog.w(TAG, "Wi-Fi accessory placement failed", it) }
-            } }
         }
         binderClass.findMethodOrNull {
             name("access\$bind\$updateWifiStandardLayoutParams"); paramCount(2)
@@ -387,6 +389,76 @@ object WifiIconHooker : StaticHooker() {
                 collector.findMethodOrNull { name("invokeSuspend"); paramCount(1) }?.let(::deoptimize)
             }
         }.onFailure { DebugLog.w(TAG, "Wi-Fi activity collector deoptimization failed", it) }
+    }
+
+    /** Applies, or restores, the padding and accessory placement of one bound Wi-Fi root. */
+    @SuppressLint("RtlHardcoded") // Match the native inoutLeft collector's absolute LEFT/RIGHT.
+    private fun applyBinderLayout(root: ViewGroup) {
+        runCatching {
+            val groupId = ResourceLookup.identifier(root.resources, "wifi_group", "id", "com.android.systemui")
+            val group = (if (groupId != 0) root.findViewById<ViewGroup>(groupId) else null) ?: root
+            if (paddingEnabled) {
+                originalPadding.getOrPut(group) {
+                    intArrayOf(group.paddingStart, group.paddingTop, group.paddingEnd, group.paddingBottom)
+                }
+                group.setPaddingRelative(dpToPx(root, paddingStart), group.paddingTop,
+                    dpToPx(root, paddingEnd), group.paddingBottom)
+            } else {
+                originalPadding.remove(group)?.let { group.setPaddingRelative(it[0], it[1], it[2], it[3]) }
+            }
+        }.onFailure { DebugLog.w(TAG, "Wi-Fi padding update failed", it) }
+        runCatching {
+            val standardId = ResourceLookup.identifier(root.resources, "wifi_standard", "id", "com.android.systemui")
+            val activityId = ResourceLookup.identifier(root.resources, "wifi_activity", "id", "com.android.systemui")
+            val standard = if (standardId != 0) root.findViewById<View>(standardId) as? TextView else null
+            val activity = if (activityId != 0) root.findViewById<View>(activityId) else null
+            val params = activity?.layoutParams as? FrameLayout.LayoutParams
+            if (activityRight && !hideActivity) {
+                standard?.let(::placeStandardLeft)
+                if (activity != null && params != null) {
+                    activityGravity.putIfAbsent(activity, params.gravity)
+                    params.gravity = Gravity.RIGHT or Gravity.BOTTOM
+                    activity.layoutParams = params
+                }
+            } else {
+                standard?.let(::restoreStandard)
+                val original = activity?.let(activityGravity::remove)
+                if (activity != null && params != null && original != null) {
+                    params.gravity = original
+                    activity.layoutParams = params
+                }
+            }
+        }.onFailure { DebugLog.w(TAG, "Wi-Fi accessory placement failed", it) }
+    }
+
+    private fun restoreStandard(view: TextView) {
+        val original = standardGravity.remove(view) ?: return
+        (view.layoutParams as? FrameLayout.LayoutParams)?.let { params ->
+            params.gravity = original
+            view.layoutParams = params
+        }
+    }
+
+    /** `inoutLeft=false` is the verified host value for placing the activity indicator right. */
+    private fun hookActivityDirection() {
+        val vmClass = VM_CLASS.toClassOrNull() ?: run {
+            DebugLog.hookSkipped(TAG, VM_CLASS, "class not found")
+            return
+        }
+        val gate = LiveFlowGate("Wi-Fi arrows right", activityRight && !hideActivity).also { directionGate = it }
+        vmClass.findMethodOrNull { name("getInoutLeft"); noParams() }?.let { getter ->
+            deoptimize(getter)
+            val returnType = getter.returnType
+            getter.hook {
+                after { param ->
+                    if (param.throwable != null) return@after
+                    // `inoutLeft=false` places the arrows right; the gate forces it while selected.
+                    val base = restoredDirection ?: param.result ?: return@after
+                    param.result = gate.wrap(base, returnType) { false }
+                        ?: if (gate.hidden) IconTunerFlows.falseFlow else base
+                }
+            }
+        } ?: DebugLog.hookSkipped(TAG, "$VM_CLASS#getInoutLeft", "method not found")
     }
 
     @SuppressLint("RtlHardcoded") // Keep the label opposite the native absolute-right arrow.

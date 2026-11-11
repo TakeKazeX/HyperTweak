@@ -233,6 +233,17 @@ object IconManagerHooker : StaticHooker() {
         )
     }
 
+    /**
+     * Applies a policy-only settings change to the living managers without reinstalling hooks.
+     * `setBlockList` refreshes each group in place (`refreshIconGroup` -> `setBlocked`), so the
+     * existing views stay and the host animates the visibility change. Main thread only.
+     */
+    internal fun refreshPolicy() {
+        if (retiring) return
+        options = IconTunerOptions.snapshot()
+        republishMergedLists()
+    }
+
     /** Returns the host list captured for a static OS4 block-list object, if known. */
     fun pristineFor(list: Any?): List<String>? = synchronized(stateLock) {
         list?.let { pristineLists[it]?.toList() }

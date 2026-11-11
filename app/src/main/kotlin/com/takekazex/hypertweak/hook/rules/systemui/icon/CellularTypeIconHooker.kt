@@ -69,6 +69,7 @@ object CellularTypeIconHooker : StaticHooker() {
             if (orderMode != 0) it.views.filterIsInstance<ViewGroup>()
                 .filter { view -> view.javaClass.name == MOBILE_VIEW_CLASS }
                 .forEach(::applyTypeOrder)
+            remeasureBoundTypes(it.views)
         }
     }
 
@@ -180,6 +181,30 @@ object CellularTypeIconHooker : StaticHooker() {
                     param.args[0] = styled
                 }.onFailure { DebugLog.w(TAG, "single 5GA label styling failed", it) }
             }
+        }
+    }
+
+    /**
+     * Re-runs the bound type label and drawable through the current hooks. The 5GA styling is
+     * applied when the host sets the label or measures the drawable, so after this hooker is
+     * reinstalled on its own the living icons would otherwise keep the previous styling until the
+     * next network type change.
+     */
+    private fun remeasureBoundTypes(views: List<android.view.View>) {
+        views.forEach { view ->
+            runCatching {
+                when {
+                    view is TextView && view.id != 0 && view.id == resolveSingleTypeViewId(view) -> {
+                        view.text?.toString()?.let(view::setText)
+                    }
+                    view is android.widget.ImageView && view.drawable?.javaClass?.name == DRAWABLE_CLASS -> {
+                        val drawable = view.drawable
+                        findMethod(drawable.javaClass, "measure", 0)?.invoke(drawable)
+                        view.requestLayout()
+                        view.invalidate()
+                    }
+                }
+            }.onFailure { DebugLog.w(TAG, "bound type remeasure failed", it) }
         }
     }
 

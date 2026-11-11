@@ -39,6 +39,7 @@ import com.takekazex.hypertweak.settings.contract.IconSettingsPreferencePolicy
 import com.takekazex.hypertweak.settings.contract.IndependentIconDomain
 import com.takekazex.hypertweak.settings.contract.SystemUiLiveSettings
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.util.logging.DebugLog
 import com.takekazex.hypertweak.util.platform.PlatformLevel
 
@@ -150,22 +151,11 @@ internal class SystemUiSettingsHost(
             return true
         }
         val start = SystemClock.elapsedRealtime()
-        if (keys.isNotEmpty() && independent != null) {
-            val selected = independent.map {
-                when (it) {
-                    IndependentIconDomain.SAMPLING -> RegionSamplingHooker
-                    IndependentIconDomain.NOTIFICATIONS -> NotificationMaxNumberHooker
-                }
-            }
-            if (hooks.containsAll(selected)) {
-                ManagedHookReload.run(replacements = selected.map { it to it }) {
-                    StatusIconHotReloadRecovery.scheduleIndependentIcons(context, selected)
-                }
-                iconSnapshotAtInstall = snapshot
-                DebugLog.i("IconTuner", "live independent icon settings attached hooks=${selected.size} " +
-                    "attachMs=${SystemClock.elapsedRealtime() - start}; targeted host recovery queued")
-                return true
-            }
+        if (keys.isNotEmpty() && independent != null && applyIndependentIcons(context, hooks, independent)) {
+            iconSnapshotAtInstall = snapshot
+            DebugLog.i("IconTuner", "live independent icon settings applied domains=$independent " +
+                "elapsedMs=${SystemClock.elapsedRealtime() - start}")
+            return true
         }
         ManagedHookReload.run(
             replacements = hooks.map { it to it },
@@ -182,6 +172,67 @@ internal class SystemUiSettingsHost(
         DebugLog.i("IconTuner", "live icon settings attached hooks=${hooks.size} " +
             "attachMs=${SystemClock.elapsedRealtime() - start}; native host recovery queued")
         iconSnapshotAtInstall = snapshot
+        return true
+    }
+
+    /**
+     * Applies [domains] through their own owners only. The native icon groups are never rebuilt,
+     * so the status bar keeps its views: policy, Duo and pipeline-gate changes reconcile in place, and owners that
+     * only draw on the control center, lock screen or a single slot are recreated on their own.
+     * False when an owner is not installed, so the caller falls back to the full transaction.
+     */
+    private fun applyIndependentIcons(
+        context: android.content.Context,
+        hooks: List<BaseHooker>,
+        domains: Set<IndependentIconDomain>
+    ): Boolean {
+        val reloaded = LinkedHashSet<BaseHooker>()
+        val live = LinkedHashSet<BaseHooker>()
+        domains.forEach { domain ->
+            when (domain) {
+                IndependentIconDomain.SAMPLING -> reloaded += RegionSamplingHooker
+                IndependentIconDomain.NOTIFICATIONS -> reloaded += NotificationMaxNumberHooker
+                IndependentIconDomain.POLICY -> live += listOf(IconManagerHooker, IconPositionHooker, LeftContainerHooker)
+                IndependentIconDomain.DUO -> live += DuoSignalHooker
+                IndependentIconDomain.CONTROL_CENTER_HEADER -> reloaded += listOf(
+                    ControlCenterHeaderHooker, ControlCenterCarrierBlockHooker, HideCarrierLabelHooker
+                )
+                IndependentIconDomain.CC_BATTERY -> reloaded += CcBatteryStyleHooker
+                IndependentIconDomain.ROTATION_LOCK -> reloaded += CcRotationLockIconHooker
+                IndependentIconDomain.AIRPLANE -> reloaded += AirplaneIconHooker
+                IndependentIconDomain.CELLULAR -> live += CellularIconHooker
+                IndependentIconDomain.WIFI -> live += WifiIconHooker
+                IndependentIconDomain.STACKED -> live += StackedSignalHooker
+                IndependentIconDomain.CELLULAR_TYPE -> reloaded += CellularTypeIconHooker
+                IndependentIconDomain.SIM_VISIBILITY -> live += HideCellularIconHooker
+            }
+        }
+        if (!hooks.containsAll(reloaded) || !hooks.containsAll(live)) return false
+        val sampling = reloaded.filter { it === RegionSamplingHooker || it === NotificationMaxNumberHooker }
+        val scoped = reloaded - sampling.toSet()
+        if (reloaded.isNotEmpty()) {
+            ManagedHookReload.run(replacements = reloaded.map { it to it }) {
+                if (sampling.isNotEmpty()) StatusIconHotReloadRecovery.scheduleIndependentIcons(context, sampling)
+                if (scoped.isNotEmpty()) {
+                    if (ControlCenterCarrierBlockHooker in scoped) ControlCenterCarrierBlockHooker.onPackageReady(context)
+                    StatusIconHotReloadRecovery.scheduleScoped(context, scoped.toList())
+                }
+            }
+        }
+        if (live.isNotEmpty()) HostAccess.onMain {
+            if (IndependentIconDomain.POLICY in domains) {
+                // Visibility and left placement only: re-block the existing views in place.
+                IconManagerHooker.refreshPolicy()
+                IconPositionHooker.refreshPolicy()
+                LeftContainerHooker.requestReconcile()
+            }
+            // Pipeline gates re-emit through the binders that already collect them.
+            if (CellularIconHooker in live) CellularIconHooker.refreshSettings()
+            if (WifiIconHooker in live) WifiIconHooker.refreshSettings()
+            if (HideCellularIconHooker in live) HideCellularIconHooker.refreshSettings()
+            if (StackedSignalHooker in live) StackedSignalHooker.refreshSettings()
+            if (DuoSignalHooker in live) DuoSignalHooker.refreshSettings()
+        }
         return true
     }
 
