@@ -342,7 +342,8 @@ object FcmLiveSystemHooker : StaticHooker() {
         runCatching {
             val clazz = "com.miui.server.greeze.power.AwareResourceControl".toClassOrNull() ?: return@runCatching
             val method = HostAccess.requireDeclaredMethod(clazz, "isNetworkDisableAble", String::class.java, accessible = false)
-            deoptimize(method)
+            // No deoptimize here: deoptimizing only helps on the caller that inlined a hooked method,
+            // and the PolicyMaker callers carry no AOT code in miui-services.odex (OS4.0.6.0).
             method.hook {
                 before { param ->
                     if (!retired && settingFcmLiveEnabled && param.args.firstOrNull() == GMS_PACKAGE_NAME) param.result = false
@@ -379,6 +380,11 @@ object FcmLiveSystemHooker : StaticHooker() {
             // shouldSkipAtEnqueueMessage(BroadcastRecord, Object) and the delivery path calls
             // shouldSkipMessage(BroadcastRecord, Object), both before the private variants, so the
             // bypass holds regardless of module hook order.
+            // Known limitation (oatdump, OS4.0.6.0 services.odex): BroadcastQueueImpl's compiled
+            // enqueueBroadcastLocked and shouldSkipReceiver inline both entry points and the private
+            // variants. These hooks therefore fire only when those callers run uncompiled, e.g. after a
+            // freezer module deoptimizes them for its own private-variant hooks. That is also the only
+            // case they are needed. Deoptimizing the callers here would interpret every broadcast enqueue.
             listOf(
                 "shouldSkipAtEnqueueMessage",
                 "shouldSkipMessage"
