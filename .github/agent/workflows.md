@@ -230,7 +230,10 @@ preview/cache-rebuild/apply ordering, old-DB-suffix-independent readback, cold-s
 reflow, queued requests, bounded rollback and patch ownership.
 Run resolver/rule regressions against both the original
 and rewritten compiler shapes (inlined apply, compact variable calculation,
-changed copy temporaries and expanded loader); preview geometry must agree with
+changed copy temporaries and expanded loader). The x/y copy step is decoded from the
+`copyWith` idiom (null check, SMI untag or boxed load, frame spill, later store into the
+copy), not from a whole-function word pattern; the y field must follow x by 8. Preview
+geometry must agree with
 an independent live-geometry consumer. The ABI runner executes the real
 ComputePipeline input/row/clamp assembly, including null row hints and stock
 replay, for all 12 combinations (360 cases).

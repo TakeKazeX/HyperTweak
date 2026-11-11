@@ -101,6 +101,41 @@ bool VerifyExpandedGridLoadCid(const Image& image, uintptr_t load) {
 }
 }
 const TargetSpec kDesktopGridTarget={"desktop_grid_pipeline","libapp.so",kGridSites,8};
+// GridContext.copyWith defaults each nullable int argument to the receiver's
+// field and later stores the result into the new instance:
+//   cmp wP, null; b.ne L; ldur xR, [x1, #F]; b J;
+//   L: sbfx xR, xP, #1, #31; tbz wP, #0, J; ldur xR, [xP, #7];
+//   J: stur xR, [fp, #S] ... ldur xT, [fp, #S]; stur xT, [x0, #F]
+// Registers, spill slots and pool offsets are compiler choices; only the roles
+// and the shared field operand are part of the contract.
+bool GridCopyDefault(const Image& image,uintptr_t at,uint32_t field,int32_t* slot){
+ uint32_t w[8]{};if(!ReadInsns(image,at,w,8))return false;
+ const uint32_t param=(w[0]>>5)&31u,result=w[2]&31u;
+ if((w[0]&0xfffffc1fu)!=0x6b16001fu||w[1]!=0x54000061u||(w[2]&0xffe00fe0u)!=0xf8400020u||GridField(w[2])!=field||
+    w[3]!=0x14000004u||w[4]!=(0x93417c00u|(param<<5)|result)||w[5]!=(0x36000040u|param)||
+    w[6]!=(0xf8407000u|(param<<5)|result)||(w[7]&0xffe00fffu)!=(0xf80003a0u|result)||param==result||param==1u)return false;
+ *slot=static_cast<int32_t>(GridField(w[7]))-512;return true;
+}
+bool GridCopyContext(const Image& image,uintptr_t copy,uint32_t context_x,uint32_t* context_y){
+ if(!IsDartPrologue(image,copy))return false;
+ uintptr_t end=0;
+ for(uintptr_t at=copy+8;at<copy+0x1000;at+=4){const auto w=GridWord(image,at);if(w==0xd65f03c0u){end=at;break;}if(IsDartPrologue(image,at))return false;}
+ if(!end)return false;
+ const uint32_t fields[2]={context_x,context_x+8u};
+ for(unsigned f=0;f<2;++f){
+  uintptr_t found=0;int32_t slot=0;unsigned defaults=0,stores=0;
+  for(uintptr_t at=copy;at+32<=end;at+=4){int32_t s=0;if(GridCopyDefault(image,at,fields[f],&s)){found=at;slot=s;++defaults;}}
+  if(defaults!=1)return false;
+  for(uintptr_t at=found+32;at+8<=end;at+=4){
+   const auto load=GridWord(image,at),store=GridWord(image,at+4);
+   if((load&0xffe00fe0u)!=(0xf84003a0u)||static_cast<int32_t>(GridField(load))-512!=slot)continue;
+   if((store&0xffe00fe0u)!=0xf8000000u||(store&31u)!=(load&31u)||GridField(store)!=fields[f])continue;
+   ++stores;
+  }
+  if(stores!=1)return false;
+ }
+ *context_y=fields[1];return true;
+}
 bool DecodeDesktopGridLayout(const Image& image,const uintptr_t* sites,DesktopGridLayout* out,const uint8_t* handler,const uint8_t* variable,const uint8_t* rows,const uint8_t* clamp){
  if(!sites||!out)return false;
  auto verify=[&](uintptr_t at,const BytePattern& pattern,const uint8_t* original=nullptr,size_t begin=0){
@@ -148,10 +183,8 @@ bool DecodeDesktopGridLayout(const Image& image,const uintptr_t* sites,DesktopGr
  if((guard0&0xffc003ffu)!=0xf100003fu||(guard1&0xffc003ffu)!=0xf100001fu||((guard0>>10)&4095u)!=v.cell_cid||((guard1>>10)&4095u)!=v.cell_cid)return false;
  if(!find_owned(kGridHandler,0,handler,&v.handler)||!GridCall(image,v.handler+0x8c,&call)||call!=sites[6]||!GridCall(image,v.handler+0x9c,&call)||call!=sites[5]||!GridCall(image,v.handler+0xa8,&values)||!verify(values,kGridValues))return false;
  if(!GridCall(image,values+0x714,&copy))return false;
- const bool spilled_copy=verify(copy,kGridSpilledCopy);
- if(!spilled_copy&&!verify(copy,kGridCopy))return false;
- v.context_x=GridField(GridWord(image,sites[5]+0x3c));v.context_y=GridField(GridWord(image,copy+0x71c));
- if(v.context_x!=GridField(GridWord(image,sites[6]+0x4c))||v.context_x!=GridField(GridWord(image,copy+0x6fc))||v.context_x!=GridField(GridWord(image,copy+(spilled_copy?0x8e8:0x8d0)))||v.context_y!=GridField(GridWord(image,copy+(spilled_copy?0x8f0:0x8d8))))return false;
+ v.context_x=GridField(GridWord(image,sites[5]+0x3c));
+ if(v.context_x!=GridField(GridWord(image,sites[6]+0x4c))||!GridCopyContext(image,copy,v.context_x,&v.context_y))return false;
  v.input_rows=GridField(GridWord(image,sites[6]+0x20));v.rows_window=sites[6]+0x20;
  uint32_t row_word=rows?0:GridWord(image,v.rows_window),row_branch=rows?0:GridWord(image,v.rows_window+12);
  if(rows){memcpy(&row_word,rows,4);memcpy(&row_branch,rows+12,4);}
