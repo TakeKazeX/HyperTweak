@@ -113,7 +113,10 @@ internal class NativeRuleStatePublisher {
     fun publish() {
         handler.post {
             if (closed) return@post
-            val target = context ?: run { reportWaiting("application context"); return@post }
+            val target = context ?: run {
+                // Expected on every cold start: attach() delivers the SystemUI context and publishes.
+                reportWaiting("application context", expected = true); return@post
+            }
             Preferences.nativeRuleSnapshot()?.let(ledger::offer)
             val snapshot = ledger.latest() ?: run { reportWaiting("authoritative settings snapshot"); return@post }
             waiting = null
@@ -168,10 +171,11 @@ internal class NativeRuleStatePublisher {
         }.onFailure { DebugLog.w("NativeRules", "native settings broadcast failed", it) }
     }
 
-    private fun reportWaiting(reason: String) {
+    private fun reportWaiting(reason: String, expected: Boolean = false) {
         if (waiting == reason) return
         waiting = reason
-        DebugLog.w("NativeRules", "native settings publication waiting for $reason")
+        val message = "native settings publication waiting for $reason"
+        if (expected) DebugLog.d("NativeRules", message) else DebugLog.w("NativeRules", message)
     }
 
     private fun detachContext() {

@@ -82,7 +82,7 @@ public abstract class SystemUiHookRuntime extends SystemUiAnimationRuntime {
             if (systemUiContext != null) {
                 ensureMiuiOverviewStateReceiver(systemUiContext);
             } else {
-                moduleLog(Log.WARN, TAG,
+                moduleLog(Log.DEBUG, TAG,
                         "SystemUI application context is not available yet; "
                                 + "status receiver will retry from the input owner");
             }
