@@ -2,13 +2,13 @@ package com.takekazex.hypertweak.hook.rules.systemui.island
 
 import com.takekazex.hypertweak.hook.rules.systemui.island.host.IslandHostPorts
 import com.takekazex.hypertweak.hook.rules.systemui.island.host.IslandSlot
+import com.takekazex.hypertweak.hook.rules.systemui.island.host.IslandStateKind
 import com.takekazex.hypertweak.hook.rules.systemui.island.policy.layout.IslandContentSize
-import com.takekazex.hypertweak.hook.rules.systemui.island.policy.layout.ThreeIslandLayout
 import com.takekazex.hypertweak.hook.rules.systemui.island.session.IslandRuntime
-import com.takekazex.hypertweak.hook.rules.systemui.island.session.TemplateAnimation
 import org.junit.Assert.*
 import org.junit.Test
 
+/** Placeholder removal is keyed by the content view, never by the handler that owns it now. */
 class IslandProgressRefreshTest {
     private val host = InMemoryIslandHost()
     private val owner = Any()
@@ -24,8 +24,7 @@ class IslandProgressRefreshTest {
     private val ports = object : IslandHostPorts by host {
         override fun fixedCutoutWidth(view: Any) = 72
         override fun bigIslandView(view: Any): Any? {
-            // releaseFullPosition reaches the visible root only when native positioning
-            // is restored. Android View animation itself is covered by device acceptance.
+            // Reached only when a module-owned position is restored to native.
             releases += view
             return null
         }
@@ -36,72 +35,80 @@ class IslandProgressRefreshTest {
 
     init {
         host.bind(owner, IslandSlot.BIG, download).bind(owner, IslandSlot.SMALL, side)
-        session.scene.layoutIntent = true
-        session.scene.layout = ThreeIslandLayout(471, 381, 359, 864, false, 1200)
-        session.scene.portraitContent = content
-        session.scene.contentSizes[download] = content
+        host.sizes[download] = content
+        host.scene = host.scene.copy(maxWidth = 722)
     }
 
-    @Test fun `repeated progress binding retains published geometry until new measurement`() {
+    private fun measure() = runtime.compact.afterMeasure(download, Any(), Any(), null)
+
+    private fun offset(left: Int = 93, right: Int = 216, width: Int = 381): Float? =
+        runtime.presentation.bigIslandAnimation(download, arrayOf<Any?>(left, right, width, 0f, null, null, null, null, download))
+            .let { it as? com.takekazex.hypertweak.hook.rules.systemui.island.session.TemplateAnimation.Redirect }
+            ?.args?.get(3) as? Float
+
+    @Test fun `camera stays centred while each side keeps its own width`() {
+        val measured = checkNotNull(measure())
+        assertEquals(471, measured.x)
+        assertEquals(381, measured.width)
+        assertEquals(93, measured.left)
+        assertEquals(216, measured.right)
+        assertEquals(measured.width, measured.viewWidth)
+        assertEquals(61.5f, offset())
+    }
+
+    @Test fun `repeated progress binding keeps the published offset`() {
+        measure()
         repeat(50) {
             runtime.templates.templateBound(download)
             assertFalse(session.health.failed)
-            assertTrue(runtime.portraitMain(session, download))
-            assertEquals(content, session.scene.portraitContent)
+            assertEquals(61.5f, offset())
             assertTrue(releases.isEmpty())
-            // Clearing the measurement cache must not change presentation ownership.
-            assertFalse(session.scene.contentSizes.containsKey(download))
-            val args = arrayOfNulls<Any>(11).apply { this[3] = 0f }
-            val animation = runtime.presentation.bigIslandAnimation(download, args) as TemplateAnimation.Redirect
-            assertEquals(61.5f, animation.args[3])
-            host.sizes[download] = content
-            val measured = runtime.measurement.afterMeasure(download, Any(), Any(), Any())!!
-            assertEquals(471, measured.x)
-            assertEquals(381, measured.width)
         }
     }
 
-    @Test fun `new progress text width updates geometry without restoring native origin`() {
-        runtime.templates.templateBound(download)
+    @Test fun `new progress text width updates geometry`() {
+        measure()
         host.sizes[download] = IslandContentSize(103, 226)
-        val measured = runtime.measurement.afterMeasure(download, Any(), Any(), Any())!!
+        val measured = checkNotNull(measure())
         assertEquals(461, measured.x)
         assertEquals(401, measured.width)
-        assertEquals(IslandContentSize(103, 226), session.scene.portraitContent)
+        assertEquals(61.5f, offset(103, 226, 401))
+        assertNull(offset())
+    }
+
+    @Test fun `leaving the main slot keeps compact geometry for the exit and return animations`() {
+        measure()
+        // Expand and delete both clear the BIG handler before the host animates the view.
+        host.bind(owner, IslandSlot.BIG, null).bind(owner, IslandSlot.EXPANDED, download)
+        download.state = FakeState(IslandStateKind.OTHER)
+        runtime.presentation.beforeStateChange(session, download)
+        assertEquals(61.5f, offset())
         assertTrue(releases.isEmpty())
+        // A native re-measure while expanded must not write the mirrored native width back.
+        assertEquals(381, checkNotNull(measure()).width)
+        assertEquals(61.5f, offset())
     }
 
-    @Test fun `side real and fake binding cannot invalidate main compact geometry`() {
-        runtime.templates.templateBound(side)
-        runtime.templates.templateBound(side, Any())
-        assertEquals(content, session.scene.portraitContent)
-        runtime.templates.releaseFullPosition(session, download)
-        assertFalse(download in releases)
-        assertTrue(runtime.portraitMain(session, download))
+    @Test fun `only the field set carrying compact geometry is redirected`() {
+        measure()
+        assertNull(offset(120, 120, 312))
     }
 
-    @Test fun `configuration binding invalidates old geometry for deferred publication`() {
-        session.template.configurationBindings.expect(download)
-        runtime.templates.templateBound(download)
-        assertFalse(session.health.failed)
-        assertNull(session.scene.portraitContent)
-        assertTrue(download in releases)
-        assertFalse(session.template.configurationBindings.bound(download))
+    @Test fun `a small island that no longer fits keeps the native result`() {
+        host.measuredSmall = 400
+        assertNull(measure())
+        assertNull(offset())
     }
 
-    @Test fun `disabling compact layout restores native position on next binding`() {
+    @Test fun `disabling placeholder removal returns the next measurement to native`() {
+        measure()
         settings.removePlaceholder = false
-        runtime.templates.templateBound(download)
-        assertFalse(session.health.failed)
-        assertNull(session.scene.portraitContent)
-        assertTrue(download in releases)
+        assertNull(measure())
+        assertNull(offset())
     }
 
-    @Test fun `expanded main binding restores native position`() {
-        host.bind(owner, IslandSlot.EXPANDED, download)
-        runtime.templates.templateBound(download)
-        assertFalse(session.health.failed)
-        assertNull(session.scene.portraitContent)
-        assertTrue(download in releases)
+    @Test fun `landscape never rewrites the main template`() {
+        host.orientation = com.takekazex.hypertweak.hook.rules.systemui.island.model.IslandOrientation.LANDSCAPE
+        assertNull(measure())
     }
 }

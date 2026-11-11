@@ -20,8 +20,11 @@ internal class MeasurementCoordinator(private val runtime: IslandSessionState) :
                 return@core IslandResultGeometry(frame.width, frame.content.left, frame.content.right,
                     frame.x, 0, frame.width, frame.content.left, frame.content.right, frame.x)
             }
+            val nativeScene = host.sceneOf(session.owner, input, host.orientationOf(session.owner))
             session.scene.contentSizes.remove(view)
-            host.measuredContentSize(view, input)?.let { session.scene.contentSizes[view] = it }
+            host.measuredContentSize(view, input)?.let {
+                session.scene.contentSizes[view] = it.fitted(nativeScene.maxWidth)
+            }
             session.spectrum.returnContents = session.scene.contentSizes.entries.mapNotNull { (item, size) ->
                 host.key(item)?.let { it to size }
             }.toMap()
@@ -32,7 +35,7 @@ internal class MeasurementCoordinator(private val runtime: IslandSessionState) :
             val mainCutout = big?.let {
                 runtime.nativeCutoutRead.run { host.fixedCutoutWidth(it) }
             }
-            val scene = host.sceneOf(session.owner, input, host.orientationOf(session.owner)).let {
+            val scene = nativeScene.let {
                 if (big === view && mainCutout != null) it.copy(cutoutWidth = mainCutout) else it
             }
             val flags = runtime.flags(session)
@@ -77,7 +80,7 @@ internal class MeasurementCoordinator(private val runtime: IslandSessionState) :
             } else {
                 outcome = outcomeFromSession(session)
             }
-            IslandLayoutPolicy.requests(outcome, flags.rowMode, big, mainCutout ?: scene.cutoutWidth)
+            IslandLayoutPolicy.requests(outcome, flags.rowMode)
                 .forEach { runtime.templates.acquire(session, it) }
             val render = IslandLayoutPolicy.render(
                 outcome = outcome,

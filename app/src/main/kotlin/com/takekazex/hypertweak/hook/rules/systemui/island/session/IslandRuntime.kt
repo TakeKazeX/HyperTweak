@@ -13,6 +13,7 @@ internal class IslandRuntime(
     musicSpectrum: NativeMusicSpectrum?,
     mediaRender: NativeMediaRenderContract?,
 ) : IslandSessionState(host, preferences, retiring, musicSpectrum, mediaRender) {
+    override val compact by lazy { CompactCoordinator(this) }
     override val diagnostics by lazy { DiagnosticsCoordinator(this) }
     override val spectrum by lazy { SpectrumCoordinator(this) }
     override val templates by lazy { TemplateCoordinator(this) }

@@ -63,6 +63,8 @@ internal object IslandLayoutPolicy {
             .maxOfOrNull(context.nativeSmallWidth) ?: 0
         val rightSmallWidth = sideSources.filter { context.seatLeft(it) != true }
             .maxOfOrNull(context.nativeSmallWidth) ?: 0
+        // The same camera-seated geometry the compact rewrite publishes; the session needs it
+        // only to budget side seats. Any later non-main measurement falls back to that rewrite.
         val portrait = if (context.flags.portraitCompact) {
             context.contentSizes[context.big]?.let { content ->
                 PortraitIslandLayout.calculate(
@@ -94,34 +96,18 @@ internal object IslandLayoutPolicy {
                     true, scene.screenWidth,
                 )
             }
-            context.flags.portraitCompact -> {
-                // Natural media text can exceed the three-seat budget. Use the host's
-                // compact width allocation before giving up the queued seat; otherwise
-                // every reveal repeats the same impossible natural-width admission.
-                layout = if (extras.isNotEmpty() && context.primary != null) {
-                    ThreeIslandLayout.calculate(
-                        scene.screenWidth, scene.screenHeight, scene.clockWidth, scene.batteryWidth,
-                        minOf(context.nativeResult.bigWidth, scene.maxWidth), context.minBigWidth,
-                        leftSmallWidth, scene.gap, scene.safe.left, scene.safe.right, rightSmallWidth,
-                    )?.takeIf { it.bigWidth > scene.cutoutWidth + 1 }
-                } else null
-                if (layout != null) {
-                    extras = extras.take(1)
-                    val contentWidth = layout.bigWidth - scene.cutoutWidth
-                    portraitContent = IslandContentSize(contentWidth / 2, contentWidth - contentWidth / 2)
-                } else {
-                    extras = emptyList()
-                }
-            }
             extras.firstOrNull() != null && context.primary != null -> {
-                extras = extras.take(1)
+                // Natural main text can exceed the three-seat budget. Use the host's balanced
+                // width allocation before giving up the queued seat; otherwise every reveal
+                // repeats the same impossible natural-width admission.
                 layout = ThreeIslandLayout.calculate(
                     scene.screenWidth, scene.screenHeight, scene.clockWidth, scene.batteryWidth,
                     minOf(context.nativeResult.bigWidth, scene.maxWidth), context.minBigWidth,
                     leftSmallWidth,
                     scene.gap, safeLeft = scene.safe.left, safeRight = scene.safe.right,
                     rightSmallWidth = rightSmallWidth,
-                )
+                )?.takeIf { !context.flags.portraitCompact || it.bigWidth > scene.cutoutWidth + 1 }
+                extras = if (layout != null || !context.flags.portraitCompact) extras.take(1) else emptyList()
             }
             context.primary != null && context.nativeMusicRight -> {
                 val x = context.nativeResult.bigXWithSmall
@@ -145,29 +131,18 @@ internal object IslandLayoutPolicy {
             layoutIntent = context.layoutIntent,
             templateRequests = emptyList(),
         )
-        return outcome.copy(templateRequests = requests(outcome, context.flags.rowMode, context.big, scene.cutoutWidth))
+        return outcome.copy(templateRequests = requests(outcome, context.flags.rowMode))
     }
 
-    /** Recompute lease requests after a spectrum seat has been attached to the outcome. */
-    fun requests(
-        outcome: MeasurementOutcome,
-        rowMode: Boolean,
-        big: Any?,
-        cutoutWidth: Int,
-    ): List<TemplateWidthRequest> {
-        val requests = ArrayList<TemplateWidthRequest>(outcome.fullFrames.size + 1)
-        outcome.fullFrames.forEach { (view, frame) ->
-            if (!frame.full) return@forEach
-            requests += TemplateWidthRequest(
-                view, 0,
-                TemplateSeatPolicy.modeFor(outcome.musicSmall === view, rowMode, frame),
-            )
+    /**
+     * Lease requests for published full templates, recomputed after a spectrum seat has been
+     * attached. Camera-seated main templates are leased by the compact coordinator instead.
+     */
+    fun requests(outcome: MeasurementOutcome, rowMode: Boolean): List<TemplateWidthRequest> =
+        outcome.fullFrames.mapNotNull { (view, frame) ->
+            if (!frame.full) null
+            else TemplateWidthRequest(view, 0, TemplateSeatPolicy.modeFor(outcome.musicSmall === view, rowMode, frame))
         }
-        if (outcome.portraitContent != null && big != null) {
-            requests += TemplateWidthRequest(big, cutoutWidth, TemplateSeatMode.NORMAL)
-        }
-        return requests
-    }
 
     /** Project the shared outcome onto the host's nine-int result for one measured view. */
     fun render(

@@ -2,6 +2,7 @@ package com.takekazex.hypertweak.hook.rules.systemui.island.hooks
 
 import com.takekazex.hypertweak.hook.rules.systemui.island.model.IslandFeature
 import com.takekazex.hypertweak.hook.rules.systemui.island.session.TemplateAnimation
+import com.takekazex.hypertweak.util.logging.DebugLog
 import io.github.libxposed.api.XposedInterface
 
 /** Render-only state projection, template alignment and gesture-animator routing. */
@@ -26,8 +27,13 @@ internal object PresentationBinder {
             "three_islands_template_publication",
             XposedInterface.Hooker { chain ->
                 val view = chain.args[8] ?: return@Hooker chain.proceed()
-                runtime.sessionForView(view) ?: return@Hooker chain.proceed()
-                when (val decision = runtime.presentation.bigIslandAnimation(view, chain.args.toTypedArray())) {
+                val decision = try {
+                    runtime.presentation.bigIslandAnimation(view, chain.args.toTypedArray())
+                } catch (error: Throwable) {
+                    DebugLog.e("ThreeIslands", "align native template animation", error)
+                    TemplateAnimation.Passthrough
+                }
+                when (decision) {
                     TemplateAnimation.Suppress -> null
                     TemplateAnimation.Passthrough -> chain.proceed()
                     is TemplateAnimation.Redirect ->
@@ -96,6 +102,31 @@ internal object PresentationBinder {
                 }
             },
         )
+
+        // A hidden or deleted full template keeps its lease until this view's exit transition ends.
+        registrar.after(access.delegateLifecycle.also(registrar::deoptimize), "three_islands_template_departure") { param ->
+            runCatching {
+                val view = access.delegateView.get(param.thisObject) ?: return@runCatching
+                val session = runtime.sessionForView(view) ?: return@runCatching
+                if (session.presentation.departures.isEmpty()) return@runCatching
+                val tag = param.args[1] as? String ?: return@runCatching
+                val type = (param.args[2] as? Enum<*>)?.name ?: return@runCatching
+                runtime.templates.animationEvent(session, view, tag, type)
+            }.onFailure { DebugLog.e("ThreeIslands", "track full template departure", it) }
+        }
+
+        // A full or side-media template releases its camera-facing padding, but the host still
+        // subtracts it from the holder's text budget; without it the timer text overflows by that
+        // padding and the holder scales the digits down by a fixed factor.
+        access.templateSideWidths.forEach { (leftSide, writer) ->
+            registrar.before(writer, "three_islands_template_side_width_${if (leftSide) "left" else "right"}") { param ->
+                runCatching {
+                    val width = param.args[1] as? Int ?: return@runCatching
+                    val padding = runtime.templates.releasedPadding(param.thisObject ?: return@runCatching, leftSide)
+                    if (padding > 0) param.args[1] = width + padding
+                }.onFailure { DebugLog.e("ThreeIslands", "restore released template padding budget", it) }
+            }
+        }
 
         registrar.before(access.method(access.resolver, "resolve"), "three_islands_transition_resolve") { param ->
             val view = runtime.context.animatingView ?: return@before

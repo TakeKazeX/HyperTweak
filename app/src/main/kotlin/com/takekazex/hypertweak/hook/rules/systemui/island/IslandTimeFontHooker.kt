@@ -42,8 +42,11 @@ class IslandTimeFontHooker : DynamicHooker() {
     private var discover: ((List<Any>) -> List<Any>)? = null
     private val narrowGlyphs = WeakHashMap<TextView, Boolean>()
     private val leases = WeakHashMap<TextView, Lease>()
+    /** Last native text budget per holder; a font swap re-runs the holder's own width pass with it. */
+    private val budgets = WeakHashMap<Any, Int>()
     @Volatile private var retiring = false
-    private var update: ((Any) -> Unit)? = null
+    private var update: ((Any) -> Boolean)? = null
+    private var reflow: ((Collection<Any>) -> Unit)? = null
 
     fun snapshotHolders(): List<Any> = synchronized(holders) { holders.keys.toList() }
     fun restoreHolders(values: List<Any>) {
@@ -62,10 +65,12 @@ class IslandTimeFontHooker : DynamicHooker() {
                 synchronized(holders) { existing.forEach { holders[it] = true } }
             }
             val existing = snapshotHolders()
-            existing.forEach { holder ->
-                HookFailurePolicy.open(TAG, "refresh timer font", Unit) { update?.invoke(holder) }
+            val changed = existing.filter { holder ->
+                HookFailurePolicy.open(TAG, "refresh timer font", false) { update?.invoke(holder) == true }
             }
-            DebugLog.i(TAG, "settings applied enabled=${settingIslandNarrowTimeFont} holders=${existing.size} narrowViews=${leases.size}")
+            HookFailurePolicy.open(TAG, "re-measure timer islands", Unit) { reflow?.invoke(changed) }
+            DebugLog.i(TAG, "settings applied enabled=${settingIslandNarrowTimeFont} holders=${existing.size} " +
+                "changed=${changed.size} narrowViews=${leases.size}")
         }
     }
     fun refreshSettings() {
@@ -145,16 +150,16 @@ class IslandTimeFontHooker : DynamicHooker() {
         }
         val binds = slots.keys.map { HostAccess.requireDeclaredMethod(it, "bind", template, data, accessible = false) }
         fun holderSlots(holder: Any) = slots[holder.javaClass].orEmpty()
-        fun apply(holder: Any, view: TextView, slot: Slot) {
+        /** Returns whether the view's font changed, which invalidates the host's width budget. */
+        fun apply(holder: Any, view: TextView, slot: Slot): Boolean {
             val packageName = (currentData.invoke(holder)?.let { extras.invoke(it) } as? Bundle)
                 ?.getString("miui.pkg.name")
             if (retiring || !settingIslandNarrowTimeFont ||
                 !IslandTimeFontPolicy.eligible(packageName, slot.numeric, view.text)) {
-                release(view)
-                return
+                return release(view)
             }
             val previous = leases[view]
-            if (previous?.applied?.matches(view) == true) return
+            if (previous?.applied?.matches(view) == true) return false
             leases.remove(view)
             val original = Font(view.typeface, view.fontVariationSettings)
             try {
@@ -169,6 +174,7 @@ class IslandTimeFontHooker : DynamicHooker() {
                     DebugLog.d(TAG, "glyphs rebound widget=${view.javaClass.name} textSize=$textSize axes=${view.fontVariationSettings}")
                 }
                 IslandLayoutInvalidation.request(view)
+                return true
             } catch (failure: Throwable) {
                 leases.remove(view)
                 narrowGlyphs.remove(view)
@@ -176,12 +182,35 @@ class IslandTimeFontHooker : DynamicHooker() {
                 throw failure
             }
         }
-        fun applyHolder(holder: Any) {
-            holderSlots(holder).forEach { slot ->
-                (slot.field.get(holder) as? TextView)?.let { apply(holder, it, slot) }
+        fun applyHolder(holder: Any): Boolean = holderSlots(holder).map { slot ->
+            (slot.field.get(holder) as? TextView)?.let { apply(holder, it, slot) } == true
+        }.any { it }
+        // The holder sizes its text views from the font current at its last updateWidth, and the
+        // island areas are measured from those sizes. A font swap outside that pass re-runs the
+        // holder's own pass with its last budget, then the island's own measurement.
+        val holderView = HostAccess.requirePublicMethod(base, "getView", accessible = false)
+        val holderWidth = HostAccess.requireDeclaredMethod(base, "updateWidth", Int::class.javaPrimitiveType!!, accessible = false)
+        // Virtual: the content view re-measures both areas, runs its helper and applies the layout.
+        val islandView = content
+        val measureIsland = HostAccess.requirePublicMethod(content, "calculateBigIslandWidth", accessible = false)
+        fun remeasure(holders: Collection<Any>) {
+            if (holders.isEmpty()) return
+            val islands = LinkedHashSet<Any>()
+            holders.forEach { holder ->
+                HookFailurePolicy.open(TAG, "re-run timer holder width", Unit) {
+                    budgets[holder]?.let { holderWidth.invoke(holder, it) }
+                    var parent = (holderView.invoke(holder) as? android.view.View)?.parent
+                    while (parent != null && !islandView.isInstance(parent)) parent = parent.parent
+                    parent?.let(islands::add)
+                }
             }
+            islands.forEach { island ->
+                HookFailurePolicy.open(TAG, "re-measure timer island", Unit) { measureIsland.invoke(island) }
+            }
+            DebugLog.d(TAG, "timer font changed; holders=${holders.size} islands=${islands.size} re-measured")
         }
         update = ::applyHolder
+        reflow = ::remeasure
         // Native updateWidth reapplies FIXED_FONT before measuring. Override at that boundary,
         // so its measurement uses the same font as the real/fake rendered timer.
         deoptimize(fixedFont)
@@ -230,8 +259,15 @@ class IslandTimeFontHooker : DynamicHooker() {
                     if (method.name == "updatePartial") method.hook {
                         after { param ->
                             if (!retiring && Looper.myLooper() == main.looper) {
-                                HookFailurePolicy.open(TAG, "update timer font", Unit) { applyHolder(param.thisObject) }
+                                HookFailurePolicy.open(TAG, "update timer font", Unit) {
+                                    // New text can change eligibility; the host does not re-measure for it.
+                                    if (applyHolder(param.thisObject)) remeasure(listOf(param.thisObject))
+                                }
                             }
+                        }
+                    } else if (method.parameterTypes.toList() == listOf(Int::class.javaPrimitiveType)) method.hook {
+                        before { param ->
+                            if (Looper.myLooper() == main.looper) (param.args[0] as? Int)?.let { budgets[param.thisObject] = it }
                         }
                     }
                 }
@@ -246,21 +282,26 @@ class IslandTimeFontHooker : DynamicHooker() {
         view.invalidate()
     }
 
-    private fun release(view: TextView, resetGlyphs: Boolean = true) {
+    private fun release(view: TextView, resetGlyphs: Boolean = true): Boolean {
         val lease = leases.remove(view)
-        if (lease?.applied?.matches(view) == true) {
-            lease.original.restore(view)
+        val restored = lease?.applied?.matches(view) == true
+        if (restored) {
+            lease!!.original.restore(view)
             IslandLayoutInvalidation.request(view)
         }
         if (resetGlyphs && narrowGlyphs.remove(view) == true) refreshGlyphs(view)
+        return restored
     }
 
     override fun saveHotReloadState(): Any = listOf(snapshotHolders(),
-        synchronized(islandOwners) { islandOwners.keys.toList() })
+        synchronized(islandOwners) { islandOwners.keys.toList() }, HashMap(budgets))
     override fun restoreHotReloadState(state: Any?) {
         val values = state as? List<*> ?: return
         restoreHolders((values.getOrNull(0) as? List<*>)?.filterNotNull().orEmpty())
         restoreIslandOwners((values.getOrNull(1) as? List<*>)?.filterNotNull().orEmpty())
+        (values.getOrNull(2) as? Map<*, *>)?.forEach { (holder, width) ->
+            if (holder != null && width is Int) budgets[holder] = width
+        }
     }
 
     override fun onPrepareHotReload() {
@@ -272,6 +313,8 @@ class IslandTimeFontHooker : DynamicHooker() {
             synchronized(islandOwners) { islandOwners.clear() }
             discover = null
             update = null
+            reflow = null
+            budgets.clear()
         }
         if (Looper.myLooper() == main.looper) cleanup.run() else {
             val done = CountDownLatch(1)

@@ -5,6 +5,7 @@ import com.takekazex.hypertweak.hook.rules.systemui.island.host.NativeIslandCont
 
 import java.io.File
 import org.jf.dexlib2.DexFileFactory
+import org.jf.dexlib2.AccessFlags
 import org.jf.dexlib2.Opcodes
 import org.jf.dexlib2.iface.ClassDef
 import org.jf.dexlib2.iface.instruction.ReferenceInstruction
@@ -157,6 +158,26 @@ class NativeIslandTargetApkTest {
         assertTrue(full.implementation!!.instructions.mapNotNull {
             (it as? ReferenceInstruction)?.reference as? MethodReference
         }.any { it.name == "getBigIslandStart" })
+        // Full-template exit deferral: one per-view delegate and one lifecycle dispatcher.
+        val base = classes.getValue(content).superclass
+        val delegate = classes.getValue(classes.getValue(animation.definingClass).methods.single {
+            it.name == "getAnimator" && it.parameterTypes.map(CharSequence::toString) == listOf(base)
+        }.returnType)
+        assertEquals(1, delegate.fields.count { it.type == base && !AccessFlags.STATIC.isSet(it.accessFlags) })
+        fun lifecycleEnum(type: String) = classes[type]?.let { enum ->
+            AccessFlags.ENUM.isSet(enum.accessFlags) &&
+                enum.staticFields.map { it.name }.containsAll(listOf("ANIM_START", "ANIM_FINISH", "ANIM_CANCEL"))
+        } == true
+        assertEquals(1, delegate.methods.count { method ->
+            val types = method.parameterTypes.map(CharSequence::toString)
+            !AccessFlags.STATIC.isSet(method.accessFlags) && method.returnType == "V" && types.size == 3 &&
+                types[1] == "Ljava/lang/String;" && lifecycleEnum(types[2])
+        })
+        // Status widths: one instance writer stores maximum, clock and battery together.
+        assertEquals(1, classes.getValue(checkNotNull(base)).methods.count { method ->
+            !AccessFlags.STATIC.isSet(method.accessFlags) && method.returnType == "V" &&
+                method.parameterTypes.map(CharSequence::toString) == listOf("F", "F", "F")
+        })
     }
 
     @Test fun `verified host exposes the complete scheduling measurement and touch contract`() {
@@ -222,5 +243,35 @@ class NativeIslandTargetApkTest {
         assertTrue(result.methods.any { it.name == "<init>" && it.parameterTypes.map(CharSequence::toString) == List(9) { "I" } })
         // stop() publishes the state synchronously; a changed asynchronous protocol needs rework.
         assertEquals("V", stop.returnType)
+    }
+
+    @Test fun `template side budgets and timer holder width pass are reachable from the content view`() {
+        val path = System.getenv("SYSTEMUI_PLUGIN_APK")?.let(::File)
+        assumeTrue(path?.isFile == true)
+        val container = DexFileFactory.loadDexContainer(path!!, Opcodes.getDefault())
+        val classes = container.dexEntryNames.flatMap { container.getEntry(it)!!.dexFile.classes }.associateBy { it.type }
+        val root = "Lmiui/systemui/dynamicisland/"
+        val base = classes.getValue(root + "window/content/DynamicIslandBaseContentView;")
+        fun single(owner: ClassDef, name: String, vararg parameters: String) = owner.methods.single {
+            it.name == name && it.parameterTypes.map(CharSequence::toString) == parameters.toList()
+        }
+        val controller = classes.getValue(single(base, "getController").returnType)
+        val factory = classes.getValue(single(controller, "getIslandTemplateFactory").returnType)
+        assertEquals(root + "template/IslandTemplateFactory;", factory.type)
+        val data = "Lcom/android/systemui/plugins/miui/dynamicisland/DynamicIslandData;"
+        listOf("updateLeftWidth", "updateRightWidth").forEach {
+            assertEquals("V", single(factory, it, data, "I", "Z").returnType)
+        }
+        // A font swap outside the native pass re-runs these two public entry points.
+        val holder = classes.getValue(root + "module/BaseIslandModuleViewHolder;")
+        assertEquals("V", single(holder, "updateWidth", "I").returnType)
+        assertEquals("Landroid/view/View;", single(holder, "getView").returnType)
+        val measure = single(base, "calculateBigIslandWidth")
+        assertTrue(AccessFlags.PUBLIC.isSet(measure.accessFlags))
+        val content = classes.getValue(root + "window/content/DynamicIslandContentView;")
+        val applies = single(content, "calculateBigIslandWidth").implementation!!.instructions.mapNotNull {
+            (it as? ReferenceInstruction)?.reference as? MethodReference
+        }
+        assertTrue(applies.any { it.name == "updateBigIslandLayout" && it.parameterTypes.isEmpty() })
     }
 }

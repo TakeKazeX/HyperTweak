@@ -97,13 +97,15 @@ class IslandLayoutPolicyTest {
             .copy(nativeResult = nativeResult.copy(bigWidth = 722))
         val outcome = IslandLayoutPolicy.measure(input)
         val layout = checkNotNull(outcome.layout)
-        val content = checkNotNull(outcome.portraitContent)
         assertEquals(listOf(extra), outcome.stagedExtras)
         assertTrue(layout.leftX >= input.scene.clockWidth)
         assertTrue(layout.rightX + widths.getValue(primary) <= 1100)
-        assertEquals(564, layout.bigX + content.left)
-        assertEquals(layout.bigWidth, content.width + 72)
-        assertEquals(72, outcome.templateRequests.single().cutoutWidth)
+        // The balanced fallback still centres its camera seat; no main lease is requested.
+        val geometry = (IslandLayoutPolicy.render(outcome, big, big, isSummary = true,
+            nativeMarginWidth = 0, nativeCutoutWidth = 72) as MeasurementRender.Apply).geometry
+        assertEquals(564, geometry.x + geometry.left)
+        assertEquals(geometry.width, geometry.left + geometry.right + 72)
+        assertTrue(outcome.templateRequests.isEmpty())
     }
 
     @Test fun `compact fallback still rejects a row below the native minimum`() {
@@ -126,7 +128,7 @@ class IslandLayoutPolicyTest {
         assertEquals(trimmed.templateRequests.map { it.mode }, balanced.templateRequests.map { it.mode })
     }
 
-    @Test fun `portrait compact layout keeps the camera seat and requests its main template`() {
+    @Test fun `portrait compact layout keeps the camera seat and leaves the main lease to the compact owner`() {
         val outcome = IslandLayoutPolicy.measure(context(
             scene(), flags(portrait = true),
             contentSizes = mapOf(big to IslandContentSize(200, 200)),
@@ -140,9 +142,7 @@ class IslandLayoutPolicyTest {
         assertEquals(IslandContentSize(200, 200), outcome.portraitContent)
         assertTrue(outcome.fullFrames.isEmpty())
         assertEquals(listOf(extra), outcome.stagedExtras)
-        assertEquals(listOf(big), outcome.templateRequests.map { it.view })
-        assertEquals(100, outcome.templateRequests.single().cutoutWidth)
-        assertEquals(TemplateSeatMode.NORMAL, outcome.templateRequests.single().mode)
+        assertTrue(outcome.templateRequests.isEmpty())
 
         val applied = IslandLayoutPolicy.render(outcome, big, big, isSummary = true,
             nativeMarginWidth = 9, nativeCutoutWidth = 100)

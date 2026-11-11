@@ -73,7 +73,6 @@ class IslandMediaReturnTest {
             assertEquals(180, runtime.presentation.currentBigIslandGeometry(session, media, "getCurrentBigIslandWidth"))
             assertEquals(-231f, runtime.coordinates.nativeCoordinateX(session, media))
             assertTrue(runtime.fullSide(session, media))
-            assertFalse(runtime.portraitMain(session, media))
             assertEquals(0, runtime.presentation.fixedCutoutWidth(session, media))
             val small = host.nextState(media, IslandSlot.SMALL)
             assertNotNull(runtime.presentation.projectedRenderState(session, media, small))

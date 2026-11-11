@@ -5,7 +5,10 @@ import com.takekazex.hypertweak.hook.rules.systemui.island.model.LayoutFlags
 
 /** Pure gate shared by every host callback. No preference or Android reads occur here. */
 internal object IslandModePolicy {
-    /** Session-level enablement: not retiring, healthy, not rebuilding and any switch on. */
+    /**
+     * Session-level enablement for the scheduling and row features. Placeholder removal is a
+     * stateless rewrite of each measurement and never enables the scheduling session.
+     */
     fun enabled(
         retiring: Boolean,
         failed: Boolean,
@@ -13,9 +16,12 @@ internal object IslandModePolicy {
         threeIslands: Boolean,
         landscapeFull: Boolean,
         landscapeMore: Boolean,
-        removePlaceholder: Boolean = false,
     ): Boolean = !retiring && !failed && suspended == 0 &&
-        (threeIslands || landscapeFull || landscapeMore || removePlaceholder)
+        (threeIslands || landscapeFull || landscapeMore)
+
+    /** Whether any island style switch needs the native island hooks installed. */
+    fun installed(threeIslands: Boolean, landscapeFull: Boolean, landscapeMore: Boolean, removePlaceholder: Boolean): Boolean =
+        threeIslands || landscapeFull || landscapeMore || removePlaceholder
 
     /** Only phones with a resolved orientation and no transient/full-screen owner qualify. */
     fun phoneEligible(

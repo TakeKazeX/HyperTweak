@@ -16,8 +16,15 @@ internal class SettlementCoordinator(private val runtime: IslandSessionState) : 
     override fun commitSwipe(session: IslandSession, before: List<Any>, change: SummaryIslandScheduler.Change) {
         val queue = host.queue(session.owner)
         val pool = (before + queue).distinct()
-        val after = change.visible.map { wanted -> pool.single { runtime.key(it) == wanted } }
-        val target = pool.single { runtime.key(it) == change.task }
+        // Resolve everything before mutating: a task removed by a racing host update leaves
+        // the native carousel untouched instead of failing the whole session.
+        val after = change.visible.map { wanted ->
+            pool.firstOrNull { runtime.key(it) == wanted } ?: return discardSwipe(change, "visible $wanted")
+        }
+        val target = pool.firstOrNull { runtime.key(it) == change.task } ?: return discardSwipe(change, "task")
+        val bigHandler = host.handler(session.owner, IslandSlot.BIG) ?: return discardSwipe(change, "big handler")
+        val smallHandler = host.handler(session.owner, IslandSlot.SMALL) ?: return discardSwipe(change, "small handler")
+        val handler = host.handler(session.owner, IslandSlot.HIDDEN) ?: return discardSwipe(change, "hidden handler")
         val replaced = if (change.reveal) change.displaced else change.task
         val index = before.indexOfFirst { runtime.key(it) == replaced }
         if (index > 0 && before.size == after.size) {
@@ -28,9 +35,8 @@ internal class SettlementCoordinator(private val runtime: IslandSessionState) : 
         val removed = before.filter { it !in after }
         removed.forEach { if (it !in queue) queue.add(it) }
         after.drop(2).asReversed().forEach { queue.add(0, it) }
-        host.setCurrent(host.handler(session.owner, IslandSlot.BIG)!!, after.getOrNull(0))
-        host.setCurrent(host.handler(session.owner, IslandSlot.SMALL)!!, after.getOrNull(1))
-        val handler = host.handler(session.owner, IslandSlot.HIDDEN)!!
+        host.setCurrent(bigHandler, after.getOrNull(0))
+        host.setCurrent(smallHandler, after.getOrNull(1))
         (before + after + target).distinct().forEach { view ->
             val slot = when (after.indexOf(view)) {
                 0 -> IslandSlot.BIG
@@ -41,6 +47,10 @@ internal class SettlementCoordinator(private val runtime: IslandSessionState) : 
         }
         removed.forEach { host.enqueueHidden(handler, it) }
         host.setCurrent(handler, queue.firstOrNull())
+    }
+
+    private fun discardSwipe(change: SummaryIslandScheduler.Change, missing: String) {
+        DebugLog.w(TAG, "summary swipe discarded; $missing is no longer available change=$change")
     }
 
     override fun selectSummaries(session: IslandSession): List<Any> {
@@ -127,7 +137,7 @@ internal class SettlementCoordinator(private val runtime: IslandSessionState) : 
         session.slot.extras = candidates
         val reserve = big != null && (
             (eligible && right != null && candidates.isNotEmpty()) ||
-                runtime.rowModeEnabled(session) || runtime.portraitCompactEnabled(session) ||
+                runtime.rowModeEnabled(session) ||
                 (right != null && runtime.preferences.threeIslands && runtime.spectrumTarget(right))
             )
         session.seats.assign(right?.let(runtime::key), candidates.firstOrNull()?.let(runtime::key))

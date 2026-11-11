@@ -42,6 +42,7 @@ internal abstract class IslandSessionState(
     val mediaReturnPublication = IslandTemplatePublication()
     val main: Handler by lazy { Handler(Looper.getMainLooper()) }
 
+    abstract val compact: CompactActions
     abstract val coordinates: CoordinatesActions
     abstract val diagnostics: DiagnosticsActions
     abstract val gestures: GestureActions
@@ -61,7 +62,6 @@ internal abstract class IslandSessionState(
         threeIslands = preferences.threeIslands,
         landscapeFull = preferences.landscapeFull,
         landscapeMore = preferences.landscapeMore,
-        removePlaceholder = preferences.removePlaceholder,
     )
 
     fun phoneEligible(session: IslandSession): Boolean {
@@ -142,14 +142,8 @@ internal abstract class IslandSessionState(
             (spectrum.renderingReturnFrame(session, view) != null ||
                 view in session.slot.extras || host.current(session.owner, IslandSlot.SMALL) === view)
 
-    fun portraitMain(session: IslandSession, view: Any): Boolean =
-        spectrum.renderingReturnFrame(session, view) == null &&
-            portraitCompactEnabled(session) && session.scene.portraitContent != null &&
-            view === host.current(session.owner, IslandSlot.BIG) &&
-            view !== host.current(session.owner, IslandSlot.EXPANDED)
-
-    fun alignedTemplate(session: IslandSession, view: Any): Boolean =
-        fullTemplate(session, view) || portraitMain(session, view)
+    /** Full row and side-media templates; camera-seated main templates belong to [compact]. */
+    fun alignedTemplate(session: IslandSession, view: Any): Boolean = fullTemplate(session, view)
 
     fun spectrumTarget(view: Any): Boolean = musicSpectrum?.matches(view) == true
 

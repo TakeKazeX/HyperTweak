@@ -190,8 +190,9 @@ class SystemUiLiveSettingsRoutingTest {
 
     @Test fun addedDefaultOnlyDomainIsNotNarrowedByAnotherDomainsValueDiff() {
         val ledger = RuntimeSettingsLedger()
-        ledger.accept(RuntimeSettingsSnapshot.read(1, mapOf("icon_duo_enabled" to true), setOf(Groups.ICONS))!!)
-        val next = RuntimeSettingsSnapshot.read(2, mapOf("icon_duo_enabled" to false),
+        // An icon-only key; the Duo switch also routes to islands.
+        ledger.accept(RuntimeSettingsSnapshot.read(1, mapOf("icon_hide_cellular_type" to true), setOf(Groups.ICONS))!!)
+        val next = RuntimeSettingsSnapshot.read(2, mapOf("icon_hide_cellular_type" to false),
             setOf(Groups.ICONS, Groups.HEADER))!!
         assertEquals(setOf(Groups.ICONS, Groups.HEADER), ledger.changedGroups(next))
         // HEADER has only omitted defaults; the icon key must not make its participant skip them.

@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.island
 
+import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
@@ -17,6 +18,8 @@ private val settingLandscapeMoreIslands by hookSetting(false) {
     Preferences.getBoolean(PlatformSettingsKeys.KEY_LANDSCAPE_MORE_ISLANDS, false)
 }
 
+private val settingStatusIconDuo by hookSetting(false) { Preferences.getBoolean(IconSettingsKeys.KEY_ICON_DUO_ENABLED, false) }
+
 internal fun prepareIslandPreferencesSettings() { settingRemoveIslandPlaceholder }
 
 /** Live island switches; a narrow seam keeps policies and coordinators JVM-testable. */
@@ -25,6 +28,8 @@ internal interface IslandSettings {
     val threeIslands: Boolean
     val landscapeFull: Boolean
     val landscapeMore: Boolean
+    /** The Duo status icon draws its charging bolt inside its own bounds. */
+    val statusIconDuo: Boolean get() = false
 }
 
 /** Reads island switches through the shared live settings facade. */
@@ -33,4 +38,5 @@ internal class IslandPreferences : IslandSettings {
     override val threeIslands: Boolean get() = settingThreeIslands
     override val landscapeFull: Boolean get() = settingLandscapeFullIslands
     override val landscapeMore: Boolean get() = settingLandscapeMoreIslands
+    override val statusIconDuo: Boolean get() = settingStatusIconDuo
 }

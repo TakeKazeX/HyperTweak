@@ -1,10 +1,15 @@
 package com.takekazex.hypertweak.hook.rules.systemui.island.host
 
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
+import android.os.BatteryManager
 import android.content.res.Configuration
 import android.graphics.Rect
 import android.os.Bundle
 import android.view.View
+import com.takekazex.hypertweak.hook.rules.systemui.island.IslandSettings
 import com.takekazex.hypertweak.hook.rules.systemui.island.model.IslandOrientation
 import com.takekazex.hypertweak.hook.rules.systemui.island.model.IslandResultGeometry
 import com.takekazex.hypertweak.hook.rules.systemui.island.model.IslandScene
@@ -17,8 +22,19 @@ import java.lang.reflect.InvocationTargetException
 import com.takekazex.hypertweak.util.platform.ResourceLookup
 
 /** Adapter from the narrow coordinator ports to the pre-resolved native registry. */
-internal class NativeIslandHost(val access: NativeIslandAccess) : IslandHostPorts {
+internal class NativeIslandHost(
+    val access: NativeIslandAccess,
+    private val settings: IslandSettings,
+) : IslandHostPorts {
     @Volatile private var lyricModulePresent: Boolean? = null
+    /**
+     * Whether the battery width the host last published included its charging allowance.
+     * SystemUI adds `hollow_battery_meter_charge_width` (8dp) to the battery reservation while
+     * charging, for the native meter's external bolt. Snapshot at publication so the allowance
+     * is removed only from the value it was actually added to. A new hook generation has seen no
+     * publication yet; the host republishes only on change, so the current state stands in.
+     */
+    @Volatile private var chargingAtPublication: Boolean? = null
 
     override fun ownerOf(content: Any): Any? = try {
         access.call(content, "getDynamicIslandEventCoordinator")
@@ -170,6 +186,9 @@ internal class NativeIslandHost(val access: NativeIslandAccess) : IslandHostPort
         return pairs
     }
 
+    override fun templateFactory(view: Any): Any? =
+        access.templateController.invoke(view)?.let { access.templateFactory.invoke(it) }
+
     override fun fixedCutoutWidth(view: Any): Int = access.number(view, "getFixedCutoutWidth")
 
     override fun bigIslandView(view: Any): Any? = access.call(view, "getBigIslandView")
@@ -213,6 +232,8 @@ internal class NativeIslandHost(val access: NativeIslandAccess) : IslandHostPort
             access.number(view, "getIslandViewHeight"),
         )
 
+    override fun measuredSmallWidth(input: Any): Int = access.number(input, "getSmallIslandViewWidth")
+
     override fun safeInsets(owner: Any): SafeInsets {
         val window = windowOf(owner) as? View ?: return SafeInsets.NONE
         val cutout = window.rootWindowInsets?.displayCutout ?: return SafeInsets.NONE
@@ -223,13 +244,40 @@ internal class NativeIslandHost(val access: NativeIslandAccess) : IslandHostPort
         screenWidth = access.number(input, "getScreenWidth"),
         screenHeight = access.number(input, "getScreenHeight"),
         clockWidth = access.ceilDimension(input, "getClockWidth"),
-        batteryWidth = access.ceilDimension(input, "getBatteryWidth"),
+        batteryWidth = (access.ceilDimension(input, "getBatteryWidth") - phantomChargeWidth(owner)).coerceAtLeast(0),
         gap = access.number(input, "getSpace"),
         cutoutWidth = access.number(input, "getCutoutWidth"),
         maxWidth = access.number(input, "getMaxWidth"),
         safe = safeInsets(owner),
         orientation = orientation,
     )
+
+    override fun statusWidthsPublished(view: Any) {
+        val context = (view as? View)?.context ?: return
+        chargingAtPublication = charging(context)
+    }
+
+    /** The Duo icon draws its bolt inside its own bounds, so the host's bolt allowance is empty. */
+    private fun phantomChargeWidth(owner: Any): Int {
+        if (!settings.statusIconDuo) return 0
+        val window = windowOf(owner) as? View ?: return 0
+        val charging = chargingAtPublication ?: charging(window.context).also { chargingAtPublication = it }
+        if (!charging) return 0
+        return (CHARGE_ALLOWANCE_DP * window.resources.displayMetrics.density + 0.5f).toInt()
+    }
+
+    private fun charging(context: Context): Boolean = try {
+        // A null receiver only reads the sticky battery broadcast; nothing is registered.
+        val battery = context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED),
+            Context.RECEIVER_NOT_EXPORTED)
+        // SystemUI's own rule (MiuiBatteryControllerImpl): plugged in and charging or full.
+        val status = battery?.getIntExtra(BatteryManager.EXTRA_STATUS, -1)
+        battery != null && battery.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0) != 0 &&
+            (status == BatteryManager.BATTERY_STATUS_CHARGING || status == BatteryManager.BATTERY_STATUS_FULL)
+    } catch (error: Throwable) {
+        DebugLog.w(TAG, "read charging state for the island battery budget", error)
+        false
+    }
 
     override fun minimumBigWidth(helper: Any): Int =
         (access.minimumBig.invoke(helper) as Number).toInt()
@@ -314,5 +362,9 @@ internal class NativeIslandHost(val access: NativeIslandAccess) : IslandHostPort
 
     private fun Rect.toHost() = HostRect(left, top, right, bottom)
 
-    private companion object { const val TAG = "ThreeIslands" }
+    private companion object {
+        const val TAG = "ThreeIslands"
+        /** SystemUI `hollow_battery_meter_charge_width`; the plugin cannot read SystemUI dimens. */
+        const val CHARGE_ALLOWANCE_DP = 8f
+    }
 }

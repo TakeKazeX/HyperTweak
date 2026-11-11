@@ -66,6 +66,14 @@ internal class IslandTemplateWidthLease {
             return changed
         }
 
+        /**
+         * Camera-facing padding this lease removed from one side. The host still subtracts
+         * `island_area_padding_cutout` when it budgets the holder text inside that area.
+         */
+        fun releasedPadding(leftSide: Boolean): Int = if (!media) 0 else
+            if (leftSide) (leftInnerPadding - left.paddingEnd).coerceAtLeast(0)
+            else (rightInnerPadding - right.paddingStart).coerceAtLeast(0)
+
         fun releaseCameraSeat() {
             if (media) IslandCameraSeat.release(parent)
         }
@@ -111,6 +119,13 @@ internal class IslandTemplateWidthLease {
         }
         if (owned.isEmpty()) entries.remove(owner)
     }
+
+    fun holds(owner: Any): Boolean = entries[owner]?.isNotEmpty() == true
+
+    fun releasedPadding(owner: Any, leftSide: Boolean): Int =
+        entries[owner]?.maxOfOrNull { it.releasedPadding(leftSide) } ?: 0
+
+    fun owners(): List<Any> = entries.keys.toList()
 
     fun acquire(owner: Any, left: View, right: View, cutoutWidth: Int = 0) =
         acquire(owner, left, right, cutoutWidth, false)

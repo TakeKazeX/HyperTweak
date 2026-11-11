@@ -45,7 +45,7 @@ class RuntimeSettingsDeltaReloadTest {
         assertEquals(setOf(Groups.NATIVE), Groups.changed(old, reset))
         assertTrue(Groups.changed(reset, reset + mapOf("prefs_epoch" to 3L,
             PlatformSettingsKeys.KEY_NATIVE_RULE_REVISION to 12L)).isEmpty())
-        assertEquals(setOf(Groups.ICONS), Groups.changed(reset, reset + ("icon_duo_enabled" to true)))
+        assertEquals(setOf(Groups.ICONS, Groups.ISLANDS), Groups.changed(reset, reset + ("icon_duo_enabled" to true)))
     }
 
     @Test fun `independent domains still apply together and actual reset removals stay visible`() {

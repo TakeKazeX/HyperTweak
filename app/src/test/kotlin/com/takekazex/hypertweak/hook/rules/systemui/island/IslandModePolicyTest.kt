@@ -7,8 +7,10 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class IslandModePolicyTest {
-    @Test fun `trimming is independent from three task scheduling and can be disabled`() {
-        assertTrue(IslandModePolicy.enabled(false, false, 0, false, false, false, true))
+    @Test fun `trimming installs hooks without enabling the scheduling session`() {
+        assertFalse(IslandModePolicy.enabled(false, false, 0, false, false, false))
+        assertTrue(IslandModePolicy.installed(false, false, false, true))
+        assertFalse(IslandModePolicy.installed(false, false, false, false))
         val trimOnly = IslandModePolicy.flags(true, IslandOrientation.PORTRAIT, false, false, false, true)
         assertTrue(trimOnly.portraitCompact)
         assertFalse(trimOnly.summarySwipe)

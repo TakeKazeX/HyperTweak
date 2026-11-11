@@ -57,6 +57,13 @@ internal class PresentationState {
     var big: Any? = null
     val fullPresentation = WeakHashMap<Any, Boolean>()
     val fullOrigins = WeakHashMap<Any, Int>()
+    /** Full templates leaving the row keep their lease until their own exit animation ends. */
+    val departures = WeakHashMap<Any, TemplateDeparture>()
+}
+
+/** One deferred full-template release; [tag] pairs the exit transition's start and end. */
+internal class TemplateDeparture {
+    var tag: String? = null
 }
 
 /** Template leases, configuration bindings and the relayout driver are per owner. */
@@ -86,6 +93,14 @@ internal class SessionHealth {
     }
 
     fun isDegraded(feature: IslandFeature): Boolean = feature in failedFeatures
+
+    /** A settings change is a fresh start: retry features that failed under the old policy. */
+    fun reset(): Boolean {
+        if (failedFeatures.isEmpty() && !coreFailed) return false
+        failedFeatures.clear()
+        coreFailed = false
+        return true
+    }
 }
 
 /** Spectrum-only state; never promotes a media failure to a session failure. */

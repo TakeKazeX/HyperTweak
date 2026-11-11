@@ -26,6 +26,17 @@ class SmallIslandSpectrumTest {
             12, 239, 218, 0, 0, true, 102)!!.frame)
     }
 
+    @Test fun `the charging allowance alone keeps the right seat closed beside a 327 main island`() {
+        // Device sample: installer main island 93/162 around the 72 camera, timer on the left.
+        val layout = ThreeIslandLayout(471, 327, 357, 810, false, 1200)
+        val compact = IslandContentSize(87, 87)
+        // 218 = host battery reservation including the 24px (8dp) charging allowance.
+        assertNull(SmallIslandSpectrum.choose(layout, compact, 12, 243, 218, 0, 0, false, 102))
+        // The Duo icon draws its bolt inside its own bounds; without the allowance both tiers fit.
+        assertEquals(810, SmallIslandSpectrum.choose(layout, compact, 12, 243, 194, 0, 0, false, 102)!!.frame.x)
+        assertNotNull(SmallIslandSpectrum.choose(layout, IslandContentSize(90, 90), 12, 243, 194, 0, 0, false, 102))
+    }
+
     @Test fun `return destination retains native cover when current side cannot admit spectrum`() {
         val geometry = SmallIslandSpectrum.ReturnGeometry("media",
             ThreeIslandLayout(471, 317, 357, 800, false, 1200), IslandContentSize(90, 90),

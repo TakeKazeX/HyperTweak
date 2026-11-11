@@ -61,7 +61,7 @@ internal class PresentationCoordinator(private val runtime: IslandSessionState) 
     override fun beforeStateChange(session: IslandSession, view: Any) {
         runtime.boundary.core(session, IslandFeature.PRESENTATION, "prepare native summary animation") {
             prepareSmallMusicAnimation(session, view)
-            runtime.templates.releaseFullPosition(session, view)
+            runtime.templates.departFullPosition(session, view)
         }
     }
 
@@ -72,9 +72,13 @@ internal class PresentationCoordinator(private val runtime: IslandSessionState) 
     }
 
     override fun bigIslandAnimation(view: Any, args: Array<Any?>): TemplateAnimation {
-        val session = runtime.sessionForView(view) ?: return TemplateAnimation.Passthrough
+        // Module-driven measurements publish once afterwards through the host's own update path.
         if (runtime.layoutMeasurement.active) return TemplateAnimation.Suppress
-        if (!runtime.alignedTemplate(session, view)) return TemplateAnimation.Passthrough
+        val session = runtime.sessionForView(view)
+        if (session == null || !runtime.alignedTemplate(session, view)) {
+            return runtime.compact.translation(view, args)?.let { TemplateAnimation.Redirect(it, view) }
+                ?: TemplateAnimation.Passthrough
+        }
         val target = runtime.spectrum.renderingReturnTarget(session, view)
         val layout = session.scene.layout
         if (layout == null && target == null) return TemplateAnimation.Passthrough

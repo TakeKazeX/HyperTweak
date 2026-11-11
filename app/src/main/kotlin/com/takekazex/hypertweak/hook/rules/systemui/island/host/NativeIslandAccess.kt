@@ -140,6 +140,24 @@ internal class NativeIslandAccess(private val discovery: NativeIslandDiscovery) 
     val hiddenList = NativeIslandMembers.field(coordinator, ArrayList::class.java)
     val coordsView = NativeIslandMembers.field(coords, base)
     val gestureView = NativeIslandMembers.field(gestureAnimator, base)
+    /** Each animation delegate drives exactly one content view. */
+    val delegateView = NativeIslandMembers.field(delegate, base)
+    /**
+     * Per-view transition lifecycle `(transition, tag, START|FINISH|CANCEL)`. Matched by its
+     * shape and the callback enum's constants, not by its internal-mangled name.
+     */
+    val delegateLifecycle: Method = NativeIslandMembers.lifecycle(delegate)
+    val statusWidths: Method = NativeIslandMembers.statusWidths(base)
+    /** Per-view template factory; its side writers hand each area's width to the module holders. */
+    val templateController: Method = NativeIslandMembers.named(base, "getController", emptyList())
+    val templateFactory: Method = NativeIslandMembers.named(templateController.returnType, "getIslandTemplateFactory", emptyList())
+    /** `(data, width, fake)` writers called from the big-island transition, keyed by left side. */
+    val templateSideWidths: Map<Boolean, Method> = mapOf(true to "updateLeftWidth", false to "updateRightWidth").mapValues { (_, name) ->
+        NativeIslandMembers.named(templateFactory.returnType, name,
+            listOf(data, Int::class.javaPrimitiveType!!, Boolean::class.javaPrimitiveType!!)).also {
+            check(it.returnType == Void.TYPE)
+        }
+    }
     val updaterView = NativeIslandMembers.field(updater, base)
     val window = load(root + "window.DynamicIslandWindowView")
     val touchView = NativeIslandMembers.field(touch, window)

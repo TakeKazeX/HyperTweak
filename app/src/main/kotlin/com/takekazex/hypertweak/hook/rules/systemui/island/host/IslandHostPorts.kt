@@ -75,6 +75,8 @@ internal interface IslandHostPorts {
     fun swipeCoordinator(coordinator: Any): Any?
     fun fakeView(view: Any): Any?
     fun templateAreas(view: Any): List<TemplateAreaPair>
+    /** The template factory that sizes this content view's real and fake module holders. */
+    fun templateFactory(view: Any): Any? = null
     fun fixedCutoutWidth(view: Any): Int
     fun bigIslandView(view: Any): Any?
     fun packageName(view: Any): String?
@@ -90,6 +92,11 @@ internal interface IslandHostPorts {
     fun onSwipe(view: Any, x: Float, y: Float, current: Any?, next: Any?)
     fun resetSwipe(view: Any)
     fun measuredContentSize(view: Any, input: Any): IslandContentSize?
+    /** Small-island width the host budgeted into this measurement; 0 when no small island is shown. */
+    fun measuredSmallWidth(input: Any): Int
+
+    /** The host just stored its status-bar widths on [view]; snapshot what they were computed under. */
+    fun statusWidthsPublished(view: Any) {}
     fun safeInsets(owner: Any): SafeInsets
     fun sceneOf(owner: Any, input: Any, orientation: IslandOrientation): IslandScene
     fun minimumBigWidth(helper: Any): Int

@@ -65,7 +65,9 @@ class RuntimeSettingsSnapshotTest {
             assertTrue(key, RuntimeSettingsSnapshot.owns(key))
             assertEquals(key, setOf(RuntimeSettingsGroups.ISLANDS), RuntimeSettingsGroups.affected(key))
         }
-        assertEquals(setOf(RuntimeSettingsGroups.ICONS), RuntimeSettingsGroups.affected("icon_duo_enabled"))
+        // Duo also changes the island's right status budget (its bolt sits inside its own bounds).
+        assertEquals(setOf(RuntimeSettingsGroups.ICONS, RuntimeSettingsGroups.ISLANDS),
+            RuntimeSettingsGroups.affected("icon_duo_enabled"))
         assertTrue(RuntimeSettingsGroups.affected("unrelated").isEmpty())
         // Full reset must include both notification domains without depending on a brittle
         // global group count, which changes whenever an unrelated process gains a feature.

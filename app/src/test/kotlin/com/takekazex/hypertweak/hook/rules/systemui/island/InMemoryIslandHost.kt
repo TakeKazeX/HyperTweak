@@ -157,6 +157,8 @@ internal class InMemoryIslandHost : IslandHostPorts {
     override fun onSwipe(view: Any, x: Float, y: Float, current: Any?, next: Any?) = record("swipe:${label(view)}")
     override fun resetSwipe(view: Any) = record("resetSwipe:${label(view)}")
     override fun measuredContentSize(view: Any, input: Any): IslandContentSize? = sizes[view]
+    var measuredSmall = 0
+    override fun measuredSmallWidth(input: Any): Int = measuredSmall
     override fun safeInsets(owner: Any): SafeInsets = SafeInsets.NONE
     override fun sceneOf(owner: Any, input: Any, orientation: IslandOrientation): IslandScene = scene
     override fun minimumBigWidth(helper: Any): Int = 0

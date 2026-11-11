@@ -18,6 +18,9 @@ internal class IslandHookPlan(private val context: IslandHookContext) {
         check(access.method(access.content, "getSmallIslandViewWidth").returnType == Int::class.javaPrimitiveType)
         check(access.method(access.content, "doBigIslandAnim").parameterCount > 8)
         check(access.widthSetTo.returnType == access.widthTween.returnType)
+        check(access.delegateLifecycle.declaringClass == access.delegate)
+        check(access.statusWidths.declaringClass == access.base)
+        check(access.templateSideWidths.values.distinct().size == 2)
     }
 
     fun deoptimizeTargets() {

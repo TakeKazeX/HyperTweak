@@ -4,6 +4,22 @@ package com.takekazex.hypertweak.hook.rules.systemui.island.policy.layout
 internal data class IslandContentSize(val left: Int, val right: Int) {
     val width: Int get() = left + right
 
+    /**
+     * The host measures each area with AT_MOST(screen / 2), so a template that fills its parent
+     * (lyrics, marquee text) reports half the screen per side. Native layout then caps the island
+     * at its maximum width; every module budget must apply the same cap. The narrower side keeps
+     * its natural width while it fits half of the budget.
+     */
+    fun fitted(maxWidth: Int): IslandContentSize {
+        if (maxWidth <= 0 || width <= maxWidth) return this
+        val half = maxWidth / 2
+        return when {
+            left <= half -> IslandContentSize(left, maxWidth - left)
+            right <= maxWidth - half -> IslandContentSize(maxWidth - right, right)
+            else -> IslandContentSize(half, maxWidth - half)
+        }
+    }
+
     companion object {
         fun measured(left: Int, right: Int, height: Int): IslandContentSize? {
             if (left < 0 || right < 0 || height <= 0 || left.toLong() + right > Int.MAX_VALUE) return null
