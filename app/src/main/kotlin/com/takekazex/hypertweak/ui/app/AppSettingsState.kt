@@ -95,6 +95,7 @@ internal class AppSettingsState(val storage: AppSettingsStore) {
     var ccHideSuperIsland by settings.preference { storage.getBoolean(SystemUiSettingsKeys.KEY_CC_HIDE_SUPER_ISLAND, false) }
     var islandLiveUpdateIcon by settings.preference { storage.getBoolean(PlatformSettingsKeys.KEY_ISLAND_LIVE_UPDATE_ICON, false) }
     var islandNarrowTimeFont by settings.preference { storage.getBoolean(PlatformSettingsKeys.KEY_ISLAND_NARROW_TIME_FONT, false) }
+    var islandPullDownStretch by settings.preference { storage.getBoolean(PlatformSettingsKeys.KEY_ISLAND_PULL_DOWN_STRETCH, false) }
     var focusNotificationUnlockWhitelist by settings.preference { storage.getBoolean(PlatformSettingsKeys.KEY_FOCUS_NOTIFICATION_UNLOCK_WHITELIST, false) }
     var mediaSuperIslandUnlockWhitelist by settings.preference { storage.getBoolean(PlatformSettingsKeys.KEY_MEDIA_SUPER_ISLAND_UNLOCK_WHITELIST, false) }
     var xmsfUnlockFocusAuth by settings.preference { storage.getBoolean(PlatformSettingsKeys.KEY_XMSF_UNLOCK_FOCUS_AUTH, false) }
@@ -155,6 +156,7 @@ internal class AppSettingsState(val storage: AppSettingsStore) {
             SystemUiSettingsKeys.KEY_CC_HIDE_SUPER_ISLAND -> ccHideSuperIsland
             PlatformSettingsKeys.KEY_ISLAND_LIVE_UPDATE_ICON -> islandLiveUpdateIcon
             PlatformSettingsKeys.KEY_ISLAND_NARROW_TIME_FONT -> islandNarrowTimeFont
+            PlatformSettingsKeys.KEY_ISLAND_PULL_DOWN_STRETCH -> islandPullDownStretch
             PlatformSettingsKeys.KEY_FOCUS_NOTIFICATION_UNLOCK_WHITELIST -> focusNotificationUnlockWhitelist
             PlatformSettingsKeys.KEY_MEDIA_SUPER_ISLAND_UNLOCK_WHITELIST -> mediaSuperIslandUnlockWhitelist
             PlatformSettingsKeys.KEY_XMSF_UNLOCK_FOCUS_AUTH -> xmsfUnlockFocusAuth

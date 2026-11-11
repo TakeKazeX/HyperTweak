@@ -584,6 +584,7 @@ internal fun AppContent(
                     ccHideSuperIsland = ccHideSuperIsland,
                     islandLiveUpdateIcon = islandLiveUpdateIcon,
                     islandNarrowTimeFont = islandNarrowTimeFont,
+                    islandPullDownStretch = islandPullDownStretch,
                     onIslandLiveUpdateIconChange = { checked ->
                         islandLiveUpdateIcon = checked
                         markTweaked(PlatformSettingsKeys.KEY_ISLAND_LIVE_UPDATE_ICON, checked)
@@ -593,6 +594,11 @@ internal fun AppContent(
                         islandNarrowTimeFont = checked
                         markTweaked(PlatformSettingsKeys.KEY_ISLAND_NARROW_TIME_FONT, checked)
                         settings.storage.putBoolean(PlatformSettingsKeys.KEY_ISLAND_NARROW_TIME_FONT, checked)
+                    },
+                    onIslandPullDownStretchChange = { checked ->
+                        islandPullDownStretch = checked
+                        markTweaked(PlatformSettingsKeys.KEY_ISLAND_PULL_DOWN_STRETCH, checked)
+                        settings.storage.putBoolean(PlatformSettingsKeys.KEY_ISLAND_PULL_DOWN_STRETCH, checked)
                     },
                     onCcHideSuperIslandChange = { checked ->
                         ccHideSuperIsland = checked

@@ -274,4 +274,44 @@ class NativeIslandTargetApkTest {
         }
         assertTrue(applies.any { it.name == "updateBigIslandLayout" && it.parameterTypes.isEmpty() })
     }
+
+    @Test fun `pull-down frames and the media slide offset flow through the fake view contract`() {
+        val path = System.getenv("SYSTEMUI_PLUGIN_APK")?.let(::File)
+        assumeTrue(path?.isFile == true)
+        val container = DexFileFactory.loadDexContainer(path!!, Opcodes.getDefault())
+        val classes = container.dexEntryNames.flatMap { container.getEntry(it)!!.dexFile.classes }.associateBy { it.type }
+        val root = "Lmiui/systemui/dynamicisland/window/content/"
+        val fake = classes.getValue(root + "DynamicIslandContentFakeView;")
+        fun calls(method: org.jf.dexlib2.iface.Method) = method.implementation!!.instructions.mapNotNull {
+            (it as? ReferenceInstruction)?.reference as? MethodReference
+        }.toList()
+        fun method(owner: ClassDef, name: String, vararg parameters: String) = owner.methods.single {
+            it.name == name && it.parameterTypes.map(CharSequence::toString) == parameters.toList()
+        }
+        val params = root + "FakeViewTrackingParams;"
+        assertEquals(params, fake.fields.single { it.name == "mFakeViewTrackingParams" }.type)
+        assertEquals("I", fake.fields.single { it.name == "mFakeViewHeight" }.type)
+        // Every frame (drag and Folme rebound) publishes the grown outline from these parameters.
+        val updated = method(fake, "onFakeViewTrackingParamsUpdated")
+        assertTrue(calls(updated).map { it.name }.containsAll(listOf("getTop", "getBottom", "updateTrack")))
+        val rebound = classes.getValue(root + "DynamicIslandContentFakeView\$mAnimConfig\$1;")
+        assertTrue(calls(method(rebound, "onUpdate", "Ljava/lang/Object;", "Ljava/util/Collection;"))
+            .any { it.name == "access\$onFakeViewTrackingParamsUpdated" })
+        assertTrue(calls(method(fake, "onTrackingFakeViewUpdate", "F")).any { it.name == "setAlpha" && it.definingClass == params })
+        // The tracker's only payload is the slide offset the media binder applies to its background.
+        val tracker = classes.getValue(root + "DynamicIslandContentFakeView\$ExpandedTracker;")
+        val strings = method(tracker, "updateTrack", "F").implementation!!.instructions.mapNotNull {
+            ((it as? ReferenceInstruction)?.reference as? StringReference)?.string
+        }
+        assertTrue("pull_down_action_offset_y" in strings)
+        listOf("onTrackingFakeViewStart", "onTrackingFakeViewReset", "resetFakeViewState", "onDetachedFromWindow")
+            .forEach { assertEquals("V", method(fake, it).returnType) }
+        assertEquals("V", method(fake, "setVisibility", "I").returnType)
+        val base = classes.getValue(root + "DynamicIslandBaseContentView;")
+        assertEquals("Landroid/widget/FrameLayout;", method(base, "getFakeExpandedView").returnType)
+        val controller = classes.getValue("Lmiui/systemui/dynamicisland/anim/DynamicIslandAnimationController;")
+        assertTrue(AccessFlags.STATIC.isSet(method(controller, "setMiSelfBlurCompat", "Landroid/view/View;", "I").accessFlags))
+        val blur = classes.getValue("Lmiui/systemui/util/MiBlurCompat;")
+        assertTrue(AccessFlags.STATIC.isSet(method(blur, "getBackgroundMaterialOpened", "Landroid/content/Context;").accessFlags))
+    }
 }

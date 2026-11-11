@@ -405,6 +405,7 @@ internal object DebugSettingsCatalog {
         DebugSetting("systemui_control_center_top_card_order", "String", ""),
         DebugSetting("systemui_island_live_update_icon", "Boolean", false),
         DebugSetting("systemui_island_narrow_time_font", "Boolean", false),
+        DebugSetting("systemui_island_pull_down_stretch", "Boolean", false),
         DebugSetting("systemui_landscape_full_islands", "Boolean", false),
         DebugSetting("systemui_landscape_more_islands", "Boolean", false),
         DebugSetting("systemui_ls_hide_carrier_one", "Boolean", false),

@@ -132,6 +132,7 @@ object PlatformSettingsKeys {
     const val KEY_LANDSCAPE_MORE_ISLANDS = "systemui_landscape_more_islands"
     const val KEY_ISLAND_NARROW_TIME_FONT = "systemui_island_narrow_time_font"
     const val KEY_ISLAND_LIVE_UPDATE_ICON = "systemui_island_live_update_icon"
+    const val KEY_ISLAND_PULL_DOWN_STRETCH = "systemui_island_pull_down_stretch"
     const val KEY_FOCUS_NOTIFICATION_UNLOCK_WHITELIST = "focus_notification_unlock_whitelist"
     const val KEY_MEDIA_SUPER_ISLAND_UNLOCK_WHITELIST = "media_super_island_unlock_whitelist"
     const val KEY_XMSF_UNLOCK_FOCUS_AUTH = "xmsf_unlock_focus_auth"

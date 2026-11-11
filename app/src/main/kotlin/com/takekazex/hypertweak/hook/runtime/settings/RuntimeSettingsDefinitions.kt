@@ -109,6 +109,7 @@ internal object RuntimeSettingsDefinitions {
         PlatformSettingsKeys.KEY_REMOVE_ISLAND_PLACEHOLDER, PlatformSettingsKeys.KEY_THREE_ISLANDS, PlatformSettingsKeys.KEY_LANDSCAPE_FULL_ISLANDS,
         PlatformSettingsKeys.KEY_LANDSCAPE_MORE_ISLANDS, SystemUiSettingsKeys.KEY_CC_HIDE_SUPER_ISLAND,
         PlatformSettingsKeys.KEY_ISLAND_NARROW_TIME_FONT, PlatformSettingsKeys.KEY_ISLAND_LIVE_UPDATE_ICON,
+        PlatformSettingsKeys.KEY_ISLAND_PULL_DOWN_STRETCH,
         PlatformSettingsKeys.KEY_MEDIA_SUPER_ISLAND_UNLOCK_WHITELIST,
         PlatformSettingsKeys.KEY_FOCUS_NOTIFICATION_UNLOCK_WHITELIST
     )

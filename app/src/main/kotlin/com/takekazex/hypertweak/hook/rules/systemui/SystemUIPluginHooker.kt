@@ -10,6 +10,7 @@ import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 import com.takekazex.hypertweak.hook.rules.systemui.island.ThreeIslandHooker
 import com.takekazex.hypertweak.hook.rules.systemui.island.IslandTimeFontHooker
 import com.takekazex.hypertweak.hook.rules.systemui.island.LiveUpdateIconHooker
+import com.takekazex.hypertweak.hook.rules.systemui.island.IslandPullDownHooker
 import android.content.ComponentName
 import android.content.Context
 import android.content.ContextWrapper
@@ -48,6 +49,7 @@ object SystemUIPluginHooker : StaticHooker() {
         val threeIslandHooker: ThreeIslandHooker,
         val liveUpdateIconHooker: LiveUpdateIconHooker,
         val timeFontHooker: IslandTimeFontHooker,
+        val pullDownHooker: IslandPullDownHooker,
         var cardsEditHooker: ControlCenterCardsEditHooker? = null,
         var cardResizeHooker: ControlCenterCardResizeHooker? = null,
         var mediaDeviceIconHooker: MediaPlayerDeviceIconHooker? = null,
@@ -74,6 +76,7 @@ object SystemUIPluginHooker : StaticHooker() {
             session.threeIslandHooker.refreshSettings()
             session.superIslandHooker.refreshSettings()
             session.liveUpdateIconHooker.refreshSettings()
+            session.pullDownHooker.refreshSettings()
             session.timeFontHooker.restoreIslandOwners(session.threeIslandHooker.snapshotOwners())
         }
         // A plugin arriving later attaches directly against the current committed snapshot.
@@ -246,6 +249,8 @@ object SystemUIPluginHooker : StaticHooker() {
                             detach(session.liveUpdateIconHooker)
                             runCatching { session.timeFontHooker.prepareForHotReload() }
                             detach(session.timeFontHooker)
+                            runCatching { session.pullDownHooker.prepareForHotReload() }
+                            detach(session.pullDownHooker)
                             runCatching { session.superIslandHooker.prepareForHotReload() }
                             detach(session.superIslandHooker)
                             runCatching { session.volumeKeyHooker.prepareForHotReload() }
@@ -368,6 +373,7 @@ object SystemUIPluginHooker : StaticHooker() {
                 threeIslandHooker = threeIslandHooker,
                 liveUpdateIconHooker = liveUpdateIconHooker,
                 timeFontHooker = timeFontHooker,
+                pullDownHooker = IslandPullDownHooker(),
                 mediaSuperIslandWhitelistHooker = mediaSuperIslandWhitelistHooker,
                 classLoader = state.classLoader
             ).also { session ->
@@ -413,6 +419,8 @@ object SystemUIPluginHooker : StaticHooker() {
                 .onFailure { DebugLog.e("SystemUIPlugin", "failed to attach island timer font", it) }
             runCatching { attach(liveUpdateIconHooker, state.classLoader) }
                 .onFailure { DebugLog.e("SystemUIPlugin", "failed to attach live-update island icons", it) }
+            runCatching { attach(session.pullDownHooker, state.classLoader) }
+                .onFailure { DebugLog.e("SystemUIPlugin", "failed to attach island pull-down stretch", it) }
             runCatching { attach(superIslandHooker, state.classLoader) }
                 .onFailure { DebugLog.e("SystemUIPlugin", "failed to attach Control Center Super Island hook", it) }
             runCatching { attach(hooker, state.classLoader) }
