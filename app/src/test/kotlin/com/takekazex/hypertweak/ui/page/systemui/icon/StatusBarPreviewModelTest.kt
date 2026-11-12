@@ -197,12 +197,22 @@ class StatusBarPreviewModelTest {
     }
 
     @Test
-    fun stackedBarsUseTheNativeTypeLabelAfterThem() {
-        // Stacked forces the separate label on and ignores the type-order option.
-        val core = buildStatusBarPreview(input(
-            stackedEnabled = true, useSeparateCellularType = false, typeOrder = 3
-        )).coreSlots
-        assertEquals(core.indexOf("stacked_mobile_icon") + 1, core.indexOf(PREVIEW_NATIVE_TYPE_SLOT))
+    fun stackedBarsPlaceTheNativeTypeLabelByTheTypeOrder() {
+        // Stacked forces the separate label on; default/right keep it after the bars.
+        for (order in listOf(0, 2)) {
+            val core = buildStatusBarPreview(input(
+                stackedEnabled = true, useSeparateCellularType = false, typeOrder = order
+            )).coreSlots
+            assertEquals(core.indexOf("stacked_mobile_icon") + 1, core.indexOf(PREVIEW_NATIVE_TYPE_SLOT))
+        }
+        // Swap/left put it before them, even when a custom list ordered the bars first.
+        for (order in listOf(1, 3)) {
+            val core = buildStatusBarPreview(input(
+                stackedEnabled = true, useSeparateCellularType = false, typeOrder = order,
+                position = 2, customOrder = setOf("0:stacked_mobile_icon", "1:mobile")
+            )).coreSlots
+            assertEquals(core.indexOf("stacked_mobile_icon") - 1, core.indexOf(PREVIEW_NATIVE_TYPE_SLOT))
+        }
     }
 
     @Test

@@ -577,6 +577,7 @@
     <string name="icon_cellular_type_title">类型显示</string>
     <string name="icon_cellular_type_swap">独立类型位置</string>
     <string name="icon_cellular_type_swap_summary">相对于上网卡信号交换左右，或放在整组蜂窝信号的一侧。</string>
+    <string name="icon_cellular_type_swap_stacked_summary">堆叠信号下：默认、一直最右放在信号右侧；交换左右、一直最左放在信号左侧</string>
     <string name="icon_battery_style_title">控制中心电量</string>
     <string name="icon_battery_style_percent">百分比位置</string>
     <string name="icon_battery_style_system">跟随系统</string>

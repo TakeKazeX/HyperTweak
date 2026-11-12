@@ -579,6 +579,7 @@
     <string name="icon_cellular_type_title">Type Display</string>
     <string name="icon_cellular_type_swap">Separate type position</string>
     <string name="icon_cellular_type_swap_summary">Swap sides relative to the data SIM, or place the label at either edge of the SIM group.</string>
+    <string name="icon_cellular_type_swap_stacked_summary">With stacked signal: Default and Always right keep the label right of the bars; Swap sides and Always left put it on the left.</string>
     <string name="icon_battery_style_title">Control Center Battery</string>
     <string name="icon_battery_style_percent">Percentage Placement</string>
     <string name="icon_battery_style_system">Follow System</string>

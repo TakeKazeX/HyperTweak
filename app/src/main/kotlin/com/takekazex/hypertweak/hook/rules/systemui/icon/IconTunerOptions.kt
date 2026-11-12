@@ -51,7 +51,8 @@ object IconTunerOptions {
                 if (stackedEnabled) addAll(IconSlotPolicy.STACKED_SLOTS)
                 if (rotationLockEnabled) add(rotationSlot)
             },
-            leftSlots = leftSlots
+            leftSlots = leftSlots,
+            stackedTypeLeading = IconSettingsPreferencePolicy.stackedTypeLeading(config.cellular.cellularTypeOrder)
         )
         return IconTunerSnapshot(
             policy = policy,

@@ -108,6 +108,31 @@ class IconSlotPolicyTest {
     }
 
     @Test
+    fun stackedTypeSideOwnsTheBarsAndMobileOrderOverACustomList() {
+        // A custom list saved with `mobile` ahead of the bars used to put the stacked label left.
+        val native = listOf("alarm_clock", "mobile", "wifi")
+        val custom = IconSlotPolicyConfig(
+            position = IconSlotPolicyConfig.POSITION_CUSTOM,
+            customOrderEntries = setOf("0:alarm_clock", "1:mobile", "2:wifi", "3:stacked_mobile_icon"),
+            enabledModuleSlots = IconSlotPolicy.STACKED_SLOTS.toSet()
+        )
+        val trailing = listOf("alarm_clock", "stacked_mobile_icon", "mobile", "wifi")
+        assertEquals(trailing, IconSlotPolicy.normalizeOrder(native, custom))
+        assertEquals(trailing, IconSlotPolicy.normalizeHostCatalog(native, trailing, custom))
+        val leading = custom.copy(stackedTypeLeading = true)
+        val leadingOrder = listOf("alarm_clock", "mobile", "stacked_mobile_icon", "wifi")
+        assertEquals(leadingOrder, IconSlotPolicy.normalizeOrder(native, leading))
+        assertEquals(leadingOrder, IconSlotPolicy.normalizeHostCatalog(native, trailing, leading))
+        assertEquals(trailing, IconSlotPolicy.normalizeHostCatalog(native, leadingOrder, custom))
+        // Without the stacked style the reserved holder keeps whatever place the list gives it.
+        assertEquals(listOf("alarm_clock", "mobile", "wifi", "stacked_mobile_icon"),
+            IconSlotPolicy.normalizeOrder(native + "stacked_mobile_icon", custom.copy(enabledModuleSlots = emptySet())))
+        for (order in 0..3) {
+            assertEquals(order == 1 || order == 3, IconSettingsPreferencePolicy.stackedTypeLeading(order))
+        }
+    }
+
+    @Test
     fun mobileBeforeWifiSurvivesReloadWithBothNativeAndModuleSignalHolders() {
         val native = listOf("alarm_clock", "wifi", "demo_wifi", "mobile", "demo_mobile", "battery")
         val mobileFirst = IconSlotPolicyConfig(

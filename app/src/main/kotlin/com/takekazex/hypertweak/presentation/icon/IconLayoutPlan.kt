@@ -2,6 +2,7 @@ package com.takekazex.hypertweak.presentation.icon
 
 import com.takekazex.hypertweak.settings.contract.IconConfig
 import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
+import com.takekazex.hypertweak.settings.contract.IconSettingsPreferencePolicy
 import com.takekazex.hypertweak.settings.contract.IconSlotPolicy
 import com.takekazex.hypertweak.settings.contract.IconSlotPolicyConfig
 import com.takekazex.hypertweak.settings.contract.IconSurface
@@ -94,7 +95,8 @@ internal object IconLayoutPlan {
             } else {
                 emptySet()
             },
-            leftSlots = left
+            leftSlots = left,
+            stackedTypeLeading = IconSettingsPreferencePolicy.stackedTypeLeading(config.cellular.cellularTypeOrder)
         )
         val visibility = NetworkIconVisibility(
             hideMobileOnWifi = config.network.boolean(IconSettingsKeys.KEY_ICON_HIDE_MOBILE_ON_WIFI),

@@ -39,7 +39,7 @@ internal object CellularTypeIconHooker : IconRenderer() {
     // Published on settings acceptance; hook callbacks perform no storage reads.
     private val settingIconCellularTypeSingle by hookSetting(false) { Preferences.separateCellularType() }
     // The stacked bars replace the signal half of the native row, so there is nothing to order
-    // the label against; its position is the native mobile slot right after the stacked slot.
+    // the label against inside it; IconSlotPolicy places the stacked slot before or after `mobile`.
     private val settingTypeOrder by hookSetting(0) {
         val config = Preferences.iconConfig()
         if (config.signalStyle == SignalStyle.STACKED) 0

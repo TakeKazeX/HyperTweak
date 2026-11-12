@@ -34,7 +34,12 @@ data class IconSlotPolicyConfig(
     val slotModes: Map<String, Int> = emptyMap(),
     val extraHiddenSlots: Set<String> = emptySet(),
     val enabledModuleSlots: Set<String> = emptySet(),
-    val leftSlots: Set<String> = emptySet()
+    val leftSlots: Set<String> = emptySet(),
+    /**
+     * Stacked bars keep their 4G/5G text in the native `mobile` holders, so the label's side is the
+     * order of the two slots: true puts the bars after `mobile`, leaving the label on their left.
+     */
+    val stackedTypeLeading: Boolean = false
 ) {
     companion object {
         const val POSITION_SYSTEM = 0
@@ -437,6 +442,9 @@ object IconSlotPolicy {
             IconSlotPolicyConfig.POSITION_MOBILE_BEFORE_WIFI -> moveMobileBeforeWifi(normalized)
             else -> normalized
         }
+        if (SLOT_STACKED_SIGNAL in config.enabledModuleSlots) {
+            normalized = anchorStackedSignal(normalized, config.stackedTypeLeading)
+        }
         return if (config.reorderHidden) {
             reorderHidden(normalized, hiddenSlots(config), SIGNAL_SLOTS.toSet())
         } else {
@@ -486,6 +494,20 @@ object IconSlotPolicy {
             val mobileIndex = result.indexOfFirst { it == SLOT_MOBILE || it == "demo_mobile" }
             result.addAll(if (mobileIndex >= 0) mobileIndex else result.size, enabledSignals)
         }
+        return result
+    }
+
+    /**
+     * Keeps the stacked bars beside the `mobile` group on the side the type-position setting picks.
+     * A custom order may have separated the two; it no longer decides where the label lands.
+     */
+    private fun anchorStackedSignal(slots: List<String>, typeLeading: Boolean): List<String> {
+        val result = stableUnique(slots)
+        result.remove(SLOT_STACKED_SIGNAL)
+        val anchor = if (SLOT_MOBILE in result) SLOT_MOBILE else "demo_mobile"
+        val index = result.indexOf(anchor)
+        if (index < 0) return slots
+        result.add(if (typeLeading) index + 1 else index, SLOT_STACKED_SIGNAL)
         return result
     }
 

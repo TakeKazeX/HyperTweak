@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.ui.page.systemui.icon
 
+import com.takekazex.hypertweak.settings.contract.IconSettingsPreferencePolicy
 import com.takekazex.hypertweak.settings.contract.IconSlotPolicy
 import com.takekazex.hypertweak.settings.contract.IconSlotPolicyConfig
 import com.takekazex.hypertweak.presentation.icon.Claim
@@ -127,7 +128,8 @@ internal fun buildStatusBarPreview(input: StatusBarPreviewInput): StatusBarPrevi
         reorderHidden = input.reorderHidden,
         slotModes = modes,
         enabledModuleSlots = if (input.stackedEnabled) IconSlotPolicy.STACKED_SLOTS.toSet() else emptySet(),
-        leftSlots = input.leftSlots
+        leftSlots = input.leftSlots,
+        stackedTypeLeading = IconSettingsPreferencePolicy.stackedTypeLeading(input.typeOrder)
     )
     val visibility = NetworkIconVisibility(
         hideMobileOnWifi = input.hideMobileOnWifi,
@@ -177,7 +179,8 @@ internal fun buildStatusBarPreview(input: StatusBarPreviewInput): StatusBarPrevi
     val showType = 1 !in hidden && signal.isNotEmpty() && !input.duoEnabled
     val core = buildList {
         addAll(signal)
-        // Stacked bars keep the native standalone label in the `mobile` slot, with its own order.
+        // Stacked bars keep the native standalone label in the `mobile` slot; the host-order sort
+        // below puts it on the side the slot policy anchored the bars to.
         if (showType && (input.useSeparateCellularType || input.stackedEnabled) && input.keepCellularTypeOnWifi) {
             val index = when (if (input.stackedEnabled) 0 else input.typeOrder) {
                 1 -> signal.indexOf(SLOT_SINGLE_SIM1).let { if (it < 0) 0 else it + 1 }

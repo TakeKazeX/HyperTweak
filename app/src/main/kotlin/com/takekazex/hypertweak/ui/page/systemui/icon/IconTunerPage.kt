@@ -1122,6 +1122,21 @@ private fun CellularTypeSection(
                 ),
                 enabled = !stacked
             ) { onChange(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_SINGLE, it) }
+            OverlayDropdownPreference(
+                title = stringResource(R.string.icon_cellular_type_swap),
+                summary = stringResource(
+                    if (stacked) R.string.icon_cellular_type_swap_stacked_summary
+                    else R.string.icon_cellular_type_swap_summary
+                ),
+                items = listOf(
+                    stringResource(R.string.icon_type_order_default),
+                    stringResource(R.string.icon_type_order_swap),
+                    stringResource(R.string.icon_type_order_right),
+                    stringResource(R.string.icon_type_order_left)
+                ),
+                selectedIndex = typeOrder,
+                onSelectedIndexChange = { onChange(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_ORDER, it) }
+            )
             TunerSwitch(
                 keepTypeOnWifi,
                 stringResource(R.string.icon_stacked_type_keep_on_wifi),
@@ -1129,10 +1144,23 @@ private fun CellularTypeSection(
                 enabled = separate && !hideOnWifi
             ) { onChange(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_KEEP_ON_WIFI, it) }
             TunerSwitch(
+                hideWhenDisconnected,
+                stringResource(R.string.icon_stacked_type_hide_disconnect),
+                stringResource(R.string.icon_stacked_type_hide_disconnect_summary),
+                enabled = separate
+            ) { onChange(IconSettingsKeys.KEY_ICON_STACKED_TYPE_HIDE_DISCONNECT, it) }
+            TunerSwitch(
                 useCustom,
                 stringResource(R.string.icon_cellular_type_custom),
                 stringResource(R.string.icon_cellular_type_custom_summary)
             ) { onChange(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_CUSTOM, it) }
+            MiuixExpandableContent(visible = useCustom) {
+                IconTextPreference(
+                    title = stringResource(R.string.icon_cellular_type_custom_val),
+                    value = customValue,
+                    enabled = useCustom
+                ) { onChange(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_CUSTOM_VAL, it) }
+            }
             TunerSwitch(
                 small5GaEnabled,
                 stringResource(R.string.icon_cellular_type_small_5ga),
@@ -1151,32 +1179,6 @@ private fun CellularTypeSection(
                     valueLabel = { it.roundToInt().toString() }
                 ) { onChange(IconSettingsKeys.KEY_ICON_TYPE_WEIGHT, it.roundToInt()) }
             }
-            MiuixExpandableContent(visible = useCustom) {
-                IconTextPreference(
-                    title = stringResource(R.string.icon_cellular_type_custom_val),
-                    value = customValue,
-                    enabled = useCustom
-                ) { onChange(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_CUSTOM_VAL, it) }
-            }
-            TunerSwitch(
-                hideWhenDisconnected,
-                stringResource(R.string.icon_stacked_type_hide_disconnect),
-                stringResource(R.string.icon_stacked_type_hide_disconnect_summary),
-                enabled = separate
-            ) { onChange(IconSettingsKeys.KEY_ICON_STACKED_TYPE_HIDE_DISCONNECT, it) }
-            OverlayDropdownPreference(
-                title = stringResource(R.string.icon_cellular_type_swap),
-                summary = stringResource(R.string.icon_cellular_type_swap_summary),
-                items = listOf(
-                    stringResource(R.string.icon_type_order_default),
-                    stringResource(R.string.icon_type_order_swap),
-                    stringResource(R.string.icon_type_order_right),
-                    stringResource(R.string.icon_type_order_left)
-                ),
-                selectedIndex = if (stacked) 0 else typeOrder,
-                enabled = !stacked,
-                onSelectedIndexChange = { onChange(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_ORDER, it) }
-            )
         }
     }
 }

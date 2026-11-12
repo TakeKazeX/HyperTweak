@@ -257,6 +257,10 @@ internal object IconConfigReload {
             if (after.separateCellularType) return null
             effects += setOf(IndependentIconDomain.DUO, IndependentIconDomain.CONTROL_CENTER_HEADER)
         }
+        // Under stacked signal the label side is the slot order of the bars and `mobile`.
+        if (after.signalStyle == SignalStyle.STACKED &&
+            IconSettingsPreferencePolicy.stackedTypeLeading(oldCell.cellularTypeOrder) !=
+            IconSettingsPreferencePolicy.stackedTypeLeading(newCell.cellularTypeOrder)) return null
         if (oldCell.cellularTypeOrder != newCell.cellularTypeOrder || oldCell.cellularTypeCustom != newCell.cellularTypeCustom ||
             oldCell.cellularTypeCustomVal != newCell.cellularTypeCustomVal) effects += IndependentIconDomain.CELLULAR_TYPE
         if (oldCell.cellularTypeSmall5ga != newCell.cellularTypeSmall5ga || oldCell.typeTypography != newCell.typeTypography ||

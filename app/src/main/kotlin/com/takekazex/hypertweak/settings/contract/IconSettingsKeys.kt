@@ -32,7 +32,8 @@ object IconSettingsKeys {
     // Cellular type display, ported from Hyper Helper's `CellularTypeIcon` (keys match upstream
     // f32.m/q/r). Forces the single-carrier type text and/or a custom type name.
     const val KEY_ICON_CELLULAR_TYPE_SINGLE = "icon_tuner_cellular_type_single"
-    // Shared by carrier rows, stacked signal and Duo: 0 = SIM slot, 1 = data SIM first.
+    // Separate type label position (IconSettingsPreferencePolicy.TYPE_ORDER_*). Under stacked
+    // signal it orders the bars against the native `mobile` slot instead.
     const val KEY_ICON_CELLULAR_TYPE_ORDER = "icon_tuner_cellular_type_order"
     const val KEY_ICON_CELLULAR_TYPE_SINGLE_SWAP = "icon_tuner_cellular_type_single_swap"
     const val KEY_ICON_CELLULAR_TYPE_CUSTOM = "icon_tuner_cellular_type_custom"

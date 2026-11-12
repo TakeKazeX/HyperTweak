@@ -6,6 +6,9 @@ internal object IconSettingsPreferencePolicy {
     const val TYPE_ORDER_RIGHT = 2
     const val TYPE_ORDER_LEFT = 3
 
+    /** Stacked signal has one bar group, so swapping sides and the left edge both mean "left". */
+    fun stackedTypeLeading(order: Int): Boolean = order == TYPE_ORDER_SWAP || order == TYPE_ORDER_LEFT
+
     // Legacy-key fallbacks live in IconConfigMigration; values reaching the helpers below are
     // already migrated by IconConfigDecoder.
 
