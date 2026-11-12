@@ -88,9 +88,12 @@ data class NetworkIconConfig internal constructor(val values: Map<String, Any>) 
     fun int(key: String): Int = values[key] as Int
     fun float(key: String): Float = values[key] as Float
     fun string(key: String): String = values[key] as String
-    val hideNonDefaultSim: Boolean get() = values.getValue(IconSettingsKeys.KEY_ICON_HIDE_NON_DEFAULT_SIM) as Boolean
-    val hideSimOne: Boolean get() = values.getValue(IconSettingsKeys.KEY_ICON_HIDE_SIM_ONE) as Boolean
-    val hideSimTwo: Boolean get() = values.getValue(IconSettingsKeys.KEY_ICON_HIDE_SIM_TWO) as Boolean
+    val nonDefaultSimVisibility: Int get() = int(IconSettingsKeys.KEY_ICON_NON_DEFAULT_SIM_VISIBILITY)
+    val hideNonDefaultSim: Boolean get() = nonDefaultSimVisibility != SimVisibilityPolicy.DEFAULT
+    val simOneVisibility: Int get() = int(IconSettingsKeys.KEY_ICON_SIM_ONE_VISIBILITY)
+    val hideSimOne: Boolean get() = simOneVisibility != SimVisibilityPolicy.DEFAULT
+    val simTwoVisibility: Int get() = int(IconSettingsKeys.KEY_ICON_SIM_TWO_VISIBILITY)
+    val hideSimTwo: Boolean get() = simTwoVisibility != SimVisibilityPolicy.DEFAULT
     val hideMobileOnWifi: Boolean get() = values.getValue(IconSettingsKeys.KEY_ICON_HIDE_MOBILE_ON_WIFI) as Boolean
 }
 
@@ -258,7 +261,7 @@ internal object IconConfigReload {
             if (before.wifi.hideWifiUnavailable != after.wifi.hideWifiUnavailable)
                 effects += setOf(IndependentIconDomain.DUO, IndependentIconDomain.CONTROL_CENTER_HEADER)
         }
-        if (before.network != after.network) effects += setOf(IndependentIconDomain.MOBILE_SIGNAL,
+        if (before.network != after.network) effects += setOf(IndependentIconDomain.POLICY, IndependentIconDomain.MOBILE_SIGNAL,
             IndependentIconDomain.DUO, IndependentIconDomain.CONTROL_CENTER_HEADER)
         if (before.stacked != after.stacked) {
             effects += setOf(IndependentIconDomain.MOBILE_SIGNAL, IndependentIconDomain.DUO,
@@ -340,6 +343,9 @@ object IconConfigDecoder {
         put(IconSettingsKeys.KEY_ICON_WIFI_PADDING, false)
         put(IconSettingsKeys.KEY_ICON_WIFI_PADDING_START_VAL, 0f)
         put(IconSettingsKeys.KEY_ICON_WIFI_PADDING_END_VAL, 0f)
+        put(IconSettingsKeys.KEY_ICON_SIM_ONE_VISIBILITY, 0)
+        put(IconSettingsKeys.KEY_ICON_SIM_TWO_VISIBILITY, 0)
+        put(IconSettingsKeys.KEY_ICON_NON_DEFAULT_SIM_VISIBILITY, 0)
         put(IconSettingsKeys.KEY_ICON_HIDE_SIM_ONE, false)
         put(IconSettingsKeys.KEY_ICON_HIDE_SIM_TWO, false)
         put(IconSettingsKeys.KEY_ICON_HIDE_MOBILE_ON_WIFI, false)
@@ -411,7 +417,10 @@ object IconConfigDecoder {
                         key == IconSettingsKeys.KEY_ICON_WIFI_STANDARD_MODE -> (value as Int).coerceIn(0, 3)
                     key == IconSettingsKeys.KEY_ICON_STACKED_SIGNAL_STYLE -> SignalSvgStyle.fromStored(value as Int).storedValue
                     key == IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_ORDER -> (value as Int).takeIf { it in 0..3 } ?: 0
-                    key == SystemUiSettingsKeys.KEY_CC_BATTERY_PERCENT_STYLE -> (value as Int).takeIf { it in 0..2 } ?: 0
+                    key == IconSettingsKeys.KEY_ICON_SIM_ONE_VISIBILITY ||
+                        key == IconSettingsKeys.KEY_ICON_SIM_TWO_VISIBILITY ||
+                        key == IconSettingsKeys.KEY_ICON_NON_DEFAULT_SIM_VISIBILITY ||
+                        key == SystemUiSettingsKeys.KEY_CC_BATTERY_PERCENT_STYLE -> (value as Int).takeIf { it in 0..2 } ?: 0
                     else -> value
                 }
             } else if (fallback is Set<*>) Collections.unmodifiableSet(fallback.filterIsInstance<String>().toSet()) else fallback
@@ -478,6 +487,9 @@ object IconConfigDecoder {
         IconSettingsKeys.KEY_ICON_WIFI_PADDING_END_VAL,
     )
     private val networkKeys: Set<String> = setOf(
+        IconSettingsKeys.KEY_ICON_SIM_ONE_VISIBILITY,
+        IconSettingsKeys.KEY_ICON_SIM_TWO_VISIBILITY,
+        IconSettingsKeys.KEY_ICON_NON_DEFAULT_SIM_VISIBILITY,
         IconSettingsKeys.KEY_ICON_HIDE_NON_DEFAULT_SIM,
         IconSettingsKeys.KEY_ICON_HIDE_SIM_ONE,
         IconSettingsKeys.KEY_ICON_HIDE_SIM_TWO,

@@ -45,6 +45,7 @@ data class CarrierBlockConfig(
     val dataFirst: Boolean = false,
     val networkOnFirstRow: Boolean = false,
     val hiddenSimIds: Set<Int> = emptySet(),
+    val hiddenCarrierSlots: Set<Int> = emptySet(),
     val hideTypeWhenDisconnected: Boolean = true
 )
 
@@ -69,6 +70,10 @@ object CarrierBlockPolicy {
     /** Returned by [slotOf] when a subscription has no usable slot index. */
     const val INVALID_SLOT = -1
 
+    /** Keep subscription readiness independent of View.GONE/measurement from the previous frame. */
+    fun visibleRowCount(state: MobileSignalState, hiddenCarrierSlots: Set<Int>, slotOf: (Int) -> Int): Int =
+        if (state.airplaneMode) 1 else state.subscriptionOrder.count { slotOf(it) !in hiddenCarrierSlots }
+
     fun resolve(
         state: MobileSignalState,
         wifiLevel: Int?,
@@ -80,6 +85,7 @@ object CarrierBlockPolicy {
             return@map CarrierRowModel(slot = slot, airplane = slot == 0,
                 wifiLevel = wifiLevel?.coerceIn(0, 4)?.takeIf { slot == 0 })
         }
+        if (slot in config.hiddenCarrierSlots) return@map CarrierRowModel(slot = slot)
         val subId = state.subscriptionOrder.firstOrNull { candidate ->
             runCatching { slotOf(candidate) }.getOrDefault(INVALID_SLOT) == slot
         }
@@ -145,9 +151,6 @@ object CarrierBlockPolicy {
     /** Each vertical row gets the full width, not the host's horizontal half/text-width budget. */
     fun textWidth(availableWidth: Int, fixedWidth: Int): Int =
         (availableWidth.toLong() - fixedWidth.coerceAtLeast(0)).coerceIn(0, Int.MAX_VALUE.toLong()).toInt()
-
-    fun preserveCarrierName(compactOwner: Boolean, requestedHidden: Boolean): Boolean =
-        compactOwner || !requestedHidden
 
     fun badgeText(slot: Int, value: String): String = value.mapNotNull { char ->
         when {

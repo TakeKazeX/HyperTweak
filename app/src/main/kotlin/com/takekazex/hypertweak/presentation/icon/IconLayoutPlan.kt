@@ -99,9 +99,9 @@ internal object IconLayoutPlan {
         val visibility = NetworkIconVisibility(
             hideMobileOnWifi = config.network.boolean(IconSettingsKeys.KEY_ICON_HIDE_MOBILE_ON_WIFI),
             hideWifi = config.wifi.boolean(IconSettingsKeys.KEY_ICON_HIDE_WIFI_UNAVAILABLE),
-            hideNonDefaultSim = config.network.boolean(IconSettingsKeys.KEY_ICON_HIDE_NON_DEFAULT_SIM),
-            hideSimOne = config.network.boolean(IconSettingsKeys.KEY_ICON_HIDE_SIM_ONE),
-            hideSimTwo = config.network.boolean(IconSettingsKeys.KEY_ICON_HIDE_SIM_TWO),
+            simOneMode = config.network.simOneVisibility,
+            simTwoMode = config.network.simTwoVisibility,
+            nonDefaultSimMode = config.network.nonDefaultSimVisibility,
             slotModes = policy.slotModes
         )
         val rowOverrides = config.controlCenter.value(SystemUiSettingsKeys.KEY_CC_ICON_ROW_OVERRIDES).stringSet()
@@ -164,7 +164,7 @@ private class SurfacePlanner(
         val hiddenSims = if (blocks(IconSlotPolicy.SLOT_MOBILE)) {
             subscriptions.toSet()
         } else {
-            network.hiddenCellularIds(host)
+            network.hiddenCellularIds(surface)
         }
         subscriptions.forEach { id ->
             val owner = if (id in hiddenSims) Ownership.Hidden(USER_HIDDEN) else Ownership.Native
@@ -176,7 +176,8 @@ private class SurfacePlanner(
 
     /** Stacked and Duo claims count only for the style that draws them; Duo always owns AOD rows. */
     private fun allowed(owner: RendererId): Boolean = when (owner) {
-        RendererId.STACKED -> style == SignalStyle.STACKED && !blocks(IconSlotPolicy.SLOT_STACKED_SIGNAL)
+        RendererId.STACKED -> style == SignalStyle.STACKED && !blocks(IconSlotPolicy.SLOT_STACKED_SIGNAL) &&
+            !nativeExpandedStacked
         RendererId.DUO -> style == SignalStyle.DUO || surface == PlanSurface.KEYGUARD || surface == PlanSurface.AOD
         else -> true
     }
@@ -214,12 +215,17 @@ private class SurfacePlanner(
     }
 
     private fun userHides(part: SlotPart): Boolean = when (part) {
-        is SlotPart.Slot -> blocks(part.name) || part.name == IconSlotPolicy.SLOT_WIFI && network.hidesWifi(host)
+        is SlotPart.Slot -> blocks(part.name) ||
+            part.name == IconSlotPolicy.SLOT_STACKED_SIGNAL && nativeExpandedStacked ||
+            part.name == IconSlotPolicy.SLOT_WIFI && network.hidesWifi(host)
         SlotPart.Battery -> blocks(BATTERY_SLOT)
         else -> false
     }
 
     private fun blocks(slot: String): Boolean = IconSlotPolicy.blocksSlot(slot, host, policy)
+
+    private val nativeExpandedStacked: Boolean get() =
+        surface == PlanSurface.CONTROL_CENTER_EXPANDED && network.visibility.needsNativeControlCenter
 
     private fun leftSlots(): Set<String> {
         val left = when (surface) {

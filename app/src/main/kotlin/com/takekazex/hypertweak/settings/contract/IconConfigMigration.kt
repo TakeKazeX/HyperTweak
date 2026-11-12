@@ -62,6 +62,15 @@ internal object IconConfigMigration {
     private fun resolve(key: String, read: (String) -> Any?): Any? {
         read(key)?.let { return it }
         return when {
+            key == IconSettingsKeys.KEY_ICON_SIM_ONE_VISIBILITY -> legacySimMode(read,
+                IconSettingsKeys.KEY_ICON_HIDE_SIM_ONE, IconSettingsKeys.KEY_ICON_HIDE_CARRIER_ONE)
+            key == IconSettingsKeys.KEY_ICON_SIM_TWO_VISIBILITY -> legacySimMode(read,
+                IconSettingsKeys.KEY_ICON_HIDE_SIM_TWO, IconSettingsKeys.KEY_ICON_HIDE_CARRIER_TWO)
+            key == IconSettingsKeys.KEY_ICON_NON_DEFAULT_SIM_VISIBILITY ->
+                SimVisibilityPolicy.STATUS_BAR_ONLY.takeIf {
+                    (read(IconSettingsKeys.KEY_ICON_HIDE_NON_DEFAULT_SIM)
+                        ?: read(IconSettingsKeys.KEY_ICON_HIDE_SIM_AUTO)) == true
+                }
             key == IconSettingsKeys.KEY_ICON_SIGNAL_STYLE -> legacySignalStyle(read)
             key == IconSettingsKeys.KEY_ICON_STACKED_SIGNAL_STYLE ->
                 if (read(LEGACY_STACKED_SVG_STYLE) == 3) SignalSvgStyle.IOS27.storedValue else null
@@ -96,6 +105,12 @@ internal object IconConfigMigration {
             key.startsWith(IconSettingsPreferencePolicy.SLOT_KEY_PREFIX) -> legacySlotMode(key, read)
             else -> null
         }
+    }
+
+    private fun legacySimMode(read: (String) -> Any?, signal: String, carrier: String): Int? = when {
+        read(carrier) == true -> SimVisibilityPolicy.ALL
+        read(signal) == true -> SimVisibilityPolicy.STATUS_BAR_ONLY
+        else -> null
     }
 
     /** Duo wins over stacked, as the runtime did when both retired switches were on. */

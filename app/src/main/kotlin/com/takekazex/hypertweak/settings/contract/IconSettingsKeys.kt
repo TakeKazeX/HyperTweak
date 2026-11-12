@@ -22,6 +22,9 @@ object IconSettingsKeys {
     const val KEY_ICON_HIDE_SIM_AUTO = "icon_hide_sim_auto"
     const val KEY_ICON_HIDE_SIM_ONE = "icon_hide_sim_one"
     const val KEY_ICON_HIDE_SIM_TWO = "icon_hide_sim_two"
+    const val KEY_ICON_SIM_ONE_VISIBILITY = "icon_sim_one_visibility"
+    const val KEY_ICON_SIM_TWO_VISIBILITY = "icon_sim_two_visibility"
+    const val KEY_ICON_NON_DEFAULT_SIM_VISIBILITY = "icon_non_default_sim_visibility"
     // Hide the whole mobile signal icon (signal bars and network type) while WiFi is the connected
     // default network. Applies to the native cellular row and, when stacked signal is enabled, to
     // the module-owned stacked slot as well.

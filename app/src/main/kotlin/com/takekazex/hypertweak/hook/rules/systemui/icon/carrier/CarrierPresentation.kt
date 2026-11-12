@@ -17,16 +17,10 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.core.view.isVisible
-import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
-import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HostAccess
-import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
 import java.lang.reflect.Field
 import kotlin.math.ceil
 import kotlin.math.roundToInt
-
-private val hideCarrierOne by hookSetting(false) { Preferences.iconConfig().boolean(IconSettingsKeys.KEY_ICON_HIDE_CARRIER_ONE) }
-private val hideCarrierTwo by hookSetting(false) { Preferences.iconConfig().boolean(IconSettingsKeys.KEY_ICON_HIDE_CARRIER_TWO) }
 
 /** Owns carrier row construction, styling, sizing and exact native presentation restoration. */
 internal class CarrierPresentation(private val host: Host, private val rowRenderer: CarrierRowRenderer) {
@@ -35,6 +29,7 @@ internal class CarrierPresentation(private val host: Host, private val rowRender
         val badgeTexts: List<String>
         val enabled: Boolean
         val rowOrder: List<Int>
+        fun hiddenCarrierSlots(): Set<Int>
         fun rowGeometry(layout: ViewGroup): TwoRowIconLayout.Geometry?
         fun releaseMask(block: CarrierBlock)
         fun releaseHandover()
@@ -164,7 +159,7 @@ internal class CarrierPresentation(private val host: Host, private val rowRender
             }
             parts.nativeCarrierColors = null
             parts.appliedCarrierColors = null
-            if ((if (parts.slot == 0) hideCarrierOne else hideCarrierTwo)) parts.carrierText.visibility = View.GONE
+            if (parts.slot in host.hiddenCarrierSlots()) parts.carrierText.visibility = View.GONE
             parts.row.gravity = parts.gravity
             parts.row.isBaselineAligned = parts.baselineAligned
             parts.row.contentDescription = parts.contentDescription
@@ -183,7 +178,7 @@ internal class CarrierPresentation(private val host: Host, private val rowRender
     }
 
     fun measureRows(block: CarrierBlock, width: Int) {
-        val rowWidths = block.rows.map { parts ->
+        val rowWidths = block.rows.filter { it.row.isVisible }.map { parts ->
             val fixed = listOf(parts.signal, parts.networkSlot)
                 .filter { it.visibility != View.GONE }.sumOf { view ->
                     view.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.AT_MOST),
@@ -242,7 +237,8 @@ internal class CarrierPresentation(private val host: Host, private val rowRender
                 if (params.topMargin != margin) { params.topMargin = margin; parts.row.layoutParams = params }
             }
         }
-        val height = maxOf(block.minimumHeight, geometry.minimumHeight)
+        // The captured native minimum is restored on release, never a floor for compact rows.
+        val height = geometry.minimumHeight
         if (block.layout.minimumHeight != height) block.layout.minimumHeight = height
         val visible = ordered.filter { it.row.isVisible && it.row.isLaidOut && it.row.height > 0 }
         val tops = TwoRowIconLayout.carrierRowTops(visible.map { it.slot to it.row.height }, geometry)

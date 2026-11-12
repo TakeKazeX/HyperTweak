@@ -115,6 +115,9 @@ internal object CarrierRenderer : IconRenderer() {
         override val mobileSignalId get() = CarrierRenderer.mobileSignalId
         override val mobileTypeId get() = CarrierRenderer.mobileTypeId
         override val activeDataSubId get() = mobileState.activeDataSubId
+        override fun allowsCellularSource(subId: Int?) = subId != null && subId !in
+            networkVisibility.hiddenCellularIds(mobileState, IconSurface.STATUS_BAR,
+                wifiDefault ?: mobileState.wifiConnected, ::slotOf)
         override val mobileGroupId get() = CarrierRenderer.mobileGroupId
         override fun blocks(): Collection<CarrierBlock> = blocks.values
         override fun rowFor(view: View) = rowIndex[view.parent]
@@ -126,6 +129,7 @@ internal object CarrierRenderer : IconRenderer() {
         override val badgeTexts get() = CarrierRenderer.badgeTexts
         override val enabled get() = CarrierRenderer.enabled
         override val rowOrder get() = CarrierRenderer.rowOrder
+        override fun hiddenCarrierSlots() = CarrierRenderer.hiddenCarrierSlots()
         override fun rowGeometry(layout: ViewGroup) = CarrierRenderer.rowGeometry(layout)
         override fun releaseMask(block: CarrierBlock) = CarrierRenderer.releaseMask(block)
         override fun releaseHandover() = handover.releaseHandover()
@@ -452,13 +456,16 @@ internal object CarrierRenderer : IconRenderer() {
 
     internal fun rowGeometry(layout: ViewGroup): TwoRowIconLayout.Geometry? {
         val block = blocks[layout]?.takeIf { it.compact } ?: return null
+        val hidden = hiddenCarrierSlots()
+        val rowCount = CarrierBlockPolicy.visibleRowCount(mobileState, hidden, ::slotOf)
         val inputs = block.geometryInputs
         inputs.begin()
         inputs.add(rowRenderer.iconHeightPx(layout.context))
         inputs.add((3 * layout.resources.displayMetrics.density).roundToInt())
         inputs.add(layout.paddingTop)
         inputs.add(layout.paddingBottom)
-        inputs.add(mobileState.subscriptionOrder.size)
+        inputs.add(rowCount)
+        inputs.add(hidden.fold(0) { mask, slot -> mask or (1 shl slot) })
         for (index in block.rows.indices) {
             val parts = block.rows[index]
             inputs.add(if (parts.row.isVisible) 1 else 0)
@@ -466,11 +473,12 @@ internal object CarrierRenderer : IconRenderer() {
             inputs.add(parts.networkSlot.layoutParams.height.coerceAtLeast(0))
         }
         if (block.geometry == null || inputs.changed) {
-            val measured = block.rows.filter { it.row.isVisible }.map { it.row.measuredHeight }
+            val visible = block.rows.filter { (mobileState.airplaneMode || it.slot !in hidden) && it.row.isVisible }
+            val measured = visible.map { it.row.measuredHeight }
             val rowHeight = maxOf(inputs[0],
-                block.rows.maxOfOrNull { it.networkSlot.layoutParams.height.coerceAtLeast(0) } ?: 0)
+                visible.maxOfOrNull { it.networkSlot.layoutParams.height.coerceAtLeast(0) } ?: 0)
             block.geometry = TwoRowIconLayout.geometry(measured, rowHeight, inputs[1], inputs[2], inputs[3],
-                rowCount = mobileState.subscriptionOrder.size.takeIf { it > 0 } ?: measured.size)
+                rowCount = rowCount)
         }
         return block.geometry
     }

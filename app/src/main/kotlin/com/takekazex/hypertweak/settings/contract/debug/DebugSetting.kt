@@ -15,7 +15,8 @@ internal data class DebugSetting(val key: String, val type: String, val default:
         key == "opened_folder_columns" -> 3..5
         key in setOf("securitycenter_dock_predict_limit", "statusbar_notif_icon_max") -> 0..15
         key in setOf("securitycenter_low_battery_mode", "securitycenter_permission_warning_mode", "securitycenter_anti_peeping_mode", "securitycenter_sidebar_mode",
-            "app_blur_mode", "theme_mode", "icon_left_container_mode", "systemui_cc_battery_percent_style") -> 0..2
+            "app_blur_mode", "theme_mode", "icon_left_container_mode", "systemui_cc_battery_percent_style",
+            "icon_sim_one_visibility", "icon_sim_two_visibility", "icon_non_default_sim_visibility") -> 0..2
         key == "power_button_long_press_action" -> 0..3
         key == "battery_auto_power_save_threshold" -> com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys.MIN_BATTERY_AUTO_POWER_SAVE_THRESHOLD..com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys.MAX_BATTERY_AUTO_POWER_SAVE_THRESHOLD
         key == "volume_key_step_count" -> 1..100

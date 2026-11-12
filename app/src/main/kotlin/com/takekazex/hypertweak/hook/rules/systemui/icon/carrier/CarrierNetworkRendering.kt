@@ -55,6 +55,9 @@ internal fun CarrierRenderer.hiddenSimIds(): Set<Int> = networkVisibility.hidden
         mobileState, IconSurface.CONTROL_CENTER, wifiDefault ?: mobileState.wifiConnected
     ) { slotIndices[it] ?: CarrierBlockPolicy.INVALID_SLOT }
 
+internal fun CarrierRenderer.hiddenCarrierSlots(): Set<Int> = (0 until CarrierBlockPolicy.ROW_COUNT)
+    .filterTo(linkedSetOf()) { slot -> networkVisibility.hidesCarrier(slot, mobileState, ::slotOf) }
+
 internal fun CarrierRenderer.hidesWifi(): Boolean =
         networkVisibility.hidesWifi(IconSurface.CONTROL_CENTER, wifiDefault == true || wifiLevel != null)
 
@@ -70,6 +73,7 @@ internal fun CarrierRenderer.renderAll() {
                 dataFirst = dataFirst,
                 networkOnFirstRow = networkOnFirstRow,
                 hiddenSimIds = hiddenSimIds(),
+                hiddenCarrierSlots = hiddenCarrierSlots(),
                 hideTypeWhenDisconnected = hideTypeWhenDisconnected
             ),
             wifiDefault = wifiDefault ?: mobileState.wifiConnected,
@@ -80,7 +84,7 @@ internal fun CarrierRenderer.renderAll() {
             if (!block.layout.isAttachedToWindow) return@forEach
             if (block.compact) {
                 val rendering = CarrierRenderInput(
-                    mobileState, simNames, showBadge, keepTypeOnWifi, typeConfig, block.nativeWifi
+                    mobileState, simNames, showBadge, keepTypeOnWifi, typeConfig, block.nativeWifi, hiddenCarrierSlots()
                 )
                 syncNativeSignals(block) { parts -> rows.firstOrNull { it.slot == parts.slot } }
                 block.rows.forEach { parts -> rowRenderer.renderRow(parts, rows, rendering) }

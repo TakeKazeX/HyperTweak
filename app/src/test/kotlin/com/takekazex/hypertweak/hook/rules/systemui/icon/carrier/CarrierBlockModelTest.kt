@@ -11,6 +11,17 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class CarrierBlockModelTest {
+    @Test fun hiddenCarriersStopReservingRowsAndRestoreWithoutWaitingForViewMeasurement() {
+        val state = dualSim()
+        val slotOf: (Int) -> Int = { if (it == 101) 0 else 1 }
+        for (hidden in listOf(emptySet(), setOf(0), setOf(1), setOf(0, 1), emptySet())) {
+            assertEquals(2 - hidden.size, CarrierBlockPolicy.visibleRowCount(state, hidden, slotOf))
+        }
+        assertEquals(1, CarrierBlockPolicy.visibleRowCount(
+            state.reduce(MobileSignalEvent.AirplaneMode(true)), setOf(0, 1), slotOf))
+        assertEquals(0, CarrierBlockPolicy.visibleRowCount(MobileSignalState(), emptySet(), slotOf))
+    }
+
     @Test
     fun customCarrierNamesOverrideSimNamesAndClearingRestoresFallbacks() {
         assertEquals("哈基米", CarrierBlockPolicy.carrierName("哈基米", "电", "中国电信"))
@@ -492,13 +503,6 @@ class CarrierBlockModelTest {
         assertFalse(rows[1].visible)
         assertEquals(setOf("airplane"), CarrierMask(airplane = true).slots())
         assertTrue(CarrierMask(airplane = true).active)
-    }
-
-    @Test
-    fun onlyAnOwnedCompactRowOverridesCarrierNameHiding() {
-        assertTrue(CarrierBlockPolicy.preserveCarrierName(true, true))
-        assertFalse(CarrierBlockPolicy.preserveCarrierName(false, true))
-        assertTrue(CarrierBlockPolicy.preserveCarrierName(false, false))
     }
 
     @Test

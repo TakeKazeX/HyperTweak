@@ -590,10 +590,6 @@
     <string name="icon_stacked_type_keep_on_wifi_summary">Keep the active SIM’s separate 4G/5G text when Wi-Fi is the default network.</string>
     <string name="icon_hide_carrier_hd">Hide HD Icon</string>
     <string name="icon_hide_carrier_hd_summary">Hide the HD voice indicator beside the carrier label</string>
-    <string name="icon_hide_carrier_one">Hide First Carrier</string>
-    <string name="icon_hide_carrier_one_summary">Hide the first carrier label in the control center</string>
-    <string name="icon_hide_carrier_two">Hide Second Carrier</string>
-    <string name="icon_hide_carrier_two_summary">Hide the second carrier label in the control center</string>
     <string name="icon_hide_ls_carrier_one">Hide First Carrier on Lockscreen</string>
     <string name="icon_hide_ls_carrier_one_summary">Hide the first carrier label in the lockscreen header</string>
     <string name="icon_hide_ls_carrier_two">Hide Second Carrier on Lockscreen</string>
@@ -612,7 +608,6 @@
     <string name="icon_mobile_row_style_data">Data SIM first (iOS style)</string>
     <string name="icon_cc_carrier_two_line">Two-Line Carrier Label</string>
     <string name="icon_cc_carrier_two_line_summary">Use one row per SIM for signal, carrier and network type</string>
-    <string name="icon_cc_carrier_name_priority">Two-line mode keeps both carrier names visible in the compact control center; this preference still applies to other layouts</string>
     <string name="icon_cc_carrier_show_badge">Show SIM Labels</string>
     <string name="icon_cc_carrier_show_badge_summary">Customize SIM labels; leave blank for 1 or 2</string>
     <string name="icon_cc_carrier_badge_one">SIM 1 label</string>
@@ -631,12 +626,6 @@
     <string name="icon_hide_network_type_summary">Hide the 4G/5G badge at the top left of the standard signal icon.</string>
     <string name="icon_hide_mobile_on_wifi">Hide Cellular Signal on Wi-Fi</string>
     <string name="icon_hide_mobile_on_wifi_summary">Hide cellular signal and type when Wi-Fi is the default network.</string>
-    <string name="icon_hide_non_default_sim_icon">Hide Non-Default SIM Icon</string>
-    <string name="icon_hide_non_default_sim_icon_summary">Hide the cellular signal and type for the non-default data SIM.</string>
-    <string name="icon_hide_sim_one">Hide SIM 1</string>
-    <string name="icon_hide_sim_one_summary">Hide cellular signal and type from physical slot 1.</string>
-    <string name="icon_hide_sim_two">Hide SIM 2</string>
-    <string name="icon_hide_sim_two_summary">Hide cellular signal and type from physical slot 2.</string>
     <string name="icon_hide_privacy_indicator">Hide Status Bar Privacy Indicator</string>
     <string name="icon_hide_privacy_indicator_summary">Hide the camera/mic privacy dot in the status bar</string>
     <string name="icon_native_roaming">Native Roaming Indicators</string>
@@ -1990,4 +1979,12 @@
     <string name="icon_signal_style_duo_summary">Combine battery, connection and main SIM signal in one icon</string>
     <string name="icon_section_network">Network</string>
     <string name="icon_section_status_bar">Status bar</string>
+    <string name="icon_sim_visibility_title">SIM visibility</string>
+    <string name="icon_sim_visibility_one">SIM 1</string>
+    <string name="icon_sim_visibility_two">SIM 2</string>
+    <string name="icon_sim_visibility_non_default">Non-default data SIM</string>
+    <string name="icon_sim_visibility_default">Default</string>
+    <string name="icon_sim_visibility_status_bar">Hide status bar icons only</string>
+    <string name="icon_sim_visibility_all">Hide everywhere</string>
+    <string name="icon_sim_visibility_summary">Status bar only keeps icons and carrier labels in the expanded control center. Hide everywhere also hides them there. Lockscreen labels use the switches below.</string>
 </resources>

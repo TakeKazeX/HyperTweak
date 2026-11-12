@@ -13,6 +13,18 @@ internal data class NetworkDisplayModel(
     fun hiddenCellularIds(surface: IconSurface): Set<Int> =
         visibility.hiddenCellularIds(mobile, surface, wifiDefault, slotOf)
 
+    /** The collapsed row is the animated status-bar mirror, not the expanded destination. */
+    fun hiddenCellularIds(surface: PlanSurface): Set<Int> {
+        val scope = when (surface) {
+            PlanSurface.CONTROL_CENTER_COLLAPSED, PlanSurface.CONTROL_CENTER_EXPANDED -> IconSurface.CONTROL_CENTER
+            else -> IconSurface.STATUS_BAR
+        }
+        val hidden = hiddenCellularIds(scope)
+        return if (surface == PlanSurface.CONTROL_CENTER_COLLAPSED) {
+            hidden + visibility.simHiddenIds(mobile, IconSurface.STATUS_BAR, slotOf)
+        } else hidden
+    }
+
     fun hidesWifi(surface: IconSurface): Boolean = visibility.hidesWifi(surface, wifiConnected)
 
     fun nativeMask(stackedPublished: Boolean, ignoreSystemHide: Boolean = false): NativeMobileMask =

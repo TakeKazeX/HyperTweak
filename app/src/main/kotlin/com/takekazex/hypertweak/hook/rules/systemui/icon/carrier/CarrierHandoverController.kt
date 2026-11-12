@@ -25,6 +25,7 @@ internal class CarrierHandoverController(private val host: Host) {
         val mobileTypeId: Int
         val mobileGroupId: Int
         val activeDataSubId: Int
+        fun allowsCellularSource(subId: Int?): Boolean
         fun blocks(): Collection<CarrierBlock>
         fun rowFor(view: View): CarrierRowParts?
         fun findStatusContainer(root: ViewGroup): Any?
@@ -112,7 +113,7 @@ internal class CarrierHandoverController(private val host: Host) {
             for (parts in block.rows) {
                 val model = parts.model
                 if (parts.cellularReady && parts.signal.drawable != null) {
-                    val bars = nativeSignal(fakeRow, model?.subId)
+                    val bars = motionSignal(fakeRow, model?.subId)
                     val composite = (parts.signal.drawable as? CarrierNativeGlyph)?.takeIf {
                         bars != null && it.children?.firstOrNull() === bars
                     }
@@ -184,6 +185,7 @@ internal class CarrierHandoverController(private val host: Host) {
     }
 
     private fun typeGlyph(row: ViewGroup, subId: Int?): View? {
+        if (!host.allowsCellularSource(subId)) return null
         val mobile = subId?.let { mobileGroup(row, it) } ?: return null
         val single = ResourceLookup.identifier(mobile.resources, "mobile_type_single", "id", mobile.context.packageName)
         return glyph(mobile, single) ?: glyph(mobile, host.mobileTypeId)
@@ -193,6 +195,10 @@ internal class CarrierHandoverController(private val host: Host) {
         parent.findViewById<View>(id)?.takeIf { it.visibility == View.VISIBLE && isUsable(it) }
 
     // A masked holder can still supply the bars. Its network-type badge has a separate view.
+    private fun motionSignal(root: ViewGroup, subId: Int?): View? =
+        if (host.allowsCellularSource(subId)) nativeSignal(root, subId) else null
+
+    // Glyph capture for the expanded row is independent from permission to animate from home.
     fun nativeSignal(root: ViewGroup, subId: Int?): View? {
         if (host.mobileSignalId == 0) return null
         val holder = subId?.let { mobileGroup(root, it) } ?: return null

@@ -274,9 +274,9 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit, onNavig
             duoSizeDp = DuoLayout.snapSizeDp(duoSizeSlider.value).toFloat(),
             hideMobileOnWifi = pref(IconSettingsKeys.KEY_ICON_HIDE_MOBILE_ON_WIFI, false),
             hideWifiConnected = pref(IconSettingsKeys.KEY_ICON_HIDE_WIFI_UNAVAILABLE, false),
-            hideNonDefaultSim = pref(IconSettingsKeys.KEY_ICON_HIDE_NON_DEFAULT_SIM, false),
-            hideSimOne = pref(IconSettingsKeys.KEY_ICON_HIDE_SIM_ONE, false),
-            hideSimTwo = pref(IconSettingsKeys.KEY_ICON_HIDE_SIM_TWO, false),
+            hideNonDefaultSim = config.network.hideNonDefaultSim,
+            hideSimOne = config.network.hideSimOne,
+            hideSimTwo = config.network.hideSimTwo,
             useSeparateCellularType = pref(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_SINGLE, false) ||
                 config.signalStyle == SignalStyle.STACKED,
             typeOrder = typeOrder,
@@ -402,9 +402,11 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit, onNavig
                             onChange = onChange
                         )
                         SimVisibilitySection(
-                            hideNonDefaultSim = pref(IconSettingsKeys.KEY_ICON_HIDE_NON_DEFAULT_SIM, false),
-                            hideSimOne = pref(IconSettingsKeys.KEY_ICON_HIDE_SIM_ONE, false),
-                            hideSimTwo = pref(IconSettingsKeys.KEY_ICON_HIDE_SIM_TWO, false),
+                            nonDefaultMode = config.network.nonDefaultSimVisibility,
+                            simOneMode = config.network.simOneVisibility,
+                            simTwoMode = config.network.simTwoVisibility,
+                            hideLsOne = pref(IconSettingsKeys.KEY_ICON_HIDE_LS_CARRIER_ONE, false),
+                            hideLsTwo = pref(IconSettingsKeys.KEY_ICON_HIDE_LS_CARRIER_TWO, false),
                             hideOnWifi = pref(IconSettingsKeys.KEY_ICON_HIDE_MOBILE_ON_WIFI, false),
                             onChange = onChange
                         )
@@ -422,11 +424,7 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit, onNavig
                     )
                     3 -> {
                         CarrierSection(
-                            hideOne = pref(IconSettingsKeys.KEY_ICON_HIDE_CARRIER_ONE, false),
-                            hideTwo = pref(IconSettingsKeys.KEY_ICON_HIDE_CARRIER_TWO, false),
                             hideHd = pref(IconSettingsKeys.KEY_ICON_HIDE_CARRIER_HD, false),
-                            hideLsOne = pref(IconSettingsKeys.KEY_ICON_HIDE_LS_CARRIER_ONE, false),
-                            hideLsTwo = pref(IconSettingsKeys.KEY_ICON_HIDE_LS_CARRIER_TWO, false),
                             ccCarrierLeft = pref(SystemUiSettingsKeys.KEY_CC_CARRIER_LEFT, false),
                             ccHideDate = pref(SystemUiSettingsKeys.KEY_CC_HIDE_DATE, false),
                             ccTwoLine = pref(SystemUiSettingsKeys.KEY_CC_CARRIER_TWO_LINE, false),
@@ -741,36 +739,54 @@ private fun CellularIndicatorsSection(
 /** Which SIM rows are shown at all. */
 @Composable
 private fun SimVisibilitySection(
-    hideNonDefaultSim: Boolean,
-    hideSimOne: Boolean,
-    hideSimTwo: Boolean,
+    nonDefaultMode: Int,
+    simOneMode: Int,
+    simTwoMode: Int,
+    hideLsOne: Boolean,
+    hideLsTwo: Boolean,
     hideOnWifi: Boolean,
     onChange: (String, Any) -> Unit
 ) {
-    SmallTitle(stringResource(R.string.icon_section_network))
+    val modes = listOf(
+        stringResource(R.string.icon_sim_visibility_default),
+        stringResource(R.string.icon_sim_visibility_status_bar),
+        stringResource(R.string.icon_sim_visibility_all)
+    )
+    SmallTitle(stringResource(R.string.icon_sim_visibility_title))
     Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
         Column(Modifier.fillMaxWidth()) {
+            listOf(
+                Triple(IconSettingsKeys.KEY_ICON_SIM_ONE_VISIBILITY, R.string.icon_sim_visibility_one, simOneMode),
+                Triple(IconSettingsKeys.KEY_ICON_SIM_TWO_VISIBILITY, R.string.icon_sim_visibility_two, simTwoMode),
+                Triple(IconSettingsKeys.KEY_ICON_NON_DEFAULT_SIM_VISIBILITY, R.string.icon_sim_visibility_non_default, nonDefaultMode)
+            ).forEach { (key, title, mode) ->
+                OverlayDropdownPreference(
+                    title = stringResource(title),
+                    summary = stringResource(R.string.icon_sim_visibility_summary),
+                    items = modes,
+                    selectedIndex = mode,
+                    onSelectedIndexChange = { onChange(key, it) }
+                )
+            }
             TunerSwitch(
-                hideNonDefaultSim,
-                stringResource(R.string.icon_hide_non_default_sim_icon),
-                stringResource(R.string.icon_hide_non_default_sim_icon_summary)
-            ) { onChange(IconSettingsKeys.KEY_ICON_HIDE_NON_DEFAULT_SIM, it) }
+                hideLsOne,
+                stringResource(R.string.icon_hide_ls_carrier_one),
+                stringResource(R.string.icon_hide_ls_carrier_one_summary)
+            ) { onChange(IconSettingsKeys.KEY_ICON_HIDE_LS_CARRIER_ONE, it) }
             TunerSwitch(
-                hideSimOne,
-                stringResource(R.string.icon_hide_sim_one),
-                stringResource(R.string.icon_hide_sim_one_summary)
-            ) { onChange(IconSettingsKeys.KEY_ICON_HIDE_SIM_ONE, it) }
-            TunerSwitch(
-                hideSimTwo,
-                stringResource(R.string.icon_hide_sim_two),
-                stringResource(R.string.icon_hide_sim_two_summary)
-            ) { onChange(IconSettingsKeys.KEY_ICON_HIDE_SIM_TWO, it) }
-            TunerSwitch(
-                hideOnWifi,
-                stringResource(R.string.icon_hide_mobile_on_wifi),
-                stringResource(R.string.icon_hide_mobile_on_wifi_summary)
-            ) { onChange(IconSettingsKeys.KEY_ICON_HIDE_MOBILE_ON_WIFI, it) }
+                hideLsTwo,
+                stringResource(R.string.icon_hide_ls_carrier_two),
+                stringResource(R.string.icon_hide_ls_carrier_two_summary)
+            ) { onChange(IconSettingsKeys.KEY_ICON_HIDE_LS_CARRIER_TWO, it) }
         }
+    }
+    SmallTitle(stringResource(R.string.icon_section_network))
+    Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+        TunerSwitch(
+            hideOnWifi,
+            stringResource(R.string.icon_hide_mobile_on_wifi),
+            stringResource(R.string.icon_hide_mobile_on_wifi_summary)
+        ) { onChange(IconSettingsKeys.KEY_ICON_HIDE_MOBILE_ON_WIFI, it) }
     }
 }
 
@@ -1075,11 +1091,7 @@ private fun BatteryStyleSection(style: Int, onChange: (Int) -> Unit) {
 
 @Composable
 private fun CarrierSection(
-    hideOne: Boolean,
-    hideTwo: Boolean,
     hideHd: Boolean,
-    hideLsOne: Boolean,
-    hideLsTwo: Boolean,
     ccCarrierLeft: Boolean,
     ccHideDate: Boolean,
     ccTwoLine: Boolean,
@@ -1154,32 +1166,10 @@ private fun CarrierSection(
                 enabled = ccHideDate && ccTwoLine
             ) { onChange(SystemUiSettingsKeys.KEY_CC_CARRIER_SHOW_NON_DATA_TYPE, it) }
             TunerSwitch(
-                hideOne,
-                stringResource(R.string.icon_hide_carrier_one),
-                stringResource(if (ccHideDate && ccTwoLine) R.string.icon_cc_carrier_name_priority
-                    else R.string.icon_hide_carrier_one_summary)
-            ) { onChange(IconSettingsKeys.KEY_ICON_HIDE_CARRIER_ONE, it) }
-            TunerSwitch(
-                hideTwo,
-                stringResource(R.string.icon_hide_carrier_two),
-                stringResource(if (ccHideDate && ccTwoLine) R.string.icon_cc_carrier_name_priority
-                    else R.string.icon_hide_carrier_two_summary)
-            ) { onChange(IconSettingsKeys.KEY_ICON_HIDE_CARRIER_TWO, it) }
-            TunerSwitch(
                 hideHd,
                 stringResource(R.string.icon_hide_carrier_hd),
                 stringResource(R.string.icon_hide_carrier_hd_summary)
             ) { onChange(IconSettingsKeys.KEY_ICON_HIDE_CARRIER_HD, it) }
-            TunerSwitch(
-                hideLsOne,
-                stringResource(R.string.icon_hide_ls_carrier_one),
-                stringResource(R.string.icon_hide_ls_carrier_one_summary)
-            ) { onChange(IconSettingsKeys.KEY_ICON_HIDE_LS_CARRIER_ONE, it) }
-            TunerSwitch(
-                hideLsTwo,
-                stringResource(R.string.icon_hide_ls_carrier_two),
-                stringResource(R.string.icon_hide_ls_carrier_two_summary)
-            ) { onChange(IconSettingsKeys.KEY_ICON_HIDE_LS_CARRIER_TWO, it) }
         }
     }
 }

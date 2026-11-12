@@ -48,6 +48,7 @@ public final class PanelGlyphProbe {
     }
     public static void main(String[] args) throws Exception {
         Looper.prepareMainLooper();
+        android.graphics.Typeface.class.getDeclaredMethod("loadPreinstalledSystemFontMap").invoke(null);
         Class<?> thread = Class.forName("android.app.ActivityThread");
         Object activityThread = thread.getMethod("systemMain").invoke(null);
         Context context = (Context) thread.getMethod("getSystemContext").invoke(activityThread);
@@ -121,6 +122,7 @@ public final class PanelGlyphProbe {
             label, signal, new android.widget.TextView(context), new android.widget.FrameLayout(context), wifi, mobileType);
         Class<?> rendererType = loader.loadClass("com.takekazex.hypertweak.hook.rules.systemui.icon.carrier.CarrierRowRenderer");
         Object renderer = rendererType.getConstructor().newInstance();
+        checkCarrierRowHeight(loader, context, renderer, rendererType, partsType);
         Method sync = rendererType.getMethod("syncTint", partsType);
         label.setTextColor(Color.WHITE);
         sync.invoke(renderer, parts);
@@ -157,17 +159,36 @@ public final class PanelGlyphProbe {
         String handoverName = "com.takekazex.hypertweak.hook.rules.systemui.icon.carrier.CarrierHandoverController";
         Class<?> handoverType = loader.loadClass(handoverName);
         Class<?> hostType = loader.loadClass(handoverName + "$Host");
+        boolean[] cellularSourceAllowed = {true};
         Object carrierHost = java.lang.reflect.Proxy.newProxyInstance(loader, new Class<?>[]{hostType}, (proxy, method, values) ->
             switch (method.getName()) {
                 case "getMobileSignalId" -> bars.getId();
                 case "getMobileTypeId" -> inlineType.getId();
                 case "findStatusContainer" -> mirror;
+                case "allowsCellularSource" -> cellularSourceAllowed[0];
                 default -> throw new AssertionError(method.getName());
             });
         Object handover = handoverType.getConstructor(hostType).newInstance(carrierHost);
         View selected = (View) handoverType.getMethod("nativeSignal", ViewGroup.class, Integer.class)
             .invoke(handover, mirror, holder.subId);
         check(selected == bars, "carrier signal uses the native bars as the base glyph");
+        Method motionSignal = handoverType.getDeclaredMethod("motionSignal", ViewGroup.class, Integer.class);
+        motionSignal.setAccessible(true);
+        Method carrierTypeSource = handoverType.getDeclaredMethod("typeGlyph", ViewGroup.class, Integer.class);
+        carrierTypeSource.setAccessible(true);
+        check(motionSignal.invoke(handover, mirror, holder.subId) == bars, "visible SIM can supply an animated source");
+        holder.setVisibility(View.GONE);
+        cellularSourceAllowed[0] = false;
+        check(handoverType.getMethod("nativeSignal", ViewGroup.class, Integer.class)
+            .invoke(handover, mirror, holder.subId) == bars, "hidden holder still supplies expanded glyph artwork");
+        check(motionSignal.invoke(handover, mirror, holder.subId) == null,
+            "status-bar-hidden SIM cannot animate from stale mirror geometry");
+        check(carrierTypeSource.invoke(handover, mirror, holder.subId) == null,
+            "status-bar-hidden type cannot animate from stale mirror geometry");
+        cellularSourceAllowed[0] = true;
+        holder.setVisibility(View.VISIBLE);
+        check(motionSignal.invoke(handover, mirror, holder.subId) == bars,
+            "restoring visibility re-enables the source without replacing its view");
         Method selectBadge = handoverType.getMethod("inlineBadge", View.class);
         check(selectBadge.invoke(handover, bars) == inlineType, "visible native badge is eligible for handover");
         inlineType.setVisibility(View.GONE);
@@ -332,5 +353,61 @@ public final class PanelGlyphProbe {
         System.out.println("PASS: idle recaptures, live tint, bitmap mutation, carrier badge selection and travel, "
             + "masked badge updates, moving-dot tint interpolation and reversal, held updates and alpha restoration, "
             + "stacked pending first draw, ready copies, reverse drag and invalid-endpoint restoration");
+    }
+
+    private static void checkCarrierRowHeight(ClassLoader loader, Context context, Object renderer,
+                                             Class<?> rendererType, Class<?> partsType) throws Exception {
+        android.widget.LinearLayout carrier = new android.widget.LinearLayout(context);
+        carrier.setOrientation(android.widget.LinearLayout.VERTICAL);
+        carrier.setMinimumHeight(100); // A previous generation/native minimum must not keep two rows alive.
+        java.util.List<Object> rows = new java.util.ArrayList<>();
+        java.util.List<android.widget.LinearLayout> views = new java.util.ArrayList<>();
+        for (int slot = 0; slot < 2; slot++) {
+            android.widget.LinearLayout row = new android.widget.LinearLayout(context);
+            carrier.addView(row, new android.widget.LinearLayout.LayoutParams(200, 24));
+            android.widget.TextView text = new android.widget.TextView(context);
+            row.addView(text);
+            rows.add(partsType.getConstructors()[0].newInstance(slot, row, text, new ImageView(context),
+                new android.widget.TextView(context), new FrameLayout(context), new ImageView(context), new ImageView(context)));
+            views.add(row);
+        }
+        Class<?> blockType = loader.loadClass("com.takekazex.hypertweak.hook.rules.systemui.icon.carrier.CarrierBlock");
+        Object block = blockType.getConstructors()[0].newInstance(carrier, rows, null, null);
+        blockType.getMethod("setCompact", boolean.class).invoke(block, true);
+        Class<?> geometryType = loader.loadClass("com.takekazex.hypertweak.hook.rules.systemui.icon.TwoRowIconLayout$Geometry");
+        Object[] geometry = {null};
+        String name = "com.takekazex.hypertweak.hook.rules.systemui.icon.carrier.CarrierPresentation";
+        Class<?> presentationType = loader.loadClass(name);
+        Class<?> hostType = loader.loadClass(name + "$Host");
+        Object host = java.lang.reflect.Proxy.newProxyInstance(loader, new Class<?>[]{hostType}, (proxy, method, values) ->
+            switch (method.getName()) {
+                case "rowGeometry" -> geometry[0];
+                case "getRowOrder" -> java.util.List.of(0, 1);
+                case "hiddenCarrierSlots" -> java.util.Set.of();
+                default -> throw new AssertionError(method.getName());
+            });
+        Object presentation = presentationType.getConstructor(hostType, rendererType).newInstance(host, renderer);
+        Method update = presentationType.getMethod("updateRowGeometry", blockType);
+        int rowGap = Math.round(3 * context.getResources().getDisplayMetrics().density);
+        for (int hidden : new int[]{0, 1, 2, 3, 0}) {
+            int count = Math.max(1, 2 - Integer.bitCount(hidden));
+            int height = count == 2 ? 48 + rowGap : 24;
+            geometry[0] = geometryType.getConstructor(float.class, float.class, int.class, int.class)
+                .newInstance(12f, count == 2 ? 36f + rowGap : 12f, height, count);
+            blockType.getMethod("setGeometry", geometryType).invoke(block, geometry[0]);
+            for (int slot = 0; slot < 2; slot++) views.get(slot).setVisibility((hidden & (1 << slot)) != 0 ? View.GONE : View.VISIBLE);
+            update.invoke(presentation, block);
+            carrier.measure(View.MeasureSpec.makeMeasureSpec(200, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
+            carrier.layout(0, 0, 200, carrier.getMeasuredHeight());
+            update.invoke(presentation, block);
+            check(carrier.getMeasuredHeight() == height, "hidden carrier must release its measured row, mask=" + hidden + " expected=" + height + " actual=" + carrier.getMeasuredHeight());
+            check(carrier.getMinimumHeight() == height, "old native minimum cannot reserve a hidden carrier row");
+            if (hidden == 1) check(views.get(1).getTop() == 0, "remaining SIM 2 moves to the first anchor");
+            if (hidden == 2) check(views.get(0).getTop() == 0, "remaining SIM 1 stays at the first anchor");
+        }
+        presentationType.getMethod("restoreBlockStyle", blockType).invoke(presentation, block);
+        check(carrier.getMinimumHeight() == 100, "release restores the captured native minimum");
+        System.out.println("PASS carrier_hidden_rows measured=" + (48 + rowGap) + "/24/24/24/" + (48 + rowGap) + " native_minimum_restored=100");
     }
 }

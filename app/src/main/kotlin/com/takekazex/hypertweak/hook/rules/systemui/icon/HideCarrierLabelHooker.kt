@@ -1,12 +1,13 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
 import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
-import com.takekazex.hypertweak.hook.rules.systemui.icon.carrier.CarrierBlockPolicy
 import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
 
 import com.takekazex.hypertweak.hook.base.HostAccess
 import android.view.View
-import android.view.ViewGroup
+import android.telephony.SubscriptionManager
+import com.takekazex.hypertweak.presentation.icon.NetworkIconVisibility
+import com.takekazex.hypertweak.settings.contract.SimVisibilityPolicy
 import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 
@@ -25,13 +26,12 @@ import androidx.core.view.isGone
  * `updateHDText`. `shouldShow()` reads the text view visibility, so a hidden row is fully treated
  * as absent (separator and width logic follow).
  *
- * Keys match upstream w22.* (status bar / control center) and x22.e-f (lockscreen). Requires a
- * SystemUI restart.
+ * The unified SIM policy hides control-center rows; lockscreen labels remain independent.
+ * MobileSignalHub re-applies the non-default SIM rule when the active data subscription changes.
  */
 internal object HideCarrierLabelHooker : IconRenderer() {
     // Published on settings acceptance; hook callbacks perform no storage reads.
-    private val settingIconHideCarrierOne by hookSetting(false) { Preferences.iconConfig().boolean(IconSettingsKeys.KEY_ICON_HIDE_CARRIER_ONE) }
-    private val settingIconHideCarrierTwo by hookSetting(false) { Preferences.iconConfig().boolean(IconSettingsKeys.KEY_ICON_HIDE_CARRIER_TWO) }
+    private val simVisibility by hookSetting(NetworkIconVisibility()) { IconTunerOptions.networkVisibility() }
     private val settingIconHideCarrierHd by hookSetting(false) { Preferences.iconConfig().boolean(IconSettingsKeys.KEY_ICON_HIDE_CARRIER_HD) }
     private val settingIconHideLsCarrierOne by hookSetting(false) {
         Preferences.iconConfig().boolean(IconSettingsKeys.KEY_ICON_HIDE_LS_CARRIER_ONE)
@@ -52,8 +52,7 @@ internal object HideCarrierLabelHooker : IconRenderer() {
     private const val CC_CALLBACK_CLASS =
         "com.android.systemui.controlcenter.shade.ControlCenterCarrierText\$mCarrierTextCallback\$1"
 
-    private var hideOne by generationState { false }
-    private var hideTwo by generationState { false }
+    private val knownRows = generationMainResource(WeakHashMap<View, Boolean>()) { it.clear() }
     private var hideHd by generationState { false }
     private var hideLsOne by generationState { false }
     private var hideLsTwo by generationState { false }
@@ -81,12 +80,12 @@ internal object HideCarrierLabelHooker : IconRenderer() {
     }
 
     override fun onHook() {
-        hideOne = settingIconHideCarrierOne
-        hideTwo = settingIconHideCarrierTwo
         hideHd = settingIconHideCarrierHd
         hideLsOne = settingIconHideLsCarrierOne
         hideLsTwo = settingIconHideLsCarrierTwo
-        if (!hideOne && !hideTwo && !hideHd && !hideLsOne && !hideLsTwo) {
+        val hidesControlCenter = listOf(simVisibility.simOneMode, simVisibility.simTwoMode,
+            simVisibility.nonDefaultSimMode).contains(SimVisibilityPolicy.ALL)
+        if (!hidesControlCenter && !hideHd && !hideLsOne && !hideLsTwo) {
             DebugLog.hookSkippedDebug(TAG, "HideCarrierLabel", "disabled")
             return
         }
@@ -99,6 +98,10 @@ internal object HideCarrierLabelHooker : IconRenderer() {
             keyguardLayoutField = hierarchyField(ccTextClass, "isKeyguardLayout")
         } else {
             DebugLog.hookSkipped(TAG, CC_TEXT_CLASS, "class not found")
+        }
+
+        MobileSignalHub.subscribe(this) {
+            knownRows.keys.toList().forEach(::hideRequestedRow)
         }
 
         // 1. MiuiCarrierTextLayout construction — hide the carrier rows for this surface.
@@ -122,7 +125,7 @@ internal object HideCarrierLabelHooker : IconRenderer() {
         }
 
         // 2. HD icon — force hidden after every HD-state update.
-        if (hideHd) {
+        if (hideHd || hidesControlCenter) {
             val ccClass = ccTextClass
             if (ccClass != null && hdTextField != null && plusTextField != null) {
                 ccClass.findMethodOrNull { name("updateHDText"); paramCount(2) }?.let { method ->
@@ -130,8 +133,11 @@ internal object HideCarrierLabelHooker : IconRenderer() {
                         after { param ->
                             val text = param.thisObject
                             runCatching {
-                                (hdTextField?.get(text) as? View)?.let(::hideView)
-                                (plusTextField?.get(text) as? View)?.let(::hideView)
+                                if (hideHd) {
+                                    (hdTextField?.get(text) as? View)?.let(::hideView)
+                                    (plusTextField?.get(text) as? View)?.let(::hideView)
+                                }
+                                hideRequestedRow(text)
                             }.onFailure { t ->
                                 DebugLog.w(TAG, "HideCarrierLabel HD hide failed", t)
                             }
@@ -191,7 +197,8 @@ internal object HideCarrierLabelHooker : IconRenderer() {
     }
 
     private fun hideRequestedRow(row: Any) {
-        val isKeyguard = runCatching { keyguardLayoutField?.getBoolean(row) }.getOrNull() ?: false
+        (row as? View)?.let { knownRows[it] = true }
+        val isKeyguard = runCatching { keyguardLayoutField?.getBoolean(row) }.getOrNull() ?: return
         val slotId = runCatching { HostAccess.requireDeclaredField(row.javaClass, "innerCarrierSlotId", accessible = true) }
             .getOrNull()?.let { runCatching { it.getInt(row) }.getOrDefault(-1) } ?: -1
         val hide = if (isKeyguard) {
@@ -201,23 +208,24 @@ internal object HideCarrierLabelHooker : IconRenderer() {
                 else -> false
             }
         } else {
-            when (slotId) {
-                0 -> hideOne
-                1 -> hideTwo
-                else -> false
+            simVisibility.hidesCarrier(slotId, MobileSignalHub.state) { subId ->
+                runCatching { SubscriptionManager.getSlotIndex(subId) }.getOrDefault(-1)
             }
         }
-        if (hide) hideCarrierText(row)
+        runCatching {
+            val text = carrierTextViewField?.get(row) as? View ?: return
+            if (hide) hideView(text) else restoreView(text)
+            if (!isKeyguard) listOf(hdTextField, plusTextField).forEach { field ->
+                (field?.get(row) as? View)?.let { view ->
+                    if (hide || hideHd) hideView(view) else restoreView(view)
+                }
+            }
+        }.onFailure { DebugLog.w(TAG, "HideCarrierLabel carrier visibility failed", it) }
     }
 
-    private fun hideCarrierText(row: Any) {
-        runCatching {
-            if (CarrierBlockPolicy.preserveCarrierName(
-                    IconHostPorts.carrier.ownsRow(row as? ViewGroup), requestedHidden = true)) return
-            val view = carrierTextViewField?.get(row) as? View ?: return
-            hideView(view)
-        }.onFailure { t ->
-            DebugLog.w(TAG, "HideCarrierLabel carrier hide failed", t)
+    private fun restoreView(view: View) {
+        hiddenViews.remove(view)?.let { visibility ->
+            if (view.isGone) view.visibility = visibility
         }
     }
 

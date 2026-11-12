@@ -27,7 +27,8 @@ internal data class CarrierRenderInput(
     val mobileState: MobileSignalState,
     val simNames: Map<Int, String>, val showBadge: Boolean,
     val keepTypeOnWifi: Boolean, val typeConfig: MobileTypeConfig,
-    val nativeWifi: CarrierNativeGlyph?
+    val nativeWifi: CarrierNativeGlyph?,
+    val hiddenCarrierSlots: Set<Int> = emptySet()
 )
 
 /** Bitmap/row presentation only; host subscriptions, masks and handover stay outside. */
@@ -58,14 +59,14 @@ internal class CarrierRowRenderer {
             customName, model?.subId?.let(input.simNames::get), parts.nativeCarrierText
         )
         if (parts.carrierText.text.toString() != name.toString()) parts.carrierText.text = name
-        parts.carrierText.visibility = if (input.mobileState.airplaneMode || parts.carrierText.text.isNullOrBlank()) View.GONE else View.VISIBLE
+        parts.carrierText.visibility = if (parts.slot in input.hiddenCarrierSlots || input.mobileState.airplaneMode || parts.carrierText.text.isNullOrBlank()) View.GONE else View.VISIBLE
         parts.airplaneText.visibility = if (model?.airplane == true) View.VISIBLE else View.GONE
         parts.badge.visibility = if (input.mobileState.airplaneMode || !input.showBadge || model == null) View.GONE else View.VISIBLE
         val tint = syncTint(parts)
         if (model == null) {
             // Before reducer readiness the host label remains usable. An actually absent
             // slot is hidden only when another subscription establishes a known row set.
-            parts.row.visibility = if (input.mobileState.airplaneMode || rows.any { it.visible }) View.GONE else parts.rowState.visibility
+            parts.row.visibility = if (parts.slot in input.hiddenCarrierSlots || input.mobileState.airplaneMode || rows.any { it.visible }) View.GONE else parts.rowState.visibility
             parts.signal.setImageDrawable(null)
             parts.signal.visibility = View.GONE
             parts.networkSlot.visibility = View.GONE

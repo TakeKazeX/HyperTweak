@@ -588,10 +588,6 @@
     <string name="icon_stacked_type_keep_on_wifi_summary">使用独立网络类型文字时，Wi-Fi 上网仍显示上网卡的 4G/5G 字样</string>
     <string name="icon_hide_carrier_hd">隐藏 HD 图标</string>
     <string name="icon_hide_carrier_hd_summary">隐藏运营商文字旁的 HD 语音图标</string>
-    <string name="icon_hide_carrier_one">隐藏第一个运营商</string>
-    <string name="icon_hide_carrier_one_summary">在控制中心隐藏第一个运营商标签</string>
-    <string name="icon_hide_carrier_two">隐藏第二个运营商</string>
-    <string name="icon_hide_carrier_two_summary">在控制中心隐藏第二个运营商标签</string>
     <string name="icon_hide_ls_carrier_one">锁屏隐藏第一个运营商</string>
     <string name="icon_hide_ls_carrier_one_summary">在锁屏头部隐藏第一个运营商标签</string>
     <string name="icon_hide_ls_carrier_two">锁屏隐藏第二个运营商</string>
@@ -610,7 +606,6 @@
     <string name="icon_mobile_row_style_data">上网卡优先（iOS 样式）</string>
     <string name="icon_cc_carrier_two_line">运营商标签两行显示</string>
     <string name="icon_cc_carrier_two_line_summary">每张卡各占一行，显示信号、运营商和网络类型</string>
-    <string name="icon_cc_carrier_name_priority">两行模式下，紧凑控制中心始终显示双卡名称；此偏好仍适用于其他布局</string>
     <string name="icon_cc_carrier_show_badge">显示卡槽标签</string>
     <string name="icon_cc_carrier_show_badge_summary">自定义卡槽标签；留空显示 1 或 2</string>
     <string name="icon_cc_carrier_badge_one">卡一标签内容</string>
@@ -629,12 +624,6 @@
     <string name="icon_hide_network_type_summary">隐藏普通信号强度图标左上角的 4G/5G 类型标记</string>
     <string name="icon_hide_mobile_on_wifi">Wi-Fi 上网时隐藏蜂窝信号</string>
     <string name="icon_hide_mobile_on_wifi_summary">使用 Wi-Fi 上网时隐藏整组蜂窝信号及类型文字</string>
-    <string name="icon_hide_non_default_sim_icon">隐藏非默认 SIM 卡图标</string>
-    <string name="icon_hide_non_default_sim_icon_summary">隐藏非默认数据卡的蜂窝信号和类型文字</string>
-    <string name="icon_hide_sim_one">隐藏 SIM 1</string>
-    <string name="icon_hide_sim_one_summary">隐藏实体卡槽 1 的蜂窝信号和类型文字</string>
-    <string name="icon_hide_sim_two">隐藏 SIM 2</string>
-    <string name="icon_hide_sim_two_summary">隐藏实体卡槽 2 的蜂窝信号和类型文字</string>
     <string name="icon_hide_privacy_indicator">隐藏状态栏隐私指示符</string>
     <string name="icon_hide_privacy_indicator_summary">隐藏状态栏中的摄像头/麦克风隐私圆点</string>
     <string name="icon_native_roaming">原生漫游指示符</string>
@@ -1958,4 +1947,12 @@
     <string name="icon_signal_style_duo_summary">将电量、联网方式和主数据卡信号合为一个图标</string>
     <string name="icon_section_network">网络</string>
     <string name="icon_section_status_bar">状态栏</string>
+    <string name="icon_sim_visibility_title">SIM 卡显示</string>
+    <string name="icon_sim_visibility_one">SIM 1</string>
+    <string name="icon_sim_visibility_two">SIM 2</string>
+    <string name="icon_sim_visibility_non_default">非默认数据卡</string>
+    <string name="icon_sim_visibility_default">默认</string>
+    <string name="icon_sim_visibility_status_bar">仅隐藏状态栏图标</string>
+    <string name="icon_sim_visibility_all">全部隐藏</string>
+    <string name="icon_sim_visibility_summary">仅隐藏状态栏图标时，展开控制中心仍显示图标和运营商标签；全部隐藏也隐藏控制中心对应内容。锁屏标签由下方开关独立控制。</string>
 </resources>

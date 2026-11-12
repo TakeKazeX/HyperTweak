@@ -3,6 +3,7 @@ package com.takekazex.hypertweak.presentation.icon
 import com.takekazex.hypertweak.settings.contract.IconSlotPolicyConfig
 import com.takekazex.hypertweak.settings.contract.IconSlotPolicy
 import com.takekazex.hypertweak.settings.contract.IconSurface
+import com.takekazex.hypertweak.settings.contract.SimVisibilityPolicy
 
 /** What the mobile-signal owner applies to the native cellular rows (shared by every surface). */
 internal data class NativeMobileMask(
@@ -23,6 +24,9 @@ internal data class NetworkIconVisibility(
     val hideNonDefaultSim: Boolean = false,
     val hideSimOne: Boolean = false,
     val hideSimTwo: Boolean = false,
+    val simOneMode: Int = if (hideSimOne) SimVisibilityPolicy.ALL else SimVisibilityPolicy.DEFAULT,
+    val simTwoMode: Int = if (hideSimTwo) SimVisibilityPolicy.ALL else SimVisibilityPolicy.DEFAULT,
+    val nonDefaultSimMode: Int = if (hideNonDefaultSim) SimVisibilityPolicy.ALL else SimVisibilityPolicy.DEFAULT,
     val slotModes: Map<String, Int> = emptyMap()
 ) {
     private val slotPolicy = IconSlotPolicyConfig(slotModes = slotModes)
@@ -30,7 +34,7 @@ internal data class NetworkIconVisibility(
     /** SIM and on-Wi-Fi rules only; per-surface slot blocking is the icon managers' job. */
     fun hiddenSimIds(state: MobileSignalState, wifiDefault: Boolean, slotOf: (Int) -> Int): Set<Int> =
         if (hideMobileOnWifi && wifiDefault) state.subscriptionOrder.toSet()
-        else state.hiddenSimIds(hideNonDefaultSim, hideSimOne, hideSimTwo, slotOf)
+        else simHiddenIds(state, IconSurface.STATUS_BAR, slotOf)
 
     fun hiddenCellularIds(
         state: MobileSignalState,
@@ -39,8 +43,27 @@ internal data class NetworkIconVisibility(
         slotOf: (Int) -> Int
     ): Set<Int> {
         if (blocks(IconSlotPolicy.SLOT_MOBILE, surface)) return state.subscriptionOrder.toSet()
-        return hiddenSimIds(state, wifiDefault, slotOf)
+        if (hideMobileOnWifi && wifiDefault) return state.subscriptionOrder.toSet()
+        return simHiddenIds(state, surface, slotOf)
     }
+
+    fun hidesCarrier(slot: Int, state: MobileSignalState, slotOf: (Int) -> Int): Boolean {
+        if (slot !in 0..1) return false
+        val nonDefault = state.nonDefaultMask(true).any { slotOf(it) == slot }
+        return SimVisibilityPolicy.mode(slot, nonDefault, simOneMode, simTwoMode, nonDefaultSimMode) == SimVisibilityPolicy.ALL
+    }
+
+    fun simHiddenIds(state: MobileSignalState, surface: IconSurface, slotOf: (Int) -> Int): Set<Int> {
+        val nonDefault = state.nonDefaultMask(true)
+        return state.subscriptionOrder.filterTo(linkedSetOf()) { id ->
+            SimVisibilityPolicy.hides(SimVisibilityPolicy.mode(slotOf(id), id in nonDefault,
+                simOneMode, simTwoMode, nonDefaultSimMode), surface)
+        }
+    }
+
+    /** A shared stacked holder cannot carry different SIM artwork on two surfaces. */
+    val needsNativeControlCenter: Boolean get() =
+        listOf(simOneMode, simTwoMode, nonDefaultSimMode).any { it == SimVisibilityPolicy.STATUS_BAR_ONLY }
 
     /**
      * Native row mask. Without a published stacked replacement only the SIM rules apply. With one,

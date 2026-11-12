@@ -18,6 +18,22 @@ class IconInfrastructureHostContractTest {
         return DexOperandIndex.fixture(file.path)
     }
 
+    @Test fun carrierHidingUsesPhysicalSlotsAndIndependentKeyguardLayouts() {
+        val dex = host()
+        val row = "Lcom/android/systemui/controlcenter/shade/ControlCenterCarrierText;"
+        val callback = "Lcom/android/systemui/controlcenter/shade/ControlCenterCarrierText\$mCarrierTextCallback\$1;"
+        val slot = dex.code(dex.definition("${callback}->getCarrierSlotId()I")!!)
+        assertTrue(slot.reads.any { it.definingClass == row && it.name == "innerCarrierSlotId" && it.type == "I" })
+        val keyguard = dex.code(dex.definition("${row}->setKeyguardLayout(Z)V")!!)
+        assertTrue(keyguard.writes.any { it.first.definingClass == row && it.first.name == "isKeyguardLayout" && it.first.type == "Z" })
+        val update = dex.code(dex.definition("${callback}->onCarrierTextChanged(ILjava/lang/String;I)V")!!)
+        assertTrue(update.reads.any { it.definingClass == row && it.name == "carrierTextView" && it.type == "Landroid/widget/TextView;" })
+        assertTrue(update.calls.any { it.method.name == "setVisibility" })
+        val shown = dex.code(dex.definition("${row}->shouldShow()Z")!!)
+        assertTrue(shown.reads.any { it.definingClass == row && it.name == "carrierTextView" })
+        assertTrue(shown.calls.any { it.method.name == "getVisibility" })
+    }
+
     @Test fun panelExpansionAndSwitchingDriveTheNativeSurfaces() {
         val dex = host()
         val callback = "Lcom/android/systemui/controlcenter/shade/ControlCenterHeaderExpandController\$controlCenterCallback\$1;"

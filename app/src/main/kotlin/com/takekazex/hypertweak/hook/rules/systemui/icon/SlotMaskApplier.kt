@@ -640,8 +640,8 @@ internal object SlotMaskApplier : IconRenderer() {
         }
     }
 
-    private fun blockedFor(container: Any, surface: IconSurface, systemSlots: List<String>): List<String> =
-        if (surface == IconSurface.CONTROL_CENTER &&
+    private fun blockedFor(container: Any, surface: IconSurface, systemSlots: List<String>): List<String> {
+        val blocked = if (surface == IconSurface.CONTROL_CENTER &&
             IconSlotPolicy.ownsTwoLineControlCenterRow(
                 runCatching { layoutFromField?.getInt(container) }.getOrNull()
             ) &&
@@ -651,6 +651,10 @@ internal object SlotMaskApplier : IconRenderer() {
         } else {
             IconSlotPolicy.blockedFor(surface, systemSlots, options.policy)
         }
+        return if (planSurfaceFor(container) == PlanSurface.CONTROL_CENTER_EXPANDED && mobilePolicy.needsNativeControlCenter) {
+            (blocked + IconSlotPolicy.SLOT_STACKED_SIGNAL).distinct()
+        } else blocked
+    }
 
     private fun restoreIgnoredSlots(container: Any, values: List<String>) {
         if (Looper.myLooper() != Looper.getMainLooper()) {

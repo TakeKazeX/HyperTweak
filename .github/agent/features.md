@@ -47,6 +47,15 @@ Other icons tab. Its rows are omitted from the generic slot/left-placement cards
 full catalogs remain available to previews and icon ordering. The rotation-lock left switch
 is shown only when global icon left placement is enabled; hiding it preserves its saved value.
 
+SIM visibility settings live together in the Mobile network tab's SIM visibility card:
+physical SIM 1/2 and the non-default data SIM each have Default / Hide status bar icons only /
+Hide everywhere dropdowns; the two lockscreen carrier switches stay independent in that card.
+Status-bar-only preserves expanded control-center signals, types and carrier labels. The animated status-bar mirror keeps those SIMs hidden and carrier handover never borrows them as signal/type sources. All hides
+both the cellular row and the corresponding carrier row, including compact two-line rows.
+Overlapping rules use the strongest mode and non-default follows the active data subscription.
+Old SIM switches decode as status-bar-only, old control-center carrier switches as all; explicit
+new defaults override all old keys. The non-default rule does nothing without a known second SIM.
+
 Root 设置调试、临时授权、AI 命令与 v2/v3 诊断包维护见 `docs/DEBUG_DIAGNOSTICS.md`。
 
 ## Purification and optimization page

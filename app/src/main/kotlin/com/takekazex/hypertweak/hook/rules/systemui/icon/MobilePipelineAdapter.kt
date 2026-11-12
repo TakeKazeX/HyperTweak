@@ -1,7 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
 import android.content.Context
-import android.telephony.SubscriptionManager
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
@@ -75,9 +74,8 @@ object MobilePipelineAdapter : StaticHooker() {
             val wifi = state.wifiConnected
             val allowType = separateType && if (wifi) keepOnWifi && !visibility.hideMobileOnWifi else !hideDisconnected
             val id = state.wifiDataSubscription(wifiDefault = true)?.subId?.takeIf {
-                allowType && complete && it !in visibility.hiddenSimIds(state, wifi) { subId ->
-                    runCatching { SubscriptionManager.getSlotIndex(subId) }.getOrDefault(-1)
-                }
+                // The VM is shared by status bar and control center; concrete row masks own SIM hiding.
+                allowType && complete
             }
             nativeWifiType.publish(id)
         }
