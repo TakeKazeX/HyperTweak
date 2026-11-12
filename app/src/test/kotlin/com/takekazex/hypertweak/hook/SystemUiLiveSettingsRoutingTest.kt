@@ -31,16 +31,41 @@ class SystemUiLiveSettingsRoutingTest {
         fun config(values: Map<String, Any>) = IconConfigDecoder.decode { values[it] }
         val base = config(emptyMap())
         assertEquals(emptySet<IndependentIconDomain>(), IconConfigReload.domains(base, base))
-        // A retired style switch still selects the style, so it rebuilds like the current key.
-        assertNull(IconConfigReload.domains(base,
+        // Both migrated and current style keys update the same scoped mobile owners.
+        val signalOwners = setOf(IndependentIconDomain.POLICY, IndependentIconDomain.CELLULAR,
+            IndependentIconDomain.CELLULAR_TYPE, IndependentIconDomain.MOBILE_SIGNAL)
+        assertEquals(signalOwners, IconConfigReload.domains(base,
             config(mapOf(IconSettingsKeys.KEY_ICON_STACKED_ENABLED to true))))
-        assertNull(IconConfigReload.domains(base,
+        assertEquals(signalOwners, IconConfigReload.domains(base,
             config(mapOf(IconSettingsKeys.KEY_ICON_SIGNAL_STYLE to 1))))
         assertEquals(setOf(IndependentIconDomain.DUO), IconConfigReload.domains(base,
             config(mapOf(IconSettingsKeys.KEY_ICON_DUO_TOP_PERCENT to true))))
         assertEquals(setOf(IndependentIconDomain.POLICY), IconConfigReload.domains(base,
             config(mapOf("icon_tuner_slot_bluetooth" to 4))))
         assertNull(IconConfigReload.domains(base, config(mapOf("icon_tuner_slot_wifi" to 4))))
+    }
+
+    @Test fun allStyleTransitionsPreserveWifiBatteryAndSharedHostOwners() {
+        for (from in 0..2) for (to in 0..2) {
+            fun config(style: Int) = IconConfigDecoder.decode { key ->
+                when (key) {
+                    IconSettingsKeys.KEY_ICON_SIGNAL_STYLE -> style
+                    IconSettingsKeys.KEY_ICON_HIDE_WIFI_ACTIVITY -> true
+                    else -> null
+                }
+            }
+            assertNotNull(IconConfigReload.domains(config(from), config(to)))
+            val effects = IconConfigReload.domains(config(from), config(to))!!
+            assertFalse(effects.contains(IndependentIconDomain.WIFI))
+            assertFalse(effects.contains(IndependentIconDomain.CC_BATTERY))
+            assertFalse(effects.contains(IndependentIconDomain.CONTROL_CENTER_HEADER))
+            assertEquals(from != to && (from == 2 || to == 2), IndependentIconDomain.DUO in effects)
+            if (from != to) assertTrue(effects.containsAll(setOf(IndependentIconDomain.POLICY,
+                IndependentIconDomain.CELLULAR, IndependentIconDomain.CELLULAR_TYPE, IndependentIconDomain.MOBILE_SIGNAL)))
+        }
+        val base = IconConfigDecoder.decode { null }
+        val svg = IconConfigDecoder.decode { if (it == IconSettingsKeys.KEY_ICON_STACKED_SIGNAL_STYLE) 1 else null }
+        assertNotNull(IconConfigReload.domains(base, svg))
     }
 
     @Test fun iconSectionsPreserveIndependentOwnersAndIgnoreOtherGroups() {

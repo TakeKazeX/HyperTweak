@@ -175,7 +175,7 @@ internal class DuoAodController(owner: BaseHooker, private val host: Host) : Ico
         binding.aodNativeSuppressed = true
         // Restoring the lease here exposes the original stacked/mobile row while the host's
         // mStatusIconContainer alpha is still above zero.
-        SlotMaskApplier.setDuoMask(binding.icons, true)
+        SlotMaskApplier.setDuoMask(binding.icons, true, com.takekazex.hypertweak.presentation.icon.PlanSurface.AOD)
         host.setNativeAirplaneMasked(binding, true)
     }
 
@@ -198,7 +198,7 @@ internal class DuoAodController(owner: BaseHooker, private val host: Host) : Ico
         binding.view.visibility = View.INVISIBLE
         host.setPrivacyInset(binding, 0)
         field(binding.parent.javaClass, "mIsHideBattery")?.setBoolean(binding.parent, false)
-        SlotMaskApplier.setDuoMask(binding.icons, true)
+        SlotMaskApplier.setDuoMask(binding.icons, true, com.takekazex.hypertweak.presentation.icon.PlanSurface.AOD)
         host.setNativeAirplaneMasked(binding, true)
         applyFullAodNativeChildren(binding)
         val rowVisibility = if (settings.showRow) View.VISIBLE else View.GONE

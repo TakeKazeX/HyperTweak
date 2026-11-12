@@ -58,9 +58,14 @@ setting's original explicit/absent state and distinguish backend commits from ho
 For stacked cellular signal artwork, run the `SignalSvgStyle`, `PreferencesSignalSvgStyle`,
 `SignalAssetLoadState`, `SignalArtworkGeometry`, `SignalWeight`, `MobileSignalState`
 (native row mask), `StatusBarPreviewModel` and `IconTunerPreferenceState` JVM regressions plus the shared settings/hot-reload tests.
+Surface ownership changes also run `SlotClaimRegistryTest`, `NativeMobileSurfaceMaskTest`, `StackedPanelMotionTest` and shared DEX preparation lifecycle regressions. Set `SYSTEMUI_APK` to the verified SystemUI APK for `IconInfrastructureHostContractTest`; skipped contracts are not a pass.
 UI/lifecycle changes also require lint and a release build. Inspect all APK DEX files for the
 new `icon_stacked_signal_style` key and the retained old stacked compatibility key; verify
 five bundled SVGs and SHA256SUMS, without iOS26 or the removed internal type-badge settings.
+For stacked handover readiness changes, also build `:app:assembleDebug` and run
+`python3 app/src/test/android/icon/run_panel_glyph_probe.py <debug-apk> --output ../reverse/<probe-dir>`. This detached ART/Canvas probe verifies pending first-draw retention, ready copy masking, reverse drag, invalid-endpoint cleanup and existing glyph regressions without creating windows or installing the debug APK.
+For live stacked SVG switches, run the detached runner with `--probe StackedArtworkReloadProbe`. It calls the production stacked render/publication path against a detached host-shaped icon controller and actual host holders: single/dual SIM at fixed strength, HyperOS3→iOS27→HyperOS3 pixel changes, loading retention and no redundant idle publication.
+For Wi-Fi activity/direction gate lifecycle changes, run the same detached runner with `--probe WifiActivityReloadProbe`. It loads the installed SystemUI's coroutine types and keeps one collector/wrapper through retirement and re-arm cycles, live toggles, native emissions and restoration; it does not change device settings. Signal reload routing also runs `SystemUiLiveSettingsRoutingTest` and the stable host-catalog regression in `IconSlotPolicyTest`.
 The geometry test reads real SVG paths and verifies stroke-expanded per-SIM crops; it does
 not prove visible handoff quality. Device acceptance is user-driven: both styles, control-center
 handoff, enable/disable, reset/restore and upgrading existing hosts. Do not automate device UI

@@ -130,6 +130,7 @@ internal object StackedRenderer : IconRenderer() {
     private var publishedSignalRows: List<DuoSignalRow> by generationState { emptyList() }
     private var publishedSignalPicture: PublishedSignalPicture? by generationState { null }
     private data class SignalRenderKey(
+        val artworkHash: String,
         val levels: List<Int>,
         val config: IconSvgRenderConfig
     )
@@ -232,7 +233,7 @@ internal object StackedRenderer : IconRenderer() {
     /**
      * Re-applies changed weight, row-order and SIM/Wi-Fi hiding options in place. The module slot
      * keeps its holder, so only its drawable changes, and the native rows are re-masked. The
-     * signal style and anything that decides which hooks exist still reinstall the hooker.
+     * loaded artwork identity is part of the bitmap key, so SVG switches republish in place.
      */
     fun refreshSettings() {
         HostAccess.onMain {
@@ -330,8 +331,7 @@ internal object StackedRenderer : IconRenderer() {
      */
     private fun applyNativeMask(state: MobileSignalState, outcome: StackedOutcome) {
         if (outcome == StackedOutcome.KEEP) return
-        SlotMaskApplier.stackedReady(outcome == StackedOutcome.PUBLISHED,
-            suppressed = outcome == StackedOutcome.SUPPRESSED)
+        SlotMaskApplier.stackedReady(outcome == StackedOutcome.PUBLISHED)
     }
 
     private fun renderStackedSlot(state: MobileSignalState, complete: Boolean): StackedOutcome {
@@ -388,7 +388,10 @@ internal object StackedRenderer : IconRenderer() {
             return StackedOutcome.NATIVE
         }
         val config = renderConfig()
-        val renderKey = SignalRenderKey(renderRows.map { it.level }, config)
+        // Key the bitmap by the loaded source, not just levels/geometry: a live SVG switch
+        // must republish even while every SIM stays at the same strength.
+        val artwork = if (renderRows.size == 1) assets.single else assets.stacked
+        val renderKey = SignalRenderKey(artwork.sourceHash, renderRows.map { it.level }, config)
         // Visibility and masking still reconcile on every state update. Only an intact owned
         // holder may reuse the last successfully published artwork.
         if (renderKey != publishedSignalKey || !bridge.owns(SLOT_STACKED)) {

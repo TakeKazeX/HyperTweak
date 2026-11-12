@@ -39,6 +39,14 @@ CreditsPage formats library versions from BuildConfig fields generated in app/bu
 from the declared implementation/compileOnly dependencies. Keep translations version-free; add a
 coordinate mapping when crediting another compiled library.
 
+`IconTunerPage` keeps the carrier-left switch visible but disabled while both hide-date and
+carrier-two-line are configured, with a summary explaining its single-line scope. The saved
+carrier-left value is retained; disabling either prerequisite makes the switch editable again.
+Rotation lock owns its enable switch, slot display scope and left-placement switch in the
+Other icons tab. Its rows are omitted from the generic slot/left-placement cards, while the
+full catalogs remain available to previews and icon ordering. The rotation-lock left switch
+is shown only when global icon left placement is enabled; hiding it preserves its saved value.
+
 Root 设置调试、临时授权、AI 命令与 v2/v3 诊断包维护见 `docs/DEBUG_DIAGNOSTICS.md`。
 
 ## Purification and optimization page

@@ -56,6 +56,11 @@ object IconSlotPolicy {
         (nativeOrder.filter { it in currentOrder } + currentOrder).distinct(), config
     )
 
+    /** Empty stacked catalog entry exists in every style; no view exists until it has a holder. */
+    fun normalizeHostCatalog(nativeOrder: List<String>, currentOrder: List<String>, config: IconSlotPolicyConfig): List<String> =
+        normalizeReloadOrder(nativeOrder, currentOrder,
+            config.copy(enabledModuleSlots = config.enabledModuleSlots + SLOT_STACKED_SIGNAL))
+
     const val SLOT_MOBILE = "mobile"
     const val SLOT_STACKED_SIGNAL = "stacked_mobile_icon"
     const val SLOT_WIFI = "wifi"

@@ -230,6 +230,10 @@ internal class SignalRowMotion {
         return ready && !failed
     }
 
+    /** A valid submitted frame can be awaiting its first draw; false means update rejected it. */
+    val hasFrame: Boolean
+        get() = host != null && target != null && picture != null && !failed && !destination.isEmpty
+
     private fun restoreTarget() {
         target?.let { if (abs(it.alpha - appliedAlpha) < .001f) HandoverCoordinator.alpha(it, savedAlpha) }
         target = null

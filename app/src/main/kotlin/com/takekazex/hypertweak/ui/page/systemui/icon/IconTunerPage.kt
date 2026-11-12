@@ -443,14 +443,14 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit, onNavig
                             style = pref(SystemUiSettingsKeys.KEY_CC_BATTERY_PERCENT_STYLE, 0),
                             onChange = { changed(SystemUiSettingsKeys.KEY_CC_BATTERY_PERCENT_STYLE, it) }
                         )
-                        SmallTitle(stringResource(R.string.icon_cc_rotation_lock_title))
-                        Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-                            TunerSwitch(
-                                pref(SystemUiSettingsKeys.KEY_CC_ROTATION_LOCK_ICON, false),
-                                stringResource(R.string.icon_cc_rotation_lock),
-                                stringResource(R.string.icon_cc_rotation_lock_summary)
-                            ) { changed(SystemUiSettingsKeys.KEY_CC_ROTATION_LOCK_ICON, it) }
-                        }
+                        RotationLockSection(
+                            enabled = pref(SystemUiSettingsKeys.KEY_CC_ROTATION_LOCK_ICON, false),
+                            leftPlacementEnabled = leftMode != IconTunerContract.LEFT_MODE_DISABLED,
+                            leftSelected = leftSelected[IconSettingsKeys.KEY_ICON_LEFT_ROTATION_LOCK] == true,
+                            slotMode = IconSlotPolicy.modeFor(IconSlotPolicy.SLOT_ROTATION_LOCK, slotModesByName).value,
+                            slotModes = slotModes,
+                            onChange = onChange
+                        )
                         StatusBarMiscSection(
                             mirrorAirplane = pref(IconSettingsKeys.KEY_ICON_MIRROR_AIRPLANE, false),
                             regionSampling = pref(PlatformSettingsKeys.KEY_STATUSBAR_REGION_SAMPLING, 0) != 0,
@@ -580,6 +580,42 @@ internal val LEFT_TOGGLE_ROWS: List<LeftToggleRow> = listOf(
     LeftToggleRow(IconSettingsKeys.KEY_ICON_LEFT_ROTATION_LOCK, R.string.icon_slot_rotation_lock, IconSlotPolicy.SLOT_ROTATION_LOCK)
 )
 
+@Composable
+private fun RotationLockSection(
+    enabled: Boolean,
+    leftPlacementEnabled: Boolean,
+    leftSelected: Boolean,
+    slotMode: Int,
+    slotModes: List<String>,
+    onChange: (String, Any) -> Unit
+) {
+    val settingsStore = LocalAppSettingsStore.current
+    SmallTitle(stringResource(R.string.icon_cc_rotation_lock_title))
+    Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+        Column(Modifier.fillMaxWidth()) {
+            TunerSwitch(
+                enabled,
+                stringResource(R.string.icon_cc_rotation_lock),
+                stringResource(R.string.icon_cc_rotation_lock_summary)
+            ) { onChange(SystemUiSettingsKeys.KEY_CC_ROTATION_LOCK_ICON, it) }
+            OverlayDropdownPreference(
+                title = stringResource(R.string.icon_rotation_lock_visibility),
+                items = slotModes,
+                selectedIndex = slotMode.coerceIn(0, slotModes.lastIndex),
+                onSelectedIndexChange = {
+                    onChange(settingsStore.systemUi.slotKey(IconSlotPolicy.SLOT_ROTATION_LOCK), it)
+                }
+            )
+            MiuixExpandableContent(visible = leftPlacementEnabled) {
+                TunerSwitch(
+                    leftSelected,
+                    stringResource(R.string.icon_left_container_title)
+                ) { onChange(IconSettingsKeys.KEY_ICON_LEFT_ROTATION_LOCK, it) }
+            }
+        }
+    }
+}
+
 /**
  * 图标左置.
  *
@@ -620,7 +656,8 @@ private fun LeftContainerSection(
                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                 )
-                LEFT_TOGGLE_ROWS.forEach { row ->
+                // Rotation lock owns its placement control alongside its enable/visibility rows.
+                LEFT_TOGGLE_ROWS.filterNot { it.key == IconSettingsKeys.KEY_ICON_LEFT_ROTATION_LOCK }.forEach { row ->
                     val info = IconSlotCatalog.of(row.previewSlot)
                     SwitchPreference(
                         checked = leftSelected[row.key] == true,
@@ -1055,6 +1092,7 @@ private fun CarrierSection(
     onNavigateToIconRows: () -> Unit,
     onChange: (String, Any) -> Unit
 ) {
+    val carrierLeftEnabled = !(ccHideDate && ccTwoLine)
     SmallTitle(stringResource(R.string.icon_carrier_title))
     Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
         Column(Modifier.fillMaxWidth()) {
@@ -1062,7 +1100,9 @@ private fun CarrierSection(
             TunerSwitch(
                 ccCarrierLeft,
                 stringResource(R.string.icon_cc_carrier_left),
-                stringResource(R.string.icon_cc_carrier_left_summary)
+                stringResource(if (carrierLeftEnabled) R.string.icon_cc_carrier_left_summary
+                    else R.string.icon_cc_carrier_left_two_line_summary),
+                enabled = carrierLeftEnabled
             ) { onChange(SystemUiSettingsKeys.KEY_CC_CARRIER_LEFT, it) }
             // 开关 2: hide the control-center date; it is also the enabling switch of 开关 3/4.
             TunerSwitch(
@@ -1155,7 +1195,7 @@ private fun SlotsSection(
     SmallTitle(stringResource(R.string.icon_slots_title))
     Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
         Column(Modifier.fillMaxWidth()) {
-            IconSlotCatalog.slots.forEach { slot ->
+            IconSlotCatalog.slots.filterNot { it == IconSlotPolicy.SLOT_ROTATION_LOCK }.forEach { slot ->
                 val mode = slotModeOf(slot)
                 val info = IconSlotCatalog.of(slot)
                 OverlayDropdownPreference(

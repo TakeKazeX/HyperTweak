@@ -7,6 +7,7 @@ import com.takekazex.hypertweak.hook.base.BaseHooker
 import com.takekazex.hypertweak.hook.base.HookComponent
 import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.hook.base.ViewVisibilityRouter
+import com.takekazex.hypertweak.presentation.icon.PlanSurface
 import com.takekazex.hypertweak.util.logging.DebugLog
 import com.takekazex.hypertweak.util.platform.ResourceLookup
 import java.lang.reflect.Field
@@ -23,7 +24,7 @@ import java.util.WeakHashMap
  * child except the label is held GONE while its row is type-only; the host's latest request is
  * kept and restored when the row is released, so the binder never has to re-emit.
  */
-internal class NativeTypeOnlyMask(owner: BaseHooker) : HookComponent(owner) {
+internal class NativeTypeOnlyMask(owner: BaseHooker, private val surfaceOf: (View) -> PlanSurface?) : HookComponent(owner) {
     private companion object {
         const val TAG = "IconTuner"
         const val MOBILE_VIEW = "com.android.systemui.statusbar.pipeline.mobile.ui.view.ModernStatusBarMobileView"
@@ -37,7 +38,7 @@ internal class NativeTypeOnlyMask(owner: BaseHooker) : HookComponent(owner) {
     private val requests = NativeViewVisibilityMask(View.GONE)
     /** Every native `mobile_group` seen so far; weak so recycled rows drop out by themselves. */
     private val groups = WeakHashMap<ViewGroup, Boolean>()
-    private var typeOnly: Set<Int> = emptySet()
+    private var typeOnly: Map<PlanSurface, Set<Int>> = emptyMap()
     private var mobileView: Class<*>? = null
     private var subIdField: Field? = null
     private var groupId = 0
@@ -68,7 +69,7 @@ internal class NativeTypeOnlyMask(owner: BaseHooker) : HookComponent(owner) {
     }
 
     /** Main thread only. Re-applies the mask to every known row whose membership changed. */
-    fun publish(subIds: Set<Int>) {
+    fun publish(subIds: Map<PlanSurface, Set<Int>>) {
         if (!installed || subIds == typeOnly) return
         typeOnly = subIds
         groups.keys.toList().forEach(::reconcile)
@@ -82,12 +83,13 @@ internal class NativeTypeOnlyMask(owner: BaseHooker) : HookComponent(owner) {
             resolveIds(view)
             if (groupId == 0) return@forEach
             val group = view.findViewById<View>(groupId) as? ViewGroup ?: return@forEach
-            if (groups.put(group, true) == null) reconcile(group)
+            groups[group] = true
+            reconcile(group)
         }
     }
 
     fun retire() {
-        typeOnly = emptySet()
+        typeOnly = emptyMap()
         groups.keys.toList().forEach(::reconcile)
         groups.clear()
         mobileView = null
@@ -125,7 +127,7 @@ internal class NativeTypeOnlyMask(owner: BaseHooker) : HookComponent(owner) {
     private fun masks(root: View, child: View): Boolean {
         if (typeOnly.isEmpty() || typeId == 0 || child.id == typeId) return false
         val subId = runCatching { subIdField?.getInt(root) }.getOrNull() ?: return false
-        return subId in typeOnly
+        return subId in typeOnly[surfaceOf(root)].orEmpty()
     }
 
     private fun resolveIds(view: View) {

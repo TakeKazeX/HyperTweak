@@ -27,6 +27,16 @@ public final class PanelGlyphProbe {
         public MobileHolder(Context context) { super(context); }
         @Override public boolean isAttachedToWindow() { return true; }
     }
+    public static final class StackedCopy extends ImageView {
+        public final String mSlot = "stacked_mobile_icon";
+        public StackedCopy(Context context) { super(context); }
+    }
+    private static java.lang.reflect.Field field(Object owner, String name) throws Exception {
+        var field = owner.getClass().getDeclaredField(name); field.setAccessible(true); return field;
+    }
+    @SuppressWarnings("unchecked") private static java.util.Map<Object, Object> entries(Object owner, String name) throws Exception {
+        return (java.util.Map<Object, Object>) field(owner, name).get(owner);
+    }
     public static final class InvalidationCounter implements android.graphics.drawable.Drawable.Callback {
         public int frames;
         public void invalidateDrawable(android.graphics.drawable.Drawable drawable) { frames++; }
@@ -281,7 +291,46 @@ public final class PanelGlyphProbe {
         check(counter.frames == 0, "held gesture must not keep invalidating an unchanged overlay");
         motionType.getMethod("clear").invoke(motion);
         check(Math.abs(target.getAlpha() - .6f) < .001f, "clear restores native endpoint alpha");
+        // Stacked orchestration must retain the submitted SignalRowMotion through its first
+        // zero-alpha draw. This is a real Canvas/overlay lifecycle check, not a window capture.
+        Class<?> stackedType = loader.loadClass("com.takekazex.hypertweak.hook.rules.systemui.icon.StackedPanelMotion");
+        Object stacked = stackedType.getConstructor(Object.class).newInstance(new Object());
+        Method complete = stackedType.getDeclaredMethod("completeFrame", boolean.class, boolean.class);
+        complete.setAccessible(true);
+        Object stackedRow = motionType.getConstructor().newInstance();
+        var stackedLayer = (android.graphics.drawable.Drawable) layerField.get(stackedRow);
+        StackedCopy expandedCopy = new StackedCopy(context), fakeCopy = new StackedCopy(context);
+        field(stacked, "expandedRow").set(stacked, expandedCopy); field(stacked, "fakeRow").set(stacked, fakeCopy);
+        entries(stacked, "motions").put(12, stackedRow); entries(stacked, "targets").put(12, target);
+        boolean ready = (Boolean) update.invoke(stackedRow, root, source, box, target, picture, box, Color.BLACK, .25f,
+            null, null, null, true, null, null);
+        check(!ready && (Boolean) motionType.getMethod("getHasFrame").invoke(stackedRow), "first frame is submitted but not drawn");
+        complete.invoke(stacked, true, false);
+        check(entries(stacked, "motions").get(12) == stackedRow &&
+            (Boolean) motionType.getMethod("getHasFrame").invoke(stackedRow), "pending overlay must survive the aggregate pass");
+        check(fakeCopy.getAlpha() == 1f && expandedCopy.getAlpha() == 1f, "native copies stay visible before first draw");
+        stackedLayer.draw(canvas);
+        for (float progress : new float[]{.25f, .6f, .9f, .6f, .25f}) {
+            ready = (Boolean) update.invoke(stackedRow, root, source, box, target, picture, box, Color.BLACK, progress,
+                null, null, null, true, null, null);
+            check(ready, "submitted overlay becomes ready and survives reverse drag");
+            complete.invoke(stacked, true, true);
+            check(fakeCopy.getAlpha() == 0f && expandedCopy.getAlpha() == 0f, "ready overlay owns both native copies");
+            rendered.eraseColor(Color.TRANSPARENT); stackedLayer.draw(canvas);
+            check(Color.alpha(rendered.getPixel(Math.round(8 + 32 * progress), 8)) > 0, "stacked overlay draws during drag and reversal");
+        }
+        // A rejected geometry must still release all layers and copies, unlike a pending draw.
+        target.layout(0, 0, 0, 0);
+        check(!(Boolean) update.invoke(stackedRow, root, source, box, target, picture, box, Color.BLACK, .5f,
+            null, null, null, true, null, null), "invalid endpoint is rejected");
+        check(!(Boolean) motionType.getMethod("getHasFrame").invoke(stackedRow), "rejection has no pending frame");
+        complete.invoke(stacked, false, false);
+        check(entries(stacked, "motions").isEmpty() && entries(stacked, "targets").isEmpty(), "rejection releases submitted resources");
+        check(fakeCopy.getAlpha() == 1f && expandedCopy.getAlpha() == 1f && Math.abs(target.getAlpha() - .6f) < .001f,
+            "rejection restores copies and original destination alpha");
+        WifiActivityReloadProbe.run(context, loader);
         System.out.println("PASS: idle recaptures, live tint, bitmap mutation, carrier badge selection and travel, "
-            + "masked badge updates, moving-dot tint interpolation and reversal, held updates and alpha restoration");
+            + "masked badge updates, moving-dot tint interpolation and reversal, held updates and alpha restoration, "
+            + "stacked pending first draw, ready copies, reverse drag and invalid-endpoint restoration");
     }
 }

@@ -11,6 +11,7 @@ import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.hook.rules.systemui.icon.duo.SignalRowMotion
 import com.takekazex.hypertweak.presentation.icon.duo.DuoSignalRow
 import com.takekazex.hypertweak.presentation.icon.duo.SignalBarMorph
+import com.takekazex.hypertweak.util.logging.DebugLog
 import java.util.IdentityHashMap
 import kotlin.math.abs
 
@@ -33,8 +34,12 @@ internal class StackedPanelMotion(private val callback: Any) {
     private var splitFraction: Float? = null
     private val crop = RectF()
     private val sourceBounds = RectF()
+    private val detachListener = object : View.OnAttachStateChangeListener {
+        override fun onViewAttachedToWindow(view: View) = Unit
+        override fun onViewDetachedFromWindow(view: View) { clear() }
+    }
     private val listener = ViewTreeObserver.OnPreDrawListener {
-        runCatching { render() }.onFailure { clearLayers() }
+        runCatching { render() }.onFailure { clear() }
         true
     }
 
@@ -44,15 +49,16 @@ internal class StackedPanelMotion(private val callback: Any) {
         fraction?.takeIf { it.isFinite() }?.let { progress = it.coerceIn(0f, 1f); if (it > 0f) visible = true }
         showing?.let { visible = it }
         if (!visible || progress <= 0f || progress >= 1f || picture == null || rows.isEmpty()) { clear(); return }
-        val owner = read(callback, "this\$0") ?: return
-        val lazyHeader = read(owner, "headerController") ?: return
-        val header = HostAccess.publicMethod(lazyHeader.javaClass, "get", accessible = false)?.invoke(lazyHeader) ?: return
-        val expanded = read(header, "controlCenterStatusBar") as? View ?: return
-        val nextRoot = expanded.rootView as? ViewGroup ?: return
+        val owner = read(callback, "this\$0") ?: run { clear(); return }
+        val lazyHeader = read(owner, "headerController") ?: run { clear(); return }
+        val header = HostAccess.publicMethod(lazyHeader.javaClass, "get", accessible = false)?.invoke(lazyHeader) ?: run { clear(); return }
+        val expanded = read(header, "controlCenterStatusBar") as? View ?: run { clear(); return }
+        val nextRoot = expanded.rootView as? ViewGroup ?: run { clear(); return }
         if (root !== nextRoot || observer?.isAlive != true) {
-            clearLayers(); observer?.takeIf { it.isAlive }?.removeOnPreDrawListener(listener)
-            sourceView = null; statusContainer = null
-            root = nextRoot; observer = nextRoot.viewTreeObserver.also { it.addOnPreDrawListener(listener) }
+            clear()
+            root = nextRoot
+            nextRoot.addOnAttachStateChangeListener(detachListener)
+            observer = nextRoot.viewTreeObserver.also { it.addOnPreDrawListener(listener) }
         }
         expandedRow = expanded
         fakeRow = (read(header, "controlCenterFakeStatusBar") ?: read(header, "fakeStatusBar")) as? View
@@ -60,13 +66,13 @@ internal class StackedPanelMotion(private val callback: Any) {
     }
 
     private fun render() {
-        val host = root ?: return
-        val commands = picture ?: return
+        val host = root ?: run { clear(); return }
+        val commands = picture ?: run { clearLayers(); return }
         val split = splitFraction?.takeIf { it.isFinite() && it > 0f && it < 1f }
             ?: run { clearLayers(); return }
         if (!host.isAttachedToWindow) { clear(); return }
-        val owner = read(callback, "this\$0") ?: return
-        val real = read(owner, "realSystemIcons") as? View ?: return
+        val owner = read(callback, "this\$0") ?: run { clear(); return }
+        val real = read(owner, "realSystemIcons") as? View ?: run { clear(); return }
         val source = sourceView?.takeIf { it.isAttachedToWindow && isUnder(it, real) }
             ?: (find(real) { read(it, "mSlot") == "stacked_mobile_icon" } as? ImageView)
                 ?.also { sourceView = it }
@@ -89,6 +95,7 @@ internal class StackedPanelMotion(private val callback: Any) {
         val drawable = source.drawable ?: run { clearLayers(); return }
         val appearance = fakeRow?.takeIf { it.isAttachedToWindow } ?: run { clearLayers(); return }
         var allReady = true
+        var allPrepared = true
         val used = rows.map { it.subId }.toSet()
         motions.keys.toList().filter { it !in used }.forEach(::release)
         rows.forEachIndexed { index, row ->
@@ -97,7 +104,7 @@ internal class StackedPanelMotion(private val callback: Any) {
                 release(row.subId)
                 val carrier = HandoverCoordinator.signalTarget(container, row.subId)
                 if (carrier != null && !HandoverCoordinator.acquire(carrier, this)) {
-                    allReady = false; return@forEachIndexed
+                    allReady = false; allPrepared = false; return@forEachIndexed
                 }
                 targets[row.subId] = target
             }
@@ -113,11 +120,18 @@ internal class StackedPanelMotion(private val callback: Any) {
             sourceBounds.bottom = originY + height * bottom
             // Replay this SIM's region of the bound home icon. mDrawableColor is not the
             // module bitmap's actual ImageView filter, so reconstructing a tint here is lossy.
-            val ready = motions.getOrPut(row.subId) { SignalRowMotion() }.update(host, source,
+            val motion = motions.getOrPut(row.subId) { SignalRowMotion() }
+            val ready = motion.update(host, source,
                 sourceBounds, target, commands, crop, color = 0, progress = progress,
                 sourceGlyph = source, sourceAppearanceAlpha = if (barMorphs.getOrNull(index) == null) appearance.alpha else null, barMorph = barMorphs.getOrNull(index))
             allReady = allReady && ready
+            allPrepared = allPrepared && motion.hasFrame
         }
+        completeFrame(allPrepared, allReady)
+    }
+
+    private fun completeFrame(allPrepared: Boolean, allReady: Boolean) {
+        if (!allPrepared) { clearLayers(); return }
         if (allReady) {
             // Only duplicate status-slot images are hidden. The home source remains available for
             // coordinate measurement; carrier targets belong to their row overlays.
@@ -132,24 +146,35 @@ internal class StackedPanelMotion(private val callback: Any) {
                 if (!masked.containsKey(view) || abs(view.alpha) > .001f) masked[view] = view.alpha
                 HandoverCoordinator.alpha(view, 0f)
             }
-        } else restoreMasks()
+        } else {
+            // Keep submitted layers/leases alive until draw() can mark the first frame ready.
+            // Pending is not rejection: removing that overlay here prevents readiness forever.
+            restoreMasks()
+        }
     }
 
     private fun release(subId: Int) {
-        motions.remove(subId)?.clear()
-        targets.remove(subId)?.let { HandoverCoordinator.release(it, this) }
+        try { motions.remove(subId)?.clear() }
+        finally { targets.remove(subId)?.let { HandoverCoordinator.release(it, this) } }
     }
     private fun restoreMasks() {
-        masked.forEach { (view, alpha) -> if (abs(view.alpha) < .001f) HandoverCoordinator.alpha(view, alpha) }
+        val previous = masked.entries.map { it.key to it.value }
         masked.clear()
+        previous.forEach { (view, alpha) ->
+            runCatching { if (abs(view.alpha) < .001f) HandoverCoordinator.alpha(view, alpha) }
+                .onFailure { DebugLog.w("IconPanel", "stacked copy alpha restore failed", it) }
+        }
     }
     private fun clearLayers() {
-        motions.keys.toList().forEach(::release)
+        (motions.keys + targets.keys).toSet().forEach { subId ->
+            runCatching { release(subId) }.onFailure { DebugLog.w("IconPanel", "stacked endpoint release failed", it) }
+        }
         restoreMasks()
     }
     fun clear() {
         clearLayers()
         observer?.takeIf { it.isAlive }?.removeOnPreDrawListener(listener)
+        root?.removeOnAttachStateChangeListener(detachListener)
         observer = null; root = null; expandedRow = null; fakeRow = null
         sourceView = null; statusContainer = null
     }

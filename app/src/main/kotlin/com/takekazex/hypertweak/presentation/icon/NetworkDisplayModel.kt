@@ -17,4 +17,15 @@ internal data class NetworkDisplayModel(
 
     fun nativeMask(stackedPublished: Boolean, ignoreSystemHide: Boolean = false): NativeMobileMask =
         visibility.nativeMask(mobile, slotOf, stackedPublished, ignoreSystemHide, wifiDefault)
+    /** Apply replacement only where this surface's plan accepted its bars claim. */
+    fun nativeMask(layout: SurfaceLayout, ignoreSystemHide: Boolean = false): NativeMobileMask {
+        val replaced = mobile.subscriptionOrder.filterTo(linkedSetOf()) {
+            layout.owner(SlotPart.MobileBars(it)) == Ownership.Replaced(RendererId.STACKED)
+        }
+        val hidden = mobile.subscriptionOrder.filterTo(linkedSetOf()) {
+            layout.owner(SlotPart.MobileRow(it)) is Ownership.Hidden
+        }
+        val stacked = nativeMask(stackedPublished = true, ignoreSystemHide = ignoreSystemHide)
+        return NativeMobileMask(hidden + stacked.hidden.intersect(replaced), stacked.typeOnly.intersect(replaced))
+    }
 }

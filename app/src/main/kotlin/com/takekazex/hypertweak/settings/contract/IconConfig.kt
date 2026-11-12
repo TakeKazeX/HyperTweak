@@ -208,8 +208,14 @@ data class IconConfig internal constructor(
 /** Reload effects are declared against decoded sections, so retired keys have no effect. */
 internal object IconConfigReload {
     fun domains(before: IconConfig?, after: IconConfig?): Set<IndependentIconDomain>? {
-        if (before == null || after == null || before.signalStyle != after.signalStyle) return null
+        if (before == null || after == null) return null
         val effects = mutableSetOf<IndependentIconDomain>()
+        if (before.signalStyle != after.signalStyle) {
+            effects += setOf(IndependentIconDomain.POLICY, IndependentIconDomain.CELLULAR,
+                IndependentIconDomain.CELLULAR_TYPE, IndependentIconDomain.MOBILE_SIGNAL)
+            if (before.signalStyle == SignalStyle.DUO || after.signalStyle == SignalStyle.DUO)
+                effects += IndependentIconDomain.DUO
+        }
         if (before.slots != after.slots) {
             // Network slots and ordering affect installed pipelines and the native icon groups.
             val changed = (before.slots.values.keys + after.slots.values.keys).filter {
@@ -255,8 +261,6 @@ internal object IconConfigReload {
         if (before.network != after.network) effects += setOf(IndependentIconDomain.MOBILE_SIGNAL,
             IndependentIconDomain.DUO, IndependentIconDomain.CONTROL_CENTER_HEADER)
         if (before.stacked != after.stacked) {
-            if (before.stacked.int(IconSettingsKeys.KEY_ICON_STACKED_SIGNAL_STYLE) !=
-                after.stacked.int(IconSettingsKeys.KEY_ICON_STACKED_SIGNAL_STYLE)) return null
             effects += setOf(IndependentIconDomain.MOBILE_SIGNAL, IndependentIconDomain.DUO,
                 IndependentIconDomain.CONTROL_CENTER_HEADER)
         }

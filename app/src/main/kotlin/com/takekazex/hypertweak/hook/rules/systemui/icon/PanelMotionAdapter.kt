@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import android.content.Context
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
@@ -10,8 +12,13 @@ import java.lang.reflect.Modifier
 
 /** The only producer of panel expansion, visibility, stretch and shade-switch state. */
 internal object PanelMotionAdapter : StaticHooker() {
+    private var callbackType: Class<*>? by generationState { null }
+    private var recoveryContext: Context? by generationState { null }
+
     init {
         hostRecovery(HostRecoveryPhase.HANDOVER, icons = true) {
+            recoveryContext = it.context
+            recoverMotionHost(it.component)
             PanelHub.recover(it.progress, it.visible, it.stretch)
         }
     }
@@ -19,7 +26,18 @@ internal object PanelMotionAdapter : StaticHooker() {
         if (!isMainProcess) return
         val info = hookParam.appInfo ?: return
         val path = info.sourceDir ?: return
-        val methods = DexRuntime.resolveMethodMap(
+        prepareDexTargets("icon panel motion", resolve = { resolveMethods(path, info) }, install = { methods ->
+            installMethods(methods)
+            // Recovery may already have run while the worker was resolving. Re-discover the
+            // current delegate state and live callback without rebuilding any icon group.
+            (recoveryContext ?: hookParam.appContext)?.let {
+                StatusIconHotReloadRecovery.scheduleScoped(it, listOf(this))
+            }
+        })
+    }
+
+    private fun resolveMethods(path: String, info: android.content.pm.ApplicationInfo): Map<String, Method>? {
+        return DexRuntime.resolveMethodMap(
             "systemui.icon_panel_adapter.v1", path, dexCacheDirectory, classLoader, info,
             validate = { key, method -> valid(key, method) }
         ) { bridge ->
@@ -54,11 +72,11 @@ internal object PanelMotionAdapter : StaticHooker() {
             }
             if (result.keys.containsAll(listOf("visibility", "appearance", "stretch", "switching", "switchProgress"))) result
             else emptyMap()
-        }.orEmpty()
-        if (methods.isEmpty()) {
-            DebugLog.hookSkipped("IconPanel", "panel adapter", "ambiguous or incomplete host motion contract")
-            return
-        }
+        }?.takeIf { it.isNotEmpty() }
+    }
+
+    private fun installMethods(methods: Map<String, Method>) {
+        callbackType = methods.getValue("expansion").declaringClass
         methods.forEach { (key, method) ->
             deoptimize(method)
             method.hook {
@@ -72,6 +90,16 @@ internal object PanelMotionAdapter : StaticHooker() {
             }
         }
     }
+    private fun recoverMotionHost(component: Any?) {
+        val type = callbackType ?: return
+        runCatching {
+            val delegate = component?.let { HostAccess.provider(it, "controlCenterExpandControllerDelegateProvider") }
+                ?: return
+            val callbacks = HostAccess.read(delegate, "callbacks") as? List<*> ?: return
+            callbacks.filterNotNull().filter(type::isInstance).singleOrNull()?.let(PanelHub::observeHost)
+        }.onFailure { DebugLog.w("IconPanel", "living panel callback recovery failed", it) }
+    }
+
     /** The state one host motion step publishes; null when the argument does not fit the contract. */
     private fun next(key: String, arg: Any?, state: PanelState): PanelState? = when (key) {
         "expansion" -> (arg as? Float)?.let(state::expansion)

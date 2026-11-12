@@ -37,6 +37,27 @@ class IconInfrastructureHostContractTest {
         assertTrue(dex.code(progress).reads.any { it.type == "Lcom/android/systemui/controlcenter/phone/widget/ControlCenterStatusBarIcon;" })
     }
 
+    @Test fun livingPanelCallbacksAndContainerRolesCanBeRecoveredWithoutAHostStep() {
+        val dex = host()
+        val delegate = "Lcom/miui/systemui/controlcenter/container/ControlCenterExpandControllerDelegate;"
+        val expansion = dex.code(dex.definition("${delegate}->onExpansionChanged(F)V")!!)
+        assertTrue(expansion.reads.any { it.name == "callbacks" && it.type == "Ljava/util/ArrayList;" })
+        assertTrue(expansion.calls.any { it.method.name == "onExpansionChanged" &&
+            it.method.definingClass == "Lcom/android/systemui/plugins/miui/shade/PanelExpandController\$Callback;" })
+        val container = "Lcom/android/systemui/statusbar/views/MiuiStatusIconContainer;"
+        mapOf(
+            "Lcom/android/systemui/statusbar/phone/MiuiPhoneStatusBarView;->onAttachedToWindow()V" to 0L,
+            "Lcom/android/systemui/statusbar/phone/KeyguardStatusBarViewController;->onViewAttached()V" to 1L,
+            "Lcom/android/systemui/controlcenter/phone/widget/ControlCenterFakeStatusIcons;->onFinishInflate()V" to 5L,
+            "Lcom/android/systemui/controlcenter/phone/widget/ControlCenterStatusBarIcon;->onFinishInflate()V" to 6L
+        ).forEach { (method, role) ->
+            val call = dex.code(dex.definition(method)!!).calls.single {
+                it.method.definingClass == container && it.method.name == "updateLayoutFrom"
+            }
+            assertEquals(method, DexOperandIndex.Value.Number(role), call.arguments.last())
+        }
+    }
+
     @Test fun mobileFactoryAndWifiGetterHaveTheirExpectedDataFlow() {
         val dex = host()
         val adapter = dex.definition("Lcom/android/systemui/statusbar/pipeline/mobile/ui/MobileUiAdapter;->start()V")!!
@@ -51,6 +72,22 @@ class IconInfrastructureHostContractTest {
         val getter = dex.definition("${wifi}->getWifiIcon()Lkotlinx/coroutines/flow/StateFlow;")!!
         assertTrue(dex.code(getter).reads.any { it.definingClass == wifi && it.type == "Lkotlinx/coroutines/flow/ReadonlyStateFlow;" })
     }
+    @Test fun nativeContainerAdmissionUsesTheBindingModelRatherThanViewVisibility() {
+        val dex = host()
+        val container = "Lcom/android/systemui/statusbar/views/MiuiStatusIconContainer;"
+        for (signature in listOf("onMeasure(II)V", "onLayout(ZIIII)V")) {
+            val code = dex.code(dex.definition("$container->$signature")!!)
+            assertTrue(signature, code.calls.any { it.method.name == "isIconVisible" &&
+                it.method.definingClass == "Lcom/android/systemui/statusbar/StatusIconDisplayable;" })
+            if (signature.startsWith("onMeasure")) assertFalse(code.calls.any { it.method.name == "getVisibility" })
+        }
+        val shared = "Lcom/android/systemui/statusbar/pipeline/shared/ui/view/ModernStatusBarView;"
+        val predicate = dex.code(dex.definition("${shared}->isIconVisible()Z")!!)
+        assertTrue(predicate.calls.any { it.method.name == "getShouldIconBeVisible" && it.method.returnType == "Z" })
+        assertTrue(predicate.reads.any { it.name == "removeFlag" && it.type == "Z" })
+        assertFalse(predicate.calls.any { it.method.name == "getVisibility" })
+    }
+
     @Test fun controllerContainerAndObserverConnectSlotsToHostVisibility() {
         val dex = host()
         val controller = "Lcom/android/systemui/statusbar/phone/ui/StatusBarIconControllerImpl;"
@@ -59,7 +96,7 @@ class IconInfrastructureHostContractTest {
         assertTrue(calls.any { it.name == "getViewIndex" && it.definingClass.endsWith("StatusBarIconList;") })
         assertTrue(calls.any { it.name == "onIconAdded" && it.definingClass.endsWith("IconManager;") })
         val manager = "Lcom/android/systemui/statusbar/phone/ui/IconManager;"
-        val added = dex.definition("${manager}->onIconAdded(ILjava/lang/String;ZLcom/android/systemui/statusbar/phone/StatusBarIconHolder;)V")!!
+        val added = dex.definition("Lcom/android/systemui/statusbar/phone/MiuiLightDarkIconManager;->onIconAdded(ILjava/lang/String;ZLcom/android/systemui/statusbar/phone/StatusBarIconHolder;)V")!!
         assertTrue(dex.code(added).calls.any { it.method.definingClass == manager && it.method.name == "addHolder" })
         val container = "Lcom/android/systemui/statusbar/views/MiuiStatusIconContainer;"
         listOf("onMeasure(II)V", "onLayout(ZIIII)V").forEach { signature ->

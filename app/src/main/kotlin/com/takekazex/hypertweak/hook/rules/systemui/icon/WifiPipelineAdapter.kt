@@ -166,6 +166,9 @@ object WifiPipelineAdapter : StaticHooker() {
             settingIconWifiPaddingEndVal
         )
         activityRight = settingIconWifiActivityRight
+        // Existing binders still collect the retained gate flows that retirement passed through.
+        // Re-arm those same gates before a new getter/bind/network event can happen.
+        HostAccess.onMain { restoreVmGates() }
         // Every Wi-Fi option stays hooked while it is off: a settings change re-publishes the
         // module flows the binder already collects, or re-applies the layout to the bound views.
         hookActivityDirection()
@@ -374,6 +377,7 @@ object WifiPipelineAdapter : StaticHooker() {
                     val original = param.result ?: return@after
                     val state = vmStates.getOrPut(param.thisObject) { VmState() }
                     val gate = state.activityGate ?: LiveFlowGate("Wi-Fi activity", hideActivity).also { state.activityGate = it }
+                    gate.set(hideActivity)
                     gate.wrap(original, returnType) { value -> if (value is Number) 0 else value }
                         ?.let { param.result = it }
                 }
@@ -384,6 +388,13 @@ object WifiPipelineAdapter : StaticHooker() {
     private val boundRoots = generationMainResource(WeakHashMap<ViewGroup, Unit>()) { it.clear() }
     private val originalPadding = generationMainResource(WeakHashMap<View, IntArray>()) { it.clear() }
     private val activityGravity = generationMainResource(WeakHashMap<View, Int>()) { it.clear() }
+
+    private fun restoreVmGates() {
+        vmStates.snapshot().forEach { (_, state) ->
+            state.activityGate?.set(hideActivity)
+            state.directionGate?.set(activityRight && !hideActivity)
+        }
+    }
 
     /**
      * Applies every Wi-Fi option to the bound icon in place: the activity and direction gates and
@@ -401,11 +412,8 @@ object WifiPipelineAdapter : StaticHooker() {
             paddingStart = safeFloat(settingIconWifiPaddingStartVal)
             paddingEnd = safeFloat(settingIconWifiPaddingEndVal)
             activityRight = settingIconWifiActivityRight
-            vmStates.snapshot().forEach { (_, state) ->
-                state.activityGate?.set(hideActivity)
-                state.directionGate?.set(activityRight && !hideActivity)
-                state.publish?.invoke()
-            }
+            restoreVmGates()
+            vmStates.snapshot().forEach { (_, state) -> state.publish?.invoke() }
             boundRoots.keys.toList().forEach(::applyBinderLayout)
             DebugLog.i(TAG, "Wi-Fi settings refreshed hideActivity=$hideActivity hideConnected=$hideUnavailable " +
                 "standardMode=$standardMode padding=$paddingEnabled activityRight=$activityRight roots=${boundRoots.size}")
@@ -515,6 +523,7 @@ object WifiPipelineAdapter : StaticHooker() {
                     // `inoutLeft=false` places the arrows right; the gate forces it while selected.
                     val state = vmStates.getOrPut(param.thisObject) { VmState() }
                     val gate = state.directionGate ?: LiveFlowGate("Wi-Fi arrows right", activityRight && !hideActivity).also { state.directionGate = it }
+                    gate.set(activityRight && !hideActivity)
                     val base = state.restoredDirection ?: param.result ?: return@after
                     param.result = gate.wrap(base, returnType) { false }
                         ?: if (gate.hidden) IconTunerFlows.falseFlow else base

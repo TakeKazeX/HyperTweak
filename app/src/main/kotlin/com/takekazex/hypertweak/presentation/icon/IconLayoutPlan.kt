@@ -176,7 +176,7 @@ private class SurfacePlanner(
 
     /** Stacked and Duo claims count only for the style that draws them; Duo always owns AOD rows. */
     private fun allowed(owner: RendererId): Boolean = when (owner) {
-        RendererId.STACKED -> style == SignalStyle.STACKED
+        RendererId.STACKED -> style == SignalStyle.STACKED && !blocks(IconSlotPolicy.SLOT_STACKED_SIGNAL)
         RendererId.DUO -> style == SignalStyle.DUO || surface == PlanSurface.KEYGUARD || surface == PlanSurface.AOD
         else -> true
     }

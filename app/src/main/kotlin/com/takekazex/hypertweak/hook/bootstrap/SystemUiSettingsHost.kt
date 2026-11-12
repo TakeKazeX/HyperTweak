@@ -149,17 +149,17 @@ internal class SystemUiSettingsHost(
         val independent = IconConfigReload.domains(iconSnapshotAtInstall, snapshot)
         if (independent?.isEmpty() == true) {
             if (keys.isNotEmpty()) return true
-            DebugLog.d("IconTuner", "full snapshot with unchanged icon values; refreshing policy only")
+            DebugLog.d("IconTuner", "full snapshot with unchanged icon values; recovering living hosts without group rebuild")
             MobilePipelineAdapter.onPackageReady(context)
             StackedRenderer.onPackageReady(context)
             CarrierRenderer.onPackageReady(context)
             LeftRenderer.onPackageReady(context)
             LeftRenderer.requestReconcile()
-            StatusIconHotReloadRecovery.scheduleIcons(context, liveHookers())
+            StatusIconHotReloadRecovery.scheduleScoped(context, hooks)
             return true
         }
         val start = SystemClock.elapsedRealtime()
-        if (keys.isNotEmpty() && independent != null && applyIndependentIcons(context, hooks, independent)) {
+        if (independent != null && applyIndependentIcons(context, hooks, independent)) {
             iconSnapshotAtInstall = snapshot
             DebugLog.i("IconTuner", "live independent icon settings applied domains=$independent " +
                 "elapsedMs=${SystemClock.elapsedRealtime() - start}")
@@ -239,7 +239,12 @@ internal class SystemUiSettingsHost(
             if (WifiPipelineAdapter in live) WifiPipelineAdapter.refreshSettings()
             if (MobilePipelineAdapter in live) MobilePipelineAdapter.refreshSettings()
             if (StackedRenderer in live) StackedRenderer.refreshSettings()
-            if (DuoRenderer in live) DuoRenderer.refreshSettings()
+            if (DuoRenderer in live) {
+                DuoRenderer.refreshSettings()
+                // A style enabled from native/stacked may have no dormant home Duo binding.
+                // Discover only Duo's living hosts; keep icon groups and unrelated sources intact.
+                StatusIconHotReloadRecovery.scheduleScoped(context, listOf(DuoRenderer))
+            }
         }
         return true
     }

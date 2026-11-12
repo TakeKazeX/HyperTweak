@@ -601,6 +601,7 @@
     <string name="icon_carrier_title">Carrier Label</string>
     <string name="icon_cc_carrier_left">Carrier Label on the Left</string>
     <string name="icon_cc_carrier_left_summary">Align single-line carrier labels to the left</string>
+    <string name="icon_cc_carrier_left_two_line_summary">Two-line mode uses a fixed layout; this setting applies only to single-line labels</string>
     <string name="icon_cc_hide_date">Hide Control Center Date</string>
     <string name="icon_cc_hide_date_summary">Hide the control-center date; also enables the two-line carrier label</string>
     <string name="icon_cc_network_first_row">Network Status on First Row</string>
@@ -1530,7 +1531,8 @@
     <string name="icon_mirror_airplane_summary">Point the airplane icon to the right</string>
     <string name="icon_cc_rotation_lock_title">Rotation lock</string>
     <string name="icon_cc_rotation_lock">iOS-style rotation lock icon</string>
-    <string name="icon_cc_rotation_lock_summary">Show an icon when screen rotation is locked. Change where it appears under Icon slots or Left icons.</string>
+    <string name="icon_cc_rotation_lock_summary">Show an icon when screen rotation is locked</string>
+    <string name="icon_rotation_lock_visibility">Display Scope</string>
     <string name="icon_cc_rotation_lock_description">Screen rotation locked</string>
     <string name="icon_slot_rotation_lock">Rotation lock</string>
     <string name="logs_refresh">Refresh Logs</string>

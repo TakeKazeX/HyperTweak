@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon.duo
 
+import com.takekazex.hypertweak.presentation.icon.PlanSurface
 import com.takekazex.hypertweak.presentation.icon.duo.NativeWifiDrawable
 
 import com.takekazex.hypertweak.presentation.icon.duo.DuoSurface
@@ -15,6 +16,16 @@ import com.takekazex.hypertweak.util.platform.ResourceLookup
 internal class DuoBinding(val battery: View, val parent: ViewGroup, val icons: View,
                       val surface: DuoSurface, val keyguardRoot: View?,
                       panelInitiallySettled: Boolean) {
+    val planSurface: PlanSurface?
+        get() = when (surface) {
+            DuoSurface.HOME -> PlanSurface.STATUS_BAR
+            DuoSurface.KEYGUARD -> if (rowPhase == AodHostPhase.DOZING)
+                PlanSurface.AOD
+                else PlanSurface.KEYGUARD
+            DuoSurface.COLLAPSED_PROXY -> PlanSurface.CONTROL_CENTER_COLLAPSED
+            DuoSurface.EXPANDED -> PlanSurface.CONTROL_CENTER_EXPANDED
+            DuoSurface.UNSUPPORTED -> null
+        }
     val view = DuoIconView(battery.context)
     val controlCenterClick by lazy { DuoControlCenterClick.resolve(battery.context) }
     var observer: ViewTreeObserver? = null

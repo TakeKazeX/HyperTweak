@@ -14,11 +14,11 @@ import java.util.WeakHashMap
  * Container-local slot claims, resolved by the same pure [IconLayoutPlan] the preview uses.
  *
  * [slots] is read from host visibility callbacks on every icon state change, so the resolved
- * list is kept per container until its claims or the icon config change. Slot ownership does not
+ * list is kept per container and surface until its claims or the icon config change. Slot ownership does not
  * depend on the mobile state, so a signal update never invalidates it.
  */
 internal class SlotClaimRegistry(private val config: () -> IconConfig) {
-    private class Resolved(val config: IconConfig, val slots: List<String>)
+    private class Resolved(val config: IconConfig, val surface: PlanSurface, val slots: List<String>)
 
     private val claims = WeakHashMap<Any, MutableMap<RendererId, Set<String>>>()
     private val resolved = WeakHashMap<Any, Resolved>()
@@ -40,28 +40,29 @@ internal class SlotClaimRegistry(private val config: () -> IconConfig) {
 
     /** The slots a ready replacement owns on [container], after user visibility and priority. */
     @Synchronized
-    fun slots(container: Any): List<String> {
+    fun slots(container: Any, surface: PlanSurface): List<String> {
         val owners = claims[container] ?: return emptyList()
         val config = config()
-        resolved[container]?.takeIf { it.config === config }?.let { return it.slots }
+        resolved[container]?.takeIf { it.config === config && it.surface == surface }?.let { return it.slots }
         val requests = owners.map { (owner, slots) ->
             Claim(
                 owner = owner,
-                surface = PlanSurface.CONTROL_CENTER_EXPANDED,
+                surface = surface,
                 replaces = slots.mapTo(linkedSetOf()) { SlotPart.Slot(it) },
                 ready = true,
                 priority = if (owner == RendererId.CARRIER) CARRIER_PRIORITY else DEFAULT_PRIORITY
             )
         }
-        val layout = IconLayoutPlan.plan(config, NetworkDisplayModel(), requests)[PlanSurface.CONTROL_CENTER_EXPANDED]
+        val layout = IconLayoutPlan.plan(config, NetworkDisplayModel(), requests)[surface]
         val slots = layout.ownership.mapNotNull { (part, ownership) ->
             (part as? SlotPart.Slot)?.name?.takeIf { ownership is Ownership.Replaced }
         }
-        resolved[container] = Resolved(config, slots)
+        resolved[container] = Resolved(config, surface, slots)
         return slots
     }
 
-    fun merged(container: Any, baseline: List<String>): List<String> = (baseline + slots(container)).distinct()
+    fun merged(container: Any, surface: PlanSurface, baseline: List<String>): List<String> =
+        (baseline + slots(container, surface)).distinct()
 
     @Synchronized
     fun clear() {

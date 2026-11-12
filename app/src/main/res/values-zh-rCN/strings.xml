@@ -599,6 +599,7 @@
     <string name="icon_carrier_title">运营商标签</string>
     <string name="icon_cc_carrier_left">运营商标签靠左</string>
     <string name="icon_cc_carrier_left_summary">将单行运营商标签靠左显示</string>
+    <string name="icon_cc_carrier_left_two_line_summary">两行模式使用固定布局；此设置仅适用于单行标签</string>
     <string name="icon_cc_hide_date">隐藏控制中心日期</string>
     <string name="icon_cc_hide_date_summary">隐藏控制中心头部的日期；同时启用两行运营商标签</string>
     <string name="icon_cc_network_first_row">网络状态显示在第一行</string>
@@ -1522,7 +1523,8 @@
     <string name="icon_mirror_airplane_summary">将飞行模式图标朝向右侧</string>
     <string name="icon_cc_rotation_lock_title">旋转锁定</string>
     <string name="icon_cc_rotation_lock">iOS 风格旋转锁定图标</string>
-    <string name="icon_cc_rotation_lock_summary">锁定屏幕旋转时显示图标。可在槽位或图标左置中调整显示位置。</string>
+    <string name="icon_cc_rotation_lock_summary">锁定屏幕旋转时显示图标</string>
+    <string name="icon_rotation_lock_visibility">显示范围</string>
     <string name="icon_cc_rotation_lock_description">屏幕旋转已锁定</string>
     <string name="icon_slot_rotation_lock">旋转锁定</string>
     <string name="logs_refresh">刷新日志</string>

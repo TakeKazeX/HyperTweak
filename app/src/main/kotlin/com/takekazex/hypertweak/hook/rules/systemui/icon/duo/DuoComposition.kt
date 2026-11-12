@@ -361,7 +361,7 @@ internal fun DuoRenderer.reconcile(binding: DuoBinding) {
                 // their original positions again. Home and the collapsed proxy remain composed.
                 val masksNetwork = !(binding.surface == DuoSurface.EXPANDED &&
                     expandedStyle == DuoExpandedStyle.KEEP_DUO)
-                if (!SlotMaskApplier.setDuoMask(binding.icons, masksNetwork)) {
+                if (!SlotMaskApplier.setDuoMask(binding.icons, masksNetwork, binding.planSurface)) {
                     DebugLog.w(TAG, "network slot mask rejected surface=${binding.surface}; showing the native row")
                     binding.failed = true
                     reportNativeReason(binding, "failed")

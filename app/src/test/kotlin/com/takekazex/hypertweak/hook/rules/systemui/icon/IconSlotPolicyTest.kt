@@ -15,6 +15,19 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class IconSlotPolicyTest {
+    @Test fun hostCatalogReservesStackedSlotWithoutMovingIndicesAcrossStyleSwitches() {
+        val native = listOf("alarm_clock", "mobile", "wifi", "handle_battery")
+        val policy = IconSlotPolicyConfig(position = IconSlotPolicyConfig.POSITION_CUSTOM,
+            customOrderEntries = setOf("0:wifi", "1:stacked_mobile_icon", "2:mobile"))
+        val normal = IconSlotPolicy.normalizeHostCatalog(native, native, policy)
+        assertTrue(normal.contains("stacked_mobile_icon"))
+        val stacked = IconSlotPolicy.normalizeHostCatalog(native, normal,
+            policy.copy(enabledModuleSlots = setOf("stacked_mobile_icon")))
+        assertEquals(normal, stacked)
+        assertEquals(stacked, IconSlotPolicy.normalizeHostCatalog(native, stacked, policy))
+        assertEquals(native.toSet(), normal.filterNot { it == "stacked_mobile_icon" }.toSet())
+    }
+
     @Test
     fun stackedScopeNarrowsTheCellularGroup() {
         val signal = IconSlotPolicy.SLOT_STACKED_SIGNAL
