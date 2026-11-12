@@ -66,6 +66,7 @@ object IconSlotPolicy {
     const val SLOT_WIFI = "wifi"
     const val SLOT_DEMO_WIFI = "demo_wifi"
     const val SLOT_ROTATION_LOCK = "hypertweak_rotation_lock"
+    const val SLOT_AIRPLANE = "airplane"
 
     val configurableSlots: List<String> = listOf(
         SLOT_ROTATION_LOCK,

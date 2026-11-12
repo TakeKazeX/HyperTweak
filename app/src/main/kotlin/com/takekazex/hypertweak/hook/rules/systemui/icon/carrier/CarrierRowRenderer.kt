@@ -1,6 +1,9 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon.carrier
 
+import com.takekazex.hypertweak.hook.rules.systemui.icon.AirplaneGlyphTargets
+import com.takekazex.hypertweak.hook.rules.systemui.icon.AirplaneLabelText
 import com.takekazex.hypertweak.hook.rules.systemui.icon.MobileTypeConfig
+import com.takekazex.hypertweak.settings.contract.AirplaneLabelMode
 import com.takekazex.hypertweak.hook.rules.systemui.icon.MobileTypeOutput
 import com.takekazex.hypertweak.hook.rules.systemui.icon.MobileTypeRenderer
 import com.takekazex.hypertweak.presentation.icon.MobileSignalState
@@ -28,7 +31,9 @@ internal data class CarrierRenderInput(
     val simNames: Map<Int, String>, val showBadge: Boolean,
     val keepTypeOnWifi: Boolean, val typeConfig: MobileTypeConfig,
     val nativeWifi: CarrierNativeGlyph?,
-    val hiddenCarrierSlots: Set<Int> = emptySet()
+    val hiddenCarrierSlots: Set<Int> = emptySet(),
+    val airplaneLabel: AirplaneLabelMode = AirplaneLabelMode.SYSTEM,
+    val mirrorAirplane: Boolean = false
 )
 
 /** Bitmap/row presentation only; host subscriptions, masks and handover stay outside. */
@@ -60,7 +65,13 @@ internal class CarrierRowRenderer {
         )
         if (parts.carrierText.text.toString() != name.toString()) parts.carrierText.text = name
         parts.carrierText.visibility = if (parts.slot in input.hiddenCarrierSlots || input.mobileState.airplaneMode || parts.carrierText.text.isNullOrBlank()) View.GONE else View.VISIBLE
-        parts.airplaneText.visibility = if (model?.airplane == true) View.VISIBLE else View.GONE
+        parts.airplaneText.visibility = if (model?.airplane == true && input.airplaneLabel != AirplaneLabelMode.HIDE)
+            View.VISIBLE else View.GONE
+        AirplaneLabelText.apply(parts.airplaneText, parts.airplaneLabel, input.airplaneLabel, input.mirrorAirplane)
+        if (parts.airplaneText.visibility == View.VISIBLE && AirplaneLabelText.hasGlyph(parts.airplaneText.text)) {
+            AirplaneGlyphTargets.register(parts.airplaneText, AirplaneGlyphTargets.Surface.CONTROL_CENTER,
+                AirplaneGlyphTargets.Owner.COMPACT_CARRIER)
+        } else AirplaneGlyphTargets.unregister(parts.airplaneText, AirplaneGlyphTargets.Owner.COMPACT_CARRIER)
         parts.badge.visibility = if (input.mobileState.airplaneMode || !input.showBadge || model == null) View.GONE else View.VISIBLE
         val tint = syncTint(parts)
         if (model == null) {

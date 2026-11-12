@@ -46,6 +46,21 @@ Rotation lock owns its enable switch, slot display scope and left-placement swit
 Other icons tab. Its rows are omitted from the generic slot/left-placement cards, while the
 full catalogs remain available to previews and icon ordering. The rotation-lock left switch
 is shown only when global icon left placement is enabled; hiding it preserves its saved value.
+Airplane mode has the same kind of card in that tab: slot display scope, mirror, left placement
+(shown only with left placement on) and one dropdown per header for the carrier "airplane mode" label
+(`icon_airplane_label_{control_center,notification,keyguard}`, `AirplaneLabelMode` 0–4: system / hide /
+glyph only / glyph before / glyph after). The notification dropdown is disabled, keeping its value, while
+`notification_header_hide_carrier` hides that carrier area. Every header applies its own mode. On the
+lockscreen the glyph and the icons' airplane (left clone, which leads the left container, else Duo's ring,
+else the native slot) are never shown together: with left icons the glyph follows the carrier/icons swap;
+without them Duo receives the glyph after the screen-on intro even when left placement is off. Without
+Duo, a glyph beside the text stays in the label; a replacing glyph moves to the native right slot after
+the intro unless left placement is off entirely (`LEFT_MODE_DISABLED`) or the airplane itself is placed
+left; either keeps every glyph in the left-side label and masks the right slot.
+A lockscreen Duo ring that starts or stops drawing the airplane posts a left reconcile, and an endpoint
+lost mid-flight re-resolves the location on the next main-loop turn. Flight uses a critically damped spring; mid-flight reversal
+keeps position, velocity and overlay. The glyph moves along the straight line between its endpoints without a cutout detour. The returning glyph waits for a drawn overlay before its
+previous owner yields.
 
 SIM visibility settings live together in the Mobile network tab's SIM visibility card:
 physical SIM 1/2 and the non-default data SIM each have Default / Hide status bar icons only /

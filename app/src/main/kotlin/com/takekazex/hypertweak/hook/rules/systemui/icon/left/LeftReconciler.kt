@@ -87,6 +87,8 @@ internal class LeftReconciler {
                 } else {
                     presentation.teardownState(state)
                 }
+                // The lockscreen airplane also moves when left placement is off or Duo leaves no clones.
+                if (state.isKeyguard) carrierSwap.updateAirplane(state)
             }
             // A merged list only changes when the owned slots do, so react to that instead of
             // re-publishing on every tick (the host asserts the main thread and re-measures).

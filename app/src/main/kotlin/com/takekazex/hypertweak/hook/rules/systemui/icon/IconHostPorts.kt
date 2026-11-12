@@ -31,7 +31,13 @@ internal class IconHostServices {
         val ownsRow: (ViewGroup?) -> Boolean = { false },
         val geometry: (ViewGroup) -> TwoRowIconLayout.Geometry? = { null }
     )
-    data class Duo(val releaseStatusIcons: (Set<String>) -> Unit = {})
+    data class Duo(
+        val releaseStatusIcons: (Set<String>) -> Unit = {},
+        /** The airplane Duo draws in the lockscreen ring under this window root, if any. */
+        val keyguardAirplane: (View) -> GlyphEndpoint? = { null },
+        /** Why [keyguardAirplane] found no ring under this root, for the location log. */
+        val keyguardAirplaneState: (View) -> String = { "unbound" }
+    )
     data class Header(
         val supportsCompactLayout: (View) -> Boolean = { false },
         val ensureCompactCarrierVisible: (ViewGroup) -> Unit = {},

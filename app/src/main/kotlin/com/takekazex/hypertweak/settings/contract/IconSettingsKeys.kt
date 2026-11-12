@@ -96,6 +96,10 @@ object IconSettingsKeys {
     const val KEY_ICON_LEFT_VPN = "icon_left_vpn"
     const val KEY_ICON_MIRROR_AIRPLANE = "icon_mirror_airplane"
     const val KEY_ICON_LEFT_AIRPLANE = "icon_left_airplane"
+    // The host carrier "airplane mode" label per header; values are `AirplaneLabelMode.storedValue`.
+    const val KEY_ICON_AIRPLANE_LABEL_CONTROL_CENTER = "icon_airplane_label_control_center"
+    const val KEY_ICON_AIRPLANE_LABEL_NOTIFICATION = "icon_airplane_label_notification"
+    const val KEY_ICON_AIRPLANE_LABEL_KEYGUARD = "icon_airplane_label_keyguard"
     const val KEY_ICON_LEFT_HEADSET = "icon_left_headset"
     const val KEY_ICON_LEFT_ROTATION_LOCK = "icon_left_rotation_lock"
     // Carrier label hiding, ported from Hyper Helper's `HideCarrierLabel` (keys match upstream

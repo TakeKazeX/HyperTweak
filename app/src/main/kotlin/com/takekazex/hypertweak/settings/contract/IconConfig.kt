@@ -173,6 +173,11 @@ data class MiscIconConfig internal constructor(val values: Map<String, Any>) {
     fun float(key: String): Float = values[key] as Float
     fun string(key: String): String = values[key] as String
     val mirrorAirplane: Boolean get() = values.getValue(IconSettingsKeys.KEY_ICON_MIRROR_AIRPLANE) as Boolean
+    val airplaneLabelModes: AirplaneLabelModes get() = AirplaneLabelModes(
+        controlCenter = AirplaneLabelMode.fromStored(values.getValue(IconSettingsKeys.KEY_ICON_AIRPLANE_LABEL_CONTROL_CENTER) as Int),
+        notification = AirplaneLabelMode.fromStored(values.getValue(IconSettingsKeys.KEY_ICON_AIRPLANE_LABEL_NOTIFICATION) as Int),
+        keyguard = AirplaneLabelMode.fromStored(values.getValue(IconSettingsKeys.KEY_ICON_AIRPLANE_LABEL_KEYGUARD) as Int)
+    )
     val regionSampling: Int get() = values.getValue(PlatformSettingsKeys.KEY_STATUSBAR_REGION_SAMPLING) as Int
     val notificationMax: Boolean get() = values.getValue(PlatformSettingsKeys.KEY_STATUSBAR_NOTIFICATION_MAX) as Boolean
     val notificationIconMax: Int get() = values.getValue(PlatformSettingsKeys.KEY_STATUSBAR_NOTIFICATION_ICON_MAX) as Int
@@ -293,8 +298,11 @@ internal object IconConfigReload {
         if (miscChanged(PlatformSettingsKeys.KEY_STATUSBAR_REGION_SAMPLING)) effects += IndependentIconDomain.SAMPLING
         if (miscChanged(PlatformSettingsKeys.KEY_STATUSBAR_NOTIFICATION_MAX) ||
             miscChanged(PlatformSettingsKeys.KEY_STATUSBAR_NOTIFICATION_ICON_MAX)) effects += IndependentIconDomain.NOTIFICATIONS
+        // Compact control-center rows draw their own label, so label options also reach the header owners.
         if (miscChanged(IconSettingsKeys.KEY_ICON_MIRROR_AIRPLANE)) effects += setOf(
-            IndependentIconDomain.AIRPLANE, IndependentIconDomain.DUO)
+            IndependentIconDomain.AIRPLANE, IndependentIconDomain.DUO, IndependentIconDomain.CONTROL_CENTER_HEADER)
+        if (before.misc.airplaneLabelModes != after.misc.airplaneLabelModes) effects += setOf(
+            IndependentIconDomain.AIRPLANE, IndependentIconDomain.CONTROL_CENTER_HEADER)
         return effects
     }
 }
@@ -396,6 +404,9 @@ object IconConfigDecoder {
         put(SystemUiSettingsKeys.KEY_CC_ROTATION_LOCK_ICON, false)
         put(IconSettingsKeys.KEY_ICON_HIDE_NON_DEFAULT_SIM, false)
         put(IconSettingsKeys.KEY_ICON_MIRROR_AIRPLANE, false)
+        put(IconSettingsKeys.KEY_ICON_AIRPLANE_LABEL_CONTROL_CENTER, 0)
+        put(IconSettingsKeys.KEY_ICON_AIRPLANE_LABEL_NOTIFICATION, 0)
+        put(IconSettingsKeys.KEY_ICON_AIRPLANE_LABEL_KEYGUARD, 0)
         put(IconSettingsKeys.KEY_ICON_MOBILE_ROW_STYLE, 0)
         put(PlatformSettingsKeys.KEY_STATUSBAR_REGION_SAMPLING, 0)
         put(PlatformSettingsKeys.KEY_STATUSBAR_NOTIFICATION_MAX, false)
@@ -425,6 +436,7 @@ object IconConfigDecoder {
                         key == IconSettingsKeys.KEY_ICON_SIM_TWO_VISIBILITY ||
                         key == IconSettingsKeys.KEY_ICON_NON_DEFAULT_SIM_VISIBILITY ||
                         key == SystemUiSettingsKeys.KEY_CC_BATTERY_PERCENT_STYLE -> (value as Int).takeIf { it in 0..2 } ?: 0
+                    key in airplaneLabelKeys -> AirplaneLabelMode.fromStored(value as Int).storedValue
                     else -> value
                 }
             } else if (fallback is Set<*>) Collections.unmodifiableSet(fallback.filterIsInstance<String>().toSet()) else fallback
@@ -550,8 +562,14 @@ object IconConfigDecoder {
         SystemUiSettingsKeys.KEY_CC_BATTERY_PERCENT_STYLE,
         SystemUiSettingsKeys.KEY_CC_ROTATION_LOCK_ICON,
     )
+    private val airplaneLabelKeys: Set<String> = setOf(
+        IconSettingsKeys.KEY_ICON_AIRPLANE_LABEL_CONTROL_CENTER,
+        IconSettingsKeys.KEY_ICON_AIRPLANE_LABEL_NOTIFICATION,
+        IconSettingsKeys.KEY_ICON_AIRPLANE_LABEL_KEYGUARD,
+    )
     private val miscKeys: Set<String> = setOf(
         IconSettingsKeys.KEY_ICON_MIRROR_AIRPLANE,
+    ) + airplaneLabelKeys + setOf(
         PlatformSettingsKeys.KEY_STATUSBAR_REGION_SAMPLING,
         PlatformSettingsKeys.KEY_STATUSBAR_NOTIFICATION_MAX,
         PlatformSettingsKeys.KEY_STATUSBAR_NOTIFICATION_ICON_MAX,

@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon.left
 
+import com.takekazex.hypertweak.hook.rules.systemui.icon.AirplaneGlyphTargets
 import com.takekazex.hypertweak.hook.rules.systemui.icon.HandoverCoordinator
 
 import com.takekazex.hypertweak.hook.rules.systemui.icon.PanelHub
@@ -27,6 +28,7 @@ internal class LeftHandoverController(private val host: Host) {
     }
     private companion object {
         const val TAG = "IconTuner"
+        const val AIRPLANE_SLOT = "airplane"
         const val CC_STATUS_ROW_CLASS = "com.android.systemui.controlcenter.phone.widget.ControlCenterStatusBarIcon"
         const val CC_QS_HEADER_CLASS = "com.android.systemui.qs.MiuiQSHeaderView"
         const val CC_FAKE_STATUS_ROW_CLASS = "com.android.systemui.controlcenter.phone.widget.ControlCenterFakeStatusIcons"
@@ -82,9 +84,26 @@ internal class LeftHandoverController(private val host: Host) {
         val usedSlots = HashSet<String>()
         val liveSecondaryEndpoints = HashSet<View>()
         clones.forEach { (slot, clone) ->
-            val targets = rows.mapNotNull { statusRowIcon(it, slot) }
-                .filter(::isUsableDestination)
-                .distinct()
+            // Every attached copy stays hidden until arrival, including one the host has just made
+            // visible but not laid out yet: the left clone is the only copy on screen.
+            val copies = rows.mapNotNull { statusRowIcon(it, slot) }.filter { it.isAttachedToWindow }.distinct()
+            fun hideCopies(except: View?) {
+                copies.forEach { copy ->
+                    if (copy === except) return@forEach
+                    // At arrival the real rows show their copies; the fake row is still fading out
+                    // (host Folme, started once the window reports expanded), so it keeps hiding.
+                    if (clamped >= 1f && copy.parentRowClass() != CC_FAKE_STATUS_ROW_CLASS) return@forEach
+                    liveSecondaryEndpoints += copy
+                    suppressEndpoint(copy, ready = true)
+                }
+            }
+            val glyph = if (slot == AIRPLANE_SLOT) AirplaneGlyphTargets.controlCenter() else null
+            if (glyph != null && moveToGlyph(slot, clone, glyph, clamped)) {
+                usedSlots += slot
+                hideCopies(null)
+                return@forEach
+            }
+            val targets = copies.filter(::isUsableDestination)
             // Prefer the real expanded control-center row. The fake/QS rows are only fallbacks for
             // layouts where that endpoint is not inflated yet.
             val target = targets.firstOrNull { it.parentRowClass() == CC_STATUS_ROW_CLASS }
@@ -95,6 +114,8 @@ internal class LeftHandoverController(private val host: Host) {
             ) {
                 if (clone.alpha != 1f) HandoverCoordinator.alpha(clone, 1f)
                 panelMotions.remove(slot)?.clear()
+                // No measured destination yet: keep the parked copies hidden rather than release them.
+                hideCopies(null)
                 return@forEach
             }
 
@@ -105,6 +126,7 @@ internal class LeftHandoverController(private val host: Host) {
             if (root == null || !root.isAttachedToWindow) {
                 if (clone.alpha != 1f) HandoverCoordinator.alpha(clone, 1f)
                 panelMotions.remove(slot)?.clear()
+                hideCopies(null)
                 return@forEach
             }
 
@@ -114,14 +136,10 @@ internal class LeftHandoverController(private val host: Host) {
             val ready = motion.update(root, clone, target, clamped, parkedTargetAlpha)
             usedSlots += slot
 
-            // Do not translate host children. Only duplicate copies are hidden after the overlay's
-            // first successful draw; the selected target is owned by LeftPanelMotion.
-            if (clamped < 1f) {
-                targets.filterNot { it === target }.forEach { duplicate ->
-                    liveSecondaryEndpoints += duplicate
-                    suppressEndpoint(duplicate, ready)
-                }
-            }
+            // Do not translate host children. Duplicate copies are hidden from the first motion
+            // frame: until the overlay draws, the source clone is the only visible copy. The
+            // selected target is owned by LeftPanelMotion.
+            hideCopies(target)
             HandoverCoordinator.alpha(clone, LeftHandover.sourceAlpha(clamped, ready))
         }
 
@@ -129,7 +147,20 @@ internal class LeftHandoverController(private val host: Host) {
             if (slot in usedSlots) false else { motion.clear(); true }
         }
         releaseEndpointStates(liveSecondaryEndpoints)
-        if (clamped >= 1f) releaseEndpointStates(emptySet())
+    }
+
+    /** The airplane clone travels into the carrier label's glyph, which then takes over at 1. */
+    private fun moveToGlyph(slot: String, clone: View, glyph: AirplaneGlyphTargets.Endpoint, progress: Float): Boolean {
+        if (!clone.isAttachedToWindow || clone.visibility != View.VISIBLE || clone.width <= 0 || clone.height <= 0) return false
+        val glyphView = glyph.view ?: return false
+        val root = glyphView.rootView as? ViewGroup ?: return false
+        val picture = glyph.picture() ?: return false
+        val motion = panelMotions[slot] ?: LeftPanelMotion {
+            if (!host.retiring) applyHandoverGuarded(host.panelProgress)
+        }.also { panelMotions[slot] = it }
+        val ready = motion.update(root, clone, glyphView, progress, targetPicture = picture, targetAlpha = glyph)
+        HandoverCoordinator.alpha(clone, LeftHandover.sourceAlpha(progress, ready))
+        return true
     }
 
     /** The host callback runs inside a frame; never let a failure in here reach SystemUI. */
@@ -153,7 +184,8 @@ internal class LeftHandoverController(private val host: Host) {
         if (!host.active) return
         val rows = host.rows()
         clones.forEach { (slot, clone) ->
-            val ready = rows.any { row -> statusRowIcon(row, slot)?.let(::isUsableDestination) == true }
+            val ready = rows.any { row -> statusRowIcon(row, slot)?.let(::isUsableDestination) == true } ||
+                slot == AIRPLANE_SLOT && AirplaneGlyphTargets.controlCenter() != null
             val alpha = if (ready) 0f else 1f
             if (clone.alpha != alpha) HandoverCoordinator.alpha(clone, alpha)
         }
@@ -220,7 +252,8 @@ internal class LeftHandoverController(private val host: Host) {
         if (!host.active || clones.isEmpty()) return
         host.rows().forEach { row ->
             clones.keys.forEach { slot ->
-                statusRowIcon(row, slot)?.takeIf(::isUsableDestination)?.let { duplicate ->
+                // A row the host makes visible in this same step is not laid out yet; park it anyway.
+                statusRowIcon(row, slot)?.takeIf { it.isAttachedToWindow }?.let { duplicate ->
                     suppressEndpoint(duplicate, ready = false, holdUntilReady = true)
                 }
             }

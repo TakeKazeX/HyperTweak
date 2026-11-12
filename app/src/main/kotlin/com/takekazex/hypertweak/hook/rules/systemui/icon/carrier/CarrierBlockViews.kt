@@ -48,6 +48,8 @@ internal class CarrierRowParts(
         layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
             ViewGroup.LayoutParams.WRAP_CONTENT)
     }
+    /** The host airplane string; [airplaneText] may show it with a module glyph. */
+    val airplaneLabel: String = airplaneText.text.toString()
     var nativeCarrierText: CharSequence = carrierText.text
     var nativeCarrierColors: ColorStateList? = null
     var appliedCarrierColors: ColorStateList? = null

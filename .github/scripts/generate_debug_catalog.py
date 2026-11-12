@@ -10,7 +10,7 @@ keys = {}
 for p in sorted((SRC/'settings/contract').glob('*Keys.kt')):
     for n, v in re.findall(r'const val (KEY_\w+) = "([^"$]+)"', p.read_text()):
         keys[p.stem+'.'+n] = v
-for cls, n, val in [('IconTunerContract','KEY_POSITION','icon_tuner_position'),('IconTunerContract','KEY_POSITION_VALUES','icon_tuner_position_val'),('IconTunerContract','KEY_POSITION_REORDER','icon_tuner_position_reorder'),('IconTunerContract','KEY_LEFT_MODE','icon_left_container_mode')]:
+for cls, n, val in [('IconTunerContract','KEY_POSITION','icon_tuner_position'),('IconTunerContract','KEY_POSITION_VALUES','icon_tuner_position_val'),('IconTunerContract','KEY_POSITION_REORDER','icon_tuner_position_reorder'),('IconTunerContract','KEY_LEFT_MODE','icon_left_container_mode'),('IconTunerContract','KEY_LEFT_KEYGUARD_CARRIER','icon_left_keyguard_carrier')]:
     keys[cls+'.'+n] = val
 reads = {}
 for p in sorted(SRC.rglob('*.kt')):
@@ -56,7 +56,7 @@ for key, value in re.findall(r'put\(((?:IconSettingsKeys|SystemUiSettingsKeys|Pl
     elif value.startswith('emptySet'): typ = 'StringSet'
     elif value.endswith('f'): typ = 'Float'
     else: typ = 'Int'
-    if value.startswith('ControlCenterPrivacyPolicy.'):
+    if value.startswith(('ControlCenterPrivacyPolicy.', 'IconTunerContract.')):
         value = 'com.takekazex.hypertweak.settings.contract.' + value
     icon_defaults[key] = (typ, value, -1)
 reads.update(icon_defaults)

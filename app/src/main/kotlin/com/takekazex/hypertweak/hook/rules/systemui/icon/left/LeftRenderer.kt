@@ -114,11 +114,16 @@ internal object LeftRenderer : IconRenderer() {
         override val retiring get() = LeftRenderer.retiring
         override val handler get() = mainHandler
         override val mode get() = keyguardCarrierMode
+        // Placement switched off entirely, or a left-placed airplane: the left-side label keeps the
+        // glyph. Otherwise a replacing glyph moves to the native right slot after the intro.
+        override val labelKeepsAirplane get() = leftMode == IconTunerContract.LEFT_MODE_DISABLED ||
+            IconSlotPolicy.SLOT_AIRPLANE in activeSlots
         // A hidden bar (screen-on reveal, unlock) keeps the icons' claim so waking does not flash
         // the carrier; the island hides only the icons, so the carrier must take the corner back.
         override fun iconsShown(state: LeftState) = state.presentation.retain &&
             state.presentation != LeftVisibilityPolicy.Result.ISLAND && state.clones.values.any(cloner::shows)
         override fun keyguardStates() = synchronized(states) { states.values.filter { it.isKeyguard } }
+        override fun slotOf(view: View) = LeftRenderer.slotOf(view)
     })
     init { generationCleanup { HostAccess.onMain { carrierSwap.reset() } } }
 
@@ -227,7 +232,10 @@ internal object LeftRenderer : IconRenderer() {
     private var appContext: Context? by generationState { null }
 
     /** Home DarkIconManager -> bookkeeping. Weak so stale managers vanish. */
-    internal val states = generationMainResource(WeakHashMap<Any, LeftState>()) { it.clear() }
+    internal val states: WeakHashMap<Any, LeftState> = generationMainResource(WeakHashMap<Any, LeftState>()) { states ->
+        states.values.filter { it.isKeyguard }.forEach(carrierSwap::releaseAirplane)
+        states.clear()
+    }
 
     private fun masterEnabled(): Boolean = leftMode != IconTunerContract.LEFT_MODE_DISABLED
 
@@ -314,7 +322,10 @@ internal object LeftRenderer : IconRenderer() {
         mainHandler.removeCallbacks(reconcileRunnable)
         onMainBlocking {
             handover.restoreHandover()
-            states.values.forEach(presentation::teardownState)
+            states.values.forEach { state ->
+                carrierSwap.releaseAirplane(state)
+                presentation.teardownState(state)
+            }
             states.clear()
             ccRows.clear()
             ownershipRefreshPending = false
@@ -387,12 +398,16 @@ internal object LeftRenderer : IconRenderer() {
         override val retiring get() = LeftRenderer.retiring
         override val handler get() = mainHandler
         override val states get() = LeftRenderer.states
-        override fun teardown(state: LeftState) = presentation.teardownState(state)
+        override fun teardown(state: LeftState) {
+            carrierSwap.releaseAirplane(state)
+            presentation.teardownState(state)
+        }
         override fun resolveIslandHandler(view: Any) = LeftRenderer.resolveIslandHandler(view)
         override fun readIslandShowing(handler: Any?) = LeftRenderer.readIslandShowing(handler)
         override fun reject(reason: String) = rejectCapture(reason)
         override fun viewName(view: View?) = LeftRenderer.viewName(view)
         override fun detached(state: LeftState) = runOnMain {
+            carrierSwap.releaseAirplane(state)
             presentation.teardownState(state)
             publishOwnedChange()
             handover.applyHandoverGuarded(panelProgress)

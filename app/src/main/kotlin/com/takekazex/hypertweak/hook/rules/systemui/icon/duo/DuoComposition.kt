@@ -312,6 +312,7 @@ internal fun DuoRenderer.reconcile(binding: DuoBinding) {
                 }
                 binding.view.submit(content, small5GaEnabled,
                     signalArtwork.renderCellularSignal(battery.context, cellular))
+                binding.publishKeyguardAirplane()
             }
             binding.view.contentDescription = buildString {
                 append(battery.contentDescription?.toString().orEmpty())

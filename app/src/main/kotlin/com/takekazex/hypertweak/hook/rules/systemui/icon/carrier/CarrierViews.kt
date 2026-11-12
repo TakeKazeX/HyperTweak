@@ -2,6 +2,7 @@
 
 package com.takekazex.hypertweak.hook.rules.systemui.icon.carrier
 
+import com.takekazex.hypertweak.hook.rules.systemui.icon.AirplaneGlyphTargets
 import com.takekazex.hypertweak.hook.rules.systemui.icon.NetworkHub
 import com.takekazex.hypertweak.hook.rules.systemui.icon.WifiPipelineAdapter
 import com.takekazex.hypertweak.hook.base.cachedDeclaredMethod
@@ -108,6 +109,7 @@ internal fun CarrierRenderer.removeBlock(block: CarrierBlock) {
         presentation.restoreBlockStyle(block)
         IconHostPorts.header.releaseCarrier(block.layout)
         block.rows.forEach { parts ->
+            AirplaneGlyphTargets.unregister(parts.airplaneText, AirplaneGlyphTargets.Owner.COMPACT_CARRIER)
             rowIndex.remove(parts.row)
             rowIndex.remove(parts.networkSlot)
             handover.retireTarget(parts.signal)

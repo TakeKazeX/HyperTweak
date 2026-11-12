@@ -1522,6 +1522,17 @@
     <string name="aod_icons_percent_duo_center">Centered below the ring</string>
     <string name="icon_mirror_airplane">Mirror airplane mode icon</string>
     <string name="icon_mirror_airplane_summary">Point the airplane icon to the right</string>
+    <string name="icon_airplane_title">Airplane mode</string>
+    <string name="icon_airplane_label_control_center">Control center</string>
+    <string name="icon_airplane_label_notification">Notification center</string>
+    <string name="icon_airplane_label_keyguard">Lock screen</string>
+    <string name="icon_airplane_label_summary">How the carrier area shows the airplane mode label</string>
+    <string name="icon_airplane_label_notification_hidden">The notification center carrier area is hidden</string>
+    <string name="icon_airplane_label_system">System default</string>
+    <string name="icon_airplane_label_hide">Hide label</string>
+    <string name="icon_airplane_label_icon">Replace with icon</string>
+    <string name="icon_airplane_label_icon_start">Icon before label</string>
+    <string name="icon_airplane_label_icon_end">Icon after label</string>
     <string name="icon_cc_rotation_lock_title">Rotation lock</string>
     <string name="icon_cc_rotation_lock">iOS-style rotation lock icon</string>
     <string name="icon_cc_rotation_lock_summary">Show an icon when screen rotation is locked</string>

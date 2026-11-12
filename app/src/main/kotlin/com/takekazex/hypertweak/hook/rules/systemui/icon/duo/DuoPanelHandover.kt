@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon.duo
 
+import com.takekazex.hypertweak.hook.rules.systemui.icon.AirplaneGlyphTargets
 import android.content.Context
 import android.graphics.Matrix
 import android.graphics.Picture
@@ -405,8 +406,10 @@ internal class DuoPanelHandover(private val host: Host) {
 
     private fun updateAirplaneMotion(binding: DuoBinding, source: View, expanded: DuoBinding,
                                      root: ViewGroup, content: DuoContent, progress: Float) {
+        // A carrier label drawing the airplane glyph takes over the header's native slot.
+        val glyph = AirplaneGlyphTargets.controlCenter()?.takeIf { it.view?.rootView === root }
         val icons = expanded.icons as? ViewGroup
-        val target = icons?.let { group ->
+        val target = glyph?.view ?: icons?.let { group ->
             (0 until group.childCount).asSequence().map { group.getChildAt(it) }
                 .firstOrNull { read(it, "mSlot") == AIRPLANE_SLOT && it.isLaidOut && it.width > 0 }
         }
@@ -414,7 +417,7 @@ internal class DuoPanelHandover(private val host: Host) {
             val home = host.bindings().firstOrNull { it.view === source }
             val sourceColor = home?.view?.icon?.foreground ?: binding.view.icon.foreground
             binding.airplaneMotion.update(root, source, target, content,
-                sourceColor, progress, host.small5GaEnabled, host.componentSizes)
+                sourceColor, progress, host.small5GaEnabled, host.componentSizes, glyphTarget = glyph)
         } else { binding.airplaneMotion.clear(); false }
         if (binding.view.icon.hideAirplane != hidden) {
             binding.view.icon.hideAirplane = hidden

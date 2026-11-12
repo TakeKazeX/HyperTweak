@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon.left
 
+import com.takekazex.hypertweak.settings.contract.IconSlotPolicy
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
@@ -142,12 +143,13 @@ internal class LeftPresentation(private val host: Host, private val cloner: Left
             }
         }
 
-        // 2. Create / refresh clones in right-container order.
+        // 2. Create / refresh clones in right-container order, airplane first: it leads the row,
+        //    where the lockscreen carrier glyph hands over to it.
         val failed = LinkedHashSet<String>()
         var targetIndex = 0
-        for (i in 0 until right.childCount) {
-            val child = right.getChildAt(i)
-            if (child == null) continue
+        val children = (0 until right.childCount).mapNotNull { right.getChildAt(it) }
+            .sortedBy { if (host.slotOf(it) == IconSlotPolicy.SLOT_AIRPLANE) 0 else 1 }
+        for (child in children) {
             val slot = host.slotOf(child) ?: continue
             if (slot !in slots) continue
             val existing = state.clones[slot]

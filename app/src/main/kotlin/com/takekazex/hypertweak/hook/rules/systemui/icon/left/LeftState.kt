@@ -3,6 +3,7 @@ package com.takekazex.hypertweak.hook.rules.systemui.icon.left
 import android.view.View
 import android.view.ViewGroup
 import android.widget.LinearLayout
+import com.takekazex.hypertweak.settings.contract.IconSlotPolicy
 
 internal class LeftState(
         val leftHost: ViewGroup,
@@ -16,7 +17,7 @@ internal class LeftState(
          * the island and shade controllers hang. Not [leftHost]: that is a plain container.
          */
         val barRoot: View? = null
-    ) {
+    ) : KeyguardAirplaneScene {
         var presentation = LeftVisibilityPolicy.Result.RELEASE
         var leftContainer: LinearLayout? = null
         /** slot -> clone view (our own, sized from the system view of the same slot). */
@@ -32,9 +33,13 @@ internal class LeftState(
         var islandShowing: Boolean = false
         var islandHandler: Any? = null
         /** The lockscreen carrier layout sharing [leftHost] with the anchors; keyguard only. */
-        var keyguardCarrier: View? = null
+        override var keyguardCarrier: View? = null
+        override val airplaneClone: View? get() = clones[IconSlotPolicy.SLOT_AIRPLANE]
+        override val airplaneContainer: ViewGroup get() = rightContainer
         /** Module-owned crossfade between [keyguardCarrier] and [leftContainer]. */
         var carrierSwap: LeftCarrierSwapState? = null
+        /** The airplane outlives an empty/disabled left container (Duo can own the destination). */
+        val keyguardAirplane = LeftKeyguardAirplaneState()
     }
 
 internal data class AnchorEntry(

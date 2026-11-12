@@ -1,5 +1,9 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon.duo
 
+import android.graphics.Picture
+import com.takekazex.hypertweak.hook.rules.systemui.icon.GlyphEndpoint
+import com.takekazex.hypertweak.hook.rules.systemui.icon.AirplaneGlyphTargets
+import com.takekazex.hypertweak.hook.rules.systemui.icon.GlyphMotionLease
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.ColorFilter
@@ -35,6 +39,11 @@ internal fun prepareDuoPanelMotionSettings() { settingIconMirrorAirplane }
 internal class DuoPanelMotion(context: Context, private val airplaneOnly: Boolean = false) {
     private var host: ViewGroup? = null
     private var target: View? = null
+    /** A glyph endpoint drawn inside [target]; it replaces the view capture and the view alpha. */
+    private var targetGlyph: GlyphEndpoint? = null
+    private var glyphLease: AirplaneGlyphTargets.Endpoint? = null
+    private val targetRevoked: () -> Unit = { clear() }
+    private var targetPicture: Picture? = null
     private var wifiArtwork: NativeWifiDrawable? = null
     private var savedAlpha = 1f
     private var appliedAlpha = 1f
@@ -63,7 +72,7 @@ internal class DuoPanelMotion(context: Context, private val airplaneOnly: Boolea
     private val layer = object : Drawable() {
         override fun draw(canvas: Canvas) {
             if (drawFailed || side <= 0f) return
-            val count = canvas.save()
+            val count = canvas.saveLayerAlpha(null, if (frameReady) 255 else 0)
             try {
                 if (layerAlpha > 0) travel.draw(
                     canvas, sourceFrame, targetFrame, from, to, motionProgress, keepSource = airplaneOnly,
@@ -95,7 +104,8 @@ internal class DuoPanelMotion(context: Context, private val airplaneOnly: Boolea
         progress: Float,
         small5GaEnabled: Boolean = false,
         sizes: DuoSizes = DuoSizes(),
-        nativeWifi: NativeWifiDrawable? = null
+        nativeWifi: NativeWifiDrawable? = null,
+        glyphTarget: GlyphEndpoint? = null
     ): Boolean {
         if (!progress.isFinite() || !root.isAttachedToWindow ||
             !source.isAttachedToWindow || source.width <= 0 || source.height <= 0 ||
@@ -109,12 +119,19 @@ internal class DuoPanelMotion(context: Context, private val airplaneOnly: Boolea
         val rendered = if (airplaneOnly) content.copy(wifiLevel = null) else content
         if (host !== root) { clear(); host = root; root.overlay.add(layer) }
         wifiArtwork = artwork
-        if (target !== native) {
-            restoreTarget(); target = native; savedAlpha = native.alpha; appliedAlpha = native.alpha
+        if (target !== native || targetGlyph !== glyphTarget) {
+            restoreTarget()
+            val endpoint = glyphTarget as? AirplaneGlyphTargets.Endpoint
+            if (endpoint != null && !endpoint.motion.acquire(this, GlyphMotionLease.DUO, targetRevoked)) {
+                clear(); return false
+            }
+            glyphLease = endpoint
+            target = native; targetGlyph = glyphTarget
+            savedAlpha = readTargetAlpha(); appliedAlpha = savedAlpha
             frameReady = false
             drawFailed = false
         }
-        if (abs(native.alpha - appliedAlpha) > .001f) savedAlpha = native.alpha
+        if (abs(readTargetAlpha() - appliedAlpha) > .001f) savedAlpha = readTargetAlpha()
         val p = progress.coerceIn(0f, 1f)
         val sourceView = source as? DuoIconView
         val wifiScale = sourceView?.icon?.compactWifiScale ?: 1f
@@ -149,7 +166,14 @@ internal class DuoPanelMotion(context: Context, private val airplaneOnly: Boolea
                 } else { glyph.setBounds(0, 0, 128, 128); glyph.alpha = 255; glyph.draw(canvas) }
             }) { clear(); return false }
         }
-        if (!targetFrame.captureView(native)) { clear(); return false }
+        val glyphPicture = glyphTarget?.let { it.picture() ?: run { clear(); return false } }
+        val targetReady = when {
+            glyphPicture == null -> targetFrame.captureView(native)
+            glyphPicture === targetPicture -> !targetFrame.ink.isEmpty
+            else -> targetFrame.capture(glyphPicture.width, glyphPicture.height) { it.drawPicture(glyphPicture) }
+        }
+        targetPicture = glyphPicture
+        if (!targetReady) { clear(); return false }
         from.set(sourceFrame.ink)
         val sourceScale = boxSide / 128f
         from.set(cx - boxSide / 2f + from.left * sourceScale, cy - boxSide / 2f + from.top * sourceScale,
@@ -166,8 +190,10 @@ internal class DuoPanelMotion(context: Context, private val airplaneOnly: Boolea
         // Keep native artwork hidden until the matched endpoint. A separate native fade would
         // expose a full-sized destination behind the moving glyph.
         val handoff = if (p >= 1f) 1f else 0f
-        appliedAlpha = savedAlpha * if (frameReady && !drawFailed) handoff else 1f
-        if (native.alpha != appliedAlpha) HandoverCoordinator.alpha(native, appliedAlpha)
+        // A glyph endpoint also waits hidden for the first overlay frame: the source still draws it.
+        appliedAlpha = savedAlpha * if (frameReady && !drawFailed) handoff
+            else if (glyphTarget != null && p < 1f) 0f else 1f
+        writeTargetAlpha(appliedAlpha)
         layerAlpha = if (p >= 1f) 0 else 255
         layer.setBounds(0, 0, root.width, root.height)
         var signature = p.hashCode().toLong() * 31 + sourceFrame.revision * 17L +
@@ -179,9 +205,17 @@ internal class DuoPanelMotion(context: Context, private val airplaneOnly: Boolea
         return frameReady && !drawFailed
     }
 
+    private fun readTargetAlpha(): Float = targetGlyph?.value ?: target?.alpha ?: 1f
+    private fun writeTargetAlpha(value: Float) {
+        val glyph = targetGlyph
+        if (glyph != null) { if (glyph.value != value) glyph.value = value }
+        else target?.let { if (it.alpha != value) HandoverCoordinator.alpha(it, value) }
+    }
     private fun restoreTarget() {
-        target?.let { if (abs(it.alpha - appliedAlpha) < .001f) HandoverCoordinator.alpha(it, savedAlpha) }
-        target = null
+        if (target != null && abs(readTargetAlpha() - appliedAlpha) < .001f) writeTargetAlpha(savedAlpha)
+        glyphLease?.motion?.release(this)
+        glyphLease = null
+        target = null; targetGlyph = null; targetPicture = null
     }
     fun clear() {
         restoreTarget()

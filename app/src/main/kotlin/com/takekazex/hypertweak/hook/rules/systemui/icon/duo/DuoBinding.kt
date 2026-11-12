@@ -11,6 +11,7 @@ import android.view.ViewGroup
 import android.view.ViewTreeObserver
 import android.widget.TextView
 import com.takekazex.hypertweak.util.platform.ResourceLookup
+import com.takekazex.hypertweak.hook.rules.systemui.icon.IconHostPorts
 
 /** One live battery-row binding and the view state it must restore. */
 internal class DuoBinding(val battery: View, val parent: ViewGroup, val icons: View,
@@ -38,6 +39,20 @@ internal class DuoBinding(val battery: View, val parent: ViewGroup, val icons: V
     val powerMotion = DuoPowerMotion(battery.context)
     val panelMotion = DuoPanelMotion(battery.context)
     val airplaneMotion = DuoPanelMotion(battery.context, airplaneOnly = true)
+    /**
+     * The lockscreen airplane (carrier glyph or this ring) re-resolves its owner when this lit
+     * lockscreen ring starts or stops drawing the airplane; the left reconcile it asks for is posted.
+     */
+    fun publishKeyguardAirplane() {
+        if (surface != DuoSurface.KEYGUARD) return
+        val drawn = active && view.icon.content?.airplaneMode == true
+        if (drawn == keyguardAirplanePublished) return
+        keyguardAirplanePublished = drawn
+        IconHostPorts.left.duoOwnershipChanged()
+    }
+
+    /** The ring's airplane as a lockscreen carrier hand-over endpoint. */
+    val airplaneEndpoint by lazy { DuoAirplaneEndpoint(this) }
     val statusIconsMotion = DuoStatusIconsMotion()
     val stackedSignalMotion = DuoStackedSignalMotion()
     val signalMotions = HashMap<Int, SignalRowMotion>()
@@ -57,6 +72,12 @@ internal class DuoBinding(val battery: View, val parent: ViewGroup, val icons: V
     var missingSince = -1L
     var expiry: Runnable? = null
     var active = false
+        set(value) {
+            if (field == value) return
+            field = value
+            publishKeyguardAirplane()
+        }
+    private var keyguardAirplanePublished = false
     var failed = false
     /** The last reported reason this binding showed the native row; null while Duo is shown. */
     var nativeReason: String? = null

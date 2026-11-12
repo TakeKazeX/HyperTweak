@@ -12,6 +12,7 @@ internal data class DebugSetting(val key: String, val type: String, val default:
     val range: IntRange? get() = when {
         key == com.takekazex.hypertweak.settings.contract.LauncherDesktopKeys.KEY_ICON_THEME_MODE -> 0..4
         key.startsWith("icon_tuner_slot_") -> 0..4
+        key.startsWith("icon_airplane_label_") -> com.takekazex.hypertweak.settings.contract.AirplaneLabelMode.RANGE
         key == "opened_folder_columns" -> 3..5
         key in setOf("securitycenter_dock_predict_limit", "statusbar_notif_icon_max") -> 0..15
         key in setOf("securitycenter_low_battery_mode", "securitycenter_permission_warning_mode", "securitycenter_anti_peeping_mode", "securitycenter_sidebar_mode",

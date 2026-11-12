@@ -8,6 +8,7 @@ import com.takekazex.hypertweak.hook.base.ManagedHookReload
 import com.takekazex.hypertweak.hook.rules.systemui.SystemUIPluginHooker
 import com.takekazex.hypertweak.hook.rules.systemui.aod.AodStatusIconHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.AirplaneIconHooker
+import com.takekazex.hypertweak.hook.rules.systemui.icon.AirplaneLabelHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.CcBatteryStyleHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.CcRotationLockIconHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.CellularIconHooker
@@ -66,7 +67,7 @@ internal class SystemUiSettingsHost(
         IconHostHooks, PanelMotionAdapter, MobilePipelineAdapter,
         CellularIconHooker, WifiPipelineAdapter, IconManagerHooker,
         SlotMaskApplier, AirplaneIconHooker, IconSlotTintHooker, IgnoreSysIconSettingsHooker,
-        LeftRenderer, DuoRenderer, StackedRenderer, HideCarrierLabelHooker,
+        LeftRenderer, DuoRenderer, StackedRenderer, HideCarrierLabelHooker, AirplaneLabelHooker,
         ControlCenterHeaderHooker, CcBatteryStyleHooker, CcRotationLockIconHooker, CarrierRenderer,
         ControlCenterPrivacyHooker, RegionSamplingHooker, CellularTypeIconHooker, NotificationMaxNumberHooker
     )
@@ -203,12 +204,13 @@ internal class SystemUiSettingsHost(
                 IndependentIconDomain.NOTIFICATIONS -> reloaded += NotificationMaxNumberHooker
                 IndependentIconDomain.POLICY -> live += listOf(IconManagerHooker, SlotMaskApplier, LeftRenderer)
                 IndependentIconDomain.DUO -> live += DuoRenderer
+                // The label re-evaluates when compact rows take or release the native carrier text.
                 IndependentIconDomain.CONTROL_CENTER_HEADER -> reloaded += listOf(
-                    ControlCenterHeaderHooker, CarrierRenderer, HideCarrierLabelHooker
+                    ControlCenterHeaderHooker, CarrierRenderer, HideCarrierLabelHooker, AirplaneLabelHooker
                 )
                 IndependentIconDomain.CC_BATTERY -> reloaded += CcBatteryStyleHooker
                 IndependentIconDomain.ROTATION_LOCK -> reloaded += CcRotationLockIconHooker
-                IndependentIconDomain.AIRPLANE -> reloaded += AirplaneIconHooker
+                IndependentIconDomain.AIRPLANE -> reloaded += listOf(AirplaneIconHooker, AirplaneLabelHooker)
                 IndependentIconDomain.CELLULAR -> live += CellularIconHooker
                 IndependentIconDomain.WIFI -> live += WifiPipelineAdapter
                 IndependentIconDomain.MOBILE_SIGNAL -> live += listOf(MobilePipelineAdapter, StackedRenderer)

@@ -19,6 +19,7 @@ import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
 import com.takekazex.hypertweak.hook.base.orSkip
 import com.takekazex.hypertweak.hook.rules.systemui.aod.AodIconSettings
+import com.takekazex.hypertweak.hook.rules.systemui.icon.GlyphEndpoint
 import com.takekazex.hypertweak.hook.rules.systemui.icon.HandoverCoordinator
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IconRenderer
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IconTunerFlows
@@ -27,6 +28,7 @@ import com.takekazex.hypertweak.hook.rules.systemui.icon.MobileSignalHub
 import com.takekazex.hypertweak.hook.rules.systemui.icon.NetworkHub
 import com.takekazex.hypertweak.hook.rules.systemui.icon.PanelHub
 import com.takekazex.hypertweak.hook.rules.systemui.icon.SlotMaskApplier
+import com.takekazex.hypertweak.hook.rules.systemui.icon.signalEndpointVisible
 import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.presentation.icon.MobileSignalState
 import com.takekazex.hypertweak.presentation.icon.NetworkIconVisibility
@@ -138,6 +140,21 @@ internal object DuoRenderer : IconRenderer() {
     }
 
     internal val bindings = generationMainResource(IdentityHashMap<View, DuoBinding>()) { it.clear() }
+
+    /** Main thread. The lit lockscreen ring under [root] that currently draws the airplane. */
+    internal fun keyguardAirplane(root: View): GlyphEndpoint? = bindings.values.firstOrNull { binding ->
+        binding.surface == DuoSurface.KEYGUARD && binding.active && binding.view.isAttachedToWindow &&
+            binding.view.rootView === root && binding.view.icon.content?.airplaneMode == true &&
+            signalEndpointVisible(binding.view, root)
+    }?.airplaneEndpoint
+
+    internal fun keyguardAirplaneState(root: View): String =
+        bindings.values.filter { it.surface == DuoSurface.KEYGUARD }.joinToString(prefix = "[", postfix = "]") { binding ->
+            "active=${binding.active} attached=${binding.view.isAttachedToWindow} " +
+                "sameRoot=${binding.view.rootView === root} airplane=${binding.view.icon.content?.airplaneMode} " +
+                "visible=${signalEndpointVisible(binding.view, binding.view.rootView ?: root)} " +
+                "size=${binding.view.width}x${binding.view.height} phase=${binding.rowPhase}"
+        }
     internal var enabled by generationState { false }
     internal var standardEnabled by generationState { false }
     @Volatile

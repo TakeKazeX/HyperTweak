@@ -36,6 +36,8 @@ import com.takekazex.hypertweak.hook.rules.systemui.icon.ShadeSwitchMotionPolicy
 import com.takekazex.hypertweak.hook.rules.systemui.icon.TwoRowIconLayout
 import com.takekazex.hypertweak.hook.rules.systemui.icon.WifiPipelineAdapter
 import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
+import com.takekazex.hypertweak.hook.rules.systemui.icon.AirplaneGlyphTargets
+import com.takekazex.hypertweak.settings.contract.AirplaneLabelMode
 import com.takekazex.hypertweak.presentation.icon.MobileSignalState
 import com.takekazex.hypertweak.presentation.icon.NetworkIconVisibility
 import com.takekazex.hypertweak.presentation.icon.RendererId
@@ -87,6 +89,11 @@ internal object CarrierRenderer : IconRenderer() {
     }
     internal val settingCcCarrierBadgeOne by hookSetting("1") { Preferences.iconConfig().string(SystemUiSettingsKeys.KEY_CC_CARRIER_BADGE_ONE) }
     internal val settingCcCarrierBadgeTwo by hookSetting("2") { Preferences.iconConfig().string(SystemUiSettingsKeys.KEY_CC_CARRIER_BADGE_TWO) }
+    /** Compact rows draw their own airplane text; the control-center label option styles it. */
+    internal val settingAirplaneLabel by hookSetting(AirplaneLabelMode.SYSTEM) {
+        Preferences.iconConfig().misc.airplaneLabelModes.controlCenter
+    }
+    internal val settingMirrorAirplane by hookSetting(false) { Preferences.iconConfig().misc.mirrorAirplane }
 
     init {
         hostRecovery(HostRecoveryPhase.PRESENTATION, icons = true) {
@@ -237,6 +244,7 @@ internal object CarrierRenderer : IconRenderer() {
             maskedContainers.clear()
             blocks.values.toList().forEach({ removeBlock(it) })
             blocks.clear()
+            AirplaneGlyphTargets.release(AirplaneGlyphTargets.Owner.COMPACT_CARRIER)
             rowRenderer.clear()
             knownLayouts.clear()
             hostContext = null

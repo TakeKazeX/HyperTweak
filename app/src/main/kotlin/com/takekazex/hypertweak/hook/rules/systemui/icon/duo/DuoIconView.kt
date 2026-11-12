@@ -76,6 +76,14 @@ internal class DuoIconView(context: Context) : View(context) {
         }
     fun desiredIconSidePx(): Int = sourceIconSidePx ?:
         DuoLayout.iconSizePx(resources.displayMetrics.density, iconSizeDp)
+    /** The airplane is shown by another owner (the lockscreen carrier glyph) or is travelling. */
+    var airplaneYielded = false
+        set(value) {
+            if (field == value) return
+            field = value
+            invalidate()
+        }
+
     fun drawnIconSidePx(): Int = sourceIconSidePx ?: minOf(height, desiredIconSidePx())
 
     var powerInMotion = false
@@ -451,7 +459,7 @@ internal class DuoIconView(context: Context) : View(context) {
                     hidePowerTrack = true
                     hiddenSignalRows = icon.hiddenSignalRows
                     hideNetwork = icon.hideNetwork
-                    hideAirplane = icon.hideAirplane
+                    hideAirplane = icon.hideAirplane || airplaneYielded
                     hideSignalDots = icon.hideSignalDots
                     hiddenDotRows = icon.hiddenDotRows
                     topIndicatorsEnabled = icon.topIndicatorsEnabled

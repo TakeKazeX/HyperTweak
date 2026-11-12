@@ -1514,6 +1514,17 @@
     <string name="aod_icons_percent_duo_center">圆环下方居中</string>
     <string name="icon_mirror_airplane">镜像飞行模式图标</string>
     <string name="icon_mirror_airplane_summary">将飞行模式图标朝向右侧</string>
+    <string name="icon_airplane_title">飞行模式</string>
+    <string name="icon_airplane_label_control_center">控制中心</string>
+    <string name="icon_airplane_label_notification">通知中心</string>
+    <string name="icon_airplane_label_keyguard">锁屏</string>
+    <string name="icon_airplane_label_summary">运营商区域显示飞行模式字样的方式</string>
+    <string name="icon_airplane_label_notification_hidden">通知中心运营商区域已隐藏</string>
+    <string name="icon_airplane_label_system">系统默认</string>
+    <string name="icon_airplane_label_hide">隐藏字样</string>
+    <string name="icon_airplane_label_icon">替换为图标</string>
+    <string name="icon_airplane_label_icon_start">图标在字样左侧</string>
+    <string name="icon_airplane_label_icon_end">图标在字样右侧</string>
     <string name="icon_cc_rotation_lock_title">旋转锁定</string>
     <string name="icon_cc_rotation_lock">iOS 风格旋转锁定图标</string>
     <string name="icon_cc_rotation_lock_summary">锁定屏幕旋转时显示图标</string>

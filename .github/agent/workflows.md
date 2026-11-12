@@ -71,6 +71,26 @@ not prove visible handoff quality. Device acceptance is user-driven: both styles
 handoff, enable/disable, reset/restore and upgrading existing hosts. Do not automate device UI
 or equate asset-loading/HOOK_OK logs with visible correctness.
 
+### Lockscreen airplane glyph handover
+
+For airplane carrier-label/Duo handover, run `Left*Test`, `Duo*Test`, `Airplane*Test`,
+`CarrierAirplaneVisibilityTest`, `GlyphMotionLeaseTest`, `SystemUiLiveSettingsRoutingTest`,
+and `IconInfrastructureHostContractTest` with `SYSTEMUI_APK`
+set to the absolute path of the verified host APK. Build debug/release and run lint. Run the detached
+`run_panel_glyph_probe.py <debug-apk> --probe KeyguardAirplaneProbe --output ../reverse/<probe-dir>`
+for no-left Duo intro/expiry, glyph-only ownership, pixel-identical reversal start and retained velocity,
+straight-line Canvas output even with cutout insets, first reverse-frame retention, missing-endpoint
+restoration, arrival and retirement. Repeat with `--large-font` to cover clipped 48px ink in a fixed
+40×32 label. Run `--probe AirplaneEndpointProbe` for native filter/tint invalidation, immutable
+snapshots, producer-scoped retirement, detach/reattach and actual left/Duo controller preemption.
+Its weak-reference expiration check is deterministic; it does not prove GC timing or long-term heap behavior.
+`AirplaneFlightSpringTest` covers spring acceleration/braking, frame-rate independence and repeated
+retargeting. `PanelGlyphProbe` covers existing carrier/native travel after shared
+`LeftPanelMotion` changes. These probes create no windows and capture no device screen.
+The user checks screen off/on, label↔Duo/left/native movement and interrupted reversals, live changes,
+disable/reset and hot reload. Recreated or unavailable endpoints restore/settle ownership rather than
+borrowing stale geometry; only reversal along the same live endpoints preserves an in-flight overlay.
+
 ### Native photo/file pickers
 
 For native photo/file picker routing, run `PickerReroute*` and runtime-settings JVM

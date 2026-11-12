@@ -684,6 +684,10 @@ internal object SlotMaskApplier : IconRenderer() {
     internal fun setCarrierMask(container: Any, mask: CarrierMask): Boolean =
         setContainerMask(container, mask.slots(), RendererId.CARRIER)
 
+    /** The control-center carrier label draws the airplane glyph, so the header's native slot yields. */
+    internal fun setAirplaneLabelMask(container: Any, active: Boolean): Boolean =
+        setContainerMask(container, if (active) setOf(IconSlotPolicy.SLOT_AIRPLANE) else emptySet(), RendererId.AIRPLANE)
+
     private fun setContainerMask(
         container: Any,
         slots: Set<String>,

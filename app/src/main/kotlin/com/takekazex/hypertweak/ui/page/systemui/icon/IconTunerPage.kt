@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.presentation.icon.duo.DuoLayout
 import com.takekazex.hypertweak.presentation.icon.duo.DuoSizes
+import com.takekazex.hypertweak.settings.contract.AirplaneLabelModes
 import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
 import com.takekazex.hypertweak.settings.contract.IconSlotPolicy
 import com.takekazex.hypertweak.settings.contract.IconSlotPolicyConfig
@@ -457,8 +458,17 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit, onNavig
                             slotModes = slotModes,
                             onChange = onChange
                         )
+                        AirplaneSection(
+                            slotMode = IconSlotPolicy.modeFor(IconSlotPolicy.SLOT_AIRPLANE, slotModesByName).value,
+                            slotModes = slotModes,
+                            mirror = pref(IconSettingsKeys.KEY_ICON_MIRROR_AIRPLANE, false),
+                            leftPlacementEnabled = leftMode != IconTunerContract.LEFT_MODE_DISABLED,
+                            leftSelected = leftSelected[IconSettingsKeys.KEY_ICON_LEFT_AIRPLANE] == true,
+                            labels = config.misc.airplaneLabelModes,
+                            notificationCarrierHidden = pref(SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_HIDE_CARRIER, false),
+                            onChange = onChange
+                        )
                         StatusBarMiscSection(
-                            mirrorAirplane = pref(IconSettingsKeys.KEY_ICON_MIRROR_AIRPLANE, false),
                             regionSampling = pref(PlatformSettingsKeys.KEY_STATUSBAR_REGION_SAMPLING, 0) != 0,
                             onChange = onChange
                         )
@@ -586,6 +596,87 @@ internal val LEFT_TOGGLE_ROWS: List<LeftToggleRow> = listOf(
     LeftToggleRow(IconSettingsKeys.KEY_ICON_LEFT_ROTATION_LOCK, R.string.icon_slot_rotation_lock, IconSlotPolicy.SLOT_ROTATION_LOCK)
 )
 
+/** Slots and left-placement keys whose controls live in a dedicated card, not the generic lists. */
+private val OWN_CARD_SLOTS = setOf(IconSlotPolicy.SLOT_ROTATION_LOCK, IconSlotPolicy.SLOT_AIRPLANE)
+private val OWN_CARD_LEFT_KEYS = setOf(IconSettingsKeys.KEY_ICON_LEFT_ROTATION_LOCK, IconSettingsKeys.KEY_ICON_LEFT_AIRPLANE)
+
+/**
+ * 飞行模式: the native slot's scope, mirroring and left placement, plus how each header's carrier
+ * area shows the host's airplane-mode label. One dropdown per surface avoids meaningless
+ * combinations of a hide switch and an icon position.
+ */
+@Composable
+private fun AirplaneSection(
+    slotMode: Int,
+    slotModes: List<String>,
+    mirror: Boolean,
+    leftPlacementEnabled: Boolean,
+    leftSelected: Boolean,
+    labels: AirplaneLabelModes,
+    notificationCarrierHidden: Boolean,
+    onChange: (String, Any) -> Unit
+) {
+    val settingsStore = LocalAppSettingsStore.current
+    val labelModes = listOf(
+        stringResource(R.string.icon_airplane_label_system),
+        stringResource(R.string.icon_airplane_label_hide),
+        stringResource(R.string.icon_airplane_label_icon),
+        stringResource(R.string.icon_airplane_label_icon_start),
+        stringResource(R.string.icon_airplane_label_icon_end)
+    )
+    SmallTitle(stringResource(R.string.icon_airplane_title))
+    Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+        Column(Modifier.fillMaxWidth()) {
+            OverlayDropdownPreference(
+                title = stringResource(R.string.icon_rotation_lock_visibility),
+                items = slotModes,
+                selectedIndex = slotMode.coerceIn(0, slotModes.lastIndex),
+                onSelectedIndexChange = {
+                    onChange(settingsStore.systemUi.slotKey(IconSlotPolicy.SLOT_AIRPLANE), it)
+                }
+            )
+            TunerSwitch(
+                mirror,
+                stringResource(R.string.icon_mirror_airplane),
+                stringResource(R.string.icon_mirror_airplane_summary)
+            ) { onChange(IconSettingsKeys.KEY_ICON_MIRROR_AIRPLANE, it) }
+            MiuixExpandableContent(visible = leftPlacementEnabled) {
+                TunerSwitch(
+                    leftSelected,
+                    stringResource(R.string.icon_left_container_title)
+                ) { onChange(IconSettingsKeys.KEY_ICON_LEFT_AIRPLANE, it) }
+            }
+            OverlayDropdownPreference(
+                title = stringResource(R.string.icon_airplane_label_control_center),
+                summary = stringResource(R.string.icon_airplane_label_summary),
+                items = labelModes,
+                selectedIndex = labels.controlCenter.storedValue,
+                onSelectedIndexChange = { onChange(IconSettingsKeys.KEY_ICON_AIRPLANE_LABEL_CONTROL_CENTER, it) }
+            )
+            // The notification header's hide-carrier switch removes the whole carrier area; the
+            // saved value is kept and applies again once that switch is off.
+            OverlayDropdownPreference(
+                title = stringResource(R.string.icon_airplane_label_notification),
+                summary = stringResource(
+                    if (notificationCarrierHidden) R.string.icon_airplane_label_notification_hidden
+                    else R.string.icon_airplane_label_summary
+                ),
+                items = labelModes,
+                selectedIndex = labels.notification.storedValue,
+                enabled = !notificationCarrierHidden,
+                onSelectedIndexChange = { onChange(IconSettingsKeys.KEY_ICON_AIRPLANE_LABEL_NOTIFICATION, it) }
+            )
+            OverlayDropdownPreference(
+                title = stringResource(R.string.icon_airplane_label_keyguard),
+                summary = stringResource(R.string.icon_airplane_label_summary),
+                items = labelModes,
+                selectedIndex = labels.keyguard.storedValue,
+                onSelectedIndexChange = { onChange(IconSettingsKeys.KEY_ICON_AIRPLANE_LABEL_KEYGUARD, it) }
+            )
+        }
+    }
+}
+
 @Composable
 private fun RotationLockSection(
     enabled: Boolean,
@@ -677,8 +768,8 @@ private fun LeftContainerSection(
                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                 )
-                // Rotation lock owns its placement control alongside its enable/visibility rows.
-                LEFT_TOGGLE_ROWS.filterNot { it.key == IconSettingsKeys.KEY_ICON_LEFT_ROTATION_LOCK }.forEach { row ->
+                // Rotation lock and airplane mode own their placement controls in their own cards.
+                LEFT_TOGGLE_ROWS.filterNot { it.key in OWN_CARD_LEFT_KEYS }.forEach { row ->
                     val info = IconSlotCatalog.of(row.previewSlot)
                     SwitchPreference(
                         checked = leftSelected[row.key] == true,
@@ -906,17 +997,12 @@ private fun PositionSection(position: Int, onNavigateToIconOrder: () -> Unit) {
     }
 }
 
-/** The status-bar options outside every icon group: airplane mirroring and region sampling. */
+/** The status-bar options outside every icon group. */
 @Composable
-private fun StatusBarMiscSection(mirrorAirplane: Boolean, regionSampling: Boolean, onChange: (String, Any) -> Unit) {
+private fun StatusBarMiscSection(regionSampling: Boolean, onChange: (String, Any) -> Unit) {
     SmallTitle(stringResource(R.string.icon_section_status_bar))
     Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
         Column(Modifier.fillMaxWidth()) {
-            TunerSwitch(
-                mirrorAirplane,
-                stringResource(R.string.icon_mirror_airplane),
-                stringResource(R.string.icon_mirror_airplane_summary)
-            ) { onChange(IconSettingsKeys.KEY_ICON_MIRROR_AIRPLANE, it) }
             TunerSwitch(
                 regionSampling,
                 stringResource(R.string.icon_region_sampling),
@@ -1208,7 +1294,7 @@ private fun SlotsSection(
     SmallTitle(stringResource(R.string.icon_slots_title))
     Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
         Column(Modifier.fillMaxWidth()) {
-            IconSlotCatalog.slots.filterNot { it == IconSlotPolicy.SLOT_ROTATION_LOCK }.forEach { slot ->
+            IconSlotCatalog.slots.filterNot { it in OWN_CARD_SLOTS }.forEach { slot ->
                 val mode = slotModeOf(slot)
                 val info = IconSlotCatalog.of(slot)
                 OverlayDropdownPreference(

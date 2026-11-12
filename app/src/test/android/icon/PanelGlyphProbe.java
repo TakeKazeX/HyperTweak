@@ -246,14 +246,16 @@ public final class PanelGlyphProbe {
             (proxy, method, values) -> loader.loadClass("kotlin.Unit").getField("INSTANCE").get(null));
         Object leftMotion = leftMotionType.getConstructor(function0).newInstance(onFrame);
         Method move = leftMotionType.getMethod("update", ViewGroup.class, View.class, View.class,
-            float.class, Float.class, boolean.class, android.graphics.Picture.class);
+            float.class, Float.class, boolean.class, android.graphics.Picture.class,
+            android.graphics.Picture.class,
+            loader.loadClass("com.takekazex.hypertweak.hook.rules.systemui.icon.EndpointAlpha"), boolean.class);
         java.lang.reflect.Field carrierLayerField = leftMotionType.getDeclaredField("layer");
         carrierLayerField.setAccessible(true);
         var carrierLayer = (android.graphics.drawable.Drawable) carrierLayerField.get(leftMotion);
         Bitmap travelBitmap = Bitmap.createBitmap(120, 16, Bitmap.Config.ARGB_8888);
         Canvas travelCanvas = new Canvas(travelBitmap);
         for (float progress : new float[]{.5f, .99f, .5f}) {
-            move.invoke(leftMotion, carrierRoot, holder, carrierTarget, progress, null, false, nativePicture);
+            move.invoke(leftMotion, carrierRoot, holder, carrierTarget, progress, null, false, nativePicture, null, null, false);
             carrierLayer.draw(travelCanvas);
             travelBitmap.eraseColor(Color.TRANSPARENT);
             carrierLayer.draw(travelCanvas);
@@ -270,7 +272,7 @@ public final class PanelGlyphProbe {
         check((Boolean) nativeType.getMethod("update").invoke(combined), "record a changed badge while its source is masked");
         var refreshedPicture = (android.graphics.Picture) nativeType.getMethod("getPicture").invoke(combined);
         check(refreshedPicture != nativePicture, "an appearance update publishes a new source snapshot");
-        move.invoke(leftMotion, carrierRoot, holder, carrierTarget, .5f, null, false, refreshedPicture);
+        move.invoke(leftMotion, carrierRoot, holder, carrierTarget, .5f, null, false, refreshedPicture, null, null, false);
         travelBitmap.eraseColor(Color.TRANSPARENT);
         carrierLayer.draw(travelCanvas);
         check(travelBitmap.getPixel(56, 8) == Color.GREEN, "the moving badge updates during a held gesture");

@@ -21,6 +21,7 @@ import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
 import com.takekazex.hypertweak.hook.base.cachedDeclaredMethod
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
+import com.takekazex.hypertweak.hook.rules.systemui.icon.AirplaneLabelText
 import com.takekazex.hypertweak.hook.rules.systemui.icon.FrameUpdateGate
 import com.takekazex.hypertweak.hook.rules.systemui.icon.HandoverCoordinator
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IconHostPorts
@@ -84,7 +85,8 @@ internal fun CarrierRenderer.renderAll() {
             if (!block.layout.isAttachedToWindow) return@forEach
             if (block.compact) {
                 val rendering = CarrierRenderInput(
-                    mobileState, simNames, showBadge, keepTypeOnWifi, typeConfig, block.nativeWifi, hiddenCarrierSlots()
+                    mobileState, simNames, showBadge, keepTypeOnWifi, typeConfig, block.nativeWifi, hiddenCarrierSlots(),
+                    settingAirplaneLabel, settingMirrorAirplane
                 )
                 syncNativeSignals(block) { parts -> rows.firstOrNull { it.slot == parts.slot } }
                 block.rows.forEach { parts -> rowRenderer.renderRow(parts, rows, rendering) }
@@ -168,9 +170,14 @@ internal fun CarrierRenderer.syncMask(block: CarrierBlock) {
         }
         val hideCellular = hidden.isNotEmpty() && allowed.isEmpty()
         val hideWifi = hidesWifi()
+        // A row that draws the airplane glyph takes over the header's native airplane slot.
+        val airplaneGlyph = block.rows.any {
+            it.model?.airplane == true && it.airplaneText.isVisible && AirplaneLabelText.hasGlyph(it.airplaneText.text)
+        }
         val mask = CarrierMask(
             cellular = hideCellular || cellular,
-            wifi = hideWifi || CarrierBlockPolicy.masksWifi(wifiReplacement, wifiDefault, cellular)
+            wifi = hideWifi || CarrierBlockPolicy.masksWifi(wifiReplacement, wifiDefault, cellular),
+            airplane = airplaneGlyph
         )
         val acquired = IconHostPorts.positions.carrierMask(container, mask)
         if (acquired) {

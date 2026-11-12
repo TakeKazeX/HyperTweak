@@ -32,7 +32,11 @@ internal object SystemUiIconPorts {
             ownsRow = { CarrierRenderer.ownsRow(it) },
             geometry = { CarrierRenderer.rowGeometry(it) }
         ),
-        duo = IconHostServices.Duo(releaseStatusIcons = { DuoRenderer.releaseLeftStatusIcons(it) }),
+        duo = IconHostServices.Duo(
+            releaseStatusIcons = { DuoRenderer.releaseLeftStatusIcons(it) },
+            keyguardAirplane = { DuoRenderer.keyguardAirplane(it) },
+            keyguardAirplaneState = { DuoRenderer.keyguardAirplaneState(it) }
+        ),
         header = IconHostServices.Header(
             supportsCompactLayout = { ControlCenterHeaderHooker.supportsCompactLayout(it) },
             ensureCompactCarrierVisible = { ControlCenterHeaderHooker.ensureCompactCarrierVisible(it) },

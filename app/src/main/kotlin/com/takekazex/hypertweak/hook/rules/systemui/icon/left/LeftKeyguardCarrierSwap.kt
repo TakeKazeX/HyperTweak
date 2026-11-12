@@ -10,7 +10,9 @@ import android.content.IntentFilter
 import android.os.Handler
 import android.os.SystemClock
 import android.view.View
+import android.view.ViewGroup
 import android.view.animation.PathInterpolator
+import android.widget.TextView
 import com.takekazex.hypertweak.settings.contract.IconTunerContract
 import com.takekazex.hypertweak.util.logging.DebugLog
 
@@ -76,8 +78,27 @@ internal class LeftKeyguardCarrierSwap(private val host: Host) {
         val retiring: Boolean
         val handler: Handler
         val mode: Int
+        /** The lockscreen label keeps a glyph without left icons; see [LeftKeyguardAirplanePolicy]. */
+        val labelKeepsAirplane: Boolean
         fun iconsShown(state: LeftState): Boolean
         fun keyguardStates(): List<LeftState>
+        fun slotOf(view: View): String?
+    }
+
+    private val airplane = LeftKeyguardAirplane(object : LeftKeyguardAirplane.Host {
+        override val retiring get() = host.retiring
+        override fun slotOf(view: View) = host.slotOf(view)
+        override fun requestUpdate() {
+            host.handler.removeCallbacks(airplaneRefresh)
+            host.handler.post(airplaneRefresh)
+        }
+    })
+    private val airplaneRefresh = Runnable { if (!host.retiring) updateAll() }
+    /** The airplane's own screen-on intro, in every carrier mode. */
+    // LeftRenderer constructs this controller before publishing its Handler. Resolve it only
+    // after host attachment, never while the renderer singleton is still initializing.
+    private val airplaneIntro by lazy {
+        KeyguardAirplaneIntro(host.handler) { if (!host.retiring) updateAll() }
     }
 
     private var introPhase = LeftCarrierSwapPolicy.IntroPhase.NONE
@@ -99,21 +120,31 @@ internal class LeftKeyguardCarrierSwap(private val host: Host) {
     private fun onScreenOff() {
         manualIcons = null
         host.handler.removeCallbacks(introExpired)
-        if (host.mode != IconTunerContract.LEFT_KEYGUARD_CARRIER_INTRO) return
+        airplaneIntro.screenOff()
+        if (host.mode != IconTunerContract.LEFT_KEYGUARD_CARRIER_INTRO) {
+            updateAll()
+            return
+        }
         introPhase = LeftCarrierSwapPolicy.IntroPhase.ARMED
         updateAll()
     }
 
     private fun onScreenOn() {
-        if (host.mode != IconTunerContract.LEFT_KEYGUARD_CARRIER_INTRO) return
+        airplaneIntro.screenOn()
+        if (host.mode != IconTunerContract.LEFT_KEYGUARD_CARRIER_INTRO) {
+            updateAll()
+            return
+        }
         introPhase = LeftCarrierSwapPolicy.IntroPhase.WINDOW
         introUntil = SystemClock.uptimeMillis() + LeftCarrierSwapPolicy.INTRO_MS
         host.handler.removeCallbacks(introExpired)
         host.handler.postAtTime(introExpired, introUntil)
-        host.keyguardStates().forEach { update(it) }
+        updateAll()
     }
 
-    fun updateAll() = host.keyguardStates().forEach { update(it) }
+    fun updateAll() = host.keyguardStates().forEach { state ->
+        if (state.carrierSwap != null) update(state) else updateAirplane(state)
+    }
 
     /** Main thread only. */
     fun update(state: LeftState, animate: Boolean = true) {
@@ -124,9 +155,42 @@ internal class LeftKeyguardCarrierSwap(private val host: Host) {
         installToggle(state, swap)
         introPhase = LeftCarrierSwapPolicy.settle(introPhase, state.presentation.visible)
         val intro = LeftCarrierSwapPolicy.introActive(host.mode, introPhase, SystemClock.uptimeMillis(), introUntil)
-        val carrierShown = carrier.visibility == View.VISIBLE
+        // A carrier whose labels are all hidden or blank shows nothing; do not wait on it.
+        val carrierShown = carrier.visibility == View.VISIBLE && hasVisibleText(carrier)
         val iconsShown = state.leftContainer != null && host.iconsShown(state)
         val target = LeftCarrierSwapPolicy.resolve(carrierShown, iconsShown, intro, manualIcons)
+        crossfade(state, swap, carrier, target, carrierShown, iconsShown, intro, animate)
+        // The airplane moves on its own: with no left icons the carrier stays while the glyph leaves.
+        updateAirplane(state, animate)
+    }
+
+    /** Runs even when no left container exists, including when Duo owns the airplane. */
+    fun updateAirplane(state: LeftState, animate: Boolean = true) {
+        if (host.retiring || !state.isKeyguard) return
+        val carrier = state.keyguardCarrier ?: return
+        if (!carrier.isAttachedToWindow) {
+            releaseAirplane(state)
+            return
+        }
+        ensureReceiver(carrier.context)
+        val carrierShown = carrier.visibility == View.VISIBLE && hasVisibleText(carrier)
+        val iconsShown = state.leftContainer != null && host.iconsShown(state)
+        val target = state.carrierSwap?.target ?: LeftCarrierSwapPolicy.resolve(carrierShown, iconsShown, false)
+        val intro = airplaneIntro.active(carrier.isShown)
+        val snap = airplaneIntro.takeSnap() || !animate
+        runCatching {
+            airplane.update(state, state.keyguardAirplane, target, carrierShown, iconsShown, intro, snap, host.labelKeepsAirplane)
+        }.onFailure {
+            releaseAirplane(state)
+            DebugLog.w(TAG, "keyguard airplane update failed", it)
+        }
+    }
+
+    fun releaseAirplane(state: LeftState) = airplane.release(state, state.keyguardAirplane)
+
+    private fun crossfade(state: LeftState, swap: LeftCarrierSwapState, carrier: View,
+                          target: LeftCarrierSwapPolicy.Target, carrierShown: Boolean, iconsShown: Boolean,
+                          intro: Boolean, animate: Boolean) {
         if (swap.target == target) {
             // A recreated container starts opaque; keep the settled target on it.
             if (swap.animator == null) apply(state, target.carrierAlpha, target.iconsAlpha)
@@ -161,11 +225,19 @@ internal class LeftKeyguardCarrierSwap(private val host: Host) {
         }
     }
 
+    private fun hasVisibleText(view: View): Boolean = when {
+        view.visibility != View.VISIBLE -> false
+        view is TextView -> !view.text.isNullOrBlank()
+        view is ViewGroup -> (0 until view.childCount).any { hasVisibleText(view.getChildAt(it)) }
+        else -> false
+    }
+
     /** Restores the native drawing of both views; main thread only. */
     fun release(state: LeftState) {
         val swap = state.carrierSwap ?: return
         state.carrierSwap = null
         swap.animator?.cancel()
+        swap.animator = null
         swap.hostClickable?.let { clickable ->
             state.leftHost.setOnClickListener(null)
             state.leftHost.isClickable = clickable
@@ -198,6 +270,8 @@ internal class LeftKeyguardCarrierSwap(private val host: Host) {
         introUntil = 0L
         introPhase = LeftCarrierSwapPolicy.IntroPhase.NONE
         manualIcons = null
+        airplaneIntro.reset()
+        host.handler.removeCallbacks(airplaneRefresh)
     }
 
     private fun apply(state: LeftState, carrierAlpha: Float, iconsAlpha: Float) {
@@ -218,8 +292,8 @@ internal class LeftKeyguardCarrierSwap(private val host: Host) {
         }.onFailure { DebugLog.w(TAG, "keyguard carrier screen-on receiver failed", it) }
     }
 
-    private companion object {
-        const val TAG = "IconTuner"
+    internal companion object {
+        private const val TAG = "IconTuner"
         const val FADE_MS = 300L
     }
 }

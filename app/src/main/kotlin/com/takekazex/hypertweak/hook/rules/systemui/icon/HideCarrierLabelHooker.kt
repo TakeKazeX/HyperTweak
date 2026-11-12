@@ -5,6 +5,7 @@ import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
 
 import com.takekazex.hypertweak.hook.base.HostAccess
 import android.view.View
+import android.widget.TextView
 import android.telephony.SubscriptionManager
 import com.takekazex.hypertweak.presentation.icon.NetworkIconVisibility
 import com.takekazex.hypertweak.settings.contract.SimVisibilityPolicy
@@ -201,7 +202,10 @@ internal object HideCarrierLabelHooker : IconRenderer() {
         val isKeyguard = runCatching { keyguardLayoutField?.getBoolean(row) }.getOrNull() ?: return
         val slotId = runCatching { HostAccess.requireDeclaredField(row.javaClass, "innerCarrierSlotId", accessible = true) }
             .getOrNull()?.let { runCatching { it.getInt(row) }.getOrDefault(-1) } ?: -1
-        val hide = if (isKeyguard) {
+        // Airplane mode shows one row (slot 1) that names no SIM, so per-SIM hiding never applies.
+        val airplaneRow = (runCatching { carrierTextViewField?.get(row) }.getOrNull() as? TextView)
+            ?.let(AirplaneLabelText::isAirplaneLabel) == true
+        val hide = !airplaneRow && if (isKeyguard) {
             when (slotId) {
                 0 -> hideLsOne
                 1 -> hideLsTwo
@@ -214,7 +218,10 @@ internal object HideCarrierLabelHooker : IconRenderer() {
         }
         runCatching {
             val text = carrierTextViewField?.get(row) as? View ?: return
-            if (hide) hideView(text) else restoreView(text)
+            // The host callback already re-shows its nonempty airplane label. Drop our old
+            // SIM suppression without restoring over another owner's newer GONE request.
+            if (airplaneRow) hiddenViews.remove(text)
+            else if (hide) hideView(text) else restoreView(text)
             if (!isKeyguard) listOf(hdTextField, plusTextField).forEach { field ->
                 (field?.get(row) as? View)?.let { view ->
                     if (hide || hideHd) hideView(view) else restoreView(view)
