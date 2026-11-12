@@ -573,6 +573,7 @@
     <string name="icon_cellular_type_small_5ga_summary">缩小 5GA 中的字母 A</string>
     <string name="icon_cellular_type_single">使用独立网络类型文字</string>
     <string name="icon_cellular_type_single_summary">使用原生的独立 4G/5G 文字样式，显示时机由系统决定</string>
+    <string name="icon_cellular_type_single_stacked_summary">堆叠信号开启时固定启用：信号由模块绘制，4G/5G 文字保持原生</string>
     <string name="icon_cellular_type_title">类型显示</string>
     <string name="icon_cellular_type_swap">独立类型位置</string>
     <string name="icon_cellular_type_swap_summary">相对于上网卡信号交换左右，或放在整组蜂窝信号的一侧。</string>
@@ -587,8 +588,6 @@
     <string name="icon_stacked_type_hide_disconnect_summary">数据断开时不显示堆叠类型文字</string>
     <string name="icon_stacked_type_keep_on_wifi">Wi-Fi 上网时保留蜂窝类型</string>
     <string name="icon_stacked_type_keep_on_wifi_summary">使用独立网络类型文字时，Wi-Fi 上网仍显示上网卡的 4G/5G 字样</string>
-    <string name="icon_stacked_type_roaming">漫游类型加 R 前缀</string>
-    <string name="icon_stacked_type_roaming_summary">漫游时在活动网络类型前加 R</string>
     <string name="icon_hide_carrier_hd">隐藏 HD 图标</string>
     <string name="icon_hide_carrier_hd_summary">隐藏运营商文字旁的 HD 语音图标</string>
     <string name="icon_hide_carrier_one">隐藏第一个运营商</string>
@@ -738,7 +737,6 @@
     <string name="icon_slot_volume">静音</string>
     <string name="icon_slot_second_space">手机分身</string>
     <string name="icon_slot_stacked_mobile_icon">双排信号图标</string>
-    <string name="icon_slot_stacked_mobile_type">网络类型文字</string>
     <string name="icon_slots_title">槽位</string>
     <string name="icon_stacked_signal_title">堆叠信号</string>
     <string name="icon_stacked_signal_weight">堆叠信号加粗</string>

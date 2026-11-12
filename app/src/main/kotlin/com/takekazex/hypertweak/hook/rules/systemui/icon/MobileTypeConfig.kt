@@ -1,7 +1,5 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
-import com.takekazex.hypertweak.presentation.icon.MobileSignalState
-
 /** Settings that affect only the network-type text rendered inside the icon slots. */
 data class MobileTypeConfig(
     val hideWhenDisconnected: Boolean = false,
@@ -33,7 +31,7 @@ data class MobileTypeConfig(
     )
 }
 
-/** Result of the type policy; an empty [text] means that no type bitmap should be published. */
+/** A network-type label for [MobileTypeRenderer]; an empty [text] means that no bitmap is drawn. */
 data class MobileTypeOutput(
     val text: String,
     val isSingle: Boolean,
@@ -43,36 +41,3 @@ data class MobileTypeOutput(
      */
     val suppressed: Boolean = false
 )
-
-/**
- * Pure network-type policy. The active data subscription is selected by id, while row order is
- * left untouched. In particular, a blank type never receives an `R` prefix.
- */
-object MobileTypePolicy {
-    fun resolve(state: MobileSignalState, config: MobileTypeConfig): MobileTypeOutput {
-        val safe = config.safe()
-        val active = state.subscriptions[state.activeDataSubId] ?: return empty(state)
-        val raw = when {
-            state.wifiConnected -> state.wifiCellularType(wifiDefault = true).orEmpty()
-            active.dataConnected == false -> active.typeWhileOnWifi().orEmpty()
-            else -> active.networkType?.trim().orEmpty()
-        }
-        if (raw.isEmpty()) return empty(state)
-        if (active.dataConnected == false && safe.hideWhenDisconnected) return empty(state)
-        // The same default-route input also drives the whole-mobile visibility rule.
-        val suppressed = safe.hideWhenWifiAvailable && state.wifiConnected
-        val roaming = active.roaming == true
-        val text = if (safe.showRoamingPrefix && roaming && !raw.startsWith("R")) {
-            "R$raw"
-        } else {
-            raw
-        }
-        return MobileTypeOutput(text, state.subscriptionOrder.size == 1, roaming, suppressed)
-    }
-
-    private fun empty(state: MobileSignalState) = MobileTypeOutput(
-        text = "",
-        isSingle = state.subscriptionOrder.size == 1,
-        isRoaming = false
-    )
-}

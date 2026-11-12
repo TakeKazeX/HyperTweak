@@ -17,12 +17,17 @@ import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 
-/** Host mobile pipeline and reducer. Independent of stacked/Duo/carrier artwork or slots. */
+/**
+ * Host mobile pipeline and reducer. Independent of stacked/Duo/carrier artwork or slots.
+ *
+ * Every MIUI mobile VM gets one [MobileSignalVisibility] registration here: the owner masks the
+ * native rows for SIM hiding and for the stacked replacement through the same entries, so no
+ * second pipeline races it for the host's visibility getter.
+ */
 internal class MobileSignalSource(
     owner: BaseHooker,
     private val generation: AtomicLong,
     private val active: () -> Boolean,
-    private val replacesNative: () -> Boolean,
     private val context: () -> Context?,
     private val onAdapterReady: (Any, Long) -> Unit,
     private val scheduleRender: (Long) -> Unit
@@ -54,7 +59,7 @@ internal class MobileSignalSource(
     private data class SubBinding(
         val subId: Int,
         val miuiViewModel: Any,
-        val visibility: MobileSignalVisibility.Registration?,
+        val visibility: MobileSignalVisibility.Registration,
         val handles: List<HostFlowCollector.Handle>,
         val bindingGeneration: Long
     )
@@ -65,7 +70,6 @@ internal class MobileSignalSource(
     )
     private val mainHandler = Handler(Looper.getMainLooper())
     private val enabled get() = active()
-    private val renderStacked get() = replacesNative()
     val complete: Boolean get() = session.complete(adapterFlowsReady, factoryViewModelIds) {
         bindings[it]?.bindingGeneration == generation.get()
     }
@@ -80,7 +84,7 @@ internal class MobileSignalSource(
         flowHandles.clear()
         bindings.values.toList().forEach { binding ->
             binding.handles.forEach { it.cancel() }
-            if (binding.visibility != null) MobileSignalVisibility.unregister(binding.miuiViewModel)
+            MobileSignalVisibility.unregister(binding.miuiViewModel)
         }
         bindings.clear()
         pendingBindings.clear()
@@ -133,7 +137,7 @@ internal class MobileSignalSource(
         method.hook {
             after { param ->
                 runCatching { setupAdapter(param.thisObject) }
-                    .onFailure { DebugLog.w(TAG, "stacked adapter setup failed", it) }
+                    .onFailure { DebugLog.w(TAG, "mobile adapter setup failed", it) }
             }
         }
     }
@@ -198,11 +202,11 @@ internal class MobileSignalSource(
         ) {
             subscriptions.clear()
             adapterFlowInstalled.set(false)
-            DebugLog.w(TAG, "stacked signal not ready: one adapter flow did not bind")
+            DebugLog.w(TAG, "mobile signal not ready: one adapter flow did not bind")
             return
         }
         adapterFlowsReady = true
-        DebugLog.d(TAG, "stacked signal adapter flows bound")
+        DebugLog.d(TAG, "mobile signal adapter flows bound")
         scheduleRender(bindingGeneration)
     }
 
@@ -211,7 +215,7 @@ internal class MobileSignalSource(
         mainHandler.post {
             if (!enabled || generation.get() != bindingGeneration || adapterFlowInstalled.get()) return@post
             runCatching { setupAdapter(adapter) }
-                .onFailure { DebugLog.w(TAG, "restored stacked adapter setup failed", it) }
+                .onFailure { DebugLog.w(TAG, "restored mobile adapter setup failed", it) }
         }
     }
 
@@ -237,7 +241,7 @@ internal class MobileSignalSource(
         if (adapter != null) {
             DebugLog.d(TAG, "recovered existing MobileUiAdapter from SysUI component")
             runCatching { setupAdapter(adapter) }
-                .onFailure { DebugLog.w(TAG, "existing stacked adapter setup failed", it) }
+                .onFailure { DebugLog.w(TAG, "existing mobile adapter setup failed", it) }
             return
         }
 
@@ -317,6 +321,8 @@ internal class MobileSignalSource(
         val roamingFlow = originInteractor?.let { invokeNoArg(it, "isRoaming") }
         val nonTerrestrialFlow = originInteractor?.let { invokeNoArg(it, "isNonTerrestrial") }
         val networkTypeFlow = invokeNoArg(miuiViewModel, "getShowName")
+        // Read through the getter so the native Wi-Fi type gate is part of the observed value.
+        val typeSingleFlow = invokeNoArg(miuiViewModel, "getMobileTypeSingleVisible")
         val miuiInteractor = readField(miuiViewModel, "iconInteractor")
         val wifiAvailableFlow = miuiInteractor?.let { readField(it, "wifiAvailable") }
         if (originInteractor == null || originalVisibleFlow == null || signalFlow == null ||
@@ -329,12 +335,9 @@ internal class MobileSignalSource(
 
         bindings.remove(subId)?.let { old ->
             old.handles.forEach { it.cancel() }
-            if (old.visibility != null) MobileSignalVisibility.unregister(old.miuiViewModel)
+            MobileSignalVisibility.unregister(old.miuiViewModel)
         }
-        // Duo only observes. It must not replace a hide-SIM hook's registration or clear its mask.
-        val visibility = if (renderStacked) {
-            MobileSignalVisibility.register(miuiViewModel, subId, originalVisibleFlow) ?: return
-        } else null
+        val visibility = MobileSignalVisibility.register(miuiViewModel, subId, originalVisibleFlow) ?: return
         pendingBindings[miuiViewModel] = true
         val subscriptions = newSubscriptions()
         val isCurrent = {
@@ -363,7 +366,7 @@ internal class MobileSignalSource(
             subscriptions.collect(scope, flow, isCurrent, replay = true, consumer = consumer)
         fun optional(flow: Any?, consumer: (Any?) -> Unit) {
             if (flow != null && !subscriptions.collect(scope, flow, isCurrent, replay = true, consumer = consumer))
-                DebugLog.w(TAG, "optional type flow not collectable subId=$subId")
+                DebugLog.w(TAG, "optional mobile flow not collectable subId=$subId")
         }
 
         fun originalVisibilityConsumer(value: Any?): Unit {
@@ -383,11 +386,10 @@ internal class MobileSignalSource(
         fun requiredOriginalVisibility(): Boolean = subscriptions.collectUsing(
             originalVisibleFlow, isCurrent, replay = true,
             start = { consumer, current ->
-                val registration = visibility
-                if (registration != null) MobileSignalVisibility.collectOriginal(
-                    scope = scope, originalFlow = originalVisibleFlow, registration = registration,
+                MobileSignalVisibility.collectOriginal(
+                    scope = scope, originalFlow = originalVisibleFlow, registration = visibility,
                     isCurrent = current, consumer = consumer
-                ) else HostFlowCollector.collect(scope, originalVisibleFlow, consumer, current)
+                )
             },
             consumer = ::originalVisibilityConsumer
         )
@@ -407,7 +409,7 @@ internal class MobileSignalSource(
         }
         if (!allBound) {
             subscriptions.clear()
-            if (visibility != null) MobileSignalVisibility.unregister(miuiViewModel)
+            MobileSignalVisibility.unregister(miuiViewModel)
             pendingBindings.remove(miuiViewModel)
             DebugLog.w(TAG, "subscription flow set not ready subId=$subId")
             return
@@ -422,6 +424,9 @@ internal class MobileSignalSource(
         }
         optional(wifiAvailableFlow) { value ->
             reduceOnMain(MobileSignalEvent.WifiAvailable(subId, value as? Boolean == true), bindingGeneration)
+        }
+        optional(typeSingleFlow) { value ->
+            reduceOnMain(MobileSignalEvent.TypeSingleVisible(subId, value as? Boolean == true), bindingGeneration)
         }
         bindings[subId] = SubBinding(
             subId = subId,
@@ -441,7 +446,7 @@ internal class MobileSignalSource(
             bindings.remove(binding.subId)
             binding.handles.forEach { it.cancel() }
             flowHandles.removeAll(binding.handles.toSet())
-            if (binding.visibility != null) MobileSignalVisibility.unregister(binding.miuiViewModel)
+            MobileSignalVisibility.unregister(binding.miuiViewModel)
         }
         session.subscriptions(ids)
         scheduleRender(bindingGeneration)

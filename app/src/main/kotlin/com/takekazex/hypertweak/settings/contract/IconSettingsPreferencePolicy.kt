@@ -10,12 +10,24 @@ internal object IconSettingsPreferencePolicy {
         explicit?.takeIf { it in TYPE_ORDER_DEFAULT..TYPE_ORDER_LEFT }
             ?: if (legacySwap) TYPE_ORDER_RIGHT else TYPE_ORDER_DEFAULT
 
+    /**
+     * The one keep-on-Wi-Fi rule for every network-type label (native, Duo, carrier rows).
+     *
+     * The retired [IconSettingsKeys.KEY_ICON_STACKED_TYPE_HIDE_WIFI] switch meant the opposite and
+     * defaulted to showing the type: an explicit `false` there was the user turning hiding off, so
+     * it migrates to "keep showing" until the current switch is touched.
+     */
     fun keepCellularTypeOnWifi(read: (String) -> Boolean?): Boolean =
         read(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_KEEP_ON_WIFI)
-            ?: legacyStackedTypeKeepsOnWifi(read)
+            ?: (read(IconSettingsKeys.KEY_ICON_STACKED_TYPE_HIDE_WIFI) == false)
 
-    fun legacyStackedTypeKeepsOnWifi(read: (String) -> Boolean?): Boolean =
-        read(IconSettingsKeys.KEY_ICON_STACKED_TYPE_HIDE_WIFI) == false
+    /**
+     * Whether the host draws its standalone network-type label. Stacked signal always uses it:
+     * the replacement only draws the bars and leaves the 5G text to the native label.
+     */
+    fun separateCellularType(read: (String) -> Boolean?): Boolean =
+        read(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_SINGLE) == true ||
+            iconBoolean(IconSettingsKeys.KEY_ICON_STACKED_ENABLED, read)
 
     fun hideNonDefaultSim(read: (String) -> Boolean?): Boolean =
         read(IconSettingsKeys.KEY_ICON_HIDE_NON_DEFAULT_SIM)
@@ -86,9 +98,8 @@ internal object IconSettingsPreferencePolicy {
     /** Null when [key] needs the full icon transaction; [after] holds the committed values. */
     fun domainsFor(key: String, after: Map<String, Any>): Set<IndependentIconDomain>? {
         val reorder = after[IconTunerContract.KEY_POSITION_REORDER] == true
-        val stacked = iconBoolean(IconSettingsKeys.KEY_ICON_STACKED_ENABLED) { after[it] as? Boolean }
         // A separate native type label installs its Wi-Fi visibility hook from these options.
-        val separateType = after[IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_SINGLE] == true
+        val separateType = separateCellularType { after[it] as? Boolean }
         val mirrors = setOf(IndependentIconDomain.DUO, IndependentIconDomain.CONTROL_CENTER_HEADER)
         val domains = when {
             key == PlatformSettingsKeys.KEY_STATUSBAR_REGION_SAMPLING -> setOf(IndependentIconDomain.SAMPLING)
@@ -116,15 +127,13 @@ internal object IconSettingsPreferencePolicy {
             // Duo and the carrier block mirror the hide-when-connected rule.
             key == IconSettingsKeys.KEY_ICON_HIDE_WIFI_UNAVAILABLE -> mirrors + IndependentIconDomain.WIFI
             key in wifiKeys -> setOf(IndependentIconDomain.WIFI)
-            // The stacked replacement owns the rows while it is on; otherwise the native rows do.
-            key in simVisibilityKeys -> mirrors +
-                if (stacked) IndependentIconDomain.STACKED else IndependentIconDomain.SIM_VISIBILITY
-            key == IconSettingsKeys.KEY_ICON_STACKED_TYPE_ROAMING -> setOf(IndependentIconDomain.STACKED)
+            // One mobile-signal owner masks the native rows, with or without the stacked bars.
+            key in simVisibilityKeys -> mirrors + IndependentIconDomain.MOBILE_SIGNAL
             key == IconSettingsKeys.KEY_ICON_STACKED_WEIGHT || key == IconSettingsKeys.KEY_ICON_MOBILE_ROW_STYLE ->
-                mirrors + IndependentIconDomain.STACKED
-            key in typeVisibilityKeys -> if (separateType) return null else mirrors + IndependentIconDomain.STACKED
+                mirrors + IndependentIconDomain.MOBILE_SIGNAL
+            key in typeVisibilityKeys -> if (separateType) return null else mirrors
             key in nativeTypeKeys -> setOf(IndependentIconDomain.CELLULAR_TYPE)
-            key in typeStyleKeys -> mirrors + IndependentIconDomain.CELLULAR_TYPE + IndependentIconDomain.STACKED
+            key in typeStyleKeys -> mirrors + IndependentIconDomain.CELLULAR_TYPE
             else -> return null
         }
         // Hiding icons first makes visibility part of the slot order, which only a group rebuild
@@ -159,7 +168,7 @@ internal object IconSettingsPreferencePolicy {
         IconSettingsKeys.KEY_ICON_WIFI_PADDING_END_VAL, IconSettingsKeys.KEY_ICON_WIFI_ACTIVITY_RIGHT
     )
 
-    /** Type-label visibility of the stacked replacement, also mirrored by Duo and the carrier. */
+    /** Type-label visibility of the native separate label, also mirrored by Duo and the carrier. */
     private val typeVisibilityKeys: Set<String> = setOf(
         IconSettingsKeys.KEY_ICON_STACKED_TYPE_HIDE_DISCONNECT, IconSettingsKeys.KEY_ICON_STACKED_TYPE_HIDE_WIFI,
         IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_KEEP_ON_WIFI
@@ -201,6 +210,7 @@ internal object IconSettingsPreferencePolicy {
         IconSettingsKeys.KEY_ICON_STACKED_PADDING_END, IconSettingsKeys.KEY_ICON_STACKED_TYPE_SIZE,
         IconSettingsKeys.KEY_ICON_STACKED_TYPE_WEIGHT, IconSettingsKeys.KEY_ICON_STACKED_TYPE_PADDING_START,
         IconSettingsKeys.KEY_ICON_STACKED_TYPE_PADDING_END, IconSettingsKeys.KEY_ICON_STACKED_TYPE_VERTICAL_OFFSET,
+        IconSettingsKeys.KEY_ICON_STACKED_TYPE_ROAMING,
         SystemUiSettingsKeys.KEY_CC_HIDE_SUPER_ISLAND
     )
 
@@ -268,10 +278,8 @@ internal enum class IndependentIconDomain {
     CELLULAR,
     /** Wi-Fi gates and override flows re-publish; padding and placement re-apply in place. */
     WIFI,
-    /** The stacked replacement re-renders its published slot in place. */
-    STACKED,
+    /** Native SIM masks and the stacked bars; the mobile-signal owner re-applies both in place. */
+    MOBILE_SIGNAL,
     /** Native type text/order/typography; that hook reinstalls alone without a group rebuild. */
-    CELLULAR_TYPE,
-    /** SIM and on-Wi-Fi hiding of the native rows, re-masked in place. */
-    SIM_VISIBILITY
+    CELLULAR_TYPE
 }

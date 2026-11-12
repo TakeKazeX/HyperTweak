@@ -86,14 +86,7 @@ object IconPositionHooker : StaticHooker() {
     private val containerStates = generationMainResource(WeakHashMap<Any, ContainerState>()) { it.clear() }
     private val maskOwners = IconMaskOwners()
     private val duoSlots = setOf("airplane", "mobile", "stacked_mobile", "wifi", "demo_wifi",
-        "stacked_mobile_icon", "stacked_mobile_type", "single_mobile_sim1", "single_mobile_sim2")
-
-    private val keepStackedTypeOnWifi by hookSetting(false) { Preferences.legacyStackedTypeKeepsOnWifi() }
-    private var pairedWifiSignalId by generationState { 0 }
-    private val pairedTypeViews = generationMainResource(WeakHashMap<View, Int>()) { views ->
-        views.forEach { (view, visibility) -> if (view.visibility == View.GONE) view.visibility = visibility }
-        views.clear()
-    }
+        "stacked_mobile_icon")
 
     private var options by generationState { IconTunerOptions.snapshot() }
 
@@ -371,9 +364,6 @@ object IconPositionHooker : StaticHooker() {
         }
         hookContainerMethod(containerClass, "setIgnoredSlots")
         hookContainerMethod(containerClass, "addIgnoredSlots")
-        if (IconSlotPolicy.SLOT_STACKED_TYPE in options.policy.enabledModuleSlots && !keepStackedTypeOnWifi) {
-            hookPairedNetworkMeasure(containerClass)
-        }
         hookTwoLineHostState(containerClass)
         // View.onLayout is (changed, left, top, right, bottom): five parameters. A four-parameter
         // query silently misses this final host override, leaving every icon at the host's row.
@@ -397,49 +387,6 @@ object IconPositionHooker : StaticHooker() {
                     if (active?.isEmpty() == true) activeHostLayouts.remove()
                     if (!retiring) CellularTypeIconHooker.onTypeOrderContainerLayout(container, ::disableClipping)
                 }
-            }
-        }
-    }
-
-    /** Both producers may be visible in the same frame while their independent flows catch up. */
-    private fun hookPairedNetworkMeasure(containerClass: Class<*>) {
-        val intType = Int::class.javaPrimitiveType ?: return
-        val method = HostAccess.method(containerClass, "onMeasure", intType, intType)
-            ?.takeIf { it.returnType == Void.TYPE } ?: return
-        method.hook {
-            before { param ->
-                if (retiring) return@before
-                val container = param.thisObject as? ViewGroup ?: return@before
-                runCatching {
-                    var type: View? = null
-                    var wifiVisible = false
-                    for (index in 0 until container.childCount) {
-                        val child = container.getChildAt(index)
-                        when (val slot = slotOf(child)) {
-                            IconSlotPolicy.SLOT_STACKED_TYPE -> type = child
-                            IconSlotPolicy.SLOT_WIFI, IconSlotPolicy.SLOT_DEMO_WIFI -> {
-                                if (pairedWifiSignalId == 0) {
-                                    pairedWifiSignalId = ResourceLookup.identifier(container.resources, 
-                                        "wifi_signal", "id", "com.android.systemui"
-                                    )
-                                }
-                                val glyph = WifiIconHooker.nativeGlyph(child, pairedWifiSignalId)
-                                wifiVisible = wifiVisible || glyph?.visibility == View.VISIBLE &&
-                                    isHostLayoutVisible(child, slot, container, requireWidth = false)
-                            }
-                        }
-                    }
-                    val label = type ?: return@runCatching
-                    if (wifiVisible) {
-                        if (label.visibility == View.VISIBLE) {
-                            pairedTypeViews.putIfAbsent(label, View.VISIBLE)
-                            label.visibility = View.GONE
-                        }
-                    } else {
-                        val original = pairedTypeViews.remove(label)
-                        if (original != null && label.visibility == View.GONE) label.visibility = original
-                    }
-                }.onFailure { DebugLog.w(TAG, "network seat measurement failed", it) }
             }
         }
     }

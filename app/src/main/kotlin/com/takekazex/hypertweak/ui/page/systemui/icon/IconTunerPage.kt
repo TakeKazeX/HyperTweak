@@ -325,10 +325,10 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit, onNavig
             hideNonDefaultSim = pref(IconSettingsKeys.KEY_ICON_HIDE_NON_DEFAULT_SIM, false),
             hideSimOne = pref(IconSettingsKeys.KEY_ICON_HIDE_SIM_ONE, false),
             hideSimTwo = pref(IconSettingsKeys.KEY_ICON_HIDE_SIM_TWO, false),
-            useSeparateCellularType = pref(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_SINGLE, false),
+            useSeparateCellularType = pref(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_SINGLE, false) ||
+                pref(IconSettingsKeys.KEY_ICON_STACKED_ENABLED, false),
             typeOrder = typeOrder,
             keepCellularTypeOnWifi = pref(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_KEEP_ON_WIFI, false),
-            keepStackedTypeOnWifi = IconSettingsPreferencePolicy.legacyStackedTypeKeepsOnWifi(::explicitBoolean),
             small5GaEnabled = pref(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_SMALL_5GA, false),
             typography = MobileTypeTypography(
                 pref(IconSettingsKeys.KEY_ICON_TYPE_TYPOGRAPHY, false),
@@ -422,11 +422,6 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit, onNavig
                             enabled = pref(IconSettingsKeys.KEY_ICON_STACKED_ENABLED, false),
                             artworkStyle = pref(IconSettingsKeys.KEY_ICON_STACKED_SIGNAL_STYLE, 0),
                             weight = pref(IconSettingsKeys.KEY_ICON_STACKED_WEIGHT, 0f),
-                            hideWhenDisconnected = pref(
-                                IconSettingsKeys.KEY_ICON_STACKED_TYPE_HIDE_DISCONNECT,
-                                false
-                            ),
-                            showRoaming = pref(IconSettingsKeys.KEY_ICON_STACKED_TYPE_ROAMING, false),
                             onChange = { key, value -> changed(key, value) }
                         )
                         CellularSection(
@@ -454,6 +449,7 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit, onNavig
                         )
                         CellularTypeSection(
                 forceSingle = pref(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_SINGLE, false),
+                stacked = pref(IconSettingsKeys.KEY_ICON_STACKED_ENABLED, false),
                 keepTypeOnWifi = pref(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_KEEP_ON_WIFI, false),
                 hideOnWifi = pref(IconSettingsKeys.KEY_ICON_HIDE_MOBILE_ON_WIFI, false),
                 useCustom = pref(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_CUSTOM, false),
@@ -564,8 +560,6 @@ private fun StackedSignalSection(
     enabled: Boolean,
     artworkStyle: Int,
     weight: Float,
-    hideWhenDisconnected: Boolean,
-    showRoaming: Boolean,
     onChange: (String, Any) -> Unit
 ) {
     val style = SignalSvgStyle.fromStored(artworkStyle)
@@ -596,16 +590,6 @@ private fun StackedSignalSection(
                     selectedIndex = style.storedValue,
                     onSelectedIndexChange = { onChange(IconSettingsKeys.KEY_ICON_STACKED_SIGNAL_STYLE, it) }
                 )
-                TunerSwitch(
-                    hideWhenDisconnected,
-                    stringResource(R.string.icon_stacked_type_hide_disconnect),
-                    stringResource(R.string.icon_stacked_type_hide_disconnect_summary)
-                ) { onChange(IconSettingsKeys.KEY_ICON_STACKED_TYPE_HIDE_DISCONNECT, it) }
-                TunerSwitch(
-                    showRoaming,
-                    stringResource(R.string.icon_stacked_type_roaming),
-                    stringResource(R.string.icon_stacked_type_roaming_summary)
-                ) { onChange(IconSettingsKeys.KEY_ICON_STACKED_TYPE_ROAMING, it) }
             }
         }
     }
@@ -971,6 +955,7 @@ private fun NotificationMaxIconsRow(maximum: Int, onValueChange: (Int) -> Unit) 
 private fun CellularTypeSection(
     typography: MobileTypeTypography,
     forceSingle: Boolean,
+    stacked: Boolean,
     keepTypeOnWifi: Boolean,
     hideOnWifi: Boolean,
     useCustom: Boolean,
@@ -980,19 +965,25 @@ private fun CellularTypeSection(
     small5GaEnabled: Boolean,
     onChange: (String, Any) -> Unit
 ) {
+    // Stacked bars always pair with the native standalone label, so it is forced on there.
+    val separate = forceSingle || stacked
     SmallTitle(stringResource(R.string.icon_cellular_type_title))
     Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
         Column(Modifier.fillMaxWidth()) {
             TunerSwitch(
-                forceSingle,
+                separate,
                 stringResource(R.string.icon_cellular_type_single),
-                stringResource(R.string.icon_cellular_type_single_summary)
+                stringResource(
+                    if (stacked) R.string.icon_cellular_type_single_stacked_summary
+                    else R.string.icon_cellular_type_single_summary
+                ),
+                enabled = !stacked
             ) { onChange(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_SINGLE, it) }
             TunerSwitch(
                 keepTypeOnWifi,
                 stringResource(R.string.icon_stacked_type_keep_on_wifi),
                 stringResource(R.string.icon_stacked_type_keep_on_wifi_summary),
-                enabled = forceSingle && !hideOnWifi
+                enabled = separate && !hideOnWifi
             ) { onChange(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_KEEP_ON_WIFI, it) }
             TunerSwitch(
                 useCustom,
@@ -1028,7 +1019,7 @@ private fun CellularTypeSection(
                 hideWhenDisconnected,
                 stringResource(R.string.icon_stacked_type_hide_disconnect),
                 stringResource(R.string.icon_stacked_type_hide_disconnect_summary),
-                enabled = forceSingle
+                enabled = separate
             ) { onChange(IconSettingsKeys.KEY_ICON_STACKED_TYPE_HIDE_DISCONNECT, it) }
             OverlayDropdownPreference(
                 title = stringResource(R.string.icon_cellular_type_swap),
@@ -1039,7 +1030,8 @@ private fun CellularTypeSection(
                     stringResource(R.string.icon_type_order_right),
                     stringResource(R.string.icon_type_order_left)
                 ),
-                selectedIndex = typeOrder,
+                selectedIndex = if (stacked) 0 else typeOrder,
+                enabled = !stacked,
                 onSelectedIndexChange = { onChange(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_ORDER, it) }
             )
         }

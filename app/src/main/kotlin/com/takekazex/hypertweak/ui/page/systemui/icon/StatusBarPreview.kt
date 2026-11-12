@@ -34,7 +34,6 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.takekazex.hypertweak.R
-import com.takekazex.hypertweak.settings.contract.IconSlotPolicy
 import com.takekazex.hypertweak.settings.contract.MobileTypeLabelStyle
 import com.takekazex.hypertweak.presentation.icon.duo.DuoContent
 import com.takekazex.hypertweak.presentation.icon.duo.DuoDrawable
@@ -116,7 +115,7 @@ internal fun StatusBarPreview(model: StatusBarPreviewModel, duoSizes: DuoSizes =
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
             model.coreSlots.forEach { slot ->
-                if (slot == PREVIEW_NATIVE_TYPE_SLOT || slot == IconSlotPolicy.SLOT_STACKED_TYPE) {
+                if (slot == PREVIEW_NATIVE_TYPE_SLOT) {
                     PreviewNetworkType(model)
                 } else {
                     PreviewGlyph(slot, model.duoSizeDp, duoSizes, mirrorAirplane, model.duoContent)

@@ -61,9 +61,7 @@ object CellularIconHooker : StaticHooker() {
     private const val TAG = "IconTuner"
     private const val VM_CLASS = "com.android.systemui.statusbar.pipeline.mobile.ui.viewmodel.MiuiCellularIconVM"
 
-    private val separateType by hookSetting(false) {
-        Preferences.getBoolean(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_SINGLE, false)
-    }
+    private val separateType by hookSetting(false) { Preferences.separateCellularType() }
 
     /** One gate per option; every getter stays hooked, so a toggle only flips its gate. */
     private class Gates {

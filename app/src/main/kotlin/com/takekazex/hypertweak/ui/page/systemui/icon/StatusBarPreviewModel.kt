@@ -76,7 +76,7 @@ internal data class StatusBarPreviewModel(
     val typography: com.takekazex.hypertweak.settings.contract.MobileTypeTypography = com.takekazex.hypertweak.settings.contract.MobileTypeTypography()
 ) {
     val showNetworkType: Boolean
-        get() = PREVIEW_NATIVE_TYPE_SLOT in coreSlots || IconSlotPolicy.SLOT_STACKED_TYPE in coreSlots
+        get() = PREVIEW_NATIVE_TYPE_SLOT in coreSlots
 }
 
 /** Raw settings the preview reasons about; all values come from the page's live preference state. */
@@ -95,7 +95,6 @@ internal data class StatusBarPreviewInput(
     val useSeparateCellularType: Boolean,
     val typeOrder: Int = 0,
     val keepCellularTypeOnWifi: Boolean = false,
-    val keepStackedTypeOnWifi: Boolean = false,
     val hideNonDefaultSim: Boolean = false,
     val hideSimOne: Boolean = false,
     val hideSimTwo: Boolean = false,
@@ -155,12 +154,9 @@ internal fun buildStatusBarPreview(input: StatusBarPreviewInput): StatusBarPrevi
     val showType = 1 !in hidden && signal.isNotEmpty() && !input.duoEnabled
     val core = buildList {
         addAll(signal)
-        if (showType && input.stackedEnabled && input.keepStackedTypeOnWifi &&
-            !previewHidden(IconSlotPolicy.SLOT_STACKED_TYPE, config)
-        ) {
-            add(IconSlotPolicy.SLOT_STACKED_TYPE)
-        } else if (showType && !input.stackedEnabled && input.useSeparateCellularType && input.keepCellularTypeOnWifi) {
-            val index = when (input.typeOrder) {
+        // Stacked bars keep the native standalone label in the `mobile` slot, with its own order.
+        if (showType && (input.useSeparateCellularType || input.stackedEnabled) && input.keepCellularTypeOnWifi) {
+            val index = when (if (input.stackedEnabled) 0 else input.typeOrder) {
                 1 -> signal.indexOf(SLOT_SINGLE_SIM1).let { if (it < 0) 0 else it + 1 }
                 2 -> size
                 else -> 0
@@ -175,7 +171,8 @@ internal fun buildStatusBarPreview(input: StatusBarPreviewInput): StatusBarPrevi
             // in a separate trailing container rather than in the icon row.
             sortBy { slot ->
                 val hostSlot = when (slot) {
-                    SLOT_SINGLE_SIM1, SLOT_SINGLE_SIM2, PREVIEW_NATIVE_TYPE_SLOT -> if (input.stackedEnabled) SLOT_STACKED else IconSlotPolicy.SLOT_MOBILE
+                    SLOT_SINGLE_SIM1, SLOT_SINGLE_SIM2 -> if (input.stackedEnabled) SLOT_STACKED else IconSlotPolicy.SLOT_MOBILE
+                    PREVIEW_NATIVE_TYPE_SLOT -> IconSlotPolicy.SLOT_MOBILE
                     else -> slot
                 }
                 hostIndex(hostSlot)

@@ -105,17 +105,23 @@ class SystemUiLiveSettingsRoutingTest {
         assertEquals(wifi, domains(IconSettingsKeys.KEY_ICON_WIFI_STANDARD_MODE))
         val mirrors = setOf(IndependentIconDomain.DUO, header)
         assertEquals(mirrors + IndependentIconDomain.WIFI, domains(IconSettingsKeys.KEY_ICON_HIDE_WIFI_UNAVAILABLE))
-        assertEquals(mirrors + IndependentIconDomain.SIM_VISIBILITY, domains(IconSettingsKeys.KEY_ICON_HIDE_MOBILE_ON_WIFI))
-        // The stacked replacement owns the rows while it is on.
-        assertEquals(mirrors + IndependentIconDomain.STACKED, domains(IconSettingsKeys.KEY_ICON_HIDE_SIM_ONE,
+        // One mobile-signal owner masks the native rows, with or without the stacked bars.
+        val mobile = mirrors + IndependentIconDomain.MOBILE_SIGNAL
+        assertEquals(mobile, domains(IconSettingsKeys.KEY_ICON_HIDE_MOBILE_ON_WIFI))
+        assertEquals(mobile, domains(IconSettingsKeys.KEY_ICON_HIDE_SIM_ONE))
+        assertEquals(mobile, domains(IconSettingsKeys.KEY_ICON_HIDE_SIM_ONE,
             extra = mapOf(IconSettingsKeys.KEY_ICON_STACKED_ENABLED to true)))
-        assertEquals(mirrors + IndependentIconDomain.STACKED, domains(IconSettingsKeys.KEY_ICON_MOBILE_ROW_STYLE))
-        assertEquals(mirrors + IndependentIconDomain.STACKED, domains(IconSettingsKeys.KEY_ICON_STACKED_TYPE_HIDE_DISCONNECT))
-        // A separate native label installs its Wi-Fi visibility hook from the type options.
+        assertEquals(mobile, domains(IconSettingsKeys.KEY_ICON_MOBILE_ROW_STYLE))
+        assertEquals(mirrors, domains(IconSettingsKeys.KEY_ICON_STACKED_TYPE_HIDE_DISCONNECT))
+        // A separate native label installs its Wi-Fi visibility hook from the type options, and
+        // the stacked bars always use that label.
         assertNull(domains(IconSettingsKeys.KEY_ICON_STACKED_TYPE_HIDE_DISCONNECT,
             extra = mapOf(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_SINGLE to true)))
+        assertNull(domains(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_KEEP_ON_WIFI,
+            extra = mapOf(IconSettingsKeys.KEY_ICON_STACKED_ENABLED to true)))
+        assertEquals(emptySet<IndependentIconDomain>(), domains(IconSettingsKeys.KEY_ICON_STACKED_TYPE_ROAMING))
         assertEquals(setOf(IndependentIconDomain.CELLULAR_TYPE), domains(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_ORDER))
-        assertEquals(mirrors + IndependentIconDomain.CELLULAR_TYPE + IndependentIconDomain.STACKED,
+        assertEquals(mirrors + IndependentIconDomain.CELLULAR_TYPE,
             domains(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_SMALL_5GA))
         assertEquals(emptySet<IndependentIconDomain>(), domains(IconSettingsKeys.KEY_ICON_STACKED_ALPHA_FG))
         assertEquals(emptySet<IndependentIconDomain>(), domains(SystemUiSettingsKeys.KEY_CC_HIDE_SUPER_ISLAND))

@@ -179,7 +179,7 @@ internal data class CarrierMask(val cellular: Boolean = false, val wifi: Boolean
 
     companion object {
         val CELLULAR_SLOTS = setOf("mobile", "demo_mobile", "stacked_mobile",
-            "stacked_mobile_icon", "stacked_mobile_type", "single_mobile_sim1", "single_mobile_sim2")
+            "stacked_mobile_icon")
         val WIFI_SLOTS = setOf("wifi", "demo_wifi")
     }
 }

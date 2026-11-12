@@ -65,25 +65,19 @@ class SignalTargetOwnershipTest {
         assertFalse(events.hasActiveProxy(other))
     }
 
-    @Test fun mobileCollectionAndAirplaneQueriesRetireWithTheirRenderer() {
+    @Test fun handoverAndAirplaneQueriesRetireWithTheirRenderer() {
         val events = ShadeSwitchEvents()
         val owner = Any(); val replacement = Any(); val root = Any()
-        val state = MobileSignalState(); var seen = 0; var required = true
-        events.bind(owner, {}, {}, ownsAirplane = { it === root },
-            requiresMobile = { required }, mobile = { value, ready ->
-                assertSame(state, value); assertTrue(ready); seen++
-            })
-        assertTrue(events.requiresMobileState())
+        var owns = true
+        events.bind(owner, {}, {}, ownsAirplane = { it === root }, ownsSignalHandover = { owns })
+        assertTrue(events.ownsSignalHandover())
         assertTrue(events.ownsAirplane(root))
-        events.onMobileState(state, true)
-        required = false
-        assertFalse(events.requiresMobileState())
+        owns = false
+        assertFalse(events.ownsSignalHandover())
         events.bind(replacement, {}, {})
         events.retire(owner)
-        events.onMobileState(state, true)
-        assertEquals(1, seen)
         assertFalse(events.ownsAirplane(root))
         events.retire(replacement)
-        assertFalse(events.requiresMobileState())
+        assertFalse(events.ownsSignalHandover())
     }
 }

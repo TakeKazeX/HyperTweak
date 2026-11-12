@@ -184,7 +184,6 @@ internal class CarrierHandoverController(private val host: Host) {
     }
 
     private fun typeGlyph(row: ViewGroup, subId: Int?): View? {
-        if (subId == host.activeDataSubId) StackedSignalHooker.duoTypeTarget(row)?.let { return it }
         val mobile = subId?.let { mobileGroup(row, it) } ?: return null
         val single = ResourceLookup.identifier(mobile.resources, "mobile_type_single", "id", mobile.context.packageName)
         return glyph(mobile, single) ?: glyph(mobile, host.mobileTypeId)

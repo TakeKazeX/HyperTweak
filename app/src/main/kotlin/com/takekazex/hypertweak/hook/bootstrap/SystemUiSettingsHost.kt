@@ -23,7 +23,6 @@ import com.takekazex.hypertweak.hook.rules.systemui.icon.carrier.ControlCenterCa
 import com.takekazex.hypertweak.hook.rules.systemui.icon.ControlCenterHeaderHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.ControlCenterPrivacyHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.HideCarrierLabelHooker
-import com.takekazex.hypertweak.hook.rules.systemui.icon.HideCellularIconHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IconManagerHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IconPositionHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IconSlotTintHooker
@@ -57,7 +56,7 @@ internal class SystemUiSettingsHost(
         )
     }
     fun iconHookers(): List<BaseHooker> = listOf(
-        CellularIconHooker, WifiIconHooker, HideCellularIconHooker, IconManagerHooker,
+        CellularIconHooker, WifiIconHooker, IconManagerHooker,
         IconPositionHooker, AirplaneIconHooker, IconSlotTintHooker, IgnoreSysIconSettingsHooker,
         LeftContainerHooker, DuoSignalHooker, StackedSignalHooker, HideCarrierLabelHooker,
         ControlCenterHeaderHooker, CcBatteryStyleHooker, CcRotationLockIconHooker, ControlCenterCarrierBlockHooker,
@@ -202,9 +201,8 @@ internal class SystemUiSettingsHost(
                 IndependentIconDomain.AIRPLANE -> reloaded += AirplaneIconHooker
                 IndependentIconDomain.CELLULAR -> live += CellularIconHooker
                 IndependentIconDomain.WIFI -> live += WifiIconHooker
-                IndependentIconDomain.STACKED -> live += StackedSignalHooker
+                IndependentIconDomain.MOBILE_SIGNAL -> live += StackedSignalHooker
                 IndependentIconDomain.CELLULAR_TYPE -> reloaded += CellularTypeIconHooker
-                IndependentIconDomain.SIM_VISIBILITY -> live += HideCellularIconHooker
             }
         }
         if (!hooks.containsAll(reloaded) || !hooks.containsAll(live)) return false
@@ -229,7 +227,6 @@ internal class SystemUiSettingsHost(
             // Pipeline gates re-emit through the binders that already collect them.
             if (CellularIconHooker in live) CellularIconHooker.refreshSettings()
             if (WifiIconHooker in live) WifiIconHooker.refreshSettings()
-            if (HideCellularIconHooker in live) HideCellularIconHooker.refreshSettings()
             if (StackedSignalHooker in live) StackedSignalHooker.refreshSettings()
             if (DuoSignalHooker in live) DuoSignalHooker.refreshSettings()
         }

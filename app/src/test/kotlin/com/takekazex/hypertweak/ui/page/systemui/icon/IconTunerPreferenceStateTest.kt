@@ -25,6 +25,13 @@ class IconTunerPreferenceStateTest {
         assertFalse(restored.containsKey(key))
     }
 
+    @Test fun stackedSignalAlwaysUsesTheSeparateNativeType() {
+        val values = mutableMapOf<String, Any>(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_SINGLE to false)
+        assertFalse(IconSettingsPreferencePolicy.separateCellularType { values[it] as? Boolean })
+        values[IconSettingsKeys.KEY_ICON_STACKED_ENABLED] = true
+        assertTrue(IconSettingsPreferencePolicy.separateCellularType { values[it] as? Boolean })
+    }
+
     @Test fun currentWifiAndSimSwitchesOverrideLegacyValuesEvenWhenTurnedOff() {
         val values = mutableMapOf(
             IconSettingsKeys.KEY_ICON_STACKED_TYPE_HIDE_WIFI to false,

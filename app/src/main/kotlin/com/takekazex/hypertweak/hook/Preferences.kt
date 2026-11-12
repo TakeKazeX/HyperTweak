@@ -294,20 +294,23 @@ object Preferences {
     fun allowThirdPartyTheme(): Boolean = getBoolean(PlatformSettingsKeys.KEY_ALLOW_THIRD_PARTY_THEME, false)
 
     /**
-     * Whether native separate cellular text stays visible while Wi-Fi carries the data
-     * connection. Default off: Wi-Fi connected ⇒ no cellular type, matching the host's own single
-     * type rule.
-     *
-     * The legacy [KEY_ICON_STACKED_TYPE_HIDE_WIFI] switch meant the opposite and defaulted to
-     * showing the type. An explicit `false` there was the user turning the hiding *off*, so it
-     * migrates to "keep showing"; an absent or `true` value stays hidden. The new key always wins
-     * once the user touches the replacement switch.
+     * Whether every network-type label (native, Duo, carrier rows) stays visible while Wi-Fi
+     * carries the data connection. Default off, matching the host's own single-type rule; see
+     * [IconSettingsPreferencePolicy.keepCellularTypeOnWifi] for the legacy-key migration.
      */
     fun cellularTypeKeepsOnWifi(): Boolean =
         IconSettingsPreferencePolicy.keepCellularTypeOnWifi(::explicitIconBoolean)
 
-    internal fun legacyStackedTypeKeepsOnWifi(): Boolean =
-        IconSettingsPreferencePolicy.legacyStackedTypeKeepsOnWifi(::explicitIconBoolean)
+    /**
+     * Whether every network-type label (native, Duo, carrier rows) is hidden while mobile data is
+     * disconnected. The key keeps its historical stacked name.
+     */
+    fun cellularTypeHidesWhenDisconnected(): Boolean =
+        getBoolean(IconSettingsKeys.KEY_ICON_STACKED_TYPE_HIDE_DISCONNECT, false)
+
+    /** Standalone native type label, also implied by stacked signal. */
+    internal fun separateCellularType(): Boolean =
+        IconSettingsPreferencePolicy.separateCellularType(::explicitIconBoolean)
 
     internal fun ccBatteryPercentStyle() = IconSettingsPreferencePolicy.ccBatteryPercentStyle(
         SystemUiSettingsKeys.KEY_CC_BATTERY_PERCENT_STYLE.let { key ->

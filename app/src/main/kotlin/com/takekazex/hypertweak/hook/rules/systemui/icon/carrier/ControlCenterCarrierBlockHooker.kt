@@ -15,6 +15,7 @@ import com.takekazex.hypertweak.hook.rules.systemui.icon.ShadeSwitchMotionPolicy
 import com.takekazex.hypertweak.hook.rules.systemui.icon.SignalHandoverEvents
 import com.takekazex.hypertweak.hook.rules.systemui.icon.TwoRowIconLayout
 import com.takekazex.hypertweak.presentation.icon.MobileSignalState
+import com.takekazex.hypertweak.hook.rules.systemui.icon.MobileSignalHub
 
 import android.annotation.SuppressLint
 import android.content.Context
@@ -74,9 +75,9 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_CARRIER_SHOW_NON_DATA_TYPE, false)
     }
     private val hideTypeWhenDisconnected by hookSetting(false) {
-        Preferences.getBoolean(IconSettingsKeys.KEY_ICON_STACKED_TYPE_HIDE_DISCONNECT, false)
+        Preferences.cellularTypeHidesWhenDisconnected()
     }
-    private val settingCellularTypeKeepsOnWifi by hookSetting(false) { Preferences.legacyStackedTypeKeepsOnWifi() }
+    private val settingCellularTypeKeepsOnWifi by hookSetting(false) { Preferences.cellularTypeKeepsOnWifi() }
     private val settingCcCarrierShowBadge by hookSetting(true) {
         Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_CARRIER_SHOW_BADGE, true)
     }
@@ -186,7 +187,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
     private var keyguardSeparatorField: Field? by generationState { null }
 
     /** All mutable view state is consumed on the main looper. */
-    private var mobileState by generationState { MobileSignalState() }
+    private val mobileState: MobileSignalState get() = MobileSignalHub.state
     private var slotIndices by generationState { emptyMap<Int, Int>() }
     private var wifiLevel: Int? by generationState { null }
     private var wifiDefault: Boolean? by generationState { null }
@@ -234,18 +235,6 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
             listener.onSubscriptionsChanged()
         }.onFailure { DebugLog.w(TAG, "SIM name listener unavailable", it) }
     }
-
-    /**
-     * The shared reducer only needs to run while this feature, Duo or 堆叠 (signal) is on.
-     *
-     * Read straight from the preferences rather than from [enabled]: `HookEntry` attaches the
-     * hookers in registration order and [StackedSignalHooker] decides whether to build the shared
-     * pipeline before this object's `onHook()` has run.
-     */
-    val requiresMobileState: Boolean
-        get() = enabled ||
-            (settingCcHideDate &&
-                settingCcCarrierTwoLine)
 
     override fun saveHotReloadState(): Any = onMainBlocking {
         listOf((knownLayouts.keys + blocks.keys.filterIsInstance<ViewGroup>()).distinct(),
@@ -383,7 +372,6 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
             hostContext = null
             lastRecoveryEvidence = null
             rowIndex.clear()
-            mobileState = MobileSignalState()
             progress = 0f
             panelVisible = false
         }
@@ -418,6 +406,7 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
         generation.incrementAndGet()
         resolveIds()
         hookLayout()
+        MobileSignalHub.subscribe(this, ::onMobileState)
         hookRowMaxWidth()
         hookExpansion()
         hookShadeSwitching()
@@ -736,19 +725,9 @@ object ControlCenterCarrierBlockHooker : StaticHooker() {
 
     // ---------------------------------------------------------------- state
 
-    /** Called by [StackedSignalHooker] after every complete reducer emission. */
-    fun onMobileState(state: MobileSignalState, ready: Boolean) {
+    /** Hears every settled [MobileSignalHub] change, and the current state once on install. */
+    private fun onMobileState() {
         if (!enabled) return
-        // The host briefly rebinds its subscription flows while connectivity changes. Keep a
-        // previously verified row until that rebind completes, as the stacked signal does.
-        val next = when {
-            ready || state.airplaneMode -> state
-            state.subscriptionOrder.isNotEmpty() &&
-                state.subscriptionOrder.toSet() == mobileState.subscriptionOrder.toSet() -> return
-            else -> MobileSignalState()
-        }
-        if (mobileState == next) return
-        mobileState = next
         scheduleRender()
         main.post { handover.applyHandoverGuarded(progress) }
     }

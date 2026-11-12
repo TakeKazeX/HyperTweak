@@ -479,7 +479,6 @@ internal class DuoPanelHandover(private val host: Host) {
         if (wifi) return binding.networkIds["wifi_signal"]?.let {
             com.takekazex.hypertweak.hook.rules.systemui.icon.WifiIconHooker.nativeGlyph(binding.icons, it)
         }?.takeIf { signalEndpointVisible(it, binding.icons) }
-        StackedSignalHooker.duoTypeTarget(binding.icons)?.let { return it }
         val group = binding.icons as? ViewGroup ?: return null
         for (i in 0 until group.childCount) {
             val child = group.getChildAt(i)

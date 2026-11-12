@@ -58,7 +58,6 @@ object IconSlotPolicy {
 
     const val SLOT_MOBILE = "mobile"
     const val SLOT_STACKED_SIGNAL = "stacked_mobile_icon"
-    const val SLOT_STACKED_TYPE = "stacked_mobile_type"
     const val SLOT_WIFI = "wifi"
     const val SLOT_DEMO_WIFI = "demo_wifi"
     const val SLOT_ROTATION_LOCK = "hypertweak_rotation_lock"
@@ -71,7 +70,7 @@ object IconSlotPolicy {
         "bluetooth", "bluetooth_handsfree_battery", "hotspot", "sound_box_group", "stereo",
         "sound_box_screen", "sound_box", "wireless_headset", "zen", "volume", "dist_compute",
         "camera", "glasses", "car", "tv", "pc", "pad", "phone", "hd", "airplane",
-        SLOT_STACKED_SIGNAL, SLOT_STACKED_TYPE,
+        SLOT_STACKED_SIGNAL,
         "mobile", "demo_mobile", "no_sim", "wifi", "demo_wifi"
     )
 
@@ -94,7 +93,8 @@ object IconSlotPolicy {
     ): Boolean = visibleState == 2 && hiddenBySpace && inIslandState == 20 &&
         iconVisible && !iconBlocked && !ignored && !removing && !gone
 
-    val STACKED_SLOTS = listOf(SLOT_STACKED_SIGNAL, SLOT_STACKED_TYPE)
+    /** The stacked replacement draws only the bars; its 5G text is the native mobile label. */
+    val STACKED_SLOTS = listOf(SLOT_STACKED_SIGNAL)
 
     val SIGNAL_SLOTS: List<String> = STACKED_SLOTS + listOf(
         "single_mobile_sim1",
@@ -328,7 +328,6 @@ object IconSlotPolicy {
         if (blocksMode(modeFor(slot, config.slotModes, config.extraHiddenSlots), surface)) return true
         return when (slot) {
             SLOT_STACKED_SIGNAL -> blocksSlot(SLOT_MOBILE, surface, config)
-            SLOT_STACKED_TYPE -> blocksSlot(SLOT_STACKED_SIGNAL, surface, config)
             else -> false
         }
     }

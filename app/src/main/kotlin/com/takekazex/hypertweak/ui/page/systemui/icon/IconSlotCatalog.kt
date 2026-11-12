@@ -94,7 +94,6 @@ object IconSlotCatalog {
             R.string.icon_slot_stacked_mobile_icon,
             R.drawable.ic_stat_sys_stacked_icon
         ),
-        IconSlotInfo("stacked_mobile_type", R.string.icon_slot_stacked_mobile_type, R.drawable.ic_stat_sys_stacked_type),
         IconSlotInfo("mobile", R.string.icon_slot_mobile, R.drawable.ic_stat_sys_mobile),
         IconSlotInfo("demo_mobile", R.string.icon_slot_demo_mobile, R.drawable.ic_stat_sys_mobile),
         IconSlotInfo("no_sim", R.string.icon_slot_no_sim, R.drawable.ic_stat_sys_no_sim),

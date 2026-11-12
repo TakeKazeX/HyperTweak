@@ -28,7 +28,6 @@ class StatusBarPreviewModelTest {
         useSeparateCellularType: Boolean = true,
         typeOrder: Int = 0,
         keepCellularTypeOnWifi: Boolean = true,
-        keepStackedTypeOnWifi: Boolean = false,
         hideSimOne: Boolean = false,
         rotationLockEnabled: Boolean = false
     ) = StatusBarPreviewInput(
@@ -46,7 +45,6 @@ class StatusBarPreviewModelTest {
         useSeparateCellularType = useSeparateCellularType,
         typeOrder = typeOrder,
         keepCellularTypeOnWifi = keepCellularTypeOnWifi,
-        keepStackedTypeOnWifi = keepStackedTypeOnWifi,
         hideSimOne = hideSimOne,
         rotationLockEnabled = rotationLockEnabled
     )
@@ -178,14 +176,19 @@ class StatusBarPreviewModelTest {
     }
 
     @Test
-    fun stackedPreviewHonorsParentAndTypeScopeSeparately() {
+    fun stackedPreviewHidesBarsAndNativeTypeWithTheMobileSlot() {
         val hiddenGroup = buildStatusBarPreview(input(stackedEnabled = true, slotModes = mapOf("mobile" to 3)))
         assertFalse("stacked_mobile_icon" in hiddenGroup.coreSlots)
         assertFalse(hiddenGroup.showNetworkType)
+    }
 
-        val hiddenType = buildStatusBarPreview(input(stackedEnabled = true, slotModes = mapOf("stacked_mobile_type" to 3)))
-        assertTrue("stacked_mobile_icon" in hiddenType.coreSlots)
-        assertFalse(hiddenType.showNetworkType)
+    @Test
+    fun stackedBarsUseTheNativeTypeLabelAfterThem() {
+        // Stacked forces the separate label on and ignores the type-order option.
+        val core = buildStatusBarPreview(input(
+            stackedEnabled = true, useSeparateCellularType = false, typeOrder = 3
+        )).coreSlots
+        assertEquals(core.indexOf("stacked_mobile_icon") + 1, core.indexOf(PREVIEW_NATIVE_TYPE_SLOT))
     }
 
     @Test
@@ -227,8 +230,8 @@ class StatusBarPreviewModelTest {
     @Test
     fun wifiTypeRetentionAffectsOnlySeparateText() {
         assertFalse(buildStatusBarPreview(input(keepCellularTypeOnWifi = false)).showNetworkType)
-        assertFalse(buildStatusBarPreview(input(stackedEnabled = true)).showNetworkType)
-        assertTrue(buildStatusBarPreview(input(stackedEnabled = true, keepStackedTypeOnWifi = true)).showNetworkType)
+        assertFalse(buildStatusBarPreview(input(stackedEnabled = true, keepCellularTypeOnWifi = false)).showNetworkType)
+        assertTrue(buildStatusBarPreview(input(stackedEnabled = true)).showNetworkType)
         assertEquals(null, buildStatusBarPreview(input(duoEnabled = true)).duoContent?.networkLabel)
     }
 

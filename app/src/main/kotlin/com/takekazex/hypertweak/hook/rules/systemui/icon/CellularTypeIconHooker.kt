@@ -38,12 +38,13 @@ import com.takekazex.hypertweak.util.platform.ResourceLookup
  */
 object CellularTypeIconHooker : StaticHooker() {
     // Published on settings acceptance; hook callbacks perform no storage reads.
-    private val settingIconCellularTypeSingle by hookSetting(false) {
-        Preferences.getBoolean(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_SINGLE, false)
-    }
+    private val settingIconCellularTypeSingle by hookSetting(false) { Preferences.separateCellularType() }
+    // The stacked bars replace the signal half of the native row, so there is nothing to order
+    // the label against; its position is the native mobile slot right after the stacked slot.
     private val settingTypeOrder by hookSetting(0) {
         val key = IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_ORDER
-        IconSettingsPreferencePolicy.cellularTypeOrder(
+        if (Preferences.iconBoolean(IconSettingsKeys.KEY_ICON_STACKED_ENABLED)) 0
+        else IconSettingsPreferencePolicy.cellularTypeOrder(
             Preferences.getInt(key, 0).takeIf { Preferences.contains(key) },
             Preferences.getBoolean(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_SINGLE_SWAP, false)
         )

@@ -4,6 +4,7 @@ import com.takekazex.hypertweak.presentation.icon.MobileSignalEvent
 import com.takekazex.hypertweak.presentation.icon.MobileSignalKind
 import com.takekazex.hypertweak.presentation.icon.MobileSignalModel
 import com.takekazex.hypertweak.presentation.icon.MobileSignalState
+import com.takekazex.hypertweak.presentation.icon.NativeMobileMask
 import com.takekazex.hypertweak.presentation.icon.NetworkIconVisibility
 import com.takekazex.hypertweak.settings.contract.IconSlotMode
 import com.takekazex.hypertweak.settings.contract.IconSurface
@@ -44,6 +45,53 @@ class MobileSignalStateTest {
         assertTrue(policy.hidesWifi(IconSurface.STATUS_BAR, connected = true))
     }
 
+    @Test
+    fun settledStateSurvivesAHostRebindOfTheSameSims() {
+        val shown = MobileSignalState()
+            .reduce(MobileSignalEvent.Subscriptions(listOf(11, 22)))
+            .reduce(MobileSignalEvent.SignalModel(11, MobileSignalModel.cellular(3, 5)))
+        val rebinding = MobileSignalState().reduce(MobileSignalEvent.Subscriptions(listOf(22, 11)))
+
+        assertEquals(shown, MobileSignalState.settle(shown, rebinding, ready = false))
+        assertEquals(rebinding, MobileSignalState.settle(shown, rebinding, ready = true))
+        // A different SIM set is not the same rebind; nothing partial is shown.
+        val other = MobileSignalState().reduce(MobileSignalEvent.Subscriptions(listOf(33)))
+        assertEquals(MobileSignalState(), MobileSignalState.settle(shown, other, ready = false))
+        // Airplane mode is complete without its subscription rows.
+        val airplane = MobileSignalState().reduce(MobileSignalEvent.AirplaneMode(true))
+        assertEquals(airplane, MobileSignalState.settle(shown, airplane, ready = false))
+    }
+
+    @Test
+    fun stackedMaskKeepsOnlyTheDataRowTypeLabel() {
+        val slotOf = mapOf(11 to 0, 22 to 1)::getValue
+        val dual = MobileSignalState()
+            .reduce(MobileSignalEvent.Subscriptions(listOf(11, 22)))
+            .reduce(MobileSignalEvent.ActiveDataSubId(22))
+            .reduce(MobileSignalEvent.SignalModel(11, MobileSignalModel.cellular(3, 5)))
+            .reduce(MobileSignalEvent.SignalModel(22, MobileSignalModel.cellular(4, 5)))
+            .reduce(MobileSignalEvent.TypeSingleVisible(22, true))
+        val policy = NetworkIconVisibility()
+
+        // Without published bars only the SIM rules mask native rows.
+        assertEquals(NativeMobileMask(), policy.nativeMask(dual, slotOf, stackedPublished = false, ignoreSystemHide = false))
+        // The data row stays as a type-only row while the host shows its standalone label.
+        assertEquals(NativeMobileMask(hidden = setOf(11), typeOnly = setOf(22)),
+            policy.nativeMask(dual, slotOf, stackedPublished = true, ignoreSystemHide = false))
+        // When the host hides the label, the type-only row is hidden with the rest.
+        val noLabel = dual.reduce(MobileSignalEvent.TypeSingleVisible(22, false))
+        assertEquals(NativeMobileMask(hidden = setOf(11, 22), typeOnly = setOf(22)),
+            policy.nativeMask(noLabel, slotOf, stackedPublished = true, ignoreSystemHide = false))
+        // A hidden data SIM keeps neither its bars nor its label.
+        assertEquals(NativeMobileMask(hidden = setOf(11, 22)),
+            NetworkIconVisibility(hideSimTwo = true).nativeMask(dual, slotOf, true, false))
+        // Native SIM hiding is the same policy without the stacked bars.
+        assertEquals(NativeMobileMask(hidden = setOf(11)),
+            NetworkIconVisibility(hideNonDefaultSim = true).nativeMask(dual, slotOf, false, false))
+        val onWifi = dual.reduce(MobileSignalEvent.WifiAvailable(11, true))
+        assertEquals(NativeMobileMask(hidden = setOf(11, 22)),
+            NetworkIconVisibility(hideMobileOnWifi = true).nativeMask(onWifi, slotOf, false, false))
+    }
 
     @Test
     fun wifiDataSubscriptionDoesNotDependOnTheBitmapLabel() {

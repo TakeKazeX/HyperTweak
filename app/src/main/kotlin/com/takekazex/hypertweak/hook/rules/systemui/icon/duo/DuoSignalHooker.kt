@@ -38,6 +38,7 @@ import com.takekazex.hypertweak.hook.rules.systemui.icon.carrier.ControlCenterCa
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IconPositionHooker
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IconTunerFlows
 import com.takekazex.hypertweak.presentation.icon.MobileSignalState
+import com.takekazex.hypertweak.hook.rules.systemui.icon.MobileSignalHub
 import com.takekazex.hypertweak.hook.rules.systemui.icon.SignalHandoverEvents
 import com.takekazex.hypertweak.settings.contract.AodSettingsKeys
 import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
@@ -80,7 +81,7 @@ object DuoSignalHooker : StaticHooker() {
     private val settingIconDuoBatteryScale by hookSetting(100) { Preferences.getInt(IconSettingsKeys.KEY_ICON_DUO_BATTERY_SCALE, 100) }
     private val settingIconDuoPercentScale by hookSetting(100) { Preferences.getInt(IconSettingsKeys.KEY_ICON_DUO_PERCENT_SCALE, 100) }
     private val hideTypeWhenDisconnected by hookSetting(false) {
-        Preferences.getBoolean(IconSettingsKeys.KEY_ICON_STACKED_TYPE_HIDE_DISCONNECT, false)
+        Preferences.cellularTypeHidesWhenDisconnected()
     }
     private val settingCcBatteryPercentLeft by hookSetting(false) {
         Preferences.ccBatteryPercentStyle() == CcBatteryPercentStyle.OUTSIDE_LEADING
@@ -158,7 +159,7 @@ object DuoSignalHooker : StaticHooker() {
     private var expandedStyle by generationState { DuoExpandedStyle.RESTORE_NATIVE }
     private var iconSizeDp by generationState { DuoLayout.DEFAULT_ICON_SIZE_DP.toFloat() }
     private var small5GaEnabled by generationState { false }
-    private var mobile by generationState { MobileSignalState() }
+    private val mobile: MobileSignalState get() = MobileSignalHub.state
     private var slotIndices: Map<Int, Int> by generationState { emptyMap() }
     /** Live dozing read: `MiuiFullAodManager.isDozing`, resolved once from the running host. */
     private var batteryLayoutField: Field? by generationState { null }
@@ -187,7 +188,8 @@ object DuoSignalHooker : StaticHooker() {
         SignalHandoverEvents.shade.bind(this, ::onShadeSwitchStarted, ::onShadeSwitchFinished,
             activeProxy = { it is View && hasActiveProxy(it) },
             ownsAirplane = { it is ViewGroup && ownsAirplane(it) },
-            requiresMobile = { requiresMobileState }, mobile = ::onMobileState)
+            ownsSignalHandover = { ownsSignalHandover })
+        MobileSignalHub.subscribe(this, ::onMobileState)
         expandedStyle = if (settingIconDuoExpanded == 0)
             DuoExpandedStyle.KEEP_DUO else DuoExpandedStyle.RESTORE_NATIVE
         iconSizeDp = DuoLayout.safeSizeDp(
@@ -346,7 +348,7 @@ object DuoSignalHooker : StaticHooker() {
         DebugLog.hookRegistered(TAG, "OS4 battery container, expanded=$expandedStyle")
     }
 
-    val requiresMobileState: Boolean get() = enabled && (standardEnabled ||
+    private val ownsSignalHandover: Boolean get() = enabled && (standardEnabled ||
         AodIconSettings.current().let { it.duo && it.centerSignal })
 
     /** Reuses the SystemUI Duo renderer inside MIUI AOD's own process and battery container. */
@@ -412,20 +414,12 @@ object DuoSignalHooker : StaticHooker() {
         )
     }
 
-    /** Reuses the existing mobile reducer; collector-only mode never masks native mobile flows. */
-    fun onMobileState(state: MobileSignalState, ready: Boolean) {
+    /** Hears every settled [MobileSignalHub] change, and the current state once on install. */
+    private fun onMobileState() {
         if (!enabled) return
-        val next = when {
-            ready || state.airplaneMode -> state
-            state.subscriptionOrder.isNotEmpty() && state.subscriptionOrder == mobile.subscriptionOrder -> return
-            else -> MobileSignalState()
-        }
-        val nextSlots = next.subscriptionOrder.associateWith {
+        slotIndices = mobile.subscriptionOrder.associateWith {
             runCatching { SubscriptionManager.getSlotIndex(it) }.getOrDefault(-1)
         }
-        if (mobile == next && slotIndices == nextSlots) return
-        slotIndices = nextSlots
-        mobile = next
         refresh()
     }
 
@@ -1208,7 +1202,7 @@ object DuoSignalHooker : StaticHooker() {
             small5GaEnabled = false
             signalArtwork.retire()
             slotIndices = emptyMap()
-            mobile = MobileSignalState(); networkSource.retire()
+            networkSource.retire()
             panelProgress = 0f; panelVisible = false; panelStretchHeight = 0f
             shadeSwitchSuspended = false; shadeSwitchSettledToControlCenter = false
         }

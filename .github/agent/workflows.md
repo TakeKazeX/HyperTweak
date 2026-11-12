@@ -56,8 +56,8 @@ setting's original explicit/absent state and distinguish backend commits from ho
 ### Stacked cellular signal artwork
 
 For stacked cellular signal artwork, run the `SignalSvgStyle`, `PreferencesSignalSvgStyle`,
-`SignalAssetLoadState`, `SignalArtworkGeometry`, `SignalWeight`, `MobileTypePolicy` and
-`IconTunerPreferenceState` JVM regressions plus the shared settings/hot-reload tests.
+`SignalAssetLoadState`, `SignalArtworkGeometry`, `SignalWeight`, `MobileSignalState`
+(native row mask), `StatusBarPreviewModel` and `IconTunerPreferenceState` JVM regressions plus the shared settings/hot-reload tests.
 UI/lifecycle changes also require lint and a release build. Inspect all APK DEX files for the
 new `icon_stacked_signal_style` key and the retained old stacked compatibility key; verify
 five bundled SVGs and SHA256SUMS, without iOS26 or the removed internal type-badge settings.

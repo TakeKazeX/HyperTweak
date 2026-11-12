@@ -69,7 +69,12 @@ data class MobileSubscriptionState(
     val wifiAvailable: Boolean? = null,
     val originalVisible: Boolean = true,
     val originalDetailVisible: Boolean = true,
-    val signalIconId: Int? = null
+    val signalIconId: Int? = null,
+    /**
+     * The host's own standalone-type decision (`getMobileTypeSingleVisible`, after the module's
+     * Wi-Fi gate). Null until that flow emits; the native label is then treated as hidden.
+     */
+    val typeSingleVisible: Boolean? = null
 ) {
     val kind: MobileSignalKind
         get() = when {
@@ -120,6 +125,7 @@ sealed interface MobileSignalEvent {
     data class NonTerrestrial(val subId: Int, val value: Boolean) : MobileSignalEvent
     data class NetworkType(val subId: Int, val value: String?) : MobileSignalEvent
     data class WifiAvailable(val subId: Int, val value: Boolean) : MobileSignalEvent
+    data class TypeSingleVisible(val subId: Int, val value: Boolean) : MobileSignalEvent
     data class OriginalVisibility(
         val subId: Int,
         val visible: Boolean,
@@ -257,6 +263,9 @@ data class MobileSignalState(
         is MobileSignalEvent.WifiAvailable -> updateSubscription(event.subId) {
             it.copy(wifiAvailable = event.value)
         }
+        is MobileSignalEvent.TypeSingleVisible -> updateSubscription(event.subId) {
+            it.copy(typeSingleVisible = event.value)
+        }
         is MobileSignalEvent.OriginalVisibility -> updateSubscription(event.subId) {
             it.copy(
                 originalVisible = event.visible,
@@ -292,5 +301,18 @@ data class MobileSignalState(
     companion object {
         const val INVALID_SUB_ID = -1
         const val MAX_RENDER_ROWS = 2
+
+        /**
+         * The state consumers show after a reducer pass. The host briefly rebinds its
+         * subscription flows while connectivity changes: until that completes, the previously
+         * shown state for the same SIM set is kept instead of flashing an empty or partial one.
+         * Airplane mode is complete by itself.
+         */
+        fun settle(previous: MobileSignalState, next: MobileSignalState, ready: Boolean): MobileSignalState = when {
+            ready || next.airplaneMode -> next
+            next.subscriptionOrder.isNotEmpty() &&
+                next.subscriptionOrder.toSet() == previous.subscriptionOrder.toSet() -> previous
+            else -> MobileSignalState()
+        }
     }
 }

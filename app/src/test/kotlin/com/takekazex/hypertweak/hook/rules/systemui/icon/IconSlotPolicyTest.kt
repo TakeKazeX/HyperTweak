@@ -37,20 +37,16 @@ class IconSlotPolicyTest {
     }
 
     @Test
-    fun stackedScopeNarrowsTheCellularGroupAndItsLabel() {
+    fun stackedScopeNarrowsTheCellularGroup() {
         val signal = IconSlotPolicy.SLOT_STACKED_SIGNAL
-        val type = IconSlotPolicy.SLOT_STACKED_TYPE
         val ccOnly = IconSlotPolicyConfig(slotModes = mapOf(signal to IconSlotMode.CONTROL_CENTER_ONLY.value))
-        assertTrue(IconSlotPolicy.blockedFor(IconSurface.STATUS_BAR, emptyList(), ccOnly).containsAll(listOf(signal, type)))
-        assertFalse(IconSlotPolicy.blockedForTwoLineControlCenter(ccOnly).any { it == signal || it == type })
+        assertTrue(signal in IconSlotPolicy.blockedFor(IconSurface.STATUS_BAR, emptyList(), ccOnly))
+        assertFalse(IconSlotPolicy.blockedForTwoLineControlCenter(ccOnly).any { it == signal })
 
-        val hideMobile = ccOnly.copy(slotModes = ccOnly.slotModes + mapOf(
-            IconSlotPolicy.SLOT_MOBILE to IconSlotMode.STATUS_BAR_ONLY.value,
-            type to IconSlotMode.SHOW_EVERYWHERE.value
-        ))
+        val hideMobile = ccOnly.copy(slotModes = ccOnly.slotModes +
+            (IconSlotPolicy.SLOT_MOBILE to IconSlotMode.STATUS_BAR_ONLY.value))
         for (surface in listOf(IconSurface.STATUS_BAR, IconSurface.CONTROL_CENTER)) {
             assertTrue(IconSlotPolicy.classicBlocked(signal, surface, false, hideMobile, emptySet()))
-            assertTrue(IconSlotPolicy.classicBlocked(type, surface, false, hideMobile, emptySet()))
         }
     }
 
@@ -194,7 +190,7 @@ class IconSlotPolicyTest {
             .filter { IconSlotPolicy.isTwoLineUpperSlot(it) }
             .toSet()
         assertEquals(setOf(
-            "stacked_mobile_icon", "stacked_mobile_type",
+            "stacked_mobile_icon",
             "mobile", "demo_mobile", "wifi", "demo_wifi", "network_speed", "airplane", "ethernet", "no_sim", "alarm_clock", "hotspot", "location", "gps", "nfc"
         ), networkSlots)
         for (slot in listOf("zen", "quiet", "mute", "volume", "bluetooth", "headset", "wireless_headset", "vpn", "future_indicator")) {
@@ -450,7 +446,6 @@ class IconSlotPolicyTest {
                 "wifi",
                 "demo_wifi",
                 "stacked_mobile_icon",
-                "stacked_mobile_type",
                 "single_mobile_sim1",
                 "single_mobile_sim2",
                 "mobile",

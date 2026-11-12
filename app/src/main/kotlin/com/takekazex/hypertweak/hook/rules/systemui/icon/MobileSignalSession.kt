@@ -17,6 +17,7 @@ internal class MobileSignalSession {
         var nonTerrestrial: MobileSignalEvent.NonTerrestrial? = null,
         var networkType: MobileSignalEvent.NetworkType? = null,
         var wifiAvailable: MobileSignalEvent.WifiAvailable? = null,
+        var typeSingle: MobileSignalEvent.TypeSingleVisible? = null,
         var visibility: MobileSignalEvent.OriginalVisibility? = null
     ) {
         fun put(event: MobileSignalEvent) {
@@ -28,6 +29,7 @@ internal class MobileSignalSession {
                 is MobileSignalEvent.NonTerrestrial -> nonTerrestrial = event
                 is MobileSignalEvent.NetworkType -> networkType = event
                 is MobileSignalEvent.WifiAvailable -> wifiAvailable = event
+                is MobileSignalEvent.TypeSingleVisible -> typeSingle = event
                 is MobileSignalEvent.OriginalVisibility -> visibility = event
                 else -> Unit
             }
@@ -41,6 +43,7 @@ internal class MobileSignalSession {
             nonTerrestrial,
             networkType,
             wifiAvailable,
+            typeSingle,
             visibility
         )
     }
@@ -54,6 +57,7 @@ internal class MobileSignalSession {
             is MobileSignalEvent.NonTerrestrial -> event.subId
             is MobileSignalEvent.NetworkType -> event.subId
             is MobileSignalEvent.WifiAvailable -> event.subId
+            is MobileSignalEvent.TypeSingleVisible -> event.subId
             is MobileSignalEvent.OriginalVisibility -> event.subId
             else -> null
         }

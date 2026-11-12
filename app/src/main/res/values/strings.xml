@@ -575,6 +575,7 @@
     <string name="icon_cellular_type_small_5ga_summary">Make the A in 5GA smaller</string>
     <string name="icon_cellular_type_single">Use Separate Network Type Text</string>
     <string name="icon_cellular_type_single_summary">Use the native separate 4G/5G text style. The system decides when to show it.</string>
+    <string name="icon_cellular_type_single_stacked_summary">Always on with stacked signal: the bars come from the module and the 4G/5G text stays native.</string>
     <string name="icon_cellular_type_title">Type Display</string>
     <string name="icon_cellular_type_swap">Separate type position</string>
     <string name="icon_cellular_type_swap_summary">Swap sides relative to the data SIM, or place the label at either edge of the SIM group.</string>
@@ -589,8 +590,6 @@
     <string name="icon_stacked_type_hide_disconnect_summary">Hide the stacked type label while data is disconnected</string>
     <string name="icon_stacked_type_keep_on_wifi">Keep Cellular Type on Wi-Fi</string>
     <string name="icon_stacked_type_keep_on_wifi_summary">Keep the active SIM’s separate 4G/5G text when Wi-Fi is the default network.</string>
-    <string name="icon_stacked_type_roaming">Prefix Roaming Type</string>
-    <string name="icon_stacked_type_roaming_summary">Prefix the active network type with R while roaming</string>
     <string name="icon_hide_carrier_hd">Hide HD Icon</string>
     <string name="icon_hide_carrier_hd_summary">Hide the HD voice indicator beside the carrier label</string>
     <string name="icon_hide_carrier_one">Hide First Carrier</string>
@@ -740,7 +739,6 @@
     <string name="icon_slot_volume">Silent</string>
     <string name="icon_slot_second_space">Second space</string>
     <string name="icon_slot_stacked_mobile_icon">Dual-row signal icon</string>
-    <string name="icon_slot_stacked_mobile_type">Network type text</string>
     <string name="icon_slots_title">Slots</string>
     <string name="icon_stacked_signal_title">Stacked Signal</string>
     <string name="icon_stacked_signal_weight">Stacked Signal Boldness</string>
