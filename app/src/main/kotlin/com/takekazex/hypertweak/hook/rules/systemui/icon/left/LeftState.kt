@@ -31,6 +31,10 @@ internal class LeftState(
         var anchorWrapper: LinearLayout? = null
         var islandShowing: Boolean = false
         var islandHandler: Any? = null
+        /** The lockscreen carrier layout sharing [leftHost] with the anchors; keyguard only. */
+        var keyguardCarrier: View? = null
+        /** Module-owned crossfade between [keyguardCarrier] and [leftContainer]. */
+        var carrierSwap: LeftCarrierSwapState? = null
     }
 
 internal data class AnchorEntry(

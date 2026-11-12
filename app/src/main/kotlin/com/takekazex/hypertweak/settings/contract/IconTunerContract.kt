@@ -5,7 +5,8 @@ data class IconTunerSnapshot(
     val stackedEnabled: Boolean,
     val ignoreSystemHide: Boolean,
     val hidePrivacy: Boolean,
-    val leftMode: Int
+    val leftMode: Int,
+    val leftKeyguardCarrier: Int = IconTunerContract.LEFT_KEYGUARD_CARRIER_REPLACE
 )
 
 /** Shared icon controls and slot mapping, with no storage or host dependency. */
@@ -17,6 +18,16 @@ object IconTunerContract {
     const val LEFT_MODE_DISABLED = 0
     const val LEFT_MODE_HOME = 1
     const val LEFT_MODE_HOME_AND_LOCKSCREEN = 2
+
+    /**
+     * How the lockscreen carrier label and the left icons share the host's start-side frame, where
+     * the two would otherwise be drawn over each other.
+     */
+    const val KEY_LEFT_KEYGUARD_CARRIER = "icon_left_keyguard_carrier"
+    /** The icons take the carrier's place while any of them is shown. */
+    const val LEFT_KEYGUARD_CARRIER_REPLACE = 0
+    /** As [LEFT_KEYGUARD_CARRIER_REPLACE], after the carrier has been shown briefly on screen-on. */
+    const val LEFT_KEYGUARD_CARRIER_INTRO = 1
 
     internal val leftPreferenceSlots = linkedMapOf(
         IconSettingsKeys.KEY_ICON_LEFT_ZEN to "icon_tuner_left_zen",

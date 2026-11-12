@@ -58,7 +58,8 @@ object IconTunerOptions {
             stackedEnabled = stackedEnabled,
             ignoreSystemHide = config.slots.boolean(IconSettingsKeys.KEY_ICON_IGNORE_SYS_HIDE),
             hidePrivacy = config.slots.boolean(IconSettingsKeys.KEY_ICON_HIDE_PRIVACY),
-            leftMode = leftMode
+            leftMode = leftMode,
+            leftKeyguardCarrier = config.slots.leftKeyguardCarrier
         )
     }
 

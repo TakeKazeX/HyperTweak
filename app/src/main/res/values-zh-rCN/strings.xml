@@ -739,6 +739,10 @@
     <string name="icon_left_mode_disabled">关闭</string>
     <string name="icon_left_mode_home">主屏状态栏</string>
     <string name="icon_left_mode_both">主屏和锁屏</string>
+    <string name="icon_left_keyguard_carrier">锁屏运营商</string>
+    <string name="icon_left_keyguard_carrier_summary">锁屏左上角放不下运营商和左置图标，二者只显示一个</string>
+    <string name="icon_left_keyguard_carrier_replace">有图标时替换运营商</string>
+    <string name="icon_left_keyguard_carrier_intro">亮屏先显示运营商</string>
     <string name="icon_left_zen">勿扰</string>
     <string name="icon_left_volume">静音 / 振动</string>
     <string name="icon_left_hotspot">热点</string>

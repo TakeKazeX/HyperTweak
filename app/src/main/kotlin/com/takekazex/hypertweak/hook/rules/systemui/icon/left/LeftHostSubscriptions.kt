@@ -171,9 +171,20 @@ internal class LeftHostSubscriptions(owner: BaseHooker) : IconRenderComponent(ow
 
         // A host root can hide/reveal without attachment or an icon payload change.
         ViewVisibilityRouter.visibility(owner, ViewGroup::class.java, after = { root ->
-            if (!retiring && !reconciling && synchronized(states) { states.values.any { it.barRoot === root } }) {
+            if (retiring) return@visibility
+            val states = synchronized(states) { states.values.toList() }
+            if (!reconciling && states.any { it.barRoot === root }) {
                 requestReconcile()
+            } else if (states.any { it.isKeyguard && isBetween(root, it.leftHost, it.barRoot) }) {
+                // On screen-on the lockscreen reveals an intermediate side container after the
+                // pass that saw it hidden; deferred so a reveal inside a pass is not dropped.
+                mainHandler.post { if (!retiring) requestReconcile() }
             }
+        })
+        // The host swaps carrier, clock and alarm in the lockscreen frame by visibility alone.
+        ViewVisibilityRouter.visibility(owner, ViewGroup::class.java, after = { view ->
+            if (!retiring) synchronized(states) { states.values.firstOrNull { it.keyguardCarrier === view } }
+                ?.let(carrierSwap::update)
         })
         ViewVisibilityRouter.alpha(owner, ViewGroup::class.java, after = { view ->
             if (!retiring && !reconciling && synchronized(states) { states.values.any { it.barRoot === view || it.leftHost === view } }) {
@@ -218,4 +229,15 @@ internal class LeftHostSubscriptions(owner: BaseHooker) : IconRenderComponent(ow
         )
         }
     }
+}
+
+/** True when [view] is [host] or one of its ancestors below [root]; [LeftState.presentation] reads that chain. */
+private fun isBetween(view: android.view.View, host: android.view.View, root: android.view.View?): Boolean {
+    var current: android.view.View? = host
+    while (current != null) {
+        if (current === view) return true
+        if (current === root) return false
+        current = current.parent as? android.view.View
+    }
+    return false
 }

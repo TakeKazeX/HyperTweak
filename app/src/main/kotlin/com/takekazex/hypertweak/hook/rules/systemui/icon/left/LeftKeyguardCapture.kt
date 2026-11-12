@@ -5,6 +5,7 @@ import android.os.Looper
 import android.view.View
 import android.view.ViewGroup
 import com.takekazex.hypertweak.hook.base.HostAccess
+import com.takekazex.hypertweak.util.logging.DebugLog
 import com.takekazex.hypertweak.util.platform.ResourceLookup
 
 /** Discovers and restores the native lockscreen anchors on the main thread. */
@@ -48,6 +49,11 @@ internal class LeftKeyguardCapture(private val host: Host) {
             }
             existing?.let { host.teardown(it); host.states.remove(manager) }
             val state = LeftState(leftFrame, clock, right, manager, isKeyguard = true, barRoot = view)
+            // The carrier and the anchors are siblings in one FrameLayout; without a swap the
+            // left icons would be drawn over the carrier text.
+            state.keyguardCarrier = view.findViewById<View>(id("keyguard_carrier_layout"))
+                ?.takeIf { it.parent === leftFrame }
+            if (state.keyguardCarrier == null) DebugLog.d("IconTuner", "lockscreen carrier not in keyguard_left_frame; no carrier swap")
             state.islandHandler = host.resolveIslandHandler(view)
             state.islandShowing = host.readIslandShowing(state.islandHandler)
             anchors.forEach { anchor ->

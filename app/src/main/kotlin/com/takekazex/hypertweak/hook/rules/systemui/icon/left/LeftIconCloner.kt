@@ -72,6 +72,8 @@ internal class LeftIconCloner(owner: BaseHooker) : HookComponent(owner) {
     private var iconViewSetResolved = false
     private var darkDispatcherField: Field? = null
     fun isAnimating(view: View): Boolean = cloneFades[view]?.animator != null
+    /** The settled visibility a clone is fading towards, not its current frame. */
+    fun shows(view: View): Boolean = cloneFades[view]?.visible ?: (view.visibility == View.VISIBLE)
     fun cancel(view: View) { cloneFades[view]?.animator?.cancel() }
     fun forget(view: View) { cloneFades.remove(view)?.animator?.cancel() }
     fun reset() {

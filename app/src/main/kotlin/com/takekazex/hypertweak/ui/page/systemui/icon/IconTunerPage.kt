@@ -347,7 +347,15 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit, onNavig
                             position = pref(IconTunerContract.KEY_POSITION, IconSlotPolicyConfig.POSITION_SYSTEM),
                             onNavigateToIconOrder = onNavigateToIconOrder
                         )
-                        LeftContainerSection(mode = leftMode, leftSelected = leftSelected, onChange = onChange)
+                        LeftContainerSection(
+                            mode = leftMode,
+                            keyguardCarrier = pref(
+                                IconTunerContract.KEY_LEFT_KEYGUARD_CARRIER,
+                                IconTunerContract.LEFT_KEYGUARD_CARRIER_REPLACE
+                            ),
+                            leftSelected = leftSelected,
+                            onChange = onChange
+                        )
                         SlotsSection(
                             slotModes = slotModes,
                             slotModeOf = { slot -> IconSlotPolicy.modeFor(slot, slotModesByName).value },
@@ -630,6 +638,7 @@ private fun RotationLockSection(
 @Composable
 private fun LeftContainerSection(
     mode: Int,
+    keyguardCarrier: Int,
     leftSelected: Map<String, Boolean>,
     onChange: (String, Any) -> Unit
 ) {
@@ -648,6 +657,20 @@ private fun LeftContainerSection(
                 selectedIndex = mode.coerceIn(0, modes.lastIndex),
                 onSelectedIndexChange = { onChange(IconTunerContract.KEY_LEFT_MODE, it) }
             )
+            // The lockscreen carrier and the left icons share one start-edge frame.
+            MiuixExpandableContent(visible = mode == IconTunerContract.LEFT_MODE_HOME_AND_LOCKSCREEN) {
+                val carrierModes = listOf(
+                    stringResource(R.string.icon_left_keyguard_carrier_replace),
+                    stringResource(R.string.icon_left_keyguard_carrier_intro)
+                )
+                OverlayDropdownPreference(
+                    title = stringResource(R.string.icon_left_keyguard_carrier),
+                    summary = stringResource(R.string.icon_left_keyguard_carrier_summary),
+                    items = carrierModes,
+                    selectedIndex = keyguardCarrier.coerceIn(0, carrierModes.lastIndex),
+                    onSelectedIndexChange = { onChange(IconTunerContract.KEY_LEFT_KEYGUARD_CARRIER, it) }
+                )
+            }
             MiuixExpandableContent(visible = mode != IconTunerContract.LEFT_MODE_DISABLED) {
                 Text(
                     text = stringResource(R.string.icon_left_hint),

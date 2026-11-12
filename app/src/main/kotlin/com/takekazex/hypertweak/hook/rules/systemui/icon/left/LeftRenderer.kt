@@ -105,7 +105,22 @@ internal object LeftRenderer : IconRenderer() {
         override val activeSlots get() = LeftRenderer.activeSlots
         override fun cancelSlot(slot: String) = handover.cancelSlot(slot)
         override fun slotOf(view: View) = LeftRenderer.slotOf(view)
+        override fun presentationApplied(state: LeftState) = carrierSwap.update(state)
+        override fun releaseCarrierSwap(state: LeftState) = carrierSwap.release(state)
     }, cloner)
+    // Holds only the application context for its screen-on receiver, released per generation.
+    @android.annotation.SuppressLint("StaticFieldLeak")
+    internal val carrierSwap = LeftKeyguardCarrierSwap(object : LeftKeyguardCarrierSwap.Host {
+        override val retiring get() = LeftRenderer.retiring
+        override val handler get() = mainHandler
+        override val mode get() = keyguardCarrierMode
+        // A hidden bar (screen-on reveal, unlock) keeps the icons' claim so waking does not flash
+        // the carrier; the island hides only the icons, so the carrier must take the corner back.
+        override fun iconsShown(state: LeftState) = state.presentation.retain &&
+            state.presentation != LeftVisibilityPolicy.Result.ISLAND && state.clones.values.any(cloner::shows)
+        override fun keyguardStates() = synchronized(states) { states.values.filter { it.isKeyguard } }
+    })
+    init { generationCleanup { HostAccess.onMain { carrierSwap.reset() } } }
 
     @Volatile
     internal var retiring = false
@@ -176,6 +191,8 @@ internal object LeftRenderer : IconRenderer() {
     internal var activeSlots: Set<String> by generationState { emptySet() }
 
     internal var leftMode by generationState { IconTunerContract.LEFT_MODE_DISABLED }
+
+    internal var keyguardCarrierMode by generationState { IconTunerContract.LEFT_KEYGUARD_CARRIER_REPLACE }
 
     internal val mainHandler = Handler(Looper.getMainLooper())
     internal val reconcileRunnable = Runnable { reconcileTick() }
@@ -248,6 +265,7 @@ internal object LeftRenderer : IconRenderer() {
     internal fun reloadSnapshot() {
         val snapshot = IconTunerOptions.snapshot()
         leftMode = snapshot.leftMode
+        keyguardCarrierMode = snapshot.leftKeyguardCarrier
         val master = masterEnabled()
         val slots = if (master) snapshot.policy.leftSlots else emptySet()
         active = master && slots.isNotEmpty()

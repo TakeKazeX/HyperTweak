@@ -741,6 +741,10 @@
     <string name="icon_left_mode_disabled">Off</string>
     <string name="icon_left_mode_home">Home Status Bar</string>
     <string name="icon_left_mode_both">Home and Lockscreen</string>
+    <string name="icon_left_keyguard_carrier">Lockscreen Carrier</string>
+    <string name="icon_left_keyguard_carrier_summary">The lockscreen corner fits either the carrier or the left icons, not both</string>
+    <string name="icon_left_keyguard_carrier_replace">Icons replace the carrier</string>
+    <string name="icon_left_keyguard_carrier_intro">Show the carrier on screen-on first</string>
     <string name="icon_left_zen">Do Not Disturb</string>
     <string name="icon_left_volume">Mute / Vibrate</string>
     <string name="icon_left_hotspot">Hotspot</string>

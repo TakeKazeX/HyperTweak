@@ -154,6 +154,7 @@ internal object DebugSettingsCatalog {
         DebugSetting("icon_left_container_mode", "Int", 0),
         DebugSetting("icon_left_headset", "Boolean", false),
         DebugSetting("icon_left_hotspot", "Boolean", false),
+        DebugSetting("icon_left_keyguard_carrier", "Int", 0),
         DebugSetting("icon_left_location", "Boolean", false),
         DebugSetting("icon_left_nfc", "Boolean", false),
         DebugSetting("icon_left_rotation_lock", "Boolean", false),

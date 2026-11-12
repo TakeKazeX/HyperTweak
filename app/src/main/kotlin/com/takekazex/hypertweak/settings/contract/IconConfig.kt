@@ -39,6 +39,7 @@ data class SlotsIconConfig internal constructor(val values: Map<String, Any>, va
         )
     }
     val leftMode: Int get() = values.getValue(IconTunerContract.KEY_LEFT_MODE) as Int
+    val leftKeyguardCarrier: Int get() = values.getValue(IconTunerContract.KEY_LEFT_KEYGUARD_CARRIER) as Int
 }
 
 data class CellularIconConfig internal constructor(val values: Map<String, Any>) {
@@ -318,6 +319,7 @@ object IconConfigDecoder {
         put(IconTunerContract.KEY_POSITION_VALUES, emptySet<String>())
         put(IconTunerContract.KEY_POSITION_REORDER, false)
         put(IconTunerContract.KEY_LEFT_MODE, 0)
+        put(IconTunerContract.KEY_LEFT_KEYGUARD_CARRIER, IconTunerContract.LEFT_KEYGUARD_CARRIER_REPLACE)
         put(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_ACTIVITY, false)
         put(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_TYPE, false)
         put(IconSettingsKeys.KEY_ICON_CELLULAR_ROAM_MODE, 0)
@@ -413,6 +415,8 @@ object IconConfigDecoder {
                 when {
                     value is Set<*> -> Collections.unmodifiableSet(value.filterIsInstance<String>().toSet())
                     key == IconTunerContract.KEY_LEFT_MODE -> (value as Int).coerceIn(0, 2)
+                    key == IconTunerContract.KEY_LEFT_KEYGUARD_CARRIER -> (value as Int).takeIf { it in 0..1 }
+                        ?: IconTunerContract.LEFT_KEYGUARD_CARRIER_REPLACE
                     key == IconSettingsKeys.KEY_ICON_CELLULAR_ROAM_MODE ||
                         key == IconSettingsKeys.KEY_ICON_WIFI_STANDARD_MODE -> (value as Int).coerceIn(0, 3)
                     key == IconSettingsKeys.KEY_ICON_STACKED_SIGNAL_STYLE -> SignalSvgStyle.fromStored(value as Int).storedValue
@@ -456,6 +460,7 @@ object IconConfigDecoder {
         IconTunerContract.KEY_POSITION_VALUES,
         IconTunerContract.KEY_POSITION_REORDER,
         IconTunerContract.KEY_LEFT_MODE,
+        IconTunerContract.KEY_LEFT_KEYGUARD_CARRIER,
     ) + IconSlotPolicy.configurableSlots.map(IconSettingsPreferencePolicy::slotKey)
     private val cellularKeys: Set<String> = setOf(
         IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_ACTIVITY,

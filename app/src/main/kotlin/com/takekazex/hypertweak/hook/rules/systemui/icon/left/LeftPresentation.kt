@@ -13,6 +13,9 @@ internal class LeftPresentation(private val host: Host, private val cloner: Left
         val activeSlots: Set<String>
         fun cancelSlot(slot: String)
         fun slotOf(view: View): String?
+        /** The container or its clones changed visibility; the lockscreen carrier swap follows. */
+        fun presentationApplied(state: LeftState)
+        fun releaseCarrierSwap(state: LeftState)
     }
     private companion object {
         const val TAG = "IconTuner"
@@ -86,6 +89,7 @@ internal class LeftPresentation(private val host: Host, private val cloner: Left
     }
 
     fun teardownState(state: LeftState) {
+        host.releaseCarrierSwap(state)
         removeClones(state)
         state.leftContainer?.let { left ->
             runCatching { (left.parent as? ViewGroup)?.removeView(left) }
@@ -209,6 +213,7 @@ internal class LeftPresentation(private val host: Host, private val cloner: Left
             val visibility = if (state.presentation.visible) View.VISIBLE else View.GONE
             if (left.visibility != visibility) left.visibility = visibility
         }
+        host.presentationApplied(state)
     }
 
     private fun createClone(state: LeftState, child: View, slot: String): View? {

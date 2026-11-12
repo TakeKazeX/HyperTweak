@@ -4,6 +4,7 @@ import android.view.View
 import android.view.ViewGroup
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IconHostPorts
 import com.takekazex.hypertweak.util.logging.DebugLog
+import com.takekazex.hypertweak.util.platform.ResourceLookup
 
 /** Restores retained framework views and reports the recovered hosts. */
 internal class LeftRecovery {
@@ -13,7 +14,7 @@ internal class LeftRecovery {
             listOf(state.leftHost, state.anchor, state.rightContainer, state.manager,
                 state.isKeyguard, state.barRoot, state.anchorEntries.map {
                     listOf(it.view, it.parent, it.index, it.layoutParams)
-                }, state.islandHandler)
+                }, state.islandHandler, state.keyguardCarrier)
         }, ccRows.values.mapNotNull { it.get() }, panelProgress, panelVisible,
             shadeSwitchSettledToControlCenter)
     } }
@@ -41,6 +42,12 @@ internal class LeftRecovery {
                 }
                 restored.islandHandler = row.getOrNull(7)
                 restored.islandShowing = readIslandShowing(restored.islandHandler)
+                // Older generations saved no carrier; re-resolve it from the restored frame.
+                restored.keyguardCarrier = (row.getOrNull(8) as? View ?: restored.takeIf { it.isKeyguard }
+                    ?.barRoot?.let { root ->
+                        val id = ResourceLookup.identifier(root.resources, "keyguard_carrier_layout", "id", "com.android.systemui")
+                        if (id == 0) null else root.findViewById<View>(id)
+                    })?.takeIf { restored.isKeyguard && it.parent === host }
                 states[manager] = restored
             }
             (saved.getOrNull(1) as? List<*>)?.filterIsInstance<ViewGroup>()
