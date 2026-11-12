@@ -24,7 +24,7 @@ internal object CcRotationLockIconHooker : StaticHooker() {
     private const val CALLBACK = "com.android.systemui.statusbar.policy.RotationLockController\$RotationLockControllerCallback"
 
     private val enabled by hookSetting(false) {
-        Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_ROTATION_LOCK_ICON, false)
+        Preferences.iconConfig().controlCenter.rotationLockIcon
     }
     private val main = Handler(Looper.getMainLooper())
     private var active by generationState { false }

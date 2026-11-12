@@ -1,20 +1,21 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon.duo
 
-import com.takekazex.hypertweak.presentation.icon.duo.DuoContent
-
 import android.content.Context
 import android.graphics.Picture
-import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.rules.systemui.icon.HostIconBridge
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.presentation.icon.IconSvgRenderer
 import com.takekazex.hypertweak.presentation.icon.IconSvgRepository
+import com.takekazex.hypertweak.presentation.icon.duo.DuoContent
+import com.takekazex.hypertweak.presentation.icon.duo.DuoSignalBars
+import com.takekazex.hypertweak.presentation.icon.duo.SignalBarMorph
 import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
 import com.takekazex.hypertweak.settings.contract.SignalSvgStyle
 import com.takekazex.hypertweak.util.logging.DebugLog
 
 // Published on settings acceptance; hook callbacks perform no storage reads.
-private val settingIconStackedWeight by hookSetting(0f) { Preferences.getFloat(IconSettingsKeys.KEY_ICON_STACKED_WEIGHT, 0f) }
+private val settingIconStackedWeight by hookSetting(0f) { Preferences.iconConfig().float(IconSettingsKeys.KEY_ICON_STACKED_WEIGHT) }
 
 internal fun prepareDuoSignalArtworkSettings() { settingIconStackedWeight }
 
@@ -76,27 +77,27 @@ internal class DuoSignalArtwork {
         }
     }
     private var morphResolved = false
-    private var morphBars: com.takekazex.hypertweak.presentation.icon.duo.DuoSignalBars? = null
-    fun signalBars(context: Context): com.takekazex.hypertweak.presentation.icon.duo.DuoSignalBars? {
+    private var morphBars: DuoSignalBars? = null
+    fun signalBars(context: Context): DuoSignalBars? {
         if (!morphResolved) {
             val assets = loadCellularSignalAssets(context) ?: return null
             morphResolved = true
             morphBars = runCatching {
-                com.takekazex.hypertweak.presentation.icon.duo.DuoSignalBars.fromDocument(assets.single)
+                DuoSignalBars.fromDocument(assets.single)
             }.onFailure { DebugLog.w(TAG, "signal morph SVG contract unavailable", it) }.getOrNull()
         }
         return morphBars
     }
 
     private var rowMorphKey: Pair<Int, Float>? = null
-    private var rowMorphs: List<com.takekazex.hypertweak.presentation.icon.duo.SignalBarMorph> = emptyList()
-    fun rowMorph(context: Context, row: Int, rows: Int): com.takekazex.hypertweak.presentation.icon.duo.SignalBarMorph? {
+    private var rowMorphs: List<SignalBarMorph> = emptyList()
+    fun rowMorph(context: Context, row: Int, rows: Int): SignalBarMorph? {
         val assets = loadCellularSignalAssets(context) ?: return null
         val key = rows to settingIconStackedWeight
         if (rowMorphKey != key) {
             rowMorphKey = key
             rowMorphs = runCatching { (0 until rows).map { index ->
-                com.takekazex.hypertweak.presentation.icon.duo.SignalBarMorph.create(
+                SignalBarMorph.create(
                     if (rows > 1) assets.stacked else assets.single, assets.single, index, rows, .632f, settingIconStackedWeight)
             } }.onFailure { DebugLog.w(TAG, "cellular row morph unavailable", it) }.getOrDefault(emptyList())
         }

@@ -16,10 +16,11 @@ import com.takekazex.hypertweak.hook.rules.systemui.ProxyLaunchHooker
 import com.takekazex.hypertweak.hook.rules.systemui.SystemUIPluginHooker
 import com.takekazex.hypertweak.hook.rules.systemui.aod.AODHooker
 import com.takekazex.hypertweak.hook.rules.systemui.gesturebar.HideBottomBarHooker
-import com.takekazex.hypertweak.hook.rules.systemui.icon.StackedSignalHooker
+import com.takekazex.hypertweak.hook.rules.systemui.icon.MobilePipelineAdapter
+import com.takekazex.hypertweak.hook.rules.systemui.icon.StackedRenderer
 import com.takekazex.hypertweak.hook.rules.systemui.icon.StatusIconHotReloadRecovery
-import com.takekazex.hypertweak.hook.rules.systemui.icon.carrier.ControlCenterCarrierBlockHooker
-import com.takekazex.hypertweak.hook.rules.systemui.icon.left.LeftContainerHooker
+import com.takekazex.hypertweak.hook.rules.systemui.icon.carrier.CarrierRenderer
+import com.takekazex.hypertweak.hook.rules.systemui.icon.left.LeftRenderer
 import com.takekazex.hypertweak.hook.rules.systemui.lockscreen.HideLockscreenStatusBarHooker
 import com.takekazex.hypertweak.hook.runtime.reload.HotReloadPluginState
 import com.takekazex.hypertweak.util.logging.DebugLog
@@ -76,9 +77,10 @@ internal object ProcessLifecycleHooks {
     fun onSystemUiContextReady(context: Context) {
         ProxyLaunchHooker.register(context)
         ExtendUnlockHooker.syncTrustAgent(context)
-        StackedSignalHooker.onPackageReady(context)
-        ControlCenterCarrierBlockHooker.onPackageReady(context)
-        LeftContainerHooker.onPackageReady(context)
+        MobilePipelineAdapter.onPackageReady(context)
+        StackedRenderer.onPackageReady(context)
+        CarrierRenderer.onPackageReady(context)
+        LeftRenderer.onPackageReady(context)
         // The battery monitor needs a Context to register its receiver; appContext is null while
         // hooks are attached at package load.
         BatteryAutoPowerSaveHooker.onPackageReady(context)

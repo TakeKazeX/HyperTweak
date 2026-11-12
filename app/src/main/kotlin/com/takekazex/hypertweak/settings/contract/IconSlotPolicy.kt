@@ -96,10 +96,7 @@ object IconSlotPolicy {
     /** The stacked replacement draws only the bars; its 5G text is the native mobile label. */
     val STACKED_SLOTS = listOf(SLOT_STACKED_SIGNAL)
 
-    val SIGNAL_SLOTS: List<String> = STACKED_SLOTS + listOf(
-        "single_mobile_sim1",
-        "single_mobile_sim2"
-    )
+    val SIGNAL_SLOTS: List<String> = STACKED_SLOTS
 
     /** Networks and the requested alarm/hotspot/location/NFC indicators stay in the upper row. */
     val CONTROL_CENTER_UPPER_ROW_SLOTS: Set<String> = linkedSetOf(
@@ -201,7 +198,7 @@ object IconSlotPolicy {
      * container exists ([keyguardOwned] is empty otherwise), so 主屏状态栏 mode leaves the lockscreen
      * untouched.
      *
-     * Pure so the per-location rule is unit-tested; the live sets come from `LeftContainerHooker`.
+     * Pure so the per-location rule is unit-tested; the live sets come from `LeftRenderer`.
      */
     fun ownedSlotsFor(
         location: String?,
@@ -236,7 +233,8 @@ object IconSlotPolicy {
             val index = raw.substring(0, separator).trim().toIntOrNull()
                 ?: return@mapIndexedNotNull null
             val slot = raw.substring(separator + 1).trim()
-            if (index < 0 || slot.isEmpty()) null else IndexedIconSlot(index, slot, ordinal)
+            if (index < 0 || slot.isEmpty()) null
+            else IndexedIconSlot(index, slot, ordinal)
         }
         .sortedWith(compareBy<IndexedIconSlot> { it.index }.thenBy { it.ordinal })
 
@@ -388,7 +386,7 @@ object IconSlotPolicy {
      * must no longer be treated as user visibility choices: the host list is replaced by the
      * module's explicit per-slot policy, which still respects every configured hide/one-surface
      * mode. The first-row exceptions remain visible in the native row and are moved vertically by
-     * IconPositionHooker.
+     * SlotMaskApplier.
      */
     fun blockedForTwoLineControlCenter(
         config: IconSlotPolicyConfig

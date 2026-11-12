@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon.left
 
+import com.takekazex.hypertweak.hook.rules.systemui.icon.HandoverCoordinator
+
 import android.graphics.Canvas
 import android.graphics.ColorFilter
 import android.graphics.Matrix
@@ -51,7 +53,7 @@ internal class LeftPanelMotion(private val onFrameStateChanged: () -> Unit) {
             } catch (error: Throwable) {
                 drawFailed = true; frameReady = false
                 restoreTarget()
-                if (sourcePicture == null) source?.alpha = 1f else host?.post { onFrameStateChanged() }
+                if (sourcePicture == null) source?.let { HandoverCoordinator.alpha(it, 1f) } else host?.post { onFrameStateChanged() }
                 DebugLog.w("IconTuner", "left icon transition drawing failed", error)
             } finally { canvas.restoreToCount(save) }
         }
@@ -97,7 +99,7 @@ internal class LeftPanelMotion(private val onFrameStateChanged: () -> Unit) {
         // One moving image through the full drag; do not reveal a stationary endpoint at 75%.
         appliedTargetAlpha = if (ready) savedTargetAlpha * LeftHandover.destinationAlpha(this.progress)
             else if (holdTargetUntilReady) 0f else savedTargetAlpha
-        target.alpha = appliedTargetAlpha
+        HandoverCoordinator.alpha(target, appliedTargetAlpha)
         layer.setBounds(0, 0, root.width, root.height)
         val nextKey = listOf(sourceFrame.revision, targetFrame.revision, RectF(from), RectF(to),
             this.progress, ready, sameArtwork, root.width, root.height)
@@ -105,7 +107,7 @@ internal class LeftPanelMotion(private val onFrameStateChanged: () -> Unit) {
         return ready
     }
     private fun restoreTarget() {
-        target?.let { if (abs(it.alpha - appliedTargetAlpha) < .001f) it.alpha = savedTargetAlpha }
+        target?.let { if (abs(it.alpha - appliedTargetAlpha) < .001f) HandoverCoordinator.alpha(it, savedTargetAlpha) }
         target = null; holdTargetUntilReady = false
     }
     fun clear() {

@@ -5,7 +5,7 @@ import com.takekazex.hypertweak.ui.components.slider.rememberSliderEdit
 
 import com.takekazex.hypertweak.ui.components.dialog.IntValueDialog
 import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
-import com.takekazex.hypertweak.settings.contract.IconSettingsPreferencePolicy
+import com.takekazex.hypertweak.ui.page.systemui.icon.decodeIconSettings
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 
 import androidx.annotation.StringRes
@@ -84,10 +84,9 @@ fun PrivacyIndicatorPage(onBack: () -> Unit) {
         @Suppress("UNCHECKED_CAST")
         return prefs.getOrPut(key) {
             when (default) {
+                // The decoder applies the retired hide-privacy key when the current one is unset.
                 is Boolean -> if (key == IconSettingsKeys.KEY_ICON_HIDE_PRIVACY) {
-                    IconSettingsPreferencePolicy.iconBoolean(key) { candidate ->
-                        if (settingsStore.contains(candidate)) settingsStore.getBoolean(candidate) else null
-                    }
+                    decodeIconSettings(settingsStore).slots.hidePrivacy
                 } else settingsStore.getBoolean(key, default)
                 is Int -> settingsStore.getInt(key, default)
                 else -> default

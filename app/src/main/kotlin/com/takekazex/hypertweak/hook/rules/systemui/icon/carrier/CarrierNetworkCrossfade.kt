@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon.carrier
 
+import com.takekazex.hypertweak.hook.rules.systemui.icon.HandoverCoordinator
+
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
@@ -87,8 +89,8 @@ internal class CarrierNetworkCrossfade(
     }
 
     fun applyAlphas() {
-        if (cellular !in leased) cellular.alpha = cellularAlpha
-        if (wifi !in leased) wifi.alpha = wifiAlpha
+        if (cellular !in leased) HandoverCoordinator.alpha(cellular, cellularAlpha)
+        if (wifi !in leased) HandoverCoordinator.alpha(wifi, wifiAlpha)
     }
 
     /** A shade or Duo handoff owns this child alpha until it releases its measured target. */

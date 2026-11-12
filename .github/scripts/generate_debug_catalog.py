@@ -46,12 +46,38 @@ for p in sorted(SRC.rglob('*.kt')):
         # Prefer app UI's displayed defaults over lower-level fallback sentinel values.
         rank = 0 if '/ui/' in str(p) else 1
         if key not in reads or rank < reads[key][2]: reads[key] = (typ,default,rank)
+# IconConfigDecoder is the source of truth for icon defaults. Retired keys are omitted:
+# their persisted values are deliberately ignored after the signal-style reset.
+icon_config = (SRC/'settings/contract/IconConfig.kt').read_text()
+icon_defaults = {}
+for key, value in re.findall(r'put\(((?:IconSettingsKeys|SystemUiSettingsKeys|PlatformSettingsKeys|IconTunerContract)\.KEY_\w+), ([^\n]+)\)', icon_config):
+    if value in ('true', 'false'): typ = 'Boolean'
+    elif value.startswith('"'): typ = 'String'
+    elif value.startswith('emptySet'): typ = 'StringSet'
+    elif value.endswith('f'): typ = 'Float'
+    else: typ = 'Int'
+    if value.startswith('ControlCenterPrivacyPolicy.'):
+        value = 'com.takekazex.hypertweak.settings.contract.' + value
+    icon_defaults[key] = (typ, value, -1)
+reads.update(icon_defaults)
+retired_icon_keys = {
+    'KEY_ICON_DUO_ENABLED', 'KEY_ICON_STACKED_ENABLED', 'KEY_ICON_LEFT_CONTAINER_ENABLED',
+    'KEY_ICON_HIDE_SIM_AUTO', 'KEY_ICON_STACKED_TYPE_HIDE_WIFI', 'KEY_ICON_STACKED_TYPE_ROAMING',
+    'KEY_ICON_HIDE_WIFI_TYPE', 'KEY_ICON_HIDE_CELLULAR_ROAM', 'KEY_ICON_HIDE_CELLULAR_ROAM_GLOBAL',
+    'KEY_ICON_HIDE_CELLULAR_SMALL_ROAM', 'KEY_ICON_CELLULAR_TYPE_SINGLE_SWAP',
+    'KEY_ICON_STACKED_ALPHA_FG', 'KEY_ICON_STACKED_ALPHA_BG', 'KEY_ICON_STACKED_ALPHA_ERROR',
+    'KEY_ICON_STACKED_PADDING_START', 'KEY_ICON_STACKED_PADDING_END', 'KEY_ICON_STACKED_TYPE_SIZE',
+    'KEY_ICON_STACKED_TYPE_WEIGHT', 'KEY_ICON_STACKED_TYPE_SINGLE_WEIGHT', 'KEY_ICON_STACKED_TYPE_WIDTH_CONDENSED',
+    'KEY_ICON_STACKED_TYPE_PADDING_START', 'KEY_ICON_STACKED_TYPE_PADDING_END',
+    'KEY_ICON_STACKED_TYPE_VERTICAL_OFFSET', 'KEY_ICON_STACKED_TYPE_FONT'
+}
+for name in retired_icon_keys:
+    keys.pop('IconSettingsKeys.' + name, None)
+
 # Reviewed defaults for settings read through shared helper loops/migration readers.
 # Missing display mode inherits the legacy boolean; the fresh-install default is off.
 reads['SystemUiSettingsKeys.KEY_SLIDER_DISPLAY_MODE'] = ('Int', '0', 0)
 # Legacy switches still have executing readers through IconSettingsPreferencePolicy.
-reads['IconSettingsKeys.KEY_ICON_HIDE_SIM_AUTO'] = ('Boolean', 'false', 0)
-reads['IconSettingsKeys.KEY_ICON_STACKED_TYPE_HIDE_WIFI'] = ('Boolean', 'false', 0)
 for key in keys:
     if key.startswith('MarketSettingsKeys.KEY_MARKET_'): reads[key] = ('Boolean','false',0)
     if key.startswith('PackageManagerSettingsKeys.KEY_'): reads[key] = ('Boolean','false',0)

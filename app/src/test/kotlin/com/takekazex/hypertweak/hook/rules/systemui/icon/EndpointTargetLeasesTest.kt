@@ -1,15 +1,15 @@
-package com.takekazex.hypertweak.hook.rules.systemui.icon.carrier
+package com.takekazex.hypertweak.hook.rules.systemui.icon
 
 import org.junit.Assert.*
 import org.junit.Test
 
-class CarrierTargetLeasesTest {
+class EndpointTargetLeasesTest {
     private class Target(var ready: Boolean = true, var usable: Boolean = true, var network: Boolean = true, var exists: Boolean = true)
-    private class Host : CarrierTargetLeases.Host<Target, Target> {
+    private class Host : EndpointTargetLeases.Host<Target, Target> {
         val effects = mutableListOf<String>()
         var geometryReads = 0
         var removeOnStop = false
-        val leases = CarrierTargetLeases(this)
+        val leases = EndpointTargetLeases(this)
         override fun parts(target: Target) = target.takeIf { it.exists }
         override fun ready(target: Target, parts: Target) = parts.ready
         override fun usable(target: Target): Boolean { geometryReads++; return target.usable }

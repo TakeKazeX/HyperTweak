@@ -2,6 +2,8 @@ package com.takekazex.hypertweak.hook.rules.systemui.icon
 
 import com.takekazex.hypertweak.hook.rules.systemui.icon.carrier.CarrierMask
 import android.view.ViewGroup
+import android.view.View
+import android.content.Context
 
 /** Cross-feature host capabilities, wired by the SystemUI composition root before attachment. */
 internal class IconHostServices {
@@ -10,7 +12,9 @@ internal class IconHostServices {
         val keyguardSlots: () -> Set<String> = { emptySet() },
         val shadeStarted: (Boolean) -> Unit = {},
         val shadeFinished: (Boolean) -> Unit = {},
-        val visibilityChanged: () -> Unit = {}
+        val visibilityChanged: () -> Unit = {},
+        /** Duo took or released a slot the left container may also own. */
+        val duoOwnershipChanged: () -> Unit = {}
     )
     data class Keyguard(
         val showing: () -> Boolean? = { null },
@@ -23,11 +27,23 @@ internal class IconHostServices {
     )
     data class CarrierLayout(
         val owns: (ViewGroup?) -> Boolean = { false },
-        val firstCenter: (ViewGroup) -> Int = { 0 }
+        val firstCenter: (ViewGroup) -> Int = { 0 },
+        val ownsRow: (ViewGroup?) -> Boolean = { false },
+        val geometry: (ViewGroup) -> TwoRowIconLayout.Geometry? = { null }
+    )
+    data class Duo(val releaseStatusIcons: (Set<String>) -> Unit = {})
+    data class Header(
+        val supportsCompactLayout: (View) -> Boolean = { false },
+        val ensureCompactCarrierVisible: (ViewGroup) -> Unit = {},
+        val updateCarrierLayout: (ViewGroup, Boolean) -> Unit = { _, _ -> },
+        val releaseCarrier: (ViewGroup) -> Unit = {},
+        val twoLineConfigured: () -> Boolean = { false },
+        val secondRowStatusIconsEnabled: (Context) -> Boolean = { false }
     )
     data class Binding(
         val left: Left = Left(), val positions: Positions = Positions(),
         val carrier: CarrierLayout = CarrierLayout(),
+        val duo: Duo = Duo(), val header: Header = Header(),
         val keyguard: Keyguard = Keyguard(),
         val republish: () -> Unit = {}, val mobileReady: () -> Boolean = { false }
     )
@@ -46,6 +62,8 @@ internal object IconHostPorts {
     val keyguard get() = services.binding.keyguard
     val positions get() = services.binding.positions
     val carrier get() = services.binding.carrier
+    val duo get() = services.binding.duo
+    val header get() = services.binding.header
     fun republish() = services.binding.republish()
     fun mobileReady() = services.binding.mobileReady()
 }

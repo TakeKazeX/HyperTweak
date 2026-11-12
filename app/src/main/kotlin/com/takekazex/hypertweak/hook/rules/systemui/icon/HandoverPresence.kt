@@ -1,7 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
 /** A host event port; the producer does not construct or depend on the Duo renderer. */
-internal class ShadeSwitchEvents {
+internal class HandoverPresence {
     private class Binding(val owner: Any, val started: () -> Unit, val finished: (Boolean) -> Unit,
                           val activeProxy: (Any) -> Boolean, val ownsAirplane: (Any) -> Boolean,
                           val ownsSignalHandover: () -> Boolean)
@@ -24,9 +24,4 @@ internal class ShadeSwitchEvents {
     @Synchronized fun finished(controlCenterVisible: Boolean) {
         binding?.finished?.invoke(controlCenterVisible)
     }
-}
-
-internal object SignalHandoverEvents {
-    val shade = ShadeSwitchEvents()
-    val statusIcons = SignalTargetOwnership<android.view.View>()
 }

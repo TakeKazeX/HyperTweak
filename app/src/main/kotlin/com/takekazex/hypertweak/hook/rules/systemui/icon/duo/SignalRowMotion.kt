@@ -1,9 +1,5 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon.duo
 
-import com.takekazex.hypertweak.hook.rules.systemui.icon.PanelSourceGlyph
-import com.takekazex.hypertweak.presentation.icon.duo.DuoDotMorph
-import com.takekazex.hypertweak.presentation.icon.duo.SignalBarMorph
-import com.takekazex.hypertweak.hook.rules.systemui.icon.PanelGlyphFrame
 import android.graphics.Canvas
 import android.graphics.ColorFilter
 import android.graphics.Matrix
@@ -17,6 +13,12 @@ import android.graphics.drawable.Drawable
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
+import com.takekazex.hypertweak.hook.rules.systemui.icon.HandoverCoordinator
+import com.takekazex.hypertweak.hook.rules.systemui.icon.PanelGlyphFrame
+import com.takekazex.hypertweak.hook.rules.systemui.icon.PanelSourceGlyph
+import com.takekazex.hypertweak.presentation.icon.duo.DuoDotMorph
+import com.takekazex.hypertweak.presentation.icon.duo.SignalBarMorph
+import com.takekazex.hypertweak.util.logging.DebugLog
 import kotlin.math.abs
 
 /** One subscription's vector row, independently owned from the network type and the other SIM. */
@@ -111,7 +113,7 @@ internal class SignalRowMotion {
                 failed = true
                 ready = false
                 restoreTarget()
-                com.takekazex.hypertweak.util.logging.DebugLog.w("DuoSignal", "SIM row handoff failed", error)
+                DebugLog.w("DuoSignal", "SIM row handoff failed", error)
             } finally { canvas.restoreToCount(count) }
         }
         override fun setAlpha(alpha: Int) = Unit
@@ -222,14 +224,14 @@ internal class SignalRowMotion {
         // own ring-to-signal handover. Do not impose the Duo tint/opacity clock on normal icons.
         appliedAlpha = savedAlpha * if (sourceAppearanceAlpha == null && ready && !failed)
             handoff else 1f
-        native.alpha = appliedAlpha
+        HandoverCoordinator.alpha(native, appliedAlpha)
         layer.setBounds(0, 0, root.width, root.height)
         if (needsDraw) layer.invalidateSelf()
         return ready && !failed
     }
 
     private fun restoreTarget() {
-        target?.let { if (abs(it.alpha - appliedAlpha) < .001f) it.alpha = savedAlpha }
+        target?.let { if (abs(it.alpha - appliedAlpha) < .001f) HandoverCoordinator.alpha(it, savedAlpha) }
         target = null
     }
     fun clear() {

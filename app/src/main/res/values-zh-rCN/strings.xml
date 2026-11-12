@@ -582,8 +582,6 @@
     <string name="icon_battery_style_system">跟随系统</string>
     <string name="icon_battery_style_trailing">图标外侧（末端）</string>
     <string name="icon_battery_style_leading">图标外侧（起始端）</string>
-    <string name="icon_stacked_signal_style">堆叠信号样式</string>
-    <string name="icon_stacked_signal_style_summary">将两张 SIM 卡堆叠为一个图标</string>
     <string name="icon_stacked_type_hide_disconnect">断开数据时隐藏类型</string>
     <string name="icon_stacked_type_hide_disconnect_summary">数据断开时不显示堆叠类型文字</string>
     <string name="icon_stacked_type_keep_on_wifi">Wi-Fi 上网时保留蜂窝类型</string>
@@ -738,7 +736,6 @@
     <string name="icon_slot_second_space">手机分身</string>
     <string name="icon_slot_stacked_mobile_icon">双排信号图标</string>
     <string name="icon_slots_title">槽位</string>
-    <string name="icon_stacked_signal_title">堆叠信号</string>
     <string name="icon_stacked_signal_weight">堆叠信号加粗</string>
     <string name="icon_notification_title">通知图标</string>
     <string name="icon_notification_max">限制通知图标数量</string>
@@ -1484,8 +1481,6 @@
     <string name="update_completion_snackbar">已更新到 v%1$s（%2$d），建议重启设备让 LSPosed 重新加载模块。</string>
     <string name="update_completion_snackbar_legacy">已更新到 v%1$s，建议重启设备让 LSPosed 重新加载模块。</string>
     <string name="icon_duo_title">Duo 三合一信号（实验性）</string>
-    <string name="icon_duo_enabled">三合一状态图标</string>
-    <string name="icon_duo_summary">将电量、联网方式和主数据卡信号合为一个图标</string>
     <string name="icon_duo_expanded">展开面板样式</string>
     <string name="icon_duo_size">图标大小</string>
     <string name="icon_duo_size_value">%1$d dp</string>
@@ -1952,4 +1947,13 @@
     <string name="icon_type_order_right">一直最右</string>
     <string name="icon_type_order_left">一直最左</string>
     <string name="icon_wifi_standard_map_hint">输入一个数字应用到所有标准，或按 802.11n、ac、ax、ad、be 的顺序输入五项，用逗号分隔。-1 表示隐藏，例如 -1,-1,6,7,7。</string>
+    <string name="icon_signal_style">信号样式</string>
+    <string name="icon_signal_style_normal">普通</string>
+    <string name="icon_signal_style_stacked">堆叠</string>
+    <string name="icon_signal_style_duo">Duo 三合一</string>
+    <string name="icon_signal_style_normal_summary">保留系统信号图标</string>
+    <string name="icon_signal_style_stacked_summary">将两张 SIM 卡堆叠为一个图标</string>
+    <string name="icon_signal_style_duo_summary">将电量、联网方式和主数据卡信号合为一个图标</string>
+    <string name="icon_section_network">网络</string>
+    <string name="icon_section_status_bar">状态栏</string>
 </resources>

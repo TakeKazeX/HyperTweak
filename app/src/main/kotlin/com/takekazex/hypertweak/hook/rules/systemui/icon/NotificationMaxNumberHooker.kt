@@ -22,10 +22,10 @@ import com.takekazex.hypertweak.util.logging.DebugLog
 object NotificationMaxNumberHooker : StaticHooker() {
     // Published on settings acceptance; hook callbacks perform no storage reads.
     private val settingStatusbarNotificationMax by hookSetting(false) {
-        Preferences.getBoolean(PlatformSettingsKeys.KEY_STATUSBAR_NOTIFICATION_MAX, false)
+        Preferences.iconConfig().boolean(PlatformSettingsKeys.KEY_STATUSBAR_NOTIFICATION_MAX)
     }
     private val settingStatusbarNotificationIconMax by hookSetting(NotificationIconLimit.DEFAULT) {
-        Preferences.getInt(PlatformSettingsKeys.KEY_STATUSBAR_NOTIFICATION_ICON_MAX, NotificationIconLimit.DEFAULT)
+        Preferences.iconConfig().int(PlatformSettingsKeys.KEY_STATUSBAR_NOTIFICATION_ICON_MAX)
     }
 
     init {

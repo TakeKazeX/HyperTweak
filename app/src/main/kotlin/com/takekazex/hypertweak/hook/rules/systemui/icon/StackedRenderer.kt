@@ -2,15 +2,6 @@
 
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
-import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
-import com.takekazex.hypertweak.presentation.icon.IconSvgRenderConfig
-import com.takekazex.hypertweak.presentation.icon.IconSvgRenderer
-import com.takekazex.hypertweak.presentation.icon.IconSvgRepository
-import com.takekazex.hypertweak.presentation.icon.IconSvgSnapshot
-import com.takekazex.hypertweak.presentation.icon.MobileSignalState
-import com.takekazex.hypertweak.presentation.icon.NativeMobileMask
-import com.takekazex.hypertweak.presentation.icon.NetworkIconVisibility
-
 import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Picture
@@ -18,18 +9,32 @@ import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import android.telephony.SubscriptionManager
-import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
+import android.view.View
+import android.view.ViewGroup
+import android.widget.ImageView
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HostAccess
+import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
+import com.takekazex.hypertweak.presentation.icon.IconSvgRenderConfig
+import com.takekazex.hypertweak.presentation.icon.IconSvgRenderer
+import com.takekazex.hypertweak.presentation.icon.IconSvgRepository
+import com.takekazex.hypertweak.presentation.icon.IconSvgSnapshot
+import com.takekazex.hypertweak.presentation.icon.MobileSignalState
+import com.takekazex.hypertweak.presentation.icon.NativeMobileMask
+import com.takekazex.hypertweak.presentation.icon.NetworkIconVisibility
 import com.takekazex.hypertweak.presentation.icon.duo.DuoSignalRow
 import com.takekazex.hypertweak.presentation.icon.duo.DuoSignalRows
+import com.takekazex.hypertweak.presentation.icon.duo.SignalBarMorph
 import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
-import com.takekazex.hypertweak.settings.contract.IconSurface
 import com.takekazex.hypertweak.settings.contract.IconSlotPolicy
+import com.takekazex.hypertweak.settings.contract.IconSurface
 import com.takekazex.hypertweak.settings.contract.SignalSvgStyle
 import com.takekazex.hypertweak.util.logging.DebugLog
+import com.takekazex.hypertweak.util.platform.ResourceLookup
+import java.lang.ref.WeakReference
 import java.lang.reflect.Method
 import java.util.IdentityHashMap
 import java.util.concurrent.Executors
@@ -38,7 +43,6 @@ import java.util.concurrent.atomic.AtomicLong
 import org.luckypray.dexkit.DexKitBridge
 import org.luckypray.dexkit.query.enums.StringMatchType
 import org.luckypray.dexkit.result.MethodData
-import com.takekazex.hypertweak.util.platform.ResourceLookup
 
 /**
  * Publishes the custom cellular signal as a normal SystemUI icon-controller slot.
@@ -56,35 +60,22 @@ import com.takekazex.hypertweak.util.platform.ResourceLookup
  * rule are the native ones.
  */
 @SuppressLint("StaticFieldLeak")
-object StackedSignalHooker : StaticHooker() {
+internal object StackedRenderer : IconRenderer() {
     // Published on settings acceptance; hook callbacks perform no storage reads.
-    private val settingIconMobileRowStyle by hookSetting(0) { Preferences.getInt(IconSettingsKeys.KEY_ICON_MOBILE_ROW_STYLE, 0) }
+    private val settingIconMobileRowStyle by hookSetting(0) { Preferences.iconConfig().stacked.mobileRowStyle }
     private val settingIconStackedEnabled by hookSetting(false) { Preferences.iconBoolean(IconSettingsKeys.KEY_ICON_STACKED_ENABLED) }
     private val networkVisibility by hookSetting(NetworkIconVisibility()) { IconTunerOptions.networkVisibility() }
     private val settingIconStackedSignalStyle by hookSetting(0) { Preferences.iconStackedSignalStyle() }
-    private val settingIconStackedWeight by hookSetting(0f) { Preferences.getFloat(IconSettingsKeys.KEY_ICON_STACKED_WEIGHT, 0f) }
-    private val settingIconStackedTypeHideDisconnect by hookSetting(false) {
-        Preferences.cellularTypeHidesWhenDisconnected()
-    }
-    private val separateType by hookSetting(false) { Preferences.separateCellularType() }
-    private val keepSeparateTypeOnWifi by hookSetting(false) { Preferences.cellularTypeKeepsOnWifi() }
+    private val settingIconStackedWeight by hookSetting(0f) { Preferences.iconConfig().stacked.stackedWeight }
 
-    init {
-        hostRecovery(HostRecoveryPhase.ADAPTER, icons = true) {
-            it.adapter?.let(::recoverAdapter)
-        }
-        hostRecovery(HostRecoveryPhase.ICONS, icons = true) {
-            typeOnly.adopt(it.views)
-        }
-    }
 
     private const val PANEL_CALLBACK_OWNER_MARKER =
         "com.android.systemui.controlcenter.shade.ControlCenterHeaderExpandController\$controlCenterCallback"
 
     private const val TAG = "IconTuner"
     private const val SLOT_STACKED = IconSlotPolicy.SLOT_STACKED_SIGNAL
-    // Retired module slots; a generation upgraded from an older build may still own them.
-    private val RETIRED_SLOTS = listOf("stacked_mobile_type", "single_mobile_sim1", "single_mobile_sim2")
+    // The retired separate type slot; a generation upgraded from an older build may still own it.
+    private const val RETIRED_TYPE_SLOT = "stacked_mobile_type"
 
     /** Bounded backoff before re-reading signal artwork that failed to load. */
     private const val ASSET_LOAD_RETRY_BACKOFF_MS = 5_000L
@@ -106,35 +97,34 @@ object StackedSignalHooker : StaticHooker() {
     private val generation = AtomicLong(0L)
     private val assetLoads = SignalAssetLoadState<SignalAssets>(generation, ASSET_LOAD_RETRY_BACKOFF_MS)
     private val installed = generationResource(AtomicBoolean(false)) { it.set(false) }
-    private val nativeWifiType = NativeWifiTypeVisibility(this)
-    private val typeOnly = NativeTypeOnlyMask(this)
-    private var nativeTypeVisibilityInstalled by generationState { false }
-    private val source = MobileSignalSource(
-        this, generation, { enabled }, { hostContext },
-        onAdapterReady = { controller, bindingGeneration ->
+    private var bridgeController: WeakReference<Any>? by generationState { null }
+
+    private fun onMobileState() {
+        val controller = MobileSignalHub.controller
+        if (bridgeController?.get() !== controller) {
+            iconBridge?.removeAllOwned()
+            iconBridge = null
+            bridgeController = null
+        }
+        if (controller != null && bridgeController?.get() !== controller) {
             hostContext = hostContext ?: (runCatching { HostAccess.read(controller, "mContext") }.getOrNull() as? Context)
             if (svgRepository == null) {
-                val context = hostContext
-                val moduleContext = context?.let {
-                    runCatching {
-                        it.createPackageContext(
-                            HostIconBridge.MODULE_PACKAGE,
-                            Context.CONTEXT_IGNORE_SECURITY
-                        )
-                    }.getOrNull()
+                val moduleContext = hostContext?.let { context ->
+                    runCatching { context.createPackageContext(HostIconBridge.MODULE_PACKAGE, Context.CONTEXT_IGNORE_SECURITY) }.getOrNull()
                 }
                 svgRepository = moduleContext?.let(::IconSvgRepository)
             }
+            bridgeController = WeakReference(controller)
             iconBridge = HostIconBridge(controller, classLoader)
-            scheduleSignalAssetsLoad(bindingGeneration)
-
-        },
-        scheduleRender = ::scheduleRender
-    )
+            scheduleSignalAssetsLoad(generation.get())
+        }
+        scheduleRender(generation.get())
+    }
 
     private var enabled by generationState { false }
 
     private var renderStacked by generationState { false }
+    private var currentStyle by generationState { -1 }
     private val panelMotions = generationMainResource(IdentityHashMap<Any, StackedPanelMotion>()) { it.clear() }
     private var slotIndices: Map<Int, Int> by generationState { emptyMap() }
     private var publishedSignalRows: List<DuoSignalRow> by generationState { emptyList() }
@@ -158,7 +148,7 @@ object StackedSignalHooker : StaticHooker() {
     private var options by generationState { IconTunerOptions.snapshot() }
 
     private data class PublishedSignalPicture(val picture: Picture, val splitFraction: Float,
-        val morphs: List<com.takekazex.hypertweak.presentation.icon.duo.SignalBarMorph>)
+        val morphs: List<SignalBarMorph>)
 
     private data class SignalAssets(
         val bindingGeneration: Long,
@@ -168,14 +158,14 @@ object StackedSignalHooker : StaticHooker() {
         val destination: IconSvgSnapshot?
     ) {
         var morphKey: Pair<Int, Float>? = null
-        var morphs: List<com.takekazex.hypertweak.presentation.icon.duo.SignalBarMorph> = emptyList()
-        fun morphs(rows: Int, weight: Float): List<com.takekazex.hypertweak.presentation.icon.duo.SignalBarMorph> {
+        var morphs: List<SignalBarMorph> = emptyList()
+        fun morphs(rows: Int, weight: Float): List<SignalBarMorph> {
             val destination = destination ?: return emptyList()
             val key = rows to weight
             if (morphKey != key) {
                 morphKey = key
                 morphs = runCatching { (0 until rows).map { row ->
-                    com.takekazex.hypertweak.presentation.icon.duo.SignalBarMorph.create(
+                    SignalBarMorph.create(
                         if (rows > 1) stacked.document else single.document, destination.document,
                         row, rows, style.stackedSplitFraction, weight)
                 } }.getOrDefault(emptyList())
@@ -196,7 +186,6 @@ object StackedSignalHooker : StaticHooker() {
         svgRepository = moduleContext?.let(::IconSvgRepository)
         if (enabled) {
             scheduleSignalAssetsLoad(generation.get())
-            source.scheduleExistingAdapterDiscovery()
         }
     }
 
@@ -210,19 +199,11 @@ object StackedSignalHooker : StaticHooker() {
         // A replacement generation may be prepared from a binder thread. StateFlow updates are
         // thread-safe; pass every exposed Pair through its original value before unregistering the
         // getter entries. Queued old-generation callbacks are rejected by the generation check.
-        MobileSignalVisibility.clearForHotReload()
-        HostAccess.onMain { typeOnly.retire() }
+        HostAccess.onMain { SlotMaskApplier.releaseStacked() }
         removeRetiringBridge(retiredGeneration, retiringBridge)
-        nativeWifiType.retire()
-        source.retire()
 
         installed.set(false)
     }
-
-    override fun saveHotReloadState(): Any? = source.snapshot()
-    override fun restoreHotReloadState(state: Any?) = source.restore(state)
-    internal val mobilePipelineConnected get() = source.mobilePipelineConnected
-    internal fun recoverAdapter(adapter: Any) = source.recoverAdapter(adapter)
 
     private var dataFirst by generationState { false }
 
@@ -231,8 +212,7 @@ object StackedSignalHooker : StaticHooker() {
         IconTunerFlows.init(classLoader)
         options = IconTunerOptions.snapshot()
         renderStacked = settingIconStackedEnabled
-        nativeTypeVisibilityInstalled = separateType &&
-            (keepSeparateTypeOnWifi || !settingIconStackedTypeHideDisconnect) && nativeWifiType.install()
+        currentStyle = settingIconStackedSignalStyle
         // Installed while every option is off too: the exposed flows are then already bound, so a
         // SIM-hiding toggle only re-applies the mask and the host binder animates the row in place.
         enabled = true
@@ -240,20 +220,13 @@ object StackedSignalHooker : StaticHooker() {
         // Invalidate any cleanup runnable posted by the retiring generation before it can touch a
         // holder published by this generation.
         assetLoads.advance(SignalSvgStyle.fromStored(settingIconStackedSignalStyle))
-        if (!MobileSignalVisibility.installGetter(this)) {
-            enabled = false
-            DebugLog.hookSkipped(TAG, "MiuiMobileIconVMImpl#isVisible", "getter bridge unavailable")
-            return
-        }
         // Without the type-only row the stacked bars would stand alone, losing the 5G text.
-        if (renderStacked && !typeOnly.install()) renderStacked = false
-        if (renderStacked && !SignalHandoverEvents.shade.ownsSignalHandover()) hookPanelMotion()
-        source.hookCreateViewModel()
-        source.hookAdapterStart()
-        source.restore(source.snapshot())
-        source.scheduleExistingAdapterDiscovery()
+        if (renderStacked && !SlotMaskApplier.typeOnlyInstalled) renderStacked = false
+        hookPanelMotion()
+        HandoverCoordinator.registerStacked(this, ::duoSignalTarget)
+        MobileSignalHub.subscribe(this, ::onMobileState)
         hostContext?.let { scheduleSignalAssetsLoad(generation.get()) }
-        DebugLog.hookRegistered(TAG, "mobile signal owner stacked=$renderStacked nativeType=$nativeTypeVisibilityInstalled")
+        DebugLog.hookRegistered(TAG, "stacked signal renderer enabled=$renderStacked")
     }
 
     /**
@@ -266,6 +239,13 @@ object StackedSignalHooker : StaticHooker() {
             if (!enabled) return@onMain
             dataFirst = settingIconMobileRowStyle == 1
             options = IconTunerOptions.snapshot()
+            renderStacked = settingIconStackedEnabled && SlotMaskApplier.typeOnlyInstalled
+            if (currentStyle != settingIconStackedSignalStyle) {
+                currentStyle = settingIconStackedSignalStyle
+                assetLoads.advance(SignalSvgStyle.fromStored(currentStyle))
+                scheduleSignalAssetsLoad(generation.get())
+            }
+            if (!renderStacked) restoreNative()
             renderCurrent()
             DebugLog.i(TAG, "mobile signal settings refreshed render=$renderStacked dataFirst=$dataFirst " +
                 "visibility=$networkVisibility")
@@ -284,80 +264,20 @@ object StackedSignalHooker : StaticHooker() {
         )
 
     private fun hookPanelMotion() {
-        val methods = resolvePanelMotionMethods()
-        if (methods.isEmpty()) {
-            DebugLog.hookSkipped(TAG, "stacked signal panel-motion callbacks", "unique DexKit targets not found")
-            return
-        }
-        methods.forEach { method ->
-            deoptimize(method)
-            method.hook { after { param ->
-                val owner = param.thisObject
-                val motion = panelMotions.getOrPut(owner) { StackedPanelMotion(owner) }
-                runCatching {
-                    val drawable = publishedSignalPicture.takeIf {
-                        enabled && stackHasHomeSource() && hasPublishedReplacement() &&
-                            !SignalHandoverEvents.shade.ownsSignalHandover() &&
-                            !(networkVisibility.hideMobileOnWifi && source.signalState.wifiConnected)
-                    }
-                    motion.update(publishedSignalRows, drawable?.picture, param.args.firstOrNull() as? Float,
-                        param.args.firstOrNull() as? Boolean, drawable?.splitFraction, drawable?.morphs.orEmpty())
-                }.onFailure { motion.clear(); DebugLog.w(TAG, "stacked signal handoff unavailable", it) }
-            } }
-        }
+        PanelHub.subscribe(this, changed = {
+            val owner = PanelHub.motionHost ?: return@subscribe
+            val motion = panelMotions.getOrPut(owner) { StackedPanelMotion(owner) }
+            runCatching {
+                val drawable = publishedSignalPicture.takeIf {
+                    enabled && renderStacked && stackHasHomeSource() && hasPublishedReplacement() &&
+                        !HandoverCoordinator.shade.ownsSignalHandover() && !PanelHub.state.shadeSwitching &&
+                        !(networkVisibility.hideMobileOnWifi && NetworkHub.state.wifiDefault == true)
+                }
+                motion.update(publishedSignalRows, drawable?.picture, PanelHub.state.progress,
+                    PanelHub.state.visible, drawable?.splitFraction, drawable?.morphs.orEmpty())
+            }.onFailure { motion.clear(); DebugLog.w(TAG, "stacked signal handoff unavailable", it) }
+        })
     }
-
-    private fun resolvePanelMotionMethods(): List<Method> {
-        val apkPath = hookParam.appInfo?.sourceDir ?: return emptyList()
-        return DexRuntime.resolveMethodMap(
-            "systemui.stacked_panel_motion", apkPath, dexCacheDirectory, classLoader, hookParam.appInfo,
-            validate = { key, method ->
-                val type = when (key) { "expansion" -> Float::class.javaPrimitiveType
-                    "visibility" -> Boolean::class.javaPrimitiveType; else -> null }
-                val name = if (key == "expansion") "onExpansionChanged" else "onVisibleChanged"
-                type != null && method.declaringClass.name.contains(PANEL_CALLBACK_OWNER_MARKER) &&
-                    method.name == name && method.parameterTypes.contentEquals(arrayOf(type)) &&
-                    method.returnType == Void.TYPE && !java.lang.reflect.Modifier.isStatic(method.modifiers)
-            },
-        ) { bridge ->
-            val expansion = resolvePanelMotionMethod(
-                bridge,
-                "onExpansionChanged",
-                Float::class.javaPrimitiveType!!
-            )
-            val visibility = resolvePanelMotionMethod(
-                bridge,
-                "onVisibleChanged",
-                Boolean::class.javaPrimitiveType!!
-            )
-            mapOf("expansion" to expansion, "visibility" to visibility)
-                .filterValues { it != null }.mapValues { requireNotNull(it.value) }
-        }?.values?.toList().orEmpty()
-    }
-
-    private fun resolvePanelMotionMethod(
-        bridge: DexKitBridge,
-        methodName: String,
-        parameterType: Class<*>
-    ): Method? = bridge.findMethod {
-        matcher {
-            declaredClass { className(PANEL_CALLBACK_OWNER_MARKER, StringMatchType.Contains) }
-            name(methodName)
-            paramTypes(parameterType)
-            returnType(Void.TYPE)
-        }
-    }.toList().filter { data ->
-        data.className.contains(PANEL_CALLBACK_OWNER_MARKER) &&
-            data.methodName == methodName &&
-            data.paramTypeNames == listOf(parameterType.name) &&
-            data.returnTypeName == Void.TYPE.name
-    }.mapNotNull(::materializeMethod).singleOrNull()
-
-    private fun materializeMethod(data: MethodData): Method? = runCatching {
-        data.getMethodInstance(classLoader)
-    }.onFailure {
-        DebugLog.w(TAG, "failed to inspect ${data.className}#${data.methodName}", it)
-    }.getOrNull()
 
     /**
      * Holder teardown must run on SystemUI's main thread. The generation check and the bridge's
@@ -395,22 +315,11 @@ object StackedSignalHooker : StaticHooker() {
             return
         }
         if (!enabled) return
-        val state = source.signalState
+        val state = MobileSignalHub.state
         slotIndices = state.subscriptionOrder.associateWith {
             runCatching { SubscriptionManager.getSlotIndex(it) }.getOrDefault(-1)
         }
-        val complete = source.complete
-        if (nativeTypeVisibilityInstalled) {
-            // The native binder owns the label. Bitmap label limits must not gate its text.
-            val wifi = state.wifiConnected
-            val allowType = if (wifi) keepSeparateTypeOnWifi && !networkVisibility.hideMobileOnWifi
-                else !settingIconStackedTypeHideDisconnect
-            val activeType = state.wifiDataSubscription(wifiDefault = true)?.subId?.takeIf {
-                allowType && complete && it !in networkVisibility.hiddenSimIds(state, wifi, ::slotOf)
-            }
-            nativeWifiType.publish(activeType)
-        }
-        MobileSignalHub.publish(state, complete)
+        val complete = MobileSignalHub.complete
         val outcome = if (renderStacked) renderStackedSlot(state, complete) else StackedOutcome.NATIVE
         applyNativeMask(state, outcome)
     }
@@ -420,17 +329,9 @@ object StackedSignalHooker : StaticHooker() {
      * the rows, everything but the active data row's standalone type label.
      */
     private fun applyNativeMask(state: MobileSignalState, outcome: StackedOutcome) {
-        val mask = when (outcome) {
-            StackedOutcome.KEEP -> return
-            StackedOutcome.SUPPRESSED -> NativeMobileMask(hidden = state.subscriptionOrder.toSet())
-            StackedOutcome.NATIVE, StackedOutcome.PUBLISHED -> networkVisibility.nativeMask(
-                state, ::slotOf, stackedPublished = outcome == StackedOutcome.PUBLISHED,
-                ignoreSystemHide = options.ignoreSystemHide
-            )
-        }
-        // Reduce the type row before its siblings are hidden, so no frame shows a full row twice.
-        typeOnly.publish(mask.typeOnly)
-        MobileSignalVisibility.setHiddenForSubIds(mask.hidden)
+        if (outcome == StackedOutcome.KEEP) return
+        SlotMaskApplier.stackedReady(outcome == StackedOutcome.PUBLISHED,
+            suppressed = outcome == StackedOutcome.SUPPRESSED)
     }
 
     private fun renderStackedSlot(state: MobileSignalState, complete: Boolean): StackedOutcome {
@@ -517,7 +418,7 @@ object StackedSignalHooker : StaticHooker() {
             restoreNative()
             return StackedOutcome.NATIVE
         }
-        RETIRED_SLOTS.forEach(bridge::removeOwned)
+        bridge.removeOwned(RETIRED_TYPE_SLOT)
         publishedSignalRows = renderRows
         publishedSignalPicture = if (replacementVisible) PublishedSignalPicture(IconSvgRenderer.signalPicture(
             if (renderRows.size > 1) assets.stacked.document else assets.single.document,
@@ -527,7 +428,12 @@ object StackedSignalHooker : StaticHooker() {
         if (panelMotions.isNotEmpty()) {
             val commands = publishedSignalPicture.takeIf { stackHasHomeSource() }
             panelMotions.values.forEach { motion ->
-                runCatching { motion.update(renderRows, commands?.picture, null, null, commands?.splitFraction, commands?.morphs.orEmpty()) }.onFailure { motion.clear() }
+                runCatching {
+                    motion.update(
+                        renderRows, commands?.picture, null, null,
+                        commands?.splitFraction, commands?.morphs.orEmpty()
+                    )
+                }.onFailure { motion.clear() }
             }
         }
         // This is the first point at which a complete replacement exists.
@@ -541,18 +447,18 @@ object StackedSignalHooker : StaticHooker() {
         return StackedOutcome.NATIVE
     }
 
-    private fun duoSlot(container: android.view.View, slot: String): android.widget.ImageView? {
-        val found = ArrayList<android.widget.ImageView>()
-        fun visit(view: android.view.View) {
-            if (view.visibility != android.view.View.VISIBLE) return
-            if (view is android.widget.ImageView && HostAccess.read(view, "mSlot") == slot &&
+    private fun duoSlot(container: View, slot: String): ImageView? {
+        val found = ArrayList<ImageView>()
+        fun visit(view: View) {
+            if (view.visibility != View.VISIBLE) return
+            if (view is ImageView && HostAccess.read(view, "mSlot") == slot &&
                 signalEndpointVisible(view, container)) found += view
-            if (view is android.view.ViewGroup) for (i in 0 until view.childCount) visit(view.getChildAt(i))
+            if (view is ViewGroup) for (i in 0 until view.childCount) visit(view.getChildAt(i))
         }
         visit(container)
         return found.singleOrNull()
     }
-    internal fun duoSignalTarget(container: android.view.View): StackedSignalTarget? {
+    internal fun duoSignalTarget(container: View): StackedSignalTarget? {
         val published = publishedSignalPicture ?: return null
         val rows = publishedSignalRows
         if (rows.isEmpty() || rows.size != published.morphs.size) return null
@@ -569,7 +475,7 @@ object StackedSignalHooker : StaticHooker() {
         panelMotions.values.forEach { it.clear() }
         val bridge = iconBridge ?: return
         bridge.removeOwned(SLOT_STACKED)
-        RETIRED_SLOTS.forEach(bridge::removeOwned)
+        bridge.removeOwned(RETIRED_TYPE_SLOT)
     }
 
     private fun stackHasHomeSource(): Boolean =

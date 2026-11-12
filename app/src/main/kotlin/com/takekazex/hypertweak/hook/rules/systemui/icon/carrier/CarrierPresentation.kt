@@ -2,7 +2,7 @@
 
 package com.takekazex.hypertweak.hook.rules.systemui.icon.carrier
 
-import com.takekazex.hypertweak.hook.rules.systemui.icon.ControlCenterHeaderHooker
+import com.takekazex.hypertweak.hook.rules.systemui.icon.IconHostPorts
 import com.takekazex.hypertweak.hook.rules.systemui.icon.TwoRowIconLayout
 import android.content.Context
 import android.graphics.Typeface
@@ -25,8 +25,8 @@ import java.lang.reflect.Field
 import kotlin.math.ceil
 import kotlin.math.roundToInt
 
-private val hideCarrierOne by hookSetting(false) { Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_CARRIER_ONE, false) }
-private val hideCarrierTwo by hookSetting(false) { Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_CARRIER_TWO, false) }
+private val hideCarrierOne by hookSetting(false) { Preferences.iconConfig().boolean(IconSettingsKeys.KEY_ICON_HIDE_CARRIER_ONE) }
+private val hideCarrierTwo by hookSetting(false) { Preferences.iconConfig().boolean(IconSettingsKeys.KEY_ICON_HIDE_CARRIER_TWO) }
 
 /** Owns carrier row construction, styling, sizing and exact native presentation restoration. */
 internal class CarrierPresentation(private val host: Host, private val rowRenderer: CarrierRowRenderer) {
@@ -82,7 +82,7 @@ internal class CarrierPresentation(private val host: Host, private val rowRender
     }
 
     fun configureBlock(block: CarrierBlock, restyle: Boolean = false) {
-        val compact = host.enabled && ControlCenterHeaderHooker.supportsCompactLayout(block.layout)
+        val compact = host.enabled && IconHostPorts.header.supportsCompactLayout(block.layout)
         if (block.compact == compact && !restyle) return
         block.compact = compact
         block.geometry = null
@@ -98,7 +98,7 @@ internal class CarrierPresentation(private val host: Host, private val rowRender
             host.releaseHandover()
             return
         }
-        ControlCenterHeaderHooker.ensureCompactCarrierVisible(block.layout)
+        IconHostPorts.header.ensureCompactCarrierVisible(block.layout)
         block.layout.orientation = LinearLayout.VERTICAL
         block.layout.gravity = Gravity.START or Gravity.TOP
         collapse(block.separator)
@@ -135,7 +135,7 @@ internal class CarrierPresentation(private val host: Host, private val rowRender
             (readField(parts.row, "hdText") as? View)?.visibility = View.GONE
             (readField(parts.row, "plusText") as? View)?.visibility = View.GONE
         }
-        ControlCenterHeaderHooker.updateCarrierLayout(block.layout)
+        IconHostPorts.header.updateCarrierLayout(block.layout, false)
     }
 
     private fun collapse(view: View?) {

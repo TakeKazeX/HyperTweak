@@ -1,17 +1,15 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
-import com.takekazex.hypertweak.settings.contract.IconTunerContract
-import com.takekazex.hypertweak.settings.contract.IconSlotPolicy
-import com.takekazex.hypertweak.settings.contract.IconTunerSnapshot
-
-import com.takekazex.hypertweak.settings.contract.IconSlotPolicyConfig
-
-import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
-import com.takekazex.hypertweak.settings.contract.IconSettingsPreferencePolicy
-import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
-
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.presentation.icon.NetworkIconVisibility
+import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
+import com.takekazex.hypertweak.settings.contract.IconSettingsPreferencePolicy
+import com.takekazex.hypertweak.settings.contract.IconSlotPolicy
+import com.takekazex.hypertweak.settings.contract.IconSlotPolicyConfig
+import com.takekazex.hypertweak.settings.contract.IconTunerContract
+import com.takekazex.hypertweak.settings.contract.IconTunerSnapshot
+import com.takekazex.hypertweak.settings.contract.SignalStyle
+import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 
 /** Immutable preference snapshot shared by the P1 position and block-list hooks. */
 
@@ -21,28 +19,24 @@ import com.takekazex.hypertweak.presentation.icon.NetworkIconVisibility
  */
 object IconTunerOptions {
     fun snapshot(): IconTunerSnapshot {
-        val stackedEnabled = Preferences.iconBoolean(IconSettingsKeys.KEY_ICON_STACKED_ENABLED)
-        val leftMode = readLeftMode()
+        val config = Preferences.iconConfig()
+        val stackedEnabled = config.signalStyle == SignalStyle.STACKED
+        val leftMode = config.slots.int(IconTunerContract.KEY_LEFT_MODE).coerceIn(0, 2)
         val leftEnabled = leftMode != IconTunerContract.LEFT_MODE_DISABLED
 
         val leftSlots = LinkedHashSet<String>()
         if (leftEnabled) {
             IconTunerContract.leftPreferenceKeys.forEach { currentKey ->
-                if (Preferences.iconBoolean(currentKey)) {
+                if (config.slots.boolean(currentKey)) {
                     leftSlots += IconTunerContract.slotsForLeftPreference(currentKey)
                 }
             }
         }
 
-        val position = readInt(IconTunerContract.KEY_POSITION, null, IconSlotPolicyConfig.POSITION_SYSTEM)
-        val customEntries = readStringSet(IconTunerContract.KEY_POSITION_VALUES, null)
-        val slotModes = IconSettingsPreferencePolicy.slotModes(
-            read = { slot -> explicitInt(Preferences.slotKey(slot)) },
-            extraHidden = IconSettingsPreferencePolicy.extraHiddenSlots { key ->
-                if (Preferences.contains(key)) Preferences.getString(key, "") else null
-            }
-        )
-        val rotationLockEnabled = Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_ROTATION_LOCK_ICON, false)
+        val position = config.slots.int(IconTunerContract.KEY_POSITION)
+        val customEntries = (config.value(IconTunerContract.KEY_POSITION_VALUES) as? Set<*>)?.filterIsInstance<String>()?.toSet() ?: emptySet()
+        val slotModes = config.slots.slotModes
+        val rotationLockEnabled = config.controlCenter.boolean(SystemUiSettingsKeys.KEY_CC_ROTATION_LOCK_ICON)
         val rotationSlot = IconSlotPolicy.SLOT_ROTATION_LOCK
         if (!rotationLockEnabled || !IconSlotPolicy.rotationLockShowsOnStatusBar(
                 IconSlotPolicy.modeFor(rotationSlot, slotModes), rotationSlot in leftSlots
@@ -51,7 +45,7 @@ object IconTunerOptions {
         val policy = IconSlotPolicyConfig(
             position = position,
             customOrderEntries = customEntries,
-            reorderHidden = Preferences.getBoolean(IconTunerContract.KEY_POSITION_REORDER, false),
+            reorderHidden = config.slots.boolean(IconTunerContract.KEY_POSITION_REORDER),
             slotModes = slotModes,
             enabledModuleSlots = buildSet {
                 if (stackedEnabled) addAll(IconSlotPolicy.STACKED_SLOTS)
@@ -62,43 +56,19 @@ object IconTunerOptions {
         return IconTunerSnapshot(
             policy = policy,
             stackedEnabled = stackedEnabled,
-            ignoreSystemHide = Preferences.iconBoolean(IconSettingsKeys.KEY_ICON_IGNORE_SYS_HIDE),
-            hidePrivacy = Preferences.iconBoolean(IconSettingsKeys.KEY_ICON_HIDE_PRIVACY),
+            ignoreSystemHide = config.slots.boolean(IconSettingsKeys.KEY_ICON_IGNORE_SYS_HIDE),
+            hidePrivacy = config.slots.boolean(IconSettingsKeys.KEY_ICON_HIDE_PRIVACY),
             leftMode = leftMode
         )
     }
 
     internal fun networkVisibility(): NetworkIconVisibility = NetworkIconVisibility(
-        hideMobileOnWifi = Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_MOBILE_ON_WIFI, false),
-        hideWifi = Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_WIFI_UNAVAILABLE, false),
+        hideMobileOnWifi = Preferences.iconConfig().network.hideMobileOnWifi,
+        hideWifi = Preferences.iconConfig().wifi.hideWifiUnavailable,
         hideNonDefaultSim = Preferences.hideNonDefaultSim(),
-        hideSimOne = Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_SIM_ONE, false),
-        hideSimTwo = Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_SIM_TWO, false),
+        hideSimOne = Preferences.iconConfig().network.hideSimOne,
+        hideSimTwo = Preferences.iconConfig().network.hideSimTwo,
         slotModes = snapshot().policy.slotModes
     )
-
-    private fun readLeftMode(): Int = IconSettingsPreferencePolicy.leftMode(
-        explicitInt(IconTunerContract.KEY_LEFT_MODE),
-        Preferences.iconBoolean(IconSettingsKeys.KEY_ICON_LEFT_CONTAINER_ENABLED)
-    )
-
-    private fun explicitInt(key: String): Int? =
-        if (Preferences.contains(key)) Preferences.getInt(key, 0) else null
-
-    private fun readInt(primary: String, legacy: String?, default: Int): Int {
-        val key = sequenceOf(primary, legacy)
-            .filterNotNull()
-            .firstOrNull(Preferences::contains)
-            ?: return default
-        return Preferences.getInt(key, default)
-    }
-
-    private fun readStringSet(primary: String, legacy: String?): Set<String> {
-        val key = sequenceOf(primary, legacy)
-            .filterNotNull()
-            .firstOrNull(Preferences::contains)
-            ?: return emptySet()
-        return Preferences.getStringSet(key, emptySet())
-    }
 
 }

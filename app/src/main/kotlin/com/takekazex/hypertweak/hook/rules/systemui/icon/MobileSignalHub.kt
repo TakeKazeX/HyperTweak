@@ -6,11 +6,12 @@ import com.takekazex.hypertweak.hook.base.BaseHooker
 import com.takekazex.hypertweak.presentation.icon.MobileSignalState
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.util.concurrent.CopyOnWriteArrayList
+import java.lang.ref.WeakReference
 
 /**
  * The one published mobile-signal state of the SystemUI process.
  *
- * [StackedSignalHooker] owns the host pipeline ([MobileSignalSource]) and publishes every reducer
+ * [MobilePipelineAdapter] owns the host pipeline ([MobileSignalSource]) and publishes every reducer
  * pass here. Consumers (Duo, the control-center carrier rows) read [state] instead of keeping
  * their own copy, and a subscription is told the current state right after it is made. A
  * consumer that is reinstalled on its own, as a scoped settings reload does, therefore renders
@@ -29,11 +30,23 @@ internal object MobileSignalHub {
     var state: MobileSignalState = MobileSignalState()
         private set
 
+    @Volatile var complete: Boolean = false
+        private set
+    @Volatile private var controllerRef: WeakReference<Any>? = null
+    val controller: Any? get() = controllerRef?.get()
+
+    fun publishController(controller: Any?) {
+        if (this.controller === controller) return
+        controllerRef = controller?.let(::WeakReference)
+        listeners.forEach(::notify)
+    }
+
     /** Main thread. Publishes one reducer pass; listeners hear only real changes. */
     fun publish(raw: MobileSignalState, ready: Boolean) {
         val next = MobileSignalState.settle(state, raw, ready)
-        if (next == state) return
+        if (next == state && ready == complete) return
         state = next
+        complete = ready
         listeners.forEach(::notify)
     }
 

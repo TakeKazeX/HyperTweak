@@ -31,7 +31,12 @@ internal class NativeWifiTypeVisibility(owner: BaseHooker) : HookComponent(owner
             check(single.returnType == flow &&
                 origin.returnType.isAssignableFrom(interactor) && subId.returnType == Int::class.javaPrimitiveType &&
                 flow.isAssignableFrom(combine.returnType))
-            val gate = checkNotNull(IconTunerFlows.createMutableStateFlow(NO_SUBSCRIPTION))
+            // Existing host binders may still collect a flow combined with the previous hook
+            // generation. Reuse that gate so producer recovery can update those living binders.
+            val gate = synchronized(this) {
+                activeDataGate?.takeIf(flow::isInstance)
+                    ?: checkNotNull(IconTunerFlows.createMutableStateFlow(NO_SUBSCRIPTION))
+            }
             check(flow.isInstance(gate))
             deoptimize(single)
             single.hook {
@@ -73,6 +78,5 @@ internal class NativeWifiTypeVisibility(owner: BaseHooker) : HookComponent(owner
     @Synchronized
     fun retire() {
         publish(null)
-        activeDataGate = null
     }
 }

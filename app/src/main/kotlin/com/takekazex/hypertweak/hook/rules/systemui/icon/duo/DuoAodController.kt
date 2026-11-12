@@ -9,18 +9,18 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.core.view.isVisible
 import com.takekazex.hypertweak.hook.base.BaseHooker
-import com.takekazex.hypertweak.hook.base.HookComponent
+import com.takekazex.hypertweak.hook.rules.systemui.icon.IconRenderComponent
 import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.hook.rules.systemui.aod.AodIconSettings
 import com.takekazex.hypertweak.hook.rules.systemui.aod.AODHooker
-import com.takekazex.hypertweak.hook.rules.systemui.icon.IconPositionHooker
+import com.takekazex.hypertweak.hook.rules.systemui.icon.SlotMaskApplier
 import com.takekazex.hypertweak.settings.contract.AodSettingsKeys
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.reflect.Field
 import java.lang.reflect.Method
 
 /** Owns AOD phase discovery and native keyguard-row restoration. */
-internal class DuoAodController(owner: BaseHooker, private val host: Host) : HookComponent(owner) {
+internal class DuoAodController(owner: BaseHooker, private val host: Host) : IconRenderComponent(owner) {
     interface Host {
         val enabled: Boolean
         val standardEnabled: Boolean
@@ -77,7 +77,7 @@ internal class DuoAodController(owner: BaseHooker, private val host: Host) : Hoo
                 requireNotNull(FullAodDozingSource.API.toClassOrNull()))
             // Also cover cold startup before the registry has published its lazy manager.
             val token = host.epoch
-            managerClass.hookAllConstructors {
+            managerClass.observeConstructors {
                 after { param ->
                     source.bind(param.thisObject)
                     main.post { if (host.enabled && token == host.epoch) guarded { host.refresh() } }
@@ -175,7 +175,7 @@ internal class DuoAodController(owner: BaseHooker, private val host: Host) : Hoo
         binding.aodNativeSuppressed = true
         // Restoring the lease here exposes the original stacked/mobile row while the host's
         // mStatusIconContainer alpha is still above zero.
-        IconPositionHooker.setDuoMask(binding.icons, true)
+        SlotMaskApplier.setDuoMask(binding.icons, true)
         host.setNativeAirplaneMasked(binding, true)
     }
 
@@ -198,7 +198,7 @@ internal class DuoAodController(owner: BaseHooker, private val host: Host) : Hoo
         binding.view.visibility = View.INVISIBLE
         host.setPrivacyInset(binding, 0)
         field(binding.parent.javaClass, "mIsHideBattery")?.setBoolean(binding.parent, false)
-        IconPositionHooker.setDuoMask(binding.icons, true)
+        SlotMaskApplier.setDuoMask(binding.icons, true)
         host.setNativeAirplaneMasked(binding, true)
         applyFullAodNativeChildren(binding)
         val rowVisibility = if (settings.showRow) View.VISIBLE else View.GONE

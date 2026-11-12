@@ -1,30 +1,27 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
-import com.takekazex.hypertweak.hook.base.orSkip
-import com.takekazex.hypertweak.hook.base.cachedPublicField
-import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
-import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
-import com.takekazex.hypertweak.settings.contract.IconSettingsPreferencePolicy
-
-import com.takekazex.hypertweak.hook.base.HostAccess
-
 import android.annotation.SuppressLint
-import android.view.View
-import android.view.ViewGroup
-import android.view.Gravity
-import android.widget.FrameLayout
-import android.widget.TextView
-import java.util.WeakHashMap
-import java.util.concurrent.atomic.AtomicReference
+import android.content.Context
 import android.os.Handler
 import android.os.Looper
-import java.lang.ref.WeakReference
-import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
+import android.view.Gravity
+import android.view.View
+import android.view.ViewGroup
+import android.widget.FrameLayout
+import android.widget.ImageView
+import android.widget.TextView
 import com.takekazex.hypertweak.hook.Preferences
+import com.takekazex.hypertweak.hook.base.HostAccess
+import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
 import com.takekazex.hypertweak.hook.base.StaticHooker
+import com.takekazex.hypertweak.hook.base.cachedPublicField
+import com.takekazex.hypertweak.hook.base.orSkip
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.util.logging.DebugLog
-import kotlin.math.roundToInt
 import com.takekazex.hypertweak.util.platform.ResourceLookup
+import java.lang.ref.WeakReference
+import java.util.WeakHashMap
+import kotlin.math.roundToInt
 
 /**
  * Wi-Fi visibility and standard-label options for the existing MIUI Wi-Fi pipeline.
@@ -36,37 +33,30 @@ import com.takekazex.hypertweak.util.platform.ResourceLookup
  * `MiuiWifiViewBinder.bind` layout setup, limited to the host's `wifi_group` view, and re-applied
  * (or restored) on the recorded roots when a setting changes.
  */
-object WifiIconHooker : StaticHooker() {
+object WifiPipelineAdapter : StaticHooker() {
     // Published on settings acceptance; hook callbacks perform no storage reads.
-    private val settingIconHideWifiActivity by hookSetting(false) {
-        Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_WIFI_ACTIVITY, false)
-    }
-    private val settingIconHideWifiUnavailable by hookSetting(false) {
-        Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_WIFI_UNAVAILABLE, false)
-    }
-    private val settingIconWifiStandardMode by hookSetting(0) {
-        val key = IconSettingsKeys.KEY_ICON_WIFI_STANDARD_MODE
-        IconSettingsPreferencePolicy.wifiStandardMode(
-            if (Preferences.contains(key)) Preferences.getInt(key, 0) else null,
-            Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_WIFI_TYPE, false)
-        )
-    }
-    private val settingIconWifiStandardMap by hookSetting("4,5,6,7,8") {
-        Preferences.getString(IconSettingsKeys.KEY_ICON_WIFI_STANDARD_MAP, "4,5,6,7,8")
-    }
-    private val settingIconWifiPadding by hookSetting(false) { Preferences.getBoolean(IconSettingsKeys.KEY_ICON_WIFI_PADDING, false) }
-    private val settingIconWifiPaddingStartVal by hookSetting(0f) {
-        Preferences.getFloat(IconSettingsKeys.KEY_ICON_WIFI_PADDING_START_VAL, 0f)
-    }
-    private val settingIconWifiPaddingEndVal by hookSetting(0f) {
-        Preferences.getFloat(IconSettingsKeys.KEY_ICON_WIFI_PADDING_END_VAL, 0f)
-    }
-    private val settingIconWifiActivityRight by hookSetting(false) {
-        Preferences.getBoolean(IconSettingsKeys.KEY_ICON_WIFI_ACTIVITY_RIGHT, false)
-    }
+    private val settingIconHideWifiActivity by hookSetting(false) { Preferences.iconConfig().wifi.hideWifiActivity }
+    private val settingIconHideWifiUnavailable by hookSetting(false) { Preferences.iconConfig().wifi.hideWifiUnavailable }
+    private val settingIconWifiStandardMode by hookSetting(0) { Preferences.iconConfig().wifi.wifiStandardMode }
+    private val settingIconWifiStandardMap by hookSetting("4,5,6,7,8") { Preferences.iconConfig().wifi.wifiStandardMap }
+    private val settingIconWifiPadding by hookSetting(false) { Preferences.iconConfig().wifi.wifiPadding }
+    private val settingIconWifiPaddingStartVal by hookSetting(0f) { Preferences.iconConfig().wifi.wifiPaddingStartVal }
+    private val settingIconWifiPaddingEndVal by hookSetting(0f) { Preferences.iconConfig().wifi.wifiPaddingEndVal }
+    private val settingIconWifiActivityRight by hookSetting(false) { Preferences.iconConfig().wifi.wifiActivityRight }
 
     init {
         hostRecovery(HostRecoveryPhase.SOURCES, icons = true) {
+            val scope = it.coroutineScope
+            val interactor = it.wifiInteractor
+            val context = it.context
+            DebugLog.d(TAG, "Wi-Fi source recovery scope=${scope != null} interactor=${interactor != null} retired=$retired")
+            if (scope != null && interactor != null) {
+                HostAccess.onMain { if (!retired) runCatching { bindNetwork(scope, interactor, context, null) }
+                    .onFailure { error -> DebugLog.w(TAG, "Wi-Fi source recovery failed", error) } }
+            } else {
+                // Without them Wi-Fi stays unbound until the host builds a new WifiViewModel.
+                DebugLog.w(TAG, "Wi-Fi source recovery skipped scope=${scope != null} interactor=${interactor != null}")
+            }
             it.component?.let(::recoverViewModel)
         }
     }
@@ -85,28 +75,40 @@ object WifiIconHooker : StaticHooker() {
     private var paddingStart by generationState { 0f }
     private var paddingEnd by generationState { 0f }
     private var activityRight by generationState { false }
-    private val wifiOverride = generationMainResource(AtomicReference<WifiOverride?>()) {
-        it.getAndSet(null)?.subscriptions?.clear()
+    /** No member of a value may retain its weak VM key. */
+    private class VmState {
+        var interactor: WeakReference<Any>? = null
+        var scope: WeakReference<Any>? = null
+        var icon: Any? = null
+        var standard: Any? = null
+        var subscriptions = HostFlowSubscriptions()
+        var publish: (() -> Unit)? = null
+        var restore: (() -> Unit)? = null
+        var updateNetwork: ((Any?) -> Unit)? = null
+        var updateDirection: ((Any?) -> Unit)? = null
+        var activityGate: LiveFlowGate? = null
+        var directionGate: LiveFlowGate? = null
+        var restoredDirection: Any? = null
+        var directionHandle: HostFlowCollector.Handle? = null
+        var directionEpoch = 0L
+        var directionAttempt = 0L
+        val lease = VmLease()
     }
-    private class WifiOverride(
-        val vm: Any, val icon: Any, val standard: Any, val subscriptions: HostFlowSubscriptions,
-        val publish: () -> Unit
-    )
-
-    private var restoredDirection: Any? by generationState { null }
+    private val vmStates = WeakVmRegistry<Any, VmState>()
+    private var authority: WeakReference<Any>? = null
     private val standardGravity = generationMainResource(WeakHashMap<TextView, Int>()) { it.clear() }
-    private val directionHandles = generationMainResource(ArrayList<HostFlowCollector.Handle>()) { it.clear() }
-    @Volatile
-    private var directionEpoch = 0L
-    private var directionAttempt by generationState { 0L }
     private val recoveryHandler = Handler(Looper.getMainLooper())
     private var recoveryTask: Runnable? by generationState { null }
     private var retired = false
+    @Volatile private var lifecycleEpoch = 0L
+    private val networkSource = WifiPipelineSource()
     init { generationCleanup { retired = true } }
 
     override fun onPrepareHotReload() {
+        lifecycleEpoch++
         HostAccess.onMain {
             retired = true
+            networkSource.retire()
             standardGravity.forEach { (view, original) ->
                 (view.layoutParams as? FrameLayout.LayoutParams)?.let { params ->
                     params.gravity = original
@@ -128,17 +130,26 @@ object WifiIconHooker : StaticHooker() {
             boundRoots.clear()
             recoveryTask?.let(recoveryHandler::removeCallbacks)
             recoveryTask = null
-            directionEpoch = ++directionAttempt
-            directionHandles.forEach { it.cancel() }
-            directionHandles.clear()
-            restoredDirection = null
-            wifiOverride.getAndSet(null)?.subscriptions?.clear()
+            vmStates.snapshot().forEach { (_, state) ->
+                state.lease.renew()
+                state.directionEpoch = ++state.directionAttempt
+                state.directionHandle?.cancel()
+                state.directionHandle = null
+                state.activityGate?.set(false)
+                state.directionGate?.set(false)
+                state.restore?.invoke()
+                state.subscriptions.clear()
+                state.updateNetwork = null
+                state.updateDirection = null
+            }
+            authority = null
         }
 
         standardMap = WifiStandardPolicy.DEFAULT_MAP
     }
 
     override fun onHook() {
+        lifecycleEpoch++
         retired = false
         IconTunerFlows.init(classLoader)
         hideActivity = settingIconHideWifiActivity
@@ -213,9 +224,15 @@ object WifiIconHooker : StaticHooker() {
     }
 
     private fun hookWifiOverrides() {
-        val vmClass = VM_CLASS.toClassOrNull() ?: run { DebugLog.hookSkipped("WifiIconHooker", "$VM_CLASS", "not found on host"); return }
-        fun hookGetter(name: String, returnType: String, select: (WifiOverride) -> Any?) {
-            val getter = HostAccess.method(vmClass, name) ?: run { DebugLog.hookSkipped("WifiIconHooker", "HostAccess.method(vmClass, name)", "not found on host"); return }
+        val vmClass = VM_CLASS.toClassOrNull() ?: run {
+            DebugLog.hookSkipped(TAG, VM_CLASS, "not found on host")
+            return
+        }
+        fun hookGetter(name: String, returnType: String, select: (VmState) -> Any?) {
+            val getter = HostAccess.method(vmClass, name) ?: run {
+                DebugLog.hookSkipped(TAG, "$VM_CLASS#$name", "not found on host")
+                return
+            }
             if (getter.returnType.name != IconTunerFlows.hostClassName("kotlinx.coroutines.flow", returnType)) return
             deoptimize(getter)
             VM_CLASS.replace("WifiViewModel", "LocationBasedWifiViewModel").toClassOrNull()
@@ -227,7 +244,7 @@ object WifiIconHooker : StaticHooker() {
                 ?.takeIf { it.returnType == Any::class.java }?.let(::deoptimize)
             getter.hook {
                 after { param ->
-                    wifiOverride.get()?.takeIf { it.vm === param.thisObject }?.let(select)?.let { param.result = it }
+                    vmStates.get(param.thisObject)?.let(select)?.let { param.result = it }
                 }
             }
         }
@@ -242,17 +259,50 @@ object WifiIconHooker : StaticHooker() {
                 val interactor = param.args.getOrNull(3) ?: return@after
                 val scope = param.args.getOrNull(4) ?: return@after
                 val vm = param.thisObject
+                val context = param.args.getOrNull(1) as? Context
+                val token = lifecycleEpoch
+                if (context != null) HostAccess.onMain { if (!retired && lifecycleEpoch == token) runCatching { bindNetwork(scope, interactor, context, vm) }
+                    .onFailure { error -> DebugLog.w(TAG, "Wi-Fi source binding failed", error) } }
                 if (Looper.myLooper() == Looper.getMainLooper()) {
                     bindWifiOverrides(vm, interactor, scope)
                 } else {
-                    recoveryHandler.post { bindWifiOverrides(vm, interactor, scope) }
+                    recoveryHandler.post { if (lifecycleEpoch == token) bindWifiOverrides(vm, interactor, scope) }
+                }
+            }
+        }
+    }
+
+    private fun bindNetwork(scope: Any, interactor: Any, context: Context, vm: Any?) {
+        val changed = !networkSource.isBoundTo(interactor)
+        networkSource.bind(scope, interactor, context)
+        if (changed) {
+            authority = vm?.let(::WeakReference)
+            vmStates.snapshot().forEach { (_, state) ->
+                if (state.interactor?.get() !== interactor) {
+                    state.updateNetwork?.invoke(null)
+                    state.updateDirection?.invoke(null)
+                }
+            }
+        } else if (authority?.get() == null && vm != null) authority = WeakReference(vm)
+        networkSource.onNetwork = { value ->
+            vmStates.snapshot().forEach { (_, state) ->
+                if (state.interactor?.get() === interactor) {
+                    runCatching { state.updateNetwork?.invoke(value); state.updateDirection?.invoke(value) }
+                        .onFailure { DebugLog.w(TAG, "Wi-Fi VM network update failed", it) }
                 }
             }
         }
     }
 
     private fun bindWifiOverrides(vm: Any, interactor: Any, scope: Any) {
-        if (retired || wifiOverride.get()?.vm === vm) return
+        if (retired) return
+        val state = vmStates.getOrPut(vm) { VmState() }
+        if (state.interactor?.get() === interactor && state.subscriptions.isBound) return
+        state.subscriptions.clear()
+        val ticket = state.lease.renew()
+        state.interactor = WeakReference(interactor)
+        state.scope = WeakReference(scope)
+        val weakVm = WeakReference(vm)
         val subscriptions = HostFlowSubscriptions()
         runCatching {
             val iconFlow = readField(vm, "wifiIcon") ?: return
@@ -262,36 +312,47 @@ object WifiIconHooker : StaticHooker() {
             val hidden = HIDDEN_CLASS.toClass().cachedPublicField("INSTANCE", accessible = false).get(null)
             var nativeIcon = IconTunerFlows.readFlowValue(iconFlow) ?: hidden
             var nativeStandard = (IconTunerFlows.readFlowValue(standardFlow) as? Number)?.toInt() ?: 0
-            var network = IconTunerFlows.readFlowValue(networkFlow)
-            val icon = checkNotNull(IconTunerFlows.createMutableStateFlow(nativeIcon))
-            val standard = checkNotNull(IconTunerFlows.createMutableStateFlow(nativeStandard))
-            // Reads the current options on every pass, so a settings change only re-publishes.
+            var network = if (networkSource.isBoundTo(interactor)) IconTunerFlows.readFlowValue(networkFlow) else null
+            val icon = state.icon ?: checkNotNull(IconTunerFlows.createMutableStateFlow(nativeIcon)).also { state.icon = it }
+            val standard = state.standard ?: checkNotNull(IconTunerFlows.createMutableStateFlow(nativeStandard)).also { state.standard = it }
+            fun current() = !retired && state.lease.isCurrent(ticket)
+            fun isAuthority(): Boolean {
+                val candidate = weakVm.get() ?: return false
+                if (!networkSource.isBoundTo(interactor)) return false
+                if (authority?.get() == null) authority = WeakReference(candidate)
+                return authority?.get() === candidate
+            }
             fun publish() {
                 val active = activeClass.isInstance(network)
                 IconTunerFlows.setFlowValue(icon, if (hideUnavailable && active) hidden else nativeIcon)
                 val raw = if (active) readInt(readField(network, "ext"), "wifiStandard") else null
-                val mapped = if (standardMode == 1) 0
-                    else WifiStandardPolicy.resolve(standardMode, raw, nativeStandard, standardMap)
+                val mapped = if (standardMode == 1) 0 else WifiStandardPolicy.resolve(standardMode, raw, nativeStandard, standardMap)
                 IconTunerFlows.setFlowValue(standard, mapped)
             }
-            val bound = subscriptions.collect(scope, networkFlow, { !retired }) { value ->
-                network = value
-                publish()
-            } && subscriptions.collect(scope, iconFlow, { !retired }) { value ->
-                nativeIcon = value ?: hidden
-                publish()
-            } && subscriptions.collect(scope, standardFlow, { !retired }) { value ->
+            val bound = subscriptions.collect(scope, iconFlow, ::current) { value ->
+                nativeIcon = value ?: hidden; publish()
+            } && subscriptions.collect(scope, standardFlow, ::current) { value ->
                 nativeStandard = (value as? Number)?.toInt() ?: 0
+                if (isAuthority()) NetworkHub.publish { it.copy(wifiStandard = (value as? Number)?.toInt()) }
                 publish()
             }
-            if (bound) {
-                publish()
-                wifiOverride.getAndSet(WifiOverride(vm, icon, standard, subscriptions, ::publish))?.subscriptions?.clear()
-                DebugLog.i(TAG, "native Wi-Fi flows rebound hideConnected=$hideUnavailable standardMode=$standardMode")
-            } else {
+            if (!bound) {
                 subscriptions.clear()
                 DebugLog.hookSkipped(TAG, "Wi-Fi live overrides", "native Flow subscription unavailable")
+                return
             }
+            subscriptions.collect(scope, readField(vm, "activityInOutRes"), ::current, replay = true) { value ->
+                if (isAuthority()) NetworkHub.publish { it.copy(wifiActivity = (value as? Number)?.toInt()) }
+            }
+            state.subscriptions = subscriptions
+            state.publish = ::publish
+            state.restore = {
+                IconTunerFlows.setFlowValue(icon, nativeIcon)
+                IconTunerFlows.setFlowValue(standard, nativeStandard)
+            }
+            state.updateNetwork = { value -> network = value; publish() }
+            if (isAuthority()) NetworkHub.publish { it.copy(wifiStandard = nativeStandard) }
+            publish()
         }.onFailure {
             subscriptions.clear()
             DebugLog.w(TAG, "Wi-Fi live overrides failed", it)
@@ -305,13 +366,14 @@ object WifiIconHooker : StaticHooker() {
         }
         // The activity arrows stay hooked while the option is off, so a toggle only flips the gate
         // and the bound binder re-emits; resource 0 is the host's "no arrows" value.
-        val gate = LiveFlowGate("Wi-Fi activity", hideActivity).also { activityGate = it }
         vmClass.findMethodOrNull { name("getActivityInOutRes"); noParams() }?.let { getter ->
             val returnType = getter.returnType
             getter.hook {
                 after { param ->
                     if (param.throwable != null) return@after
                     val original = param.result ?: return@after
+                    val state = vmStates.getOrPut(param.thisObject) { VmState() }
+                    val gate = state.activityGate ?: LiveFlowGate("Wi-Fi activity", hideActivity).also { state.activityGate = it }
                     gate.wrap(original, returnType) { value -> if (value is Number) 0 else value }
                         ?.let { param.result = it }
                 }
@@ -319,9 +381,6 @@ object WifiIconHooker : StaticHooker() {
         } ?: DebugLog.hookSkipped(TAG, "$VM_CLASS#getActivityInOutRes", "method not found")
     }
 
-    private var activityGate: LiveFlowGate? by generationState { null }
-
-    private var directionGate: LiveFlowGate? by generationState { null }
     private val boundRoots = generationMainResource(WeakHashMap<ViewGroup, Unit>()) { it.clear() }
     private val originalPadding = generationMainResource(WeakHashMap<View, IntArray>()) { it.clear() }
     private val activityGravity = generationMainResource(WeakHashMap<View, Int>()) { it.clear() }
@@ -342,9 +401,11 @@ object WifiIconHooker : StaticHooker() {
             paddingStart = safeFloat(settingIconWifiPaddingStartVal)
             paddingEnd = safeFloat(settingIconWifiPaddingEndVal)
             activityRight = settingIconWifiActivityRight
-            activityGate?.set(hideActivity)
-            directionGate?.set(activityRight && !hideActivity)
-            wifiOverride.get()?.publish?.invoke()
+            vmStates.snapshot().forEach { (_, state) ->
+                state.activityGate?.set(hideActivity)
+                state.directionGate?.set(activityRight && !hideActivity)
+                state.publish?.invoke()
+            }
             boundRoots.keys.toList().forEach(::applyBinderLayout)
             DebugLog.i(TAG, "Wi-Fi settings refreshed hideActivity=$hideActivity hideConnected=$hideUnavailable " +
                 "standardMode=$standardMode padding=$paddingEnabled activityRight=$activityRight roots=${boundRoots.size}")
@@ -385,7 +446,7 @@ object WifiIconHooker : StaticHooker() {
         runCatching {
             val collector = "$BINDER_CLASS\$bind\$1\$1\$6".toClassOrNull()
             if (collector?.declaredFields?.any { it.type.name.endsWith(".LocationBasedWifiViewModel") } == true &&
-                collector.declaredFields.any { android.widget.ImageView::class.java.isAssignableFrom(it.type) }) {
+                collector.declaredFields.any { ImageView::class.java.isAssignableFrom(it.type) }) {
                 collector.findMethodOrNull { name("invokeSuspend"); paramCount(1) }?.let(::deoptimize)
             }
         }.onFailure { DebugLog.w(TAG, "Wi-Fi activity collector deoptimization failed", it) }
@@ -445,7 +506,6 @@ object WifiIconHooker : StaticHooker() {
             DebugLog.hookSkipped(TAG, VM_CLASS, "class not found")
             return
         }
-        val gate = LiveFlowGate("Wi-Fi arrows right", activityRight && !hideActivity).also { directionGate = it }
         vmClass.findMethodOrNull { name("getInoutLeft"); noParams() }?.let { getter ->
             deoptimize(getter)
             val returnType = getter.returnType
@@ -453,7 +513,9 @@ object WifiIconHooker : StaticHooker() {
                 after { param ->
                     if (param.throwable != null) return@after
                     // `inoutLeft=false` places the arrows right; the gate forces it while selected.
-                    val base = restoredDirection ?: param.result ?: return@after
+                    val state = vmStates.getOrPut(param.thisObject) { VmState() }
+                    val gate = state.directionGate ?: LiveFlowGate("Wi-Fi arrows right", activityRight && !hideActivity).also { state.directionGate = it }
+                    val base = state.restoredDirection ?: param.result ?: return@after
                     param.result = gate.wrap(base, returnType) { false }
                         ?: if (gate.hidden) IconTunerFlows.falseFlow else base
                 }
@@ -486,9 +548,10 @@ object WifiIconHooker : StaticHooker() {
             return
         }
         val owner = WeakReference(component)
+        val token = lifecycleEpoch
         val task = Runnable {
             recoveryTask = null
-            if (!retired) owner.get()?.let { recoverDirection(it, attempt + 1) }
+            if (!retired && lifecycleEpoch == token) owner.get()?.let { recoverDirection(it, attempt + 1) }
         }
         recoveryTask = task
         recoveryHandler.postDelayed(task, 250L shl attempt)
@@ -499,67 +562,54 @@ object WifiIconHooker : StaticHooker() {
         val vm = HostAccess.provider(component, "wifiViewModelProvider")
         val interactor = HostAccess.provider(component, "wifiInteractorImplProvider")
         val scope = HostAccess.provider(component, "bgApplicationScopeProvider")
-        if (vm != null && interactor != null && scope != null) bindWifiOverrides(vm, interactor, scope)
-        val network = interactor?.let { HostAccess.read(it, "wifiNetwork") }
-        val standard = wifiOverride.get()?.takeIf { it.vm === vm }?.standard
-            ?: vm?.let { HostAccess.read(it, "wifiStandard") }
-        if (vm == null || network == null || standard == null) {
+        if (vm == null || interactor == null || scope == null) {
             retryDirection(component, attempt)
             return
         }
-        // Older module builds overwrote inoutLeft. Recompute the native boolean contract from
-        // its real inputs; optimized SuspendLambda classes may have no declared constructor.
-        // Keep the host flow type and native binder; do not change VM fields.
-        // A MutableStateFlow implements the native getter's Flow contract directly.
-        // Do not unwrap an optional ReadonlyStateFlow: optimized hosts may return the mutable itself.
-        // Reuse the published mutable across retries: native binders may already collect it.
-        val mutable = restoredDirection ?: IconTunerFlows.createMutableStateFlow(false)
-            ?: run {
-                retryDirection(component, attempt)
-                return
+        if (authority?.get() == null && networkSource.isBoundTo(interactor)) authority = WeakReference(vm)
+        bindWifiOverrides(vm, interactor, scope)
+        recoverVmDirection(vm, interactor, scope)
+        // An earlier generation may have observed more than the component provider's VM.
+        // Reattach each surviving VM to its own native inputs and retained replacement flows.
+        vmStates.snapshot().forEach { (other, state) ->
+            if (other !== vm) {
+                val source = state.interactor?.get()
+                val ownerScope = state.scope?.get()
+                if (source != null && ownerScope != null) {
+                    bindWifiOverrides(other, source, ownerScope)
+                    recoverVmDirection(other, source, ownerScope)
+                }
             }
-        val exposed = mutable
-        val token = ++directionAttempt
+        }
+    }
+
+    private fun recoverVmDirection(vm: Any, interactor: Any, scope: Any) {
+        val state = vmStates.getOrPut(vm) { VmState() }
+        val network = readField(interactor, "wifiNetwork") ?: return
+        val standard = state.standard ?: readField(vm, "wifiStandard") ?: return
+        val mutable = state.restoredDirection ?: IconTunerFlows.createMutableStateFlow(false) ?: return
+        val token = ++state.directionAttempt
         var metered = false
         var standardValue = (IconTunerFlows.readFlowValue(standard) as? Number)?.toInt() ?: 0
-        fun publish() {
-            val value = WifiActivityPolicy.nativeInoutLeft(metered, standardValue)
-            IconTunerFlows.setFlowValue(mutable, value)
-        }
+        fun publish() = IconTunerFlows.setFlowValue(mutable, WifiActivityPolicy.nativeInoutLeft(metered, standardValue))
         fun updateNetwork(value: Any?) {
-            val ext = readField(value, "ext")
-            metered = readField(ext, "meteredHint") as? Boolean ?: false
+            metered = readField(readField(value, "ext"), "meteredHint") as? Boolean ?: false
             publish()
         }
-        updateNetwork(IconTunerFlows.readFlowValue(network))
-        if (restoredDirection == null) restoredDirection = exposed
-        if (scope == null) {
-            retryDirection(component, attempt)
+        updateNetwork(if (networkSource.isBoundTo(interactor)) IconTunerFlows.readFlowValue(network) else null)
+        val handle = HostFlowCollector.collect(scope, standard, consumer = { value ->
+            standardValue = (value as? Number)?.toInt() ?: 0; publish()
+        }, isCurrent = { token == state.directionEpoch && !retired }) ?: run {
+            DebugLog.w(TAG, "Wi-Fi direction inputs unavailable; retaining previous subscription")
             return
         }
-        val handles = listOf(
-            HostFlowCollector.collect(scope, network, consumer = ::updateNetwork, isCurrent = { token == directionEpoch }),
-            HostFlowCollector.collect(scope, standard, consumer = { value ->
-                standardValue = (value as? Number)?.toInt() ?: 0; publish()
-            }, isCurrent = { token == directionEpoch })
-        )
-        if (handles.any { it == null }) {
-            handles.filterNotNull().forEach { it.cancel() }
-            // Preserve a working subscription set. On the first recovery publish the native
-            // input snapshot so an older delegate-less getter cannot abort all host recovery.
-            if (restoredDirection == null) restoredDirection = exposed
-            DebugLog.w(TAG, "Wi-Fi direction inputs unavailable; retaining native snapshot/previous subscriptions")
-            retryDirection(component, attempt)
-            return
-        }
-        directionEpoch = token
-        directionHandles.forEach { it.cancel() }
-        directionHandles.clear()
-        // Re-read after binding: emissions during the tentative transaction were ignored.
+        state.directionEpoch = token
+        state.directionHandle?.cancel()
+        state.directionHandle = handle
+        state.restoredDirection = mutable
+        state.updateDirection = { value -> if (token == state.directionEpoch) updateNetwork(value) }
         standardValue = (IconTunerFlows.readFlowValue(standard) as? Number)?.toInt() ?: 0
-        updateNetwork(IconTunerFlows.readFlowValue(network))
-        directionHandles.addAll(handles.filterNotNull())
-        restoredDirection = exposed
+        updateNetwork(if (networkSource.isBoundTo(interactor)) IconTunerFlows.readFlowValue(network) else null)
     }
 
     internal fun nativeGlyph(root: View, signalId: Int): View? {

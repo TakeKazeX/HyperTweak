@@ -2,7 +2,6 @@ package com.takekazex.hypertweak.hook.rules.systemui.icon
 
 import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
 import com.takekazex.hypertweak.hook.rules.systemui.icon.carrier.CarrierBlockPolicy
-import com.takekazex.hypertweak.hook.rules.systemui.icon.carrier.ControlCenterCarrierBlockHooker
 import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
 
 import com.takekazex.hypertweak.hook.base.HostAccess
@@ -10,7 +9,7 @@ import android.view.View
 import android.view.ViewGroup
 import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
-import com.takekazex.hypertweak.hook.base.StaticHooker
+
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.reflect.Field
 import java.util.WeakHashMap
@@ -29,16 +28,16 @@ import androidx.core.view.isGone
  * Keys match upstream w22.* (status bar / control center) and x22.e-f (lockscreen). Requires a
  * SystemUI restart.
  */
-object HideCarrierLabelHooker : StaticHooker() {
+internal object HideCarrierLabelHooker : IconRenderer() {
     // Published on settings acceptance; hook callbacks perform no storage reads.
-    private val settingIconHideCarrierOne by hookSetting(false) { Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_CARRIER_ONE, false) }
-    private val settingIconHideCarrierTwo by hookSetting(false) { Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_CARRIER_TWO, false) }
-    private val settingIconHideCarrierHd by hookSetting(false) { Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_CARRIER_HD, false) }
+    private val settingIconHideCarrierOne by hookSetting(false) { Preferences.iconConfig().boolean(IconSettingsKeys.KEY_ICON_HIDE_CARRIER_ONE) }
+    private val settingIconHideCarrierTwo by hookSetting(false) { Preferences.iconConfig().boolean(IconSettingsKeys.KEY_ICON_HIDE_CARRIER_TWO) }
+    private val settingIconHideCarrierHd by hookSetting(false) { Preferences.iconConfig().boolean(IconSettingsKeys.KEY_ICON_HIDE_CARRIER_HD) }
     private val settingIconHideLsCarrierOne by hookSetting(false) {
-        Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_LS_CARRIER_ONE, false)
+        Preferences.iconConfig().boolean(IconSettingsKeys.KEY_ICON_HIDE_LS_CARRIER_ONE)
     }
     private val settingIconHideLsCarrierTwo by hookSetting(false) {
-        Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_LS_CARRIER_TWO, false)
+        Preferences.iconConfig().boolean(IconSettingsKeys.KEY_ICON_HIDE_LS_CARRIER_TWO)
     }
 
     init {
@@ -112,7 +111,7 @@ object HideCarrierLabelHooker : StaticHooker() {
             if (leftTextField == null || rightTextField == null || carrierTextViewField == null) {
                 DebugLog.hookSkipped(TAG, LAYOUT_CLASS, "carrier text view fields not found")
             } else {
-                layoutClass.hookAllConstructors {
+                layoutClass.observeConstructors {
                     after { param ->
                         val layout = param.thisObject
                         hideRow(leftTextField, layout)
@@ -127,7 +126,7 @@ object HideCarrierLabelHooker : StaticHooker() {
             val ccClass = ccTextClass
             if (ccClass != null && hdTextField != null && plusTextField != null) {
                 ccClass.findMethodOrNull { name("updateHDText"); paramCount(2) }?.let { method ->
-                    method.hook {
+                    method.observe {
                         after { param ->
                             val text = param.thisObject
                             runCatching {
@@ -152,7 +151,7 @@ object HideCarrierLabelHooker : StaticHooker() {
                 DebugLog.hookSkipped(TAG, CC_CALLBACK_CLASS, "owner/carrier view fields not found")
             } else {
                 callbackClass.findMethodOrNull { name("onCarrierTextChanged"); paramCount(3) }?.let { method ->
-                    method.hook {
+                    method.observe {
                         after { param ->
                             val callback = param.thisObject
                             val owner = runCatching { callbackOwnerField?.get(callback) }.getOrNull()
@@ -214,7 +213,7 @@ object HideCarrierLabelHooker : StaticHooker() {
     private fun hideCarrierText(row: Any) {
         runCatching {
             if (CarrierBlockPolicy.preserveCarrierName(
-                    ControlCenterCarrierBlockHooker.ownsRow(row as? ViewGroup), requestedHidden = true)) return
+                    IconHostPorts.carrier.ownsRow(row as? ViewGroup), requestedHidden = true)) return
             val view = carrierTextViewField?.get(row) as? View ?: return
             hideView(view)
         }.onFailure { t ->

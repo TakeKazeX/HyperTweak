@@ -1,26 +1,27 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
-import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
-import com.takekazex.hypertweak.hook.rules.systemui.icon.carrier.CarrierMask
-import com.takekazex.hypertweak.hook.rules.systemui.icon.left.LeftPanelMotion
-import com.takekazex.hypertweak.hook.rules.systemui.icon.carrier.ControlCenterCarrierBlockHooker
-import com.takekazex.hypertweak.settings.contract.IconSlotPolicy
-
-import com.takekazex.hypertweak.settings.contract.IconSurface
-
-import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
-
-import com.takekazex.hypertweak.hook.base.ViewVisibilityRouter
-import com.takekazex.hypertweak.hook.base.HostAccess
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
+import android.telephony.SubscriptionManager
 import android.view.View
 import android.view.ViewGroup
-import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
+import androidx.core.view.isGone
 import com.takekazex.hypertweak.hook.Preferences
-import com.takekazex.hypertweak.hook.base.StaticHooker
+import com.takekazex.hypertweak.hook.base.HostAccess
+import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
+import com.takekazex.hypertweak.hook.base.ViewVisibilityRouter
+import com.takekazex.hypertweak.hook.rules.systemui.icon.carrier.CarrierMask
+import com.takekazex.hypertweak.hook.rules.systemui.icon.left.LeftPanelMotion
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
+import com.takekazex.hypertweak.presentation.icon.*
+import com.takekazex.hypertweak.settings.contract.IconConfigDecoder
+import com.takekazex.hypertweak.settings.contract.IconSlotPolicy
+import com.takekazex.hypertweak.settings.contract.IconSurface
+import com.takekazex.hypertweak.settings.contract.SignalStyle
+import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 import com.takekazex.hypertweak.util.logging.DebugLog
+import com.takekazex.hypertweak.util.platform.ResourceLookup
 import java.lang.reflect.Constructor
 import java.lang.reflect.Field
 import java.lang.reflect.Method
@@ -29,18 +30,17 @@ import java.util.ArrayDeque
 import java.util.IdentityHashMap
 import java.util.WeakHashMap
 import kotlin.math.abs
-import androidx.core.view.isGone
-import com.takekazex.hypertweak.util.platform.ResourceLookup
 
 /**
  * Applies the order policy at OS4's list factory and mirrors the block policy to modern containers.
  * The factory hook runs before StatusBarIconControllerImpl can bind its first holder; it only
  * reorders the existing `mSlots` ArrayList and adds empty Slot records for enabled module slots.
  */
-object IconPositionHooker : StaticHooker() {
+internal object SlotMaskApplier : IconRenderer() {
+    override val hostCallbackOrder = 10
     // Published on settings acceptance; hook callbacks perform no storage reads.
     private val settingCcIconRowOverrides by hookSetting(emptySet()) {
-        Preferences.getStringSet(SystemUiSettingsKeys.KEY_CC_ICON_ROW_OVERRIDES, emptySet())
+        Preferences.iconConfig().controlCenter.iconRowOverrides
     }
 
     init {
@@ -84,9 +84,10 @@ object IconPositionHooker : StaticHooker() {
     private val mainHandler = Handler(Looper.getMainLooper())
     private val stateLock = Any()
     private val containerStates = generationMainResource(WeakHashMap<Any, ContainerState>()) { it.clear() }
-    private val maskOwners = IconMaskOwners()
-    private val duoSlots = setOf("airplane", "mobile", "stacked_mobile", "wifi", "demo_wifi",
-        "stacked_mobile_icon")
+    private val currentConfig by hookSetting(IconConfigDecoder.decode { null }) { Preferences.iconConfig() }
+    private val mobilePolicy by hookSetting(NetworkIconVisibility()) { IconTunerOptions.networkVisibility() }
+    private val maskOwners = SlotClaimRegistry { currentConfig }
+    private val duoSlots = IconSlotParts.NETWORK_SLOTS + "airplane"
 
     private var options by generationState { IconTunerOptions.snapshot() }
 
@@ -112,8 +113,8 @@ object IconPositionHooker : StaticHooker() {
         fun restore() {
             motion.clear()
             if (abs(source.alpha - appliedAlpha) < .001f) source.alpha = savedAlpha
-            SignalHandoverEvents.statusIcons.release(source, this)
-            SignalHandoverEvents.statusIcons.release(target, this)
+            HandoverCoordinator.statusIcons.release(source, this)
+            HandoverCoordinator.statusIcons.release(target, this)
         }
     }
     private val lowerRowMotions = generationMainResource(IdentityHashMap<View, LowerRowMotion>()) {
@@ -166,6 +167,7 @@ object IconPositionHooker : StaticHooker() {
     internal fun refreshPolicy() {
         if (retiring) return
         options = IconTunerOptions.snapshot()
+        applyMobilePlan()
         rowOverrides = settingCcIconRowOverrides
         val tracked = synchronized(stateLock) { containerStates.entries.map { it.key to it.value } }
         tracked.forEach { (container, state) ->
@@ -196,6 +198,7 @@ object IconPositionHooker : StaticHooker() {
 
     override fun onPrepareHotReload() {
         retiring = true
+        HostAccess.onMain { releaseMobile(); typeOnly.retire() }
         mainHandler.removeCallbacksAndMessages(null)
         // The replacement callback runs off the UI thread. Restore only the mutable container
         // lists on the main thread. The replacement rebuilds groups before changing slot indices.
@@ -225,7 +228,42 @@ object IconPositionHooker : StaticHooker() {
         }
     }
 
+    init { hostRecovery(HostRecoveryPhase.ICONS, icons = true) { typeOnly.adopt(it.views) } }
+    private val typeOnly = NativeTypeOnlyMask(this)
+    internal val typeOnlyInstalled get() = typeOnly.installed
+    private var stackedPublished by generationState { false }
+    private var stackedSuppressed by generationState { false }
+    internal fun stackedReady(ready: Boolean, suppressed: Boolean = false) {
+        stackedPublished = ready
+        stackedSuppressed = suppressed
+        applyMobilePlan()
+    }
+    internal fun releaseStacked() = stackedReady(false)
+    private fun applyMobilePlan() {
+        val state = MobileSignalHub.state
+        val network = NetworkDisplayModel(state, NetworkHub.state.wifiDefault == true,
+            NetworkHub.state.wifiLevel != null, slotOf = { id ->
+                runCatching { SubscriptionManager.getSlotIndex(id) }.getOrDefault(-1)
+            }, visibility = mobilePolicy)
+        val ready = stackedPublished && currentConfig.signalStyle == SignalStyle.STACKED
+        val claims = listOf(Claim(RendererId.STACKED, PlanSurface.STATUS_BAR,
+            state.subscriptionOrder.mapTo(linkedSetOf()) { SlotPart.MobileBars(it) }, ready, 100))
+        val plan = IconLayoutPlan.plan(currentConfig, network, claims)
+        val barsReady = state.subscriptionOrder.any { plan[PlanSurface.STATUS_BAR].owner(SlotPart.MobileBars(it)) is Ownership.Replaced }
+        val mask = if (stackedSuppressed) NativeMobileMask(hidden = state.subscriptionOrder.toSet())
+            else network.nativeMask(barsReady, IconTunerOptions.snapshot().ignoreSystemHide)
+        typeOnly.publish(mask.typeOnly)
+        MobileSignalVisibility.setHiddenForSubIds(mask.hidden)
+    }
+    private fun releaseMobile() {
+        typeOnly.publish(emptySet())
+        MobileSignalVisibility.setHiddenForSubIds(emptySet())
+    }
+
     override fun onHook() {
+        typeOnly.install()
+        MobileSignalHub.subscribe(this, ::applyMobilePlan)
+        NetworkHub.subscribe(this, ::applyMobilePlan)
         retiring = false
         IconTunerFlows.init(classLoader)
         options = IconTunerOptions.snapshot()
@@ -245,8 +283,8 @@ object IconPositionHooker : StaticHooker() {
             networkVisibility[type] = method
             if (name.endsWith(".ModernStatusBarMobileView")) mobileViewClass = type
             deoptimize(method)
-            method.hook { before { param ->
-                val view = param.thisObject as? android.view.View ?: return@before
+            method.observe { before { param ->
+                val view = param.thisObject as? View ?: return@before
                 val container = view.parent ?: return@before
                 val slot = runCatching { findField(type, "slot")?.get(view) as? String }.getOrNull()
                 if (slot != null && slot in maskSlotsFor(container)) {
@@ -307,7 +345,7 @@ object IconPositionHooker : StaticHooker() {
         }
         method.isAccessible = true
         deoptimize(method)
-        method.hook {
+        method.observe {
             after { param ->
                 runCatching { rewriteIconList(param.result) }
                     .onFailure { DebugLog.w(TAG, "status-bar slot order rewrite failed", it) }
@@ -369,7 +407,7 @@ object IconPositionHooker : StaticHooker() {
         // query silently misses this final host override, leaving every icon at the host's row.
         containerClass.findMethodOrNull { name("onLayout"); paramCount(5) }?.let { method ->
             deoptimize(method)
-            method.hook {
+            method.observe {
                 before { param ->
                     val container = param.thisObject as? ViewGroup ?: return@before
                     if (ownsTwoLineLayout(container)) {
@@ -416,7 +454,7 @@ object IconPositionHooker : StaticHooker() {
             return
         }
         deoptimize(method)
-        method.hook {
+        method.observe {
             after { param ->
                 val container = param.thisObject as? ViewGroup ?: return@after
                 if (activeHostLayouts.get()?.peekLast() !== container) return@after
@@ -452,17 +490,17 @@ object IconPositionHooker : StaticHooker() {
             val view = access.view.get(state) as? View ?: continue
             if (view.parent !== container || view.isGone) continue
             val slot = slotOf(view) ?: continue
-            val iconVisibleMethod = HostAccess.cached(view.javaClass, "icon-position:iconVisibleGetters", java.lang.reflect.Method::class.java) {
+            val iconVisibleMethod = HostAccess.cached(view.javaClass, "icon-position:iconVisibleGetters", Method::class.java) {
                 findNoArgMethod(view.javaClass, "isIconVisible")
             } ?: continue
             val iconVisible = runCatching { iconVisibleMethod.invoke(view) as? Boolean }
                 .getOrNull() ?: continue
-            val iconBlockedMethod = HostAccess.cached(view.javaClass, "icon-position:iconBlockedGetters", java.lang.reflect.Method::class.java) {
+            val iconBlockedMethod = HostAccess.cached(view.javaClass, "icon-position:iconBlockedGetters", Method::class.java) {
                 findNoArgMethod(view.javaClass, "isIconBlocked")
             } ?: continue
             val iconBlocked = runCatching { iconBlockedMethod.invoke(view) as? Boolean }
                 .getOrNull() ?: continue
-            val removeFlagMethod = HostAccess.cached(view.javaClass, "icon-position:removeFlagGetters", java.lang.reflect.Method::class.java) {
+            val removeFlagMethod = HostAccess.cached(view.javaClass, "icon-position:removeFlagGetters", Method::class.java) {
                 findNoArgMethod(view.javaClass, "getRemoveFlag")
             } ?: continue
             val removeFlag = runCatching { removeFlagMethod.invoke(view) as? Boolean }
@@ -496,7 +534,7 @@ object IconPositionHooker : StaticHooker() {
             DebugLog.hookSkipped(TAG, "$CONTAINER_CLASS#$methodName", "method not found")
             return
         }
-        method.hook {
+        method.observe {
             before { param ->
                 if (restoring || retiring) return@before
                 val incoming = param.args.getOrNull(0) as? List<*> ?: return@before
@@ -576,23 +614,24 @@ object IconPositionHooker : StaticHooker() {
 
     /** Independent, container-local owners; no shared visibility Flow is changed. */
     fun setDuoMask(container: Any, active: Boolean): Boolean =
-        setContainerMask(container, if (active) duoSlots else emptySet(), IconMaskOwners.Owner.DUO)
+        setContainerMask(container, if (active) duoSlots else emptySet(), RendererId.DUO)
 
     internal fun duoOwnsAirplane(container: Any): Boolean =
-        "airplane" in maskOwners.owned(container, IconMaskOwners.Owner.DUO)
+        "airplane" in maskOwners.owned(container, RendererId.DUO)
 
     internal fun setCarrierMask(container: Any, mask: CarrierMask): Boolean =
-        setContainerMask(container, mask.slots(), IconMaskOwners.Owner.CARRIER)
+        setContainerMask(container, mask.slots(), RendererId.CARRIER)
 
     private fun setContainerMask(
         container: Any,
         slots: Set<String>,
-        owner: IconMaskOwners.Owner
+        owner: RendererId
     ): Boolean {
         if (retiring) return slots.isEmpty()
-        if (Looper.myLooper() != Looper.getMainLooper()) return false
+        if (Looper.myLooper() != Looper.getMainLooper()) return rejectMask(owner, "off the main thread")
         return runCatching {
-            val ignored = ignoredSlotsField?.get(container) as? List<*> ?: return false
+            val ignored = ignoredSlotsField?.get(container) as? List<*>
+                ?: return rejectMask(owner, "ignoredSlots unavailable")
             if (maskOwners.owned(container, owner) == slots && slots.all { it in ignored }) {
                 hideNativeNetworkChildren(container)
                 return true
@@ -608,13 +647,19 @@ object IconPositionHooker : StaticHooker() {
             )
             restoreIgnoredSlots(container, base)
             hideNativeNetworkChildren(container)
-            (container as? android.view.View)?.requestLayout()
-            val result = ignoredSlotsField?.get(container) as? List<*> ?: return false
-            result == maskOwners.merged(container, base)
+            (container as? View)?.requestLayout()
+            val result = ignoredSlotsField?.get(container) as? List<*>
+                ?: return rejectMask(owner, "ignoredSlots unavailable")
+            result == maskOwners.merged(container, base) || rejectMask(owner, "host list did not take the mask")
         }.getOrElse {
             DebugLog.w(TAG, "container slot mask failed", it)
             false
         }
+    }
+
+    private fun rejectMask(owner: RendererId, reason: String): Boolean {
+        DebugLog.w(TAG, "container slot mask rejected owner=$owner reason=$reason")
+        return false
     }
 
     /** Modern mobile/Wi-Fi binders own visibility independently from ignoredSlots. */
@@ -720,7 +765,7 @@ object IconPositionHooker : StaticHooker() {
             val source = sources[slot] ?: continue
             if (lowerRowMotions[target]?.source !== source) lowerRowMotions.remove(target)?.restore()
             val existing = lowerRowMotions[target]
-            val owners = SignalHandoverEvents.statusIcons
+            val owners = HandoverCoordinator.statusIcons
             if (listOf(source, target).any { it in owners && (existing == null || !owners.owns(it, existing)) }) continue
             val state = existing ?: LowerRowMotion(source, target).also { lowerRowMotions[target] = it }
             owners.acquire(source, state)
@@ -770,7 +815,7 @@ object IconPositionHooker : StaticHooker() {
             // An appearance fade must not collapse either row's horizontal positions.
             if (access.gone.getBoolean(state) || access.visibleState.getInt(state) != 0 ||
                 !isHostLayoutVisible(view, slot, container)) continue
-            val removing = HostAccess.cached(view.javaClass, "icon-position:removeFlagGetters", java.lang.reflect.Method::class.java) {
+            val removing = HostAccess.cached(view.javaClass, "icon-position:removeFlagGetters", Method::class.java) {
                 findNoArgMethod(view.javaClass, "getRemoveFlag")
             }?.let { runCatching { it.invoke(view) as? Boolean }.getOrNull() } ?: false
             if (removing) continue
@@ -830,14 +875,14 @@ object IconPositionHooker : StaticHooker() {
         )
         if (carrierId == 0) return null
         val carrier = header.findViewById<View>(carrierId) as? ViewGroup ?: return null
-        return ControlCenterCarrierBlockHooker.rowGeometry(carrier)
+        return IconHostPorts.carrier.geometry(carrier)
     }
 
     /** Current layout owner: native battery, or DuoView while Duo borrows mBattery. */
     private fun effectiveBattery(container: ViewGroup): View? {
         val parent = container.parent as? ViewGroup ?: return null
         val layoutBattery = runCatching {
-            HostAccess.cached(parent.javaClass, "icon-position:batteryLayoutFields", java.lang.reflect.Field::class.java) {
+            HostAccess.cached(parent.javaClass, "icon-position:batteryLayoutFields", Field::class.java) {
                 findField(parent.javaClass, "mBattery")
             }?.get(parent) as? View
         }.getOrNull()
@@ -862,10 +907,10 @@ object IconPositionHooker : StaticHooker() {
         if (view.visibility != View.VISIBLE || requireWidth && view.width <= 0) return false
         val ignored = runCatching { ignoredSlotsField?.get(container) as? List<*> }.getOrNull()
         if (ignored?.contains(slot) == true) return false
-        val visible = HostAccess.cached(view.javaClass, "icon-position:iconVisibleGetters", java.lang.reflect.Method::class.java) {
+        val visible = HostAccess.cached(view.javaClass, "icon-position:iconVisibleGetters", Method::class.java) {
             findNoArgMethod(view.javaClass, "isIconVisible")
         }?.let { runCatching { it.invoke(view) as? Boolean }.getOrNull() } ?: true
-        val blocked = HostAccess.cached(view.javaClass, "icon-position:iconBlockedGetters", java.lang.reflect.Method::class.java) {
+        val blocked = HostAccess.cached(view.javaClass, "icon-position:iconBlockedGetters", Method::class.java) {
             findNoArgMethod(view.javaClass, "isIconBlocked")
         }?.let { runCatching { it.invoke(view) as? Boolean }.getOrNull() } ?: false
         return visible && !blocked
@@ -873,7 +918,7 @@ object IconPositionHooker : StaticHooker() {
 
     private fun occupiedWidth(view: View): Float {
         val networkSpeedWidth = if (view.javaClass.name == NETWORK_SPEED_CLASS) {
-            HostAccess.cached(view.javaClass, "icon-position:networkSpeedWidthGetters", java.lang.reflect.Method::class.java) {
+            HostAccess.cached(view.javaClass, "icon-position:networkSpeedWidthGetters", Method::class.java) {
                 findNoArgMethod(view.javaClass, "getNetworkSpeedWidth")
             }?.let { runCatching { (it.invoke(view) as? Number)?.toFloat() }.getOrNull() }
         } else {
@@ -899,7 +944,7 @@ object IconPositionHooker : StaticHooker() {
     }
 
     private fun slotOf(view: View): String? {
-        val getter = HostAccess.cached(view.javaClass, "icon-position:slotGetters", java.lang.reflect.Method::class.java) {
+        val getter = HostAccess.cached(view.javaClass, "icon-position:slotGetters", Method::class.java) {
             var current: Class<*>? = view.javaClass
             var found: Method? = null
             while (current != null && found == null) {

@@ -1,5 +1,5 @@
 import unittest
-from check_architecture import hook_unit, hook_violations, violations
+from check_architecture import hook_unit, hook_violations, renderer_violations, violations
 
 
 class ArchitectureGuardTest(unittest.TestCase):
@@ -54,3 +54,22 @@ class HookBoundaryTest(unittest.TestCase):
         self.assertEqual([], hook_violations("rules.systemui", "import com.takekazex.hypertweak.hook.rules.systemui.icon.Duo"))
         self.assertEqual([], hook_violations("rules.camera", "import com.takekazex.hypertweak.hook.base.BaseHooker"))
         self.assertEqual([], hook_violations("rules.camera", "// com.takekazex.hypertweak.hook.rules.systemui.X"))
+
+
+class IconRendererBoundaryTest(unittest.TestCase):
+    icon = ("rules", "systemui", "icon")
+
+    def test_renderers_stay_inside_their_owner(self):
+        self.assertEqual([], renderer_violations(self.icon + ("duo", "DuoComposition.kt"), "DuoRenderer.TAG"))
+        self.assertEqual([], renderer_violations(self.icon + ("StackedPanelMotion.kt",), "StackedRenderer.x"))
+        self.assertEqual([(1, "LeftRenderer")], renderer_violations(
+            self.icon + ("duo", "DuoNativeViews.kt"), "LeftRenderer.onDuoOwnershipChanged()"))
+        self.assertEqual([(1, "CarrierRenderer")], renderer_violations(
+            self.icon + ("SlotMaskApplier.kt",), "import com.takekazex.hypertweak.hook.rules.systemui.icon.carrier.CarrierRenderer"))
+
+    def test_composition_root_comments_and_declared_collaborations_are_allowed(self):
+        self.assertEqual([], renderer_violations(("bootstrap", "SystemUiIconPorts.kt"), "LeftRenderer.homeOwnedSlots()"))
+        self.assertEqual([], renderer_violations(self.icon + ("SlotMaskApplier.kt",), "// CarrierRenderer owns rows"))
+        self.assertEqual([], renderer_violations(("rules", "systemui", "aod", "AodStatusIconHooker.kt"), "DuoRenderer.createAodDuoView(c)"))
+        self.assertEqual([(1, "LeftRenderer")], renderer_violations(
+            ("rules", "systemui", "aod", "AodStatusIconHooker.kt"), "LeftRenderer.x"))

@@ -1,5 +1,27 @@
 package com.takekazex.hypertweak.ui.page.systemui.icon
 
+import com.takekazex.hypertweak.settings.contract.AppSettingsStore
+import com.takekazex.hypertweak.settings.contract.IconConfig
+import com.takekazex.hypertweak.settings.contract.IconConfigDecoder
+import com.takekazex.hypertweak.settings.contract.IconConfigMigration
+
+internal fun decodeIconSettings(store: AppSettingsStore, edits: Map<String, Any> = emptyMap()): IconConfig =
+    IconConfigDecoder.decode { key ->
+        val local = edits[key]
+        if (local != null) {
+            if (local is List<*>) local.filterIsInstance<String>().toSet() else local
+        } else if (!store.contains(key)) {
+            null
+        } else when (IconConfigDecoder.defaultValue(key) ?: IconConfigMigration.legacyType(key)) {
+            is Boolean -> store.getBoolean(key)
+            is Int -> store.getInt(key)
+            is Float -> store.getFloat(key)
+            is String -> store.getString(key)
+            is Set<*> -> store.getStringSet(key)
+            else -> null
+        }
+    }
+
 /** Saveable UI metadata only; it must never be published as a module preference. */
 internal object IconTunerPreferenceState {
     private const val EPOCH = "__ht_icon_prefs_epoch"

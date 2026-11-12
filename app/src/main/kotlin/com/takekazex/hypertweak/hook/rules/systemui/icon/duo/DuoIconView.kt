@@ -31,7 +31,7 @@ import kotlin.math.ceil
 import kotlin.math.roundToInt
 
 // Published on settings acceptance; hook callbacks perform no storage reads.
-private val settingIconMirrorAirplane by hookSetting(false) { Preferences.getBoolean(IconSettingsKeys.KEY_ICON_MIRROR_AIRPLANE, false) }
+private val settingIconMirrorAirplane by hookSetting(false) { Preferences.iconConfig().boolean(IconSettingsKeys.KEY_ICON_MIRROR_AIRPLANE) }
 
 internal fun prepareDuoIconViewSettings() { settingIconMirrorAirplane }
 

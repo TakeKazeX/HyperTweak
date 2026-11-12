@@ -80,6 +80,9 @@ internal object StatusIconHotReloadRecovery {
             dispatch(HostRecoveryPhase.HEADER_DECORATIONS)
             scope.controller = component?.let { provider(it, "statusBarIconControllerImplProvider") }
             scope.managers = scope.controller?.let { (read(it, "mIconGroups") as? List<*>).orEmpty().filterNotNull().toList() }.orEmpty()
+            // Sources bind the shared network flows, so their host providers must be known here.
+            scope.coroutineScope = component?.let { provider(it, "bgApplicationScopeProvider") }
+            scope.wifiInteractor = component?.let { provider(it, "wifiInteractorImplProvider") }
             dispatch(HostRecoveryPhase.SOURCES)
             val services = read(app, "mServices")?.let { invoke(it, "get") ?: it }
             val entries = when (services) {
@@ -114,8 +117,6 @@ internal object StatusIconHotReloadRecovery {
             dispatch(HostRecoveryPhase.PRESENTATION)
             dispatch(HostRecoveryPhase.ICONS)
             dispatch(HostRecoveryPhase.HANDOVER)
-            scope.coroutineScope = component?.let { provider(it, "bgApplicationScopeProvider") }
-            scope.wifiInteractor = component?.let { provider(it, "wifiInteractorImplProvider") }
             dispatch(HostRecoveryPhase.NETWORK)
             DebugLog.i("HostRecovery", "hot reload rebound owners=${hooks.size} rebuild=$rebuild " +
                 "views=${scope.views.size} managers=${scope.managers.size} progress=${scope.progress} " +

@@ -13,7 +13,7 @@ public final class DuoStatusIconsProbe {
     static Bitmap frame(View root){Bitmap b=Bitmap.createBitmap(192,224,Bitmap.Config.ARGB_8888);root.draw(new Canvas(b));return b;}
     static int[] pixels(Bitmap b){int[] p=new int[192*224];b.getPixels(p,0,192,0,0,192,224);return p;}
     static void run(Context context,ClassLoader cl,String output)throws Exception{
-        Class<?> type=cl.loadClass(DuoNetworkProbe.H+"DuoStatusIconsMotion"),ownersType=cl.loadClass("com.takekazex.hypertweak.hook.rules.systemui.icon.SignalTargetOwnership");
+        Class<?> type=cl.loadClass(DuoNetworkProbe.H+"DuoStatusIconsMotion"),ownersType=cl.loadClass("com.takekazex.hypertweak.hook.rules.systemui.icon.EndpointOwnership");
         Method update=type.getMethod("update",ViewGroup.class,View.class,View.class,View.class,float.class,ownersType),clear=type.getMethod("clear");
         Bitmap sheet=Bitmap.createBitmap(960,448,Bitmap.Config.ARGB_8888);Canvas canvas=new Canvas(sheet);canvas.drawColor(Color.BLACK);int frames=0;
         for(boolean rtl:new boolean[]{false,true}){

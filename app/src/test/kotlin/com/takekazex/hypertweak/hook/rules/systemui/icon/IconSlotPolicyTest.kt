@@ -1,21 +1,13 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
-import com.takekazex.hypertweak.hook.rules.systemui.icon.carrier.CarrierMask
-import com.takekazex.hypertweak.settings.contract.CcBatteryPercentStyle
-import com.takekazex.hypertweak.settings.contract.IconSlotPolicy
-
-import com.takekazex.hypertweak.settings.contract.IconTunerContract
-import com.takekazex.hypertweak.settings.contract.IconTunerSnapshot
-
-import com.takekazex.hypertweak.settings.contract.IconSlotPolicyConfig
-
-import com.takekazex.hypertweak.settings.contract.IconSlotMode
-
-import com.takekazex.hypertweak.settings.contract.IconSurface
-
 import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
 import com.takekazex.hypertweak.settings.contract.IconSettingsPreferencePolicy
-
+import com.takekazex.hypertweak.settings.contract.IconSlotMode
+import com.takekazex.hypertweak.settings.contract.IconSlotPolicy
+import com.takekazex.hypertweak.settings.contract.IconSlotPolicyConfig
+import com.takekazex.hypertweak.settings.contract.IconSurface
+import com.takekazex.hypertweak.settings.contract.IconTunerContract
+import com.takekazex.hypertweak.settings.contract.IconTunerSnapshot
 import com.takekazex.hypertweak.ui.page.systemui.icon.IconSlotCatalog
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -23,19 +15,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class IconSlotPolicyTest {
-    @Test
-    fun currentBooleansAndEmptyExtraListOverrideTheirLegacyValues() {
-        val policy = IconSettingsPreferencePolicy
-        val legacy = mapOf("icon_tuner_stacked_enabled" to true, "statusbar_ignore_sys_hide" to true)
-        assertTrue(policy.iconBoolean(IconSettingsKeys.KEY_ICON_STACKED_ENABLED, legacy::get))
-        assertTrue(policy.iconBoolean(IconSettingsKeys.KEY_ICON_IGNORE_SYS_HIDE, legacy::get))
-        assertFalse(policy.iconBoolean(IconSettingsKeys.KEY_ICON_STACKED_ENABLED,
-            (legacy + (IconSettingsKeys.KEY_ICON_STACKED_ENABLED to false))::get))
-        val hidden = mapOf(policy.LEGACY_EXTRA_BLOCKED to "wifi,gps")
-        assertEquals(listOf("wifi", "gps"), policy.extraHiddenSlots(hidden::get))
-        assertTrue(policy.extraHiddenSlots((hidden + (IconSettingsKeys.KEY_ICON_EXT_BLOCKED to ""))::get).isEmpty())
-    }
-
     @Test
     fun stackedScopeNarrowsTheCellularGroup() {
         val signal = IconSlotPolicy.SLOT_STACKED_SIGNAL
@@ -48,18 +27,6 @@ class IconSlotPolicyTest {
         for (surface in listOf(IconSurface.STATUS_BAR, IconSurface.CONTROL_CENTER)) {
             assertTrue(IconSlotPolicy.classicBlocked(signal, surface, false, hideMobile, emptySet()))
         }
-    }
-
-    @Test
-    fun newDropdownSelectionsOverrideLegacySettingsIncludingFollowSystem() {
-        val policy = IconSettingsPreferencePolicy
-        assertEquals(CcBatteryPercentStyle.OUTSIDE_LEADING, policy.ccBatteryPercentStyle(null, false, true))
-        assertEquals(CcBatteryPercentStyle.OUTSIDE_TRAILING, policy.ccBatteryPercentStyle(null, true, false))
-        assertEquals(CcBatteryPercentStyle.SYSTEM, policy.ccBatteryPercentStyle(0, true, true))
-        assertEquals(3, policy.nativeRoamingMode(null, false, false, true))
-        assertEquals(1, policy.nativeRoamingMode(null, true, false, false))
-        assertEquals(2, policy.nativeRoamingMode(null, false, true, false))
-        assertEquals(0, policy.nativeRoamingMode(0, true, true, true))
     }
 
     @Test
@@ -328,29 +295,6 @@ class IconSlotPolicyTest {
         }
     }
 
-    @Test fun releasingOneNetworkOwnerKeepsTheOtherOwnerAndUserBlocks() {
-        val masks = IconMaskOwners()
-        val container = Any()
-        val otherContainer = Any()
-        val host = listOf("alarm_clock", "wifi")
-        val duo = IconMaskOwners.Owner.DUO
-        val carrier = IconMaskOwners.Owner.CARRIER
-        masks.set(container, duo, setOf("mobile", "wifi"))
-        masks.set(container, carrier, CarrierMask(cellular = true, wifi = true).slots())
-        masks.set(container, duo, emptySet())
-        assertTrue("mobile" in masks.slots(container))
-        assertTrue("wifi" in masks.slots(container))
-        assertTrue(masks.slots(otherContainer).isEmpty())
-        masks.set(container, carrier, CarrierMask(cellular = true).slots())
-        assertTrue("wifi" !in masks.slots(container))
-        assertTrue("wifi" in masks.merged(container, host))
-        masks.set(container, duo, setOf("mobile", "wifi"))
-        masks.set(container, carrier, emptySet())
-        assertEquals(setOf("mobile", "wifi"), masks.slots(container).toSet())
-        masks.set(container, duo, emptySet())
-        assertEquals(host, masks.merged(container, host))
-    }
-
     @Test
     fun fiveModesAreExplicitForEachKnownSurface() {
         val base = listOf("wifi")
@@ -446,8 +390,6 @@ class IconSlotPolicyTest {
                 "wifi",
                 "demo_wifi",
                 "stacked_mobile_icon",
-                "single_mobile_sim1",
-                "single_mobile_sim2",
                 "mobile",
                 "future_slot"
             ),

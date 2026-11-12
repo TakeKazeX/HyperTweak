@@ -1,31 +1,32 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon.duo
 
-import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
-import com.takekazex.hypertweak.presentation.icon.duo.NativeWifiDrawable
-
-import com.takekazex.hypertweak.presentation.icon.duo.DuoContent
-import com.takekazex.hypertweak.presentation.icon.duo.DuoDrawable
-import com.takekazex.hypertweak.presentation.icon.duo.DuoSizes
-
-import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
-
 import android.content.Context
-import com.takekazex.hypertweak.hook.rules.systemui.icon.PanelGlyphFrame
-import com.takekazex.hypertweak.hook.rules.systemui.icon.PanelGlyphTravel
-import android.graphics.Matrix
-import android.graphics.RectF
 import android.graphics.Canvas
 import android.graphics.ColorFilter
+import android.graphics.Matrix
 import android.graphics.PixelFormat
+import android.graphics.RectF
 import android.graphics.drawable.Drawable
 import android.view.View
 import android.view.ViewGroup
+import com.takekazex.hypertweak.hook.Preferences
+import com.takekazex.hypertweak.hook.rules.systemui.icon.HandoverCoordinator
+import com.takekazex.hypertweak.hook.rules.systemui.icon.MobileTypeHostMetrics
+import com.takekazex.hypertweak.hook.rules.systemui.icon.PanelGlyphFrame
+import com.takekazex.hypertweak.hook.rules.systemui.icon.PanelGlyphTravel
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
+import com.takekazex.hypertweak.presentation.icon.duo.DuoContent
+import com.takekazex.hypertweak.presentation.icon.duo.DuoDrawable
+import com.takekazex.hypertweak.presentation.icon.duo.DuoSizes
+import com.takekazex.hypertweak.presentation.icon.duo.NativeWifiDrawable
+import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
+import com.takekazex.hypertweak.util.logging.DebugLog
 import kotlin.math.abs
 import kotlin.math.min
 
 // Published on settings acceptance; hook callbacks perform no storage reads.
 private val settingIconMirrorAirplane by hookSetting(false) {
-    com.takekazex.hypertweak.hook.Preferences.getBoolean(IconSettingsKeys.KEY_ICON_MIRROR_AIRPLANE, false)
+    Preferences.iconConfig().boolean(IconSettingsKeys.KEY_ICON_MIRROR_AIRPLANE)
 }
 
 internal fun prepareDuoPanelMotionSettings() { settingIconMirrorAirplane }
@@ -77,7 +78,7 @@ internal class DuoPanelMotion(context: Context, private val airplaneOnly: Boolea
                 frameReady = false
                 restoreTarget()
                 host?.postInvalidateOnAnimation()
-                com.takekazex.hypertweak.util.logging.DebugLog.w("DuoSignal", "network transition drawing failed", error)
+                DebugLog.w("DuoSignal", "network transition drawing failed", error)
             } finally { canvas.restoreToCount(count) }
         }
         override fun setAlpha(alpha: Int) = Unit
@@ -134,7 +135,7 @@ internal class DuoPanelMotion(context: Context, private val airplaneOnly: Boolea
         glyph.foreground = color
         glyph.small5GaEnabled = small5GaEnabled
         val networkFont = if (sourceView == null) runCatching {
-            com.takekazex.hypertweak.hook.rules.systemui.icon.MobileTypeHostMetrics.font(native.context)
+            MobileTypeHostMetrics.font(native.context)
         }.getOrNull() else null
         glyph.networkTypeface = sourceView?.icon?.networkTypeface ?: networkFont?.typeface
         glyph.networkFontVariationSettings = sourceView?.icon?.networkFontVariationSettings ?: networkFont?.variationSettings
@@ -166,7 +167,7 @@ internal class DuoPanelMotion(context: Context, private val airplaneOnly: Boolea
         // expose a full-sized destination behind the moving glyph.
         val handoff = if (p >= 1f) 1f else 0f
         appliedAlpha = savedAlpha * if (frameReady && !drawFailed) handoff else 1f
-        if (native.alpha != appliedAlpha) native.alpha = appliedAlpha
+        if (native.alpha != appliedAlpha) HandoverCoordinator.alpha(native, appliedAlpha)
         layerAlpha = if (p >= 1f) 0 else 255
         layer.setBounds(0, 0, root.width, root.height)
         var signature = p.hashCode().toLong() * 31 + sourceFrame.revision * 17L +
@@ -179,7 +180,7 @@ internal class DuoPanelMotion(context: Context, private val airplaneOnly: Boolea
     }
 
     private fun restoreTarget() {
-        target?.let { if (abs(it.alpha - appliedAlpha) < .001f) it.alpha = savedAlpha }
+        target?.let { if (abs(it.alpha - appliedAlpha) < .001f) HandoverCoordinator.alpha(it, savedAlpha) }
         target = null
     }
     fun clear() {

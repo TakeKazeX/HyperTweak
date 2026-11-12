@@ -47,6 +47,8 @@ internal class DuoBinding(val battery: View, val parent: ViewGroup, val icons: V
     var expiry: Runnable? = null
     var active = false
     var failed = false
+    /** The last reported reason this binding showed the native row; null while Duo is shown. */
+    var nativeReason: String? = null
     var batteryGlyph: HostBatteryDrawable? = null
     var aodPercent: TextView? = null
     var aodNativeSuppressed = false

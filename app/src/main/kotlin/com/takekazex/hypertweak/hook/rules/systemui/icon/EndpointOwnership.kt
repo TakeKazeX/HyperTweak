@@ -3,7 +3,7 @@ package com.takekazex.hypertweak.hook.rules.systemui.icon
 import java.util.IdentityHashMap
 
 /** Main-thread confined leases. Target and owner equality must both be referential. */
-internal class SignalTargetOwnership<T : Any> {
+internal class EndpointOwnership<T : Any> {
     private val owners = IdentityHashMap<T, Any>()
 
     operator fun contains(target: T): Boolean = owners.containsKey(target)

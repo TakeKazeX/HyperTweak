@@ -1,10 +1,10 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon.carrier
 
+import com.takekazex.hypertweak.hook.rules.systemui.icon.EndpointTargetLeases
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IconHostPorts
-import com.takekazex.hypertweak.hook.rules.systemui.icon.WifiIconHooker
-import com.takekazex.hypertweak.hook.rules.systemui.icon.StackedSignalHooker
+import com.takekazex.hypertweak.hook.rules.systemui.icon.WifiPipelineAdapter
 import com.takekazex.hypertweak.hook.rules.systemui.icon.left.LeftPanelMotion
-import com.takekazex.hypertweak.hook.rules.systemui.icon.SignalHandoverEvents
+import com.takekazex.hypertweak.hook.rules.systemui.icon.HandoverCoordinator
 import android.os.Handler
 import android.os.Looper
 import android.view.View
@@ -47,7 +47,7 @@ internal class CarrierHandoverController(private val host: Host) {
     }
     private val motions = IdentityHashMap<View, LeftPanelMotion>()
     private var progress = 0f
-    private val duoTargets = CarrierTargetLeases(object : CarrierTargetLeases.Host<View, CarrierRowParts> {
+    private val duoTargets = EndpointTargetLeases(object : EndpointTargetLeases.Host<View, CarrierRowParts> {
         override fun parts(target: View) = host.rowFor(target)
         override fun ready(target: View, parts: CarrierRowParts) = when (target) {
             parts.wifi -> parts.wifiReady
@@ -60,9 +60,9 @@ internal class CarrierHandoverController(private val host: Host) {
         override fun cellularReady(parts: CarrierRowParts) = parts.cellularReady
         override fun stopMotion(target: View) { motions.remove(target)?.clear() }
         override fun fadeLease(target: View, parts: CarrierRowParts, leased: Boolean) = parts.networkFade.lease(target as ImageView, leased)
-        override fun alpha(target: View, value: Float) { target.alpha = value }
+        override fun alpha(target: View, value: Float) { HandoverCoordinator.alpha(target, value) }
     })
-    private val endpointAlphas = CarrierEndpointAlphas<View>({ it.alpha }, { view, alpha -> view.alpha = alpha })
+    private val endpointAlphas = CarrierEndpointAlphas<View>({ it.alpha }, { view, alpha -> HandoverCoordinator.alpha(view, alpha) })
     fun applyHandoverGuarded(value: Float) {
         runCatching { applyHandover(value) }
             .onFailure { DebugLog.w(TAG, "carrier hand-over failed", it) }
@@ -106,7 +106,7 @@ internal class CarrierHandoverController(private val host: Host) {
                 lowerRowUpdated = true
             } else IconHostPorts.positions.clearLowerRow()
             if (fakeRow == null || !fakeRow.isAttachedToWindow ||
-                SignalHandoverEvents.shade.hasActiveProxy(fakeRow)) continue
+                HandoverCoordinator.shade.hasActiveProxy(fakeRow)) continue
             // SystemUI moves the whole mirror, but it has no target in the two-row carrier
             // layout. Reuse its measured native glyphs for that last leg.
             for (parts in block.rows) {
@@ -119,7 +119,7 @@ internal class CarrierHandoverController(private val host: Host) {
                     move(parts, parts.signal, composite?.source ?: bars, clamped, used, sources, composite)
                 }
                 if (parts.wifiReady && parts.nativeWifi != null) {
-                    move(parts, parts.wifi, WifiIconHooker.nativeGlyph(fakeRow, host.wifiSignalId),
+                    move(parts, parts.wifi, WifiPipelineAdapter.nativeGlyph(fakeRow, host.wifiSignalId),
                         clamped, used, sources)
                 }
                 if (parts.cellularReady && !parts.typeSuppressed && parts.typeBitmap != null &&
@@ -215,7 +215,7 @@ internal class CarrierHandoverController(private val host: Host) {
 
     private fun mobileGroup(root: ViewGroup, subId: Int): ViewGroup? {
         // The status-icon container holds one holder view per subscription; the mobile holder is
-        // the one carrying that SIM's `subId` (the same boundary DuoSignalHooker reads).
+        // the one carrying that SIM's `subId` (the same boundary DuoRenderer reads).
         val container = host.findStatusContainer(root) as? ViewGroup
         if (container != null) {
             for (index in 0 until container.childCount) {

@@ -73,7 +73,7 @@ object SystemUiSettingsKeys {
     const val KEY_NOTIFICATION_MINI_WINDOW = "notification_mini_window"
     const val KEY_NOTIFICATION_BLOCK_FOLD = "notification_block_fold"
     const val KEY_CC_HIDE_SUPER_ISLAND = "systemui_cc_hide_super_island"
-    // Control-center header carrier block (`ControlCenterHeaderHooker`, `ControlCenterCarrierBlockHooker`):
+    // Control-center header carrier block (`ControlCenterHeaderHooker`, `CarrierRenderer`):
     //   KEY_CC_CARRIER_LEFT              — 开关 1: draw the carrier label on the leading edge.
     //   KEY_CC_HIDE_DATE                 — 开关 2: hide the control center date; also the enabling
     //                                      switch of 开关 3/4 (a disabled parent greys them out).

@@ -1,6 +1,5 @@
 package com.takekazex.hypertweak.hook.rules.systemui.island
 
-import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
@@ -18,7 +17,7 @@ private val settingLandscapeMoreIslands by hookSetting(false) {
     Preferences.getBoolean(PlatformSettingsKeys.KEY_LANDSCAPE_MORE_ISLANDS, false)
 }
 
-private val settingStatusIconDuo by hookSetting(false) { Preferences.getBoolean(IconSettingsKeys.KEY_ICON_DUO_ENABLED, false) }
+private val settingStatusIconDuo by hookSetting(false) { Preferences.iconConfig().signalStyle == com.takekazex.hypertweak.settings.contract.SignalStyle.DUO }
 
 internal fun prepareIslandPreferencesSettings() { settingRemoveIslandPlaceholder }
 

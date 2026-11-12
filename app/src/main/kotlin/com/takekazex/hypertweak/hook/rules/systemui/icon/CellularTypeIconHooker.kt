@@ -1,14 +1,5 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
-import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
-import com.takekazex.hypertweak.settings.contract.MobileTypeLabelStyle
-
-import com.takekazex.hypertweak.settings.contract.SmallMobileTypeLabel
-
-import com.takekazex.hypertweak.settings.contract.IconSettingsPreferencePolicy
-import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
-
-import com.takekazex.hypertweak.hook.base.HostAccess
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Rect
@@ -17,18 +8,26 @@ import android.text.SpannableString
 import android.text.Spanned
 import android.text.style.RelativeSizeSpan
 import android.util.SparseArray
+import android.view.View
 import android.view.ViewGroup
+import android.widget.ImageView
 import android.widget.TextView
-import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
-import com.takekazex.hypertweak.hook.base.StaticHooker
+import com.takekazex.hypertweak.hook.base.HostAccess
+import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
+import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
+import com.takekazex.hypertweak.settings.contract.IconSettingsPreferencePolicy
+import com.takekazex.hypertweak.settings.contract.MobileTypeLabelStyle
+import com.takekazex.hypertweak.settings.contract.SignalStyle
+import com.takekazex.hypertweak.settings.contract.SmallMobileTypeLabel
 import com.takekazex.hypertweak.util.logging.DebugLog
+import com.takekazex.hypertweak.util.platform.ResourceLookup
 import java.lang.reflect.Field
+import java.util.Collections
 import java.util.IdentityHashMap
 import java.util.WeakHashMap
-import java.util.Collections
 import kotlin.math.ceil
-import com.takekazex.hypertweak.util.platform.ResourceLookup
 
 /**
  * Cellular type display, ported from Hyper Helper's `CellularTypeIcon` (OS4_ADAPTATION_PLAN.md
@@ -36,27 +35,24 @@ import com.takekazex.hypertweak.util.platform.ResourceLookup
  * hook covers native cellular layout, while the native drawable and single-label paths handle their
  * own 5GA suffix formatting.
  */
-object CellularTypeIconHooker : StaticHooker() {
+internal object CellularTypeIconHooker : IconRenderer() {
     // Published on settings acceptance; hook callbacks perform no storage reads.
     private val settingIconCellularTypeSingle by hookSetting(false) { Preferences.separateCellularType() }
     // The stacked bars replace the signal half of the native row, so there is nothing to order
     // the label against; its position is the native mobile slot right after the stacked slot.
     private val settingTypeOrder by hookSetting(0) {
-        val key = IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_ORDER
-        if (Preferences.iconBoolean(IconSettingsKeys.KEY_ICON_STACKED_ENABLED)) 0
-        else IconSettingsPreferencePolicy.cellularTypeOrder(
-            Preferences.getInt(key, 0).takeIf { Preferences.contains(key) },
-            Preferences.getBoolean(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_SINGLE_SWAP, false)
-        )
+        val config = Preferences.iconConfig()
+        if (config.signalStyle == SignalStyle.STACKED) 0
+        else config.cellular.cellularTypeOrder
     }
     private val settingIconCellularTypeCustom by hookSetting(false) {
-        Preferences.getBoolean(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_CUSTOM, false)
+        Preferences.iconConfig().boolean(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_CUSTOM)
     }
     private val settingIconCellularTypeCustomVal by hookSetting("") {
-        Preferences.getString(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_CUSTOM_VAL, "")
+        Preferences.iconConfig().string(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_CUSTOM_VAL)
     }
     private val settingIconCellularTypeSmall5ga by hookSetting(false) {
-        Preferences.getBoolean(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_SMALL_5GA, false)
+        Preferences.iconConfig().boolean(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_SMALL_5GA)
     }
 
     private val typography = NativeMobileTypeTypography(this)
@@ -162,7 +158,7 @@ object CellularTypeIconHooker : StaticHooker() {
             DebugLog.hookSkipped(TAG, "TextView#setText(CharSequence,BufferType)", "method not found")
             return
         }
-        setText.hook {
+        setText.observe {
             before { param ->
                 runCatching {
                     if (!small5GaEnabled) return@runCatching
@@ -191,14 +187,14 @@ object CellularTypeIconHooker : StaticHooker() {
      * reinstalled on its own the living icons would otherwise keep the previous styling until the
      * next network type change.
      */
-    private fun remeasureBoundTypes(views: List<android.view.View>) {
+    private fun remeasureBoundTypes(views: List<View>) {
         views.forEach { view ->
             runCatching {
                 when {
                     view is TextView && view.id != 0 && view.id == resolveSingleTypeViewId(view) -> {
                         view.text?.toString()?.let(view::setText)
                     }
-                    view is android.widget.ImageView && view.drawable?.javaClass?.name == DRAWABLE_CLASS -> {
+                    view is ImageView && view.drawable?.javaClass?.name == DRAWABLE_CLASS -> {
                         val drawable = view.drawable
                         findMethod(drawable.javaClass, "measure", 0)?.invoke(drawable)
                         view.requestLayout()
@@ -241,14 +237,14 @@ object CellularTypeIconHooker : StaticHooker() {
             DebugLog.hookSkipped(TAG, DRAWABLE_CLASS, "measure/draw methods not found")
             return
         }
-        measure.hook {
+        measure.observe {
             after { param ->
                 runCatching {
                     if (small5GaEnabled) applySmall5GaMetrics(param.thisObject, fields)
                 }.onFailure { DebugLog.w(TAG, "native 5GA measurement update failed", it) }
             }
         }
-        draw.hook {
+        draw.observe {
             before { param ->
                 runCatching {
                     if (!small5GaEnabled) return@runCatching
@@ -338,7 +334,7 @@ object CellularTypeIconHooker : StaticHooker() {
             return
         }
         deoptimize(method)
-        method.hook {
+        method.observe {
             after { param ->
                 val config = param.result ?: return@after
                 if (!configClass.isInstance(config)) return@after
@@ -391,7 +387,7 @@ object CellularTypeIconHooker : StaticHooker() {
             DebugLog.hookSkipped(TAG, "$BINDER_CLASS#bind", "mobile layout binding signature not found")
             return
         }
-        bind.hook {
+        bind.observe {
             after { param ->
                 (param.args.firstOrNull() as? ViewGroup)?.let(::applyTypeOrder)
             }
@@ -413,7 +409,7 @@ object CellularTypeIconHooker : StaticHooker() {
         }.onFailure { DebugLog.w(TAG, "separate type order update failed", it) }
     }
 
-    private fun findView(root: ViewGroup, name: String): android.view.View? {
+    private fun findView(root: ViewGroup, name: String): View? {
         val id = ResourceLookup.identifier(root.resources, name, "id", "com.android.systemui")
         return id.takeIf { it != 0 }?.let(root::findViewById)
     }

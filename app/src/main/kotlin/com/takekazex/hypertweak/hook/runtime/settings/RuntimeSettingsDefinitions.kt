@@ -285,7 +285,7 @@ internal object RuntimeSettingsDefinitions {
         FCM to Group(setOf("android", "com.miui.powerkeeper")) { it == PlatformSettingsKeys.KEY_FCM_LIVE_ENABLED },
         ICONS to Group(systemUi) { it != "prefs_epoch" && it !in islandKeys && IconSettingsPreferencePolicy.affectsIcons(it) },
         // The Duo status icon changes the island's right status budget as well as the icons.
-        ISLANDS to Group(systemUi) { it in islandKeys || it == IconSettingsKeys.KEY_ICON_DUO_ENABLED },
+        ISLANDS to Group(systemUi) { it in islandKeys || it == IconSettingsKeys.KEY_ICON_SIGNAL_STYLE || it == IconSettingsKeys.KEY_ICON_DUO_ENABLED },
         // Both AOD hosts: SystemUI's keyguard battery row and the AOD plugin (hosted by SystemUI
         // and by the standalone com.miui.aod process).
         AOD to Group(systemUi + "com.miui.aod") { it in aodKeys },

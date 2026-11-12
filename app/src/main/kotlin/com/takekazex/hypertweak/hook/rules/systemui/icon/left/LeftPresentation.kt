@@ -1,9 +1,10 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon.left
 
-import com.takekazex.hypertweak.hook.rules.systemui.icon.SignalHandoverEvents
+import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.widget.LinearLayout
+import com.takekazex.hypertweak.hook.rules.systemui.icon.HandoverCoordinator
 import com.takekazex.hypertweak.util.logging.DebugLog
 
 /** Owns the borrowed host tree and clone presentation; the parent sequences hook lifecycle. */
@@ -28,7 +29,7 @@ internal class LeftPresentation(private val host: Host, private val cloner: Left
         // against the top of the full-height container — the "被抬高" (raised) look.
         // (`layoutParams.gravity` below is only how the HOST positions this container,
         // and is irrelevant because the container already fills the host height.)
-        left.gravity = android.view.Gravity.CENTER_VERTICAL
+        left.gravity = Gravity.CENTER_VERTICAL
         left.clipChildren = false
         left.clipToPadding = false
         left.layoutParams = LinearLayout.LayoutParams(
@@ -63,7 +64,7 @@ internal class LeftPresentation(private val host: Host, private val cloner: Left
         val insertAt = entries.minOf { it.index }.coerceIn(0, parent.childCount)
         val wrapper = LinearLayout(parent.context).apply {
             orientation = LinearLayout.HORIZONTAL
-            gravity = android.view.Gravity.CENTER_VERTICAL
+            gravity = Gravity.CENTER_VERTICAL
             layoutDirection = View.LAYOUT_DIRECTION_INHERIT
             clipChildren = false
             clipToPadding = false
@@ -115,7 +116,7 @@ internal class LeftPresentation(private val host: Host, private val cloner: Left
     /** Idempotent: sees the current right-cluster children and mirrors them into the left. */
     fun syncClones(state: LeftState) {
         val right = state.rightContainer
-        val duoOwnsAirplane = SignalHandoverEvents.shade.ownsAirplane(right)
+        val duoOwnsAirplane = HandoverCoordinator.shade.ownsAirplane(right)
         val slots = if (duoOwnsAirplane) host.activeSlots - "airplane" else host.activeSlots
         // 1. Drop clones whose slot is no longer selected or has no live view on the right.
         val it = state.clones.entries.iterator()

@@ -59,6 +59,14 @@ class StatusBarPreviewModelTest {
     }
 
     @Test
+    fun explicitFollowOverridesExtraHiddenSlot() {
+        val hidden = buildStatusBarPreview(input(extraHidden = setOf("bluetooth")))
+        val explicitFollow = buildStatusBarPreview(input(slotModes = mapOf("bluetooth" to 0), extraHidden = setOf("bluetooth")))
+        assertFalse(allSlots(hidden).contains("bluetooth"))
+        assertTrue(allSlots(explicitFollow).contains("bluetooth"))
+    }
+
+    @Test
     fun controlCenterOnlyAlsoLeavesTheStatusBarPreview() {
         val model = buildStatusBarPreview(input(slotModes = mapOf("location" to 3)))
         assertFalse(allSlots(model).contains("location"))
@@ -70,6 +78,12 @@ class StatusBarPreviewModelTest {
         assertTrue(model.leftSlots.contains("bluetooth"))
         assertFalse(model.indicatorSlots.contains("bluetooth"))
         assertFalse(model.coreSlots.contains("bluetooth"))
+    }
+
+    @Test
+    fun userHidingWinsOverLeftPlacement() {
+        val model = buildStatusBarPreview(input(leftSlots = setOf("bluetooth"), slotModes = mapOf("bluetooth" to 3)))
+        assertFalse(allSlots(model).contains("bluetooth"))
     }
 
     @Test
@@ -115,15 +129,15 @@ class StatusBarPreviewModelTest {
     @Test
     fun nativeDualSimDrawsBothBadgedSignalIcons() {
         val core = buildStatusBarPreview(input()).coreSlots
-        assertTrue(core.contains("single_mobile_sim1"))
-        assertTrue(core.contains("single_mobile_sim2"))
+        assertTrue(core.contains("preview_sim1"))
+        assertTrue(core.contains("preview_sim2"))
         assertFalse(core.contains("mobile"))
     }
 
     @Test
     fun signalClusterPrecedesWifiAndBattery() {
         val core = buildStatusBarPreview(input()).coreSlots
-        val signal = core.indexOf("single_mobile_sim2")
+        val signal = core.indexOf("preview_sim2")
         assertTrue(signal < core.indexOf("wifi"))
         assertTrue(core.indexOf("wifi") < core.indexOf("handle_battery"))
         // The ROM draws the battery in its own trailing container, so it is always last.
@@ -142,7 +156,7 @@ class StatusBarPreviewModelTest {
     @Test
     fun hiddenMobileSlotHidesTheNativePair() {
         val core = buildStatusBarPreview(input(slotModes = mapOf("mobile" to 4))).coreSlots
-        assertFalse(core.any { it.startsWith("single_mobile_sim") })
+        assertFalse(core.any { it.startsWith("preview_sim") })
     }
 
     @Test
@@ -151,7 +165,7 @@ class StatusBarPreviewModelTest {
         val slots = allSlots(model)
         assertEquals(1, slots.count { it == PREVIEW_DUO_SLOT })
         assertFalse(slots.contains("wifi"))
-        assertFalse(slots.contains("single_mobile_sim1"))
+        assertFalse(slots.contains("preview_sim1"))
         assertFalse(slots.contains("handle_battery"))
         // Duo carries the network type inside its glyph, so no separate label draws.
         assertFalse(model.showNetworkType)
@@ -161,8 +175,8 @@ class StatusBarPreviewModelTest {
     fun stackedSignalReplacesTheNativePair() {
         val slots = allSlots(buildStatusBarPreview(input(stackedEnabled = true)))
         assertTrue(slots.contains("stacked_mobile_icon"))
-        assertFalse(slots.contains("single_mobile_sim1"))
-        assertFalse(slots.contains("single_mobile_sim2"))
+        assertFalse(slots.contains("preview_sim1"))
+        assertFalse(slots.contains("preview_sim2"))
     }
 
     @Test
@@ -196,7 +210,7 @@ class StatusBarPreviewModelTest {
         assertFalse(allSlots(buildStatusBarPreview(input(hideWifiConnected = true))).contains("wifi"))
         assertFalse(
             allSlots(buildStatusBarPreview(input(hideMobileOnWifi = true)))
-                .any { it.startsWith("single_mobile_sim") }
+                .any { it.startsWith("preview_sim") }
         )
     }
 
@@ -215,8 +229,8 @@ class StatusBarPreviewModelTest {
     @Test
     fun hidingTheSampleDataSimKeepsTheOtherSignalWithoutItsTypeLabel() {
         val model = buildStatusBarPreview(input(hideSimOne = true))
-        assertTrue("single_mobile_sim2" in model.coreSlots)
-        assertFalse("single_mobile_sim1" in model.coreSlots)
+        assertTrue("preview_sim2" in model.coreSlots)
+        assertFalse("preview_sim1" in model.coreSlots)
         assertFalse(model.showNetworkType)
     }
 

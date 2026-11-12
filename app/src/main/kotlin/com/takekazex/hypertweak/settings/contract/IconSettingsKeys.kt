@@ -2,6 +2,7 @@ package com.takekazex.hypertweak.settings.contract
 
 /** Persisted contract; values remain independent of storage and host implementations. */
 object IconSettingsKeys {
+    const val KEY_ICON_SIGNAL_STYLE = "icon_signal_style"
     const val KEY_ICON_HIDE_CELLULAR_ACTIVITY = "icon_hide_cellular_activity"
     const val KEY_ICON_HIDE_CELLULAR_TYPE = "icon_hide_cellular_type"
     const val KEY_ICON_CELLULAR_ROAM_MODE = "icon_cellular_roam_mode"

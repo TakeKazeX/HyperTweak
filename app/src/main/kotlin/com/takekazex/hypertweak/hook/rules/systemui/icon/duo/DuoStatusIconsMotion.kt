@@ -9,9 +9,14 @@ import android.graphics.drawable.Drawable
 import android.view.View
 import android.view.ViewGroup
 import com.takekazex.hypertweak.hook.base.HostAccess
+import com.takekazex.hypertweak.hook.rules.systemui.icon.EndpointOwnership
+import com.takekazex.hypertweak.hook.rules.systemui.icon.HandoverCoordinator
 import com.takekazex.hypertweak.hook.rules.systemui.icon.PanelGlyphFrame
 import com.takekazex.hypertweak.hook.rules.systemui.icon.PanelGlyphTravel
-import com.takekazex.hypertweak.hook.rules.systemui.icon.SignalTargetOwnership
+import com.takekazex.hypertweak.util.logging.DebugLog
+import java.util.Collections
+import java.util.IdentityHashMap
+import java.util.WeakHashMap
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -37,13 +42,13 @@ internal class DuoStatusIconsMotion {
     }
     private class Alpha(val view: View, var saved: Float, var applied: Float)
     private var host: ViewGroup? = null
-    private var ownership: SignalTargetOwnership<View>? = null
-    private val masks = java.util.IdentityHashMap<View, Alpha>()
+    private var ownership: EndpointOwnership<View>? = null
+    private val masks = IdentityHashMap<View, Alpha>()
     private val entries = LinkedHashMap<String, Entry>()
     private var progress = 0f
     private var drawSignature = 0L
     private val usedSlots = HashSet<String>()
-    private val usedViews = java.util.Collections.newSetFromMap(java.util.IdentityHashMap<View, Boolean>())
+    private val usedViews = Collections.newSetFromMap(IdentityHashMap<View, Boolean>())
     private var failed = false
     private var reportedFailure = false
     private val matrix = Matrix()
@@ -63,7 +68,7 @@ internal class DuoStatusIconsMotion {
                 } catch (error: Throwable) {
                     failed = true
                     restoreMasks()
-                    if (!reportedFailure) com.takekazex.hypertweak.util.logging.DebugLog.w("DuoSignal", "status icon handoff failed", error)
+                    if (!reportedFailure) DebugLog.w("DuoSignal", "status icon handoff failed", error)
                     reportedFailure = true
                 } finally { canvas.restoreToCount(save) }
             }
@@ -74,7 +79,7 @@ internal class DuoStatusIconsMotion {
     }
 
     fun update(root: ViewGroup, home: View, proxy: View, expanded: View, fraction: Float,
-               owners: SignalTargetOwnership<View>) {
+               owners: EndpointOwnership<View>) {
         if (failed || !root.isAttachedToWindow || !home.isAttachedToWindow || !proxy.isAttachedToWindow ||
             !expanded.isAttachedToWindow || fraction >= 1f || !fraction.isFinite()) { clear(); return }
         if (host !== root || ownership !== owners) {
@@ -115,7 +120,7 @@ internal class DuoStatusIconsMotion {
                 owners.acquire(view, this)
                 val lease = masks.getOrPut(view) { Alpha(view, view.alpha, view.alpha) }
                 if (abs(view.alpha - lease.applied) > .001f) lease.saved = view.alpha
-                view.alpha = 0f; lease.applied = 0f
+                HandoverCoordinator.alpha(view, 0f); lease.applied = 0f
                 usedViews += view
             }
             entry.copies = views
@@ -141,7 +146,7 @@ internal class DuoStatusIconsMotion {
         matrix.reset(); view.transformMatrixToGlobal(matrix); matrix.mapRect(out); inverseRoot.mapRect(out)
     }
     private fun release(view: View) {
-        masks.remove(view)?.let { if (abs(view.alpha - it.applied) < .001f) view.alpha = it.saved }
+        masks.remove(view)?.let { if (abs(view.alpha - it.applied) < .001f) HandoverCoordinator.alpha(view, it.saved) }
         ownership?.release(view, this)
     }
     private fun restoreMasks() { masks.keys.toList().forEach(::release) }
@@ -156,7 +161,7 @@ internal class DuoStatusIconsMotion {
             "stacked_mobile_icon")
         /** Match identities, never child indices: layouts, ignored slots and overflow differ by row. */
         // Slot identity is fixed for a view instance; the reflective read is the hot cost.
-        private val slotCache = java.util.WeakHashMap<View, String>()
+        private val slotCache = WeakHashMap<View, String>()
         private fun slotOf(view: View): String? {
             synchronized(slotCache) { slotCache[view]?.let { return it.ifEmpty { null } } }
             val slot = (HostAccess.read(view, "mSlot") as? String) ?: runCatching {

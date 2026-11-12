@@ -1,9 +1,9 @@
-package com.takekazex.hypertweak.hook.rules.systemui.icon.carrier
+package com.takekazex.hypertweak.hook.rules.systemui.icon
 
-import com.takekazex.hypertweak.hook.rules.systemui.icon.SignalTargetOwnership
+import com.takekazex.hypertweak.hook.rules.systemui.icon.EndpointOwnership
 
 /** Carrier target arbitration. Capture one row per operation; no per-frame adapter allocation. */
-internal class CarrierTargetLeases<T : Any, P : Any>(private val host: Host<T, P>) {
+internal class EndpointTargetLeases<T : Any, P : Any>(private val host: Host<T, P>) {
     interface Host<T, P> {
         fun parts(target: T): P?
         fun ready(target: T, parts: P): Boolean
@@ -14,7 +14,7 @@ internal class CarrierTargetLeases<T : Any, P : Any>(private val host: Host<T, P
         fun fadeLease(target: T, parts: P, leased: Boolean)
         fun alpha(target: T, value: Float)
     }
-    private val owners = SignalTargetOwnership<T>()
+    private val owners = EndpointOwnership<T>()
     operator fun contains(target: T) = target in owners
     fun clear() = owners.clear()
     fun retire(target: T) = owners.retire(target)

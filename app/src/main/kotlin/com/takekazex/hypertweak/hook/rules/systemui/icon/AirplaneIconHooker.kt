@@ -1,20 +1,19 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
-import com.takekazex.hypertweak.hook.base.HostAccess
-import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
-import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
-
 import android.graphics.Canvas
 import android.view.View
-import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
-import com.takekazex.hypertweak.hook.base.StaticHooker
+import com.takekazex.hypertweak.hook.base.HostAccess
+import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
+import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
+import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
 import com.takekazex.hypertweak.util.logging.DebugLog
+import java.util.ArrayDeque
 
 /** Mirrors the native airplane slot, including host views cloned into the left container. */
-object AirplaneIconHooker : StaticHooker() {
+internal object AirplaneIconHooker : IconRenderer() {
     // Published on settings acceptance; hook callbacks perform no storage reads.
-    private val settingIconMirrorAirplane by hookSetting(false) { Preferences.getBoolean(IconSettingsKeys.KEY_ICON_MIRROR_AIRPLANE, false) }
+    private val settingIconMirrorAirplane by hookSetting(false) { Preferences.iconConfig().boolean(IconSettingsKeys.KEY_ICON_MIRROR_AIRPLANE) }
 
     init {
         // The mirror only applies at draw time: redraw the living airplane views after the hook
@@ -34,9 +33,9 @@ object AirplaneIconHooker : StaticHooker() {
         val method = runCatching { HostAccess.requireDeclaredMethod(type, "onDraw", Canvas::class.java, accessible = false) }.getOrNull()
             ?: return
         // ThreadLocal.get() is @RecentlyNullable on the platform; withInitial always supplies one.
-        val saves = ThreadLocal.withInitial { java.util.ArrayDeque<Int>() }
-        fun saves(): java.util.ArrayDeque<Int> = requireNotNull(saves.get())
-        method.hook {
+        val saves = ThreadLocal.withInitial { ArrayDeque<Int>() }
+        fun saves(): ArrayDeque<Int> = requireNotNull(saves.get())
+        method.observe {
             before { param ->
                 runCatching {
                     val view = param.thisObject as? View ?: return@runCatching

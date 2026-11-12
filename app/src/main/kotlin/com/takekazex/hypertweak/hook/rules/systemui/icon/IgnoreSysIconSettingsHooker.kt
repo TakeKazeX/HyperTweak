@@ -5,7 +5,7 @@ import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
 import com.takekazex.hypertweak.settings.contract.IconSlotMode
 
 import com.takekazex.hypertweak.hook.base.HostAccess
-import com.takekazex.hypertweak.hook.base.StaticHooker
+
 import com.takekazex.hypertweak.util.logging.DebugLog
 
 /**
@@ -16,7 +16,7 @@ import com.takekazex.hypertweak.util.logging.DebugLog
  * slot policy and left placement. The privacy option intentionally stays in the observer list:
  * `MiuiHomePrivacyController` consumes that `privacy` item to select its normal show-dot branch.
  */
-object IgnoreSysIconSettingsHooker : StaticHooker() {
+internal object IgnoreSysIconSettingsHooker : IconRenderer() {
     init {
         hostRecovery(HostRecoveryPhase.SOURCES, icons = true) {
             it.controller?.let(::recoverController); it.component?.let(::recoverNetworkSpeed)
@@ -80,7 +80,7 @@ object IgnoreSysIconSettingsHooker : StaticHooker() {
         observerClass.findMethodOrNull {
             name("loadStatusBarIcon")
             noParams()
-        }?.hook {
+        }?.observe {
             after { param ->
                 val original = param.result as? String ?: return@after
                 val slots = if (ignoreSysHide) {
@@ -107,7 +107,7 @@ object IgnoreSysIconSettingsHooker : StaticHooker() {
             DebugLog.hookSkipped(TAG, "$SPEED_CLASS#mShowNetworkSpeed", "field not found")
             return
         }
-        speedClass.hookAllConstructors {
+        speedClass.observeConstructors {
             after { param ->
                 runCatching { showField.setBoolean(param.thisObject, netSpeedShown) }
                     .onFailure { DebugLog.w(TAG, "mShowNetworkSpeed write failed", it) }
@@ -115,7 +115,7 @@ object IgnoreSysIconSettingsHooker : StaticHooker() {
         }
         // R8 keeps this generated nest-method prefix on the OS4 build. Keep the hook limited to
         // the show callback so normal hide requests and the user's slot mode remain intact.
-        speedClass.declaredMethods.firstOrNull { it.name.contains("mupdateVisibility") }.orSkip("IgnoreSysIconSettingsHooker", "speedClass#mupdateVisibility")?.hook {
+        speedClass.declaredMethods.firstOrNull { it.name.contains("mupdateVisibility") }.orSkip("IgnoreSysIconSettingsHooker", "speedClass#mupdateVisibility")?.observe {
             before { param ->
                 val reason = param.args.getOrNull(1) as? String
                 if (reason == "show" && netSpeedShown) {

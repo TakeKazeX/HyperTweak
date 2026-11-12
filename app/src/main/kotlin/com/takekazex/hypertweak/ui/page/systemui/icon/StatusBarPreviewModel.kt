@@ -2,6 +2,14 @@ package com.takekazex.hypertweak.ui.page.systemui.icon
 
 import com.takekazex.hypertweak.settings.contract.IconSlotPolicy
 import com.takekazex.hypertweak.settings.contract.IconSlotPolicyConfig
+import com.takekazex.hypertweak.presentation.icon.Claim
+import com.takekazex.hypertweak.presentation.icon.RendererId
+import com.takekazex.hypertweak.presentation.icon.IconLayoutPlan
+import com.takekazex.hypertweak.presentation.icon.NetworkDisplayModel
+import com.takekazex.hypertweak.presentation.icon.PlanSurface
+import com.takekazex.hypertweak.presentation.icon.SlotPart
+import com.takekazex.hypertweak.presentation.icon.Ownership
+import com.takekazex.hypertweak.settings.contract.SignalStyle
 import com.takekazex.hypertweak.presentation.icon.MobileSignalEvent
 import com.takekazex.hypertweak.presentation.icon.MobileSignalState
 import com.takekazex.hypertweak.presentation.icon.NetworkIconVisibility
@@ -19,8 +27,8 @@ internal const val PREVIEW_DUO_SLOT = "duo"
 internal const val PREVIEW_NATIVE_TYPE_SLOT = "preview_native_type"
 
 /** Native per-subscription mobile slots: the ROM binds one of these per active SIM. */
-internal const val SLOT_SINGLE_SIM1 = "single_mobile_sim1"
-internal const val SLOT_SINGLE_SIM2 = "single_mobile_sim2"
+internal const val SLOT_SINGLE_SIM1 = "preview_sim1"
+internal const val SLOT_SINGLE_SIM2 = "preview_sim2"
 
 /** The module's replacement slot for the stacked dual-row signal. */
 private const val SLOT_STACKED = IconSlotPolicy.SLOT_STACKED_SIGNAL
@@ -121,25 +129,6 @@ internal fun buildStatusBarPreview(input: StatusBarPreviewInput): StatusBarPrevi
         enabledModuleSlots = if (input.stackedEnabled) IconSlotPolicy.STACKED_SLOTS.toSet() else emptySet(),
         leftSlots = input.leftSlots
     )
-    val order = IconSlotPolicy.normalizeOrder(IconSlotCatalog.slots, config)
-    val hostIndex = { slot: String ->
-        order.indexOf(slot).let { if (it < 0) Int.MAX_VALUE else it }
-    }
-
-    val rotation = IconSlotPolicy.SLOT_ROTATION_LOCK
-    val showRotation = input.rotationLockEnabled && IconSlotPolicy.rotationLockShowsOnStatusBar(
-        IconSlotPolicy.modeFor(rotation, modes), rotation in input.leftSlots
-    )
-    val left = leftPreviewSlots(input.leftSlots)
-        .filter { it != rotation || showRotation }
-        .sortedBy(hostIndex)
-        .take(PREVIEW_MAX_LEFT_SLOTS)
-    val indicatorSample = if (showRotation) PREVIEW_INDICATOR_SLOTS + rotation else PREVIEW_INDICATOR_SLOTS
-    val indicators = indicatorSample
-        .filterNot { it in input.leftSlots }
-        .filterNot { previewHidden(it, config) }
-        .sortedBy(hostIndex)
-        .take(PREVIEW_MAX_INDICATOR_SLOTS)
     val visibility = NetworkIconVisibility(
         hideMobileOnWifi = input.hideMobileOnWifi,
         hideWifi = input.hideWifiConnected,
@@ -148,9 +137,43 @@ internal fun buildStatusBarPreview(input: StatusBarPreviewInput): StatusBarPrevi
         hideSimTwo = input.hideSimTwo,
         slotModes = modes
     )
-    val hidden = visibility.hiddenCellularIds(previewMobileState, IconSurface.STATUS_BAR, wifiDefault = true) { it - 1 }
-    val hideWifi = visibility.hidesWifi(IconSurface.STATUS_BAR, connected = true)
-    val signal = signalPreviewSlots(input, config, hidden)
+    val network = NetworkDisplayModel(previewMobileState, wifiDefault = true, wifiConnected = true,
+        slotOf = { it - 1 }, visibility = visibility)
+    val style = when { input.duoEnabled -> SignalStyle.DUO; input.stackedEnabled -> SignalStyle.STACKED; else -> SignalStyle.NORMAL }
+    val owner = if (style == SignalStyle.DUO) RendererId.DUO else RendererId.STACKED
+    val claims = if (style == SignalStyle.NORMAL) emptyList() else listOf(
+        Claim(owner, PlanSurface.STATUS_BAR,
+            previewMobileState.subscriptionOrder.mapTo(mutableSetOf<SlotPart>()) { SlotPart.MobileBars(it) },
+            ready = true, priority = 0)
+    )
+    val layout = IconLayoutPlan.plan(config, style, network, claims, IconSlotCatalog.slots)[PlanSurface.STATUS_BAR]
+    val order = layout.order
+    val hostIndex = { slot: String ->
+        order.indexOf(slot).let { if (it < 0) Int.MAX_VALUE else it }
+    }
+
+    val rotation = IconSlotPolicy.SLOT_ROTATION_LOCK
+    val showRotation = input.rotationLockEnabled && IconSlotPolicy.rotationLockShowsOnStatusBar(
+        IconSlotPolicy.modeFor(rotation, modes), rotation in input.leftSlots
+    )
+    val left = leftPreviewSlots(layout.leftSlots)
+        .filter { it != rotation || showRotation }
+        .sortedBy(hostIndex)
+        .take(PREVIEW_MAX_LEFT_SLOTS)
+    val indicatorSample = if (showRotation) PREVIEW_INDICATOR_SLOTS + rotation else PREVIEW_INDICATOR_SLOTS
+    val indicators = indicatorSample
+        .filterNot { it in input.leftSlots }
+        .filterNot { layout.owner(SlotPart.Slot(it)) is Ownership.Hidden }
+        .sortedBy(hostIndex)
+        .take(PREVIEW_MAX_INDICATOR_SLOTS)
+    val hidden = previewMobileState.subscriptionOrder.filterTo(mutableSetOf()) {
+        layout.owner(SlotPart.MobileRow(it)) is Ownership.Hidden
+    }
+    val hideWifi = layout.owner(SlotPart.Slot(SLOT_WIFI)) is Ownership.Hidden
+    val replacementReady = previewMobileState.subscriptionOrder.any {
+        layout.owner(SlotPart.MobileBars(it)) is Ownership.Replaced
+    }
+    val signal = signalPreviewSlots(input, config, hidden, replacementReady)
     val showType = 1 !in hidden && signal.isNotEmpty() && !input.duoEnabled
     val core = buildList {
         addAll(signal)
@@ -216,14 +239,15 @@ private val previewDuoContent = DuoContent(
 private fun signalPreviewSlots(
     input: StatusBarPreviewInput,
     config: IconSlotPolicyConfig,
-    hidden: Set<Int>
+    hidden: Set<Int>,
+    replacementReady: Boolean
 ): List<String> {
     if (input.duoEnabled) return listOf(PREVIEW_DUO_SLOT)
     val visible = buildList {
         if (1 !in hidden) add(SLOT_SINGLE_SIM1)
         if (2 !in hidden) add(SLOT_SINGLE_SIM2)
     }
-    if (!input.stackedEnabled) return visible
+    if (!input.stackedEnabled || !replacementReady) return visible
     if (previewHidden(SLOT_STACKED, config)) return emptyList()
     return if (visible.size > 1) listOf(SLOT_STACKED) else visible
 }

@@ -8,9 +8,9 @@ import com.takekazex.hypertweak.settings.contract.MobileTypeTypography
 internal object MobileTypeTypographySettings {
     private val value by hookSetting(MobileTypeTypography()) {
         MobileTypeTypography(
-            Preferences.getBoolean(IconSettingsKeys.KEY_ICON_TYPE_TYPOGRAPHY, false),
-            Preferences.getFloat(IconSettingsKeys.KEY_ICON_TYPE_SIZE_PERCENT, 100f),
-            Preferences.getInt(IconSettingsKeys.KEY_ICON_TYPE_WEIGHT, 400)
+            Preferences.iconConfig().boolean(IconSettingsKeys.KEY_ICON_TYPE_TYPOGRAPHY),
+            Preferences.iconConfig().float(IconSettingsKeys.KEY_ICON_TYPE_SIZE_PERCENT),
+            Preferences.iconConfig().int(IconSettingsKeys.KEY_ICON_TYPE_WEIGHT)
         ).safe()
     }
     val current get() = value

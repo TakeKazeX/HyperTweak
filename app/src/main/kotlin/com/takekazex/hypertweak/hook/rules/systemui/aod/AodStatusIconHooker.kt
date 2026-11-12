@@ -24,7 +24,7 @@ import com.takekazex.hypertweak.hook.base.DynamicHooker
 import com.takekazex.hypertweak.presentation.icon.duo.DuoBattery
 import com.takekazex.hypertweak.presentation.icon.duo.DuoContent
 import com.takekazex.hypertweak.presentation.icon.duo.DuoPolicy
-import com.takekazex.hypertweak.hook.rules.systemui.icon.duo.DuoSignalHooker
+import com.takekazex.hypertweak.hook.rules.systemui.icon.duo.DuoRenderer
 import com.takekazex.hypertweak.util.logging.DebugLog
 import com.takekazex.hypertweak.util.platform.PlatformLevel
 import java.lang.reflect.Field
@@ -358,7 +358,7 @@ class AodStatusIconHooker : DynamicHooker() {
             // source, but must not contribute an invisible width beside Duo.
             child.view.visibility = if (child.view === binding.percent) View.GONE else View.INVISIBLE
         }
-        val duo = DuoSignalHooker.createAodDuoView(root.context).apply {
+        val duo = DuoRenderer.createAodDuoView(root.context).apply {
             importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
         }
         frame.addView(
@@ -408,7 +408,7 @@ class AodStatusIconHooker : DynamicHooker() {
         proxy.visibility = View.VISIBLE
         val positionCenter = settings.percentPosition == AodSettingsKeys.AOD_PERCENT_POSITION_DUO_CENTER
         val foreground = binding.percent.currentTextColor.takeIf { it != Color.TRANSPARENT } ?: Color.WHITE
-        DuoSignalHooker.updateAodDuoView(
+        DuoRenderer.updateAodDuoView(
             context = binding.root.context,
             target = duo,
             content = content,

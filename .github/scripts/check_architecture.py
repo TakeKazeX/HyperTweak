@@ -32,6 +32,39 @@ FEATURE_COLLABORATIONS = {
     ("systemui", "backgesture"), # gesture bar shares the authenticated Overview bridge
 }
 
+# Status-bar icon renderers reach each other only through IconHostPorts, wired in bootstrap.
+# Each renderer object is owned by its own package (or, for stacked, its own file family).
+ICON_RENDERERS = {
+    "StackedRenderer": lambda parts: len(parts) == 1 and parts[0].startswith("Stacked"),
+    "DuoRenderer": lambda parts: parts[0] == "duo",
+    "CarrierRenderer": lambda parts: parts[0] == "carrier",
+    "LeftRenderer": lambda parts: parts[0] == "left",
+}
+ICON_RENDERER_REFERENCE = re.compile(r'\b(' + "|".join(ICON_RENDERERS) + r')\b')
+ICON_ROOT = ("rules", "systemui", "icon")
+# (systemui subpackage, renderer) pairs allowed outside the icon tree.
+RENDERER_COLLABORATIONS = {
+    ("aod", "DuoRenderer"),  # AOD draws the same Duo view in its own surface
+}
+
+
+def renderer_violations(hook_parts, source):
+    """`hook_parts` is a source path relative to `hook/`; bootstrap is the composition root."""
+    if hook_parts[:1] == ("bootstrap",):
+        return []
+    in_icon = tuple(hook_parts[:3]) == ICON_ROOT and len(hook_parts) > 3
+    in_systemui = tuple(hook_parts[:2]) == ICON_ROOT[:2] and len(hook_parts) > 2
+    code = strip_non_code(source)
+    found = []
+    for match in ICON_RENDERER_REFERENCE.finditer(code):
+        name = match[1]
+        if in_icon and ICON_RENDERERS[name](hook_parts[3:]):
+            continue
+        if in_systemui and not in_icon and (hook_parts[2], name) in RENDERER_COLLABORATIONS:
+            continue
+        found.append((source.count("\n", 0, match.start()) + 1, name))
+    return found
+
 
 def violations(layer, source):
     code = strip_non_code(source)
@@ -97,6 +130,10 @@ def main():
                 unit = hook_unit(path.relative_to(base / "hook").parts)
                 failures.extend(f"{path.relative_to(ROOT)}:{line}: forbidden hook.{unit} -> hook.{target}"
                                 for line, target in hook_violations(unit, source))
+                hook_parts = path.relative_to(base / "hook").parts
+                failures.extend(f"{path.relative_to(ROOT)}:{line}: icon renderer {name} used outside its owner; "
+                                "go through IconHostPorts"
+                                for line, name in renderer_violations(hook_parts, source))
     if failures:
         print("\n".join(failures), file=sys.stderr)
         return 1

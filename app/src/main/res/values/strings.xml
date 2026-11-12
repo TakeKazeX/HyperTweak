@@ -584,8 +584,6 @@
     <string name="icon_battery_style_system">Follow System</string>
     <string name="icon_battery_style_trailing">Outside, Trailing</string>
     <string name="icon_battery_style_leading">Outside, Leading</string>
-    <string name="icon_stacked_signal_style">Stacked Signal Style</string>
-    <string name="icon_stacked_signal_style_summary">Stack both SIMs into one icon</string>
     <string name="icon_stacked_type_hide_disconnect">Hide Type When Data Is Disconnected</string>
     <string name="icon_stacked_type_hide_disconnect_summary">Hide the stacked type label while data is disconnected</string>
     <string name="icon_stacked_type_keep_on_wifi">Keep Cellular Type on Wi-Fi</string>
@@ -740,7 +738,6 @@
     <string name="icon_slot_second_space">Second space</string>
     <string name="icon_slot_stacked_mobile_icon">Dual-row signal icon</string>
     <string name="icon_slots_title">Slots</string>
-    <string name="icon_stacked_signal_title">Stacked Signal</string>
     <string name="icon_stacked_signal_weight">Stacked Signal Boldness</string>
     <string name="icon_notification_title">Notification Icons</string>
     <string name="icon_notification_max">Limit Notification Icons</string>
@@ -1492,8 +1489,6 @@
     <string name="update_completion_snackbar">Updated to v%1$s (%2$d). Reboot so LSPosed reloads the module.</string>
     <string name="update_completion_snackbar_legacy">Updated to v%1$s. Reboot so LSPosed reloads the module.</string>
     <string name="icon_duo_title">Duo signal (experimental)</string>
-    <string name="icon_duo_enabled">Three-in-one status icon</string>
-    <string name="icon_duo_summary">Combine battery, connection and main SIM signal in one icon</string>
     <string name="icon_duo_expanded">Expanded panel style</string>
     <string name="icon_duo_size">Icon size</string>
     <string name="icon_duo_size_value">%1$d dp</string>
@@ -1984,4 +1979,13 @@
     <string name="icon_type_order_right">Always right</string>
     <string name="icon_type_order_left">Always left</string>
     <string name="icon_wifi_standard_map_hint">Enter one label for all standards, or five comma-separated values for 802.11n, ac, ax, ad and be. Use -1 to hide a label. Example: -1,-1,6,7,7.</string>
+    <string name="icon_signal_style">Signal style</string>
+    <string name="icon_signal_style_normal">Normal</string>
+    <string name="icon_signal_style_stacked">Stacked</string>
+    <string name="icon_signal_style_duo">Duo</string>
+    <string name="icon_signal_style_normal_summary">Keep the system signal icons</string>
+    <string name="icon_signal_style_stacked_summary">Stack both SIMs into one icon</string>
+    <string name="icon_signal_style_duo_summary">Combine battery, connection and main SIM signal in one icon</string>
+    <string name="icon_section_network">Network</string>
+    <string name="icon_section_status_bar">Status bar</string>
 </resources>

@@ -1,15 +1,14 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
-import com.takekazex.hypertweak.presentation.icon.MobileSignalState
 
 import org.junit.Assert.*
 import org.junit.Test
 
-class SignalTargetOwnershipTest {
+class EndpointOwnershipTest {
     private data class EqualObject(val id: Int)
 
     @Test fun targetsAndOwnersUseIdentityAndAcquisitionIsIdempotent() {
-        val leases = SignalTargetOwnership<EqualObject>()
+        val leases = EndpointOwnership<EqualObject>()
         val target = EqualObject(1)
         val equalTarget = EqualObject(1)
         val owner = EqualObject(2)
@@ -25,7 +24,7 @@ class SignalTargetOwnershipTest {
     }
 
     @Test fun retiredHostsAndOldOwnersCannotReleaseNewBindings() {
-        val leases = SignalTargetOwnership<Any>()
+        val leases = EndpointOwnership<Any>()
         val target = Any(); val old = Any(); val current = Any()
         assertTrue(leases.acquire(target, old))
         leases.retire(target)
@@ -38,7 +37,7 @@ class SignalTargetOwnershipTest {
     }
 
     @Test fun retiringAnOldShadeSubscriberPreservesTheReplacement() {
-        val events = ShadeSwitchEvents()
+        val events = HandoverPresence()
         val old = Any(); val current = Any(); val observed = mutableListOf<String>()
         events.bind(old, { observed += "old" }, { observed += "old:$it" })
         events.started()
@@ -51,7 +50,7 @@ class SignalTargetOwnershipTest {
     }
 
     @Test fun activeProxyQueriesFollowTheCurrentOwnerAndRetirement() {
-        val events = ShadeSwitchEvents()
+        val events = HandoverPresence()
         val root = Any(); val other = Any(); val old = Any(); val current = Any()
         assertFalse(events.hasActiveProxy(root))
         events.bind(old, {}, {}, { it === root })
@@ -66,7 +65,7 @@ class SignalTargetOwnershipTest {
     }
 
     @Test fun handoverAndAirplaneQueriesRetireWithTheirRenderer() {
-        val events = ShadeSwitchEvents()
+        val events = HandoverPresence()
         val owner = Any(); val replacement = Any(); val root = Any()
         var owns = true
         events.bind(owner, {}, {}, ownsAirplane = { it === root }, ownsSignalHandover = { owns })

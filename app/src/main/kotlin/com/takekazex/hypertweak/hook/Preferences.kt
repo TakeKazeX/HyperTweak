@@ -28,6 +28,9 @@ import com.takekazex.hypertweak.hook.runtime.settings.RuntimeSettingsGroups
 import com.takekazex.hypertweak.settings.contract.AppSettingsKeys
 import com.takekazex.hypertweak.settings.contract.BackGestureKeys
 import com.takekazex.hypertweak.settings.contract.CameraSettingsKeys
+import com.takekazex.hypertweak.settings.contract.IconConfig
+import com.takekazex.hypertweak.settings.contract.IconConfigDecoder
+import com.takekazex.hypertweak.settings.contract.IconConfigMigration
 import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
 import com.takekazex.hypertweak.settings.contract.IconSettingsPreferencePolicy
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
@@ -35,7 +38,6 @@ import com.takekazex.hypertweak.settings.contract.PowerSaveOverrideSelection
 import com.takekazex.hypertweak.settings.contract.ScreenshotSettingsKeys
 import com.takekazex.hypertweak.settings.contract.ScreenshotSettingsLedger
 import com.takekazex.hypertweak.settings.contract.ScreenshotSettingsSnapshot
-import com.takekazex.hypertweak.settings.contract.SignalSvgStyle
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 import com.takekazex.hypertweak.util.logging.SettingsDiagnostics
 import io.github.lingqiqi5211.ezhooktool.xposed.EzXposed
@@ -112,26 +114,7 @@ object Preferences {
     internal fun saveScreenshotSettings(): Array<Any>? = screenshotSettings.save()
     internal fun restoreScreenshotSettings(state: Any?) = screenshotSettings.restore(state)
 
-    /** Pre-0/1 stacked SVG style key, read only to migrate old selections. */
-    private const val LEGACY_KEY_ICON_STACKED_SVG_STACKED = "icon_tuner_stacked_icon_svg_stacked"
-
-    /** Compatibility read only: new 0/1 wins; old stacked 3 selects the surviving iOS family. */
-    fun iconStackedSignalStyle(): Int {
-        if (RuntimeSettingsStore.owns(IconSettingsKeys.KEY_ICON_STACKED_SIGNAL_STYLE)) {
-            val values = RuntimeSettingsStore.values().orEmpty()
-            return SignalSvgStyle.resolve(
-                values.containsKey(IconSettingsKeys.KEY_ICON_STACKED_SIGNAL_STYLE),
-                values[IconSettingsKeys.KEY_ICON_STACKED_SIGNAL_STYLE] as? Int,
-                values[LEGACY_KEY_ICON_STACKED_SVG_STACKED] as? Int
-            ).storedValue
-        }
-        val currentPresent = contains(IconSettingsKeys.KEY_ICON_STACKED_SIGNAL_STYLE)
-        return SignalSvgStyle.resolve(
-            currentPresent,
-            if (currentPresent) runCatching { getInt(IconSettingsKeys.KEY_ICON_STACKED_SIGNAL_STYLE, 0) }.getOrDefault(0) else null,
-            if (!currentPresent) runCatching { getInt(LEGACY_KEY_ICON_STACKED_SVG_STACKED, 0) }.getOrDefault(0) else null
-        ).storedValue
-    }
+    fun iconStackedSignalStyle(): Int = iconConfig().stacked.stackedSignalStyle
 
     // Status-bar slot preference key for [slot]; shared by the hooks and the settings UI.
     fun slotKey(slot: String): String = IconSettingsPreferencePolicy.slotKey(slot)
@@ -293,41 +276,62 @@ object Preferences {
     /** Whether MIUI's theme DRM rights verification is bypassed for local/third-party themes. */
     fun allowThirdPartyTheme(): Boolean = getBoolean(PlatformSettingsKeys.KEY_ALLOW_THIRD_PARTY_THEME, false)
 
+    @Volatile private var cachedIconSnapshot: RuntimeSettingsSnapshot? = null
+    @Volatile private var cachedIconConfig: IconConfig? = null
+
+    /** Decode once per accepted icon settings snapshot. Before the runtime channel is ready,
+     * use the regular typed storage boundary so remote-cache and epoch rules remain intact. */
+    internal fun iconConfig(): IconConfig {
+        val snapshot = RuntimeSettingsStore.latest()
+        if (snapshot != null && RuntimeSettingsStore.owns(IconSettingsKeys.KEY_ICON_SIGNAL_STYLE)) {
+            synchronized(this) {
+                if (cachedIconSnapshot === snapshot) cachedIconConfig?.let { return it }
+                return IconConfigDecoder.decode { snapshot.values[it] }.also {
+                    cachedIconSnapshot = snapshot
+                    cachedIconConfig = it
+                }
+            }
+        }
+        val fallbackCacheKey = "__icon_config_snapshot"
+        (memoGet(fallbackCacheKey) as? IconConfig)?.let { return it }
+        return IconConfigDecoder.decode { key ->
+            if (!contains(key)) null else when (IconConfigDecoder.defaultValue(key) ?: IconConfigMigration.legacyType(key)) {
+                is Boolean -> getBoolean(key)
+                is Int -> getInt(key)
+                is Float -> getFloat(key)
+                is String -> getString(key)
+                is Set<*> -> getStringSet(key)
+                else -> null
+            }
+        }.also { memoPut(fallbackCacheKey, it) }
+    }
+
     /**
      * Whether every network-type label (native, Duo, carrier rows) stays visible while Wi-Fi
-     * carries the data connection. Default off, matching the host's own single-type rule; see
-     * [IconSettingsPreferencePolicy.keepCellularTypeOnWifi] for the legacy-key migration.
+     * carries the data connection. Default off, matching the host's own single-type rule.
      */
     fun cellularTypeKeepsOnWifi(): Boolean =
-        IconSettingsPreferencePolicy.keepCellularTypeOnWifi(::explicitIconBoolean)
+        iconConfig().keepCellularTypeOnWifi
 
     /**
      * Whether every network-type label (native, Duo, carrier rows) is hidden while mobile data is
      * disconnected. The key keeps its historical stacked name.
      */
     fun cellularTypeHidesWhenDisconnected(): Boolean =
-        getBoolean(IconSettingsKeys.KEY_ICON_STACKED_TYPE_HIDE_DISCONNECT, false)
+        iconConfig().typeHiddenWhenDisconnected
 
     /** Standalone native type label, also implied by stacked signal. */
     internal fun separateCellularType(): Boolean =
-        IconSettingsPreferencePolicy.separateCellularType(::explicitIconBoolean)
+        iconConfig().separateCellularType
 
-    internal fun ccBatteryPercentStyle() = IconSettingsPreferencePolicy.ccBatteryPercentStyle(
-        SystemUiSettingsKeys.KEY_CC_BATTERY_PERCENT_STYLE.let { key ->
-            if (contains(key)) getInt(key, 0) else null
-        },
-        getBoolean(SystemUiSettingsKeys.KEY_CC_BATTERY_PERCENT_OUTSIDE, false),
-        getBoolean(SystemUiSettingsKeys.KEY_CC_BATTERY_PERCENT_LEFT, false)
-    )
+    internal fun ccBatteryPercentStyle() =
+        com.takekazex.hypertweak.settings.contract.CcBatteryPercentStyle.entries[iconConfig().controlCenter.batteryPercentStyle]
 
     fun hideNonDefaultSim(): Boolean =
-        IconSettingsPreferencePolicy.hideNonDefaultSim(::explicitIconBoolean)
+        iconConfig().network.hideNonDefaultSim
 
     internal fun iconBoolean(key: String): Boolean =
-        IconSettingsPreferencePolicy.iconBoolean(key, ::explicitIconBoolean)
-
-    private fun explicitIconBoolean(key: String): Boolean? =
-        if (contains(key)) getBoolean(key, false) else null
+        iconConfig().value(key) as? Boolean ?: false
 
     fun allowAndroidWidgetsToAssistant(): Boolean = getBoolean(PlatformSettingsKeys.KEY_ALLOW_ANDROID_WIDGETS_TO_ASSISTANT, false)
 

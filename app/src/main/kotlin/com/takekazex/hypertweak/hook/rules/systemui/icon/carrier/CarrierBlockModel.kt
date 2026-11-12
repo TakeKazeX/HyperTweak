@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon.carrier
 
+import com.takekazex.hypertweak.presentation.icon.IconSlotParts
 import com.takekazex.hypertweak.presentation.icon.MobileSignalState
 
 /**
@@ -178,8 +179,7 @@ internal data class CarrierMask(val cellular: Boolean = false, val wifi: Boolean
     }
 
     companion object {
-        val CELLULAR_SLOTS = setOf("mobile", "demo_mobile", "stacked_mobile",
-            "stacked_mobile_icon")
-        val WIFI_SLOTS = setOf("wifi", "demo_wifi")
+        val CELLULAR_SLOTS = IconSlotParts.CELLULAR_SLOTS
+        val WIFI_SLOTS = IconSlotParts.WIFI_SLOTS
     }
 }

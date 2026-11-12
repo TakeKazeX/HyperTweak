@@ -5,7 +5,7 @@ import com.takekazex.hypertweak.settings.contract.IconSettingsPreferencePolicy
 
 import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
-import com.takekazex.hypertweak.hook.base.StaticHooker
+
 import com.takekazex.hypertweak.util.logging.DebugLog
 
 /**
@@ -27,35 +27,28 @@ import com.takekazex.hypertweak.util.logging.DebugLog
  * flips a gate and the bound binders re-emit; only a freshly installed generation needs the icon
  * groups rebuilt to reach binders that collected the previous generation's flows.
  */
-object CellularIconHooker : StaticHooker() {
+internal object CellularIconHooker : IconRenderer() {
     // Published on settings acceptance; hook callbacks perform no storage reads.
     private val settingIconHideCellularActivity by hookSetting(false) {
-        Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_ACTIVITY, false)
+        Preferences.iconConfig().boolean(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_ACTIVITY)
     }
     private val settingIconHideCellularType by hookSetting(false) {
-        Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_TYPE, false)
+        Preferences.iconConfig().boolean(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_TYPE)
     }
     private val nativeRoamingMode by hookSetting(0) {
-        IconSettingsPreferencePolicy.nativeRoamingMode(
-            IconSettingsKeys.KEY_ICON_CELLULAR_ROAM_MODE.let { key ->
-                if (Preferences.contains(key)) Preferences.getInt(key, 0) else null
-            },
-            Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_ROAM, false),
-            Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_SMALL_ROAM, false),
-            Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_ROAM_GLOBAL, false)
-        )
+        Preferences.iconConfig().cellular.cellularRoamMode
     }
     private val settingIconHideCellularVowifi by hookSetting(false) {
-        Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_VOWIFI, false)
+        Preferences.iconConfig().boolean(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_VOWIFI)
     }
     private val settingIconHideCellularVolte by hookSetting(false) {
-        Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_VOLTE, false)
+        Preferences.iconConfig().boolean(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_VOLTE)
     }
     private val settingIconHideCellularVolteNoService by hookSetting(false) {
-        Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_VOLTE_NO_SERVICE, false)
+        Preferences.iconConfig().boolean(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_VOLTE_NO_SERVICE)
     }
     private val settingIconHideCellularSpeechHd by hookSetting(false) {
-        Preferences.getBoolean(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_SPEECH_HD, false)
+        Preferences.iconConfig().boolean(IconSettingsKeys.KEY_ICON_HIDE_CELLULAR_SPEECH_HD)
     }
 
     private const val TAG = "IconTuner"
@@ -112,7 +105,7 @@ object CellularIconHooker : StaticHooker() {
             }
             if (getter == "getMobileTypeVisible" || getter == "getMobileTypeImageVisible") deoptimize(method)
             val returnType = method.returnType
-            method.hook {
+            method.observe {
                 after { param ->
                     if (param.throwable != null) return@after
                     val original = param.result ?: return@after

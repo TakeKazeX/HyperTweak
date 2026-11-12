@@ -17,7 +17,7 @@ import android.view.ViewGroup
 import android.widget.LinearLayout
 import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
-import com.takekazex.hypertweak.hook.base.StaticHooker
+
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.ref.WeakReference
 import java.lang.reflect.Field
@@ -27,15 +27,16 @@ import java.util.concurrent.TimeUnit
 import com.takekazex.hypertweak.util.platform.ResourceLookup
 
 /** Control-center-only date policy and compact carrier/battery constraints. */
-object ControlCenterHeaderHooker : StaticHooker() {
+internal object ControlCenterHeaderHooker : IconRenderer() {
+    override val hostCallbackOrder = 30
     // Published on settings acceptance; hook callbacks perform no storage reads.
-    private val settingCcHideDate by hookSetting(false) { Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_HIDE_DATE, false) }
-    private val settingCcCarrierTwoLine by hookSetting(false) { Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_CARRIER_TWO_LINE, false) }
-    private val settingCcCarrierLeft by hookSetting(false) { Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_CARRIER_LEFT, false) }
-    private val settingCcPrivacyEnabled by hookSetting(false) { Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_PRIVACY_ENABLED, false) }
-    private val settingCcPrivacyCenter by hookSetting(true) { Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_PRIVACY_CENTER, true) }
+    private val settingCcHideDate by hookSetting(false) { Preferences.iconConfig().boolean(SystemUiSettingsKeys.KEY_CC_HIDE_DATE) }
+    private val settingCcCarrierTwoLine by hookSetting(false) { Preferences.iconConfig().boolean(SystemUiSettingsKeys.KEY_CC_CARRIER_TWO_LINE) }
+    private val settingCcCarrierLeft by hookSetting(false) { Preferences.iconConfig().boolean(SystemUiSettingsKeys.KEY_CC_CARRIER_LEFT) }
+    private val settingCcPrivacyEnabled by hookSetting(false) { Preferences.iconConfig().boolean(SystemUiSettingsKeys.KEY_CC_PRIVACY_ENABLED) }
+    private val settingCcPrivacyCenter by hookSetting(true) { Preferences.iconConfig().boolean(SystemUiSettingsKeys.KEY_CC_PRIVACY_CENTER) }
     private val settingCcPrivacyOffset by hookSetting(ControlCenterPrivacyPolicy.DEFAULT_OFFSET) {
-        Preferences.getInt(SystemUiSettingsKeys.KEY_CC_PRIVACY_OFFSET, ControlCenterPrivacyPolicy.DEFAULT_OFFSET)
+        Preferences.iconConfig().int(SystemUiSettingsKeys.KEY_CC_PRIVACY_OFFSET)
     }
 
     init {
@@ -123,7 +124,7 @@ object ControlCenterHeaderHooker : StaticHooker() {
             "onInit", "onConfigChanged", "onScreenLayoutSizeChanged", "updateDimens").forEach { name ->
             controller.declaredMethods.filter { it.name == name }.forEach { method ->
                 deoptimize(method)
-                method.hook { after { param -> guarded {
+                method.observe { after { param -> guarded {
                     val owner = param.thisObject
                     if (name == "updateConstraint") {
                         (read(owner, "carrierLayout") as? View)?.let(layouts::remove)
@@ -150,7 +151,7 @@ object ControlCenterHeaderHooker : StaticHooker() {
         val combined = "com.android.systemui.controlcenter.shade.CombinedHeaderController".toClassOrNull()
         combined?.findMethodOrNull { name("updateControlCenterHeaderLayout"); noParams() }?.let { method ->
             deoptimize(method)
-            method.hook { after { param -> guarded {
+            method.observe { after { param -> guarded {
                 (read(param.thisObject, "controlCenterCarrierLayout") as? ViewGroup)
                     ?.let { updateCarrierLayout(it) }
             } } }
@@ -176,14 +177,14 @@ object ControlCenterHeaderHooker : StaticHooker() {
         listOf("onAttachedToWindow", "updateClockVisibility").forEach { name ->
             clock.findMethodOrNull { name(name); noParams() }?.let { method ->
                 deoptimize(method)
-                method.hook { after { param -> guarded {
+                method.observe { after { param -> guarded {
                     (param.thisObject as? View)?.let(::hideDateView)
                 } } }
             }
         }
         clock.findMethodOrNull { name("setPolicyVisibility"); paramCount(1) }?.let { method ->
             deoptimize(method)
-            method.hook {
+            method.observe {
                 before { param -> guarded {
                     val date = param.thisObject as? View ?: return@guarded
                     if (!isDate(date)) return@guarded
@@ -279,7 +280,7 @@ object ControlCenterHeaderHooker : StaticHooker() {
             }
             compactHeaders[carrier] = WeakSiblings(status, fake)
             // Keep the status/battery root at the first row: the battery belongs to the header's
-            // first-row anchor. IconPositionHooker splits only the statusIcons children against
+            // first-row anchor. SlotMaskApplier splits only the statusIcons children against
             // the carrier block's two measured row centers, so ordinary icons can return to row 2
             // without dragging the battery or its MiuiStatusBatteryContainer with them.
             change(carrier, mapOf(

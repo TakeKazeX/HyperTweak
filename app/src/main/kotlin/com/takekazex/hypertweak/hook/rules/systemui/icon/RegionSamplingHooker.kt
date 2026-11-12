@@ -32,7 +32,7 @@ import java.io.File
 object RegionSamplingHooker : StaticHooker() {
     // Published on settings acceptance; hook callbacks perform no storage reads.
     private val settingStatusbarRegionSampling by hookSetting(0) {
-        Preferences.getInt(PlatformSettingsKeys.KEY_STATUSBAR_REGION_SAMPLING, 0)
+        Preferences.iconConfig().int(PlatformSettingsKeys.KEY_STATUSBAR_REGION_SAMPLING)
     }
 
     init {

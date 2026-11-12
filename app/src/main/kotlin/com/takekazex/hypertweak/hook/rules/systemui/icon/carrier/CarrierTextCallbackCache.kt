@@ -3,8 +3,9 @@ package com.takekazex.hypertweak.hook.rules.systemui.icon.carrier
 import com.takekazex.hypertweak.hook.base.dex.DexFeature
 import com.takekazex.hypertweak.hook.base.dex.DexSession
 import com.takekazex.hypertweak.hook.base.dex.MethodDescriptorCodec
-import org.luckypray.dexkit.query.enums.StringMatchType
 import java.lang.reflect.Method
+import java.lang.reflect.Modifier
+import org.luckypray.dexkit.query.enums.StringMatchType
 
 /** Persistent feature cache identity. */
 internal object CarrierTextCallbackFeature : DexFeature {
@@ -16,7 +17,7 @@ internal object CarrierTextCallbackFeature : DexFeature {
  * Compute/decode for the control-center carrier-row callback.
  *
  * Kept beside the hooker but in its own file: the hooker is large and this contract has to stay
- * readable, because it must match [ControlCenterCarrierBlockHooker]'s shape check exactly.
+ * readable, because it must match [CarrierRenderer]'s shape check exactly.
  */
 internal object CarrierTextCallbackCache {
     private const val TARGET = "target"
@@ -24,7 +25,7 @@ internal object CarrierTextCallbackCache {
     /**
      * The callback owner is the row class's nested `mCarrierTextCallback` type.
      *
-     * This must stay byte-identical to [ControlCenterCarrierBlockHooker]'s own marker. Both are
+     * This must stay byte-identical to [CarrierRenderer]'s own marker. Both are
      * derived from the public row class name, so a ROM rename invalidates both together instead of
      * letting the cache silently match something the hooker never installs on.
      */
@@ -54,7 +55,7 @@ internal object CarrierTextCallbackCache {
     fun decode(stored: Map<String, String>, loader: ClassLoader): Method? {
         val target = stored[TARGET]?.let { MethodDescriptorCodec.method(it, loader) } ?: return null
         // The installed hook must be an instance method; a static one would hook the wrong call.
-        if (java.lang.reflect.Modifier.isStatic(target.modifiers) ||
+        if (Modifier.isStatic(target.modifiers) ||
             !target.declaringClass.name.contains(OWNER_MARKER) || target.name != METHOD_NAME ||
             target.returnType != Void.TYPE || !target.parameterTypes.contentEquals(
                 arrayOf(Int::class.javaPrimitiveType, String::class.java, Int::class.javaPrimitiveType))) return null

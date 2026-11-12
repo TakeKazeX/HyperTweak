@@ -1,6 +1,8 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon.left
 
-import com.takekazex.hypertweak.hook.rules.systemui.icon.carrier.ControlCenterCarrierBlockHooker
+import com.takekazex.hypertweak.hook.rules.systemui.icon.HandoverCoordinator
+
+import com.takekazex.hypertweak.hook.rules.systemui.icon.PanelHub
 import android.os.Handler
 import android.os.Looper
 import android.view.View
@@ -56,7 +58,7 @@ internal class LeftHandoverController(private val host: Host) {
             restoreHandover()
             return
         }
-        if (ControlCenterCarrierBlockHooker.isShadeSwitching()) {
+        if (PanelHub.state.shadeSwitching) {
             suspendHandoverForShadeSwitch()
             return
         }
@@ -91,7 +93,7 @@ internal class LeftHandoverController(private val host: Host) {
             if (!clone.isAttachedToWindow || clone.visibility != View.VISIBLE || clone.width <= 0 || clone.height <= 0 ||
                 target == null
             ) {
-                if (clone.alpha != 1f) clone.alpha = 1f
+                if (clone.alpha != 1f) HandoverCoordinator.alpha(clone, 1f)
                 panelMotions.remove(slot)?.clear()
                 return@forEach
             }
@@ -101,7 +103,7 @@ internal class LeftHandoverController(private val host: Host) {
             val parkedTargetAlpha = takeEndpointForMotion(target)
             val root = target.rootView as? ViewGroup
             if (root == null || !root.isAttachedToWindow) {
-                if (clone.alpha != 1f) clone.alpha = 1f
+                if (clone.alpha != 1f) HandoverCoordinator.alpha(clone, 1f)
                 panelMotions.remove(slot)?.clear()
                 return@forEach
             }
@@ -120,7 +122,7 @@ internal class LeftHandoverController(private val host: Host) {
                     suppressEndpoint(duplicate, ready)
                 }
             }
-            clone.alpha = LeftHandover.sourceAlpha(clamped, ready)
+            HandoverCoordinator.alpha(clone, LeftHandover.sourceAlpha(clamped, ready))
         }
 
         panelMotions.entries.removeIf { (slot, motion) ->
@@ -153,7 +155,7 @@ internal class LeftHandoverController(private val host: Host) {
         clones.forEach { (slot, clone) ->
             val ready = rows.any { row -> statusRowIcon(row, slot)?.let(::isUsableDestination) == true }
             val alpha = if (ready) 0f else 1f
-            if (clone.alpha != alpha) clone.alpha = alpha
+            if (clone.alpha != alpha) HandoverCoordinator.alpha(clone, alpha)
         }
     }
 
@@ -173,7 +175,7 @@ internal class LeftHandoverController(private val host: Host) {
         if (holdUntilReady) entry.holdUntilReady = true
         if (abs(view.alpha - entry.appliedAlpha) > .001f) entry.savedAlpha = view.alpha
         val alpha = if (ready || entry.holdUntilReady) 0f else entry.savedAlpha
-        if (view.alpha != alpha) view.alpha = alpha
+        if (view.alpha != alpha) HandoverCoordinator.alpha(view, alpha)
         entry.appliedAlpha = alpha
     }
 
@@ -181,7 +183,7 @@ internal class LeftHandoverController(private val host: Host) {
     private fun takeEndpointForMotion(view: View): Float? {
         val entry = endpointStates.remove(view) ?: return null
         if (abs(view.alpha - entry.appliedAlpha) > .001f) entry.savedAlpha = view.alpha
-        if (view.alpha != entry.appliedAlpha) view.alpha = entry.appliedAlpha
+        if (view.alpha != entry.appliedAlpha) HandoverCoordinator.alpha(view, entry.appliedAlpha)
         return entry.savedAlpha
     }
 
@@ -192,7 +194,7 @@ internal class LeftHandoverController(private val host: Host) {
         while (iterator.hasNext()) {
             val (view, entry) = iterator.next()
             if (view in live) continue
-            if (abs(view.alpha - entry.appliedAlpha) < .001f) view.alpha = entry.savedAlpha
+            if (abs(view.alpha - entry.appliedAlpha) < .001f) HandoverCoordinator.alpha(view, entry.savedAlpha)
             iterator.remove()
         }
     }

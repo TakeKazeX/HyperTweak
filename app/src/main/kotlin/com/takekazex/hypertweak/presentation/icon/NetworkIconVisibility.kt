@@ -52,9 +52,10 @@ internal data class NetworkIconVisibility(
         state: MobileSignalState,
         slotOf: (Int) -> Int,
         stackedPublished: Boolean,
-        ignoreSystemHide: Boolean
+        ignoreSystemHide: Boolean,
+        wifiDefault: Boolean = state.wifiConnected
     ): NativeMobileMask {
-        val sims = hiddenSimIds(state, state.wifiConnected, slotOf)
+        val sims = hiddenSimIds(state, wifiDefault, slotOf)
         if (!stackedPublished) return NativeMobileMask(hidden = sims)
         val replaced = state.replacementMask(true, ignoreSystemHide)
         val typeHost = state.activeDataSubId.takeIf { it in replaced && it !in sims }

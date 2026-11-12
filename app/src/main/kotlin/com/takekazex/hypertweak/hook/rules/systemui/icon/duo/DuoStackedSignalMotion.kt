@@ -12,14 +12,16 @@ import android.graphics.RectF
 import android.graphics.drawable.Drawable
 import android.view.View
 import android.view.ViewGroup
+import com.takekazex.hypertweak.hook.rules.systemui.icon.EndpointOwnership
+import com.takekazex.hypertweak.hook.rules.systemui.icon.HandoverCoordinator
 import com.takekazex.hypertweak.hook.rules.systemui.icon.PanelGlyphFrame
-import com.takekazex.hypertweak.hook.rules.systemui.icon.SignalTargetOwnership
-import com.takekazex.hypertweak.presentation.icon.duo.DuoDrawable
 import com.takekazex.hypertweak.hook.rules.systemui.icon.StackedSignalTarget
 import com.takekazex.hypertweak.hook.rules.systemui.icon.signalEndpointVisible
+import com.takekazex.hypertweak.presentation.icon.duo.DuoDrawable
 import com.takekazex.hypertweak.presentation.icon.duo.DuoSignalBars
 import com.takekazex.hypertweak.presentation.icon.duo.DuoSignalRow
 import com.takekazex.hypertweak.presentation.icon.duo.SignalBarMorph
+import com.takekazex.hypertweak.util.logging.DebugLog
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
@@ -39,7 +41,7 @@ internal class DuoStackedSignalMotion {
     private val rows = ArrayList<Row>()
     private var host: ViewGroup? = null
     private var endpoint: StackedSignalTarget? = null
-    private var ownership: SignalTargetOwnership<View>? = null
+    private var ownership: EndpointOwnership<View>? = null
     private var savedAlpha = 1f
     private var appliedAlpha = 1f
     private var ready = false
@@ -71,8 +73,8 @@ internal class DuoStackedSignalMotion {
             } catch (error: Throwable) {
                 // Do not remove an overlay while ViewOverlay is iterating its drawables.
                 failed = true; ready = false
-                endpoint?.view?.let { if (abs(it.alpha - appliedAlpha) < .001f) it.alpha = savedAlpha }
-                if (!reportedFailure) com.takekazex.hypertweak.util.logging.DebugLog.w("DuoSignal", "stacked endpoint handoff failed", error)
+                endpoint?.view?.let { if (abs(it.alpha - appliedAlpha) < .001f) HandoverCoordinator.alpha(it, savedAlpha) }
+                if (!reportedFailure) DebugLog.w("DuoSignal", "stacked endpoint handoff failed", error)
                 reportedFailure = true
             } finally { canvas.restoreToCount(save) }
         }
@@ -91,7 +93,7 @@ internal class DuoStackedSignalMotion {
 
     fun update(root: ViewGroup, source: View, icon: DuoDrawable, target: StackedSignalTarget,
                sourceMorphs: List<SignalBarMorph>, bars: DuoSignalBars?, fraction: Float,
-               owners: SignalTargetOwnership<View>): Boolean {
+               owners: EndpointOwnership<View>): Boolean {
         if (failed) { clear(); return false }
         val content = icon.content ?: run { clear(); return false }
         val dots = content.wifiLevel != null || icon.cellularDots
@@ -177,7 +179,7 @@ internal class DuoStackedSignalMotion {
         }
         progress = fraction.coerceIn(0f, 1f)
         appliedAlpha = if (ready && progress < 1f) 0f else savedAlpha
-        target.view.alpha = appliedAlpha
+        HandoverCoordinator.alpha(target.view, appliedAlpha)
         layer.setBounds(0, 0, root.width, root.height)
         val nextKey = listOf(progress, ready, root.width, root.height, rows.map { row ->
             listOf(row.source.revision, row.target.revision, RectF(row.from), RectF(row.to),
@@ -188,7 +190,7 @@ internal class DuoStackedSignalMotion {
     }
     fun clear() {
         endpoint?.view?.let { view ->
-            if (abs(view.alpha - appliedAlpha) < .001f) view.alpha = savedAlpha
+            if (abs(view.alpha - appliedAlpha) < .001f) HandoverCoordinator.alpha(view, savedAlpha)
             ownership?.release(view, this)
         }
         host?.overlay?.remove(layer); host = null; endpoint = null; ownership = null; rows.clear(); ready = false; failed = false; drawKey = null

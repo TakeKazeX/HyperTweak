@@ -1,9 +1,11 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import android.content.Context
 import android.graphics.Paint
 import android.graphics.Typeface
 import android.graphics.drawable.Drawable
 import android.view.View
+import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.TextView
 import com.takekazex.hypertweak.hook.base.BaseHooker
@@ -14,7 +16,7 @@ import com.takekazex.hypertweak.util.logging.DebugLog
 import java.util.WeakHashMap
 
 /** Borrows the cellular hooker's lifecycle; saves only fields owned by typography. */
-internal class NativeMobileTypeTypography(owner: BaseHooker) : HookComponent(owner) {
+internal class NativeMobileTypeTypography(owner: BaseHooker) : IconRenderComponent(owner) {
     private class Font(val size: Float, val face: Typeface?, val axes: String?) {
         var appliedSize = size
         var appliedFace = face
@@ -68,11 +70,18 @@ internal class NativeMobileTypeTypography(owner: BaseHooker) : HookComponent(own
     fun install() {
         active = true
         MobileTypeTypographySettings.current
-        val type = "com.miui.systemui.statusbar.views.MobileTypeDrawable".toClassOrNull() ?: run { DebugLog.hookSkipped("NativeMobileTypeTypography", "com.miui.systemui.statusbar.views.MobileTypeDrawable", "not found on host"); return }
+        val drawableName = "com.miui.systemui.statusbar.views.MobileTypeDrawable"
+        val type = drawableName.toClassOrNull() ?: run {
+            DebugLog.hookSkipped("NativeMobileTypeTypography", drawableName, "not found on host")
+            return
+        }
         drawableClass = type
-        val measure = HostAccess.declaredMethod(type, "measure", accessible = true) ?: run { DebugLog.hookSkipped("NativeMobileTypeTypography", "HostAccess.declaredMethod(type, \"measure\", accessible = true)", "not found on host"); return }
+        val measure = HostAccess.declaredMethod(type, "measure", accessible = true) ?: run {
+            DebugLog.hookSkipped("NativeMobileTypeTypography", "$drawableName#measure", "not found on host")
+            return
+        }
         deoptimize(measure)
-        measure.hook {
+        measure.observe {
             before { param -> guarded {
                 if (active) {
                     nativePaints(param.thisObject).forEach(::apply)
@@ -82,9 +91,9 @@ internal class NativeMobileTypeTypography(owner: BaseHooker) : HookComponent(own
         }
         val binder = "com.android.systemui.statusbar.pipeline.mobile.ui.binder.MiuiMobileIconBinder".toClassOrNull() ?: run { DebugLog.hookSkipped("NativeMobileTypeTypography", "com.android.systemui.statusbar.pipeline.mobile.ui.binder.MiuiMobileIconBinder", "not found on host"); return }
         binder.declaredMethods.singleOrNull { it.name == "updateMobileTypeSize" &&
-            it.parameterTypes.contentEquals(arrayOf(android.content.Context::class.java, type)) }?.let { method ->
+            it.parameterTypes.contentEquals(arrayOf(Context::class.java, type)) }?.let { method ->
             deoptimize(method)
-            method.hook {
+            method.observe {
                 before { param -> guarded {
                     param.args.getOrNull(1)?.let { nativePaints(it).forEach { paint ->
                         paints.remove(paint)?.let { restore(paint, it) }
@@ -93,15 +102,15 @@ internal class NativeMobileTypeTypography(owner: BaseHooker) : HookComponent(own
             }
         }
         binder.declaredMethods.singleOrNull { it.name == "bind" && it.parameterTypes.size == 4 &&
-            it.parameterTypes[0] == android.view.ViewGroup::class.java }?.let { method ->
+            it.parameterTypes[0] == ViewGroup::class.java }?.let { method ->
             deoptimize(method)
-            method.hook {
+            method.observe {
                 after { param -> guarded {
-                    val root = param.args.firstOrNull() as? android.view.ViewGroup ?: return@guarded
+                    val root = param.args.firstOrNull() as? ViewGroup ?: return@guarded
                     val views = ArrayList<View>()
                     fun visit(view: View) {
                         views += view
-                        if (view is android.view.ViewGroup) for (index in 0 until view.childCount) visit(view.getChildAt(index))
+                        if (view is ViewGroup) for (index in 0 until view.childCount) visit(view.getChildAt(index))
                     }
                     visit(root)
                     recover(views)
@@ -112,7 +121,7 @@ internal class NativeMobileTypeTypography(owner: BaseHooker) : HookComponent(own
         binder.declaredMethods.singleOrNull { it.name == "access\$bind\$updateMobileLayoutParams" &&
             it.parameterTypes.size == 6 && it.parameterTypes[0] == TextView::class.java }?.let { method ->
             deoptimize(method)
-            method.hook {
+            method.observe {
                 before { param -> guarded {
                     (param.args.firstOrNull() as? TextView)?.let { view -> texts.remove(view)?.let { restore(view, it) } }
                 } }

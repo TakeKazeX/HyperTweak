@@ -47,24 +47,24 @@ import com.takekazex.hypertweak.util.platform.ResourceLookup
 /** Restyles native privacy children. Native expansion/Folme remain the sole animation owner. */
 object ControlCenterPrivacyHooker : StaticHooker() {
     // Published on settings acceptance; hook callbacks perform no storage reads.
-    private val settingCcPrivacyEnabled by hookSetting(false) { Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_PRIVACY_ENABLED, false) }
-    private val settingCcPrivacyCenter by hookSetting(true) { Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_PRIVACY_CENTER, true) }
+    private val settingCcPrivacyEnabled by hookSetting(false) { Preferences.iconConfig().boolean(SystemUiSettingsKeys.KEY_CC_PRIVACY_ENABLED) }
+    private val settingCcPrivacyCenter by hookSetting(true) { Preferences.iconConfig().boolean(SystemUiSettingsKeys.KEY_CC_PRIVACY_CENTER) }
     private val settingCcPrivacyBackground by hookSetting(false) {
-        Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_PRIVACY_BACKGROUND, false)
+        Preferences.iconConfig().boolean(SystemUiSettingsKeys.KEY_CC_PRIVACY_BACKGROUND)
     }
-    private val settingCcPrivacyColored by hookSetting(true) { Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_PRIVACY_COLORED, true) }
-    private val settingCcPrivacyNames by hookSetting(true) { Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_PRIVACY_NAMES, true) }
-    private val settingCcPrivacyAllApps by hookSetting(true) { Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_PRIVACY_ALL_APPS, true) }
-    private val settingCcPrivacyArrow by hookSetting(true) { Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_PRIVACY_ARROW, true) }
-    private val settingCcPrivacyDot by hookSetting(false) { Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_PRIVACY_DOT, false) }
+    private val settingCcPrivacyColored by hookSetting(true) { Preferences.iconConfig().boolean(SystemUiSettingsKeys.KEY_CC_PRIVACY_COLORED) }
+    private val settingCcPrivacyNames by hookSetting(true) { Preferences.iconConfig().boolean(SystemUiSettingsKeys.KEY_CC_PRIVACY_NAMES) }
+    private val settingCcPrivacyAllApps by hookSetting(true) { Preferences.iconConfig().boolean(SystemUiSettingsKeys.KEY_CC_PRIVACY_ALL_APPS) }
+    private val settingCcPrivacyArrow by hookSetting(true) { Preferences.iconConfig().boolean(SystemUiSettingsKeys.KEY_CC_PRIVACY_ARROW) }
+    private val settingCcPrivacyDot by hookSetting(false) { Preferences.iconConfig().boolean(SystemUiSettingsKeys.KEY_CC_PRIVACY_DOT) }
     private val settingCcPrivacyIconSize by hookSetting(ControlCenterPrivacyPolicy.DEFAULT_ICON_SIZE) {
-        Preferences.getInt(SystemUiSettingsKeys.KEY_CC_PRIVACY_ICON_SIZE, ControlCenterPrivacyPolicy.DEFAULT_ICON_SIZE)
+        Preferences.iconConfig().int(SystemUiSettingsKeys.KEY_CC_PRIVACY_ICON_SIZE)
     }
     private val settingCcPrivacyTextSize by hookSetting(ControlCenterPrivacyPolicy.DEFAULT_TEXT_SIZE) {
-        Preferences.getInt(SystemUiSettingsKeys.KEY_CC_PRIVACY_TEXT_SIZE, ControlCenterPrivacyPolicy.DEFAULT_TEXT_SIZE)
+        Preferences.iconConfig().int(SystemUiSettingsKeys.KEY_CC_PRIVACY_TEXT_SIZE)
     }
     private val settingCcPrivacyOffset by hookSetting(ControlCenterPrivacyPolicy.DEFAULT_OFFSET) {
-        Preferences.getInt(SystemUiSettingsKeys.KEY_CC_PRIVACY_OFFSET, ControlCenterPrivacyPolicy.DEFAULT_OFFSET)
+        Preferences.iconConfig().int(SystemUiSettingsKeys.KEY_CC_PRIVACY_OFFSET)
     }
 
     init {
@@ -237,23 +237,21 @@ object ControlCenterPrivacyHooker : StaticHooker() {
                 root?.let { bindings[it] }?.expansion = WeakReference(owner)
             }
         }
-        "com.android.systemui.controlcenter.shade.ControlCenterHeaderExpandController\$controlCenterCallback\$1"
-            .toClassOrNull()?.let { callback ->
-                // Re-evaluate elapsed-time expiry on opening, including after device sleep.
-                hook(callback, listOf("onVisibleChanged", "onAppearanceChanged")) { _, _ ->
-                    bindings.values.toList().forEach(::updatePresentation)
-                }
-                callback.declaredMethods.singleOrNull {
-                it.name == "onExpansionChanged" && it.parameterTypes.contentEquals(arrayOf(Float::class.javaPrimitiveType))
-                }
-            }?.let { method ->
-                deoptimize(method)
-                method.hook { before { param ->
-                    if ((param.args.firstOrNull() as? Float) != 1f) guarded {
-                        bindings.values.toList().filter { it.animating }.forEach(::stopTransition)
-                    }
-                } }
+        // Panel motion comes from PanelHub; its adapter owns the control-center callback hooks.
+        var panelVisible = PanelHub.state.visible
+        PanelHub.subscribe(this, beforeMotion = { next ->
+            // A step away from full expansion would fight a running chip transition.
+            if (enabled && !retiring && next.progress != 1f && next.progress != PanelHub.state.progress) guarded {
+                bindings.values.toList().filter { it.animating }.forEach(::stopTransition)
             }
+        }) {
+            // Re-evaluate elapsed-time expiry on opening, including after device sleep.
+            val visible = PanelHub.state.visible
+            if (visible != panelVisible) {
+                panelVisible = visible
+                if (enabled && !retiring) guarded { bindings.values.toList().forEach(::updatePresentation) }
+            }
+        }
         DebugLog.hookRegistered(TAG, "native privacy header and expansion anchors center=$center")
     }
 

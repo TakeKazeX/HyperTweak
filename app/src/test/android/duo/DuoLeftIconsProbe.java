@@ -15,7 +15,7 @@ public final class DuoLeftIconsProbe {
         Class<?> motionType=cl.loadClass("com.takekazex.hypertweak.hook.rules.systemui.icon.left.LeftPanelMotion"),function=cl.loadClass("kotlin.jvm.functions.Function0");
         Object callback=Proxy.newProxyInstance(cl,new Class[]{function},(proxy,method,args)->cl.loadClass("kotlin.Unit").getField("INSTANCE").get(null));
         Method update=motionType.getMethod("update",ViewGroup.class,View.class,View.class,float.class,Float.class),clear=motionType.getMethod("clear");
-        Class<?> genericType=cl.loadClass(DuoNetworkProbe.H+"DuoStatusIconsMotion"),ownersType=cl.loadClass("com.takekazex.hypertweak.hook.rules.systemui.icon.SignalTargetOwnership");
+        Class<?> genericType=cl.loadClass(DuoNetworkProbe.H+"DuoStatusIconsMotion"),ownersType=cl.loadClass("com.takekazex.hypertweak.hook.rules.systemui.icon.EndpointOwnership");
         Method genericUpdate=genericType.getMethod("update",ViewGroup.class,View.class,View.class,View.class,float.class,ownersType),exclude=genericType.getMethod("setExcludedSlots",Set.class);
         Bitmap sheet=Bitmap.createBitmap(960,8*224,Bitmap.Config.ARGB_8888);Canvas sheetCanvas=new Canvas(sheet);sheetCanvas.drawColor(Color.BLACK);int count=0,scenario=0;
         for(boolean rtl:new boolean[]{false,true})for(boolean gone:new boolean[]{false,true})for(float scale:new float[]{1f,1.15f}){

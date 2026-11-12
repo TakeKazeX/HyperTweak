@@ -1,16 +1,14 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
-import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
-import com.takekazex.hypertweak.settings.contract.IconSlotPolicy
-
-import com.takekazex.hypertweak.settings.contract.IconSurface
-
-import com.takekazex.hypertweak.hook.base.HostAccess
 import android.os.Handler
 import android.os.Looper
-import com.takekazex.hypertweak.hook.base.StaticHooker
+import com.takekazex.hypertweak.hook.base.HostAccess
+import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
+import com.takekazex.hypertweak.settings.contract.IconSlotPolicy
+import com.takekazex.hypertweak.settings.contract.IconSurface
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.reflect.Field
+import java.lang.reflect.Method
 import java.util.IdentityHashMap
 import java.util.WeakHashMap
 
@@ -18,11 +16,12 @@ import java.util.WeakHashMap
  * Applies the five-state slot policy to classic [IconManager] block lists.
  *
  * The OS4 modern pipeline does not pass `blocked` to mobile/Wi-Fi holders, so this hook does not
- * pretend that the classic manager alone hides those views. [IconPositionHooker] applies the same
+ * pretend that the classic manager alone hides those views. [SlotMaskApplier] applies the same
  * policy to `MiuiStatusIconContainer.ignoredSlots`. Both hooks retain the host list they received
  * before adding module-owned decisions, which keeps hot reload and a second module fail-open.
  */
-object IconManagerHooker : StaticHooker() {
+internal object IconManagerHooker : IconRenderer() {
+    override val hostCallbackOrder = 20
     init {
         hostRecovery(HostRecoveryPhase.MANAGERS, icons = true) {
             recoverManagers(it.managers)
@@ -51,7 +50,7 @@ object IconManagerHooker : StaticHooker() {
     private var retiring = false
     init { generationCleanup { retiring = true } }
 
-    private var setBlockListMethod: java.lang.reflect.Method? by generationState { null }
+    private var setBlockListMethod: Method? by generationState { null }
     internal var rotationSlotRoutingReady by generationState { false }
         private set
 
@@ -143,7 +142,7 @@ object IconManagerHooker : StaticHooker() {
         // addHolder receives tuner blocking before the first observer refresh.
         val addHolder = managerClass.findMethodOrNull { name("addHolder"); paramCount(4) }
         addHolder?.let(::deoptimize)
-        addHolder?.hook {
+        addHolder?.observe {
             before { param ->
                 val manager = param.thisObject
                 val slot = param.args.getOrNull(1) as? String ?: return@before
@@ -162,7 +161,7 @@ object IconManagerHooker : StaticHooker() {
         val refreshGroup = controller.findMethodOrNull { name("refreshIconGroup"); paramCount(1) }
         refreshGroup?.let { method ->
             deoptimize(method)
-            method.hook {
+            method.observe {
                 before { param ->
                     val manager = param.args[0] ?: return@before
                     val minimalism = runCatching {
@@ -181,7 +180,7 @@ object IconManagerHooker : StaticHooker() {
         val setBlocked = icon.findMethodOrNull { name("setBlocked"); paramCount(1) }
         setBlocked?.let { method ->
             deoptimize(method)
-            method.hook {
+            method.observe {
                 before { param ->
                     val context = refreshContexts.get()?.lastOrNull() ?: return@before
                     runCatching {
@@ -216,7 +215,7 @@ object IconManagerHooker : StaticHooker() {
         }
         hookFinalVisibility(managerClass)
         setBlockListMethod = method
-        method.hook {
+        method.observe {
             before { param ->
                 // No caller is excluded any more: the left container used to write its own overlay
                 // through this method and skip the merge, which silently bypassed the slot modes.
@@ -330,7 +329,7 @@ object IconManagerHooker : StaticHooker() {
      * A manager takes its block list when the host sets it (`onAttachedToWindow` for the control
      * center rows, and once at attach for the status bar / keyguard), so a change in the left
      * container's owned slots has to be pushed out — otherwise an attached row keeps a list that
-     * predates the change. [LeftContainerHooker] calls this from its main-thread ticker whenever the
+     * predates the change. [LeftRenderer] calls this from its main-thread ticker whenever the
      * owned sets change.
      *
      * The pristine list is republished, never a merged one: [applyPolicy] derives the result again,

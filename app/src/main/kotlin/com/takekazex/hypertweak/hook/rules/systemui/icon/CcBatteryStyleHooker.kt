@@ -9,7 +9,7 @@ import android.view.View
 import java.util.WeakHashMap
 import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
-import com.takekazex.hypertweak.hook.base.StaticHooker
+
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.reflect.Field
 
@@ -23,10 +23,10 @@ import java.lang.reflect.Field
  * QS_FAKE mirror (`5`) keeps the HOME battery style; SystemUI crossfades those two prepared
  * views with its own Folme alpha animation during expansion and collapse.
  *
- * When Duo owns a control-center battery slot, `DuoSignalHooker` mirrors the host's leading
+ * When Duo owns a control-center battery slot, `DuoRenderer` mirrors the host's leading
  * percentage TextViews beside the three-in-one glyph; the retained battery remains `GONE` behind it.
  */
-object CcBatteryStyleHooker : StaticHooker() {
+internal object CcBatteryStyleHooker : IconRenderer() {
     // Published on settings acceptance; hook callbacks perform no storage reads.
     private val percentStyle by hookSetting(CcBatteryPercentStyle.SYSTEM) { Preferences.ccBatteryPercentStyle() }
 
@@ -82,7 +82,7 @@ object CcBatteryStyleHooker : StaticHooker() {
         // and these hooks only exist for an outside style.
         battery.findMethodOrNull { name("onBatteryStyleChanged"); paramCount(1) }?.let { method ->
             deoptimize(method)
-            method.hook {
+            method.observe {
                 before { param ->
                     val batteryView = param.thisObject as? View ?: return@before
                     if (retiring || !isControlCenter(batteryView)) return@before
@@ -100,7 +100,7 @@ object CcBatteryStyleHooker : StaticHooker() {
         // re-placed unconditionally after it; no state has to be remembered per instance.
         battery.findMethodOrNull { name("onLayout"); paramCount(5) }?.let { method ->
             deoptimize(method)
-            method.hook {
+            method.observe {
                 after { param ->
                     val batteryView = param.thisObject as? View ?: return@after
                     guarded { placeLeading(batteryView) }

@@ -1,7 +1,5 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
-import com.takekazex.hypertweak.hook.base.HostAccess
-import com.takekazex.hypertweak.hook.rules.systemui.icon.carrier.ControlCenterCarrierBlockHooker
 import android.graphics.Picture
 import android.graphics.RectF
 import android.view.View
@@ -9,8 +7,10 @@ import android.view.ViewGroup
 import android.view.ViewTreeObserver
 import android.widget.ImageView
 import androidx.core.view.isVisible
-import com.takekazex.hypertweak.presentation.icon.duo.DuoSignalRow
+import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.hook.rules.systemui.icon.duo.SignalRowMotion
+import com.takekazex.hypertweak.presentation.icon.duo.DuoSignalRow
+import com.takekazex.hypertweak.presentation.icon.duo.SignalBarMorph
 import java.util.IdentityHashMap
 import kotlin.math.abs
 
@@ -29,7 +29,7 @@ internal class StackedPanelMotion(private val callback: Any) {
     private var progress = 0f
     private var rows: List<DuoSignalRow> = emptyList()
     private var picture: Picture? = null
-    private var barMorphs: List<com.takekazex.hypertweak.presentation.icon.duo.SignalBarMorph> = emptyList()
+    private var barMorphs: List<SignalBarMorph> = emptyList()
     private var splitFraction: Float? = null
     private val crop = RectF()
     private val sourceBounds = RectF()
@@ -39,7 +39,7 @@ internal class StackedPanelMotion(private val callback: Any) {
     }
 
     fun update(nextRows: List<DuoSignalRow>, commands: Picture?, fraction: Float?, showing: Boolean?, stackedSplitFraction: Float?,
-               morphs: List<com.takekazex.hypertweak.presentation.icon.duo.SignalBarMorph> = emptyList()) {
+               morphs: List<SignalBarMorph> = emptyList()) {
         rows = nextRows; picture = commands; splitFraction = stackedSplitFraction; barMorphs = morphs
         fraction?.takeIf { it.isFinite() }?.let { progress = it.coerceIn(0f, 1f); if (it > 0f) visible = true }
         showing?.let { visible = it }
@@ -83,7 +83,7 @@ internal class StackedPanelMotion(private val callback: Any) {
         // Native per-SIM holders are GONE while stacking is enabled, even if their children
         // retain stale positive dimensions; they must never become hand-over targets.
         val endpoints = rows.map { row ->
-            ControlCenterCarrierBlockHooker.signalHandoverTarget(container, row.subId)
+            HandoverCoordinator.signalTarget(container, row.subId)
         }
         if (endpoints.any { it == null }) { clearLayers(); return }
         val drawable = source.drawable ?: run { clearLayers(); return }
@@ -95,8 +95,8 @@ internal class StackedPanelMotion(private val callback: Any) {
             val target = endpoints[index] ?: return@forEachIndexed
             if (targets[row.subId] !== target) {
                 release(row.subId)
-                val carrier = ControlCenterCarrierBlockHooker.signalHandoverTarget(container, row.subId)
-                if (carrier != null && !ControlCenterCarrierBlockHooker.acquireDuoTarget(carrier, this)) {
+                val carrier = HandoverCoordinator.signalTarget(container, row.subId)
+                if (carrier != null && !HandoverCoordinator.acquire(carrier, this)) {
                     allReady = false; return@forEachIndexed
                 }
                 targets[row.subId] = target
@@ -126,21 +126,21 @@ internal class StackedPanelMotion(private val callback: Any) {
             }
             masked.keys.toList().filter { it !in copies }.forEach { view ->
                 val alpha = masked.remove(view)
-                if (alpha != null && abs(view.alpha) < .001f) view.alpha = alpha
+                if (alpha != null && abs(view.alpha) < .001f) HandoverCoordinator.alpha(view, alpha)
             }
             copies.forEach { view ->
                 if (!masked.containsKey(view) || abs(view.alpha) > .001f) masked[view] = view.alpha
-                view.alpha = 0f
+                HandoverCoordinator.alpha(view, 0f)
             }
         } else restoreMasks()
     }
 
     private fun release(subId: Int) {
         motions.remove(subId)?.clear()
-        targets.remove(subId)?.let { ControlCenterCarrierBlockHooker.releaseDuoTarget(it, this) }
+        targets.remove(subId)?.let { HandoverCoordinator.release(it, this) }
     }
     private fun restoreMasks() {
-        masked.forEach { (view, alpha) -> if (abs(view.alpha) < .001f) view.alpha = alpha }
+        masked.forEach { (view, alpha) -> if (abs(view.alpha) < .001f) HandoverCoordinator.alpha(view, alpha) }
         masked.clear()
     }
     private fun clearLayers() {

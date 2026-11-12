@@ -108,8 +108,9 @@ fun IconOrderPage(onBack: () -> Unit) {
     // platform inset or a large-font top bar cannot move the effective edge.
     val viewport = remember { OrderViewport() }
 
+    val config = decodeIconSettings(settingsStore)
     val storedEntries = remember {
-        settingsStore.getStringSet(IconTunerContract.KEY_POSITION_VALUES, emptySet())
+        (config.value(IconTunerContract.KEY_POSITION_VALUES) as? Set<*>)?.filterIsInstance<String>()?.toSet() ?: emptySet()
     }
     val offCatalogEntries = remember(storedEntries) {
         IconSlotPolicy.parseLegacyOrder(storedEntries)
@@ -119,14 +120,11 @@ fun IconOrderPage(onBack: () -> Unit) {
 
     var position by rememberSaveable {
         mutableIntStateOf(
-            settingsStore.getInt(
-                IconTunerContract.KEY_POSITION,
-                IconSlotPolicyConfig.POSITION_SYSTEM
-            )
+            config.value(IconTunerContract.KEY_POSITION) as? Int ?: IconSlotPolicyConfig.POSITION_SYSTEM
         )
     }
     var reorderHidden by rememberSaveable {
-        mutableStateOf(settingsStore.getBoolean(IconTunerContract.KEY_POSITION_REORDER, false))
+        mutableStateOf(config.value(IconTunerContract.KEY_POSITION_REORDER) as? Boolean ?: false)
     }
     var order by rememberSaveable {
         mutableStateOf(IconSlotPolicy.displayOrder(storedEntries, IconSlotCatalog.orderSlots))

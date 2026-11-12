@@ -6,14 +6,14 @@ import com.takekazex.hypertweak.settings.contract.IconSlotPolicy
 import android.graphics.PorterDuff
 import android.view.View
 import android.widget.ImageView
-import com.takekazex.hypertweak.hook.base.StaticHooker
+
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.reflect.Field
 import java.lang.reflect.Method
 import java.lang.reflect.Modifier
 
 /** Applies SystemUI's area tint to module-owned bitmap status-bar slots only. */
-object IconSlotTintHooker : StaticHooker() {
+internal object IconSlotTintHooker : IconRenderer() {
 
     private const val TAG = "IconTuner"
     private const val VIEW_CLASS = "com.android.systemui.statusbar.StatusBarIconView"
@@ -34,7 +34,7 @@ object IconSlotTintHooker : StaticHooker() {
         viewClass.findMethodOrNull {
             name("updateLightDarkTint")
             paramCount(4)
-        }?.hook {
+        }?.observe {
             after { param ->
                 runCatching { applyTint(param.thisObject, param.args) }
                     .onFailure { DebugLog.w(TAG, "module icon tint failed", it) }
