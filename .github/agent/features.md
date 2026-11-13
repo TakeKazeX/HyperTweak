@@ -71,6 +71,16 @@ Overlapping rules use the strongest mode and non-default follows the active data
 Old SIM switches decode as status-bar-only, old control-center carrier switches as all; explicit
 new defaults override all old keys. The non-default rule does nothing without a known second SIM.
 
+Status-bar icon ownership and theme rules:
+- **Independent publication.** Stacked bars use `hypertweak_stacked_mobile_icon`; the former shared `stacked_mobile_icon` name is migration input only. Slot modes, custom ordering, hidden lists and control-center row overrides migrate through `IconConfigMigration`, with explicit current entries taking precedence. Never normalize a foreign runtime holder into the current slot.
+- **Module priority.** `IconHostHooks` registers host observers at priority 10,000 (EzHookTool default: 50). Its stable IDs include the priority, because API-102 `replaceHook` keeps the original handle's priority. A priority change must create new handles and retire old ones. This does not guarantee dominance over arbitrary hooks at still higher priority.
+- **Reserved slots.** `HostIconBridge.publish` replaces an ordinary foreign holder in `IconSlotPolicy.moduleSlots` instead of yielding. Other slots remain ownership-checked. Publication readback, rollback on failure, and exact icon identity for generation cleanup remain mandatory. Unknown holder shapes are rejected.
+- **No Helper coexistence.** There is no Hyper Helper detection, foreign type-slot masking, or conflict-based preference for its output. Users must disable overlapping Helper features. Do not add foreign `stacked_mobile_type` or `single_mobile_sim1/2` aliases to `IconSlotParts.CELLULAR_SLOTS`.
+- **Retired slots.** `StackedRenderer` cleans retired signal/type holders through `HostIconBridge.removeRetiredModuleHolder`, independently of settings and asset readiness. It requires this module's package and an ordinary type/tag and reads the host list back. A holder of another package stays untouched; `removeOwned` retains strict generation identity.
+- **Native type label.** Resolve unique `mobile_group`, TextView `mobile_type_single` and ViewGroup `mobile_signal_container` roles under the verified mobile root. `TypeOnlyBranchPolicy` preserves the complete label ancestry and masks sibling branches, supporting wrappers and a label relocated within the root. Layout adoption updates the topology; mask release restores the latest native visibility request. Only missing/ambiguous roles reject the host contract, never another module's presence or a wrapper by itself.
+- **Left clones and themes.** Clones are outside `mIconGroups`, so `LeftHostSubscriptions` forwards `StatusBarIconControllerImpl.onMiuiThemeChanged(boolean)` to each clone's `onMiuiThemeChanged`, then re-syncs and re-samples the handover.
+- **Two-line carrier budget.** The control-center status layout reports each icon line's free width (`IconHostPorts.carrier.rowSlack`, real LTR row only). Each carrier row extends by its own line's slack through a negative row end margin. Badges share one column only while every row can afford it; a row that cannot fit its own badge drops it.
+
 Root 设置调试、临时授权、AI 命令与 v2/v3 诊断包维护见 `docs/DEBUG_DIAGNOSTICS.md`。
 
 ## Purification and optimization page

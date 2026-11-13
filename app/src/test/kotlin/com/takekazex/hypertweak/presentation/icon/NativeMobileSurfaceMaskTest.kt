@@ -14,7 +14,7 @@ class NativeMobileSurfaceMaskTest {
 
     private fun masks(mode: IconSlotMode, ready: Boolean, mobile: MobileSignalState = state,
         stackedMode: IconSlotMode = IconSlotMode.SHOW_EVERYWHERE): Map<PlanSurface, NativeMobileMask> {
-        val policy = IconSlotPolicyConfig(slotModes = mapOf("mobile" to mode.value, "stacked_mobile_icon" to stackedMode.value))
+        val policy = IconSlotPolicyConfig(slotModes = mapOf("mobile" to mode.value, "hypertweak_stacked_mobile_icon" to stackedMode.value))
         val network = NetworkDisplayModel(mobile, visibility = NetworkIconVisibility(slotModes = policy.slotModes))
         val claims = PlanSurface.entries.map { Claim(RendererId.STACKED, it,
             setOf(SlotPart.MobileBars(11), SlotPart.MobileBars(22)), ready, 100) }

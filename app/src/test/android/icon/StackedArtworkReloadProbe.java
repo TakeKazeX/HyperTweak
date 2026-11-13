@@ -19,9 +19,11 @@ public final class StackedArtworkReloadProbe {
         public final SlotList mStatusBarIconList = new SlotList();
         private final Context context;
         int publications;
+        boolean failNext;
         Bitmap bitmap;
         Controller(Context context) { this.context = context; }
         public void setIcon(String slot, Object holder) throws Exception {
+            if (failNext) { failNext = false; throw new IllegalStateException("injected publication failure"); }
             mStatusBarIconList.holders.put(slot, holder);
             Object status = field(holder, "icon").get(holder);
             Icon icon = (Icon) field(status, "icon").get(status);
@@ -49,11 +51,52 @@ public final class StackedArtworkReloadProbe {
         Context context = (Context) thread.getMethod("getSystemContext").invoke(activityThread);
         run(context, new dalvik.system.PathClassLoader(args[0], ClassLoader.getSystemClassLoader()));
     }
+    private static void checkOwnership(Context context, ClassLoader host, ClassLoader module) throws Exception {
+        Class<?> type = module.loadClass(H + "HostIconBridge");
+        Controller controller = new Controller(context);
+        Object old = type.getConstructor(Object.class, ClassLoader.class).newInstance(controller, host);
+        Object next = type.getConstructor(Object.class, ClassLoader.class).newInstance(controller, host);
+        Method publish = type.getMethod("publish", String.class, Bitmap.class, CharSequence.class);
+        Method remove = type.getMethod("removeOwned", String.class);
+        Method cleanup = type.getMethod("removeRetiredModuleHolder", String.class);
+        Bitmap bitmap = Bitmap.createBitmap(16, 16, Bitmap.Config.ARGB_8888);
+        String own = "hypertweak_stacked_mobile_icon", shared = "stacked_mobile_icon";
+        check((Boolean) publish.invoke(old, own, bitmap, "signal"), "first generation owns reserved slot");
+        check((Boolean) publish.invoke(next, own, bitmap, "signal"), "next generation adopts reserved slot");
+        check(!(Boolean) remove.invoke(old, own), "old generation cannot delete the new icon identity");
+        Object holder = controller.mStatusBarIconList.holders.get(own);
+        Object status = field(holder, "icon").get(holder);
+        field(status, "pkg").set(status, "other.module");
+        controller.failNext = true;
+        check(!(Boolean) publish.invoke(next, own, bitmap, "signal"), "publication failure rejects update");
+        check("other.module".equals(field(field(holder, "icon").get(holder), "pkg").get(field(holder, "icon").get(holder))),
+            "failed reserved-slot takeover restores the previous foreign payload");
+        check((Boolean) publish.invoke(next, own, bitmap, "signal"), "reserved slot does not yield to a foreign ordinary holder");
+        check("com.takekazex.hypertweak".equals(field(field(holder, "icon").get(holder), "pkg").get(field(holder, "icon").get(holder))),
+            "reserved-slot takeover verifies module package");
+        check((Boolean) publish.invoke(old, shared, bitmap, "old signal"), "seed retired module holder");
+        check((Boolean) cleanup.invoke(next, shared), "upgrade removes own retired holder without generation ownership");
+        check((Boolean) cleanup.invoke(next, shared), "upgrade cleanup is idempotent");
+        check((Boolean) publish.invoke(old, shared, bitmap, "foreign signal"), "seed shared holder");
+        Object foreign = controller.mStatusBarIconList.holders.get(shared);
+        Object foreignStatus = field(foreign, "icon").get(foreign);
+        field(foreignStatus, "pkg").set(foreignStatus, "other.module");
+        check((Boolean) cleanup.invoke(next, shared) && controller.mStatusBarIconList.holders.get(shared) == foreign,
+            "retired cleanup leaves foreign shared-name holders intact");
+        check(!(Boolean) publish.invoke(next, shared, bitmap, "signal"), "shared foreign names remain unmanaged");
+        field(holder, "type").setInt(holder, 3);
+        check(!(Boolean) publish.invoke(next, own, bitmap, "signal"), "unknown native holder shape is rejected");
+        System.out.println("PASS independent_slot_ownership=true retired_cleanup=true foreign_shared_untouched=true rollback=true generation_identity=true");
+    }
     public static void run(Context context, ClassLoader module) throws Exception {
         Context hostContext = context.createPackageContext("com.android.systemui", Context.CONTEXT_IGNORE_SECURITY | Context.CONTEXT_INCLUDE_CODE);
+        hostContext = new android.content.ContextWrapper(hostContext) {
+            @Override public Context getApplicationContext() { return this; }
+        };
         ClassLoader host = hostContext.getClassLoader();
         Class<?> flows = module.loadClass(H + "IconTunerFlows");
         flows.getMethod("init", ClassLoader.class).invoke(flows.getField("INSTANCE").get(null), host);
+        checkOwnership(hostContext, host, module);
         Object renderer = module.loadClass(H + "StackedRenderer").getField("INSTANCE").get(null);
         Controller controller = new Controller(hostContext);
         Object bridge = module.loadClass(H + "HostIconBridge").getConstructor(Object.class, ClassLoader.class).newInstance(controller, host);
@@ -63,8 +106,8 @@ public final class StackedArtworkReloadProbe {
         privateCall(renderer, "setRenderStacked", new Class<?>[]{boolean.class}, true);
         Object policy = module.loadClass(C + "IconSlotPolicyConfig").getConstructor().newInstance();
         Class<?> optionsType = module.loadClass(C + "IconTunerSnapshot");
-        Object options = optionsType.getConstructor(policy.getClass(), boolean.class, boolean.class, boolean.class, int.class)
-            .newInstance(policy, true, false, false, 0);
+        Object options = optionsType.getConstructor(policy.getClass(), boolean.class, boolean.class, boolean.class, int.class, int.class)
+            .newInstance(policy, true, false, false, 0, 0);
         privateCall(renderer, "setOptions", new Class<?>[]{optionsType}, options);
         Context assetsContext = context.createPackageContext("com.takekazex.hypertweak", Context.CONTEXT_IGNORE_SECURITY);
         Class<?> repositoryType = module.loadClass(P + "IconSvgRepository");

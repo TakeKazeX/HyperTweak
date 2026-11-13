@@ -165,6 +165,24 @@ object CarrierBlockPolicy {
         desired.coerceAtLeast(0).coerceAtMost((available / 3).coerceAtLeast(0))
             .coerceAtMost(textWidth(available, nameReserve.coerceAtLeast(0) + gap.coerceAtLeast(0)))
 
+    /**
+     * One badge width per visible row. The badges share one column, at the widest natural badge,
+     * while every row can afford it. Otherwise each row falls back to its own natural width, and a
+     * row that cannot fit even that drops its badge entirely: an ellipsized one- or two-character
+     * label inside a kept frame is an unreadable empty box.
+     */
+    fun badgeWidths(available: List<Int>, natural: List<Int>, gap: Int, nameReserve: Int): List<Int> {
+        require(available.size == natural.size)
+        val desired = natural.maxOrNull()?.coerceAtLeast(0) ?: return emptyList()
+        if (desired > 0 && available.all { badgeWidth(it, desired, gap, nameReserve) >= desired }) {
+            return available.map { desired }
+        }
+        return available.indices.map { index ->
+            val own = natural[index].coerceAtLeast(0)
+            if (own > 0 && badgeWidth(available[index], own, gap, nameReserve) >= own) own else 0
+        }
+    }
+
     fun iconHeight(resourceHeight: Int?, density: Float): Int =
         resourceHeight?.takeIf { it > 0 } ?: kotlin.math.round(20f * density).toInt().coerceAtLeast(1)
 

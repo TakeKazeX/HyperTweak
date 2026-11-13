@@ -120,6 +120,14 @@ internal class CarrierBlock(
     val gravity = layout.gravity
     val separatorState = separator?.let(::CarrierViewState)
     val keyguardSeparatorState = keyguardSeparator?.let(::CarrierViewState)
+    val clipChildren = layout.clipChildren
+    /**
+     * Extra width each visual row may borrow from the status root on its right, in pixels, as
+     * published by the two-row status layout: index 0 is the upper row, 1 the lower row. The
+     * block's constraint ends at the status root, whose single-row measured width is wider than
+     * either row's actual icons once they are split over two lines.
+     */
+    val rowSlack = IntArray(2)
     var compact = false
     var geometry: TwoRowIconLayout.Geometry? = null
     val geometryInputs = CarrierLayoutInputs(6 + rows.size * 3)

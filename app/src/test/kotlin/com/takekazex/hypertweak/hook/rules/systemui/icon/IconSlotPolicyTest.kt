@@ -18,14 +18,14 @@ class IconSlotPolicyTest {
     @Test fun hostCatalogReservesStackedSlotWithoutMovingIndicesAcrossStyleSwitches() {
         val native = listOf("alarm_clock", "mobile", "wifi", "handle_battery")
         val policy = IconSlotPolicyConfig(position = IconSlotPolicyConfig.POSITION_CUSTOM,
-            customOrderEntries = setOf("0:wifi", "1:stacked_mobile_icon", "2:mobile"))
+            customOrderEntries = setOf("0:wifi", "1:hypertweak_stacked_mobile_icon", "2:mobile"))
         val normal = IconSlotPolicy.normalizeHostCatalog(native, native, policy)
-        assertTrue(normal.contains("stacked_mobile_icon"))
+        assertTrue(normal.contains("hypertweak_stacked_mobile_icon"))
         val stacked = IconSlotPolicy.normalizeHostCatalog(native, normal,
-            policy.copy(enabledModuleSlots = setOf("stacked_mobile_icon")))
+            policy.copy(enabledModuleSlots = setOf("hypertweak_stacked_mobile_icon")))
         assertEquals(normal, stacked)
         assertEquals(stacked, IconSlotPolicy.normalizeHostCatalog(native, stacked, policy))
-        assertEquals(native.toSet(), normal.filterNot { it == "stacked_mobile_icon" }.toSet())
+        assertEquals(native.toSet(), normal.filterNot { it == "hypertweak_stacked_mobile_icon" }.toSet())
     }
 
     @Test
@@ -113,20 +113,20 @@ class IconSlotPolicyTest {
         val native = listOf("alarm_clock", "mobile", "wifi")
         val custom = IconSlotPolicyConfig(
             position = IconSlotPolicyConfig.POSITION_CUSTOM,
-            customOrderEntries = setOf("0:alarm_clock", "1:mobile", "2:wifi", "3:stacked_mobile_icon"),
+            customOrderEntries = setOf("0:alarm_clock", "1:mobile", "2:wifi", "3:hypertweak_stacked_mobile_icon"),
             enabledModuleSlots = IconSlotPolicy.STACKED_SLOTS.toSet()
         )
-        val trailing = listOf("alarm_clock", "stacked_mobile_icon", "mobile", "wifi")
+        val trailing = listOf("alarm_clock", "hypertweak_stacked_mobile_icon", "mobile", "wifi")
         assertEquals(trailing, IconSlotPolicy.normalizeOrder(native, custom))
         assertEquals(trailing, IconSlotPolicy.normalizeHostCatalog(native, trailing, custom))
         val leading = custom.copy(stackedTypeLeading = true)
-        val leadingOrder = listOf("alarm_clock", "mobile", "stacked_mobile_icon", "wifi")
+        val leadingOrder = listOf("alarm_clock", "mobile", "hypertweak_stacked_mobile_icon", "wifi")
         assertEquals(leadingOrder, IconSlotPolicy.normalizeOrder(native, leading))
         assertEquals(leadingOrder, IconSlotPolicy.normalizeHostCatalog(native, trailing, leading))
         assertEquals(trailing, IconSlotPolicy.normalizeHostCatalog(native, leadingOrder, custom))
         // Without the stacked style the reserved holder keeps whatever place the list gives it.
-        assertEquals(listOf("alarm_clock", "mobile", "wifi", "stacked_mobile_icon"),
-            IconSlotPolicy.normalizeOrder(native + "stacked_mobile_icon", custom.copy(enabledModuleSlots = emptySet())))
+        assertEquals(listOf("alarm_clock", "mobile", "wifi", "hypertweak_stacked_mobile_icon"),
+            IconSlotPolicy.normalizeOrder(native + "hypertweak_stacked_mobile_icon", custom.copy(enabledModuleSlots = emptySet())))
         for (order in 0..3) {
             assertEquals(order == 1 || order == 3, IconSettingsPreferencePolicy.stackedTypeLeading(order))
         }
@@ -148,7 +148,7 @@ class IconSlotPolicyTest {
             assertEquals(current.size, current.toSet().size)
             current = IconSlotPolicy.normalizeReloadOrder(native, current, mobileFirst.copy(
                 position = IconSlotPolicyConfig.POSITION_WIFI_BEFORE_MOBILE))
-            assertTrue(current.indexOf("wifi") < current.indexOf("stacked_mobile_icon"))
+            assertTrue(current.indexOf("wifi") < current.indexOf("hypertweak_stacked_mobile_icon"))
         }
     }
 
@@ -182,9 +182,9 @@ class IconSlotPolicyTest {
     @Test
     fun reloadOrderPreservesNewHostSlotsAndRetainsModuleHolders() {
         val native = listOf("alarm_clock", "mobile", "wifi")
-        val existing = listOf("wifi", "future_indicator", "mobile", "stacked_mobile_icon", "alarm_clock")
+        val existing = listOf("wifi", "future_indicator", "mobile", "hypertweak_stacked_mobile_icon", "alarm_clock")
         val result = IconSlotPolicy.normalizeReloadOrder(native, existing, IconSlotPolicyConfig())
-        assertEquals(native + listOf("future_indicator", "stacked_mobile_icon"), result)
+        assertEquals(native + listOf("future_indicator", "hypertweak_stacked_mobile_icon"), result)
         assertEquals(existing.toSet(), result.toSet())
         assertEquals(result, IconSlotPolicy.normalizeReloadOrder(native, result, IconSlotPolicyConfig()))
     }
@@ -195,7 +195,7 @@ class IconSlotPolicyTest {
             .filter { IconSlotPolicy.isTwoLineUpperSlot(it) }
             .toSet()
         assertEquals(setOf(
-            "stacked_mobile_icon",
+            "hypertweak_stacked_mobile_icon",
             "mobile", "demo_mobile", "wifi", "demo_wifi", "network_speed", "airplane", "ethernet", "no_sim", "alarm_clock", "hotspot", "location", "gps", "nfc"
         ), networkSlots)
         for (slot in listOf("zen", "quiet", "mute", "volume", "bluetooth", "headset", "wireless_headset", "vpn", "future_indicator")) {
@@ -427,7 +427,7 @@ class IconSlotPolicyTest {
             listOf(
                 "wifi",
                 "demo_wifi",
-                "stacked_mobile_icon",
+                "hypertweak_stacked_mobile_icon",
                 "mobile",
                 "future_slot"
             ),
@@ -437,13 +437,13 @@ class IconSlotPolicyTest {
 
     @Test
     fun hiddenReorderIsStableAndKeepsSignalGroupInPlacePartition() {
-        val slots = listOf("visible_a", "hidden_a", "stacked_mobile_icon", "hidden_b", "stacked_mobile_type")
+        val slots = listOf("visible_a", "hidden_a", "hypertweak_stacked_mobile_icon", "hidden_b", "stacked_mobile_type")
         assertEquals(
-            listOf("hidden_a", "hidden_b", "visible_a", "stacked_mobile_icon", "stacked_mobile_type"),
+            listOf("hidden_a", "hidden_b", "visible_a", "hypertweak_stacked_mobile_icon", "stacked_mobile_type"),
             IconSlotPolicy.reorderHidden(
                 slots,
-                hiddenSlots = setOf("hidden_a", "hidden_b", "stacked_mobile_icon"),
-                signalSlots = setOf("stacked_mobile_icon", "stacked_mobile_type")
+                hiddenSlots = setOf("hidden_a", "hidden_b", "hypertweak_stacked_mobile_icon"),
+                signalSlots = setOf("hypertweak_stacked_mobile_icon", "stacked_mobile_type")
             )
         )
     }

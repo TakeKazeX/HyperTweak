@@ -28,7 +28,7 @@ public final class PanelGlyphProbe {
         @Override public boolean isAttachedToWindow() { return true; }
     }
     public static final class StackedCopy extends ImageView {
-        public final String mSlot = "stacked_mobile_icon";
+        public final String mSlot = "hypertweak_stacked_mobile_icon";
         public StackedCopy(Context context) { super(context); }
     }
     private static java.lang.reflect.Field field(Object owner, String name) throws Exception {

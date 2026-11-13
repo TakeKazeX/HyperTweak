@@ -74,8 +74,9 @@ internal object StackedRenderer : IconRenderer() {
 
     private const val TAG = "IconTuner"
     private const val SLOT_STACKED = IconSlotPolicy.SLOT_STACKED_SIGNAL
-    // The retired separate type slot; a generation upgraded from an older build may still own it.
-    private const val RETIRED_TYPE_SLOT = "stacked_mobile_type"
+    // Old module publications can survive an APK upgrade without generation ownership records.
+    private val RETIRED_SLOTS = listOf(IconSlotPolicy.LEGACY_STACKED_SIGNAL,
+        "stacked_mobile_type", "single_mobile_sim1", "single_mobile_sim2")
 
     /** Bounded backoff before re-reading signal artwork that failed to load. */
     private const val ASSET_LOAD_RETRY_BACKOFF_MS = 5_000L
@@ -116,6 +117,10 @@ internal object StackedRenderer : IconRenderer() {
             }
             bridgeController = WeakReference(controller)
             iconBridge = HostIconBridge(controller, classLoader)
+            retiredSlotsCleared = false
+            // Independent of the stacked setting and of asset readiness: the retired holder is
+            // outside every current mask, so it must go even when this generation stays native.
+            clearRetiredSlots()
             scheduleSignalAssetsLoad(generation.get())
         }
         scheduleRender(generation.get())
@@ -145,6 +150,8 @@ internal object StackedRenderer : IconRenderer() {
     private var svgRepository: IconSvgRepository? by generationState { null }
 
     private var iconBridge: HostIconBridge? by generationState { null }
+    /** True once the controller was read back without any retired module holders. */
+    private var retiredSlotsCleared by generationState { false }
 
     private var options by generationState { IconTunerOptions.snapshot() }
 
@@ -421,7 +428,7 @@ internal object StackedRenderer : IconRenderer() {
             restoreNative()
             return StackedOutcome.NATIVE
         }
-        bridge.removeOwned(RETIRED_TYPE_SLOT)
+        clearRetiredSlots()
         publishedSignalRows = renderRows
         publishedSignalPicture = if (replacementVisible) PublishedSignalPicture(IconSvgRenderer.signalPicture(
             if (renderRows.size > 1) assets.stacked.document else assets.single.document,
@@ -478,7 +485,17 @@ internal object StackedRenderer : IconRenderer() {
         panelMotions.values.forEach { it.clear() }
         val bridge = iconBridge ?: return
         bridge.removeOwned(SLOT_STACKED)
-        bridge.removeOwned(RETIRED_TYPE_SLOT)
+        clearRetiredSlots()
+    }
+
+    /**
+     * Upgrade cleanup for retired signal/type holders. Only ordinary holders naming this module
+     * are removed. Foreign publications with these old shared names are never managed here.
+     */
+    private fun clearRetiredSlots() {
+        if (retiredSlotsCleared || Looper.myLooper() != Looper.getMainLooper()) return
+        val bridge = iconBridge ?: return
+        retiredSlotsCleared = RETIRED_SLOTS.map(bridge::removeRetiredModuleHolder).all { it }
     }
 
     private fun stackHasHomeSource(): Boolean =

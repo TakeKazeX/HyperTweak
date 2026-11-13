@@ -30,7 +30,8 @@ internal object SystemUiIconPorts {
             owns = { CarrierRenderer.ownsLayout(it) },
             firstCenter = { CarrierRenderer.firstRowCenter(it) },
             ownsRow = { CarrierRenderer.ownsRow(it) },
-            geometry = { CarrierRenderer.rowGeometry(it) }
+            geometry = { CarrierRenderer.rowGeometry(it) },
+            rowSlack = { carrier, upper, lower -> CarrierRenderer.updateRowSlack(carrier, upper, lower) }
         ),
         duo = IconHostServices.Duo(
             releaseStatusIcons = { DuoRenderer.releaseLeftStatusIcons(it) },
@@ -46,7 +47,8 @@ internal object SystemUiIconPorts {
             secondRowStatusIconsEnabled = { ControlCenterHeaderHooker.secondRowStatusIconsEnabled(it) }
         ),
         republish = { IconManagerHooker.republishMergedLists() },
-        mobileReady = { MobilePipelineAdapter.mobilePipelineConnected }
+        mobileReady = { MobilePipelineAdapter.mobilePipelineConnected },
+        stackedTypeOnlyLost = { StackedRenderer.refreshSettings() }
     ))
     fun retire(owner: Any) = IconHostPorts.services.retire(owner)
 }

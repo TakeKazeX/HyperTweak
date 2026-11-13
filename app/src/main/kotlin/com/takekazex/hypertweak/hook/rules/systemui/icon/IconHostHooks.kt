@@ -27,6 +27,7 @@ internal class IconHostCallbacks {
  */
 internal object IconHostHooks : StaticHooker() {
     private const val TAG = "IconHostHooks"
+    private const val HOOK_PRIORITY = 10_000
 
     private class Callbacks {
         val before = HostCallbackRegistry<HookParam> { DebugLog.w(TAG, "before callback failed", it) }
@@ -65,12 +66,18 @@ internal object IconHostHooks : StaticHooker() {
 
     private fun install(target: Executable): Callbacks {
         val callbacks = Callbacks()
+        // API-102 replaceHook preserves the old priority. A priority-qualified ID makes the
+        // upgrade register a fresh handle and retire the old one; later reloads reuse this ID.
+        val hookId = "HyperTweak.IconHostHooks.p$HOOK_PRIORITY.${target.declaringClass.name}#${target.name}" +
+            target.parameterTypes.joinToString(prefix = "(", postfix = ")") { it.name }
         when (target) {
-            is Method -> target.hook {
+            is Method -> target.hook(hookId) {
+                priority(HOOK_PRIORITY)
                 before { callbacks.before.dispatch(it) }
                 after { callbacks.after.dispatch(it) }
             }
-            is Constructor<*> -> target.hook {
+            is Constructor<*> -> target.hook(hookId) {
+                priority(HOOK_PRIORITY)
                 after { callbacks.after.dispatch(it) }
             }
             else -> error("Unsupported icon executable ${target.javaClass.name}")

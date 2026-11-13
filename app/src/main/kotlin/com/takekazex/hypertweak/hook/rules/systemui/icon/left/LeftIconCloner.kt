@@ -71,6 +71,7 @@ internal class LeftIconCloner(owner: BaseHooker) : HookComponent(owner) {
     private var iconViewSetMethod: Method? = null
     private var iconViewSetResolved = false
     private var darkDispatcherField: Field? = null
+    private var themeChangedMethod: Method? = null
     fun isAnimating(view: View): Boolean = cloneFades[view]?.animator != null
     /** The settled visibility a clone is fading towards, not its current frame. */
     fun shows(view: View): Boolean = cloneFades[view]?.visible ?: (view.visibility == View.VISIBLE)
@@ -85,6 +86,7 @@ internal class LeftIconCloner(owner: BaseHooker) : HookComponent(owner) {
         iconViewSetMethod = null
         iconViewSetResolved = false
         darkDispatcherField = null
+        themeChangedMethod = null
     }
     fun prepare(): Boolean {
 
@@ -112,6 +114,16 @@ internal class LeftIconCloner(owner: BaseHooker) : HookComponent(owner) {
         isIconVisibleMethod = runCatching {
             HostAccess.requirePublicMethod(iconViewClass, "isIconVisible", accessible = false)
         }.getOrNull()
+        // StatusIconDisplayable.onMiuiThemeChanged(boolean): the per-view theme refresh the host
+        // only sends to children of registered icon groups (updateIconDimens -> reloadDimens,
+        // updateDrawable(true)). Clones are not in any group, so the left renderer forwards it.
+        themeChangedMethod = runCatching {
+            HostAccess.requirePublicMethod(iconViewClass, "onMiuiThemeChanged",
+                Boolean::class.javaPrimitiveType!!, accessible = false)
+        }.getOrNull()?.takeIf { it.returnType == Void.TYPE }
+        if (themeChangedMethod == null) {
+            DebugLog.hookSkipped(TAG, "$STATUS_BAR_ICON_VIEW_CLASS#onMiuiThemeChanged", "method not found")
+        }
 
         return true
     }
@@ -178,6 +190,19 @@ internal class LeftIconCloner(owner: BaseHooker) : HookComponent(owner) {
         } ?: false
         animateCloneVisibility(clone, visible)
         return true
+    }
+
+    /**
+     * Replays the host's per-view theme refresh on a clone. `set()` alone compares icon type,
+     * package and resource id, so a theme that swaps a resource's content in place would leave
+     * the clone with the old drawable and dimensions.
+     */
+    fun applyThemeChange(clone: View, force: Boolean): Boolean {
+        val method = themeChangedMethod ?: return false
+        if (!method.declaringClass.isInstance(clone)) return false
+        return runCatching { method.invoke(clone, force); true }
+            .onFailure { DebugLog.w(TAG, "left clone theme refresh failed", it) }
+            .getOrDefault(false)
     }
 
     private class CloneFade(var visible: Boolean? = null, var animator: android.animation.ValueAnimator? = null)

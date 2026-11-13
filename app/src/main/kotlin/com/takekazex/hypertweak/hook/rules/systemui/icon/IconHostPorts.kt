@@ -29,7 +29,9 @@ internal class IconHostServices {
         val owns: (ViewGroup?) -> Boolean = { false },
         val firstCenter: (ViewGroup) -> Int = { 0 },
         val ownsRow: (ViewGroup?) -> Boolean = { false },
-        val geometry: (ViewGroup) -> TwoRowIconLayout.Geometry? = { null }
+        val geometry: (ViewGroup) -> TwoRowIconLayout.Geometry? = { null },
+        /** Free width, in pixels, the upper/lower status icon lines leave beside this carrier. */
+        val rowSlack: (ViewGroup, Int, Int) -> Unit = { _, _, _ -> }
     )
     data class Duo(
         val releaseStatusIcons: (Set<String>) -> Unit = {},
@@ -51,7 +53,9 @@ internal class IconHostServices {
         val carrier: CarrierLayout = CarrierLayout(),
         val duo: Duo = Duo(), val header: Header = Header(),
         val keyguard: Keyguard = Keyguard(),
-        val republish: () -> Unit = {}, val mobileReady: () -> Boolean = { false }
+        val republish: () -> Unit = {}, val mobileReady: () -> Boolean = { false },
+        /** The type-only row became unusable; the stacked takeover must re-evaluate. */
+        val stackedTypeOnlyLost: () -> Unit = {}
     )
     private data class Owned(val owner: Any?, val binding: Binding)
     @Volatile private var current = Owned(null, Binding())
@@ -72,4 +76,5 @@ internal object IconHostPorts {
     val header get() = services.binding.header
     fun republish() = services.binding.republish()
     fun mobileReady() = services.binding.mobileReady()
+    fun stackedTypeOnlyLost() = services.binding.stackedTypeOnlyLost()
 }

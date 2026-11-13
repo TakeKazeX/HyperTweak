@@ -474,7 +474,7 @@ internal object DebugSettingsCatalog {
         DebugSetting("icon_tuner_slot_phone", "Int", 0),
         DebugSetting("icon_tuner_slot_hd", "Int", 0),
         DebugSetting("icon_tuner_slot_airplane", "Int", 0),
-        DebugSetting("icon_tuner_slot_stacked_mobile_icon", "Int", 0),
+        DebugSetting("icon_tuner_slot_hypertweak_stacked_mobile_icon", "Int", 0),
         DebugSetting("icon_tuner_slot_mobile", "Int", 0),
         DebugSetting("icon_tuner_slot_demo_mobile", "Int", 0),
         DebugSetting("icon_tuner_slot_no_sim", "Int", 0),

@@ -7,7 +7,7 @@ enum class IconSurface {
     UNKNOWN
 }
 
-/** Stable wire values used by the settings page and the old XiaomiHelper port. */
+/** Stable wire values shared by the settings page and runtime policy. */
 enum class IconSlotMode(val value: Int) {
     FOLLOW_SYSTEM(0),
     SHOW_EVERYWHERE(1),
@@ -67,11 +67,14 @@ object IconSlotPolicy {
             config.copy(enabledModuleSlots = config.enabledModuleSlots + SLOT_STACKED_SIGNAL))
 
     const val SLOT_MOBILE = "mobile"
-    const val SLOT_STACKED_SIGNAL = "stacked_mobile_icon"
+    const val SLOT_STACKED_SIGNAL = "hypertweak_stacked_mobile_icon"
+    const val LEGACY_STACKED_SIGNAL = "stacked_mobile_icon"
     const val SLOT_WIFI = "wifi"
     const val SLOT_DEMO_WIFI = "demo_wifi"
     const val SLOT_ROTATION_LOCK = "hypertweak_rotation_lock"
     const val SLOT_AIRPLANE = "airplane"
+
+    val moduleSlots: Set<String> = setOf(SLOT_STACKED_SIGNAL, SLOT_ROTATION_LOCK)
 
     val configurableSlots: List<String> = listOf(
         SLOT_ROTATION_LOCK,
@@ -181,6 +184,7 @@ object IconSlotPolicy {
      * the independent key is absent.
      */
     fun preferenceSlotAliases(slot: String): List<String> = when (slot) {
+        SLOT_STACKED_SIGNAL -> listOf(SLOT_STACKED_SIGNAL, LEGACY_STACKED_SIGNAL)
         SLOT_DEMO_WIFI -> listOf(SLOT_DEMO_WIFI, SLOT_WIFI)
         "gps" -> listOf("gps", "location")
         "network_speed" -> listOf("network_speed", "net_speed")

@@ -94,6 +94,8 @@ internal class CarrierPresentation(private val host: Host, private val rowRender
             return
         }
         IconHostPorts.header.ensureCompactCarrierVisible(block.layout)
+        // A row may extend past the block end into status-root width its own icon line leaves free.
+        block.layout.clipChildren = false
         block.layout.orientation = LinearLayout.VERTICAL
         block.layout.gravity = Gravity.START or Gravity.TOP
         collapse(block.separator)
@@ -175,13 +177,26 @@ internal class CarrierPresentation(private val host: Host, private val rowRender
                 .forEach { it.visibility = View.GONE }
         }
         (readField(block.layout, "lastMaxWidth") as? IntArray)?.fill(0)
+        block.layout.clipChildren = block.clipChildren
+        block.rowSlack.fill(0)
     }
 
     fun measureRows(block: CarrierBlock, width: Int) {
-        val rowWidths = block.rows.filter { it.row.isVisible }.map { parts ->
+        // Visual line order: visible rows in the configured order. The status layout publishes
+        // the free width for its upper and lower icon lines; each carrier row uses its own line's.
+        val visibleRows = block.rows.filter { it.row.isVisible }.sortedBy { host.rowOrder.indexOf(it.slot) }
+        val ltr = block.layout.layoutDirection != View.LAYOUT_DIRECTION_RTL
+        val rowWidths = visibleRows.mapIndexed { line, parts ->
+            val slack = if (ltr && visibleRows.size == 2) block.rowSlack[line].coerceAtLeast(0) else 0
+            val rowParams = parts.row.layoutParams as? LinearLayout.LayoutParams
+            if (rowParams != null && rowParams.marginEnd != -slack) {
+                rowParams.marginEnd = -slack
+                parts.row.layoutParams = rowParams
+            }
+            val rowWidth = width + slack
             val fixed = listOf(parts.signal, parts.networkSlot)
                 .filter { it.visibility != View.GONE }.sumOf { view ->
-                    view.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.AT_MOST),
+                    view.measure(View.MeasureSpec.makeMeasureSpec(rowWidth, View.MeasureSpec.AT_MOST),
                         View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED))
                     val lp = view.layoutParams as LinearLayout.LayoutParams
                     (if (lp.width >= 0) lp.width else view.measuredWidth) + lp.marginStart + lp.marginEnd
@@ -189,22 +204,28 @@ internal class CarrierPresentation(private val host: Host, private val rowRender
             val textParams = parts.carrierText.layoutParams as? ViewGroup.MarginLayoutParams
             val padding = block.layout.paddingStart + block.layout.paddingEnd + parts.row.paddingStart +
                 parts.row.paddingEnd + (textParams?.marginStart ?: 0) + (textParams?.marginEnd ?: 0)
-            parts to CarrierBlockPolicy.textWidth(width, fixed + padding)
+            parts to CarrierBlockPolicy.textWidth(rowWidth, fixed + padding)
+        }
+        block.rows.filterNot { it.row.isVisible }.forEach { parts ->
+            val rowParams = parts.row.layoutParams as? LinearLayout.LayoutParams
+            if (rowParams != null && rowParams.marginEnd != 0) {
+                rowParams.marginEnd = 0
+                parts.row.layoutParams = rowParams
+            }
         }
         val gap = (4 * block.layout.resources.displayMetrics.density).roundToInt()
         val visibleBadges = rowWidths.filter { (parts, _) -> parts.badge.isVisible }
-        val desired = visibleBadges.maxOfOrNull { (parts, _) ->
+        val natural = visibleBadges.map { (parts, _) ->
             ceil(parts.badge.paint.measureText(parts.badge.text.toString())).toInt() +
                 parts.badge.paddingStart + parts.badge.paddingEnd
-        } ?: 0
-        // Both badges occupy the same column, bounded by the row with less room for its name.
-        val sharedBadgeWidth = visibleBadges.minOfOrNull { (parts, available) ->
-            CarrierBlockPolicy.badgeWidth(
-                available, desired, gap, ceil(parts.carrierText.paint.measureText("MMMM")).toInt()
-            )
-        } ?: 0
+        }
+        val badgeWidths = CarrierBlockPolicy.badgeWidths(
+            visibleBadges.map { it.second }, natural, gap,
+            visibleBadges.maxOfOrNull { (parts, _) -> ceil(parts.carrierText.paint.measureText("MMMM")).toInt() } ?: 0
+        )
+        val widthByRow = visibleBadges.mapIndexed { index, (parts, _) -> parts to badgeWidths[index] }.toMap()
         rowWidths.forEach { (parts, available) ->
-            val badgeWidth = if (parts.badge.isVisible) sharedBadgeWidth else 0
+            val badgeWidth = widthByRow[parts] ?: 0
             val badgeParams = parts.badge.layoutParams as LinearLayout.LayoutParams
             val badgeGap = if (badgeWidth > 0) gap else 0
             if (badgeParams.width != badgeWidth || badgeParams.marginEnd != badgeGap) {

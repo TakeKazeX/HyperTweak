@@ -62,6 +62,18 @@ class CarrierBlockModelTest {
     }
 
     @Test
+    fun badgesShareOneColumnOnlyWhileEveryRowCanAffordIt() {
+        // Both rows fit the widest badge: one aligned column.
+        assertEquals(listOf(40, 40), CarrierBlockPolicy.badgeWidths(listOf(220, 200), listOf(40, 30), 4, 52))
+        // The tight row cannot fit the shared column but fits its own badge; the roomy row keeps
+        // its own natural width instead of being squeezed by the tight one.
+        assertEquals(listOf(40, 30), CarrierBlockPolicy.badgeWidths(listOf(220, 95), listOf(40, 30), 4, 52))
+        // A row too tight for even its own badge drops it instead of keeping an empty frame.
+        assertEquals(listOf(40, 0), CarrierBlockPolicy.badgeWidths(listOf(220, 70), listOf(40, 30), 4, 52))
+        assertEquals(emptyList<Int>(), CarrierBlockPolicy.badgeWidths(emptyList(), emptyList(), 4, 52))
+    }
+
+    @Test
     fun iconHeightUsesHostPixelsWhileTypeTextCanGrowWithFontScale() {
         assertEquals(60, CarrierBlockPolicy.iconHeight(60, 3f))
         assertEquals(60, CarrierBlockPolicy.iconHeight(null, 3f))
@@ -508,7 +520,7 @@ class CarrierBlockModelTest {
     @Test
     fun missingWifiArtworkCanReleaseWifiWithoutReleasingCellular() {
         val both = CarrierMask(cellular = true, wifi = true).slots()
-        assertTrue("wifi" in both && "mobile" in both && "stacked_mobile_icon" in both)
+        assertTrue("wifi" in both && "mobile" in both && "hypertweak_stacked_mobile_icon" in both)
         val cellularOnly = CarrierMask(cellular = true).slots()
         assertFalse("wifi" in cellularOnly)
         assertTrue("mobile" in cellularOnly)

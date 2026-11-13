@@ -90,7 +90,7 @@ object IconSlotCatalog {
         IconSlotInfo("hd", R.string.icon_slot_hd, R.drawable.ic_stat_sys_speech_hd),
         IconSlotInfo("airplane", R.string.icon_slot_airplane, R.drawable.ic_stat_sys_airplane),
         IconSlotInfo(
-            "stacked_mobile_icon",
+            "hypertweak_stacked_mobile_icon",
             R.string.icon_slot_stacked_mobile_icon,
             R.drawable.ic_stat_sys_stacked_icon
         ),

@@ -174,7 +174,7 @@ class StatusBarPreviewModelTest {
     @Test
     fun stackedSignalReplacesTheNativePair() {
         val slots = allSlots(buildStatusBarPreview(input(stackedEnabled = true)))
-        assertTrue(slots.contains("stacked_mobile_icon"))
+        assertTrue(slots.contains("hypertweak_stacked_mobile_icon"))
         assertFalse(slots.contains("preview_sim1"))
         assertFalse(slots.contains("preview_sim2"))
     }
@@ -183,16 +183,16 @@ class StatusBarPreviewModelTest {
     fun stackedSignalHonorsItsOwnSlotMode() {
         val slots = allSlots(
             buildStatusBarPreview(
-                input(stackedEnabled = true, slotModes = mapOf("stacked_mobile_icon" to 4))
+                input(stackedEnabled = true, slotModes = mapOf("hypertweak_stacked_mobile_icon" to 4))
             )
         )
-        assertFalse(slots.contains("stacked_mobile_icon"))
+        assertFalse(slots.contains("hypertweak_stacked_mobile_icon"))
     }
 
     @Test
     fun stackedPreviewHidesBarsAndNativeTypeWithTheMobileSlot() {
         val hiddenGroup = buildStatusBarPreview(input(stackedEnabled = true, slotModes = mapOf("mobile" to 3)))
-        assertFalse("stacked_mobile_icon" in hiddenGroup.coreSlots)
+        assertFalse("hypertweak_stacked_mobile_icon" in hiddenGroup.coreSlots)
         assertFalse(hiddenGroup.showNetworkType)
     }
 
@@ -203,15 +203,15 @@ class StatusBarPreviewModelTest {
             val core = buildStatusBarPreview(input(
                 stackedEnabled = true, useSeparateCellularType = false, typeOrder = order
             )).coreSlots
-            assertEquals(core.indexOf("stacked_mobile_icon") + 1, core.indexOf(PREVIEW_NATIVE_TYPE_SLOT))
+            assertEquals(core.indexOf("hypertweak_stacked_mobile_icon") + 1, core.indexOf(PREVIEW_NATIVE_TYPE_SLOT))
         }
         // Swap/left put it before them, even when a custom list ordered the bars first.
         for (order in listOf(1, 3)) {
             val core = buildStatusBarPreview(input(
                 stackedEnabled = true, useSeparateCellularType = false, typeOrder = order,
-                position = 2, customOrder = setOf("0:stacked_mobile_icon", "1:mobile")
+                position = 2, customOrder = setOf("0:hypertweak_stacked_mobile_icon", "1:mobile")
             )).coreSlots
-            assertEquals(core.indexOf("stacked_mobile_icon") - 1, core.indexOf(PREVIEW_NATIVE_TYPE_SLOT))
+            assertEquals(core.indexOf("hypertweak_stacked_mobile_icon") - 1, core.indexOf(PREVIEW_NATIVE_TYPE_SLOT))
         }
     }
 

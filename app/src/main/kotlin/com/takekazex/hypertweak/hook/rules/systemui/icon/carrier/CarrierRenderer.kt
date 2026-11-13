@@ -491,6 +491,22 @@ internal object CarrierRenderer : IconRenderer() {
         return block.geometry
     }
 
+    /**
+     * The two-row status layout reports how far each of its icon lines leaves the status root's
+     * single-row width free. A change re-measures the block on the next frame so each carrier row
+     * gets its own line's budget; unchanged values cost nothing.
+     */
+    internal fun updateRowSlack(layout: ViewGroup, upper: Int, lower: Int) {
+        val block = blocks[layout]?.takeIf { enabled && it.compact } ?: return
+        val first = upper.coerceAtLeast(0)
+        val second = lower.coerceAtLeast(0)
+        if (block.rowSlack[0] == first && block.rowSlack[1] == second) return
+        block.rowSlack[0] = first
+        block.rowSlack[1] = second
+        // Reported from inside the status layout pass; a direct requestLayout would be dropped.
+        layout.post { if (blocks[layout] === block && block.compact) layout.requestLayout() }
+    }
+
     fun firstRowCenter(layout: ViewGroup): Int = rowGeometry(layout)?.firstCenter?.roundToInt() ?: 0
 
     /** Duo asks about this exact expanded container, never a global signal preference. */

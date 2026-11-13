@@ -147,6 +147,8 @@ internal object LeftRenderer : IconRenderer() {
         "com.android.systemui.statusbar.phone.MiuiKeyguardStatusBarView"
     internal const val ISLAND_HANDLER_CLASS =
         "com.android.systemui.statusbar.StatusBarIslandControllerImpl\$IslandStateHandler"
+    internal const val THEME_CONTROLLER_CLASS =
+        "com.android.systemui.statusbar.phone.ui.StatusBarIconControllerImpl"
 
     /**
      * Per-frame panel expansion of the control center, in resolution order. Both carry the same
@@ -488,6 +490,19 @@ internal object LeftRenderer : IconRenderer() {
     private val reconciler = LeftReconciler()
     private fun reconcileTick() = reconciler.reconcileTick()
     internal fun requestReconcile() = reconciler.requestReconcile()
+
+    /**
+     * Forwards a host theme change to every living clone, then re-syncs payload and layout from
+     * the right-cluster sources and drops sampled handover overlays. Main thread.
+     */
+    internal fun onThemeChanged(force: Boolean) {
+        val clones = synchronized(states) { states.values.flatMap { it.clones.values } }
+        val refreshed = clones.count { cloner.applyThemeChange(it, force) }
+        handover.resampleMotions()
+        reconcileAll()
+        handover.applyHandoverGuarded(panelProgress)
+        DebugLog.i(TAG, "left clones theme refresh force=$force refreshed=$refreshed/${clones.size}")
+    }
     internal fun scheduleReconcile() = reconciler.scheduleReconcile()
     internal fun onDuoOwnershipChanged() = reconciler.onDuoOwnershipChanged()
     internal fun reconcileAll() = reconciler.reconcileAll()

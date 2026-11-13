@@ -60,7 +60,7 @@ internal object IconConfigMigration {
     fun reader(read: (String) -> Any?): (String) -> Any? = { key -> resolve(key, read) }
 
     private fun resolve(key: String, read: (String) -> Any?): Any? {
-        read(key)?.let { return it }
+        read(key)?.let { return migrateSlotReferences(key, it) }
         return when {
             key == IconSettingsKeys.KEY_ICON_SIM_ONE_VISIBILITY -> legacySimMode(read,
                 IconSettingsKeys.KEY_ICON_HIDE_SIM_ONE, IconSettingsKeys.KEY_ICON_HIDE_CARRIER_ONE)
@@ -85,7 +85,7 @@ internal object IconConfigMigration {
             key == IconSettingsKeys.KEY_ICON_IGNORE_SYS_HIDE -> read(LEGACY_IGNORE_SYS_HIDE) as? Boolean
             key == IconSettingsKeys.KEY_ICON_HIDE_PRIVACY -> read(LEGACY_HIDE_PRIVACY) as? Boolean
             key == IconSettingsKeys.KEY_ICON_EXT_BLOCKED ->
-                read(IconSettingsPreferencePolicy.LEGACY_EXTRA_BLOCKED) as? String
+                read(IconSettingsPreferencePolicy.LEGACY_EXTRA_BLOCKED)?.let { migrateSlotReferences(key, it) }
             key in IconTunerContract.leftPreferenceSlots ->
                 IconTunerContract.leftPreferenceSlots[key]?.let(read) as? Boolean
             key == IconTunerContract.KEY_LEFT_MODE -> IconTunerContract.LEFT_MODE_HOME.takeIf {
@@ -106,6 +106,28 @@ internal object IconConfigMigration {
             else -> null
         }
     }
+
+    /** Only persisted references migrate; foreign holders using the old name remain foreign. */
+    private fun migrateSlotReferences(key: String, value: Any): Any {
+        return when (key) {
+            IconTunerContract.KEY_POSITION_VALUES, SystemUiSettingsKeys.KEY_CC_ICON_ROW_OVERRIDES -> {
+                val entries = value as? Set<*> ?: return value
+                val hasCurrent = entries.any { it is String && indexedSlot(it) == IconSlotPolicy.SLOT_STACKED_SIGNAL }
+                entries.mapNotNullTo(linkedSetOf()) { entry ->
+                    if (entry !is String || indexedSlot(entry) != IconSlotPolicy.LEGACY_STACKED_SIGNAL) entry
+                    else if (hasCurrent) null
+                    else entry.substringBefore(':') + ":" + IconSlotPolicy.SLOT_STACKED_SIGNAL
+                }
+            }
+            IconSettingsKeys.KEY_ICON_EXT_BLOCKED -> (value as? String)?.split(',')
+                ?.joinToString(",") { if (it.trim() == IconSlotPolicy.LEGACY_STACKED_SIGNAL)
+                    IconSlotPolicy.SLOT_STACKED_SIGNAL else it } ?: value
+            else -> value
+        }
+    }
+
+    private fun indexedSlot(entry: String): String? = entry.substringAfter(':', "")
+        .takeIf { entry.substringBefore(':').toIntOrNull() != null }
 
     private fun legacySimMode(read: (String) -> Any?, signal: String, carrier: String): Int? = when {
         read(carrier) == true -> SimVisibilityPolicy.ALL

@@ -36,6 +36,13 @@ internal class LeftHandoverController(private val host: Host) {
     }
     private val mainHandler = Handler(Looper.getMainLooper())
     fun cancelSlot(slot: String) { panelMotions.remove(slot)?.clear() }
+
+    /** Drops every sampled overlay so the next frame re-samples sources and endpoints. */
+    fun resampleMotions() {
+        if (panelMotions.isEmpty()) return
+        panelMotions.values.forEach(LeftPanelMotion::clear)
+        panelMotions.clear()
+    }
     private class EndpointState(
         var savedAlpha: Float,
         var appliedAlpha: Float,

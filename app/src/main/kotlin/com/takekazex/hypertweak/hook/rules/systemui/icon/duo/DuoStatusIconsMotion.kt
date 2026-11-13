@@ -158,7 +158,7 @@ internal class DuoStatusIconsMotion {
 
     companion object {
         private val separate = setOf("airplane", "mobile", "stacked_mobile", "wifi", "demo_wifi", "battery",
-            "stacked_mobile_icon")
+            "hypertweak_stacked_mobile_icon")
         /** Match identities, never child indices: layouts, ignored slots and overflow differ by row. */
         // Slot identity is fixed for a view instance; the reflective read is the hot cost.
         private val slotCache = WeakHashMap<View, String>()

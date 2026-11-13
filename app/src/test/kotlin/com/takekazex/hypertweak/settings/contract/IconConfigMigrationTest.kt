@@ -2,6 +2,7 @@ package com.takekazex.hypertweak.settings.contract
 
 import com.takekazex.hypertweak.BuildConfig
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -88,6 +89,41 @@ class IconConfigMigrationTest {
             IconSettingsPreferencePolicy.slotKey("location") to IconSlotMode.HIDE_EVERYWHERE.value
         )
         assertEquals(IconSlotMode.FOLLOW_SYSTEM, IconSlotPolicy.modeFor("gps", explicit.slots.slotModes))
+    }
+
+    @Test
+    fun independentStackedSlotRetainsSavedModePositionAndRow() {
+        val current = IconSlotPolicy.SLOT_STACKED_SIGNAL
+        val legacy = IconSlotPolicy.LEGACY_STACKED_SIGNAL
+        val config = decode(
+            IconSettingsPreferencePolicy.slotKey(legacy) to IconSlotMode.CONTROL_CENTER_ONLY.value,
+            IconTunerContract.KEY_POSITION_VALUES to setOf("3:$legacy", "2:wifi"),
+            SystemUiSettingsKeys.KEY_CC_ICON_ROW_OVERRIDES to setOf("2:$legacy"),
+            IconSettingsPreferencePolicy.LEGACY_EXTRA_BLOCKED to legacy
+        )
+        assertEquals(IconSlotMode.CONTROL_CENTER_ONLY, IconSlotPolicy.modeFor(current, config.slots.slotModes))
+        assertEquals(setOf("3:$current", "2:wifi"), config.value(IconTunerContract.KEY_POSITION_VALUES))
+        assertEquals(setOf("2:$current"), config.value(SystemUiSettingsKeys.KEY_CC_ICON_ROW_OVERRIDES))
+        assertEquals(current, config.value(IconSettingsKeys.KEY_ICON_EXT_BLOCKED))
+    }
+
+    @Test
+    fun explicitIndependentSlotSettingsWinOverSharedNames() {
+        val current = IconSlotPolicy.SLOT_STACKED_SIGNAL
+        val legacy = IconSlotPolicy.LEGACY_STACKED_SIGNAL
+        val config = decode(
+            IconSettingsPreferencePolicy.slotKey(current) to IconSlotMode.FOLLOW_SYSTEM.value,
+            IconSettingsPreferencePolicy.slotKey(legacy) to IconSlotMode.HIDE_EVERYWHERE.value,
+            IconTunerContract.KEY_POSITION_VALUES to setOf("1:$legacy", "4:$current", legacy),
+            SystemUiSettingsKeys.KEY_CC_ICON_ROW_OVERRIDES to setOf("2:$legacy", "1:$current"),
+            IconSettingsKeys.KEY_ICON_EXT_BLOCKED to legacy
+        )
+        assertEquals(IconSlotMode.FOLLOW_SYSTEM, IconSlotPolicy.modeFor(current, config.slots.slotModes))
+        assertEquals(setOf("4:$current", legacy), config.value(IconTunerContract.KEY_POSITION_VALUES))
+        assertEquals(setOf("1:$current"), config.value(SystemUiSettingsKeys.KEY_CC_ICON_ROW_OVERRIDES))
+        assertEquals(current, config.value(IconSettingsKeys.KEY_ICON_EXT_BLOCKED))
+        assertFalse(legacy in IconSlotPolicy.moduleSlots)
+        assertTrue(current in IconSlotPolicy.moduleSlots)
     }
 
     @Test

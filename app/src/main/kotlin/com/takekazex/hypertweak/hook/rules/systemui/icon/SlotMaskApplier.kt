@@ -230,11 +230,17 @@ internal object SlotMaskApplier : IconRenderer() {
     }
 
     init { hostRecovery(HostRecoveryPhase.ICONS, icons = true) { typeOnly.adopt(it.views) } }
-    private val typeOnly = NativeTypeOnlyMask(this) { root ->
+    private val typeOnly = NativeTypeOnlyMask(this, onContractBroken = {
+        // The stacked bars need the type-only row; re-evaluate them and drop the holder.
+        stackedPublished = false
+        applyMobilePlan()
+        IconHostPorts.stackedTypeOnlyLost()
+    }) { root ->
         (root.parent as? View)?.let(::planSurfaceFor)
     }
     private var mobileMasks by generationState { emptyMap<PlanSurface, NativeMobileMask>() }
-    internal val typeOnlyInstalled get() = typeOnly.installed
+    /** Installed and no living row has broken the per-row layout contract. */
+    internal val typeOnlyInstalled get() = typeOnly.usable
     private var stackedPublished by generationState { false }
     internal fun stackedReady(ready: Boolean) {
         stackedPublished = ready
@@ -457,6 +463,9 @@ internal object SlotMaskApplier : IconRenderer() {
                         }
                         stack.addLast(container)
                         rowLayoutOwners[container] = true
+                    } else if (container.javaClass.name == CONTAINER_CLASS && isControlCenterContainer(container)) {
+                        runCatching { clearCarrierRowSlack(container) }
+                            .onFailure { DebugLog.w(TAG, "carrier row budget reset failed", it) }
                     }
                 }
                 after { param ->
@@ -922,6 +931,51 @@ internal object SlotMaskApplier : IconRenderer() {
             val top = (center - view.height / 2f).toInt()
             view.layout(view.left, top, view.right, top + view.height)
         }
+        publishCarrierRowSlack(container, items, positions, anchors, spacing)
+    }
+
+    /**
+     * The carrier block ends at the status root, whose width is the host's single-row sum of every
+     * icon. Once the icons are split over two lines, each line leaves part of that width free.
+     * Report it per line so each carrier row is budgeted against its own icons, not against both.
+     * Only the real (non-fake) LTR row reports; anything else clears the budget to native.
+     */
+    private fun publishCarrierRowSlack(container: ViewGroup, items: List<TwoRowIconLayout.Item>,
+                                       positions: Map<Int, Float>, anchors: TwoRowIconLayout.Anchors,
+                                       spacing: Float) {
+        val (carrier, realRow) = controlCenterCarrier(container) ?: return
+        if (!realRow) return
+        if (container.layoutDirection == View.LAYOUT_DIRECTION_RTL) {
+            IconHostPorts.carrier.rowSlack(carrier, 0, 0)
+            return
+        }
+        val offset = leftWithin(container, carrier.parent as? ViewGroup ?: return) ?: run {
+            IconHostPorts.carrier.rowSlack(carrier, 0, 0)
+            return
+        }
+        fun slack(upper: Boolean): Int {
+            val lineLeft = items.filter { it.upper == upper }.minOfOrNull { positions.getValue(it.index) }
+                ?: if (upper) anchors.upperRight else anchors.lowerRight
+            return (offset + lineLeft - spacing - carrier.right).toInt().coerceAtLeast(0)
+        }
+        IconHostPorts.carrier.rowSlack(carrier, slack(upper = true), slack(upper = false))
+    }
+
+    /** Clears a stale per-line budget once this control-center row stops owning two lines. */
+    private fun clearCarrierRowSlack(container: ViewGroup) {
+        val (carrier, realRow) = controlCenterCarrier(container) ?: return
+        if (realRow) IconHostPorts.carrier.rowSlack(carrier, 0, 0)
+    }
+
+    /** Layout-coordinate left of [view] inside [ancestor]; transforms are ignored on purpose. */
+    private fun leftWithin(view: View, ancestor: ViewGroup): Float? {
+        var x = 0f
+        var current: View = view
+        while (current !== ancestor) {
+            x += current.left
+            current = current.parent as? View ?: return null
+        }
+        return x
     }
 
     private fun isControlCenterContainer(container: View): Boolean {
@@ -936,7 +990,11 @@ internal object SlotMaskApplier : IconRenderer() {
     }
 
     /** Only row spacing comes from the carrier; its screen location may be from the last layout. */
-    private fun controlCenterRowGeometry(container: ViewGroup): TwoRowIconLayout.Geometry? {
+    private fun controlCenterRowGeometry(container: ViewGroup): TwoRowIconLayout.Geometry? =
+        controlCenterCarrier(container)?.first?.let(IconHostPorts.carrier.geometry)
+
+    /** The header's carrier block for a control-center status container, and whether it is the real row. */
+    private fun controlCenterCarrier(container: ViewGroup): Pair<ViewGroup, Boolean>? {
         var rowRoot: ViewGroup? = container.parent as? ViewGroup
         while (rowRoot != null &&
             rowRoot.javaClass.name != CONTROL_CENTER_ROW_CLASS &&
@@ -945,12 +1003,12 @@ internal object SlotMaskApplier : IconRenderer() {
             rowRoot = rowRoot.parent as? ViewGroup
         }
         val header = rowRoot?.parent as? ViewGroup ?: return null
-        val carrierId = ResourceLookup.identifier(header.resources, 
+        val carrierId = ResourceLookup.identifier(header.resources,
             "normal_control_center_carrier_layout", "id", "com.android.systemui"
         )
         if (carrierId == 0) return null
         val carrier = header.findViewById<View>(carrierId) as? ViewGroup ?: return null
-        return IconHostPorts.carrier.geometry(carrier)
+        return carrier to (rowRoot.javaClass.name == CONTROL_CENTER_ROW_CLASS)
     }
 
     /** Current layout owner: native battery, or DuoView while Duo borrows mBattery. */

@@ -1,6 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
 import com.takekazex.hypertweak.hook.base.HostAccess
+import com.takekazex.hypertweak.settings.contract.IconSlotPolicy
 
 import android.graphics.Bitmap
 import android.graphics.drawable.Icon
@@ -16,7 +17,7 @@ import java.util.Collections
  * Publishes module-owned icons through the OS4 StatusBarIconController.
  *
  * The bridge is intentionally strict about the host main thread and ownership. It never creates
- * a fake resource id, never overwrites a holder owned by another package, and only reports success
+ * a fake resource id, replaces foreign ordinary holders only in HyperTweak's reserved slots, and reports success
  * after reading the installed holder back from the host list.
  */
 class HostIconBridge(
@@ -62,7 +63,8 @@ class HostIconBridge(
         synchronized(lock) {
             val existing = findHolder(slot)
             val existingPackage = holderPackage(existing)
-            if (existing != null && (existingPackage != MODULE_PACKAGE || !isOrdinary(existing))) {
+            if (existing != null && (!isOrdinary(existing) ||
+                    (existingPackage != MODULE_PACKAGE && slot !in IconSlotPolicy.moduleSlots))) {
                 ownedSlots.remove(slot)
                 ownedIcons.remove(slot)
                 if (existingPackage != null) {
@@ -155,6 +157,34 @@ class HostIconBridge(
                 ownedIcons.remove(slot)
             }
             return removed && currentPackage != MODULE_PACKAGE
+        }
+    }
+
+    /**
+     * Migration cleanup for a slot a previous module build published and this build no longer
+     * publishes. Such a holder carries no ownership record in this bridge, so [removeOwned] cannot
+     * reach it. It is removed only when the host's current holder is an ordinary (type 0, tag 0)
+     * holder whose StatusBarIcon names this module's package; a holder of any other package or
+     * shape is left alone. Never use it for a slot this build still publishes.
+     *
+     * Returns true when the slot holds no module holder afterwards, read back from the host list.
+     */
+    fun removeRetiredModuleHolder(slot: String): Boolean {
+        if (Looper.myLooper() != Looper.getMainLooper()) return false
+        synchronized(lock) {
+            if (slot in ownedSlots) {
+                DebugLog.w(TAG, "refusing retired-slot cleanup for an active slot=$slot")
+                return false
+            }
+            val holder = findHolder(slot) ?: return true
+            if (holderPackage(holder) != MODULE_PACKAGE || !isOrdinary(holder)) return true
+            val removed = runCatching { resolveRemoveMethod().invoke(controller, slot, true) }
+                .onFailure { DebugLog.w(TAG, "failed to remove retired module icon slot=$slot", it) }
+                .isSuccess
+            val cleared = holderPackage(findHolder(slot)) != MODULE_PACKAGE
+            if (removed && cleared) DebugLog.i(TAG, "removed retired module icon slot=$slot")
+            else DebugLog.w(TAG, "retired module icon slot=$slot still present after removal")
+            return removed && cleared
         }
     }
 

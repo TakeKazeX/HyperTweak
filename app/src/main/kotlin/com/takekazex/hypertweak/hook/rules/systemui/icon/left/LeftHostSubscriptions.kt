@@ -219,6 +219,28 @@ internal class LeftHostSubscriptions(owner: BaseHooker) : IconRenderComponent(ow
         // 5. Hand the moved icons over to the control center while the shade is dragged.
         hookControlCenterHandover()
 
+        // 6. Theme changes. The host walks only its registered icon groups' children
+        //    (StatusBarIconControllerImpl.mIconGroups) and calls onMiuiThemeChanged on each; the
+        //    clones live outside every group, so replay the same per-view refresh on them, then
+        //    re-copy the source layout and re-sample the handover endpoints.
+        THEME_CONTROLLER_CLASS.toClassOrNull()
+            ?.let { controllerClass ->
+                HostAccess.declaredMethod(controllerClass, "onMiuiThemeChanged",
+                    Boolean::class.javaPrimitiveType!!, accessible = true)
+                    ?.takeIf { it.returnType == Void.TYPE }
+            }
+            ?.observe {
+                after { param ->
+                    val force = param.args.getOrNull(0) as? Boolean ?: return@after
+                    runOnMain {
+                        if (retiring) return@runOnMain
+                        runCatching { onThemeChanged(force) }
+                            .onFailure { DebugLog.w(TAG, "left clone theme refresh failed", it) }
+                    }
+                }
+            }
+            ?: DebugLog.hookSkipped(TAG, "$THEME_CONTROLLER_CLASS#onMiuiThemeChanged", "method not found")
+
         reloadSnapshot()
         // One repair pass after installation; the timer only continues while the shade is open.
         scheduleReconcile()

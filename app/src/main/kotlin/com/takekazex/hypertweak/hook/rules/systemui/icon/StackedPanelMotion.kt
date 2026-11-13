@@ -74,7 +74,7 @@ internal class StackedPanelMotion(private val callback: Any) {
         val owner = read(callback, "this\$0") ?: run { clear(); return }
         val real = read(owner, "realSystemIcons") as? View ?: run { clear(); return }
         val source = sourceView?.takeIf { it.isAttachedToWindow && isUnder(it, real) }
-            ?: (find(real) { read(it, "mSlot") == "stacked_mobile_icon" } as? ImageView)
+            ?: (find(real) { read(it, "mSlot") == "hypertweak_stacked_mobile_icon" } as? ImageView)
                 ?.also { sourceView = it }
             ?: run { sourceView = null; clearLayers(); return }
         if (source.width <= 0 || source.height <= 0 || !source.isVisible) { clearLayers(); return }
@@ -136,7 +136,7 @@ internal class StackedPanelMotion(private val callback: Any) {
             // Only duplicate status-slot images are hidden. The home source remains available for
             // coordinate measurement; carrier targets belong to their row overlays.
             val copies = listOfNotNull(expandedRow, fakeRow).flatMap { row ->
-                collect(row) { read(it, "mSlot") == "stacked_mobile_icon" }
+                collect(row) { read(it, "mSlot") == "hypertweak_stacked_mobile_icon" }
             }
             masked.keys.toList().filter { it !in copies }.forEach { view ->
                 val alpha = masked.remove(view)
