@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.backgesture.hooks.systemui;
 
+import com.takekazex.hypertweak.hook.rules.backgesture.hooks.systemui.MiuiHapticFeedbackHelper;
+
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys;
 
 import com.takekazex.hypertweak.settings.contract.BackGestureKeys;
@@ -78,24 +80,13 @@ public abstract class SystemUiInputPolicyRuntime extends HookRuntimeCore {
 
     protected volatile boolean hyperOsIndicatorPreferencesFailureLogged;
     protected volatile MiuiHapticFeedbackHelper hyperOsBackHapticHelper;
-    protected volatile SharedPreferences gestureTriggerPreferences;
-    protected volatile boolean gestureTriggerPreferencesFailureLogged;
     protected volatile SharedPreferences contextualSearchPreferences;
     protected volatile boolean contextualSearchPreferencesFailureLogged;
     protected volatile boolean contextualSearchServiceUnavailableLogged;
 
     protected boolean isContextualSearchLongPressEnabled() {
         try {
-            SharedPreferences preferences = contextualSearchPreferences;
-            if (preferences == null) {
-                synchronized (this) {
-                    preferences = contextualSearchPreferences;
-                    if (preferences == null) {
-                        preferences = getRemotePreferences(PredictiveBackPreferences.GROUP);
-                        contextualSearchPreferences = preferences;
-                    }
-                }
-            }
+            SharedPreferences preferences = modulePreferences();
             boolean enabled = preferences.getBoolean(
                     PredictiveBackPreferences.KEY_CONTEXTUAL_SEARCH_LONG_PRESS,
                     PredictiveBackPreferences.DEFAULT_CONTEXTUAL_SEARCH_LONG_PRESS);
@@ -599,8 +590,12 @@ public abstract class SystemUiInputPolicyRuntime extends HookRuntimeCore {
         }
 
         private boolean containsGestureHandle(float x, float y) {
-            int handleId = navigationView.getResources().getIdentifier(
-                    "home_handle", "id", SYSTEM_UI);
+            int handleId = homeHandleId;
+            if (handleId == UNRESOLVED_RESOURCE_ID) {
+                handleId = navigationView.getResources().getIdentifier(
+                        "home_handle", "id", SYSTEM_UI);
+                homeHandleId = handleId;
+            }
             if (handleId == 0) {
                 return false;
             }
@@ -608,7 +603,7 @@ public abstract class SystemUiInputPolicyRuntime extends HookRuntimeCore {
             if (handle == null || !handle.isShown() || handle.getAlpha() <= 0.0f) {
                 return false;
             }
-            Rect bounds = new Rect();
+            Rect bounds = handleBounds;
             if (!handle.getGlobalVisibleRect(bounds) || bounds.isEmpty()) {
                 return false;
             }
@@ -634,7 +629,13 @@ public abstract class SystemUiInputPolicyRuntime extends HookRuntimeCore {
                 pilfered = false;
             }
         }
-    }
+
+        private final Rect handleBounds = new Rect();
+
+        private int homeHandleId = UNRESOLVED_RESOURCE_ID;
+
+        private static final int UNRESOLVED_RESOURCE_ID = -1;
+}
 
     protected boolean isHyperOsIndicatorEnabled() {
         return readHyperOsBooleanPreference(
@@ -827,5 +828,19 @@ public abstract class SystemUiInputPolicyRuntime extends HookRuntimeCore {
     protected boolean isTrackerInitial(Object tracker) throws Exception {
         return tracker == null || ((BackTouchTracker) tracker).isInInitialState();
     }
+
+    protected volatile RecentsOpenSession.Attempt recentsOpenAttempt;
+
+    protected boolean isReturnHomePreviewEnabled() {
+        return false;
+    }
+
+    protected abstract boolean isRecentsOpenAttemptCurrentOnOwner(
+            RecentsOpenSession.Attempt attempt) throws Throwable;
+
+    protected abstract boolean isRecentsOpenCompletionCurrentOnOwner(
+            RecentsOpenSession.Attempt attempt) throws Throwable;
+
+    protected abstract void notifyRecentsOpenCompleted(RecentsOpenSession.Attempt opening);
 
 }

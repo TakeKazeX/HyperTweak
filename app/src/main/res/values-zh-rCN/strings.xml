@@ -1971,4 +1971,8 @@
     <string name="icon_sim_visibility_status_bar">仅隐藏状态栏图标</string>
     <string name="icon_sim_visibility_all">全部隐藏</string>
     <string name="icon_sim_visibility_summary">仅隐藏状态栏图标时，展开控制中心仍显示图标和运营商标签；全部隐藏也隐藏控制中心对应内容。锁屏标签由下方开关独立控制。</string>
+    <string name="back_status_bar_follow">状态栏跟随（实验性）</string>
+    <string name="back_status_bar_follow_summary">跟随应用和最近任务动画，默认关闭，空闲时应用更改。</string>
+    <string name="back_home_preview">返回桌面图标预览（实验性）</string>
+    <string name="back_home_preview_summary">Android 17 返回桌面图标动画预览，默认关闭，部分交接仍可能闪烁。</string>
 </resources>

@@ -203,3 +203,23 @@ The Android-widget-stack rule (`widget_stack`) resolves the launcher's paired el
 ## OS4 Android widget to assistant
 
 The OS4 Android-widget rule resolves a unique eligibility/serializer family from the current Dart image, deriving the provider flag displacement and AppWidget CID. Its assembly replays the stolen instructions and bypasses the MIUI identity and size eligibility rejection only for ordinary AppWidgets of that CID. It derives and verifies the native success continuation; model dimensions/identity, Bundle metadata, placement, and drop acknowledgement remain stock. MIUI providers and other card types keep their size policy. It uses the same preparation/cache/settings/remap lifecycle and restores its owned hook when disabled. Test the structural contract with `assistant_widget_target_test.cpp` and the actual assembly offline with `run_assistant_widget_abi_test.py` (Unicorn + pyelftools, Android NDK clang). Current 7722 static/build verification is not manual drag acceptance.
+
+## Back gesture 0.13.0 native extensions
+
+`dart_runtime_resolver.cpp` stays byte-identical to upstream `c4a39e0`.
+The optional NavLongPress selector preserves the native Dart action setting and
+replays the resolved frame/register contract; module JNI remains the sole writer
+of the contextual-search switch. Physical cancellation is observed before native
+redirection, through the uniquely proved id/action/ack/manager dispatch graph.
+Saved event/receiver/token registers are decoded by operand role, including the
+current compiler's direct-self capture. The native Fn completes its own state;
+never replace its marker with an offset write or reinterpret its callback as cleanup.
+XiaoAi supports both direct and owned-string-adapter graphs, rejecting ambiguity.
+
+The optional SfAnim start rewrite decodes geometry from the entry log argument
+array, validates every direct caller's parameter copy, and decodes app-vector and
+task-ID fields from the same native task comparison. SystemUI's private handoff
+binds UID, task, arbiter generation, monotonic sequence and expiry. Parse borrowed
+Intent data before forwarding the OEM receiver. Independent-module native ownership
+protection still covers these extensions. Native payload activation needs the guarded
+HYOS process refresh; Java hot reload cannot replace it.

@@ -2003,4 +2003,8 @@
     <string name="icon_sim_visibility_status_bar">Hide status bar icons only</string>
     <string name="icon_sim_visibility_all">Hide everywhere</string>
     <string name="icon_sim_visibility_summary">Status bar only keeps icons and carrier labels in the expanded control center. Hide everywhere also hides them there. Lockscreen labels use the switches below.</string>
+    <string name="back_status_bar_follow">Status bar following (experimental)</string>
+    <string name="back_status_bar_follow_summary">Follow app and Recents animations. Off by default; changes apply when idle.</string>
+    <string name="back_home_preview">Return to Home icon preview (experimental)</string>
+    <string name="back_home_preview_summary">Preview the Home icon animation on Android 17. Off by default; some transitions may flicker.</string>
 </resources>

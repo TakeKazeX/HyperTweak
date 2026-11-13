@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.backgesture.hooks.systemserver;
 
+import android.os.Handler;
+
 import android.annotation.SuppressLint;
 import android.app.ActivityThread;
 import android.content.Context;
@@ -95,6 +97,8 @@ public abstract class SystemServerHookRuntime extends NativeLauncherBridgeRuntim
                 hookScheduleAnimationPrepareTransition(serverClassLoader);
             }
             hookReturnHomeTouchOcclusion(serverClassLoader);
+            restoreNativeSideGestureExclusion(serverClassLoader);
+            hookServerBarLifetime(serverClassLoader, Collections.emptySet());
             moduleLog(Log.INFO, TAG, "Installed system_server back navigation hooks, build="
                     + BUILD_MARK
                     + ", platform=" + (systemServerPlatformImpl == null
@@ -357,7 +361,7 @@ public abstract class SystemServerHookRuntime extends NativeLauncherBridgeRuntim
             Object application = ActivityThread.currentApplication();
             Context context = application instanceof Context ? (Context) application : null;
             if (context == null) {
-                    Object activityThread = activityThreadClass
+                Object activityThread = activityThreadClass
                         .getDeclaredMethod("currentActivityThread")
                         .invoke(null);
                 if (activityThread != null) {
@@ -551,16 +555,7 @@ public abstract class SystemServerHookRuntime extends NativeLauncherBridgeRuntim
 
     protected boolean isPredictiveBackOptInSelected(String packageName) {
         try {
-            SharedPreferences preferences = predictiveBackPreferences;
-            if (preferences == null) {
-                synchronized (this) {
-                    preferences = predictiveBackPreferences;
-                    if (preferences == null) {
-                        preferences = getRemotePreferences(PredictiveBackPreferences.GROUP);
-                        predictiveBackPreferences = preferences;
-                    }
-                }
-            }
+            SharedPreferences preferences = modulePreferences();
             Set<String> packages = preferences.getStringSet(
                     PredictiveBackPreferences.KEY_PACKAGES,
                     Collections.emptySet());
@@ -1833,4 +1828,478 @@ public abstract class SystemServerHookRuntime extends NativeLauncherBridgeRuntim
         return true;
     }
 
+    protected static final String SERVER_BAR_LISTENER_CREATE = "server_bar_follow_listener_create";
+
+    protected static final String SERVER_BAR_LISTENER_UPDATE = "server_bar_follow_listener_update";
+
+    protected static final String SERVER_BAR_START_CREATE = "server_bar_follow_start_create";
+
+    protected static final String SERVER_BAR_START_RUN = "server_bar_follow_start_run";
+
+    protected static final String SERVER_BAR_STATE_CREATE = "server_bar_follow_state_create";
+
+    protected static final String SERVER_BAR_STATE_RUN = "server_bar_follow_state_run";
+
+    protected static final String SERVER_BAR_STATE_PREFIX = "server_bar_follow_state_call_";
+
+    protected static final String SERVER_BAR_CALLBACK_CREATE_PREFIX = "server_bar_follow_callback_create_";
+
+    protected static final String SERVER_BAR_CALLBACK_RUN_PREFIX = "server_bar_follow_callback_run_";
+
+    protected static final String SERVER_BAR_MUTATION_PREFIX = "server_bar_follow_mutation_";
+
+    private final ThreadLocal<Object> rejectedServerBarState = new ThreadLocal<>();
+
+    private final ServerBarGestureScope serverBarGestureScope = new ServerBarGestureScope();
+
+    private final ServerBarFollowLifecycle serverBarFollowLifecycle = new ServerBarFollowLifecycle();
+
+    private boolean serverBarLifetimeHooksReady;
+
+    private volatile ServerBarWindowBridge serverBarWindowBridge;
+
+    private final AtomicInteger serverNavigationPolicyEpoch = new AtomicInteger();
+
+    protected static final String SERVER_BAR_BRIDGE_READY = "server_bar_window_bridge_ready";
+
+    protected static final String SERVER_BAR_FEATURE = "server_bar_owned_multi_status";
+
+    protected static final String SERVER_BAR_APPEARANCE_OWNER = "server_bar_appearance_source_owner";
+
+    protected void hookServerBarLifetime(ClassLoader loader, Set<String> present) {
+        if (Build.VERSION.SDK_INT != Build.VERSION_CODES.CINNAMON_BUN) return;
+        try {
+            Class<?> controller = Class.forName("com.android.server.wm.MiuiStatusBarController", false, loader);
+            Method feature = Class.forName("com.android.server.wm.BarFollowAnimationUtils", false, loader)
+                    .getDeclaredMethod("MULTIS_STATUSBAR_ENABLED");
+            if (feature.getReturnType() != boolean.class || !java.lang.reflect.Modifier.isStatic(feature.getModifiers()))
+                throw new NoSuchMethodException("Multi-status feature shape changed");
+            if (!present.contains(SERVER_BAR_FEATURE)) registerHook(feature, SERVER_BAR_FEATURE, this::serverBarOwnedFeature);
+            List<ServerBarCallbackProfile.Entry> callbacks = ServerBarCallbackProfile.resolve(loader);
+            String[] writes = {"initFolme", "stopFolmeAnimate", "diableStatusBarVisibilityPolicy",
+                    "enableStatusBarVisibility", "bindAssociatedTask", "updateHomeBarParent",
+                    "reparentAppBarToBirthParent", "reparentHomeBarToOrigParent", "startStatusBarAnimation",
+                    "updateBarAlpha", "updateAppBarAlphaUnCheck", "reparentStausBarToAppTask",
+                    "onSystemWindowAdded", "onSystemWindowRemoved", "checkBarAlpha", "updateStatusBarAlpha",
+                    "updateAppBarAlpha", "updateHomeBarAlpha", "animateStatusBarTo", "resetStatusBarState",
+                    "setStatusBarUpdateState", "resetToInitState", "setAppBarContainer", "updateStatusBar"};
+            java.util.ArrayList<Method> nativeWrites = new java.util.ArrayList<>();
+            for (String name : writes) {
+                Method resolved = null;
+                for (Method method : controller.getDeclaredMethods())
+                    if (method.getName().equals(name)) {
+                        if (resolved != null || method.getReturnType() != void.class
+                                || java.lang.reflect.Modifier.isStatic(method.getModifiers()))
+                            throw new NoSuchMethodException("Ambiguous native bar mutation " + name);
+                        resolved = method;
+                    }
+                if (resolved == null) throw new NoSuchMethodException(name);
+                nativeWrites.add(resolved);
+            }
+            Class<?> listener = Class.forName(controller.getName() + "$1", false, loader);
+            Class<?> impl = Class.forName("com.android.server.wm.BarFollowAnimationImpl", false, loader);
+            Class<?> start = Class.forName(impl.getName() + "$9", false, loader);
+            Class<?> info = Class.forName("android.window.TransitionInfo", false, loader);
+            java.lang.reflect.Constructor<?> listenerConstructor = listener.getDeclaredConstructor(controller);
+            java.lang.reflect.Constructor<?> startConstructor = start.getDeclaredConstructor(impl, info);
+            Method update = listener.getDeclaredMethod("onUpdate", Object.class, java.util.Collection.class);
+            Method run = start.getDeclaredMethod("run");
+            Class<?> state = Class.forName(impl.getName() + "$8", false, loader);
+            java.lang.reflect.Constructor<?> stateConstructor = state.getDeclaredConstructor(impl, int.class, boolean.class);
+            Method stateRun = state.getDeclaredMethod("run");
+            if (!Runnable.class.isAssignableFrom(state) || state.getDeclaredField("this$0").getType() != impl
+                    || state.getDeclaredField("val$state").getType() != int.class
+                    || state.getDeclaredField("val$homeTaskOnTop").getType() != boolean.class
+                    || stateRun.getReturnType() != void.class)
+                throw new NoSuchMethodException("Native mixed bar state contract changed");
+            String[] stateMethods = {"setStatusBarState", "setLastStatusState", "updateStatusBarToRecents",
+                    "updateStatusBarToHome", "updateStatusBarAnotherApp", "updateStatusBarCloseWindow",
+                    "updateStatusBarTaskSnapshot", "updateStatusBarAppOpen", "updateStatusBarToCurrentApp"};
+            Method[] stateCalls = new Method[stateMethods.length];
+            for (int i = 0; i < stateCalls.length; i++) {
+                stateCalls[i] = controller.getDeclaredMethod(stateMethods[i], i < 2 ? new Class<?>[]{int.class} : new Class<?>[0]);
+                if (stateCalls[i].getReturnType() != void.class)
+                    throw new NoSuchMethodException(stateMethods[i]);
+            }
+            if (!listener.getSuperclass().getName().equals("miuix.animation.listener.TransitionListener")
+                    || listener.getDeclaredField("this$0").getType() != controller
+                    || !Runnable.class.isAssignableFrom(start)
+                    || start.getDeclaredField("this$0").getType() != impl
+                    || start.getDeclaredField("val$info").getType() != info
+                    || impl.getDeclaredField("mStatusBarController").getType() != controller
+                    || update.getReturnType() != void.class || run.getReturnType() != void.class)
+                throw new NoSuchMethodException("Native bar lifetime contract changed");
+            if (!present.contains(SERVER_BAR_LISTENER_CREATE))
+                registerHook(listenerConstructor, SERVER_BAR_LISTENER_CREATE, this::createServerBarListener);
+            if (!present.contains(SERVER_BAR_LISTENER_UPDATE)) registerHook(update, SERVER_BAR_LISTENER_UPDATE, this::dispatchServerBarListener);
+            if (!present.contains(SERVER_BAR_START_CREATE)) registerHook(startConstructor, SERVER_BAR_START_CREATE, this::createServerBarStart);
+            if (!present.contains(SERVER_BAR_START_RUN)) registerHook(run, SERVER_BAR_START_RUN, this::dispatchServerBarStart);
+            if (!present.contains(SERVER_BAR_STATE_CREATE)) registerHook(stateConstructor, SERVER_BAR_STATE_CREATE, this::createServerBarStart);
+            if (!present.contains(SERVER_BAR_STATE_RUN)) registerHook(stateRun, SERVER_BAR_STATE_RUN, this::dispatchServerBarState);
+            for (int i = 0; i < stateCalls.length; i++)
+                if (!present.contains(SERVER_BAR_STATE_PREFIX + stateMethods[i]))
+                    registerHook(stateCalls[i], SERVER_BAR_STATE_PREFIX + stateMethods[i], this::dispatchServerBarStateCall);
+            // Only these verified allocation sites create the fenced objects.
+            Class<?> ease = Class.forName("miuix.animation.utils.EaseManager$EaseStyle", false, loader);
+            boolean ready = deoptimize(controller.getDeclaredMethod("animateStatusBarTo", float.class, float.class, ease, ease));
+            ready &= deoptimize(impl.getDeclaredMethod("startStatusBarAnimation", info));
+            ready &= deoptimize(impl.getDeclaredMethod("updateBarState", info, int.class));
+            ready &= deoptimize(stateRun);
+            for (ServerBarCallbackProfile.Entry callback : callbacks) {
+                if (!present.contains(SERVER_BAR_CALLBACK_CREATE_PREFIX + callback.id))
+                    registerHook(callback.constructor, SERVER_BAR_CALLBACK_CREATE_PREFIX + callback.id, this::createServerBarSynthetic);
+                if (!present.contains(SERVER_BAR_CALLBACK_RUN_PREFIX + callback.id))
+                    registerHook(callback.run, SERVER_BAR_CALLBACK_RUN_PREFIX + callback.id, this::dispatchServerBarSynthetic);
+                ready &= deoptimize(callback.producer);
+            }
+            for (Method mutation : nativeWrites) {
+                String id = SERVER_BAR_MUTATION_PREFIX + mutation.getName();
+                if (!present.contains(id)) registerHook(mutation, id, this::dispatchServerBarMutation);
+            }
+            // Native controller helpers are inlined into each other and the
+            // verified bar implementation. Recompile neither while a lease owns writes.
+            for (Class<?> owner : new Class<?>[]{controller, impl})
+                for (Method method : owner.getDeclaredMethods())
+                    if (!java.lang.reflect.Modifier.isAbstract(method.getModifiers())
+                            && !java.lang.reflect.Modifier.isNative(method.getModifiers()))
+                        ready &= deoptimize(method);
+            serverBarLifetimeHooksReady = ready;
+            Method systemReady = impl.getDeclaredMethod("systemReady",
+                    Class.forName("com.android.server.wm.WindowManagerService", false, loader));
+            if (!present.contains(SERVER_BAR_BRIDGE_READY)) registerHook(systemReady, SERVER_BAR_BRIDGE_READY, this::serverBarBridgeReady);
+            // Do not construct the platform singleton during bootstrap. Its constructor
+            // initializes BarFollowAnimationUtils, caching the feature service's fallback
+            // before HyperOSCustFeatureResolve is available. systemReady supplies the
+            // actual native owner; only hot reload may recover an already-running owner.
+            moduleLog(Log.INFO, TAG, "Native bar lifetime guards installed; activation=" + false + ", ready=" + ready);
+        } catch (Throwable failure) {
+            serverBarLifetimeHooksReady = false;
+            moduleLog(Log.WARN, TAG, "Native bar lifetime guards unavailable; no real-window activation", failure);
+        }
+    }
+
+    protected Object createServerBarListener(XposedInterface.Chain chain) throws Throwable {
+        Object result = chain.proceed();
+        serverBarFollowLifecycle.created(chain.getThisObject(), chain.getArg(0));
+        return result;
+    }
+
+    protected Object dispatchServerBarListener(XposedInterface.Chain chain) throws Throwable {
+        Object callback = chain.getThisObject();
+        Object controller = readField(callback, "this$0");
+        try (ServerBarFollowLifecycle.Permit permit = serverBarFollowLifecycle.enter(callback, controller)) {
+            if (permit == null) return null;
+            Object result = chain.proceed();
+            ServerBarWindowBridge bridge = serverBarWindowBridge;
+            if (bridge != null) bridge.recordNative(controller, null);
+            return result;
+        }
+    }
+
+    protected Object createServerBarStart(XposedInterface.Chain chain) throws Throwable {
+        Object result = chain.proceed();
+        serverBarFollowLifecycle.created(chain.getThisObject(), readField(chain.getArg(0), "mStatusBarController"));
+        return result;
+    }
+
+    protected Object dispatchServerBarStart(XposedInterface.Chain chain) throws Throwable {
+        Object callback = chain.getThisObject();
+        Object controller = readField(readField(callback, "this$0"), "mStatusBarController");
+        try (ServerBarFollowLifecycle.Permit permit = serverBarFollowLifecycle.enter(callback, controller)) {
+            return permit == null ? null : chain.proceed();
+        }
+    }
+
+    protected Object dispatchServerBarState(XposedInterface.Chain chain) throws Throwable {
+        Object callback = chain.getThisObject();
+        Object controller = readField(readField(callback, "this$0"), "mStatusBarController");
+        Object previous = rejectedServerBarState.get();
+        try (ServerBarFollowLifecycle.Permit permit = serverBarFollowLifecycle.enter(callback, controller)) {
+            if (permit == null) rejectedServerBarState.set(controller);
+            int state = -1;
+            try { state = ((Number) readField(callback, "val$state")).intValue(); }
+            catch (Throwable failure) {
+                moduleLog(Log.WARN, TAG, "Native bar state unavailable; preserving snapshot policy", failure);
+            }
+            ServerBarWindowBridge bridge = serverBarWindowBridge;
+            // This Runnable also owns native navigation-bar work. A stale
+            // status lifetime must not discard navigation state or its finish.
+            try (ServerBarGestureScope.Scope snapshot = serverBarGestureScope.enter(controller, state,
+                    permit != null && state == 6 && bridge != null && bridge.ownsLiveStatusWindow(controller))) {
+                Object result = chain.proceed();
+                if (permit != null && bridge != null) bridge.recordNative(controller, state);
+                return result;
+            }
+        } finally {
+            if (previous == null) rejectedServerBarState.remove();
+            else rejectedServerBarState.set(previous);
+        }
+    }
+
+    protected Object dispatchServerBarStateCall(XposedInterface.Chain chain) throws Throwable {
+        Object controller = chain.getThisObject();
+        if (rejectedServerBarState.get() == controller) return null;
+        ServerBarWindowBridge bridge = serverBarWindowBridge;
+        if (chain.getExecutable().getName().equals("updateStatusBarTaskSnapshot")
+                && serverBarGestureScope.keepsLiveStatus(controller)
+                && bridge != null && bridge.ownsLiveStatusWindow(controller)) {
+            // The private App window supplies live status pixels under the task.
+            // Reused Launcher gestures send state 6 before their new start receipt;
+            // its stock snapshot-only alpha(0,0) would hide those pixels immediately.
+            // Keep native state bookkeeping and navigation work, plus state-10 finish.
+            moduleLog(Log.DEBUG, TAG, "Kept live App status bar during task-snapshot delivery");
+            return null;
+        }
+        return dispatchServerBarMutation(chain);
+    }
+
+    protected Object dispatchServerBarMutation(XposedInterface.Chain chain) throws Throwable {
+        try (ServerBarFollowLifecycle.Permit permit = serverBarFollowLifecycle.enterMutation(chain.getThisObject())) {
+            if (permit == null) return null;
+            ServerBarWindowBridge bridge = serverBarWindowBridge;
+            String operation = chain.getExecutable().getName();
+            if (operation.equals("animateStatusBarTo") && chain.getArgs().size() >= 2
+                    && serverBarGestureScope.keepsAppDuringStart(chain.getThisObject(),
+                    ((Number) chain.getArg(0)).floatValue(), ((Number) chain.getArg(1)).floatValue())
+                    && bridge != null && bridge.ownsLiveStatusWindow(chain.getThisObject())) {
+                // Native Recents initialization races the state-6 owner callback.
+                // Match the native isOnSwipeUping early exit when initialization wins;
+                // retain its task parenting, then let terminal state own the alpha target.
+                moduleLog(Log.DEBUG, TAG, "Kept live App status bar during Recents initialization");
+                return null;
+            }
+            if (operation.equals("startStatusBarAnimation")) {
+                boolean appToRecents = bridge != null && !chain.getArgs().isEmpty()
+                        && bridge.isLiveAppToRecents(chain.getThisObject(), chain.getArg(0));
+                try (ServerBarGestureScope.Scope start = serverBarGestureScope.enterRecentsStart(
+                        chain.getThisObject(), appToRecents)) {
+                    Object result = proceedServerBarMutation(chain, bridge, operation);
+                    if (appToRecents) bridge.commitNativeParenting(chain.getThisObject());
+                    return result;
+                }
+            }
+            return proceedServerBarMutation(chain, bridge, operation);
+        }
+    }
+
+    private Object proceedServerBarMutation(XposedInterface.Chain chain,
+            ServerBarWindowBridge bridge, String operation) throws Throwable {
+        if (bridge != null)
+            bridge.recordDecision(chain.getThisObject(), operation, "before", chain.getArgs());
+        Object result = chain.proceed();
+        if (bridge != null)
+            bridge.recordDecision(chain.getThisObject(), operation, "after", chain.getArgs());
+        return result;
+    }
+
+    private Object syntheticBarController(Object owner) throws ReflectiveOperationException {
+        return owner.getClass().getName().equals("com.android.server.wm.MiuiStatusBarController")
+                ? owner : readField(owner, "mStatusBarController");
+    }
+
+    protected Object createServerBarSynthetic(XposedInterface.Chain chain) throws Throwable {
+        Object result = chain.proceed();
+        serverBarFollowLifecycle.created(chain.getThisObject(), syntheticBarController(chain.getArg(0)));
+        return result;
+    }
+
+    protected Object dispatchServerBarSynthetic(XposedInterface.Chain chain) throws Throwable {
+        Object callback = chain.getThisObject();
+        Object controller = syntheticBarController(readField(callback, "f$0"));
+        try (ServerBarFollowLifecycle.Permit permit = serverBarFollowLifecycle.enter(callback, controller)) {
+            return permit == null ? null : chain.proceed();
+        }
+    }
+
+    protected Object serverBarBridgeReady(XposedInterface.Chain chain) throws Throwable {
+        Object result = chain.proceed();
+        installServerBarWindowBridge(chain.getThisObject());
+        repairServerNavigationPolicy(chain.getThisObject());
+        return result;
+    }
+
+    protected void restoreServerBarOwnerAfterHotReload(ClassLoader loader) {
+        if (Build.VERSION.SDK_INT != Build.VERSION_CODES.CINNAMON_BUN || !serverBarLifetimeHooksReady)
+            return;
+        try {
+            Object instance = Class.forName("com.android.server.wm.BarFollowAnimationStub", false, loader)
+                    .getMethod("getInstance").invoke(null);
+            if (readField(instance, "mContext") == null || readField(instance, "mWmService") == null)
+                return;
+            installServerBarWindowBridge(instance);
+            repairServerNavigationPolicy(instance);
+        } catch (Throwable failure) {
+            moduleLog(Log.WARN, TAG, "Native bar owner restoration unavailable", failure);
+        }
+    }
+
+    private void repairServerNavigationPolicy(Object impl) {
+        try {
+            Class<?> policy = Class.forName("com.android.server.wm.BarFollowAnimationUtils", false,
+                    impl.getClass().getClassLoader());
+            Field cachedDisabled = policy.getDeclaredField("disableMultiBars");
+            cachedDisabled.setAccessible(true);
+            if (cachedDisabled.getBoolean(null)) return;
+            Class<?> features = Class.forName("miui.os.HyperOSCustFeatureResolve", false,
+                    impl.getClass().getClassLoader());
+            Method resolve = features.getMethod("getBoolean", String.class, boolean.class);
+            String feature = "disable_multi_statusbar_navigationbar";
+            // Different fallback answers mean the service is absent or unreadable.
+            // Neither default alone proves native policy, and we never rewrite it.
+            if (!Boolean.TRUE.equals(resolve.invoke(null, feature, false))
+                    || !Boolean.TRUE.equals(resolve.invoke(null, feature, true))) return;
+            Object navigation = readField(impl, "mNavigationBarController");
+            Object wms = readField(impl, "mWmService");
+            Object display = readField(impl, "mDisplayContent");
+            if (navigation == null || wms == null || display == null
+                    || !navigation.getClass().getName().equals("com.android.server.wm.MiuiNavigationBarController"))
+                return;
+            Object lock = readField(wms, "mGlobalLock");
+            android.os.Handler handler = (android.os.Handler) readField(wms, "mAnimationHandler");
+            Method retire = impl.getClass().getDeclaredMethod("destroyMiuiNavigationBarController",
+                    Class.forName("com.android.server.wm.DisplayContent", false, impl.getClass().getClassLoader()));
+            retire.setAccessible(true);
+            Method traverse = wms.getClass().getDeclaredMethod("requestTraversal");
+            traverse.setAccessible(true);
+            int epoch = serverNavigationPolicyEpoch.incrementAndGet();
+            handler.post(() -> {
+                try {
+                    if (serverNavigationPolicyEpoch.get() != epoch
+                            || !Boolean.TRUE.equals(resolve.invoke(null, feature, false))
+                            || !Boolean.TRUE.equals(resolve.invoke(null, feature, true))) return;
+                    synchronized (lock) {
+                        if (serverNavigationPolicyEpoch.get() != epoch
+                                || readField(impl, "mWmService") != wms
+                                || readField(impl, "mDisplayContent") != display
+                                || readField(impl, "mNavigationBarController") != navigation)
+                            return;
+                        // Stock teardown restores the real NavigationBar in the WMS
+                        // pending transaction and retires the obsolete controller on
+                        // its own Handler. No module Surface/flag writes are needed.
+                        retire.invoke(impl, display);
+                        traverse.invoke(wms);
+                    }
+                    moduleLog(Log.INFO, TAG, "Retired prematurely initialized native multi-navigation owner;"
+                            + " authoritative HyperOS policy disables task navigation bars");
+                } catch (Throwable failure) {
+                    moduleLog(Log.WARN, TAG, "Native navigation policy reconciliation failed", failure);
+                }
+            });
+        } catch (Throwable failure) {
+            moduleLog(Log.WARN, TAG, "Native navigation policy proof unavailable; preserving owner", failure);
+        }
+    }
+
+    protected Object serverBarOwnedFeature(XposedInterface.Chain chain) throws Throwable {
+        ServerBarWindowBridge bridge = serverBarWindowBridge;
+        return bridge != null && bridge.animationEnabled() ? true : chain.proceed();
+    }
+
+    private synchronized void installServerBarWindowBridge(Object impl) {
+        if (!serverBarLifetimeHooksReady || serverBarWindowBridge != null) return;
+        try {
+            serverBarWindowBridge = new ServerBarWindowBridge(impl, serverBarFollowLifecycle, (message, failure) -> {
+                if (failure == null) moduleLog(Log.INFO, TAG, message);
+                else moduleLog(Log.WARN, TAG, message, failure);
+            });
+        } catch (Throwable failure) {
+            moduleLog(Log.WARN, TAG, "WMS bar window bridge unavailable", failure);
+        }
+    }
+
+    protected boolean reserveServerBarReload() {
+        ServerBarWindowBridge bridge = serverBarWindowBridge;
+        try {
+            if (bridge != null && !bridge.canAwaitClose()) return false;
+        } catch (ReflectiveOperationException failure) {
+            moduleLog(Log.WARN, TAG, "Cannot prove safe native bar retirement wait", failure);
+            return false;
+        }
+        serverNavigationPolicyEpoch.incrementAndGet();
+        if (bridge != null) {
+            bridge.close();
+            serverBarWindowBridge = null;
+        }
+        boolean retired = serverBarFollowLifecycle.reserveReload();
+        boolean ready = false;
+        try {
+            // Waiting happens outside the WMS lock and the native owner Looper.
+            // Include the lease acknowledgement/death-recipient unlink turn,
+            // which follows the Surface commit and native bookkeeping.
+            long deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(5);
+            retired = retired || serverBarFollowLifecycle.awaitReload(5000L);
+            long remainingMillis = Math.max(0L, java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(
+                    deadline - System.nanoTime()));
+            ready = retired && (bridge == null || bridge.awaitClose(remainingMillis));
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+        }
+        if (!ready) {
+            if (bridge != null) bridge.recoverAfterRejectedReload(() -> {
+                serverBarFollowLifecycle.cancelReloadReservation();
+                installServerBarWindowBridge(bridge.nativeOwner());
+            });
+            else serverBarFollowLifecycle.cancelReloadReservation();
+            moduleLog(Log.WARN, TAG, "Native bar retirement not committed; rejected reload keeps old runtime recovery");
+        } else if (bridge != null) {
+            moduleLog(Log.INFO, TAG, "Native bar restoration and lease cleanup completed within this hot-reload request");
+        }
+        return ready;
+    }
+
+    protected Object[] saveServerBarRetiredOwners() {
+        return new Object[]{serverBarFollowLifecycle.retiredControllers(), serverBarFollowLifecycle.retiredCallbacks()};
+    }
+
+    protected void restoreServerBarRetiredOwners(Object saved) {
+        if (!(saved instanceof Object[])) return;
+        Object[] state = (Object[]) saved;
+        if (state.length <= 17 || !(state[17] instanceof Object[])) return;
+        Object[] barState = (Object[]) state[17];
+        if (barState.length != 2 || !(barState[0] instanceof Object[]) || !(barState[1] instanceof Object[][]))
+            return;
+        java.util.ArrayList<Object> owners = new java.util.ArrayList<>();
+        for (Object candidate : (Object[]) barState[0])
+            if (candidate != null
+                    && candidate.getClass().getName().equals("com.android.server.wm.MiuiStatusBarController"))
+                owners.add(candidate);
+        serverBarFollowLifecycle.restoreRetiredControllers(owners.toArray());
+        serverBarFollowLifecycle.restoreRetiredCallbacks((Object[][]) barState[1]);
+    }
+
+    /** Clear any old module strips through WMS's own calculation and notification path. */
+    protected void restoreNativeSideGestureExclusion(ClassLoader loader) {
+        try {
+            Object manager = Class.forName("android.os.ServiceManager")
+                    .getMethod("checkService", String.class).invoke(null, "window");
+            Class<?> wms = Class.forName("com.android.server.wm.WindowManagerService", false, loader);
+            if (!wms.isInstance(manager)) return;
+            Object handler = readField(manager, "mH");
+            if (!(handler instanceof Handler)) return;
+            Object lock = readField(manager, "mGlobalLock");
+            Object root = readField(manager, "mRoot");
+            Class<?> display = Class.forName("com.android.server.wm.DisplayContent", false, loader);
+            Method update = display.getDeclaredMethod("updateSystemGestureExclusion");
+            Method getDisplay = Class.forName("com.android.server.wm.RootWindowContainer", false, loader)
+                    .getDeclaredMethod("getDisplayContent", int.class);
+            if (update.getReturnType() != boolean.class || getDisplay.getReturnType() != display)
+                throw new NoSuchMethodException("Native gesture exclusion refresh contract changed");
+            update.setAccessible(true);
+            getDisplay.setAccessible(true);
+            if (!((Handler) handler).post(() -> {
+                try {
+                    synchronized (lock) {
+                        if (readField(manager, "mRoot") != root) return;
+                        Object current = getDisplay.invoke(root, 0);
+                        if (current != null) update.invoke(current);
+                    }
+                    moduleLog(Log.INFO, TAG, "Restored native side-gesture exclusion");
+                } catch (Throwable failure) {
+                    moduleLog(Log.WARN, TAG, "Native side-gesture exclusion refresh failed", failure);
+                }
+            })) throw new IllegalStateException("WMS rejected native gesture exclusion refresh");
+        } catch (Throwable failure) {
+            moduleLog(Log.WARN, TAG, "Native side-gesture exclusion refresh unavailable", failure);
+        }
+    }
 }

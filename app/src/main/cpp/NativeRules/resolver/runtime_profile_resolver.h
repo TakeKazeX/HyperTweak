@@ -76,4 +76,28 @@ bool ResolveContextualSearchOverlay(
         ResolutionStorage* storage,
         ResolutionDiagnostics* diagnostics);
 
+// Resolve the physical monitor that starts Xiaomi's native bottom-long-press
+// manager, before dispatch-disabled redirection can bypass further detector
+// delivery. Require both the manager's handler graph and this receiver's exact
+// id/action/finish import graph and direct call relationship.
+bool ResolveContextualLongPressInput(const uint8_t* base, uintptr_t* entry_offset);
+
+// SfAnimParam field offsets proven by SfAnim::start_animation's own entry log:
+// the exact format template names each argument, and the argument array replay
+// maps it to a field of the caller-owned parameter copy passed in x1.
+struct SfAnimStartLayout {
+    uintptr_t entry_offset;
+    uint32_t anim_type;
+    uint32_t app_targets, app_target_count, target_task_id;
+    uint32_t w_start, w_end, w_velocity;
+    uint32_t h_start, h_end, h_velocity;
+    uint32_t cx_start, cx_end;
+    uint32_t cy_start, cy_end;
+};
+
+// Resolves SfAnim::start_animation(&self, &mut SfAnimParam) and its layout.
+// Every direct caller must pass a fresh memcpy'd parameter copy; any mismatch
+// leaves the optional return-home start rewrite disabled.
+bool ResolveSfAnimStartAnimation(const uint8_t* base, SfAnimStartLayout* layout);
+
 }  // namespace miui_home_runtime_profile

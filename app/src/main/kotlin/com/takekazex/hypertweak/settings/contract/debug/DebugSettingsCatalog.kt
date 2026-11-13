@@ -41,6 +41,8 @@ internal object DebugSettingsCatalog {
         DebugSetting("back_gesture_cross_task_wallpaper", "Boolean", false),
         DebugSetting("back_gesture_enabled", "Boolean", false),
         DebugSetting("back_gesture_haptics_disabled", "Boolean", false),
+        DebugSetting("back_gesture_return_home_icon_preview", "Boolean", false),
+        DebugSetting("back_gesture_status_bar_follow", "Boolean", false),
         DebugSetting("back_gesture_upstream_detection_disabled", "Boolean", false),
         DebugSetting("barrage_any_app", "Boolean", false),
         DebugSetting("battery_auto_power_save_enabled", "Boolean", false),

@@ -1,5 +1,12 @@
 package com.takekazex.hypertweak.hook.rules.backgesture.hooks.systemui;
 
+import java.lang.reflect.Field;
+import com.takekazex.hypertweak.hook.rules.backgesture.hooks.systemui.barfollow.StatusBarAppearanceInputs;
+import com.takekazex.hypertweak.hook.rules.backgesture.hooks.systemui.barfollow.SystemUiBarFollowRuntime;
+import com.takekazex.hypertweak.hook.rules.backgesture.hooks.systemui.LauncherConnectionObserver;
+import com.takekazex.hypertweak.hook.rules.backgesture.hooks.systemui.SystemUiAndroid17Impl;
+import com.takekazex.hypertweak.hook.rules.backgesture.hooks.systemui.SystemUiPlatformImpl;
+
 import com.takekazex.hypertweak.settings.contract.BackGestureKeys;
 import com.takekazex.hypertweak.hook.base.HostApplicationContext;
 
@@ -34,7 +41,7 @@ import org.luckypray.dexkit.query.matchers.MethodMatcher;
 import org.luckypray.dexkit.result.MethodData;
 
 @SuppressLint({"PrivateApi", "DiscouragedPrivateApi"})
-public abstract class SystemUiHookRuntime extends SystemUiAnimationRuntime {
+public abstract class SystemUiHookRuntime extends com.takekazex.hypertweak.hook.rules.backgesture.hooks.systemui.barfollow.SystemUiBarFollowRuntime {
 
     private final SystemUiBridgeLease launcherBridgeLease = new SystemUiBridgeLease();
 
@@ -89,7 +96,7 @@ public abstract class SystemUiHookRuntime extends SystemUiAnimationRuntime {
             hookMiuiOverviewProxy(classLoader);
             hookNavigationBarTransientAutoHide(classLoader);
             hookNavigationBarTransientAppearance(classLoader);
-            hookStatusBarTransientAppearance(classLoader);
+
             hookNavigationBarGestureInsets(classLoader);
             hookPlatformBackAnimationStatusBarReset(classLoader);
             hookEdgeBackGestureHandler(classLoader, true, true, true);
@@ -102,6 +109,7 @@ public abstract class SystemUiHookRuntime extends SystemUiAnimationRuntime {
             hookBackAnimationSendBackEvent(classLoader);
             hookDefaultTransitionHandler(classLoader);
             hookDefaultTransitionImplMerge(classLoader);
+            prepareBackGestureExtensions(classLoader);
             moduleLog(Log.INFO, TAG, "Installed SystemUI AOSP back restoration hooks, build="
                     + BUILD_MARK + ", hooks=" + hookHandles.size());
         } catch (Throwable throwable) {
@@ -226,7 +234,6 @@ public abstract class SystemUiHookRuntime extends SystemUiAnimationRuntime {
         SharedPreferences preferences = contextualSearchStatePreferences;
         contextualSearchStatePreferences = null;
         contextualSearchStateContext = null;
-        contextualSearchPreferences = null;
         if (preferences == null) {
             return;
         }
@@ -346,6 +353,9 @@ public abstract class SystemUiHookRuntime extends SystemUiAnimationRuntime {
             hookBackPrepareTransitionReparent(classLoader);
             hookBackCommitComposition(classLoader);
             hookBackFinishOpenAtomicTransfer(classLoader);
+            hookReturnHomeCloseRejection(classLoader);
+            hookReturnHomeHandoff(classLoader, true, true, true, true);
+            hookReturnHomePreviewAnimation(classLoader, true, true, true, true);
             hookFreeformCrossActivityScrimCreation();
             hookCrossActivitySlideAnimation(classLoader,
                     true, true, true, true, true, true);
@@ -1103,6 +1113,10 @@ public abstract class SystemUiHookRuntime extends SystemUiAnimationRuntime {
                     + ", drawerStateReady=" + drawerStateReady
                     + ", overviewStateReady=" + overviewStateReady
                     + ", editingStateReady=" + editingStateReady
+                    + ", xiaoaiStateReady=" + (nativeReply != null
+                            && nativeReply.getBooleanExtra("status_native_xiaoai_state_ready", false))
+                    + ", xiaoaiCandidates=" + (nativeReply == null ? 0
+                            : nativeReply.getIntExtra("status_native_xiaoai_candidates", 0))
                     + ", reason=" + reason);
         } catch (Throwable throwable) {
             moduleLog(Log.WARN, TAG, "Failed to publish module runtime status reply",
@@ -1215,6 +1229,10 @@ public abstract class SystemUiHookRuntime extends SystemUiAnimationRuntime {
     }
 
     protected synchronized void unregisterMiuiOverviewStateReceiver() {
+        LauncherConnectionObserver connection = launcherConnection;
+        launcherConnection = null;
+        launcherConnectionHandler.removeCallbacksAndMessages(null);
+        if (connection != null) connection.close();
         // Revoke before touching framework registration or other teardown work.
         launcherBridgeLease.retire();
         PredictiveBackWallpaper wallpaper = predictiveBackWallpaper;
@@ -1316,6 +1334,7 @@ public abstract class SystemUiHookRuntime extends SystemUiAnimationRuntime {
                 || com.takekazex.hypertweak.hook.Preferences.INSTANCE.upstreamBackGestureOwnsInput()) {
             return;
         }
+        ensureLauncherConnection(edgeBackGestureHandler);
         try {
             if (edgeBackGestureHandler == null || backAnimationImpl == null) {
                 return;
@@ -1373,6 +1392,7 @@ public abstract class SystemUiHookRuntime extends SystemUiAnimationRuntime {
         if (!acceptingBackInputInstalls || edgeBackGestureHandler == null) {
             return;
         }
+        ensureLauncherConnection(edgeBackGestureHandler);
         try {
             if (nativeInputMonitors.containsKey(edgeBackGestureHandler)) {
                 return;
@@ -1420,9 +1440,159 @@ public abstract class SystemUiHookRuntime extends SystemUiAnimationRuntime {
         try {
             Object registry = readField(controller, "mShellBackAnimationRegistry");
             ensureAospRegistryDefinitions(registry, source);
+            Object organizer = readFieldOrNull(
+                    readFieldOrNull(controller, "mTransitions"), "mOrganizer");
+            returnHomeTaskOrganizer = organizer instanceof String ? null : organizer;
         } catch (Throwable throwable) {
             moduleLog(Log.WARN, TAG, "Failed to ensure AOSP back animations from " + source,
                     throwable);
+        }
+    }
+
+    protected static final String STATUS_BAR_TRANSIENT_ARRAY = "systemui_status_bar_transient_appearance_array";
+
+    private volatile LauncherConnectionObserver launcherConnection;
+
+    private final Handler launcherConnectionHandler = new Handler(Looper.getMainLooper());
+
+    private Method resolveStatusBarAppearanceArray(ClassLoader loader) throws Throwable {
+        String repository = "com.android.systemui.statusbar.data.repository.StatusBarModePerDisplayRepositoryImpl";
+        Class<?> owner = Class.forName(repository, false, loader);
+        Class<?> model = Class.forName("com.android.systemui.statusbar.data.model.StatusBarAppearance", false, loader);
+        Field mode = model.getDeclaredField("mode");
+        systemUiDexResolutionInFlight.incrementAndGet();
+        try {
+            return com.takekazex.hypertweak.hook.rules.backgesture.BackGestureDexQueries.query(resolveDexContainerForLoadedClass(owner), dex -> {
+                Method result = null;
+                for (MethodData candidate : dex.findMethod(FindMethod.create()
+                        .searchPackages("com.android.systemui.statusbar.data.repository")
+                        .matcher(MethodMatcher.create().name("invokeSuspend").paramCount(1)))) {
+                    boolean writesMode = false;
+                    for (org.luckypray.dexkit.result.UsingFieldData field : candidate.getUsingFields())
+                        if (field.getUsingType() == org.luckypray.dexkit.result.FieldUsingType.Write
+                                && field.getField().getFieldInstance(loader).equals(mode))
+                            writesMode = true;
+                    if (!writesMode) continue;
+                    Class<?> reducer = candidate.getMethodInstance(loader).getDeclaringClass();
+                    if (!reducer.getName().startsWith(repository + "$")
+                            || reducer.getDeclaredField("this$0").getType() != owner
+                            || reducer.getDeclaredField("L$1").getType() != Object.class
+                            || reducer.getDeclaredField("label").getType() != int.class) continue;
+                    Method invoke = reducer.getDeclaredMethod("invoke", Object.class, Object.class, Object.class);
+                    if (invoke.getReturnType() != Object.class) continue;
+                    if (result != null)
+                        throw new NoSuchMethodException("Ambiguous native status appearance reducer");
+                    result = invoke;
+                }
+                if (result == null) throw new NoSuchMethodException("Native status appearance array reducer");
+                return result;
+            });
+        } finally {
+            systemUiDexResolutionInFlight.decrementAndGet();
+        }
+    }
+
+    protected Object preserveTransientStatusBarAppearanceArray(XposedInterface.Chain chain) throws Throwable {
+        Class<?> attributes = Class.forName("com.android.systemui.statusbar.data.repository."
+                        + "StatusBarModePerDisplayRepositoryImpl$ModifiedStatusBarAttributes", false,
+                chain.getExecutable().getDeclaringClass().getClassLoader());
+        Object original = chain.getArg(1);
+        Object corrected = StatusBarAppearanceInputs.withoutTransient(original, attributes);
+        if (corrected == original) return chain.proceed();
+        Object[] args = chain.getArgs().toArray();
+        args[1] = corrected;
+        return chain.proceed(args);
+    }
+
+    @Override
+    protected String resolveBarFollowDexContainer(Class<?> targetClass) throws Throwable {
+        return resolveDexContainerForLoadedClass(targetClass);
+    }
+
+
+    private void ensureLauncherConnection(Object edgeHandler) {
+        if (Build.VERSION.SDK_INT != Build.VERSION_CODES.CINNAMON_BUN || edgeHandler == null)
+            return;
+        launcherConnectionHandler.post(() -> {
+            if (!acceptingBackInputInstalls) return;
+            try {
+                Object service = readField(edgeHandler, "mLauncherProxyService");
+                if (launcherConnection != null && launcherConnection.ownsService(service)) return;
+                Context context = ((Context) readField(edgeHandler, "mContext")).getApplicationContext();
+                if (launcherConnection != null) launcherConnection.close();
+                launcherConnection = new LauncherConnectionObserver(service,
+                        () -> systemUiInputArbiterGeneration, (source, receipt) -> {
+                    // Native onServiceConnected must finish before notifying its newly
+                    // initialized Launcher. A retained monitor does not reattach when
+                    // only Launcher restarts, so its normal advertisement never reruns.
+                    launcherConnectionHandler.post(() -> {
+                        if (!acceptingBackInputInstalls || launcherConnection != source
+                                || !source.isCurrent(receipt, systemUiInputArbiterGeneration))
+                            return;
+                        publishSystemUiInputArbiterState(context,
+                                systemUiInputArbiterMonitorCount.get() > 0, "launcherConnected");
+                    });
+                }, (message, failure) -> {
+                    if (failure == null) moduleLog(Log.WARN, TAG, message);
+                    else moduleLog(Log.WARN, TAG, message, failure);
+                });
+                // The platform immediately publishes an already-connected baseline.
+                // Assign first so both cold installation and API-102 backfill can use it.
+                launcherConnection.start();
+                moduleLog(Log.INFO, TAG, "Observing native Launcher connection for input-arbiter advertisement");
+            } catch (Throwable failure) {
+                if (launcherConnection != null) launcherConnection.close();
+                launcherConnection = null;
+                moduleLog(Log.WARN, TAG, "Launcher connection observation unavailable", failure);
+            }
+        });
+    }
+    private final java.util.concurrent.atomic.AtomicBoolean backGestureExtensionsQueued =
+            new java.util.concurrent.atomic.AtomicBoolean();
+
+    protected void prepareBackGestureExtensions(ClassLoader loader) {
+        if (!backGestureExtensionsQueued.compareAndSet(false, true)) return;
+        systemUiDexResolutionInFlight.incrementAndGet();
+        boolean queued = com.takekazex.hypertweak.hook.base.dex.DexRuntime.INSTANCE.background(() -> {
+            try {
+                if (!acceptingBackInputInstalls) return kotlin.Unit.INSTANCE;
+                hookRecentsBarFollow(loader, java.util.Collections.emptySet());
+                hookStatusBarTransientAppearance(loader);
+            } catch (Throwable failure) {
+                moduleLog(Log.WARN, TAG, "Back gesture extension preparation failed; preserving native behavior", failure);
+            } finally { systemUiDexResolutionInFlight.decrementAndGet(); }
+            return kotlin.Unit.INSTANCE;
+        });
+        if (!queued) {
+            backGestureExtensionsQueued.set(false);
+            systemUiDexResolutionInFlight.decrementAndGet();
+            moduleLog(Log.WARN, TAG, "Back gesture extension preparation queue unavailable");
+        }
+    }
+
+    protected void hookStatusBarTransientAppearance(ClassLoader classLoader) {
+        try {
+            Method method;
+            String id;
+            XposedInterface.Hooker callback;
+            try {
+                Class<?> appearanceClass = Class.forName(STATUS_BAR_APPEARANCE_LAMBDA, false, classLoader);
+                method = findAnyMethod(appearanceClass, "invoke", 6);
+                if (method == null)
+                    throw new NoSuchMethodException(STATUS_BAR_APPEARANCE_LAMBDA + ".invoke/6");
+                id = "systemui_status_bar_transient_appearance";
+                callback = this::preserveTransientBarAppearance;
+            } catch (ClassNotFoundException absent) {
+                method = resolveStatusBarAppearanceArray(classLoader);
+                id = STATUS_BAR_TRANSIENT_ARRAY;
+                callback = this::preserveTransientStatusBarAppearanceArray;
+            }
+            method.setAccessible(true);
+            registerHook(method, id, callback);
+            moduleLog(Log.INFO, TAG, "Hooked status-bar transient appearance reducer");
+        } catch (Throwable throwable) {
+            moduleLog(Log.ERROR, TAG,
+                    "Failed to hook status-bar transient appearance", throwable);
         }
     }
 }

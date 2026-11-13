@@ -615,7 +615,164 @@ void Increment(uint32_t* value) {
     if (value != nullptr && *value != UINT32_MAX) ++*value;
 }
 
+
+bool DecodeFrameAccess(uint32_t instruction, uint32_t opcode, intptr_t* offset) {
+    if ((instruction & 0xffe00fffu) != opcode) return false;
+    intptr_t immediate = (instruction >> 12u) & 0x1ffu;
+    if ((immediate & 0x100) != 0) immediate -= 0x200;
+    if (immediate >= 0 || immediate < -0x100 || (immediate & 7) != 0) return false;
+    *offset = immediate;
+    return true;
+}
+
+bool DecodeActionBranch(uintptr_t address, uint32_t instruction, uintptr_t* target) {
+    if ((instruction & 0xfff8001fu) != 0x37200000u) return false; // tbnz w0, #4
+    int64_t immediate = (instruction >> 5u) & 0x3fffu;
+    if ((immediate & 0x2000) != 0) immediate -= 0x4000;
+    const int64_t result = static_cast<int64_t>(address) + immediate * 4;
+    if (result < 0) return false;
+    *target = static_cast<uintptr_t>(result);
+    return true;
+}
+
+bool MatchCtsAction(const ElfView& view, uintptr_t entry, uintptr_t allocator,
+                    uintptr_t await) {
+    uint32_t c[57]{};
+    uintptr_t target = 0u, initializer = 0u, wrapper = 0u;
+    if (!ReadInstructions(view, entry, c, 57u)
+            || c[0] != 0xa9bf79fdu || c[1] != 0xaa0f03fdu
+            || c[2] != 0xd100a1efu || c[3] != 0xf81f83b6u
+            || c[4] != 0xf81f03a1u || c[5] != 0xd2800041u
+            || !DecodeBlTarget(entry + 24u, c[6], &target) || target != allocator
+            || c[7] != 0xaa0003e1u || c[8] != 0xf85f03a0u
+            || c[9] != 0xf81e83a1u || c[10] != 0xb800f020u
+            || c[11] != 0xf9402f60u
+            || !DecodeBlTarget(entry + 48u, c[12], &initializer)
+            || c[13] != 0xf85e83a2u || c[14] != 0xb840f040u
+            || c[15] != 0x8b1c8000u || c[16] != 0xf85ff001u
+            || c[17] != 0xd34c7c21u
+            || !DecodePoolObject(c[18], c[19], 16u, &target)
+            || c[20] != 0xa90001f0u || c[21] != 0xaa0103e0u
+            || c[22] != 0xaa0003feu || c[23] != 0xf87e7abeu
+            || c[24] != 0xd63f03c0u || c[25] != 0x36200260u
+            || c[44] != 0xf85e83a2u
+            || !DecodeBlTarget(entry + 180u, c[45], &wrapper)
+            || c[46] != 0xaa0003e1u || c[47] != 0xf81f03a1u
+            || !DecodeBlTarget(entry + 192u, c[48], &target) || target != await)
+        return false;
+    // The admitted CTS branch reaches Xiaomi's existing no-argument boolean
+    // FRB operation, with the same async initializer and normal return owner.
+    uint32_t w[8]{};
+    return ReadInstructions(view, wrapper, w, 8u)
+            && w[0] == 0xa9bf79fdu && w[1] == 0xaa0f03fdu
+            && w[2] == 0xd10021efu && w[3] == 0xf81f83b6u
+            && (w[4] & 0xffc003ffu) == 0xf9400360u
+            && DecodeBlTarget(wrapper + 20u, w[5], &target) && target == initializer
+            && IsBl(w[6]) && (w[7] & 0xfc000000u) == 0x14000000u;
+}
+
+bool MatchContextualAction(const ElfView& view, uintptr_t site,
+                           ContextualActionSite* output) {
+    if (site < 28u) return false;
+    uint32_t c[18]{};
+    intptr_t context_slot = 0, result_slot = 0, repeated_slot = 0;
+    uintptr_t getter = 0u, await = 0u, branch = 0u, none_pool = 0u;
+    if (!ReadInstructions(view, site - 28u, c, 18u)
+            || !DecodeFrameAccess(c[0], 0xf84003a2u, &context_slot)
+            || c[1] != 0xb840f041u || c[2] != 0x8b1c8021u
+            || !DecodeBlTarget(site - 16u, c[3], &getter)
+            || c[4] != 0xaa0003e1u
+            || !DecodeFrameAccess(c[5], 0xf80003a1u, &result_slot)
+            || !DecodeBlTarget(site - 4u, c[6], &await)
+            || c[7] != 0xaa0003e1u
+            || !DecodeFrameAccess(c[8], 0xf80003a1u, &repeated_slot)
+            || repeated_slot != result_slot || result_slot == context_slot
+            || c[9] != 0xf85ff020u || c[10] != 0xd34c7c00u
+            || !DecodePoolObject(c[11], c[12], 16u, &none_pool)
+            || c[13] != 0xa90005f0u || c[14] != 0xaa0003feu
+            || c[15] != 0xf87e7abeu || c[16] != 0xd63f03c0u
+            || !DecodeActionBranch(site + 40u, c[17], &branch)
+            || branch <= site + 40u || branch > site + 0x200u) return false;
+    uint32_t b[19]{};
+    uintptr_t cts_pool = 0u, cts = 0u, non_cts = 0u, target = 0u;
+    if (!ReadInstructions(view, branch, b, 19u)
+            || !DecodeFrameAccess(b[0], 0xf84003a1u, &repeated_slot)
+            || repeated_slot != result_slot
+            || b[1] != 0xf85ff020u || b[2] != 0xd34c7c00u
+            || !DecodePoolObject(b[3], b[4], 16u, &cts_pool)
+            || cts_pool == none_pool
+            || b[5] != 0xa90005f0u || b[6] != 0xaa0003feu
+            || b[7] != 0xf87e7abeu || b[8] != 0xd63f03c0u
+            || !DecodeActionBranch(branch + 36u, b[9], &non_cts)
+            || non_cts != branch + 76u
+            || !DecodeFrameAccess(b[10], 0xf84003a2u, &repeated_slot)
+            || repeated_slot != context_slot
+            || b[11] != 0xb840f041u || b[12] != 0x8b1c8021u
+            || !DecodeBlTarget(branch + 52u, b[13], &cts)
+            || b[14] != 0xaa0003e1u
+            || !DecodeBlTarget(branch + 64u, b[16], &target) || target != await
+            || b[17] != 0xaa1603e0u || (b[18] & 0xfc000000u) != 0x14000000u)
+        return false;
+    uint32_t g[13]{};
+    uintptr_t allocator = 0u;
+    if (!ReadInstructions(view, getter, g, 13u)
+            || g[0] != 0xa9bf79fdu || g[1] != 0xaa0f03fdu
+            || (g[2] & 0xffc003ffu) != 0xd10001efu
+            || g[3] != 0xf81f83b6u || g[5] != 0xd2800061u
+            || !DecodeBlTarget(getter + 24u, g[6], &allocator)
+            || g[7] != 0xaa0003e1u || g[10] != 0xb800f020u
+            || (g[11] & 0xffc003ffu) != 0xf9400360u
+            || !IsBl(g[12]) || !MatchCtsAction(view, cts, allocator, await)) return false;
+    // Bind the frame reader to the async caller that captured this exact
+    // NavLongPress argument in its context before the lookup and await.
+    uint32_t callers = 0u;
+    for (uintptr_t entry = site > 0x800u ? site - 0x800u : 0u;
+         entry + 116u < site; entry += 4u) {
+        uint32_t p[29]{};
+        intptr_t captured = 0;
+        if (!ReadInstructions(view, entry, p, 29u)
+                || p[0] != 0xa9bf79fdu || p[1] != 0xaa0f03fdu
+                || (p[2] & 0xffc003ffu) != 0xd10001efu
+                || p[3] != 0xf81f83b6u
+                || p[5] != 0xb8413080u || p[6] != 0xb841f082u
+                || p[7] != 0x8b1c8042u || p[21] != 0xd2800041u
+                || !DecodeBlTarget(entry + 88u, p[22], &target) || target != allocator
+                || p[23] != 0xaa0003e1u
+                || !DecodeFrameAccess(p[25], 0xf80003a1u, &captured)
+                || captured != context_slot || p[26] != 0xb800f020u
+                || p[27] != 0xf9402f60u) continue;
+        const intptr_t frame_size = (p[2] >> 10u) & 0xfffu;
+        if (-context_slot <= frame_size && -result_slot <= frame_size) ++callers;
+    }
+    if (callers != 1u) return false;
+    *output = {site, context_slot, result_slot, cts_pool, {c[7], c[8], c[9], c[10]}};
+    return true;
+}
+
 }  // namespace
+
+bool ResolveContextualActionSite(const uint8_t* base, ContextualActionSite* site) {
+    if (site == nullptr) return false;
+    *site = {};
+    ElfView view{};
+    if (!ParseElf(base, &view)) return false;
+    uint32_t count = 0u;
+    ContextualActionSite found{};
+    for (size_t index = 0u; index < view.load_count; ++index) {
+        const auto& load = view.loads[index];
+        if ((load.flags & (PF_R | PF_X)) != (PF_R | PF_X)) continue;
+        for (uintptr_t offset = (load.start + 3u) & ~uintptr_t{3};
+             offset + 16u <= load.end; offset += 4u) {
+            uint32_t first = 0u;
+            if (!ReadInstruction(view, offset, &first) || first != 0xaa0003e1u) continue;
+            ContextualActionSite current{};
+            if (MatchContextualAction(view, offset, &current)) { found = current; ++count; }
+        }
+    }
+    if (count != 1u) return false;
+    *site = found;
+    return true;
+}
 
 bool ResolveDartFeatureProfile(
         const uint8_t* base, const void* snapshot_instructions,

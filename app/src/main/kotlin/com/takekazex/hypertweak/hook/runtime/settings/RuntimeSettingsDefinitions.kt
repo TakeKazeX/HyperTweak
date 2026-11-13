@@ -115,7 +115,7 @@ internal object RuntimeSettingsDefinitions {
     )
     val backKeys = BackGestureSettingsSnapshot.KEYS.toSet() + setOf(
         "back_gesture_predictive_packages", "contextual_search_long_press",
-        "gesture_trigger_height_percent", "gesture_trigger_position_percent", "aosp_gesture_hyperos_haptics"
+        "aosp_gesture_hyperos_haptics"
     )
     private val aodKeys = setOf(
         AodSettingsKeys.KEY_AOD_BATTERY_ICON_VISIBLE, AodSettingsKeys.KEY_AOD_DUO_ENABLED,

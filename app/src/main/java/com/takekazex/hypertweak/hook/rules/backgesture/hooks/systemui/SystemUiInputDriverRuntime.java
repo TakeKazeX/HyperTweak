@@ -1,5 +1,8 @@
 package com.takekazex.hypertweak.hook.rules.backgesture.hooks.systemui;
 
+import com.takekazex.hypertweak.hook.rules.backgesture.hooks.systemui.MiuiHapticFeedbackHelper;
+import com.takekazex.hypertweak.hook.rules.backgesture.hooks.systemui.MiuiStyleBackArrowOverlay;
+
 import com.takekazex.hypertweak.hook.Preferences;
 
 import android.annotation.SuppressLint;
@@ -90,6 +93,7 @@ public abstract class SystemUiInputDriverRuntime extends SystemUiInputPolicyRunt
                                 float linearDistance,
                                 float maxDistance, float nonLinearFactor,
                                 MiuiHomeAcceptedInputToken inputIdentity) {
+                this.recentsOpening = null;
                 this.controller = owner.controller;
                 this.executor = owner.executor;
                 this.inputEpoch = owner.inputEpoch;
@@ -104,12 +108,37 @@ public abstract class SystemUiInputDriverRuntime extends SystemUiInputPolicyRunt
                 this.nonLinearFactor = nonLinearFactor;
                 this.inputIdentity = new AtomicReference<>(inputIdentity);
             }
-        }
+
+        ShellGestureSession(ShellOwner owner, ShellStartSnapshot start,
+                                int edge, float startX, float startY,
+                                float linearDistance,
+                                float maxDistance, float nonLinearFactor,
+                                MiuiHomeAcceptedInputToken inputIdentity,
+                                RecentsOpenSession.Attempt recentsOpening) {
+                this.recentsOpening = recentsOpening;
+                this.controller = owner.controller;
+                this.executor = owner.executor;
+                this.inputEpoch = owner.inputEpoch;
+                this.tracker = start.tracker;
+                this.navigation = start.navigation;
+                this.receivedNullNavigation = start.receivedNullNavigation;
+                this.edge = edge;
+                this.startX = startX;
+                this.startY = startY;
+                this.linearDistance = linearDistance;
+                this.maxDistance = maxDistance;
+                this.nonLinearFactor = nonLinearFactor;
+                this.inputIdentity = new AtomicReference<>(inputIdentity);
+            }
+
+        final RecentsOpenSession.Attempt recentsOpening;
+}
 
         protected final Context context;
         protected final Object edgeBackGestureHandler;
         protected final int displayId;
         protected volatile Object controller;
+        public Object currentController() { return controller; }
         public volatile Object backAnimationImpl;
         protected volatile Executor shellExecutor;
         protected volatile ShellGestureSession activeShellSession;
@@ -324,6 +353,16 @@ public abstract class SystemUiInputDriverRuntime extends SystemUiInputPolicyRunt
         protected boolean canPilferAtIntentThreshold() {
             if (!gestureActive || gestureSuppressed) {
                 return false;
+            }
+            RecentsOpenSession.Attempt opening = recentsOpenGesture;
+            if (opening != null) {
+                AtomicBoolean current = new AtomicBoolean();
+                if (!executeShellBlocking(shellExecutor, () -> {
+                    try { current.set(isRecentsOpenNavigationCurrentOnOwner(opening)); }
+                    catch (Throwable failure) {
+                        moduleLog(Log.WARN, TAG, "Recents OPEN admission revalidation failed", failure);
+                    }
+                }, "recentsOpenBeforePilfer") || !current.get()) return false;
             }
             if (!shellGestureStartDeferred
                     || findReversibleRunningOpenTransition() != null) {
@@ -983,11 +1022,18 @@ public abstract class SystemUiInputDriverRuntime extends SystemUiInputPolicyRunt
                     new AtomicReference<>();
             AtomicBoolean abandoned = new AtomicBoolean();
             AtomicBoolean startTaskEntered = new AtomicBoolean();
+            RecentsOpenSession.Attempt recentsOpening = recentsOpenGesture;
             Runnable startTask = () -> {
                 boolean startInvoked = false;
                 try {
                     startTaskEntered.set(true);
                     if (abandoned.get()) {
+                        return;
+                    }
+                    if (recentsOpening != null
+                            && !isRecentsOpenNavigationCurrentOnOwner(recentsOpening)) {
+                        startResult.set(new ShellStartSnapshot(false, false,
+                                "stale-recents-task-reuse-open", null, null, false, null));
                         return;
                     }
                     String state = describeShellStateOnOwner(owner.controller);
@@ -1134,7 +1180,7 @@ public abstract class SystemUiInputDriverRuntime extends SystemUiInputPolicyRunt
             }
             ShellGestureSession session = new ShellGestureSession(
                     owner, start, startEdge, startX, startY, linearDistance,
-                    maxDistance, nonLinearFactor, acceptedInputIdentity);
+                    maxDistance, nonLinearFactor, acceptedInputIdentity, recentsOpening);
             if (publishShellGestureSession(session)) {
                 shellOwnerUncertain = true;
                 shellStartInFlight = false;
@@ -1512,7 +1558,7 @@ public abstract class SystemUiInputDriverRuntime extends SystemUiInputPolicyRunt
                 ShellGestureSession candidate = new ShellGestureSession(
                         owner, start, startEdge, startX, startY,
                         linearDistance, maxDistance, nonLinearFactor,
-                        acceptedInputIdentity);
+                        acceptedInputIdentity, null);
                 if (abandonedSession.compareAndSet(null, candidate)) {
                     session = candidate;
                 } else {
@@ -1681,6 +1727,7 @@ public abstract class SystemUiInputDriverRuntime extends SystemUiInputPolicyRunt
             launcherOpenBreakGeneration = 0L;
             launcherOpenBreakAttemptId = 0L;
             launcherOverviewGesture = false;
+            recentsOpenGesture = null;
             launcherShadeGesture = false;
             launcherXiaoAiGesture = false;
             launcherDrawerGesture = false;
@@ -2201,8 +2248,17 @@ public abstract class SystemUiInputDriverRuntime extends SystemUiInputPolicyRunt
             Object releaseController = session.controller;
             boolean authenticatedFallback;
             boolean commitLegacyBack;
+            boolean openingStillCurrent = true;
+            if (session.recentsOpening != null) {
+                try { openingStillCurrent = isRecentsOpenNavigationCurrentOnOwner(session.recentsOpening); }
+                catch (Throwable failure) {
+                    openingStillCurrent = false;
+                    moduleLog(Log.WARN, TAG, "Recents OPEN fallback owner changed", failure);
+                }
+            }
             synchronized (backInputLifecycleLock) {
                 authenticatedFallback = aospNullFallback
+                        && openingStillCurrent
                         && isCurrentAcceptedInputIdentity(
                         inputIdentity, releaseEdge, releaseController,
                         aospNullInputEpoch);
@@ -3010,5 +3066,90 @@ public abstract class SystemUiInputDriverRuntime extends SystemUiInputPolicyRunt
                 }
             });
         }
-    }
+
+        private ActivityManager.RunningTaskInfo findCompletedRecentsTaskOnOwner(
+                RecentsOpenSession.Attempt opening) throws Throwable {
+            if (!isRecentsOpenCompletionCurrentOnOwner(opening)) return null;
+            ActivityManager manager = context.getSystemService(ActivityManager.class);
+            List<ActivityManager.RunningTaskInfo> tasks = manager == null
+                    ? null : manager.getRunningTasks(20);
+            if (tasks == null) return null;
+            for (ActivityManager.RunningTaskInfo task : tasks) {
+                if (!Integer.valueOf(displayId).equals(readField(task, "displayId"))) continue;
+                Object token = readField(task, "token");
+                boolean matches = task.taskId == opening.session.taskId && token != null
+                        && opening.session.taskToken != null
+                        && invokeAnyMethod(token, "asBinder", new Object[0]).equals(
+                        invokeAnyMethod(opening.session.taskToken, "asBinder", new Object[0]))
+                        && task.topActivity != null && task.topActivity.equals(opening.session.topActivity);
+                if (matches) moduleLog(Log.INFO, TAG,
+                        "Handed accepted Recents OPEN to its completed foreground task"
+                                + ", task=" + task.taskId);
+                return matches ? task : null;
+            }
+            return null;
+        }
+
+        private boolean isRecentsOpenNavigationCurrentOnOwner(RecentsOpenSession.Attempt opening)
+                throws Throwable {
+            if (isRecentsOpenAttemptCurrentOnOwner(opening)) return true;
+            return findCompletedRecentsTaskOnOwner(opening) != null;
+        }
+
+        protected RecentsOpenSession.Attempt recentsOpenGesture;
+
+        void onRecentsOpenCompleted(RecentsOpenSession.Attempt opening) {
+            ShellGestureSession previous = activeShellSession;
+            ShellOwner owner = gestureOwner;
+            MiuiHomeAcceptedInputToken input = acceptedInputIdentity;
+            if (opening == null || recentsOpenGesture != opening
+                    || !gestureActive || gestureSuppressed || !thresholdCrossed
+                    || !aospNullNavigationGesture || !shellGestureStarted
+                    || previous == null || previous.recentsOpening != opening
+                    || previous.navigation != null || !previous.receivedNullNavigation
+                    || previous.releaseQueued.get() || previous.completionConsumed.get()
+                    || !isShellOwnerCurrent(owner)
+                    || !isCurrentAcceptedInputIdentity(input, activeEdge,
+                    owner.controller, owner.inputEpoch)) return;
+            AtomicBoolean retired = new AtomicBoolean();
+            AtomicBoolean claimed = new AtomicBoolean();
+            boolean completed = executeShellBlocking(owner.executor, () -> {
+                try {
+                    ActivityManager.RunningTaskInfo task = findCompletedRecentsTaskOnOwner(opening);
+                    // A retained Activity above the root can now expose a cross-Activity
+                    // destination; a root task only a Return-to-Home preview runner. Without
+                    // one, root-task OPEN keeps its existing release behavior.
+                    if (task == null
+                            || (task.numActivities <= 1 && !isReturnHomePreviewEnabled())
+                            || activeShellSession != previous
+                            || !isShellSessionOwnerCurrent(previous)
+                            || !isCurrentAcceptedInputIdentity(input, previous.edge,
+                            previous.controller, previous.inputEpoch)
+                            || readField(previous.controller, "mCurrentTracker") != previous.tracker
+                            || readField(previous.controller, "mBackNavigationInfo") != null
+                            || readField(previous.controller, "mBackAnimationFinishedCallback") != null
+                            || Boolean.TRUE.equals(readField(previous.controller, "mPostCommitAnimationInProgress"))
+                            || !previous.releaseQueued.compareAndSet(false, true)) return;
+                    claimed.set(true);
+                    // Retire only the exact null-navigation probe, with trigger=false.
+                    // There is no prepared runner or navigation to finish early here.
+                    finishNullNavigationOnShellExecutor(previous, previous.tracker,
+                            false, false, previous.edge, false, previous.inputEpoch, input);
+                    retired.set(previous.completionConsumed.get());
+                } catch (Throwable failure) {
+                    moduleLog(Log.WARN, TAG, "Recents OPEN progress handoff unavailable", failure);
+                    if (claimed.get()) cancelFailedShellRelease(previous, previous.tracker);
+                }
+            }, "recentsOpenProgressHandoff");
+            if (!completed || !retired.get()) {
+                if (claimed.get()) gestureSuppressed = true;
+                return;
+            }
+            completeShellSessionOnMain(previous, "recents-open-progress-handoff");
+            shellGestureStarted = false;
+            aospNullNavigationGesture = false;
+            handoffEndedOpenToShell("native Recents OPEN",
+                    ", task=" + opening.session.taskId, 0L);
+        }
+}
 }

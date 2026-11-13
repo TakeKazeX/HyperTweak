@@ -81,6 +81,8 @@ fun SystemLauncherPage(onBack: () -> Unit, onNavigateToDockBackground: () -> Uni
     var fullscreenDirectBack by rememberSaveable {
         mutableStateOf(settingsStore.getBoolean(BackGestureKeys.KEY_FULLSCREEN_DIRECT_BACK, false))
     }
+    var statusBarFollow by rememberSaveable { mutableStateOf(settingsStore.getBoolean(BackGestureKeys.KEY_STATUS_BAR_FOLLOW, false)) }
+    var homePreview by rememberSaveable { mutableStateOf(settingsStore.getBoolean(BackGestureKeys.KEY_RETURN_HOME_ICON_PREVIEW, false)) }
     Scaffold(topBar = {
         TopAppBar(
             title = stringResource(R.string.settings_launcher_section),
@@ -214,6 +216,14 @@ fun SystemLauncherPage(onBack: () -> Unit, onNavigateToDockBackground: () -> Uni
                                 }
                             )
                         }
+                        SwitchPreference(title = stringResource(R.string.back_status_bar_follow),
+                            summary = stringResource(R.string.back_status_bar_follow_summary),
+                            checked = statusBarFollow, enabled = backOptionsAvailable && backGestureEnabled,
+                            onCheckedChange = { statusBarFollow = it; settingsStore.putBoolean(BackGestureKeys.KEY_STATUS_BAR_FOLLOW, it) })
+                        SwitchPreference(title = stringResource(R.string.back_home_preview),
+                            summary = stringResource(R.string.back_home_preview_summary),
+                            checked = homePreview, enabled = backOptionsAvailable && backGestureEnabled,
+                            onCheckedChange = { homePreview = it; settingsStore.putBoolean(BackGestureKeys.KEY_RETURN_HOME_ICON_PREVIEW, it) })
                         OverlayDropdownPreference(
                             title = stringResource(R.string.fullscreen_back_behavior_title),
                             summary = stringResource(

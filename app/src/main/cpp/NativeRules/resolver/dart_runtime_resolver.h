@@ -58,6 +58,19 @@ struct ResolutionDiagnostics {
     uintptr_t home_state_slot_offset;
 };
 
+struct ContextualActionSite {
+    uintptr_t offset;
+    intptr_t context_frame_offset;
+    intptr_t result_frame_offset;
+    uintptr_t cts_pool_offset;
+    uint32_t displaced[4];
+};
+
+// Optional NavLongPress action override after the original asynchronous action
+// lookup. Prove its caller, lookup/await, CTS comparison and native CTS branch;
+// derive frame/pool locations from that graph instead of a launcher version.
+bool ResolveContextualActionSite(const uint8_t* base, ContextualActionSite* site);
+
 // Resolves the Dart AOT callback family directly from the currently mapped
 // libapp.so. No manifest address or companion-process configuration is used.
 // Every callback must be unique and must share the expected AOT call/pool

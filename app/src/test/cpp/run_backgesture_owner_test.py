@@ -49,6 +49,7 @@ const int* ResolveDartFeatureProfile(void*) { static int profile; return &profil
 void TryInstallDartDrawerStateHook(void*, const int*) { ++shared_hooks; }
 void TryInstallDartOverviewStateHook(void*, const int*) { ++shared_hooks; }
 void TryInstallDartEditingStateHook(void*, const int*) { ++shared_hooks; }
+void TryInstallDartContextualHomeAction(void*, const int*) { ++shared_hooks; }
 void TryInstallNativeRuleSettingsBridge() { ++settings; }
 void TryInstallArbiterBridge() { ++shared_hooks; }
 void PrepareRuleBroadcastSupport(void* handle) { assert(g_launcher_handle == handle); }
@@ -73,7 +74,7 @@ int main() {
     void* handle = reinterpret_cast<void*>(1);
     OnLsposedLibraryLoaded("libapp_launcher.so", handle);
     OnLsposedLibraryLoaded("libapp.so", handle);
-    assert(shared_hooks == 7 && rules == 6 && settings == 1);
+    assert(shared_hooks == 8 && rules == 6 && settings == 1);
     assert(g_launcher_handle == handle && g_dart_app_handle == handle);
     upstream = true;
     shared_hooks = rules = settings = observer_calls = 0;

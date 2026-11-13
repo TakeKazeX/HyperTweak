@@ -485,12 +485,14 @@ sealed class BaseHooker {
 
     /** Registers a runtime-supplied hooker while retaining BaseHooker ownership. */
     fun registerRuntimeHook(
-        method: Method,
+        method: java.lang.reflect.Executable,
         hookId: String,
         hooker: XposedInterface.Hooker
     ): XposedInterface.HookHandle {
-        return method.hook(hookId) {
-            intercept(hooker)
+        return when (method) {
+            is Method -> method.hook(hookId) { intercept(hooker) }
+            is Constructor<*> -> method.hook(hookId) { intercept(hooker) }
+            else -> error("Unsupported hook executable: $method")
         }
     }
 

@@ -96,6 +96,7 @@ add_library(${HYPERTWEAK_NATIVE_TARGET} SHARED
     "${HYPERTWEAK_NATIVE_DIR}/transport/broadcast_options_tail_hook.S"
     "${HYPERTWEAK_NATIVE_DIR}/transport/broadcast_send_capture_hook.S"
     "${HYPERTWEAK_NATIVE_DIR}/runtime/dart_state_hooks.S"
+    "${HYPERTWEAK_NATIVE_DIR}/runtime/contextual_home_action_hook.S"
     "${HYPERTWEAK_NATIVE_DIR}/runtime/input_monitor_pilfer_hook.S"
     "${HYPERTWEAK_NATIVE_DIR}/bridge/jni_bridge.cpp"
 )

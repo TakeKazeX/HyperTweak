@@ -18,6 +18,7 @@
 #include "native_rule_events.h"
 #include "runtime_profile_resolver.h"
 #include "standalone_gesture_owner.h"
+#include "contextual_motion_gate.h"
 
 #include <android/log.h>
 #include <dlfcn.h>
@@ -143,6 +144,20 @@ volatile uint32_t g_dart_state_atfork_state = 0;
 __attribute__((used, visibility("hidden")))
 volatile uint32_t g_dart_state_publish_dispatcher_state = 0;
 
+// Immutable per-mapping Dart action-site configuration. The observer performs
+// no Dart/C++ calls and reads the authenticated preference only after ready.
+__attribute__((visibility("hidden"))) void MiuiHomeHyosDartContextualActionHook();
+__attribute__((used, visibility("hidden"))) volatile uint32_t g_contextual_home_preference = 0;
+__attribute__((used, visibility("hidden"))) volatile uint32_t g_contextual_home_action_ready = 0;
+__attribute__((used, visibility("hidden"))) volatile uint32_t g_contextual_home_action_retiring = 1;
+__attribute__((used, visibility("hidden"))) volatile uint32_t g_contextual_home_action_active_count = 0;
+__attribute__((used, visibility("hidden"))) volatile uint32_t g_contextual_home_action_count = 0;
+__attribute__((used, visibility("hidden"))) volatile uint64_t g_contextual_home_action_owner_epoch = 0;
+__attribute__((visibility("hidden"))) intptr_t g_contextual_home_context_frame_offset = 0;
+__attribute__((visibility("hidden"))) intptr_t g_contextual_home_result_frame_offset = 0;
+__attribute__((visibility("hidden"))) uintptr_t g_contextual_home_cts_pool_offset = 0;
+__attribute__((visibility("hidden"))) uintptr_t g_contextual_home_action_resume = 0;
+
 }
 
 extern "C" bool HyperTweakIsLauncherProcess();
@@ -185,7 +200,9 @@ constexpr char kLauncherEntrySymbol[] = "app_entry_point";
 using DlopenFn = void* (*)(const char*, int);
 using MotionEventIntFn = int32_t (*)(void*);
 using MotionEventLongFn = int64_t (*)(void*);
+using ContextualLongPressInputFn = void (*)(void*, uintptr_t, void*, void*);
 using MotionEventFloatFn = float (*)(void*);
+using MotionEventIndexedFloatFn = float (*)(void*, int32_t);
 using InputMonitorPilferFn = void (*)(void*);
 using GestureStubPointerHandlerFn = void (*)(void*, void*, void*, uint32_t);
 using GestureBackTouchProcessorFn = void (*)(void*, void*, void*);
@@ -249,12 +266,34 @@ void* g_original_gesture_stub_pointer_handler = nullptr;
 void* g_original_gesture_back_touch_processor = nullptr;
 void* g_original_gesture_stub_back_handler = nullptr;
 void* g_original_contextual_long_press_handler = nullptr;
+void* g_original_sf_anim_start = nullptr;
+miui_home_runtime_profile::SfAnimStartLayout g_sf_anim_start_layout{};
+// The frozen RETURN_TO_HOME preview pose SystemUI hands over at commit; consumed
+// once by the matching task's CLOSE_TO_HOME start (report 028).
+struct ReturnHomeHandoffRecord {
+    bool valid;
+    int32_t task_id;
+    int64_t sequence;
+    int64_t received_ms;
+    int64_t generation;
+    float left, top, right, bottom;
+};
+pthread_mutex_t g_return_home_handoff_lock = PTHREAD_MUTEX_INITIALIZER;
+ReturnHomeHandoffRecord g_return_home_handoff{};
+constexpr int64_t kReturnHomeHandoffMaxAgeMs = 1500;
 void* g_original_drawer_state_handler = nullptr;
 void* g_dart_app_handle = nullptr;
 uint8_t* g_dart_app_base = nullptr;
 uint32_t g_dart_drawer_install_in_flight = 0;
 uint32_t g_dart_overview_install_in_flight = 0;
 uint32_t g_dart_editing_install_in_flight = 0;
+uint32_t g_contextual_home_install_in_flight = 0;
+uint32_t g_contextual_home_hook_state = 0;
+uint32_t g_contextual_home_logged_count = 0;
+uint8_t* g_contextual_home_base = nullptr;
+miui_home_dart_profile::ContextualActionSite g_contextual_home_site{};
+uint8_t g_contextual_home_patched[16]{};
+void* g_contextual_home_original = nullptr;
 __attribute__((used)) volatile uint32_t g_dart_loader_hook_state = 0;
 void* g_contextual_search_invoke = nullptr;
 void* g_original_broadcast_receiver_on_receive = nullptr;
@@ -353,18 +392,7 @@ __attribute__((used)) volatile uint32_t
         g_contextual_search_invoke_last_result = 0;
 __attribute__((used)) volatile uint32_t
         g_contextual_long_press_upward_cancel_count = 0;
-__attribute__((used)) volatile uint32_t
-        g_contextual_motion_snapshot_valid = 0;
-__attribute__((used)) volatile int64_t
-        g_contextual_motion_snapshot_down_time = 0;
-__attribute__((used)) volatile int32_t
-        g_contextual_motion_snapshot_device_id = 0;
-__attribute__((used)) volatile int32_t
-        g_contextual_motion_snapshot_source = 0;
-__attribute__((used)) volatile uint32_t
-        g_contextual_motion_snapshot_down_y_bits = 0;
-__attribute__((used)) volatile uint32_t
-        g_contextual_motion_snapshot_current_y_bits = 0;
+miui_home_contextual::MotionGate g_contextual_motion_gate;
 // Drawer visibility encoding: 0 unknown, 1 Home/not-all-apps, 2 ALL_APPS.
 __attribute__((used)) volatile uint32_t g_drawer_state_hook_state = 0;
 __attribute__((used)) volatile uint32_t g_overview_state_hook_state = 0;
@@ -441,6 +469,9 @@ struct LauncherInputHookSlot {
     const miui_home_profiles::LauncherProfile* profile;
     void* original_action;
     void* original_action_masked;
+    void* original_contextual_input;
+    uintptr_t contextual_input_entry;
+    uint8_t contextual_input_prologue[32];
     void* original_pilfer;
     void* original_has_system_feature;
     void* original_bundle_get_boolean;
@@ -512,6 +543,9 @@ uint64_t NextHyosLifecycleSequence() {
 }
 
 void ResetDartStateOwnerForProcess(int32_t process_pid) {
+    AtomicStore(&g_contextual_home_preference, uint32_t{0});
+    AtomicStore(&g_contextual_home_action_active_count, uint32_t{0});
+    AtomicStore(&g_contextual_home_install_in_flight, uint32_t{0});
     g_state_worker.CloseInherited();
     timespec now{};
     const uint64_t inherited_epoch = AtomicLoad(&g_dart_state_owner_epoch);
@@ -601,18 +635,6 @@ void RecordFirstLifecycleSequence(volatile uint64_t* target,
 
 void Log(int priority, const char* message) {
     __android_log_write(priority, kLogTag, message);
-}
-
-uint32_t FloatBits(float value) {
-    uint32_t bits = 0;
-    memcpy(&bits, &value, sizeof(bits));
-    return bits;
-}
-
-float BitsFloat(uint32_t bits) {
-    float value = 0.0f;
-    memcpy(&value, &bits, sizeof(value));
-    return value;
 }
 
 float ReadMotionY(void* event) {
@@ -817,6 +839,7 @@ const miui_home_profiles::LauncherProfile* CurrentDartFeatureProfile() {
 
 int64_t CaptureRuntimeStatusQuery(void* intent);
 bool HandleRuntimeStatusQuery(int64_t nonce);
+bool HandleReturnHomeHandoff(void* intent);
 void PublishPendingDartStates(uint64_t owner_epoch);
 bool EnsureDartStatePublisherThread();
 bool WakeDartStatePublisher();
@@ -830,6 +853,8 @@ bool TryInstallDartOverviewStateHook(
 bool TryInstallDartEditingStateHook(
         void* dart_handle,
         const miui_home_profiles::LauncherProfile* profile);
+bool TryInstallDartContextualHomeAction(
+        void* dart_handle, const miui_home_profiles::LauncherProfile* profile);
 bool InstallDrawerStateHook(
         uint8_t* base,
         const miui_home_profiles::LauncherProfile* profile);
@@ -988,8 +1013,14 @@ void ObserveArbiterStateIntent(void* intent) {
     }
     const int64_t current = AtomicLoad(&g_systemui_arbiter_generation);
     if (generation < current) return;
+    if (generation != current || !ready ||
+            AtomicLoad(&g_contextual_search_enabled) !=
+                    (AtomicLoad(&g_contextual_search_enabled) != 0u ? uint32_t{1} : uint32_t{0}))
+        g_contextual_motion_gate.invalidate();
     AtomicStore(&g_systemui_arbiter_generation, generation);
     AtomicStore(&g_systemui_arbiter_ready, ready ? uint32_t{1} : uint32_t{0});
+    AtomicStore(&g_contextual_home_preference,
+            ready && AtomicLoad(&g_contextual_search_enabled) != 0u ? uint32_t{1} : uint32_t{0});
     __android_log_print(ANDROID_LOG_INFO, kLogTag,
                         "native arbiter ready=%u generation=%lld uid=%d "
                         "contextual_search=%u (module-owned)",
@@ -1074,6 +1105,7 @@ void HookBroadcastReceiverOnReceive(void* receiver, void* context, void* intent)
         // Xiaomi may consume the borrowed Intent. Retain only the authenticated
         // primitive query identity before forwarding; readiness is evaluated afterwards.
         const int64_t status_nonce = CaptureRuntimeStatusQuery(intent);
+        (void)HandleReturnHomeHandoff(intent);
         // Android 17 reuses Xiaomi's protected fsgesture receiver as the
         // carrier. Its native callback owns launcher-side FSG-region refresh;
         // consuming the marked broadcast here leaves later app gestures
@@ -1587,6 +1619,63 @@ void PublishXiaoAiStateForCurrentGeneration() {
 
 // Zero means this is not an authenticated status request. Ordinary arbiter/settings
 // publications share the carrier and must neither reply nor log a query rejection.
+int64_t MonotonicMillis() {
+    timespec now{};
+    clock_gettime(CLOCK_MONOTONIC, &now);
+    return static_cast<int64_t>(now.tv_sec) * 1000 + now.tv_nsec / 1000000;
+}
+
+bool HandleReturnHomeHandoff(void* intent) {
+    IntentGetSenderPackageFn get_sender =
+            ResolveLauncherSymbol<IntentGetSenderPackageFn>(
+                    "Intent_get_sender_package_name");
+    IntentGetExtrasFn get_extras = ResolveLauncherSymbol<IntentGetExtrasFn>(
+            "Intent_get_extras");
+    if (intent == nullptr || get_sender == nullptr || get_extras == nullptr) {
+        return false;
+    }
+    void* extras = get_extras(intent);
+    bool handoff = false;
+    if (!ReadNativeBool(extras, "hypertweak_return_home_handoff", &handoff) || !handoff) {
+        return false;
+    }
+    const BorrowedROptionRString sender = get_sender(intent);
+    int32_t sender_uid = -1;
+    int64_t sequence = 0, generation = 0;
+    int32_t task_id = -1;
+    int32_t left = 0, top = 0, right = 0, bottom = 0;
+    if (sender.tag != 0u || sender.data == nullptr ||
+            sender.length != ConstStringLength(kSystemUiPackage) ||
+            memcmp(sender.data, kSystemUiPackage, sender.length) != 0 ||
+            !ReadNativeI32(extras, "sender_uid", &sender_uid) ||
+            !VerifySystemUiUid(sender_uid) ||
+            !ReadNativeI64(extras, kInputArbiterGenerationExtra, &generation) || generation <= 0 ||
+            generation != AtomicLoad(&g_systemui_arbiter_generation) ||
+            AtomicLoad(&g_systemui_arbiter_ready) == 0u ||
+            !ReadNativeI64(extras, "hypertweak_return_home_sequence", &sequence) || sequence <= 0 ||
+            !ReadNativeI32(extras, "hypertweak_return_home_task_id", &task_id) || task_id <= 0 ||
+            !ReadNativeI32(extras, "hypertweak_return_home_left_x100", &left) ||
+            !ReadNativeI32(extras, "hypertweak_return_home_top_x100", &top) ||
+            !ReadNativeI32(extras, "hypertweak_return_home_right_x100", &right) ||
+            !ReadNativeI32(extras, "hypertweak_return_home_bottom_x100", &bottom) ||
+            right <= left || bottom <= top) {
+        Log(ANDROID_LOG_WARN, "rejected RETURN_TO_HOME handoff");
+        return true;
+    }
+    pthread_mutex_lock(&g_return_home_handoff_lock);
+    if (g_return_home_handoff.generation == generation && sequence <= g_return_home_handoff.sequence) {
+        pthread_mutex_unlock(&g_return_home_handoff_lock);
+        return true;
+    }
+    g_return_home_handoff = {true, task_id, sequence, MonotonicMillis(), generation,
+            left / 100.0f, top / 100.0f, right / 100.0f, bottom / 100.0f};
+    pthread_mutex_unlock(&g_return_home_handoff_lock);
+    __android_log_print(ANDROID_LOG_INFO, kLogTag,
+            "accepted RETURN_TO_HOME handoff task=%d sequence=%lld rect=%d,%d,%d,%d (x100)",
+            task_id, static_cast<long long>(sequence), left, top, right, bottom);
+    return true;
+}
+
 int64_t CaptureRuntimeStatusQuery(void* intent) {
     const auto get_extras = ResolveLauncherSymbol<IntentGetExtrasFn>("Intent_get_extras");
     if (intent == nullptr || get_extras == nullptr) return 0;
@@ -2294,63 +2383,87 @@ void CaptureMotionAction(void* event, int32_t action) {
     g_pending_down = candidate;
 }
 
-// Contextual Search's long-press completion can run after the MotionEvent
-// reader has crossed a native callback boundary.  Keep a small process-wide
-// identity/value snapshot rather than relying on the back-arbiter TLS state.
-// All fields are published atomically; the valid bit is written last.
-void PublishContextualMotionSnapshot(void* event, int32_t action) {
-    if (event == nullptr) return;
-    MotionEventLongFn get_down_time = reinterpret_cast<MotionEventLongFn>(
-            AtomicLoad(&g_motion_get_down_time));
-    MotionEventIntFn get_device_id = reinterpret_cast<MotionEventIntFn>(
-            AtomicLoad(&g_motion_get_device_id));
-    MotionEventIntFn get_source = reinterpret_cast<MotionEventIntFn>(
-            AtomicLoad(&g_motion_get_source));
-    MotionEventFloatFn get_raw_y = reinterpret_cast<MotionEventFloatFn>(
-            AtomicLoad(&g_motion_get_raw_y));
-    MotionEventFloatFn get_y = reinterpret_cast<MotionEventFloatFn>(
-            AtomicLoad(&g_motion_get_y));
-    if (get_down_time == nullptr || get_device_id == nullptr ||
-            get_source == nullptr || (get_raw_y == nullptr && get_y == nullptr)) {
-        return;
+// Read-only cancellation evidence at the physical monitor that starts
+// Xiaomi's detector, before redirection can bypass the long-press manager.
+void RecordContextualMotion(void* event, uintptr_t receiver, int32_t action, int64_t down_time) {
+    if (event == nullptr || AtomicLoad(&g_contextual_search_enabled) == 0u || gettid() != getpid()) return;
+    const auto device = reinterpret_cast<MotionEventIntFn>(AtomicLoad(&g_motion_get_device_id));
+    const auto source = reinterpret_cast<MotionEventIntFn>(AtomicLoad(&g_motion_get_source));
+    const auto raw_x = reinterpret_cast<MotionEventIndexedFloatFn>(AtomicLoad(&g_motion_get_raw_x));
+    const auto raw_y = reinterpret_cast<MotionEventIndexedFloatFn>(AtomicLoad(&g_motion_get_raw_y));
+    if (device == nullptr || source == nullptr || raw_x == nullptr || raw_y == nullptr) return;
+    const auto before = g_contextual_motion_gate.read();
+    const int32_t masked = action & 0xff;
+    g_contextual_motion_gate.observe(receiver, getpid(), down_time, device(event), source(event),
+            masked, raw_x(event, 0), raw_y(event, 0));
+    const auto after = g_contextual_motion_gate.read();
+    if ((masked == 0 && before.down_time != down_time) || (!before.cancelled && after.cancelled))
+        __android_log_print(ANDROID_LOG_INFO, kLogTag,
+                "native contextual-search input action=%d down=%" PRId64 " valid=%u cancelled=%u y=%.1f",
+                masked, down_time, after.valid ? 1u : 0u, after.cancelled ? 1u : 0u,
+                static_cast<double>(after.y));
+}
+
+void HookContextualLongPressInput(void* self, uintptr_t token, void* receiver,
+                                  void* event, uint32_t index) {
+    if (index >= kLauncherInputSlotCount) return;
+    LauncherInputHookSlot& slot = g_launcher_input_slots[index];
+    const auto original = reinterpret_cast<ContextualLongPressInputFn>(AtomicLoad(&slot.original_contextual_input));
+    if (original == nullptr) return;
+    const uint32_t home_actions = AtomicLoad(&g_contextual_home_action_count);
+    if (home_actions != AtomicLoad(&g_contextual_home_logged_count)) {
+        AtomicStore(&g_contextual_home_logged_count, home_actions);
+        __android_log_print(ANDROID_LOG_INFO, kLogTag,
+                "native Home NavLongPress selected CTS count=%u", home_actions);
     }
-    const int64_t down_time = get_down_time(event);
-    const int32_t device_id = get_device_id(event);
-    const int32_t source = get_source(event);
-    const float raw_y = ReadMotionY(event);
-    const uint32_t masked_action = static_cast<uint32_t>(action & 0xff);
-    if (masked_action == 0u) {
-        __atomic_store_n(&g_contextual_motion_snapshot_valid, uint32_t{0},
-                         __ATOMIC_RELEASE);
-        __atomic_store_n(&g_contextual_motion_snapshot_down_time, down_time,
-                         __ATOMIC_RELAXED);
-        __atomic_store_n(&g_contextual_motion_snapshot_device_id, device_id,
-                         __ATOMIC_RELAXED);
-        __atomic_store_n(&g_contextual_motion_snapshot_source, source,
-                         __ATOMIC_RELAXED);
-        __atomic_store_n(&g_contextual_motion_snapshot_down_y_bits,
-                         FloatBits(raw_y),
-                         __ATOMIC_RELAXED);
-        __atomic_store_n(&g_contextual_motion_snapshot_current_y_bits,
-                         FloatBits(raw_y),
-                         __ATOMIC_RELAXED);
-        __atomic_store_n(&g_contextual_motion_snapshot_valid, uint32_t{1},
-                         __ATOMIC_RELEASE);
-        return;
+    if (event != nullptr && AtomicLoad(&g_contextual_search_enabled) != 0u
+            && gettid() == getpid() && EnsureDartStateOwnerForCurrentProcess()) {
+        const auto action = reinterpret_cast<MotionEventIntFn>(AtomicLoad(&slot.original_action_masked));
+        const auto down_time = reinterpret_cast<MotionEventLongFn>(AtomicLoad(&g_motion_get_down_time));
+        if (action != nullptr && down_time != nullptr)
+            RecordContextualMotion(event, 1u, action(event) & 0xff, down_time(event));
     }
-    if (__atomic_load_n(&g_contextual_motion_snapshot_valid,
-                        __ATOMIC_ACQUIRE) == 0u ||
-            __atomic_load_n(&g_contextual_motion_snapshot_down_time,
-                            __ATOMIC_RELAXED) != down_time ||
-            __atomic_load_n(&g_contextual_motion_snapshot_device_id,
-                            __ATOMIC_RELAXED) != device_id ||
-            __atomic_load_n(&g_contextual_motion_snapshot_source,
-                            __ATOMIC_RELAXED) != source) {
-        return;
+    original(self, token, receiver, event); // Preserve native acknowledgement and dispatch.
+}
+void HookContextualLongPressInput0(void* self, uintptr_t token, void* receiver, void* event) {
+    HookContextualLongPressInput(self, token, receiver, event, 0u);
+}
+void HookContextualLongPressInput1(void* self, uintptr_t token, void* receiver, void* event) {
+    HookContextualLongPressInput(self, token, receiver, event, 1u);
+}
+void HookContextualLongPressInput2(void* self, uintptr_t token, void* receiver, void* event) {
+    HookContextualLongPressInput(self, token, receiver, event, 2u);
+}
+void HookContextualLongPressInput3(void* self, uintptr_t token, void* receiver, void* event) {
+    HookContextualLongPressInput(self, token, receiver, event, 3u);
+}
+bool InstallContextualLongPressInputForSlot(uint32_t index) {
+    if (index >= kLauncherInputSlotCount) return false;
+    auto& slot = g_launcher_input_slots[index];
+    if (AtomicLoad(&slot.contextual_input_entry) == 0u) return false;
+    if (AtomicLoad(&slot.original_contextual_input) != nullptr) return true;
+    constexpr ContextualLongPressInputFn hooks[kLauncherInputSlotCount] = {
+            HookContextualLongPressInput0, HookContextualLongPressInput1,
+            HookContextualLongPressInput2, HookContextualLongPressInput3,
+    };
+    return InstallInlineHook(reinterpret_cast<void*>(AtomicLoad(&slot.contextual_input_entry)),
+            reinterpret_cast<void*>(hooks[index]), &slot.original_contextual_input) == kHookSuccess
+            && AtomicLoad(&slot.original_contextual_input) != nullptr;
+}
+void RepairContextualLongPressInputIfRemapped(uint32_t index) {
+    if (index >= kLauncherInputSlotCount) return;
+    auto& slot = g_launcher_input_slots[index];
+    if (AtomicLoad(&slot.base) != reinterpret_cast<uintptr_t>(AtomicLoad(&g_launcher_base))) return;
+    const auto entry = AtomicLoad(&slot.contextual_input_entry);
+    if (entry == 0u || AtomicLoad(&slot.original_contextual_input) == nullptr
+            || memcmp(reinterpret_cast<const void*>(entry), slot.contextual_input_prologue, 32u) != 0) return;
+    g_contextual_motion_gate.invalidate();
+    const int removed = RemoveInlineHook(reinterpret_cast<void*>(entry));
+    AtomicStore(&slot.original_contextual_input, static_cast<void*>(nullptr));
+    if (removed != kHookSuccess || !InstallContextualLongPressInputForSlot(index)) {
+        AtomicStore(&slot.contextual_input_entry, uintptr_t{0});
+        Log(ANDROID_LOG_WARN, "native contextual-search long-press monitor repair unavailable");
     }
-    __atomic_store_n(&g_contextual_motion_snapshot_current_y_bits,
-                     FloatBits(raw_y),
-                     __ATOMIC_RELAXED);
 }
 
 NativeResult HookPackageManagerHasSystemFeatureForSlot(
@@ -2585,6 +2698,7 @@ void* HookLauncherDlopenForSlot(
             TryInstallDartDrawerStateHook(result, profile);
             TryInstallDartOverviewStateHook(result, profile);
             TryInstallDartEditingStateHook(result, profile);
+            TryInstallDartContextualHomeAction(result, profile);
         } else {
             const auto* launcher = CurrentLauncherProfile();
             const uint32_t dart_stage = AtomicLoad(
@@ -2628,6 +2742,7 @@ void* HookLauncherDlopen3(const char* filename, int flags) {
 void MaintainLauncherHooksOnActionDown(uint32_t slot_index) {
     hypertweak::native::RequestNativeRulePreparation();
     RepairBusinessHooksIfRemapped(slot_index);
+    RepairContextualLongPressInputIfRemapped(slot_index);
     EnsureDartStatePublisherThread();
     const auto* profile = CurrentDartFeatureProfile();
     if (profile == nullptr &&
@@ -2676,6 +2791,9 @@ void MaintainLauncherHooksOnActionDown(uint32_t slot_index) {
             hypertweak::native::NativeRuleCurrentDartHandle());
     (void)hypertweak::native::ApplyAndroidWidgetStackRule(
             hypertweak::native::NativeRuleCurrentDartHandle());
+    void* dart_handle = AtomicLoad(&g_dart_app_handle);
+    if (dart_handle != nullptr && profile != nullptr)
+        TryInstallDartContextualHomeAction(dart_handle, profile);
 }
 
 int32_t HookMotionGetActionForSlot(void* event, uint32_t slot_index,
@@ -2696,7 +2814,6 @@ int32_t HookMotionGetActionForSlot(void* event, uint32_t slot_index,
     if (original == nullptr) return -1;
     const int32_t action = original(event);
     g_last_motion_event = reinterpret_cast<uintptr_t>(event);
-    PublishContextualMotionSnapshot(event, action);
     if ((action & 0xff) == 0) {
         const uintptr_t down_identity = reinterpret_cast<uintptr_t>(event);
         if (g_last_dart_maintenance_down != down_identity) {
@@ -2740,94 +2857,136 @@ int32_t HookMotionGetActionMasked3(void* event) {
     return HookMotionGetActionForSlot(event, 3u, true);
 }
 
-bool ContextualLongPressHasUpwardIntent() {
-    if (__atomic_load_n(&g_contextual_motion_snapshot_valid,
-                        __ATOMIC_ACQUIRE) == 0u) {
-        return false;
+void HookContextualLongPressHandler(void* closure, uint32_t trigger_mode) {
+    __atomic_fetch_add(&g_contextual_long_press_trigger_count, uint32_t{1}, __ATOMIC_RELAXED);
+    const auto original = reinterpret_cast<ContextualLongPressHandlerFn>(
+            AtomicLoad(&g_original_contextual_long_press_handler));
+    const auto invoke = reinterpret_cast<ContextualSearchInvokeFn>(AtomicLoad(&g_contextual_search_invoke));
+    bool observer_ready = false;
+    const uintptr_t current_base = reinterpret_cast<uintptr_t>(AtomicLoad(&g_launcher_base));
+    for (const auto& slot : g_launcher_input_slots)
+        if (current_base != 0u && AtomicLoad(&slot.base) == current_base
+                && AtomicLoad(&slot.contextual_input_entry) != 0u
+                && AtomicLoad(&slot.original_contextual_input) != nullptr) observer_ready = true;
+    // Off, an unknown native enum, or an unreadable closure retains the exact
+    // original callback. The two validated native modes are MarkOnly/Feature.
+    if (AtomicLoad(&g_contextual_search_enabled) == 0u || invoke == nullptr || !observer_ready
+            || original == nullptr || trigger_mode > 1u || closure == nullptr
+            || AtomicLoad(reinterpret_cast<void**>(closure)) == nullptr) {
+        __atomic_fetch_add(&g_contextual_long_press_passthrough_count, uint32_t{1}, __ATOMIC_RELAXED);
+        if (original != nullptr) original(closure, trigger_mode);
+        return;
     }
-    const float down_y = BitsFloat(__atomic_load_n(
-            &g_contextual_motion_snapshot_down_y_bits, __ATOMIC_ACQUIRE));
-    const float current_y = BitsFloat(__atomic_load_n(
-            &g_contextual_motion_snapshot_current_y_bits, __ATOMIC_ACQUIRE));
-    const float upward = down_y - current_y;
-    return upward >= 8.0f;
+    // Run Xiaomi's normal Fn as MarkOnly: it publishes its own completion
+    // marker and forwards the same non-feature mode to its optional callback.
+    // That tail is a trigger callback, not a destructor: never call it with a
+    // guessed one-argument ABI or accidentally launch XiaoAi beside CTS.
+    original(closure, 0u);
+    const auto motion = g_contextual_motion_gate.read();
+    const bool allowed = motion.allows(getpid()) && AtomicLoad(&g_contextual_search_enabled) != 0u;
+    __android_log_print(ANDROID_LOG_INFO, kLogTag,
+            "native contextual-search native completion mode=%u allowed=%u coherent=%u"
+            " valid=%u cancelled=%u action=%d down=%" PRId64 " down_y=%.1f current_y=%.1f",
+            trigger_mode, allowed ? 1u : 0u, motion.coherent ? 1u : 0u,
+            motion.valid ? 1u : 0u, motion.cancelled ? 1u : 0u, motion.action,
+            motion.down_time, static_cast<double>(motion.down_y), static_cast<double>(motion.y));
+    if (!allowed) {
+        __atomic_fetch_add(&g_contextual_long_press_upward_cancel_count, uint32_t{1}, __ATOMIC_RELAXED);
+        return;
+    }
+    const uint8_t result = invoke(uint32_t{1});
+    __atomic_fetch_add(&g_contextual_search_invoke_count, uint32_t{1}, __ATOMIC_RELAXED);
+    __atomic_store_n(&g_contextual_search_invoke_last_result, static_cast<uint32_t>(result), __ATOMIC_RELEASE);
+    __android_log_print(ANDROID_LOG_INFO, kLogTag,
+            "native contextual-search terminal invoked result=%u", static_cast<unsigned int>(result));
+    if (result != 0u && !SendNativeBroadcast("com.takekazex.hypertweak.backgesture.action.CONTEXTUAL_SEARCH_TRIGGERED", nullptr))
+        Log(ANDROID_LOG_WARN, "contextual-search trigger haptic signal could not reach SystemUI");
 }
 
-void HookContextualLongPressHandler(void* closure, uint32_t trigger_mode) {
-    __atomic_fetch_add(&g_contextual_long_press_trigger_count, uint32_t{1},
-                       __ATOMIC_RELAXED);
-    ContextualLongPressHandlerFn original =
-            reinterpret_cast<ContextualLongPressHandlerFn>(
-                    AtomicLoad(&g_original_contextual_long_press_handler));
-    ContextualSearchInvokeFn invoke =
-            reinterpret_cast<ContextualSearchInvokeFn>(
-                    AtomicLoad(&g_contextual_search_invoke));
-    const bool upward_intent = ContextualLongPressHasUpwardIntent();
-    __android_log_print(
-            ANDROID_LOG_INFO, kLogTag,
-            "native contextual-search terminal handler trigger_mode=%u"
-            " upward=%u enabled=%u snapshot_valid=%u down_y=%.1f current_y=%.1f",
-            static_cast<unsigned int>(trigger_mode), upward_intent ? 1u : 0u,
-            AtomicLoad(&g_contextual_search_enabled),
-            __atomic_load_n(&g_contextual_motion_snapshot_valid, __ATOMIC_ACQUIRE),
-            static_cast<double>(BitsFloat(__atomic_load_n(
-                    &g_contextual_motion_snapshot_down_y_bits, __ATOMIC_ACQUIRE))),
-            static_cast<double>(BitsFloat(__atomic_load_n(
-                    &g_contextual_motion_snapshot_current_y_bits, __ATOMIC_ACQUIRE))));
-    if (closure == nullptr) {
-        __atomic_fetch_add(&g_contextual_long_press_passthrough_count,
-                           uint32_t{1}, __ATOMIC_RELAXED);
-        if (original != nullptr) original(closure, trigger_mode);
-        return;
-    }
+// SfAnim CLOSE_TO_HOME, the SurfaceFlinger flight from the closing app to its
+// Home icon (or the screen centre). See reports/028-os4-return-home-icon.
+constexpr int32_t kSfAnimTypeCloseToHome = 2;
 
-    // DefaultLongPressHandler's native Fn closure first marks the captured
-    // detector state complete with a release byte store, then invokes its
-    // optional Flutter trigger hook. Preserve that state transition while
-    // replacing only the terminal Flutter routing that rejects NavLongPress
-    // "none" on China builds. The detector, animation and cancellation owner
-    // remain Xiaomi's LongPressDetector/LongPressManager.
-    void* completion_state = AtomicLoad(
-            reinterpret_cast<void**>(closure));
-    if (completion_state == nullptr) {
-        __atomic_fetch_add(&g_contextual_long_press_passthrough_count,
-                           uint32_t{1}, __ATOMIC_RELAXED);
-        if (original != nullptr) original(closure, trigger_mode);
-        return;
+using SfAnimStartFn = uint32_t (*)(void* self, uint8_t* param);
+
+void WriteSfAnimFloat(uint8_t* param, uint32_t offset, float value) {
+    memcpy(param + offset, &value, sizeof(value));
+}
+
+float ReadSfAnimFloat(const uint8_t* param, uint32_t offset) {
+    float value = 0.0f;
+    memcpy(&value, param + offset, sizeof(value));
+    return value;
+}
+
+uint32_t HookSfAnimStartAnimation(void* self, uint8_t* param) {
+    const auto original = reinterpret_cast<SfAnimStartFn>(
+            AtomicLoad(&g_original_sf_anim_start));
+    const auto& layout = g_sf_anim_start_layout;
+    int32_t anim_type = -1;
+    if (param != nullptr) memcpy(&anim_type, param + layout.anim_type, sizeof(anim_type));
+    if (anim_type == kSfAnimTypeCloseToHome) {
+        // The first app target's leading i32 is its task id (the same field
+        // start_animation compares against its saved task).
+        uint8_t* targets = nullptr;
+        size_t target_count = 0u;
+        int32_t task_id = -1;
+        memcpy(&targets, param + layout.app_targets, sizeof(targets));
+        memcpy(&target_count, param + layout.app_target_count, sizeof(target_count));
+        if (targets != nullptr && target_count >= 1u) {
+            memcpy(&task_id, targets + layout.target_task_id, sizeof(task_id));
+        }
+        ReturnHomeHandoffRecord record{};
+        pthread_mutex_lock(&g_return_home_handoff_lock);
+        if (g_return_home_handoff.valid && g_return_home_handoff.task_id == task_id &&
+                g_return_home_handoff.generation == AtomicLoad(&g_systemui_arbiter_generation) &&
+                AtomicLoad(&g_systemui_arbiter_ready) != 0u &&
+                MonotonicMillis() - g_return_home_handoff.received_ms <=
+                        kReturnHomeHandoffMaxAgeMs) {
+            record = g_return_home_handoff;
+            g_return_home_handoff.valid = false;
+        }
+        pthread_mutex_unlock(&g_return_home_handoff_lock);
+        if (record.valid) {
+            WriteSfAnimFloat(param, layout.w_start, record.right - record.left);
+            WriteSfAnimFloat(param, layout.h_start, record.bottom - record.top);
+            WriteSfAnimFloat(param, layout.cx_start, (record.left + record.right) * 0.5f);
+            WriteSfAnimFloat(param, layout.cy_start, (record.top + record.bottom) * 0.5f);
+        }
+        __android_log_print(ANDROID_LOG_INFO, kLogTag,
+                "CLOSE_TO_HOME task=%d handoff=%lld start w=%.1f h=%.1f cx=%.1f cy=%.1f",
+                task_id, static_cast<long long>(record.valid ? record.sequence : 0),
+                static_cast<double>(ReadSfAnimFloat(param, layout.w_start)),
+                static_cast<double>(ReadSfAnimFloat(param, layout.h_start)),
+                static_cast<double>(ReadSfAnimFloat(param, layout.cx_start)),
+                static_cast<double>(ReadSfAnimFloat(param, layout.cy_start)));
     }
-    // An upward desktop transition must cancel the detector even when the
-    // module's contextual-search preference is currently disabled.  Do not
-    // call the original terminal handler here: that function would continue
-    // into Xiaomi's CTS route. Reproduce only its completion marker, leaving
-    // the detector finished without invoking the service or Flutter callback.
-    if (upward_intent) {
-        __atomic_fetch_add(&g_contextual_long_press_upward_cancel_count,
-                           uint32_t{1}, __ATOMIC_RELAXED);
-        __atomic_store_n(static_cast<uint8_t*>(completion_state) + 0x10u,
-                         uint8_t{1}, __ATOMIC_RELEASE);
-        return;
+    return original(self, param);
+}
+
+bool InstallSfAnimStartHook(uint8_t* base) {
+    miui_home_runtime_profile::SfAnimStartLayout layout{};
+    if (base == nullptr ||
+            !miui_home_runtime_profile::ResolveSfAnimStartAnimation(base, &layout)) {
+        Log(ANDROID_LOG_WARN, "SfAnim start_animation layout unresolved");
+        return false;
     }
-    if (AtomicLoad(&g_contextual_search_enabled) == 0u || invoke == nullptr) {
-        __atomic_fetch_add(&g_contextual_long_press_passthrough_count,
-                           uint32_t{1}, __ATOMIC_RELAXED);
-        if (original != nullptr) original(closure, trigger_mode);
-        return;
+    g_sf_anim_start_layout = layout;
+    if (InstallInlineHook(base + layout.entry_offset,
+                          reinterpret_cast<void*>(HookSfAnimStartAnimation),
+                          &g_original_sf_anim_start) != kHookSuccess ||
+            AtomicLoad(&g_original_sf_anim_start) == nullptr) {
+        Log(ANDROID_LOG_ERROR, "SfAnim start_animation hook failed");
+        return false;
     }
-    __atomic_store_n(static_cast<uint8_t*>(completion_state) + 0x10u,
-                     uint8_t{1}, __ATOMIC_RELEASE);
-    const uint8_t result = invoke(uint32_t{1});
-    __atomic_fetch_add(&g_contextual_search_invoke_count, uint32_t{1},
-                       __ATOMIC_RELAXED);
-    __atomic_store_n(&g_contextual_search_invoke_last_result,
-                     static_cast<uint32_t>(result), __ATOMIC_RELEASE);
     __android_log_print(ANDROID_LOG_INFO, kLogTag,
-                        "native contextual-search terminal invoked result=%u",
-                        static_cast<unsigned int>(result));
-    // closure[1]/closure[2] describe the optional Fn(trigger_mode), not a
-    // destructor. Its vtable+0x28 dispatch is the Flutter action we replaced;
-    // calling it as "cleanup" launches a second action with an undefined mode.
-    // The marker above completes the native detector. SystemUI owns admission
-    // and feedback after the system-server bridge forwards this request.
+            "installed SfAnim start_animation hook entry=0x%" PRIxPTR
+            " anim_type=0x%x w=0x%x/0x%x/0x%x h=0x%x/0x%x/0x%x cx=0x%x/0x%x cy=0x%x/0x%x",
+            layout.entry_offset, layout.anim_type,
+            layout.w_start, layout.w_end, layout.w_velocity,
+            layout.h_start, layout.h_end, layout.h_velocity,
+            layout.cx_start, layout.cx_end, layout.cy_start, layout.cy_end);
+    return true;
 }
 
 bool InstallContextualSearchLongPressHook(
@@ -2936,6 +3095,83 @@ bool ResolveDartProfileBase(
                    profile->dart_snapshot_build_id_size) == 0;
     if (valid) *dart_base_out = dart_base;
     return valid;
+}
+
+bool TryInstallDartContextualHomeAction(
+        void* dart_handle, const miui_home_profiles::LauncherProfile* profile) {
+    if (dart_handle == nullptr || profile == nullptr) return false;
+    uint32_t expected = 0u;
+    if (!__atomic_compare_exchange_n(&g_contextual_home_install_in_flight, &expected,
+            uint32_t{1}, false, __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE)) return false;
+    auto finish = [](bool value) {
+        AtomicStore(&g_contextual_home_install_in_flight, uint32_t{0});
+        return value;
+    };
+    uint8_t* base = nullptr;
+    if (!ResolveDartProfileBase(dart_handle, profile, &base)) return finish(false);
+    if (g_contextual_home_base != nullptr && g_contextual_home_base != base) {
+        // Keep the old observer's continuation immutable if an unrelated AOT
+        // owner replaces it. A fresh process can resolve that owner normally.
+        AtomicStore(&g_contextual_home_action_ready, uint32_t{0});
+        return finish(false);
+    }
+    if (g_contextual_home_hook_state == 5u) return finish(false);
+    if (g_contextual_home_hook_state == 3u) {
+        const auto offset = g_contextual_home_site.offset;
+        if (!DartMappedRangeHasFlags(base, offset, 16u, PF_R | PF_X)) return finish(false);
+        if (memcmp(base + offset, g_contextual_home_patched, 16u) == 0) {
+            if (AtomicLoad(&g_contextual_home_action_owner_epoch)
+                    != AtomicLoad(&g_dart_state_owner_epoch)) {
+                AtomicStore(&g_contextual_home_action_retiring, uint32_t{1});
+                if (AtomicLoad(&g_contextual_home_action_active_count) != 0u) return finish(false);
+                AtomicStore(&g_contextual_home_action_owner_epoch, AtomicLoad(&g_dart_state_owner_epoch));
+                AtomicStore(&g_contextual_home_action_retiring, uint32_t{0});
+            }
+            return finish(true);
+        }
+        AtomicStore(&g_contextual_home_action_retiring, uint32_t{1});
+        AtomicStore(&g_contextual_home_action_ready, uint32_t{0});
+        if (AtomicLoad(&g_contextual_home_action_active_count) != 0u) return finish(false);
+        if (memcmp(base + offset, g_contextual_home_site.displaced, 16u) != 0
+                || RemoveInlineHook(base + offset) != kHookSuccess) {
+            g_contextual_home_hook_state = 5u;
+            return finish(false);
+        }
+        g_contextual_home_original = nullptr;
+        g_contextual_home_hook_state = 0u;
+    }
+    miui_home_dart_profile::ContextualActionSite site{};
+    if (!miui_home_dart_profile::ResolveContextualActionSite(base, &site)) {
+        g_contextual_home_hook_state = 5u;
+        Log(ANDROID_LOG_WARN, "Dart contextual action graph unavailable; preserving Home action");
+        return finish(false);
+    }
+    // All cells used by the pure assembly observer are initialized before it
+    // can execute, and remain immutable through same-image remap repairs.
+    g_contextual_home_base = base;
+    g_contextual_home_site = site;
+    g_contextual_home_context_frame_offset = site.context_frame_offset;
+    g_contextual_home_result_frame_offset = site.result_frame_offset;
+    g_contextual_home_cts_pool_offset = site.cts_pool_offset;
+    g_contextual_home_action_resume = reinterpret_cast<uintptr_t>(base) + site.offset + 16u;
+    AtomicStore(&g_contextual_home_action_owner_epoch, AtomicLoad(&g_dart_state_owner_epoch));
+    if (InstallInlineHook(base + site.offset,
+            reinterpret_cast<void*>(MiuiHomeHyosDartContextualActionHook),
+            &g_contextual_home_original) != kHookSuccess || g_contextual_home_original == nullptr) {
+        g_contextual_home_hook_state = 5u;
+        Log(ANDROID_LOG_WARN, "Dart contextual action hook unavailable; preserving Home action");
+        return finish(false);
+    }
+    memcpy(g_contextual_home_patched, base + site.offset, 16u);
+    AtomicStore(&g_dart_app_handle, dart_handle);
+    AtomicStore(&g_dart_app_base, base);
+    g_contextual_home_hook_state = 3u;
+    AtomicStore(&g_contextual_home_action_ready, uint32_t{1});
+    AtomicStore(&g_contextual_home_action_retiring, uint32_t{0});
+    __android_log_print(ANDROID_LOG_INFO, kLogTag,
+            "installed native Home NavLongPress action selector at=0x%" PRIxPTR,
+            site.offset);
+    return finish(true);
 }
 
 bool InstallDartEpilogue(
@@ -3451,6 +3687,7 @@ void TryInstallLoadedDartDrawerStateHook(
     if (AtomicLoad(&g_editing_state_hook_state) == uint32_t{1}) {
         retained = TryInstallDartEditingStateHook(dart_handle, profile) ||
                 retained;
+        retained = TryInstallDartContextualHomeAction(dart_handle, profile) || retained;
     }
     if (!retained) {
         dlclose(dart_handle);
@@ -3472,6 +3709,7 @@ void TryResolveAndInstallLoadedDartProfile(bool retry_rejected) {
                 retained;
         retained = TryInstallDartEditingStateHook(dart_handle, profile) ||
                 retained;
+        retained = TryInstallDartContextualHomeAction(dart_handle, profile) || retained;
     }
     if (profile == nullptr) {
         const auto* launcher = CurrentLauncherProfile();
@@ -3711,6 +3949,17 @@ bool InstallLauncherInputHooksForProfile(void* app_entry_point) {
         AtomicStore(&g_original_input_monitor_pilfer,
                     slot.original_pilfer);
     }
+    uintptr_t contextual_input_entry = 0u;
+    bool contextual_input_ready = false;
+    if (miui_home_runtime_profile::ResolveContextualLongPressInput(base, &contextual_input_entry)) {
+        AtomicStore(&slot.contextual_input_entry,
+                reinterpret_cast<uintptr_t>(base) + contextual_input_entry);
+        memcpy(slot.contextual_input_prologue, base + contextual_input_entry,
+                sizeof(slot.contextual_input_prologue));
+        contextual_input_ready = InstallContextualLongPressInputForSlot(index);
+    }
+    __android_log_print(ANDROID_LOG_INFO, kLogTag,
+            "native contextual-search long-press monitor observer ready=%u", contextual_input_ready ? 1u : 0u);
     if (NeedsDartFeatureResolution(profile) ||
             profile->dart_drawer_progress_end_offset != 0u) {
         __atomic_store_n(&g_dart_loader_hook_state, uint32_t{1},
@@ -3891,6 +4140,10 @@ bool InstallClaimedBusinessHooksForProfile(void* app_entry_point, bool repair) {
         // down the independently proven side-gesture handoff.
         Log(ANDROID_LOG_WARN,
             "continuing without native contextual-search terminal route");
+    }
+    if (!InstallSfAnimStartHook(base)) {
+        // Optional return-home continuity; Xiaomi's flight stays unchanged.
+        Log(ANDROID_LOG_WARN, "continuing without SfAnim start rewrite");
     }
     const auto* dart_profile = CurrentDartFeatureProfile();
     if (!InstallDrawerStateHook(
@@ -4222,6 +4475,7 @@ void OnLsposedLibraryLoaded(const char* name, void* handle) {
             TryInstallDartDrawerStateHook(handle, profile);
             TryInstallDartOverviewStateHook(handle, profile);
             TryInstallDartEditingStateHook(handle, profile);
+            TryInstallDartContextualHomeAction(handle, profile);
         }
     }
     if (IsDartLibraryPath(name)) hypertweak::native::ObserveNativeRuleDartLibrary(handle);
@@ -4293,6 +4547,10 @@ extern "C" bool HyperTweakIsLauncherProcess() {
     return launcher;
 }
 extern "C" void HyperTweakSetContextualSearchLongPress(bool enabled) {
+    if ((AtomicLoad(&g_contextual_search_enabled) != 0u) != enabled)
+        g_contextual_motion_gate.invalidate();
+    AtomicStore(&g_contextual_home_preference,
+            enabled && AtomicLoad(&g_systemui_arbiter_ready) != 0u ? uint32_t{1} : uint32_t{0});
     __atomic_store_n(&g_contextual_search_enabled,
                      enabled ? uint32_t{1} : uint32_t{0}, __ATOMIC_RELEASE);
     __android_log_print(ANDROID_LOG_INFO, kLogTag,

@@ -330,6 +330,24 @@ Dart registers/SP and NZCV, ordinary-widget size bypass, native-success receiver
 remap and foreign-hook ownership checks. Actual widget binding, placement, RemoteViews
 updates and restart restoration remain manual device acceptance.
 
+### Back gesture 0.13.0 features
+
+Run BackGesture0130HostContractTest with the current SystemUI, services and Shell
+inputs, plus `BACK_GESTURE_MIUI_SERVICES_JAR` for the state-6/state-10 status and
+navigation split; run the backgesture JVM suite and settings snapshot migration tests.
+Snapshot handling also runs `ServerBarGestureScopeTest` for repeated gestures,
+exact controller/thread admission, nested native callbacks, retirement and exceptions.
+On-device layer sampling must compare the first and subsequent actual up-swipes;
+an injected swipe that does not start a task transition is not a passing first case.
+Native
+changes run `run_backgesture_0130_test.py <libapp_launcher.so> <libapp.so>` under
+ASan/UBSan, `run_contextual_search_terminal_test.py`, the existing status-query,
+IPC, owner and broadcast harnesses, and the Dart-state ABI harness. The new Home
+action assembly must also execute with source/preference/generation/retirement,
+frame and register controls (upstream contextual_home_action_test sources).
+Keep compile/target/initialization evidence separate from held/released/cancelled
+OPEN, off-band touch delivery, bar appearance and preview handoff acceptance.
+
 ### Back-gesture status query and receiver
 
 For native back-gesture status query or receiver changes, run

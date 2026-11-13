@@ -87,6 +87,7 @@ uint32_t g_arbiter_state_marked_count, g_arbiter_state_passthrough_count, g_dart
 constexpr uint32_t kDartAllStatePending = 7;
 void EnsureDartStatePublisherThread() {}
 void PublishXiaoAiStateForCurrentGeneration() {}
+bool HandleReturnHomeHandoff(void* p) { assert(static_cast<Intent*>(p)->alive); return false; }
 bool HandleRuntimeStatusQuery(int64_t nonce) {
     assert(current && !current->alive && originals > 0);
     ++replies; replied_nonce = nonce; return true;

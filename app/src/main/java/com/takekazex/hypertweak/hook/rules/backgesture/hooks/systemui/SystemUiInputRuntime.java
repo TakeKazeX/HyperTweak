@@ -7,7 +7,6 @@ import android.app.ActivityManager;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
-import android.content.SharedPreferences;
 import android.content.pm.ActivityInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
@@ -36,8 +35,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.WeakHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
-
-import com.takekazex.hypertweak.hook.rules.backgesture.PredictiveBackPreferences;
 
 /** Owns per-display input monitors and admission on the input thread. */
 @SuppressLint({"PrivateApi", "DiscouragedApi"})
@@ -344,6 +341,7 @@ public abstract class SystemUiInputRuntime extends SystemUiInputDriverRuntime {
             MotionEvent down = pendingDownEvent;
             pendingDownEvent = null;
             try {
+                driver.recentsOpenGesture = recentsOpenCandidate;
                 if (down == null || !driver.handleTouch(down, activeEdge,
                         launcherOpenBreakCandidate,
                         launcherOpenBreakGenerationCandidate,
@@ -549,74 +547,8 @@ public abstract class SystemUiInputRuntime extends SystemUiInputDriverRuntime {
             }
         }
 
-        /**
-         * MiuiHome owns the physical side window. Keep the SystemUI spy on the same vertical
-         * bounds so shrinking that native window cannot leave a second, larger SystemUI-owned
-         * trigger area behind it.
-         */
-        protected boolean isWithinConfiguredGestureTriggerArea(MotionEvent event) {
-            try {
-                SharedPreferences preferences = gestureTriggerPreferences;
-                if (preferences == null) {
-                    synchronized (SystemUiInputRuntime.this) {
-                        preferences = gestureTriggerPreferences;
-                        if (preferences == null) {
-                            preferences = getRemotePreferences(
-                                    PredictiveBackPreferences.GROUP);
-                            gestureTriggerPreferences = preferences;
-                        }
-                    }
-                }
-                int heightPercent = preferences.getInt(
-                        PredictiveBackPreferences.KEY_GESTURE_TRIGGER_HEIGHT_PERCENT,
-                        PredictiveBackPreferences.DEFAULT_GESTURE_TRIGGER_HEIGHT_PERCENT);
-                int positionPercent = preferences.getInt(
-                        PredictiveBackPreferences.KEY_GESTURE_TRIGGER_POSITION_PERCENT,
-                        PredictiveBackPreferences.DEFAULT_GESTURE_TRIGGER_POSITION_PERCENT);
-                if (heightPercent < PredictiveBackPreferences.MIN_GESTURE_TRIGGER_HEIGHT_PERCENT
-                        || heightPercent
-                        > PredictiveBackPreferences.MAX_GESTURE_TRIGGER_HEIGHT_PERCENT
-                        || positionPercent
-                        < PredictiveBackPreferences.MIN_GESTURE_TRIGGER_POSITION_PERCENT
-                        || positionPercent
-                        > PredictiveBackPreferences.MAX_GESTURE_TRIGGER_POSITION_PERCENT) {
-                    return true;
-                }
-                if (heightPercent
-                        == PredictiveBackPreferences.DEFAULT_GESTURE_TRIGGER_HEIGHT_PERCENT
-                        && positionPercent
-                        == PredictiveBackPreferences.DEFAULT_GESTURE_TRIGGER_POSITION_PERCENT) {
-                    gestureTriggerPreferencesFailureLogged = false;
-                    return true;
-                }
-                float displayHeight = currentDisplayHeight();
-                float configuredHeight = displayHeight * heightPercent / 100.0f;
-                float availableTravel = Math.max(0.0f, displayHeight - configuredHeight);
-                float top = availableTravel * positionPercent / 100.0f;
-                float y = event.getRawY();
-                boolean inside = y >= top && y < top + configuredHeight;
-                gestureTriggerPreferencesFailureLogged = false;
-                return inside;
-            } catch (Throwable throwable) {
-                if (!gestureTriggerPreferencesFailureLogged) {
-                    gestureTriggerPreferencesFailureLogged = true;
-                    moduleLog(Log.WARN, TAG,
-                            "Gesture trigger configuration unavailable; preserving native area",
-                            throwable);
-                }
-                return true;
-            }
-        }
-
         protected boolean canStartBackGesture(MotionEvent event, int edge) {
             if (event.getPointerCount() != 1) {
-                return false;
-            }
-            if (!isWithinConfiguredGestureTriggerArea(event)) {
-                moduleLog(Log.INFO, TAG, "Ignored native back outside configured trigger area"
-                        + ", x=" + event.getRawX()
-                        + ", y=" + event.getRawY()
-                        + ", edge=" + edge);
                 return false;
             }
             if (!isNativeBackInputActive()) {
@@ -671,12 +603,19 @@ public abstract class SystemUiInputRuntime extends SystemUiInputDriverRuntime {
                     && !launcherOpenBreak
                     && !launcherDrawer
                     && !launcherFolder;
+            RecentsOpenSession.Attempt opening = recentsOpenAttempt;
+            boolean recentsOpen = launcherHome && displayId == 0
+                    && Build.VERSION.SDK_INT == 37
+                    && !launcherShade && !launcherXiaoAi && !launcherHomeSurface
+                    && !miuiOverviewVisible && !launcherDrawer && !launcherFolder
+                    && !launcherEditing && !launcherOpenBreak
+                    && opening != null && opening.isActive();
             if (launcherHome && !miuiOverviewVisible
                     && !launcherOpenBreak && !launcherShade
                     && !launcherXiaoAi
                     && !launcherHomeSurface
                     && !launcherDrawer && !launcherFolder
-                    && !launcherEditing) {
+                    && !launcherEditing && !recentsOpen) {
                 moduleLog(Log.INFO, TAG, "Ignored native back on launcher Home"
                         + ", topActivity=" + topActivity.flattenToShortString()
                         + ", overviewVisible=false"
@@ -813,6 +752,15 @@ public abstract class SystemUiInputRuntime extends SystemUiInputDriverRuntime {
                 return false;
             }
             launcherOpenBreakCandidate = launcherOpenBreak;
+            boolean appOpening = !launcherPackage && displayId == 0
+                    && opening != null && opening.isActive()
+                    && topActivity.equals(opening.session.topActivity);
+            recentsOpenCandidate = recentsOpen || appOpening ? opening : null;
+            if (recentsOpen) moduleLog(Log.INFO, TAG,
+                    "Accepted native Recents task-reuse OPEN candidate"
+                            + ", task=" + opening.session.taskId
+                            + ", transition=" + shortObject(opening.session.transition)
+                            + ", requireMatchingNativeDown=true");
             launcherOpenBreakGenerationCandidate = launcherOpenBreak
                     ? miuiLauncherOpenBreakGeneration : 0L;
             launcherShadeCandidate = launcherShade;
@@ -1144,6 +1092,7 @@ public abstract class SystemUiInputRuntime extends SystemUiInputDriverRuntime {
                 oldMotion.recycle();
             }
             launcherOpenBreakCandidate = false;
+            recentsOpenCandidate = null;
             launcherOpenBreakGenerationCandidate = 0L;
             launcherShadeCandidate = false;
             launcherXiaoAiCandidate = false;
@@ -1200,6 +1149,18 @@ public abstract class SystemUiInputRuntime extends SystemUiInputDriverRuntime {
                 return true;
             }
         }
-    }
 
+        protected RecentsOpenSession.Attempt recentsOpenCandidate;
+}
+
+    protected void notifyRecentsOpenCompleted(RecentsOpenSession.Attempt opening) {
+        new Handler(Looper.getMainLooper()).post(() -> {
+            List<NativeBackInputMonitor> monitors;
+            synchronized (nativeInputMonitors) {
+                monitors = new java.util.ArrayList<>(nativeInputMonitors.values());
+            }
+            for (NativeBackInputMonitor monitor : monitors)
+                monitor.driver.onRecentsOpenCompleted(opening);
+        });
+    }
 }

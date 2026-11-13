@@ -1,5 +1,8 @@
 package com.takekazex.hypertweak.hook.rules.backgesture.hooks.systemui;
 
+import android.content.Context;
+import android.view.RemoteAnimationTarget;
+
 import android.annotation.SuppressLint;
 import android.graphics.Point;
 import android.graphics.Rect;
@@ -33,6 +36,7 @@ import org.luckypray.dexkit.result.MethodData;
 /** Holds prepared transitions until their exact native targets arrive. */
 @SuppressLint({"PrivateApi", "DiscouragedPrivateApi"})
 public abstract class SystemUiPreparedTransitionRuntime extends SystemUiNavigationRuntime {
+    protected final java.util.Map<Class<?>, String> loadedDexContainers = new java.util.concurrent.ConcurrentHashMap<>();
     protected abstract String describeRemoteAnimationTargets(Object targets);
     protected abstract void logCrossTaskTargetDiagnostics();
     protected static final class PreparedBackTargetArrival {
@@ -191,7 +195,7 @@ public abstract class SystemUiPreparedTransitionRuntime extends SystemUiNavigati
 
     protected String resolveDexContainerForLoadedClass(Class<?> targetClass)
             throws Throwable {
-        String cached = preparedBackRunnerDexContainer;
+        String cached = loadedDexContainers.get(targetClass);
         if (cached != null && !cached.isEmpty()) {
             return cached;
         }
@@ -234,7 +238,7 @@ public abstract class SystemUiPreparedTransitionRuntime extends SystemUiNavigati
                             + ", found=" + matches);
         }
         cached = matches.get(0);
-        preparedBackRunnerDexContainer = cached;
+        loadedDexContainers.put(targetClass, cached);
         moduleLog(Log.INFO, TAG,
                 "Resolved prepared-back runner dex container=" + cached);
         return cached;

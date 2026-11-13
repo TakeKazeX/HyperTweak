@@ -25,7 +25,10 @@ assert re.search(r'EXTRA_INPUT_ARBITER_GENERATION\s*=\s*"([^"]+)"', core)[1] == 
 
 observe = source[source.index("void ObserveArbiterStateIntent("):source.index("bool IntentActionEquals(")]
 marker = source[source.index("bool HasArbiterStateMarker("):source.index("__attribute__((noinline))", source.index("bool HasArbiterStateMarker("))]
+records = re.search(r"struct ReturnHomeHandoffRecord \{.*?ReturnHomeHandoffRecord g_return_home_handoff\{\};", source, re.S)[0]
+handoff = source[source.index("int64_t MonotonicMillis() {"):source.index("int64_t CaptureRuntimeStatusQuery(void* intent) {")]
 preamble = r'''
+#include "contextual_motion_gate.h"
 #include <cassert>
 #include <cstdint>
 #include <cstring>
@@ -33,6 +36,8 @@ preamble = r'''
 #include <map>
 #include <string>
 #include <type_traits>
+#include <pthread.h>
+#include <time.h>
 constexpr int ANDROID_LOG_WARN = 1, ANDROID_LOG_INFO = 2;
 constexpr char kLogTag[] = "test", kSystemUiPackage[] = "com.android.systemui";
 struct BorrowedROptionRString { unsigned tag; const char* data; size_t length; };
@@ -75,7 +80,8 @@ template<class T> void AtomicStore(T* p, T v) { *p = v; }
 void Log(int, const char*) {}
 template<class... T> void __android_log_print(T...) {}
 int64_t g_systemui_arbiter_generation = 0;
-uint32_t g_systemui_arbiter_ready = 0, g_contextual_search_enabled = 1;
+uint32_t g_systemui_arbiter_ready = 0, g_contextual_search_enabled = 1, g_contextual_home_preference = 0;
+miui_home_contextual::MotionGate g_contextual_motion_gate;
 '''
 tests = r'''
 int main() {
@@ -115,12 +121,44 @@ int main() {
     assert(!HasArbiterStateMarker(&own));
     assert(!HasArbiterStateMarker(nullptr));
     ObserveArbiterStateIntent(nullptr);
+    g_systemui_arbiter_generation = 200;
+    g_systemui_arbiter_ready = 1;
+    Intent pose;
+    pose.extras = {{"hypertweak_return_home_handoff", 1}, {"sender_uid", 1000},
+        {kInputArbiterGenerationExtra, 200}, {"hypertweak_return_home_sequence", 1},
+        {"hypertweak_return_home_task_id", 42}, {"hypertweak_return_home_left_x100", 100},
+        {"hypertweak_return_home_top_x100", 200}, {"hypertweak_return_home_right_x100", 10000},
+        {"hypertweak_return_home_bottom_x100", 20000}};
+    assert(HandleReturnHomeHandoff(&pose));
+    assert(g_return_home_handoff.valid && g_return_home_handoff.task_id == 42 && g_return_home_handoff.generation == 200);
+    pose.extras["hypertweak_return_home_task_id"] = 43;
+    HandleReturnHomeHandoff(&pose); // same-generation replay cannot replace an accepted pose
+    assert(g_return_home_handoff.task_id == 42);
+    pose.extras["hypertweak_return_home_sequence"] = 2;
+    pose.extras[kInputArbiterGenerationExtra] = 199;
+    HandleReturnHomeHandoff(&pose);
+    assert(g_return_home_handoff.sequence == 1);
+    pose.extras[kInputArbiterGenerationExtra] = 200;
+    pose.sender = "untrusted";
+    HandleReturnHomeHandoff(&pose);
+    assert(g_return_home_handoff.sequence == 1);
+    pose.sender = kSystemUiPackage;
+    g_systemui_arbiter_ready = 0;
+    HandleReturnHomeHandoff(&pose);
+    assert(g_return_home_handoff.sequence == 1);
+    g_systemui_arbiter_ready = 1;
+    pose.extras["hypertweak_return_home_right_x100"] = 0;
+    HandleReturnHomeHandoff(&pose);
+    assert(g_return_home_handoff.sequence == 1);
+    pose.extras["hypertweak_return_home_right_x100"] = 10000;
+    HandleReturnHomeHandoff(&pose);
+    assert(g_return_home_handoff.sequence == 2 && g_return_home_handoff.task_id == 43);
     std::cout << "production arbiter namespace, ownership and generation fencing passed\n";
 }
 '''
 with tempfile.TemporaryDirectory(prefix="ht-backgesture-ipc-") as temp:
     cpp, binary = Path(temp) / "test.cpp", Path(temp) / "test"
-    cpp.write_text(preamble + f'constexpr char kInputArbiterGenerationExtra[] = "{key}";\n' + observe + marker + tests)
+    cpp.write_text(preamble + f'constexpr char kInputArbiterGenerationExtra[] = "{key}";\n' + observe + marker + records + handoff + tests)
     subprocess.run(["clang++", "-std=c++17", "-Wall", "-Wextra", "-Werror",
-                    "-fsanitize=address,undefined", str(cpp), "-o", str(binary)], check=True)
+                    "-fsanitize=address,undefined", "-I", str(root / "main/cpp/NativeRules/runtime"), str(cpp), "-o", str(binary)], check=True)
     subprocess.run([str(binary)], check=True)

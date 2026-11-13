@@ -25,7 +25,10 @@ public abstract class HotReloadHookRuntime extends SystemServerHookRuntime {
                 recoverCurrentSystemUiBackInput(runtimeClassLoader);
             }
             notifyOverviewVisibilityListener();
-            for (NativeBackInputMonitor monitor : nativeInputMonitors.values()) monitor.refreshIndicatorIfIdle();
+            for (NativeBackInputMonitor monitor : nativeInputMonitors.values()) {
+                monitor.refreshIndicatorIfIdle();
+                if (!monitor.blocksHotReload()) ensureAospBackAnimations(monitor.driver.currentController(), "preferences");
+            }
             publishSystemUiInputArbiterState(context,
                     systemUiInputArbiterMonitorCount.get() > 0, "preferencesRebound");
         });
@@ -41,7 +44,7 @@ public abstract class HotReloadHookRuntime extends SystemServerHookRuntime {
     }
 
     public void checkHotReloadReady() {
-        if (DexRuntime.INSTANCE.isResolving()) {
+        if (DexRuntime.INSTANCE.isResolving() || systemUiDexResolutionInFlight.get() != 0) {
             moduleLog(Log.WARN, TAG,
                     "Deferred hot reload during SystemUI dex resolution"
                             + ", process=" + processName);
@@ -82,6 +85,8 @@ public abstract class HotReloadHookRuntime extends SystemServerHookRuntime {
         moduleLog(Log.INFO, TAG, "Hot reloading, build=" + BUILD_MARK
                 + ", process=" + processName
                 + ", hooks=" + hookHandles.size());
+        if (!reserveRecentsBarReload()) throw new IllegalStateException("Status-bar following is busy");
+        detachRecentsBarFollow();
         boolean savedMiuiOverviewVisible = miuiOverviewVisible;
         boolean savedMiuiDrawerVisible = miuiDrawerVisible;
         boolean savedMiuiFolderVisible = miuiFolderVisible;
@@ -264,5 +269,15 @@ public abstract class HotReloadHookRuntime extends SystemServerHookRuntime {
             pendingHotReloadContextualSearchNavigationBars = new Object[0];
             restoreContextualSearchInputReceivers(bars);
         }
+    }
+    public Object saveSystemServerState() {
+        if (!reserveServerBarReload()) throw new IllegalStateException("WMS status-bar owner is busy");
+        Object[] state = new Object[18];
+        state[17] = saveServerBarRetiredOwners();
+        return state;
+    }
+    public void restoreSystemServerState(Object state) {
+        restoreServerBarRetiredOwners(state);
+        restoreServerBarOwnerAfterHotReload(runtimeClassLoader);
     }
 }

@@ -6,7 +6,6 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.graphics.Rect;
-import android.os.Build;
 import android.os.IBinder;
 import android.os.SystemClock;
 import android.util.Log;
@@ -22,6 +21,7 @@ import android.window.WindowOnBackInvokedDispatcher;
 import java.lang.ref.WeakReference;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.lang.reflect.Executable;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -729,17 +729,17 @@ public abstract class HookRuntimeCore {
 
     // HyperTweak owns configuration, logging and process lifecycle.
     public interface HookRegistrar {
-        XposedInterface.HookHandle register(Method method, String id, XposedInterface.Hooker hooker);
-        boolean deoptimize(Method method);
+        XposedInterface.HookHandle register(Executable method, String id, XposedInterface.Hooker hooker);
+        boolean deoptimize(Executable method);
         XposedInterface.Invoker<?, Method> getInvoker(Method method);
     }
     protected HookRegistrar hookRegistrar;
     protected ClassLoader runtimeClassLoader;
 
-    protected final void registerHook(Method method, String id, XposedInterface.Hooker hooker) {
+    protected final void registerHook(Executable method, String id, XposedInterface.Hooker hooker) {
         recordHookHandle(hookRegistrar.register(method, id, hooker));
     }
-    protected final boolean deoptimize(Method method) {
+    protected final boolean deoptimize(Executable method) {
         return hookRegistrar.deoptimize(method);
     }
     protected final XposedInterface.Invoker<?, Method> getInvoker(Method method) {
@@ -755,7 +755,8 @@ public abstract class HookRuntimeCore {
         if (priority >= Log.ERROR) DebugLog.INSTANCE.e(tag, message, failure);
         else if (priority >= Log.WARN) DebugLog.INSTANCE.w(tag, message, failure);
         else if (priority == Log.INFO && (
-                message.startsWith("Installed native SystemUI back input monitor")
+                message.startsWith("Restored native side-gesture exclusion")
+                || message.startsWith("Installed native SystemUI back input monitor")
                 || message.startsWith("Native SystemUI back input receiver attached")
                 || message.startsWith("Restored SystemUI hot reload lifecycle")
                 || message.startsWith("Published SystemUI input-arbiter state")
@@ -978,6 +979,7 @@ public abstract class HookRuntimeCore {
                     defaultCrossActivity, "crossActivity");
             changed |= ensureRegistryRunner(definitions, TYPE_CROSS_TASK,
                     crossTask, "crossTask");
+            changed |= ensureReturnHomePreviewRunner(definitions, crossTask);
             if (changed) {
                 invokeAnyMethod(registry, "updateSupportedAnimators", new Object[0]);
                 moduleLog(Log.INFO, TAG, "Restored AOSP registry definitions from " + source);
@@ -1365,5 +1367,16 @@ public abstract class HookRuntimeCore {
             }
         }
         return null;
+    }
+    protected final SharedPreferences modulePreferences() {
+        return Preferences.INSTANCE.backGesturePreferences();
+    }
+    protected static boolean moduleLogEnabled(int priority) {
+        return priority >= Log.WARN || Log.isLoggable(TAG, Log.VERBOSE);
+    }
+    protected static final String CROSS_TASK_BACK_ANIMATION =
+            "com.android.wm.shell.back.CrossTaskBackAnimation";
+    protected boolean ensureReturnHomePreviewRunner(Object definitions, Object crossTask) {
+        return false;
     }
 }
