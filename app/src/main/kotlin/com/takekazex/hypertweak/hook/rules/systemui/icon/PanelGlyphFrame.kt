@@ -33,7 +33,12 @@ internal class PanelGlyphFrame {
     private var recordedHeight = 0
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val fitted = RectF()
-    private var viewKey: List<Any?>? = null
+    private var viewKey = PanelGlyphViewState()
+    private var nextViewKey = PanelGlyphViewState()
+    private var viewKeyValid = false
+    private val sampleCanvas = Canvas()
+    private var tintColor = 0
+    private var tintFilter: PorterDuffColorFilter? = null
     private var lastView: View? = null
     private var lastWidth = 0
     private var lastHeight = 0
@@ -43,7 +48,7 @@ internal class PanelGlyphFrame {
     private var solid = false
     private var reportedFailure = false
 
-    fun invalidateView() { viewKey = null; lastView = null }
+    fun invalidateView() { viewKeyValid = false; lastView = null; viewKey.clear(); nextViewKey.clear() }
 
     fun captureView(view: View, crop: RectF? = null): Boolean {
         // The panel drag asks for the same endpoints every frame. A plain bitmap ImageView can
@@ -54,35 +59,29 @@ internal class PanelGlyphFrame {
             image.drawable?.javaClass == BitmapDrawable::class.java &&
             image.background == null && image.foreground == null
         if (staticFastPath && view === lastView && view.width == lastWidth &&
-            view.height == lastHeight && viewKey != null && !view.isDirty && crop == lastCrop) {
+            view.height == lastHeight && viewKeyValid && !view.isDirty && crop == lastCrop) {
             return !ink.isEmpty
         }
-        val drawable = image?.drawable
-        val bitmapDrawable = drawable as? BitmapDrawable
-        val text = view as? TextView
-        val key = listOf(view, view.width, view.height, view.paddingLeft, view.paddingTop,
-            view.paddingRight, view.paddingBottom, drawable, bitmapDrawable?.bitmap, drawable?.level, drawable?.alpha, bitmapDrawable?.bitmap?.generationId, image?.colorFilter,
-            image?.drawable?.colorFilter, image?.imageTintList, image?.imageAlpha,
-            view.drawableState.contentHashCode(), text?.text?.toString(), text?.textSize,
-            text?.typeface, text?.letterSpacing, text?.currentTextColor, text?.includeFontPadding,
-            text?.gravity, text?.baseline, image?.scaleType, image?.imageTintMode,
-            image?.imageMatrix?.let { matrix -> FloatArray(9).also(matrix::getValues).toList() },
-            drawable?.bounds?.let { android.graphics.Rect(it) }, crop?.let(::RectF))
+        nextViewKey.read(view, crop, viewKey)
         // Drawable tint/paint can mutate in place without changing resource identity.
         // Alpha-masked endpoints can stay dirty indefinitely because their parent skips drawing
         // them. A plain bitmap's generation plus ImageView appearance fully identifies its ink.
         val staticBitmap = staticFastPath
-        if (key == viewKey && (staticBitmap || !view.isDirty)) return !ink.isEmpty
-        viewKey = key
+        if (viewKeyValid && nextViewKey.same(viewKey) && (staticBitmap || !view.isDirty)) return !ink.isEmpty
+        val previousKey = viewKey
+        viewKey = nextViewKey; nextViewKey = previousKey; viewKeyValid = true
         lastView = view
         lastWidth = view.width
         lastHeight = view.height
-        lastCrop = crop?.let(::RectF)
-        return capture(view.width, view.height, crop) { view.draw(it) }
+        if (crop == null) lastCrop = null else (lastCrop ?: RectF().also { lastCrop = it }).set(crop)
+        return captureSafely(view.width, view.height, crop, null, view)
     }
 
-    fun capture(width: Int, height: Int, crop: RectF? = null, draw: (Canvas) -> Unit): Boolean = runCatching {
-        captureInternal(width, height, crop, draw).also { if (it) reportedFailure = false }
+    fun capture(width: Int, height: Int, crop: RectF? = null, draw: (Canvas) -> Unit): Boolean =
+        captureSafely(width, height, crop, draw, null)
+
+    private fun captureSafely(width: Int, height: Int, crop: RectF?, draw: ((Canvas) -> Unit)?, view: View?): Boolean = runCatching {
+        captureInternal(width, height, crop, draw, view).also { if (it) reportedFailure = false }
     }.getOrElse { error ->
         ink.setEmpty()
         if (!reportedFailure) {
@@ -92,21 +91,22 @@ internal class PanelGlyphFrame {
         false
     }
 
-    private fun captureInternal(width: Int, height: Int, crop: RectF?, draw: (Canvas) -> Unit): Boolean {
-        ink.setEmpty()
-        if (width <= 0 || height <= 0) return false
+    private fun captureInternal(width: Int, height: Int, crop: RectF?, draw: ((Canvas) -> Unit)?, view: View?): Boolean {
+        if (width <= 0 || height <= 0) { ink.setEmpty(); return false }
         val recording = picture.beginRecording(width, height)
         try {
             if (crop != null) recording.clipRect(crop)
-            draw(recording)
+            if (view != null) view.draw(recording) else checkNotNull(draw)(recording)
         } finally { picture.endRecording() }
         sampleScale = min(1f, 256f / maxOf(width, height))
         val w = ceil(width * sampleScale).toInt().coerceAtLeast(1)
         val h = ceil(height * sampleScale).toInt().coerceAtLeast(1)
         val pixels = bitmap?.takeIf { it.width == w && it.height == h }
-            ?: createBitmap(w, h).also { bitmap = it }
+            ?: createBitmap(w, h).also { bitmap = it; sampleCanvas.setBitmap(it) }
         pixels.eraseColor(Color.TRANSPARENT)
-        Canvas(pixels).apply { scale(sampleScale, sampleScale); drawPicture(picture) }
+        val save = sampleCanvas.save()
+        try { sampleCanvas.scale(sampleScale, sampleScale); sampleCanvas.drawPicture(picture) }
+        finally { sampleCanvas.restoreToCount(save) }
         if (nextSamples.size != w * h) nextSamples = IntArray(w * h)
         pixels.getPixels(nextSamples, 0, w, 0, 0, w, h)
         val changed = recordedWidth != width || recordedHeight != height || !samples.contentEquals(nextSamples)
@@ -115,6 +115,8 @@ internal class PanelGlyphFrame {
         nextSamples = previous
         recordedWidth = width
         recordedHeight = height
+        if (!changed && !reportedFailure) return !ink.isEmpty
+        ink.setEmpty()
         var left = w; var top = h; var right = -1; var bottom = -1
         peak = 0
         for (y in 0 until h) for (x in 0 until w) {
@@ -160,7 +162,13 @@ internal class PanelGlyphFrame {
         fitted.set(destination.centerX() - ink.width() * scale / 2f, destination.centerY() - ink.height() * scale / 2f,
             destination.centerX() + ink.width() * scale / 2f, destination.centerY() + ink.height() * scale / 2f)
         paint.alpha = alpha
-        paint.colorFilter = tint?.let { PorterDuffColorFilter(it, PorterDuff.Mode.SRC_IN) }
+        paint.colorFilter = if (tint == null) null else {
+            if (tintFilter == null || tintColor != tint) {
+                tintColor = tint
+                tintFilter = PorterDuffColorFilter(tint, PorterDuff.Mode.SRC_IN)
+            }
+            tintFilter
+        }
         val save = canvas.saveLayer(null, paint)
         try {
             canvas.translate(fitted.left, fitted.top)

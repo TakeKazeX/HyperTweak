@@ -9,8 +9,8 @@ internal object NativeRootCommand {
     class CommandFailure(val exitCode: Int, val output: ByteArray) :
         IllegalStateException("root command exited with status $exitCode")
 
-    private val executor = ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS, ArrayBlockingQueue(1),
-        { task -> Thread(task, "HyperTweak-NativeRoot").apply { isDaemon = true } })
+    private val executor = ThreadPoolExecutor(1, 1, 30L, TimeUnit.SECONDS, ArrayBlockingQueue(1),
+        { task -> Thread(task, "HyperTweak-NativeRoot").apply { isDaemon = true } }).apply { allowCoreThreadTimeOut(true) }
     fun quote(value: String): String = "'" + value.replace("'", "'\\''") + "'"
     fun run(command: String, maxBytes: Int = 64 * 1024, timeoutMs: Long = 8000,
         start: () -> Process = { ProcessBuilder("su", "-c", "timeout ${maxOf(1, timeoutMs / 1000 - 1)} sh -c " + quote(command))

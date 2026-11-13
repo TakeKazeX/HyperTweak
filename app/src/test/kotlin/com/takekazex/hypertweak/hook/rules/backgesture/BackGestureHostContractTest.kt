@@ -10,6 +10,21 @@ import java.io.File
 
 /** Validate the adapter's actual host ABI, independent of module compilation. */
 class BackGestureHostContractTest {
+    @Test fun shellMoveOwnerRunsInlineOrPostsToOneHandler() {
+        val host = classes("BACK_GESTURE_SHELL_JAR")
+        val executor = host.getValue("Lcom/android/wm/shell/common/HandlerExecutor;")
+        val execute = executor.methods.single { it.name == "execute" && it.parameterTypes.map(CharSequence::toString) == listOf("Ljava/lang/Runnable;") }
+        val refs = execute.implementation!!.instructions
+            .filterIsInstance<org.jf.dexlib2.iface.instruction.ReferenceInstruction>().map { it.reference }.toList()
+        assertTrue(refs.filterIsInstance<org.jf.dexlib2.iface.reference.FieldReference>()
+            .all { it.name == "mHandler" && it.type == "Landroid/os/Handler;" })
+        val calls = refs.filterIsInstance<org.jf.dexlib2.iface.reference.MethodReference>()
+        assertTrue(calls.any { it.definingClass == "Landroid/os/Looper;" && it.name == "isCurrentThread" })
+        assertTrue(calls.any { it.definingClass == "Ljava/lang/Runnable;" && it.name == "run" })
+        assertEquals(1, calls.count { it.definingClass == "Landroid/os/Handler;" && it.name == "post" })
+        assertFalse(calls.any { it.name == "postAtFrontOfQueue" || it.name == "start" })
+    }
+
     @Test fun nativeContextualSearchUsesLiveNavigationOwnerAndIndependentTransientState() {
         val host = classes("BACK_GESTURE_SYSTEMUI_APK")
         val bar = host.getValue("Lcom/android/systemui/navigationbar/views/NavigationBar;")

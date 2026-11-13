@@ -6,21 +6,57 @@ import org.junit.Test
 class HostMemberFixture {
     private var token = "native"
     private fun value() = token
+    fun echo(other: HostMemberFixture) = other
 }
 
 class HostMembersTest {
+    class Signatures {
+        fun pick(value: Int) = value
+        fun pick(value: String) = value
+        fun pick(value: Array<String>) = value
+    }
+    @Test fun signatureInputsCannotMutatePublishedEntriesAndParallelMissesKeepIdentity() {
+        val type = Signatures::class.java
+        val parameters = arrayOf<Class<*>>(Int::class.javaPrimitiveType!!)
+        // Reflective entry avoids Kotlin's caller-side vararg copy.
+        val api = HostMembers::class.java.getMethod("publicMethod", Class::class.java,
+            String::class.java, emptyArray<Class<*>>().javaClass, Boolean::class.javaPrimitiveType)
+        val first = api.invoke(HostMembers, type, "pick", parameters, true)
+        parameters[0] = String::class.java
+        val second = api.invoke(HostMembers, type, "pick", parameters, true)
+        assertNotSame(first, second)
+        assertSame(first, HostMembers.publicMethod(type, "pick", Int::class.javaPrimitiveType!!, accessible = true))
+        assertEquals(Array<String>::class.java, HostMembers.publicMethod(type, "pick",
+            Array<String>::class.java, accessible = true)!!.parameterTypes.single())
+        val pool = java.util.concurrent.Executors.newFixedThreadPool(8)
+        try {
+            val results = (1..64).map {
+                pool.submit<java.lang.reflect.Method> {
+                    HostMembers.requireDeclaredMethod(type, "pick", String::class.java, accessible = false)
+                }
+            }.map { it.get(5, java.util.concurrent.TimeUnit.SECONDS) }
+            assertTrue(results.all { it === results.first() })
+            assertFalse(results.first().isAccessible)
+        } finally { pool.shutdownNow() }
+    }
     open class Parent {
         private val number = 7
         private fun lookup() = "parent"
         private fun lookup(value: Int) = value + 1
     }
     class Child : Parent()
+    class Shadow : Parent() { private val number = 19 }
     interface Named { fun name(): String = "interface" }
     class NamedChild : Named
 
     @Test fun inheritedPrivateMembersAndExactOverloadsRemainInvocable() {
         val child = Child()
         assertEquals(7, HostMembers.read(child, "number"))
+        assertEquals(19, HostMembers.requireInheritedField(Shadow::class.java, "number").get(Shadow()))
+        assertEquals(7, HostMembers.requireInheritedField(Child::class.java, "number").get(child))
+        repeat(2) { assertThrows(NoSuchFieldException::class.java) {
+            HostMembers.requireInheritedField(Child::class.java, "missing")
+        } }
         assertEquals("parent", HostMembers.method(child, "lookup")!!.invoke(child))
         assertEquals(9, HostMembers.method(child, "lookup", Int::class.javaPrimitiveType!!)!!.invoke(child, 8))
         assertNull(HostMembers.method(child, "lookup", String::class.java))
@@ -48,6 +84,9 @@ class HostMembersTest {
         fieldA.set(a, "changed")
         assertEquals("changed", HostMembers.method(a, "value")!!.invoke(a))
         assertEquals("native", HostMembers.method(b, "value")!!.invoke(b))
+        assertNotNull(HostMembers.publicMethod(first, "echo", first, accessible = true))
+        assertNull(HostMembers.publicMethod(first, "echo", second, accessible = true))
+        assertNotNull(HostMembers.publicMethod(second, "echo", second, accessible = true))
     }
     @Test fun exactLookupKeepsDeclarationVisibilityAndAccessibilitySeparate() {
         assertNull(HostMembers.declaredField(Child::class.java, "number", accessible = true))

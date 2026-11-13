@@ -31,19 +31,26 @@ internal object HostAccess {
 
     fun field(type: Class<*>, name: String) = HostMembers.field(type, name)
     fun read(owner: Any, name: String) = HostMembers.read(owner, name)
-    fun method(type: Class<*>, name: String, vararg parameters: Class<*>) = HostMembers.method(type, name, *parameters)
-    fun method(owner: Any, name: String, vararg parameters: Class<*>) = HostMembers.method(owner, name, *parameters)
+    fun method(type: Class<*>, name: String) = HostMembers.method(type, name)
+    fun method(owner: Any, name: String) = HostMembers.method(owner.javaClass, name)
+    fun method(type: Class<*>, name: String, vararg parameters: Class<*>) = HostMembers.methodArray(type, name, parameters)
+    fun method(owner: Any, name: String, vararg parameters: Class<*>) = HostMembers.methodArray(owner.javaClass, name, parameters)
 
     fun <T : Any> cached(type: Class<*>, contract: String, resultType: Class<T>, resolve: () -> T?): T? =
         HostMembers.cached(type, contract, resultType, resolve)
     fun readDeclared(owner: Any, name: String) = HostMembers.declaredField(owner.javaClass, name, accessible = true)?.get(owner)
     fun declaredField(type: Class<*>, name: String, accessible: Boolean) = HostMembers.declaredField(type, name, accessible)
-    fun declaredMethod(type: Class<*>, name: String, vararg parameters: Class<*>, accessible: Boolean) = HostMembers.declaredMethod(type, name, *parameters, accessible = accessible)
-    fun publicMethod(type: Class<*>, name: String, vararg parameters: Class<*>, accessible: Boolean) = HostMembers.publicMethod(type, name, *parameters, accessible = accessible)
+    fun declaredMethod(type: Class<*>, name: String, vararg parameters: Class<*>, accessible: Boolean) = HostMembers.declaredMethodArray(type, name, parameters, accessible)
+    fun publicMethod(type: Class<*>, name: String, accessible: Boolean) = HostMembers.publicMethodArray(type, name, HostMembers.noParameters, accessible)
+    fun publicMethod(type: Class<*>, name: String, vararg parameters: Class<*>, accessible: Boolean) = HostMembers.publicMethodArray(type, name, parameters, accessible)
     fun requireDeclaredField(type: Class<*>, name: String, accessible: Boolean) = HostMembers.requireDeclaredField(type, name, accessible)
     fun requirePublicField(type: Class<*>, name: String, accessible: Boolean) = HostMembers.requirePublicField(type, name, accessible)
-    fun requireDeclaredMethod(type: Class<*>, name: String, vararg parameters: Class<*>?, accessible: Boolean) = HostMembers.requireDeclaredMethod(type, name, *parameters, accessible = accessible)
-    fun requirePublicMethod(type: Class<*>, name: String, vararg parameters: Class<*>?, accessible: Boolean) = HostMembers.requirePublicMethod(type, name, *parameters, accessible = accessible)
+    fun requireDeclaredMethod(type: Class<*>, name: String, vararg parameters: Class<*>?, accessible: Boolean) = HostMembers.requireDeclaredMethodArray(type, name, parameters, accessible)
+    fun requirePublicMethod(type: Class<*>, name: String, vararg parameters: Class<*>?, accessible: Boolean) = HostMembers.requirePublicMethodArray(type, name, parameters, accessible)
+    /** Java adapters with an existing signature array need no caller-side vararg copy. */
+    fun requirePublicMethodArray(type: Class<*>, name: String, parameters: Array<out Class<*>?>) =
+        HostMembers.requirePublicMethodArray(type, name, parameters)
+    fun requireInheritedField(type: Class<*>, name: String) = HostMembers.requireInheritedField(type, name)
 
     fun ancestor(view: android.view.View, className: String, includeSelf: Boolean = true): android.view.View? {
         var current: android.view.View? = if (includeSelf) view else view.parent as? android.view.View

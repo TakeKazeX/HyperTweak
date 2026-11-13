@@ -4,6 +4,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
+#include <time.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
@@ -77,6 +78,24 @@ int main() {
     __atomic_store_n(&change_owner, 1u, __ATOMIC_RELEASE);
     __atomic_store_n(&pending, 1u, __ATOMIC_RELEASE);
     assert(worker.Wake());
+    Await(42);
+    // A persistently unavailable publisher backs off even if raw Dart events
+    // continue arriving. Explicit readiness wakes must still recover promptly.
+    __atomic_store_n(&retries, 100000u, __ATOMIC_RELEASE);
+    __atomic_store_n(&pending, 1u, __ATOMIC_RELEASE);
+    const uint32_t before_failure = __atomic_load_n(&calls, __ATOMIC_ACQUIRE);
+    assert(worker.Wake());
+    for (int i = 0; i < 600; ++i) {
+        const uint64_t one = 1u;
+        assert(write(fd, &one, sizeof(one)) == sizeof(one));
+        usleep(2000);
+    }
+    const uint32_t failed_calls = __atomic_load_n(&calls, __ATOMIC_ACQUIRE) - before_failure;
+    assert(failed_calls >= 5 && failed_calls <= 8);
+    assert(failure == owner && pending != 0u);
+    __atomic_store_n(&retries, 0u, __ATOMIC_RELEASE);
+    assert(worker.Wake());
+    assert(worker.WaitReady(42));
     Await(42);
     // The child has no inherited publisher thread; reset the exact shared input cells.
     const pid_t child = fork();

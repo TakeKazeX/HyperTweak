@@ -56,7 +56,16 @@ internal class DuoPanelMotion(context: Context, private val airplaneOnly: Boolea
     private val rootMatrix = Matrix()
     private val inverseRoot = Matrix()
     private var drawSignature = 0L
-    private var sourceKey: List<Any?>? = null
+    private var sourceValid = false
+    private var inputContent: DuoContent? = null
+    private var sourceContent: DuoContent? = null
+    private var sourceColor = 0
+    private var sourceSmall5Ga = false
+    private var sourceArtwork: NativeWifiDrawable? = null
+    private var sourceArtworkRevision = -1
+    private var sourceMirror = false
+    private var sourceTypeface: android.graphics.Typeface? = null
+    private var sourceVariation: String? = null
     private val glyph = DuoDrawable(context).apply {
         networkOnly = true
         mirrorAirplane = settingIconMirrorAirplane
@@ -116,7 +125,8 @@ internal class DuoPanelMotion(context: Context, private val airplaneOnly: Boolea
         // A hidden native view's layout or drawable bounds cannot cancel the gesture.
         val usesNativeWifi = !airplaneOnly && content.wifiLevel != null && nativeWifi?.isReady() == true
         val artwork = nativeWifi.takeIf { usesNativeWifi }
-        val rendered = if (airplaneOnly) content.copy(wifiLevel = null) else content
+        val rendered = if (sourceValid && inputContent == content) checkNotNull(sourceContent)
+            else if (airplaneOnly && content.wifiLevel != null) content.copy(wifiLevel = null) else content
         if (host !== root) { clear(); host = root; root.overlay.add(layer) }
         wifiArtwork = artwork
         if (target !== native || targetGlyph !== glyphTarget) {
@@ -156,10 +166,15 @@ internal class DuoPanelMotion(context: Context, private val airplaneOnly: Boolea
         }.getOrNull() else null
         glyph.networkTypeface = sourceView?.icon?.networkTypeface ?: networkFont?.typeface
         glyph.networkFontVariationSettings = sourceView?.icon?.networkFontVariationSettings ?: networkFont?.variationSettings
-        val key = listOf(rendered, color, small5GaEnabled, artwork, artwork?.revision, glyph.mirrorAirplane,
-            glyph.networkTypeface, glyph.networkFontVariationSettings)
-        if (sourceKey != key) {
-            sourceKey = key
+        inputContent = content
+        if (!sourceValid || sourceContent != rendered || sourceColor != color || sourceSmall5Ga != small5GaEnabled ||
+            sourceArtwork !== artwork || sourceArtworkRevision != (artwork?.revision ?: -1) ||
+            sourceMirror != glyph.mirrorAirplane || sourceTypeface != glyph.networkTypeface ||
+            sourceVariation != glyph.networkFontVariationSettings) {
+            sourceValid = true; sourceContent = rendered; sourceColor = color
+            sourceSmall5Ga = small5GaEnabled; sourceArtwork = artwork; sourceArtworkRevision = artwork?.revision ?: -1
+            sourceMirror = glyph.mirrorAirplane; sourceTypeface = glyph.networkTypeface
+            sourceVariation = glyph.networkFontVariationSettings
             if (!sourceFrame.capture(128, 128) { canvas ->
                 if (artwork != null) {
                     artwork.setBounds(0, 0, 128, 128); artwork.alpha = 255; artwork.foreground = color; artwork.draw(canvas)
@@ -222,7 +237,9 @@ internal class DuoPanelMotion(context: Context, private val airplaneOnly: Boolea
         host?.overlay?.remove(layer)
         host = null
         wifiArtwork = null
-        sourceKey = null
+        sourceValid = false; inputContent = null; sourceContent = null
+        sourceArtwork = null; sourceTypeface = null; sourceVariation = null
+        sourceFrame.invalidateView(); targetFrame.invalidateView()
         drawSignature = 0L
         frameReady = false
         drawFailed = false

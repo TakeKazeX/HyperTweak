@@ -84,6 +84,11 @@ public abstract class SystemUiInputDriverRuntime extends SystemUiInputPolicyRunt
             final float nonLinearFactor;
             final AtomicReference<MiuiHomeAcceptedInputToken> inputIdentity;
             final AtomicBoolean releaseQueued = new AtomicBoolean();
+            final ShellMoveQueue moves;
+            boolean queueRelease() {
+                moves.seal();
+                return releaseQueued.compareAndSet(false, true);
+            }
             final AtomicBoolean moveFailed = new AtomicBoolean();
             final AtomicBoolean awaitingStockCleanup = new AtomicBoolean();
             final AtomicBoolean completionConsumed = new AtomicBoolean();
@@ -107,6 +112,8 @@ public abstract class SystemUiInputDriverRuntime extends SystemUiInputPolicyRunt
                 this.maxDistance = maxDistance;
                 this.nonLinearFactor = nonLinearFactor;
                 this.inputIdentity = new AtomicReference<>(inputIdentity);
+                this.moves = new ShellMoveQueue(executor, (x, y, distance, crossed, dispatch) ->
+                        consumeShellMove(this, x, y, distance, crossed, dispatch));
             }
 
         ShellGestureSession(ShellOwner owner, ShellStartSnapshot start,
@@ -129,6 +136,8 @@ public abstract class SystemUiInputDriverRuntime extends SystemUiInputPolicyRunt
                 this.maxDistance = maxDistance;
                 this.nonLinearFactor = nonLinearFactor;
                 this.inputIdentity = new AtomicReference<>(inputIdentity);
+                this.moves = new ShellMoveQueue(executor, (x, y, distance, crossed, dispatch) ->
+                        consumeShellMove(this, x, y, distance, crossed, dispatch));
             }
 
         final RecentsOpenSession.Attempt recentsOpening;
@@ -1986,7 +1995,7 @@ public abstract class SystemUiInputDriverRuntime extends SystemUiInputPolicyRunt
                                                        MiuiHomeAcceptedInputToken
                                                                inputIdentity) {
             if (session == null || session.completionConsumed.get()
-                    || !session.releaseQueued.compareAndSet(false, true)) {
+                    || !session.queueRelease()) {
                 return false;
             }
             try {
@@ -2516,6 +2525,7 @@ public abstract class SystemUiInputDriverRuntime extends SystemUiInputPolicyRunt
                                              boolean shadeCallback,
                                              boolean drawerCallback,
                                              boolean editingCallback) {
+            if (!diagnosticsEnabled()) return;
             moduleLog(Log.INFO, TAG, "Completed Shell release transaction"
                     + ", type=" + info.getType()
                     + ", releaseAllowed=" + releaseAllowed
@@ -2540,15 +2550,21 @@ public abstract class SystemUiInputDriverRuntime extends SystemUiInputPolicyRunt
 
         protected boolean queueShellMove(
                 ShellGestureSession session, float rawX, float rawY,
-                float distance, boolean crossedNow,
-                boolean dispatchProgress) {
+                float distance, boolean crossedNow, boolean dispatchProgress) {
             if (session == null || session.completionConsumed.get()
-                    || session.releaseQueued.get()
-                    || session.moveFailed.get()) {
+                    || session.releaseQueued.get() || session.moveFailed.get()) return false;
+            try {
+                return session.moves.submit(rawX, rawY, distance, crossedNow, dispatchProgress);
+            } catch (Throwable failure) {
+                session.moveFailed.set(true);
+                moduleLog(Log.ERROR, TAG, "Failed to queue Shell-owner MOVE", failure);
+                cleanupRejectedShellGesture(session);
                 return false;
             }
-            try {
-                session.executor.execute(() -> {
+        }
+
+        private void consumeShellMove(ShellGestureSession session, float rawX, float rawY,
+                float distance, boolean crossedNow, boolean dispatchProgress) {
                     Object tracker = null;
                     try {
                         if (session.completionConsumed.get()
@@ -2594,22 +2610,10 @@ public abstract class SystemUiInputDriverRuntime extends SystemUiInputPolicyRunt
                                 "Shell-owner MOVE failed; cancelling"
                                         + ", shellSessionId=" + session.id,
                                 throwable);
-                        if (session.releaseQueued.compareAndSet(
-                                false, true)) {
+                        if (session.queueRelease()) {
                             cancelFailedShellRelease(session, tracker);
                         }
                     }
-                });
-                return true;
-            } catch (Throwable throwable) {
-                session.moveFailed.set(true);
-                moduleLog(Log.ERROR, TAG,
-                        "Failed to queue Shell-owner MOVE"
-                                + ", shellSessionId=" + session.id,
-                        throwable);
-                cleanupRejectedShellGesture(session);
-                return false;
-            }
         }
 
         protected void applyProgressThresholds(
@@ -3129,7 +3133,7 @@ public abstract class SystemUiInputDriverRuntime extends SystemUiInputPolicyRunt
                             || readField(previous.controller, "mBackNavigationInfo") != null
                             || readField(previous.controller, "mBackAnimationFinishedCallback") != null
                             || Boolean.TRUE.equals(readField(previous.controller, "mPostCommitAnimationInProgress"))
-                            || !previous.releaseQueued.compareAndSet(false, true)) return;
+                            || !previous.queueRelease()) return;
                     claimed.set(true);
                     // Retire only the exact null-navigation probe, with trigger=false.
                     // There is no prepared runner or navigation to finish early here.

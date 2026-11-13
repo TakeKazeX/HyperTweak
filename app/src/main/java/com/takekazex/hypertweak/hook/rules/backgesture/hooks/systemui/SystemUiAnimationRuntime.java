@@ -333,6 +333,7 @@ public abstract class SystemUiAnimationRuntime extends SystemUiPreparedTransitio
             moduleLog(Log.WARN, TAG, "Cross-task diagnostic missing registry animation");
             return;
         }
+        if (!diagnosticsEnabled()) return;
         Object closingTarget = readFieldOrNull(animation, "mClosingTarget");
         Object enteringTarget = readFieldOrNull(animation, "mEnteringTarget");
         moduleLog(Log.INFO, TAG, "Cross-task exact targets"

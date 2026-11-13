@@ -144,8 +144,8 @@ internal class DuoAodController(owner: BaseHooker, private val host: Host) : Ico
         if (binding.rowPhase == phase) return
         val previous = binding.rowPhase
         binding.rowPhase = phase
-        DebugLog.d(TAG, "keyguard handshake toLockScreen=" + toLockScreen +
-            " phase=" + previous.name + "->" + phase.name)
+        DebugLog.d(TAG) { "keyguard handshake toLockScreen=" + toLockScreen +
+            " phase=" + previous.name + "->" + phase.name }
     }
 
     /**

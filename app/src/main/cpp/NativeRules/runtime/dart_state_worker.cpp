@@ -9,6 +9,11 @@
 namespace miui_home_dart_state {
 namespace {
 template <typename T> T AtomicLoad(const T* value) { return __atomic_load_n(value, __ATOMIC_ACQUIRE); }
+uint64_t MonotonicMillis() {
+    timespec now{};
+    clock_gettime(CLOCK_MONOTONIC, &now);
+    return static_cast<uint64_t>(now.tv_sec) * 1000u + static_cast<uint64_t>(now.tv_nsec) / 1000000u;
+}
 }
 void* EventWorker::Run() {
     const int fd = starting_fd_;
@@ -55,6 +60,7 @@ void* EventWorker::Run() {
         while (read(fd, &wake_count, sizeof(wake_count)) ==
                 static_cast<ssize_t>(sizeof(wake_count))) {
         }
+        __atomic_store_n(&urgent_wake_, uint32_t{0}, __ATOMIC_RELEASE);
         uint32_t retry_delay_ms = 16u;
         for (;;) {
             const uint64_t owner_epoch =
@@ -86,15 +92,25 @@ void* EventWorker::Run() {
             while (read(fd, &wake_count, sizeof(wake_count)) ==
                     static_cast<ssize_t>(sizeof(wake_count))) {
             }
-            timespec retry_delay{
-                    static_cast<time_t>(retry_delay_ms / 1000u),
-                    static_cast<long>((retry_delay_ms % 1000u) *
-                                      1000u * 1000u)};
-            while (nanosleep(&retry_delay, &retry_delay) != 0 &&
-                    errno == EINTR) {
+            const uint64_t deadline = MonotonicMillis() + retry_delay_ms;
+            for (;;) {
+                if (__atomic_exchange_n(&urgent_wake_, uint32_t{0}, __ATOMIC_ACQ_REL) != 0u) {
+                    retry_delay_ms = 16u;
+                    break;
+                }
+                const uint64_t now = MonotonicMillis();
+                if (now >= deadline) break;
+                descriptor.revents = 0;
+                const int result = poll(&descriptor, 1u, static_cast<int>(deadline - now));
+                if (result < 0 && errno == EINTR) continue;
+                if (result < 0 || (result > 0 && (descriptor.revents & POLLIN) == 0)) {
+                    __atomic_store_n(inputs_.state, uint32_t{6}, __ATOMIC_RELEASE);
+                    return nullptr;
+                }
+                while (read(fd, &wake_count, sizeof(wake_count)) ==
+                        static_cast<ssize_t>(sizeof(wake_count))) { }
             }
-            retry_delay_ms = retry_delay_ms < 128u
-                    ? retry_delay_ms * 2u : 250u;
+            retry_delay_ms = retry_delay_ms < 4096u ? retry_delay_ms * 2u : 5000u;
         }
     }
 }
@@ -110,6 +126,7 @@ bool EventWorker::Wake() {
         return false;
     }
     const uint64_t one = 1u;
+    __atomic_store_n(&urgent_wake_, uint32_t{1}, __ATOMIC_RELEASE);
     const ssize_t written = write(fd, &one, sizeof(one));
     if (written == static_cast<ssize_t>(sizeof(one)) ||
             (written < 0 && errno == EAGAIN)) {
@@ -244,5 +261,6 @@ void EventWorker::ResetAfterFork() {
     __atomic_store_n(inputs_.failure, uint64_t{0}, __ATOMIC_RELEASE);
     __atomic_store_n(inputs_.state, uint32_t{0}, __ATOMIC_RELEASE);
     starting_fd_ = -1;
+    __atomic_store_n(&urgent_wake_, uint32_t{0}, __ATOMIC_RELEASE);
 }
 } // namespace miui_home_dart_state

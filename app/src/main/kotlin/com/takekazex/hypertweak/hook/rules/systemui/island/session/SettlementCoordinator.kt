@@ -183,6 +183,7 @@ internal class SettlementCoordinator(private val runtime: IslandSessionState) : 
         } else {
             session.slot.extras = emptyList()
         }
+        if (DebugLog.isEnabled(android.util.Log.INFO)) {
         val admission = "more=$more visible=${runtime.summaries(session).size} " +
             "candidates=${candidates.size} leased=${session.slot.extras.size} " +
             "queued=${runtime.queuedSummaries(session).size} " +
@@ -191,6 +192,7 @@ internal class SettlementCoordinator(private val runtime: IslandSessionState) : 
         if (session.schedulerState.admissionLog != admission) {
             DebugLog.i(TAG, "admission $admission")
             session.schedulerState.admissionLog = admission
+        }
         }
         val extraKey = session.slot.extra?.let { host.key(it) }
         if (extraKey != session.schedulerState.loggedKey) {

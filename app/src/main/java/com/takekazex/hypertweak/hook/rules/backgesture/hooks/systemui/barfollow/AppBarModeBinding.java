@@ -32,7 +32,14 @@ final class AppBarModeBinding implements AutoCloseable {
     private boolean repositoryStarted;
     private boolean lightStarted;
     private final List<Object> bindings = new ArrayList<>();
-    private boolean closing;
+    private final DiagnosticBindings diagnosticBindings = new DiagnosticBindings(handle ->
+            type("kotlinx.coroutines.DisposableHandle").getMethod("dispose").invoke(handle));
+    private final android.os.Handler diagnosticHandler = new android.os.Handler(Looper.getMainLooper());
+    private AutoCloseable diagnosticControls;
+    private java.util.function.BooleanSupplier diagnosticEnabled;
+    private java.util.function.BiConsumer<String, Throwable> diagnosticLog;
+    private final Runnable diagnosticRefresh = this::refreshDiagnostics;
+    private volatile boolean closing;
     private Object transitions;
     private Object power;
     private Object windowState;
@@ -142,12 +149,16 @@ final class AppBarModeBinding implements AutoCloseable {
     }
 
     private void collect(Object flow, Consumer<Object> consumer) throws ReflectiveOperationException {
+        bindings.add(bind(flow, consumer));
+    }
+
+    private Object bind(Object flow, Consumer<Object> consumer) throws ReflectiveOperationException {
         Consumer<Object> guarded = session.guard(value -> {
             if (!closing) { requireMain(); consumer.accept(value); }
         });
-        bindings.add(type("com.android.systemui.util.kotlin.JavaAdapterKt").getMethod("collectFlow$default",
+        return type("com.android.systemui.util.kotlin.JavaAdapterKt").getMethod("collectFlow$default",
                 View.class, type("kotlinx.coroutines.flow.Flow"), Consumer.class,
-                type("kotlin.coroutines.CoroutineContext"), int.class).invoke(null, view, flow, guarded, null, 24));
+                type("kotlin.coroutines.CoroutineContext"), int.class).invoke(null, view, flow, guarded, null, 24);
     }
 
     private void setFlow(String name, Object value) {
@@ -236,17 +247,38 @@ final class AppBarModeBinding implements AutoCloseable {
 
     void observeAppearance(java.util.function.BooleanSupplier enabled,
                            java.util.function.BiConsumer<String, Throwable> log) throws ReflectiveOperationException {
-        Object physical = provider(display, "statusBarModePerDisplayRepositoryImplProvider");
-        collect(read(physical, "_originalStatusBarAttributes"), value -> {
-            if (enabled.getAsBoolean()) log.accept("BarAppearance Home packet=" + value, null);
+        diagnosticEnabled = enabled;
+        diagnosticLog = log;
+        diagnosticControls = com.takekazex.hypertweak.util.logging.DebugLog.INSTANCE.observeControls(() -> {
+            diagnosticHandler.removeCallbacks(diagnosticRefresh);
+            if (!closing) diagnosticHandler.post(diagnosticRefresh);
         });
-        collect(read(repository, "_originalStatusBarAttributes"), value -> {
-            if (enabled.getAsBoolean()) log.accept("BarAppearance App packet=" + value, null);
-        });
-        collect(read(repository, "statusBarAppearance"), value -> {
-            if (enabled.getAsBoolean()) log.accept("BarAppearance App resolved=" + value, null);
-        });
+        refreshDiagnostics();
     }
+
+    private void refreshDiagnostics() {
+        requireMain();
+        if (closing || diagnosticEnabled == null) return;
+        try {
+            diagnosticBindings.setEnabled(diagnosticEnabled.getAsBoolean(), retain -> {
+                Object physical = provider(display, "statusBarModePerDisplayRepositoryImplProvider");
+                retain.accept(bind(read(physical, "_originalStatusBarAttributes"), value -> {
+                    if (diagnosticEnabled.getAsBoolean()) diagnosticLog.accept("BarAppearance Home packet=" + value, null);
+                }));
+                retain.accept(bind(read(repository, "_originalStatusBarAttributes"), value -> {
+                    if (diagnosticEnabled.getAsBoolean()) diagnosticLog.accept("BarAppearance App packet=" + value, null);
+                }));
+                retain.accept(bind(read(repository, "statusBarAppearance"), value -> {
+                    if (diagnosticEnabled.getAsBoolean()) diagnosticLog.accept("BarAppearance App resolved=" + value, null);
+                }));
+            });
+        } catch (ReflectiveOperationException | RuntimeException failure) {
+            try { disposeDiagnostics(); } catch (ReflectiveOperationException cleanup) { failure.addSuppressed(cleanup); }
+            diagnosticLog.accept("App appearance diagnostics unavailable", failure);
+        }
+    }
+
+    private void disposeDiagnostics() throws ReflectiveOperationException { diagnosticBindings.close(); }
 
     String diagnostic() throws ReflectiveOperationException {
         Object tint = read(dark, "mTransitionsController");
@@ -264,9 +296,18 @@ final class AppBarModeBinding implements AutoCloseable {
     @Override public void close() throws ReflectiveOperationException {
         requireMain();
         closing = true;
+        diagnosticHandler.removeCallbacksAndMessages(null);
+        ReflectiveOperationException failure = null;
+        if (diagnosticControls != null) {
+            try { diagnosticControls.close(); diagnosticControls = null; }
+            catch (Exception cause) { failure = new ReflectiveOperationException("diagnostic observer retirement", cause); }
+        }
+        try { disposeDiagnostics(); }
+        catch (ReflectiveOperationException cause) {
+            if (failure == null) failure = cause; else failure.addSuppressed(cause);
+        }
         session.close();
         if (activeAppearance == this) activeAppearance = null;
-        ReflectiveOperationException failure = null;
         for (int i = bindings.size() - 1; i >= 0; i--) {
             try {
                 type("kotlinx.coroutines.DisposableHandle").getMethod("dispose").invoke(bindings.get(i));
@@ -275,15 +316,24 @@ final class AppBarModeBinding implements AutoCloseable {
                 if (failure == null) failure = cause; else failure.addSuppressed(cause);
             }
         }
-        if (failure != null) throw failure;
         if (lightStarted) {
+            try {
             call(battery, "removeCallback", new Class<?>[]{Object.class}, light);
             call(navigation, "removeListener", new Class<?>[]{type(
                     "com.android.systemui.navigationbar.NavigationModeController$ModeChangedListener")}, light);
             call(dump, "unregisterDumpable", new Class<?>[]{String.class}, read(light, "mDumpableName"));
-            lightStarted = false;
+                lightStarted = false;
+            } catch (ReflectiveOperationException cause) {
+                if (failure == null) failure = cause; else failure.addSuppressed(cause);
+            }
         }
-        if (repositoryStarted) { call(repository, "stop"); repositoryStarted = false; }
+        if (repositoryStarted) {
+            try { call(repository, "stop"); repositoryStarted = false; }
+            catch (ReflectiveOperationException cause) {
+                if (failure == null) failure = cause; else failure.addSuppressed(cause);
+            }
+        }
+        if (failure != null) throw failure;
     }
 
     private Object provider(Object owner, String name) throws ReflectiveOperationException { return call(read(owner, name), "get"); }

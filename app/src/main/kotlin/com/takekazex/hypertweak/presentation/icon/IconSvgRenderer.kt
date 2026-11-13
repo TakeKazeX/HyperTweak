@@ -81,9 +81,8 @@ object IconSvgRenderer {
         internal val metadata: Metadata,
         val sourceHash: String
     ) {
-        internal val bitmaps = object : LinkedHashMap<String, Bitmap>(24, 0.75f, true) {
-            override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Bitmap>?): Boolean =
-                size > MAX_BITMAPS
+        internal val bitmaps = ByteBudgetCache<String, Bitmap>(MAX_BITMAPS, 4L * 1024 * 1024) {
+            it.allocationByteCount.toLong()
         }
         internal val pictures = object : LinkedHashMap<String, Picture>(32, 0.75f, true) {
             override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Picture>?): Boolean =
@@ -105,7 +104,7 @@ object IconSvgRenderer {
         preflight(source)
         val metadata = parseMetadata(source)
         val svg = SVG.getFromString(source)
-        Document(source, svg, metadata, sha256(source))
+        Document(source, svg, metadata, sourceHash(source))
     }
 
     fun validate(document: Document, kind: SvgKind): Result<Unit> = runCatching {
@@ -383,7 +382,15 @@ object IconSvgRenderer {
 
     private fun Float.safeAlpha(default: Float): Float = takeIf { isFinite() }?.coerceIn(0f, 1f) ?: default
 
-    private fun sha256(source: String): String = MessageDigest.getInstance("SHA-256")
-        .digest(source.toByteArray(Charsets.UTF_8))
-        .joinToString("") { "%02x".format(Locale.US, it) }
+    internal fun sourceHash(source: String): String {
+        val digest = MessageDigest.getInstance("SHA-256").digest(source.toByteArray(Charsets.UTF_8))
+        val hex = "0123456789abcdef"
+        val chars = CharArray(digest.size * 2)
+        digest.forEachIndexed { i, value ->
+            val b = value.toInt() and 255
+            chars[i * 2] = hex[b ushr 4]
+            chars[i * 2 + 1] = hex[b and 15]
+        }
+        return String(chars)
+    }
 }

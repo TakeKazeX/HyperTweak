@@ -4,6 +4,11 @@ package com.takekazex.hypertweak.hook.base
 internal fun Class<*>.cachedDeclaredField(name: String, accessible: Boolean) = HostMembers.requireDeclaredField(this, name, accessible)
 internal fun Class<*>.cachedPublicField(name: String, accessible: Boolean) = HostMembers.requirePublicField(this, name, accessible)
 internal fun Class<*>.cachedDeclaredMethod(name: String, vararg parameters: Class<*>?, accessible: Boolean) =
-    HostMembers.requireDeclaredMethod(this, name, *parameters, accessible = accessible)
+    HostMembers.requireDeclaredMethodArray(this, name, parameters, accessible)
 internal fun Class<*>.cachedPublicMethod(name: String, vararg parameters: Class<*>?, accessible: Boolean) =
-    HostMembers.requirePublicMethod(this, name, *parameters, accessible = accessible)
+    HostMembers.requirePublicMethodArray(this, name, parameters, accessible)
+
+internal fun Class<*>.cachedDeclaredMethod(name: String, accessible: Boolean) =
+    HostMembers.requireDeclaredMethodArray(this, name, HostMembers.noParameters, accessible)
+internal fun Class<*>.cachedPublicMethod(name: String, accessible: Boolean) =
+    HostMembers.requirePublicMethodArray(this, name, HostMembers.noParameters, accessible)

@@ -87,26 +87,33 @@ class IconSvgRepository(private val context: Context) {
     fun loadWifi(): Result<IconSvgSnapshot> = loadBuiltIn(IconSvgAsset.WIFI_HYPEROS3)
 
     private fun parseSnapshot(kind: SvgKind, source: String, displayName: String): Result<IconSvgSnapshot> {
-        return IconSvgRenderer.parse(source).fold(
-            onSuccess = { document ->
-                IconSvgRenderer.validate(document, kind).fold(
-                    onSuccess = {
-                        val key = cacheKey(kind, document.sourceHash)
-                        val snapshot = IconSvgSnapshot(
-                            kind,
-                            source,
-                            document.sourceHash,
-                            displayName,
-                            document = document
-                        )
-                        synchronized(parsedCache) { parsedCache[key] = snapshot }
-                        Result.success(snapshot)
-                    },
-                    onFailure = { Result.failure(it) }
-                )
-            },
-            onFailure = { Result.failure(it) }
-        )
+        val key = cacheKey(kind, IconSvgRenderer.sourceHash(source))
+        // Identity comes from current asset bytes, so a replacement APK cannot reuse old pixels.
+        // Serialize the cold parse; concurrent callers publish one immutable source document.
+        return synchronized(parsedCache) {
+            parsedCache[key]?.let {
+                return@synchronized Result.success(if (it.displayName == displayName) it else it.copy(displayName = displayName))
+            }
+            IconSvgRenderer.parse(source).fold(
+                onSuccess = { document ->
+                    IconSvgRenderer.validate(document, kind).fold(
+                        onSuccess = {
+                            val snapshot = IconSvgSnapshot(
+                                kind,
+                                source,
+                                document.sourceHash,
+                                displayName,
+                                document = document
+                            )
+                            parsedCache[key] = snapshot
+                            Result.success(snapshot)
+                        },
+                        onFailure = { Result.failure(it) }
+                    )
+                },
+                onFailure = { Result.failure(it) }
+            )
+        }
     }
 
     private fun cacheKey(kind: SvgKind, hash: String): String = "${kind.name}:$hash"

@@ -144,7 +144,10 @@ class HookEntry : XposedModule() {
     // Legacy keys outside the committed registry still arrive through the daemon listener.
     // Coalesce remove/put notifications so a callback never polls an incomplete backend rewrite.
     private val callbackSnapshotRefresh = Runnable {
-        if (!generationRetired) com.takekazex.hypertweak.hook.runtime.settings.HookSettingsSnapshots.refresh()
+        if (!generationRetired) {
+            com.takekazex.hypertweak.hook.runtime.settings.HookSettingsSnapshots.refresh()
+            DebugLog.controlsChanged()
+        }
     }
     private val runtimePreferencesListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
         if (!generationRetired) {

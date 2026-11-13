@@ -371,7 +371,10 @@ object Preferences {
     private var remoteBackendUnavailable = false
 
     private var isLocalOnly = false
-    private val serializedWriter = Executors.newSingleThreadExecutor { r -> Thread(r, "HyperTweak-Prefs").apply { isDaemon = true } }
+    private val serializedWriter = java.util.concurrent.ThreadPoolExecutor(1, 1, 30L, TimeUnit.SECONDS,
+        java.util.concurrent.LinkedBlockingQueue<Runnable>(),
+        { r -> Thread(r, "HyperTweak-Prefs").apply { isDaemon = true } }
+    ).apply { allowCoreThreadTimeOut(true) }
     /** Serializes bulk mutations with the ordinary preference writes queued below. */
     private val settingsMutationLock = Any()
 

@@ -14,6 +14,7 @@ import android.view.ViewGroup
 import android.widget.ImageView
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HostAccess
+import com.takekazex.hypertweak.hook.base.RetiringWorker
 import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
@@ -37,7 +38,6 @@ import com.takekazex.hypertweak.util.platform.ResourceLookup
 import java.lang.ref.WeakReference
 import java.lang.reflect.Method
 import java.util.IdentityHashMap
-import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import org.luckypray.dexkit.DexKitBridge
@@ -92,9 +92,8 @@ internal object StackedRenderer : IconRenderer() {
 
     private val mainHandler = Handler(Looper.getMainLooper())
     /** SVG parsing must not delay SystemUI application startup. */
-    private val assetExecutor = Executors.newSingleThreadExecutor { runnable ->
-        Thread(runnable, "HyperTweak-StackedSignalAssets").apply { isDaemon = true }
-    }
+    private var assetExecutor = RetiringWorker("HyperTweak-StackedSignalAssets")
+    @Volatile private var assetsRetired = false
     private val generation = AtomicLong(0L)
     private val assetLoads = SignalAssetLoadState<SignalAssets>(generation, ASSET_LOAD_RETRY_BACKOFF_MS)
     private val installed = generationResource(AtomicBoolean(false)) { it.set(false) }
@@ -198,7 +197,9 @@ internal object StackedRenderer : IconRenderer() {
     }
 
     override fun onPrepareHotReload() {
+        assetsRetired = true
         val retiredGeneration = assetLoads.advance()
+        assetExecutor.close()
         val retiringBridge = iconBridge
 
 
@@ -216,6 +217,10 @@ internal object StackedRenderer : IconRenderer() {
     private var dataFirst by generationState { false }
 
     override fun onHook() {
+        if (assetsRetired) {
+            assetExecutor = RetiringWorker("HyperTweak-StackedSignalAssets")
+            assetsRetired = false
+        }
         dataFirst = settingIconMobileRowStyle == 1
         IconTunerFlows.init(classLoader)
         options = IconTunerOptions.snapshot()
@@ -419,8 +424,9 @@ internal object StackedRenderer : IconRenderer() {
             // module holder is still intact.
             if (!bridge.publish(SLOT_STACKED, bitmap, "Mobile signal")) return keepOrRestore()
             publishedSignalKey = renderKey
-            DebugLog.d(TAG,
-                "cellular signal published rows=${state.rows.size} bitmap=${bitmap.width}x${bitmap.height}")
+            DebugLog.d(TAG) {
+                "cellular signal published rows=${state.rows.size} bitmap=${bitmap.width}x${bitmap.height}"
+            }
         }
         val replacementVisible = options.ignoreSystemHide || state.rows.any { it.originalVisible }
         if (!bridge.setVisible(SLOT_STACKED, replacementVisible)) {
@@ -507,13 +513,15 @@ internal object StackedRenderer : IconRenderer() {
             !IconSlotPolicy.blocksSlot(slot, IconSurface.CONTROL_CENTER, options.policy)
 
     private fun scheduleSignalAssetsLoad(bindingGeneration: Long) {
-        if (!enabled || !renderStacked) return
+        if (assetsRetired || !enabled || !renderStacked) return
         val repository = svgRepository ?: return
         val ticket = assetLoads.begin(bindingGeneration, SystemClock.elapsedRealtime()) ?: return
-        assetExecutor.execute {
+        val accepted = assetExecutor.execute {
+            if (assetsRetired || generation.get() != ticket.generation) return@execute
             val assets = runCatching { loadSignalAssets(repository, ticket) }
                 .onFailure { DebugLog.w(TAG, "asynchronous signal SVG load failed", it) }
                 .getOrNull()
+            if (assetsRetired || generation.get() != ticket.generation) return@execute
             mainHandler.post {
                 if (!assetLoads.complete(ticket, assets, SystemClock.elapsedRealtime())) return@post
                 if (assets != null) {
@@ -522,6 +530,7 @@ internal object StackedRenderer : IconRenderer() {
                 if (enabled && generation.get() == ticket.generation) renderCurrent()
             }
         }
+        if (!accepted) assetLoads.complete(ticket, null, SystemClock.elapsedRealtime())
     }
 
     private fun loadSignalAssets(repository: IconSvgRepository, ticket: SignalAssetLoadState.Ticket): SignalAssets? {

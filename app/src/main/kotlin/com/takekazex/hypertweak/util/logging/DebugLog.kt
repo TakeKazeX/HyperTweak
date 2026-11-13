@@ -17,7 +17,50 @@ import java.util.concurrent.TimeUnit
 
 object DebugLog {
     private val backend = LogBackend()
-    internal fun bindStorage(level: () -> Int, sink: AppLogSink? = null) = backend.bind(level, sink)
+    internal fun bindStorage(level: () -> Int, sink: AppLogSink? = null) {
+        backend.bind(level, sink)
+        controlsChanged()
+    }
+    private val controlListeners = java.util.concurrent.CopyOnWriteArrayList<Runnable>()
+    private var propertyRemove: java.lang.reflect.Method? = null
+    private val propertyChanged = Runnable { controlsChanged() }
+
+    /** Owners marshal onto their own Looper; callbacks never run under preference-registry locks. */
+    // Used by the injected SystemUI owner. Both methods are verified before registration;
+    // a restricted/missing API leaves this optional tag observer unregistered. Settings events
+    // still refresh the diagnostic gate. No functional collector depends on this private API.
+    @android.annotation.SuppressLint("SoonBlockedPrivateApi")
+    @Synchronized fun observeControls(listener: Runnable): AutoCloseable {
+        if (controlListeners.isEmpty() && propertyRemove == null) {
+            runCatching {
+                val properties = Class.forName("android.os.SystemProperties")
+                val remove = properties.getDeclaredMethod("removeChangeCallback", Runnable::class.java)
+                properties.getDeclaredMethod("addChangeCallback", Runnable::class.java).invoke(null, propertyChanged)
+                propertyRemove = remove
+            }.onFailure { w("DebugLog", "log-tag change observer unavailable", it) }
+        }
+        controlListeners.add(listener)
+        val closed = java.util.concurrent.atomic.AtomicBoolean()
+        return AutoCloseable {
+            synchronized(this) {
+                if (!closed.get()) {
+                    controlListeners.remove(listener)
+                    if (controlListeners.isEmpty()) removePropertyObserver()
+                    closed.set(true)
+                }
+            }
+        }
+    }
+    fun controlsChanged() {
+        controlListeners.forEach { listener ->
+            runCatching { listener.run() }.onFailure { w("DebugLog", "diagnostic control refresh failed", it) }
+        }
+    }
+    @Synchronized private fun removePropertyObserver() {
+        val remove = propertyRemove ?: return
+        remove.invoke(null, propertyChanged)
+        propertyRemove = null
+    }
 
     private const val TAG = "HyperTweak"
     private const val FLUSH_DELAY_MS = 750L
@@ -103,6 +146,10 @@ object DebugLog {
     }
 
     fun prepareForHotReload() {
+        controlListeners.clear()
+        runCatching { removePropertyObserver() }.onFailure {
+            runCatching { Log.w(TAG, "log-tag observer cleanup failed", it) }
+        }
         repeatLimiter.drain(SystemClock.elapsedRealtime(), force = true).forEach(::enqueue)
         synchronized(this) {
             pendingFlush?.cancel(false)
@@ -119,6 +166,13 @@ object DebugLog {
     }
 
     fun d(scope: String, message: String) = write(Log.DEBUG, scope, message, null)
+    /** Gate expensive diagnostics before reflection or task submission. No audit event is emitted. */
+    fun isEnabled(priority: Int): Boolean = priority >= currentThreshold()
+
+    /** Inline to avoid a capturing closure. Outcome/audit messages must use their eager helpers. */
+    inline fun d(scope: String, message: () -> String) {
+        if (isEnabled(Log.DEBUG)) d(scope, message())
+    }
     fun i(scope: String, message: String) = write(Log.INFO, scope, message, null)
     fun w(scope: String, message: String, throwable: Throwable? = null) = write(Log.WARN, scope, message, throwable)
     fun e(scope: String, message: String, throwable: Throwable? = null) = write(Log.ERROR, scope, message, throwable)

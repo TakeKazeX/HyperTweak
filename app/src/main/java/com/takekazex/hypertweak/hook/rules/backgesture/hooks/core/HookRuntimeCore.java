@@ -9,7 +9,6 @@ import android.graphics.Rect;
 import android.os.IBinder;
 import android.os.SystemClock;
 import android.util.Log;
-import android.util.Pair;
 import android.util.SparseArray;
 import android.view.MotionEvent;
 import android.view.SurfaceControl;
@@ -23,7 +22,6 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Executable;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -37,6 +35,7 @@ import com.takekazex.hypertweak.BuildConfig;
 import com.takekazex.hypertweak.hook.rules.backgesture.NativeHookStatusProtocol;
 import io.github.libxposed.api.XposedInterface;
 import com.takekazex.hypertweak.hook.Preferences;
+import com.takekazex.hypertweak.hook.base.HostAccess;
 import com.takekazex.hypertweak.util.logging.DebugLog;
 
 public abstract class HookRuntimeCore {
@@ -345,14 +344,7 @@ public abstract class HookRuntimeCore {
     protected final List<XposedInterface.HookHandle> hookHandles = new ArrayList<>();
     protected final ConcurrentHashMap<Object, OpenTransitionSnapshot> runningOpenTransitions =
             new ConcurrentHashMap<>();
-    protected final ConcurrentHashMap<Pair<Class<?>, String>, Field> reflectedFields =
-            new ConcurrentHashMap<>();
-    protected final ConcurrentHashMap<Pair<Class<?>, String>, Method> reflectedAnyMethods =
-            new ConcurrentHashMap<>();
-    protected final ConcurrentHashMap<Pair<Class<?>, String>, Method> reflectedExactMethods =
-            new ConcurrentHashMap<>();
-    protected final Set<Pair<Class<?>, String>> missingReflectedMembers =
-            ConcurrentHashMap.newKeySet();
+    private final LegacyMethodCache reflectedAnyMethods = new LegacyMethodCache();
     protected final Object legacyBackGuardLock = new Object();
     protected final AtomicLong legacyBackAttemptIds = new AtomicLong();
     protected final AtomicLong openSnapshotGeneration = new AtomicLong();
@@ -751,6 +743,9 @@ public abstract class HookRuntimeCore {
     protected static void moduleLog(int priority, String tag, String message) {
         moduleLog(priority, tag, message, null);
     }
+    protected static boolean diagnosticsEnabled() {
+        return DebugLog.INSTANCE.isEnabled(Log.DEBUG) && Log.isLoggable(TAG, Log.VERBOSE);
+    }
     protected static void moduleLog(int priority, String tag, String message, Throwable failure) {
         if (priority >= Log.ERROR) DebugLog.INSTANCE.e(tag, message, failure);
         else if (priority >= Log.WARN) DebugLog.INSTANCE.w(tag, message, failure);
@@ -1109,28 +1104,7 @@ public abstract class HookRuntimeCore {
 
     protected Field findCachedField(Class<?> ownerClass, String fieldName)
             throws NoSuchFieldException {
-        Pair<Class<?>, String> key = Pair.create(
-                ownerClass, "field:" + fieldName);
-        Field cached = reflectedFields.get(key);
-        if (cached != null) {
-            return cached;
-        }
-        if (missingReflectedMembers.contains(key)) {
-            throw new NoSuchFieldException(ownerClass.getName() + "." + fieldName);
-        }
-        Class<?> current = ownerClass;
-        while (current != null) {
-            try {
-                Field resolved = current.getDeclaredField(fieldName);
-                resolved.setAccessible(true);
-                Field raced = reflectedFields.putIfAbsent(key, resolved);
-                return raced == null ? resolved : raced;
-            } catch (NoSuchFieldException ignored) {
-                current = current.getSuperclass();
-            }
-        }
-        missingReflectedMembers.add(key);
-        throw new NoSuchFieldException(ownerClass.getName() + "." + fieldName);
+        return HostAccess.INSTANCE.requireInheritedField(ownerClass, fieldName);
     }
 
     protected static String shortObject(Object object) {
@@ -1150,6 +1124,7 @@ public abstract class HookRuntimeCore {
     }
 
     protected void logBackNavigationInfo(Object info) {
+        if (!diagnosticsEnabled()) return;
         if (info == null) {
             moduleLog(Log.INFO, TAG, "BackNavigationInfo=null");
             return;
@@ -1294,49 +1269,22 @@ public abstract class HookRuntimeCore {
 
     protected Object invokeMethod(Object target, String methodName,
                                   Class<?>[] parameterTypes, Object[] args) throws Exception {
-        Class<?> owner = target.getClass();
-        Pair<Class<?>, String> key = Pair.create(owner,
-                "exact:" + methodName + Arrays.toString(parameterTypes));
-        Method method = reflectedExactMethods.get(key);
-        if (method == null) {
-            if (missingReflectedMembers.contains(key)) {
-                throw new NoSuchMethodException(owner.getName() + "." + methodName);
-            }
-            try {
-                Method resolved = owner.getMethod(methodName, parameterTypes);
-                resolved.setAccessible(true);
-                Method raced = reflectedExactMethods.putIfAbsent(key, resolved);
-                method = raced == null ? resolved : raced;
-            } catch (NoSuchMethodException exception) {
-                missingReflectedMembers.add(key);
-                throw exception;
-            }
-        }
-        return method.invoke(target, args);
+        return HostAccess.INSTANCE.requirePublicMethodArray(target.getClass(), methodName,
+                parameterTypes).invoke(target, args);
     }
 
     protected Object invokeAnyMethod(Object target, String methodName, Object[] args)
             throws Exception {
         Class<?> owner = target.getClass();
-        Pair<Class<?>, String> key = Pair.create(owner,
-                "any:" + methodName + "/" + args.length);
-        Method best = reflectedAnyMethods.get(key);
-        if (best == null && missingReflectedMembers.contains(key)) {
-            throw new NoSuchMethodException(owner.getName() + "." + methodName);
-        }
-        if (best == null) {
+        java.util.Optional<Method> entry = reflectedAnyMethods.get(owner, methodName, args.length);
+        if (entry == null) {
             Method resolved = findAnyMethod(owner, methodName, args.length);
-            if (resolved != null) {
-                resolved.setAccessible(true);
-                Method raced = reflectedAnyMethods.putIfAbsent(key, resolved);
-                best = raced == null ? resolved : raced;
-            }
+            if (resolved != null) resolved.setAccessible(true);
+            entry = reflectedAnyMethods.publish(owner, methodName, args.length, resolved);
         }
-        if (best == null) {
-            missingReflectedMembers.add(key);
-            throw new NoSuchMethodException(owner.getName() + "." + methodName);
-        }
-        return best.invoke(target, args);
+        Method method = entry.orElse(null);
+        if (method == null) throw new NoSuchMethodException(owner.getName() + "." + methodName);
+        return method.invoke(target, args);
     }
 
     protected String readNativeAnimationType(Object windowElement) throws Exception {
@@ -1372,7 +1320,7 @@ public abstract class HookRuntimeCore {
         return Preferences.INSTANCE.backGesturePreferences();
     }
     protected static boolean moduleLogEnabled(int priority) {
-        return priority >= Log.WARN || Log.isLoggable(TAG, Log.VERBOSE);
+        return priority >= Log.WARN || diagnosticsEnabled();
     }
     protected static final String CROSS_TASK_BACK_ANIMATION =
             "com.android.wm.shell.back.CrossTaskBackAnimation";

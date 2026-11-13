@@ -45,7 +45,11 @@ public final class KeyguardAirplaneProbe {
         return result;
     }
     @SuppressWarnings({"unchecked", "rawtypes"})
-    public static void main(String[] args) throws Exception {
+    public static void main(String[] args) {
+        try { run(args); }
+        catch (Throwable failure) { failure.printStackTrace(System.out); System.exit(1); }
+    }
+    private static void run(String[] args) throws Exception {
         Looper.prepareMainLooper();
         android.graphics.Typeface.class.getDeclaredMethod("loadPreinstalledSystemFontMap").invoke(null);
         Class<?> thread = Class.forName("android.app.ActivityThread");
@@ -115,11 +119,11 @@ public final class KeyguardAirplaneProbe {
         Object services = portsType.getMethod("getServices").invoke(ports);
         Object binding = services.getClass().getMethod("getBinding").invoke(services);
         Class<?> bindingType = binding.getClass();
-        String[] getters = {"getLeft", "getPositions", "getCarrier", "getDuo", "getHeader", "getKeyguard", "getRepublish", "getMobileReady"};
+        String[] getters = {"getLeft", "getPositions", "getCarrier", "getDuo", "getHeader", "getKeyguard", "getRepublish", "getMobileReady", "getStackedTypeOnlyLost"};
         Object[] members = new Object[getters.length];
         for (int i = 0; i < members.length; i++) members[i] = bindingType.getMethod(getters[i]).invoke(binding);
         members[3] = port;
-        Object replacement = Arrays.stream(bindingType.getConstructors()).filter(c -> c.getParameterCount() == 8)
+        Object replacement = Arrays.stream(bindingType.getConstructors()).filter(c -> c.getParameterCount() == members.length)
             .findFirst().orElseThrow().newInstance(members);
         Object owner = new Object();
         services.getClass().getMethod("bind", Object.class, bindingType).invoke(services, owner, replacement);

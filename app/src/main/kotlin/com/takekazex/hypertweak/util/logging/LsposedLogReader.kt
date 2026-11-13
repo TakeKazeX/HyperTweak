@@ -14,8 +14,8 @@ object LsposedLogReader {
     data class Result(val records: List<LogRecord>, val status: Status)
     // A blocked su pipe must not hold the UI/diagnostic caller past its deadline or create an
     // unlimited number of reader threads on repeated refreshes.
-    private val reader = ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS, ArrayBlockingQueue(1),
-        { r -> Thread(r, "HyperTweak-LSPosedLogs").apply { isDaemon = true } })
+    private val reader = ThreadPoolExecutor(1, 1, 30L, TimeUnit.SECONDS, ArrayBlockingQueue(1),
+        { r -> Thread(r, "HyperTweak-LSPosedLogs").apply { isDaemon = true } }).apply { allowCoreThreadTimeOut(true) }
     // Fixed, read-only paths. Never interpolate user text or modify the daemon's log files.
     internal val command = """
         files=${'$'}(ls -1t /data/adb/lspd/log/modules_*.log 2>/dev/null | head -n 4 | sort)

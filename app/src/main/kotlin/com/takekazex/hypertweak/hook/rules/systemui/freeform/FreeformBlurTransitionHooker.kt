@@ -24,7 +24,7 @@ import java.util.concurrent.ConcurrentHashMap
  *
  * This is a rewrite of the standalone `com.liu.freeformblur` module (legacy Xposed API 82). The
  * mechanism, verified against the device's `Miui-WindowManager-Shell.jar`
- * (`aae1827abff92240c405a77794506bebbb801b06a57c7f66e501ec181af42ded`), has three parts:
+ * (`177e9ebbdf3650fc9d5d18fe170d3dbb0e97eaaddcd817d4e33be1d288a227be`), has three parts:
  *
  * 1. **Open the blur gates.** Every blur decision funnels through
  *    `MultiTaskingCommonUtils.isBlurAnimToggleEnable()` (8 call sites across the freeform and
@@ -110,9 +110,6 @@ object FreeformBlurTransitionHooker : StaticHooker() {
     private var enabled by generationState { false }
 
     private var targets: Targets? by generationState { null }
-
-    /** `getFc()` / `getCoverLayerContainer()` / `apply()` style lookups, resolved once per class. */
-    private val dynamicMethods = generationResource(ConcurrentHashMap<String, Method>()) { it.clear() }
 
     /** Resource-id verdicts, so the hot `Resources.getColor` path never resolves a name twice. */
     private val knownBottomBoardIds = generationResource(ConcurrentHashMap.newKeySet<Int>()) { it.clear() }
@@ -596,26 +593,22 @@ object FreeformBlurTransitionHooker : StaticHooker() {
     }
 
     private fun addPropertyMethod(stateClass: Class<*>, targets: Targets): Method? {
-        val key = "${stateClass.name}#addProperty4"
-        dynamicMethods[key]?.let { return it }
-        val found = stateClass.methods.firstOrNull {
-            it.name == "addProperty" && it.parameterCount == 4 &&
-                it.parameterTypes[1] == Float::class.javaPrimitiveType &&
-                it.parameterTypes[2] == Float::class.javaPrimitiveType &&
-                it.parameterTypes[0].isInstance(targets.blurProp) &&
-                it.parameterTypes[3].isInstance(targets.blurHideEase)
-        } ?: return null
-        dynamicMethods[key] = found
-        return found
+        return HostAccess.cached(stateClass, "FreeformBlur.addProperty4", Method::class.java) {
+            stateClass.methods.singleOrNull {
+                it.name == "addProperty" && it.parameterCount == 4 &&
+                    it.parameterTypes[1] == Float::class.javaPrimitiveType &&
+                    it.parameterTypes[2] == Float::class.javaPrimitiveType &&
+                    it.parameterTypes[0].isInstance(targets.blurProp) &&
+                    it.parameterTypes[3].isInstance(targets.blurHideEase)
+            }
+        }
     }
 
     /** Invokes a public no-argument method, resolving and caching it per concrete class. */
     private fun invokeMethod(target: Any, name: String): Any? {
-        val key = "${target.javaClass.name}#$name"
-        val method = dynamicMethods[key] ?: runCatching {
-            target.javaClass.methods.firstOrNull { it.name == name && it.parameterCount == 0 }
+        val method = runCatching {
+            HostAccess.publicMethod(target.javaClass, name, accessible = false)
         }.getOrNull() ?: return null
-        dynamicMethods[key] = method
         return runCatching { method.invoke(target) }.getOrNull()
     }
 

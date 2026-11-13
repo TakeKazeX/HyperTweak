@@ -22,5 +22,7 @@ private:
     Inputs inputs_;
     void (*drain_)(uint64_t);
     int starting_fd_ = -1;
+    // Explicit readiness/owner requests interrupt failure backoff; raw Dart observations don't.
+    volatile uint32_t urgent_wake_ = 0;
 };
 }

@@ -65,9 +65,9 @@ object BatteryAutoPowerSaveHooker : StaticHooker() {
         if (!monitorPending) return
         monitorPending = false
         if (monitor != null || appContext.packageName != PACKAGE) return
-        // The monitor registers regardless of the two switches: an accepted change reaches the
-        // living monitor through refreshSettings instead of needing a SystemUI restart. An idle
-        // monitor whose features are both off performs no battery work (see [BatteryMonitor.evaluate]).
+        // Accepted settings re-enter onPackageReady, so first enable needs no restart.
+        // No receiver/provider observer or worker is needed while both features are off.
+        if (!settingBatteryAutoPowerSaveEnabled && !settingExitPowerSaveWhenCharging) return
         var next: BatteryMonitor? = null
         runCatching {
             BatteryMonitor(appContext).also {
@@ -83,10 +83,17 @@ object BatteryAutoPowerSaveHooker : StaticHooker() {
     }
 
     /**
-     * Accepted-snapshot refresh. The monitor is registered independently of the two switches; a
-     * change re-evaluates the living monitor immediately instead of waiting for a battery event.
+     * First enable creates a monitor using the latest sticky battery sample. Disable closes its
+     * receiver, observer and worker; a later enable starts a fresh reconciliation owner.
      */
+    @Synchronized
     fun refreshSettings() {
+        if (!settingBatteryAutoPowerSaveEnabled && !settingExitPowerSaveWhenCharging) {
+            monitorPending = false
+            monitor?.close()
+            monitor = null
+            return
+        }
         val context = hookParam.appContext ?: runCatching { EzXposed.appContextOrNull }.getOrNull() ?: return
         onPackageReady(context)
         monitor?.let { it.postEvaluation() }
@@ -98,6 +105,7 @@ object BatteryAutoPowerSaveHooker : StaticHooker() {
     override fun onPrepareHotReload() {
         monitorPending = false
         monitor?.close()
+        monitor = null
     }
 }
 
@@ -119,7 +127,8 @@ private class BatteryMonitor(private val context: Context) {
     private val handler = Handler(thread.looper)
     private val powerManager = context.getSystemService(PowerManager::class.java)
     private val exitRequest = PowerSaveExitRequest(
-        dispatch = { userId ->
+        dispatch = dispatch@{ userId ->
+            if (closed) return@dispatch
             PowerSaveSetter.requestNative(context, userId, false)
             DebugLog.i(TAG, "connection power-save exit dispatched user=$userId")
         },
@@ -328,7 +337,7 @@ private class BatteryMonitor(private val context: Context) {
         lastUserId = userId
         if (exitRequest.pending) return exitRequest.step(SystemClock.elapsedRealtime())
         val result = reconciler.step(SystemClock.elapsedRealtime())
-        DebugLog.d(TAG, "evaluate[$trigger] level=${sample.level} plugged=${sample.charging} desired=$desired result=$result")
+        DebugLog.d(TAG) { "evaluate[$trigger] level=${sample.level} plugged=${sample.charging} desired=$desired result=$result" }
         when (result) {
             is PowerSaveReconciler.Result.Confirmed -> {
                 if (result.changed) DebugLog.i(TAG, "power-save state confirmed enabled=${result.target.enabled} native=${result.state.nativeEnabled} framework=${result.state.frameworkEnabled} level=${sample.level}")

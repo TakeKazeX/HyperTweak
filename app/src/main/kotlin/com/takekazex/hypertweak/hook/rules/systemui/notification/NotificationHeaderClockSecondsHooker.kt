@@ -6,6 +6,13 @@ import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 
 import android.text.format.DateFormat
 import android.graphics.Rect
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.database.ContentObserver
+import android.os.PowerManager
+import android.provider.Settings
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
@@ -13,6 +20,7 @@ import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
+import android.view.ViewTreeObserver
 import android.widget.TextView
 import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
@@ -83,6 +91,79 @@ object NotificationHeaderClockSecondsHooker : StaticHooker() {
     }
     private val pendingPresses = generationMainResource(WeakHashMap<View, PendingPress>()) { it.clear() }
     private val callbacksLock = Any()
+    private class DemandWatch(val observer: ViewTreeObserver, val listener: ViewTreeObserver.OnPreDrawListener)
+    private val demandWatches = generationMainResource(WeakHashMap<View, DemandWatch>()) { it.clear() }
+    private var demandContext: Context? by generationState { null }
+    private var interactive by generationState { true }
+    private var format24Hour: Boolean? by generationState { null }
+    private var datePattern by generationState { ClockSecondsPattern() }
+    private val formatObserver = object : ContentObserver(expiryHandler) {
+        override fun onChange(selfChange: Boolean) {
+            HookFailurePolicy.open(TAG, "clock format change", Unit) {
+                if (!retiring) { invalidateFormat(); refreshTrackedClocks() }
+            }
+        }
+    }
+    private val demandReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            HookFailurePolicy.open(TAG, "clock demand event", Unit) {
+                if (retiring) return@open
+                when (intent.action) {
+                    Intent.ACTION_SCREEN_OFF -> interactive = false
+                    Intent.ACTION_SCREEN_ON -> interactive = true
+                    else -> invalidateFormat()
+                }
+                refreshTrackedClocks()
+            }
+        }
+    }
+
+    private fun invalidateFormat() { format24Hour = null; datePattern.clear() }
+
+    private fun bindDemandEvents(view: View) {
+        if (demandContext != null) return
+        val context = view.context.applicationContext ?: return
+        // A live clock exists after Application publication; retain this exact receiver key.
+        runCatching { context.registerReceiver(demandReceiver, IntentFilter().apply {
+            addAction(Intent.ACTION_SCREEN_ON); addAction(Intent.ACTION_SCREEN_OFF)
+            addAction(Intent.ACTION_TIME_CHANGED); addAction(Intent.ACTION_TIMEZONE_CHANGED)
+            addAction(Intent.ACTION_LOCALE_CHANGED); addAction(Intent.ACTION_CONFIGURATION_CHANGED)
+            addAction("android.intent.action.USER_SWITCHED")
+        }, Context.RECEIVER_NOT_EXPORTED) }.onFailure {
+            DebugLog.w(TAG, "clock demand receiver unavailable", it)
+        }.getOrElse { return }
+        demandContext = context
+        interactive = context.getSystemService(PowerManager::class.java)?.isInteractive ?: true
+        HookFailurePolicy.open(TAG, "clock format observer", Unit) {
+            context.contentResolver.registerContentObserver(Settings.System.getUriFor(Settings.System.TIME_12_24),
+                false, formatObserver)
+        }
+    }
+
+    private fun demanded(view: View, target: ClockTarget): Boolean = ClockSecondsDemand.active(
+        isSecondsEnabled(target), view.isAttachedToWindow, view.isShown,
+        view.windowVisibility == View.VISIBLE, interactive, retiring)
+
+    private fun watchDemand(view: TextView) {
+        if (demandWatches.containsKey(view) || !view.isAttachedToWindow) return
+        val weak = WeakReference(view)
+        val listener = ViewTreeObserver.OnPreDrawListener {
+            HookFailurePolicy.open(TAG, "clock visibility", Unit) {
+                val clock = weak.get() ?: return@open
+                val target = targetOf(clock) ?: return@open
+                if (demanded(clock, target) != tickCallbacks.containsKey(clock)) refresh(clock, target)
+            }
+            true
+        }
+        view.viewTreeObserver.also { observer ->
+            observer.addOnPreDrawListener(listener)
+            demandWatches[view] = DemandWatch(observer, listener)
+        }
+    }
+
+    private fun unwatchDemand(view: View) {
+        demandWatches.remove(view)?.let { if (it.observer.isAlive) it.observer.removeOnPreDrawListener(it.listener) }
+    }
 
     private var persistentHeaderEnabled by generationState { false }
 
@@ -133,6 +214,13 @@ object NotificationHeaderClockSecondsHooker : StaticHooker() {
         retiring = true
         HostAccess.onMain {
             synchronized(callbacksLock) {
+                demandWatches.keys.toList().forEach(::unwatchDemand)
+                demandContext?.let { context ->
+                    HookFailurePolicy.open(TAG, "clock receiver retirement", Unit) { context.unregisterReceiver(demandReceiver) }
+                    HookFailurePolicy.open(TAG, "clock format retirement", Unit) { context.contentResolver.unregisterContentObserver(formatObserver) }
+                }
+                demandContext = null
+                invalidateFormat()
                 tickCallbacks.forEach { (view, callback) -> view.removeCallbacks(callback) }
                 expiryHandler.removeCallbacksAndMessages(null)
                 temporarySeconds.clear()
@@ -232,6 +320,7 @@ object NotificationHeaderClockSecondsHooker : StaticHooker() {
                     val view = param.thisObject as? View ?: return@open
                     if (targetOf(view) == null) return@open
                     cancelTick(view)
+                    unwatchDemand(view)
                     synchronized(callbacksLock) {
                         trackedClocks.remove(view)
                     }
@@ -401,9 +490,13 @@ object NotificationHeaderClockSecondsHooker : StaticHooker() {
     private fun refresh(view: TextView, target: ClockTarget, forceStock: Boolean = false) {
         if (retiring || !view.isAttachedToWindow) return
         if (isSecondsEnabled(target)) {
+            bindDemandEvents(view)
+            watchDemand(view)
+            if (!demanded(view, target)) { cancelTick(view); return }
             renderSeconds(view)
             schedule(view)
         } else {
+            unwatchDemand(view)
             cancelTick(view)
             if (forceStock) restoreStock(view)
         }
@@ -413,8 +506,8 @@ object NotificationHeaderClockSecondsHooker : StaticHooker() {
         if (retiring || !view.isAttachedToWindow) return
         val context = view.context
         val locale = context.resources.configuration.locales[0]
-        val skeleton = if (DateFormat.is24HourFormat(context)) "Hms" else "hmsa"
-        val pattern = DateFormat.getBestDateTimePattern(locale, skeleton)
+        val hour24 = format24Hour ?: DateFormat.is24HourFormat(context).also { format24Hour = it }
+        val pattern = datePattern.get(locale, hour24, DateFormat::getBestDateTimePattern)
         val formatted = DateFormat.format(pattern, System.currentTimeMillis()).toString()
         // MiuiClock adds a trailing space when it is nested in MiuiNotificationHeaderView. Keep
         // that layout-specific padding behavior after replacing the text with the seconds form.
@@ -446,7 +539,7 @@ object NotificationHeaderClockSecondsHooker : StaticHooker() {
     private fun schedule(view: View) {
         if (retiring) return
         val target = targetOf(view)
-        if (target == null || !view.isAttachedToWindow || !isSecondsEnabled(target)) {
+        if (target == null || !demanded(view, target)) {
             cancelTick(view)
             return
         }
@@ -455,9 +548,7 @@ object NotificationHeaderClockSecondsHooker : StaticHooker() {
             tickCallbacks[view] ?: Runnable {
                 HookFailurePolicy.open(TAG, "secondTick", Unit) {
                     val currentTarget = targetOf(view)
-                    if (retiring || !view.isAttachedToWindow || currentTarget == null ||
-                        !isSecondsEnabled(currentTarget)
-                    ) {
+                    if (currentTarget == null || !demanded(view, currentTarget)) {
                         cancelTick(view)
                         return@open
                     }
