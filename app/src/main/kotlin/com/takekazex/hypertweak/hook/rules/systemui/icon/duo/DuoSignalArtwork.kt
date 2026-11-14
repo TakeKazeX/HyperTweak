@@ -89,21 +89,26 @@ internal class DuoSignalArtwork {
         return morphBars
     }
 
-    private var rowMorphKey: Pair<Int, Float>? = null
-    private var rowMorphs: List<SignalBarMorph> = emptyList()
+    // A dual-SIM ring can hand off one Wi-Fi dot row. Reconcile and handover request both
+    // shapes in the same frame; a single last-key cache reparsed every contour on each switch.
+    private var rowMorphWeight: Float? = null
+    private val rowMorphs = HashMap<Int, List<SignalBarMorph>>()
     fun rowMorph(context: Context, row: Int, rows: Int): SignalBarMorph? {
+        if (rows !in 1..2 || row !in 0 until rows) return null
         val assets = loadCellularSignalAssets(context) ?: return null
-        val key = rows to settingIconStackedWeight
-        if (rowMorphKey != key) {
-            rowMorphKey = key
-            rowMorphs = runCatching { (0 until rows).map { index ->
-                SignalBarMorph.create(
-                    if (rows > 1) assets.stacked else assets.single, assets.single, index, rows, .632f, settingIconStackedWeight)
-            } }.onFailure { DebugLog.w(TAG, "cellular row morph unavailable", it) }.getOrDefault(emptyList())
+        val weight = settingIconStackedWeight
+        if (rowMorphWeight != weight) {
+            rowMorphWeight = weight
+            rowMorphs.clear()
         }
-        return rowMorphs.getOrNull(row)
+        return rowMorphs.getOrPut(rows) {
+            runCatching { (0 until rows).map { index ->
+                SignalBarMorph.create(
+                    if (rows > 1) assets.stacked else assets.single, assets.single, index, rows, .632f, weight)
+            } }.onFailure { DebugLog.w(TAG, "cellular row morph unavailable", it) }.getOrDefault(emptyList())
+        }.getOrNull(row)
     }
 
-    fun retire() { rowMorphKey = null; rowMorphs = emptyList(); morphResolved = false; morphBars = null; cellularSignalAssets = null; cellularPictures.clear(); destinationPictures.clear() }
+    fun retire() { rowMorphWeight = null; rowMorphs.clear(); morphResolved = false; morphBars = null; cellularSignalAssets = null; cellularPictures.clear(); destinationPictures.clear() }
     private companion object { const val TAG = "DuoSignal" }
 }

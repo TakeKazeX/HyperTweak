@@ -29,7 +29,7 @@ import com.takekazex.hypertweak.presentation.icon.NetworkIconVisibility
 import com.takekazex.hypertweak.presentation.icon.duo.DuoSignalRow
 import com.takekazex.hypertweak.presentation.icon.duo.DuoSignalRows
 import com.takekazex.hypertweak.presentation.icon.duo.SignalBarMorph
-import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
+import com.takekazex.hypertweak.settings.contract.SignalStyle
 import com.takekazex.hypertweak.settings.contract.IconSlotPolicy
 import com.takekazex.hypertweak.settings.contract.IconSurface
 import com.takekazex.hypertweak.settings.contract.SignalSvgStyle
@@ -63,7 +63,10 @@ import org.luckypray.dexkit.result.MethodData
 internal object StackedRenderer : IconRenderer() {
     // Published on settings acceptance; hook callbacks perform no storage reads.
     private val settingIconMobileRowStyle by hookSetting(0) { Preferences.iconConfig().stacked.mobileRowStyle }
-    private val settingIconStackedEnabled by hookSetting(false) { Preferences.iconBoolean(IconSettingsKeys.KEY_ICON_STACKED_ENABLED) }
+    private val settingIconStackedEnabled by hookSetting(false) { Preferences.iconConfig().hasStackedSignal }
+    private val settingHomeStackedEnabled by hookSetting(false) {
+        Preferences.iconConfig().signalStyle == SignalStyle.STACKED
+    }
     private val networkVisibility by hookSetting(NetworkIconVisibility()) { IconTunerOptions.networkVisibility() }
     private val settingIconStackedSignalStyle by hookSetting(0) { Preferences.iconStackedSignalStyle() }
     private val settingIconStackedWeight by hookSetting(0f) { Preferences.iconConfig().stacked.stackedWeight }
@@ -505,7 +508,7 @@ internal object StackedRenderer : IconRenderer() {
     }
 
     private fun stackHasHomeSource(): Boolean =
-        !IconSlotPolicy.blocksSlot(SLOT_STACKED, IconSurface.STATUS_BAR, options.policy)
+        settingHomeStackedEnabled && !IconSlotPolicy.blocksSlot(SLOT_STACKED, IconSurface.STATUS_BAR, options.policy)
 
     // Holders are published once for all managers. Each manager applies its own surface block list.
     private fun stackedSlotUsed(slot: String): Boolean =

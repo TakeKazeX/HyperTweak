@@ -14,6 +14,10 @@ enum class RendererId { STACKED, DUO, CARRIER, LEFT, ROTATION_LOCK, AIRPLANE }
 
 enum class PlanSurface { STATUS_BAR, KEYGUARD, CONTROL_CENTER_COLLAPSED, CONTROL_CENTER_EXPANDED, AOD }
 
+/** A controller holder is shared, but Duo's optional stacked destination belongs only to expansion. */
+internal fun IconConfig.stackedSignalOn(surface: PlanSurface?): Boolean =
+    signalStyle == SignalStyle.STACKED || duoExpandedStacked && surface == PlanSurface.CONTROL_CENTER_EXPANDED
+
 /** A replaceable piece of a surface: a whole slot, or a part of one SIM's mobile row. */
 sealed interface SlotPart {
     data class Slot(val name: String) : SlotPart
@@ -90,7 +94,7 @@ internal object IconLayoutPlan {
             customOrderEntries = config.slots.value(IconTunerContract.KEY_POSITION_VALUES).stringSet(),
             reorderHidden = config.slots.boolean(IconTunerContract.KEY_POSITION_REORDER),
             slotModes = config.slots.slotModes,
-            enabledModuleSlots = if (config.signalStyle == SignalStyle.STACKED) {
+            enabledModuleSlots = if (config.hasStackedSignal) {
                 IconSlotPolicy.STACKED_SLOTS.toSet()
             } else {
                 emptySet()
@@ -108,7 +112,8 @@ internal object IconLayoutPlan {
         )
         val rowOverrides = config.controlCenter.value(SystemUiSettingsKeys.KEY_CC_ICON_ROW_OVERRIDES).stringSet()
         return plan(
-            policy, config.signalStyle, network.copy(visibility = visibility), claims, slots, rowOverrides, leftMode
+            policy, config.signalStyle, network.copy(visibility = visibility), claims, slots, rowOverrides, leftMode,
+            config.duoExpandedStacked
         )
     }
 
@@ -119,13 +124,14 @@ internal object IconLayoutPlan {
         claims: List<Claim>,
         slots: List<String> = IconSlotPolicy.configurableSlots,
         rowOverrides: Set<String> = emptySet(),
-        leftMode: Int = IconTunerContract.LEFT_MODE_HOME_AND_LOCKSCREEN
+        leftMode: Int = IconTunerContract.LEFT_MODE_HOME_AND_LOCKSCREEN,
+        expandedStacked: Boolean = false
     ): LayoutResult {
         val order = IconSlotPolicy.normalizeOrder(slots, policy)
         val ranked = claims.filter { it.ready }
             .sortedWith(compareByDescending<Claim> { it.priority }.thenBy { it.owner.ordinal })
         val surfaces = PlanSurface.entries.associateWith { surface ->
-            SurfacePlanner(surface, policy, style, network, leftMode).layout(order, ranked, rowOverrides)
+            SurfacePlanner(surface, policy, style, network, leftMode, expandedStacked).layout(order, ranked, rowOverrides)
         }
         return LayoutResult(surfaces)
     }
@@ -137,7 +143,8 @@ private class SurfacePlanner(
     private val policy: IconSlotPolicyConfig,
     private val style: SignalStyle,
     private val network: NetworkDisplayModel,
-    private val leftMode: Int
+    private val leftMode: Int,
+    private val expandedStacked: Boolean
 ) {
     private val host = when (surface) {
         PlanSurface.CONTROL_CENTER_COLLAPSED, PlanSurface.CONTROL_CENTER_EXPANDED -> IconSurface.CONTROL_CENTER
@@ -178,7 +185,7 @@ private class SurfacePlanner(
 
     /** Stacked and Duo claims count only for the style that draws them; Duo always owns AOD rows. */
     private fun allowed(owner: RendererId): Boolean = when (owner) {
-        RendererId.STACKED -> style == SignalStyle.STACKED && !blocks(IconSlotPolicy.SLOT_STACKED_SIGNAL) &&
+        RendererId.STACKED -> stackedOnSurface && !blocks(IconSlotPolicy.SLOT_STACKED_SIGNAL) &&
             !nativeExpandedStacked
         RendererId.DUO -> style == SignalStyle.DUO || surface == PlanSurface.KEYGUARD || surface == PlanSurface.AOD
         else -> true
@@ -218,13 +225,17 @@ private class SurfacePlanner(
 
     private fun userHides(part: SlotPart): Boolean = when (part) {
         is SlotPart.Slot -> blocks(part.name) ||
-            part.name == IconSlotPolicy.SLOT_STACKED_SIGNAL && nativeExpandedStacked ||
+            part.name == IconSlotPolicy.SLOT_STACKED_SIGNAL && (nativeExpandedStacked ||
+                style == SignalStyle.DUO && expandedStacked && !stackedOnSurface) ||
             part.name == IconSlotPolicy.SLOT_WIFI && network.hidesWifi(host)
         SlotPart.Battery -> blocks(BATTERY_SLOT)
         else -> false
     }
 
     private fun blocks(slot: String): Boolean = IconSlotPolicy.blocksSlot(slot, host, policy)
+
+    private val stackedOnSurface: Boolean get() = style == SignalStyle.STACKED ||
+        style == SignalStyle.DUO && expandedStacked && surface == PlanSurface.CONTROL_CENTER_EXPANDED
 
     private val nativeExpandedStacked: Boolean get() =
         surface == PlanSurface.CONTROL_CENTER_EXPANDED && network.visibility.needsNativeControlCenter

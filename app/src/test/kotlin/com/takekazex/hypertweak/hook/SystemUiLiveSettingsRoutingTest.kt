@@ -68,6 +68,25 @@ class SystemUiLiveSettingsRoutingTest {
         }
     }
 
+    @Test fun duoExpandedSignalChangesRefreshEveryDependentOwnerAndResetReleasesThem() {
+        val key = IconSettingsKeys.KEY_ICON_DUO_EXPANDED_SIGNAL_STYLE
+        val native = IconConfigDecoder.decode { if (it == IconSettingsKeys.KEY_ICON_SIGNAL_STYLE) 2 else null }
+        val stacked = IconConfigDecoder.decode { when (it) {
+            IconSettingsKeys.KEY_ICON_SIGNAL_STYLE -> 2
+            key -> 1
+            else -> null
+        } }
+        val expected = setOf(IndependentIconDomain.POLICY, IndependentIconDomain.CELLULAR,
+            IndependentIconDomain.CELLULAR_TYPE, IndependentIconDomain.MOBILE_SIGNAL, IndependentIconDomain.DUO)
+        assertEquals(expected, IconConfigReload.domains(native, stacked))
+        assertEquals(expected, IconConfigReload.domains(stacked, native))
+        assertFalse(native.separateCellularType)
+        assertTrue(stacked.separateCellularType)
+        assertEquals(setOf(Groups.ICONS), Groups.affected(key))
+        assertEquals(mapOf(key to 1), Groups.subset(systemUi, mapOf(key to 1)))
+        assertNotNull(RuntimeSettingsSnapshot.read(1, mapOf(key to 1), setOf(Groups.ICONS)))
+    }
+
     @Test fun iconReloadUsesDecodedSectionsIncludingMigratedStyleKeys() {
         fun config(values: Map<String, Any>) = IconConfigDecoder.decode { values[it] }
         val base = config(emptyMap())

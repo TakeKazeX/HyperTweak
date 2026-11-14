@@ -97,6 +97,7 @@ public final class StackedArtworkReloadProbe {
         Class<?> flows = module.loadClass(H + "IconTunerFlows");
         flows.getMethod("init", ClassLoader.class).invoke(flows.getField("INSTANCE").get(null), host);
         checkOwnership(hostContext, host, module);
+        checkDuoMorphCache(hostContext, module);
         Object renderer = module.loadClass(H + "StackedRenderer").getField("INSTANCE").get(null);
         Controller controller = new Controller(hostContext);
         Object bridge = module.loadClass(H + "HostIconBridge").getConstructor(Object.class, ClassLoader.class).newInstance(controller, host);
@@ -158,5 +159,40 @@ public final class StackedArtworkReloadProbe {
             }
         }
         System.out.println("PASS stacked_artwork_reload fixed_levels=6 single_and_dual=true retained_while_loading=true idle_republish=0");
+    }
+
+    private static void checkDuoMorphCache(Context context, ClassLoader module) throws Exception {
+        Object artwork = module.loadClass(H + "duo.DuoSignalArtwork").getConstructor().newInstance();
+        Method morph = artwork.getClass().getMethod("rowMorph", Context.class, int.class, int.class);
+        Object single = morph.invoke(artwork, context, 0, 1);
+        Object dual = morph.invoke(artwork, context, 0, 2);
+        check(single != null && dual != null, "single and dual signal contours load");
+        long start = System.nanoTime();
+        boolean reused = true;
+        for (int i = 0; i < 100; i++) {
+            reused &= morph.invoke(artwork, context, 0, 1) == single;
+            reused &= morph.invoke(artwork, context, 0, 2) == dual;
+        }
+        long elapsed = System.nanoTime() - start;
+        System.out.println("DUO_MORPH_ALTERNATION calls=200 reused=" + reused + " elapsed_ns=" + elapsed);
+        check(reused, "Wi-Fi dots and dual-SIM bars must retain separate contour caches through every frame");
+        Field settingField = module.loadClass(H + "duo.DuoSignalArtworkKt")
+            .getDeclaredField("settingIconStackedWeight$delegate");
+        settingField.setAccessible(true);
+        Object setting = settingField.get(null);
+        Field value = field(setting, "value");
+        Object originalWeight = value.get(setting);
+        try {
+            value.set(setting, ((Number) originalWeight).floatValue() == .5f ? .75f : .5f);
+            Object weightedSingle = morph.invoke(artwork, context, 0, 1);
+            Object weightedDual = morph.invoke(artwork, context, 0, 2);
+            check(weightedSingle != single && weightedDual != dual, "weight changes invalidate both row families");
+            check(morph.invoke(artwork, context, 0, 1) == weightedSingle, "weighted single contours are reused");
+            check(morph.invoke(artwork, context, 0, 2) == weightedDual, "weighted dual contours are reused");
+        } finally { value.set(setting, originalWeight); }
+        single = morph.invoke(artwork, context, 0, 1);
+        artwork.getClass().getMethod("retire").invoke(artwork);
+        check(morph.invoke(artwork, context, 0, 1) != single, "retirement releases cached contours");
+        System.out.println("PASS duo_morph_cache single_and_dual=true alternating_frames=100 weight_invalidation=true retirement=true");
     }
 }

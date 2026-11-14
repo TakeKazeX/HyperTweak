@@ -18,7 +18,6 @@ import com.takekazex.hypertweak.presentation.icon.*
 import com.takekazex.hypertweak.settings.contract.IconConfigDecoder
 import com.takekazex.hypertweak.settings.contract.IconSlotPolicy
 import com.takekazex.hypertweak.settings.contract.IconSurface
-import com.takekazex.hypertweak.settings.contract.SignalStyle
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 import com.takekazex.hypertweak.util.logging.DebugLog
 import com.takekazex.hypertweak.util.platform.ResourceLookup
@@ -253,7 +252,7 @@ internal object SlotMaskApplier : IconRenderer() {
             NetworkHub.state.wifiLevel != null, slotOf = { id ->
                 runCatching { SubscriptionManager.getSlotIndex(id) }.getOrDefault(-1)
             }, visibility = mobilePolicy)
-        val ready = stackedPublished && currentConfig.signalStyle == SignalStyle.STACKED
+        val ready = stackedPublished && currentConfig.hasStackedSignal
         val claims = PlanSurface.entries.filter { it != PlanSurface.AOD }.map { surface ->
             Claim(RendererId.STACKED, surface,
                 state.subscriptionOrder.mapTo(linkedSetOf()) { SlotPart.MobileBars(it) }, ready, 100)
@@ -660,7 +659,9 @@ internal object SlotMaskApplier : IconRenderer() {
         } else {
             IconSlotPolicy.blockedFor(surface, systemSlots, options.policy)
         }
-        return if (planSurfaceFor(container) == PlanSurface.CONTROL_CENTER_EXPANDED && mobilePolicy.needsNativeControlCenter) {
+        val planSurface = planSurfaceFor(container)
+        return if (currentConfig.duoExpandedStacked && !currentConfig.stackedSignalOn(planSurface) ||
+            planSurface == PlanSurface.CONTROL_CENTER_EXPANDED && mobilePolicy.needsNativeControlCenter) {
             (blocked + IconSlotPolicy.SLOT_STACKED_SIGNAL).distinct()
         } else blocked
     }

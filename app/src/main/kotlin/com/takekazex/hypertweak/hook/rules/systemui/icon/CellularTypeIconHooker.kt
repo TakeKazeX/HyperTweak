@@ -19,7 +19,6 @@ import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
 import com.takekazex.hypertweak.settings.contract.IconSettingsPreferencePolicy
 import com.takekazex.hypertweak.settings.contract.MobileTypeLabelStyle
-import com.takekazex.hypertweak.settings.contract.SignalStyle
 import com.takekazex.hypertweak.settings.contract.SmallMobileTypeLabel
 import com.takekazex.hypertweak.util.logging.DebugLog
 import com.takekazex.hypertweak.util.platform.ResourceLookup
@@ -42,7 +41,7 @@ internal object CellularTypeIconHooker : IconRenderer() {
     // the label against inside it; IconSlotPolicy places the stacked slot before or after `mobile`.
     private val settingTypeOrder by hookSetting(0) {
         val config = Preferences.iconConfig()
-        if (config.signalStyle == SignalStyle.STACKED) 0
+        if (config.hasStackedSignal) 0
         else config.cellular.cellularTypeOrder
     }
     private val settingIconCellularTypeCustom by hookSetting(false) {

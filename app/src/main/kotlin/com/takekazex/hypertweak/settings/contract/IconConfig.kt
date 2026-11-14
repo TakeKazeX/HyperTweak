@@ -120,6 +120,7 @@ data class DuoIconConfig internal constructor(val values: Map<String, Any>) {
     val duoDualDots: Boolean get() = values.getValue(IconSettingsKeys.KEY_ICON_DUO_DUAL_DOTS) as Boolean
     val duoClickExpand: Boolean get() = values.getValue(IconSettingsKeys.KEY_ICON_DUO_CLICK_EXPAND) as Boolean
     val duoExpanded: Int get() = values.getValue(IconSettingsKeys.KEY_ICON_DUO_EXPANDED) as Int
+    val expandedSignalStyle: Int get() = int(IconSettingsKeys.KEY_ICON_DUO_EXPANDED_SIGNAL_STYLE)
     val duoSize: Int get() = values.getValue(IconSettingsKeys.KEY_ICON_DUO_SIZE) as Int
     val duoRingScale: Int get() = values.getValue(IconSettingsKeys.KEY_ICON_DUO_RING_SCALE) as Int
     val duoWifiScale: Int get() = values.getValue(IconSettingsKeys.KEY_ICON_DUO_WIFI_SCALE) as Int
@@ -196,8 +197,10 @@ data class IconConfig internal constructor(
     val controlCenter: ControlCenterIconConfig,
     val misc: MiscIconConfig,
 ) {
+    val duoExpandedStacked: Boolean get() = signalStyle == SignalStyle.DUO && duo.expandedSignalStyle == 1
+    val hasStackedSignal: Boolean get() = signalStyle == SignalStyle.STACKED || duoExpandedStacked
     val separateCellularType: Boolean get() =
-        signalStyle == SignalStyle.STACKED || cellular.boolean(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_SINGLE)
+        hasStackedSignal || cellular.boolean(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_SINGLE)
     val keepCellularTypeOnWifi: Boolean get() = cellular.boolean(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_KEEP_ON_WIFI)
     val typeHiddenWhenDisconnected: Boolean get() = cellular.boolean(IconSettingsKeys.KEY_ICON_STACKED_TYPE_HIDE_DISCONNECT)
 
@@ -222,7 +225,7 @@ internal object IconConfigReload {
     fun domains(before: IconConfig?, after: IconConfig?): Set<IndependentIconDomain>? {
         if (before == null || after == null) return null
         val effects = mutableSetOf<IndependentIconDomain>()
-        if (before.signalStyle != after.signalStyle) {
+        if (before.signalStyle != after.signalStyle || before.duoExpandedStacked != after.duoExpandedStacked) {
             effects += setOf(IndependentIconDomain.POLICY, IndependentIconDomain.CELLULAR,
                 IndependentIconDomain.CELLULAR_TYPE, IndependentIconDomain.MOBILE_SIGNAL)
             if (before.signalStyle == SignalStyle.DUO || after.signalStyle == SignalStyle.DUO)
@@ -261,7 +264,7 @@ internal object IconConfigReload {
             effects += setOf(IndependentIconDomain.DUO, IndependentIconDomain.CONTROL_CENTER_HEADER)
         }
         // Under stacked signal the label side is the slot order of the bars and `mobile`.
-        if (after.signalStyle == SignalStyle.STACKED &&
+        if (after.hasStackedSignal &&
             IconSettingsPreferencePolicy.stackedTypeLeading(oldCell.cellularTypeOrder) !=
             IconSettingsPreferencePolicy.stackedTypeLeading(newCell.cellularTypeOrder)) return null
         if (oldCell.cellularTypeOrder != newCell.cellularTypeOrder || oldCell.cellularTypeCustom != newCell.cellularTypeCustom ||
@@ -375,6 +378,7 @@ object IconConfigDecoder {
         put(IconSettingsKeys.KEY_ICON_DUO_DUAL_DOTS, false)
         put(IconSettingsKeys.KEY_ICON_DUO_CLICK_EXPAND, true)
         put(IconSettingsKeys.KEY_ICON_DUO_EXPANDED, 1)
+        put(IconSettingsKeys.KEY_ICON_DUO_EXPANDED_SIGNAL_STYLE, 0)
         put(IconSettingsKeys.KEY_ICON_DUO_SIZE, 26)
         put(IconSettingsKeys.KEY_ICON_DUO_RING_SCALE, 100)
         put(IconSettingsKeys.KEY_ICON_DUO_WIFI_SCALE, 100)
@@ -442,6 +446,7 @@ object IconConfigDecoder {
                         key == IconSettingsKeys.KEY_ICON_WIFI_STANDARD_MODE -> (value as Int).coerceIn(0, 3)
                     key == IconSettingsKeys.KEY_ICON_STACKED_SIGNAL_STYLE -> SignalSvgStyle.fromStored(value as Int).storedValue
                     key == IconSettingsKeys.KEY_ICON_CC_CARRIER_HIDING -> CarrierRowVisibility.normalize(value as Int)
+                    key == IconSettingsKeys.KEY_ICON_DUO_EXPANDED_SIGNAL_STYLE -> (value as Int).takeIf { it in 0..1 } ?: 0
                     key == IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_ORDER -> (value as Int).takeIf { it in 0..3 } ?: 0
                     key == IconSettingsKeys.KEY_ICON_SIM_ONE_VISIBILITY ||
                         key == IconSettingsKeys.KEY_ICON_SIM_TWO_VISIBILITY ||
@@ -534,6 +539,7 @@ object IconConfigDecoder {
         IconSettingsKeys.KEY_ICON_DUO_DUAL_DOTS,
         IconSettingsKeys.KEY_ICON_DUO_CLICK_EXPAND,
         IconSettingsKeys.KEY_ICON_DUO_EXPANDED,
+        IconSettingsKeys.KEY_ICON_DUO_EXPANDED_SIGNAL_STYLE,
         IconSettingsKeys.KEY_ICON_DUO_SIZE,
         IconSettingsKeys.KEY_ICON_DUO_RING_SCALE,
         IconSettingsKeys.KEY_ICON_DUO_WIFI_SCALE,

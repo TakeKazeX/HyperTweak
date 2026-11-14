@@ -48,6 +48,8 @@ object IconSettingsKeys {
     const val KEY_ICON_DUO_CLICK_EXPAND = "icon_duo_click_expand"
     const val KEY_ICON_DUO_ENABLED = "icon_duo_enabled"
     const val KEY_ICON_DUO_EXPANDED = "icon_duo_expanded"
+    /** Expanded cellular bars, independent of the expanded battery choice: 0 native, 1 stacked. */
+    const val KEY_ICON_DUO_EXPANDED_SIGNAL_STYLE = "icon_duo_expanded_signal_style"
     /** Duo glyph height in dp, clamped by `DuoLayout` to its own range. */
     const val KEY_ICON_DUO_SIZE = "icon_duo_size"
     const val KEY_ICON_DUO_RING_SCALE = "icon_duo_ring_scale"

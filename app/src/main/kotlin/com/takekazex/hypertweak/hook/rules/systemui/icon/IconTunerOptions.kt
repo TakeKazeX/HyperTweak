@@ -8,7 +8,6 @@ import com.takekazex.hypertweak.settings.contract.IconSlotPolicy
 import com.takekazex.hypertweak.settings.contract.IconSlotPolicyConfig
 import com.takekazex.hypertweak.settings.contract.IconTunerContract
 import com.takekazex.hypertweak.settings.contract.IconTunerSnapshot
-import com.takekazex.hypertweak.settings.contract.SignalStyle
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 
 /** Immutable preference snapshot shared by the P1 position and block-list hooks. */
@@ -20,7 +19,7 @@ import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 object IconTunerOptions {
     fun snapshot(): IconTunerSnapshot {
         val config = Preferences.iconConfig()
-        val stackedEnabled = config.signalStyle == SignalStyle.STACKED
+        val stackedEnabled = config.hasStackedSignal
         val leftMode = config.slots.int(IconTunerContract.KEY_LEFT_MODE).coerceIn(0, 2)
         val leftEnabled = leftMode != IconTunerContract.LEFT_MODE_DISABLED
 

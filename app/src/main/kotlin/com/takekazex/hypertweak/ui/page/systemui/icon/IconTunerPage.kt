@@ -368,6 +368,7 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit, onNavig
                     1 -> {
                         SignalStyleSection(
                             style = signalStyle,
+                            stackedArtwork = config.hasStackedSignal,
                             artworkStyle = pref(IconSettingsKeys.KEY_ICON_STACKED_SIGNAL_STYLE, 0),
                             weight = pref(IconSettingsKeys.KEY_ICON_STACKED_WEIGHT, 0f),
                             mobileRowStyle = pref(IconSettingsKeys.KEY_ICON_MOBILE_ROW_STYLE, 0),
@@ -380,6 +381,7 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit, onNavig
                                 sizeSlider = duoSizeSlider,
                                 mirrorAirplane = pref(IconSettingsKeys.KEY_ICON_MIRROR_AIRPLANE, false),
                                 expanded = pref(IconSettingsKeys.KEY_ICON_DUO_EXPANDED, 1),
+                                expandedSignalStyle = pref(IconSettingsKeys.KEY_ICON_DUO_EXPANDED_SIGNAL_STYLE, 0),
                                 topPercent = pref(IconSettingsKeys.KEY_ICON_DUO_TOP_PERCENT, false),
                                 cellularDots = pref(IconSettingsKeys.KEY_ICON_DUO_CELLULAR_DOTS, false),
                                 dualDots = pref(IconSettingsKeys.KEY_ICON_DUO_DUAL_DOTS, false),
@@ -400,7 +402,7 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit, onNavig
                         )
                         CellularTypeSection(
                             forceSingle = pref(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_SINGLE, false),
-                            stacked = signalStyle == SignalStyle.STACKED,
+                            stacked = config.hasStackedSignal,
                             keepTypeOnWifi = pref(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_KEEP_ON_WIFI, false),
                             hideOnWifi = pref(IconSettingsKeys.KEY_ICON_HIDE_MOBILE_ON_WIFI, false),
                             useCustom = pref(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_CUSTOM, false),
@@ -503,11 +505,12 @@ private fun duoSizes(percents: List<Int>) = DuoSizes(
 /**
  * The signal replacement: one Miuix dropdown, with the options of the selected style expanding
  * underneath it. Duo also draws its bars with the stacked weight, so the weight stays visible for
- * both replacements; the artwork family is stacked-only.
+ * both replacements; the artwork family also applies to Duo's expanded stacked destination.
  */
 @Composable
 private fun SignalStyleSection(
     style: SignalStyle,
+    stackedArtwork: Boolean,
     artworkStyle: Int,
     weight: Float,
     mobileRowStyle: Int,
@@ -533,7 +536,7 @@ private fun SignalStyleSection(
                 selectedIndex = style.ordinal,
                 onSelectedIndexChange = { onChange(IconSettingsKeys.KEY_ICON_SIGNAL_STYLE, it) }
             )
-            MiuixExpandableContent(visible = style == SignalStyle.STACKED) {
+            MiuixExpandableContent(visible = stackedArtwork) {
                 OverlayDropdownPreference(
                     title = stringResource(R.string.icon_stacked_signal_artwork),
                     items = listOf(
@@ -1376,6 +1379,7 @@ private fun DuoSignalSection(
     sizeSlider: SliderEditState,
     mirrorAirplane: Boolean,
     expanded: Int,
+    expandedSignalStyle: Int,
     topPercent: Boolean,
     dualDots: Boolean,
     cellularDots: Boolean,
@@ -1394,6 +1398,16 @@ private fun DuoSignalSection(
                 items = listOf(stringResource(R.string.icon_duo_keep), stringResource(R.string.icon_duo_native)),
                 selectedIndex = expanded.coerceIn(0, 1),
                 onSelectedIndexChange = { onChange(IconSettingsKeys.KEY_ICON_DUO_EXPANDED, it) }
+            )
+            OverlayDropdownPreference(
+                title = stringResource(R.string.icon_duo_expanded_signal_style),
+                summary = stringResource(R.string.icon_duo_expanded_signal_style_summary),
+                items = listOf(
+                    stringResource(R.string.icon_signal_style_normal),
+                    stringResource(R.string.icon_signal_style_stacked)
+                ),
+                selectedIndex = expandedSignalStyle.coerceIn(0, 1),
+                onSelectedIndexChange = { onChange(IconSettingsKeys.KEY_ICON_DUO_EXPANDED_SIGNAL_STYLE, it) }
             )
             OverlayDropdownPreference(
                 title = stringResource(R.string.icon_duo_cellular_style),

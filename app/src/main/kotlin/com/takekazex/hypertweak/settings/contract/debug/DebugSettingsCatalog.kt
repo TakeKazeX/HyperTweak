@@ -136,6 +136,7 @@ internal object DebugSettingsCatalog {
         DebugSetting("icon_duo_dots_scale", "Int", 100),
         DebugSetting("icon_duo_dual_dots", "Boolean", false),
         DebugSetting("icon_duo_expanded", "Int", 1),
+        DebugSetting("icon_duo_expanded_signal_style", "Int", 0),
         DebugSetting("icon_duo_percent_scale", "Int", 100),
         DebugSetting("icon_duo_ring_scale", "Int", 100),
         DebugSetting("icon_duo_size", "Int", 26),

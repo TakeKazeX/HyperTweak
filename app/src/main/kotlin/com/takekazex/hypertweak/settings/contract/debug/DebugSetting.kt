@@ -24,7 +24,7 @@ internal data class DebugSetting(val key: String, val type: String, val default:
         key == "volume_key_step_count" -> 1..100
         key == "volume_key_step_scope" || key == "icon_stacked_signal_style" -> 0..1
         key in setOf("aod_duo_center_content", "aosp_ime_raise_style", "floating_bar_style",
-            "icon_duo_expanded", "icon_tuner_mobile_row_style", "statusbar_region_sampling",
+            "icon_duo_expanded", "icon_duo_expanded_signal_style", "icon_tuner_mobile_row_style", "statusbar_region_sampling",
             "icon_left_keyguard_carrier") -> 0..1
         key in setOf("predictive_back_style", "lockscreen_fingerprint_avoid",
             "notification_header_date_alignment", "notification_header_time_alignment", "notification_header_weather_type",
