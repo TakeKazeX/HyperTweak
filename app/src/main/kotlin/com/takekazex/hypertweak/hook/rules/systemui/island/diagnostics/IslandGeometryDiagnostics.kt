@@ -13,11 +13,11 @@ import android.widget.TextView
 import com.takekazex.hypertweak.util.logging.DebugLog
 
 /** Explicit, DUMP-permission protected, read-only geometry sampling; never records text. */
-internal class IslandGeometryDiagnostics(context: Context, main: Handler, dump: () -> Unit) {
+internal class IslandGeometryDiagnostics(context: Context, main: Handler, dump: (Intent?) -> Unit) {
     private val context = context.applicationContext ?: context
     private val receiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
-            runCatching { dump() }.onFailure { DebugLog.e("IslandGeometry", "dump failed", it) }
+            runCatching { dump(intent) }.onFailure { DebugLog.e("IslandGeometry", "dump failed", it) }
         }
     }
     init {

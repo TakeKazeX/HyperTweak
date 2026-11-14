@@ -11,13 +11,16 @@ internal class CoordinatesCoordinator(private val runtime: IslandSessionState) :
     override fun nativeCoordinateX(session: IslandSession, view: Any): Float? {
         val x = runtime.smallX(session, view) ?: return null
         val screenWidth = runtime.spectrum.renderingReturnTarget(session, view)?.screenWidth
-            ?: session.scene.layout?.screenWidth ?: return null
-        return x + runtime.sideWidth(session, view) / 2f - screenWidth / 2f
+            ?: session.scene.layout?.screenWidth
+            ?: host.screenWidth(session.owner)
+            ?: return null
+        val width = runtime.sideWidth(session, view).takeIf { it > 0 } ?: return null
+        return x + width / 2f - screenWidth / 2f
     }
 
     override fun nativeSmallTargetX(session: IslandSession): Int? {
-        val small = host.current(session.owner, IslandSlot.SMALL) ?: return null
-        return runtime.smallX(session, small)
+        val small = host.current(session.owner, IslandSlot.SMALL)
+        return small?.let { runtime.smallX(session, it) }
     }
 
     override fun smallX(session: IslandSession, view: Any): Int? = runtime.smallX(session, view)
@@ -41,7 +44,7 @@ internal class CoordinatesCoordinator(private val runtime: IslandSessionState) :
 
     /** Side media publishes its paired frame width; all other summaries keep the native width. */
     override fun publishedSmallWidth(session: IslandSession, view: Any): Int? {
-        if (runtime.nativeSmallWidthRead.active) return null
+        if (!runtime.enabled(session) || runtime.nativeSmallWidthRead.active) return null
         runtime.spectrum.renderingReturnFrame(session, view)?.let { return it.width }
         return session.scene.fullFrames[view]?.takeIf {
             session.scene.musicSmall === view && it.full

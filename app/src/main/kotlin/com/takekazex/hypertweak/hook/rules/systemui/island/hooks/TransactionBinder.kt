@@ -24,7 +24,21 @@ internal object TransactionBinder {
                     return@Hooker chain.proceed()
                 }
                 val session = runtime.sessions.getOrCreate(owner)
-                if (session.slot.extra == null && !runtime.enabled(session)) return@Hooker chain.proceed()
+                if (runtime.diagnostics.tracing) runtime.diagnostics.trace(session, chain.args[1], "event.before",
+                    "eventType=${chain.args[0]?.javaClass?.simpleName}")
+                // Settling at StateHandler.stop publishes animations synchronously. In native
+                // portrait mode the host can still be moving BIG out of EXPANDED at that point;
+                // an extra module stop would animate SMALL with an empty BIG and an X of zero.
+                if (!runtime.schedulingEnabled(session)) {
+                    // Finish the module lease before entering the host event, never settle
+                    // inside a native stop callback after the mode has been disabled.
+                    if (session.slot.extra != null) runtime.boundary.core(
+                        session, IslandFeature.SCHEDULING, "release disabled scheduling",
+                    ) { runtime.settlement.restore(session) }
+                    val result = runtime.context.withNativeSession(session) { chain.proceed() }
+                    if (runtime.diagnostics.tracing) runtime.diagnostics.trace(session, chain.args[1], "event.after.native")
+                    return@Hooker result
+                }
                 val previousExpanded = host.current(owner, IslandSlot.EXPANDED)?.let(runtime::key)
                 val wasUserExpanded = host.userExpanded(owner)
                 val tx = SchedulingTransaction(
@@ -69,7 +83,17 @@ internal object TransactionBinder {
         })
 
         registrar.before(access.method(access.handler, "stop"), "three_islands_select_third_slot") { param ->
-            val tx = runtime.context.transaction ?: return@before
+            if (Looper.myLooper() != Looper.getMainLooper()) return@before
+            val tx = runtime.context.transaction
+            if (tx == null) {
+                // EventCoordinator publishes through AppStateHandler, not one of the five
+                // island slots. Event ownership must cover that entire native call graph.
+                val session = runtime.sessionForPublication(param.thisObject) ?: return@before
+                runtime.boundary.core(session, IslandFeature.SCHEDULING, "reconcile native publication") {
+                    runtime.settlement.reconcileNative(session)
+                }
+                return@before
+            }
             runtime.boundary.core(tx.session, IslandFeature.SCHEDULING, "select third slot") {
                 if (!tx.settled) runtime.settlement.settle(tx)
             }

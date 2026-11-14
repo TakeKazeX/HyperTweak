@@ -22,10 +22,11 @@ class NativeIslandDiscoveryTest {
         class VM
         class WS
         class F : B()
-        open class S { class SmallIsland; class BigIsland; class Hidden }
+        open class S { class SmallIsland; class BigIsland; class Hidden; class Empty }
         class E { class SwipeLeft; class SwipeRight }
         open class H { fun p() {} }
         class HH : H()
+        class BH : H() { fun a(view: V, queue: ArrayList<V>, user: Boolean?) {} }
         class W { fun getWindowViewController() = WC() }
         class WC
         class Data
@@ -55,6 +56,7 @@ class NativeIslandDiscoveryTest {
         fun entries() = mapOf(
             "transaction" to C::class.java.declaredMethods.single { it.name == "t" },
             "publication" to H::class.java.declaredMethods.single { it.name == "p" },
+            "nativeAdmit" to BH::class.java.declaredMethods.single(),
             "contentMeasure" to V::class.java.declaredMethods.single { it.name == "m" },
             "phoneMeasure" to M::class.java.declaredMethods.single(),
             "animation" to A::class.java.declaredMethods.single { it.name == "a" },

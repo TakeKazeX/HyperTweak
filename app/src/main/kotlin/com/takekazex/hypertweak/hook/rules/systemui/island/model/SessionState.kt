@@ -75,6 +75,7 @@ internal class TemplateState {
 
 internal class SessionLifecycle {
     var suspended = 0
+    var reconciling = false
 }
 
 /** Core failure disables the session; soft failure only degrades one feature. */

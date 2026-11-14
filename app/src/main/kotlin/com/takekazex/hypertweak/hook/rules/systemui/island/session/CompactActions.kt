@@ -13,6 +13,9 @@ internal interface CompactActions {
     /** Redirected `doBigIslandAnim` arguments when they publish this view's camera-seated geometry. */
     fun translation(view: Any, args: Array<Any?>): Array<Any?>?
 
+    /** A stateless camera template owns its own area pair, independently of row leases. */
+    fun holds(view: Any): Boolean
+
     /** Drop the view's geometry and area lease; the host's next animation returns it to native. */
     fun forget(view: Any): Unit
 

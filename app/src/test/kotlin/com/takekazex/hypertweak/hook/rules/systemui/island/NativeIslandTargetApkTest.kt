@@ -17,6 +17,40 @@ import org.junit.Test
 
 /** Validate against both APKs: the plugin API also depends on classes supplied by SystemUI. */
 class NativeIslandTargetApkTest {
+    @Test fun `native recovery uses the deletion refill and rebuild arbitration contracts`() {
+        val path = System.getenv("SYSTEMUI_PLUGIN_APK")?.let(::File)
+        assumeTrue(path?.isFile == true)
+        val container = DexFileFactory.loadDexContainer(path!!, Opcodes.getDefault())
+        val classes = container.dexEntryNames.flatMap { container.getEntry(it)!!.dexFile.classes }.associateBy { it.type }
+        val root = "Lmiui/systemui/dynamicisland/"
+        val content = root + "window/content/DynamicIslandContentView;"
+        val handler = classes.getValue(root + "event/handler/StateHandler;")
+        val fill = handler.methods.single { it.parameterTypes == listOf("Ljava/util/ArrayList;") && it.returnType == content }
+        fun calls(type: String) = classes.getValue(type).methods.flatMap { method ->
+            method.implementation?.instructions?.mapNotNull { (it as? ReferenceInstruction)?.reference as? MethodReference }?.toList().orEmpty()
+        }
+        val admitCall = calls(root + "event/rebuild/RebuildStateKeeper;").filter {
+            it.parameterTypes == listOf(content, "Ljava/util/ArrayList;", "Ljava/lang/Boolean;") && it.returnType == "V"
+        }.distinctBy { it.toString() }.single()
+        val admit = handler.methods.single { it.name == admitCall.name && it.parameterTypes == admitCall.parameterTypes }
+        assertTrue(calls(root + "event/DeletedEventCoordinator;").any { it.name == fill.name && it.parameterTypes == fill.parameterTypes && it.returnType == content })
+        assertTrue(calls(root + "event/rebuild/RebuildStateKeeper;").any { it.name == admit.name && it.parameterTypes == admit.parameterTypes && it.returnType == "V" })
+        val eventConstructor = classes.getValue(root + "event/EventCoordinator;").methods.single { it.name == "<init>" }
+        val constructorCalls = eventConstructor.implementation!!.instructions.mapNotNull {
+            (it as? ReferenceInstruction)?.reference as? MethodReference
+        }.toList()
+        assertTrue("native stop owner is AppStateHandler, not a summary slot",
+            constructorCalls.any { it.name == "getAppStateHandler" && it.returnType.endsWith("/AppStateHandler;") })
+        val window = classes.getValue(root + "window/DynamicIslandWindowView;")
+        val inventory = window.methods.single { it.parameterTypes.isEmpty() && it.returnType == "Ljava/util/concurrent/CopyOnWriteArrayList;" }
+        val fields = inventory.implementation!!.instructions.mapNotNull {
+            (it as? ReferenceInstruction)?.reference as? org.jf.dexlib2.iface.reference.FieldReference
+        }.toList()
+        assertEquals(1, fields.size)
+        assertEquals(window.type, fields.single().definingClass)
+        assertEquals("Ljava/util/concurrent/CopyOnWriteArrayList;", fields.single().type)
+    }
+
     @Test fun `native measurement owns timer premeasure and real fake camera publication`() {
         val path = System.getenv("SYSTEMUI_PLUGIN_APK")?.let(::File)
         assumeTrue(path?.isFile == true)
@@ -35,6 +69,13 @@ class NativeIslandTargetApkTest {
         assertEquals("Z", premeasure.returnType)
         assertTrue(calls(premeasure).any { it.name == "enablePreMeasureMode" && it.parameterTypes == listOf("Z") })
         val measurementCalls = calls(measurement)
+        val removal = content.methods.single { it.name == "removeByError" }
+        assertTrue("measurement can destructively remove a view with no template", measurementCalls.any {
+            it.name == removal.name && it.definingClass == content.type })
+        val removalCalls = calls(removal)
+        assertTrue(removalCalls.any { it.name == "removeAllViews" })
+        assertTrue("error removal clears the native state", removalCalls.any { it.name == "setState" &&
+            it.parameterTypes == listOf("Lmiui/systemui/dynamicisland/event/DynamicIslandState;") })
         assertEquals("measurement publishes the native layout exactly once", 1,
             measurementCalls.count { it.definingClass == content.type && it.name == "updateBigIslandLayout" &&
                 it.parameterTypes.isEmpty() && it.returnType == "V" })

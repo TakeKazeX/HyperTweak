@@ -52,9 +52,9 @@ internal class PresentationCoordinator(private val runtime: IslandSessionState) 
         }
         val big = host.current(session.owner, IslandSlot.BIG) ?: return
         runtime.layoutMeasurement.run {
-            host.call(view, "calculateBigIslandWidth")
-            host.call(big, "calculateBigIslandWidth")
-            host.call(view, "calculateBigIslandWidth")
+            runtime.measure(view)
+            runtime.measure(big)
+            runtime.measure(view)
         }
     }
 
@@ -101,6 +101,7 @@ internal class PresentationCoordinator(private val runtime: IslandSessionState) 
         before: Any?,
         after: Any?,
     ): Pair<Any?, Any?> {
+        if (!runtime.enabled(session)) return before to after
         val previousFull = session.presentation.fullPresentation[view] == true
         val nextFull = runtime.fullSide(session, view)
         return IslandPresentation.project(before, previousFull, host::isSmallState) { host.renderBig(before) } to
@@ -133,7 +134,7 @@ internal class PresentationCoordinator(private val runtime: IslandSessionState) 
             runtime.boundary.soft(session, IslandFeature.SPECTRUM, "publish native media return geometry") {
                 runtime.templates.acquire(session,
                     TemplateWidthRequest(view, 0, TemplateSeatMode.CAMERA_RELEASING))
-                runtime.layoutMeasurement.run { host.call(view, "calculateBigIslandWidth") }
+                runtime.layoutMeasurement.run { runtime.measure(view) }
                 // Native measurement synchronously publishes updateBigIslandLayout itself.
             }
         }

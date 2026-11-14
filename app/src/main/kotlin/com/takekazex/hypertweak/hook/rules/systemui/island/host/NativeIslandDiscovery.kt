@@ -22,6 +22,7 @@ internal object NativeIslandAnchors {
         "touch" to listOf("receiving down event."),
         "transitions" to listOf("unhandled lastState: ", "no transition for "),
         "widthTween" to listOf("FolmeState.to tag with oneTimeConfig"),
+        "nativeAdmit" to listOf("BigIslandHandler BigIslandStateHandler handleReplacedState: originState: "),
     )
 
     // Platform primitives are stable; host types are derived from the matched call graph.
@@ -29,6 +30,8 @@ internal object NativeIslandAnchors {
         "widthTween" -> parameters.size == 2 && parameters[0] == "java.lang.Object" &&
             parameters[1].startsWith("[L") && result != "void"
         "transaction" -> parameters.size == 2 && result == "void"
+        "nativeAdmit" -> parameters.size == 3 && parameters[1] == "java.util.ArrayList" &&
+            parameters[2] == "java.lang.Boolean" && result == "void"
         "publication", "contentMeasure" -> parameters.isEmpty() && result == "void"
         "phoneMeasure" -> parameters.size == 1 && result != "void"
         "animation" -> parameters.size == 1 && result == "void"
@@ -60,7 +63,7 @@ internal class NativeIslandDiscovery private constructor(
     companion object {
         private val feature = object : DexFeature {
             override val id = "systemui.island.contract"
-            override val schema = 1
+            override val schema = 2
         }
 
         fun scan(apk: String, loader: ClassLoader, cacheDir: File? = null): NativeIslandDiscovery =
@@ -138,6 +141,8 @@ internal class NativeIslandDiscovery private constructor(
             val hiddenHandler = getter(coordinator, "getHiddenStateHandler")
             val handler = entries.getValue("publication").declaringClass
             check(handler.isAssignableFrom(hiddenHandler))
+            check(handler.isAssignableFrom(entries.getValue("nativeAdmit").declaringClass))
+            check(entries.getValue("nativeAdmit").parameterTypes.first() == content)
             val animation = getter(coordinator, "getAnimationController")
             check(entries.getValue("animation").declaringClass == animation)
             val delegate = NativeIslandMembers.named(animation, "getAnimator", listOf(content.superclass)).returnType
@@ -183,7 +188,7 @@ internal class NativeIslandDiscovery private constructor(
                 root + "anim.model.IslandAnimProperties" to properties,
             )
             // These are the host's public state/event vocabulary, not obfuscated owner paths.
-            listOf("SmallIsland", "BigIsland", "Hidden").forEach { name ->
+            listOf("SmallIsland", "BigIsland", "Hidden", "Empty").forEach { name ->
                 classes[root + "event.DynamicIslandState\$$name"] = state.declaredClasses.single { it.simpleName == name }
             }
             listOf("SwipeLeft", "SwipeRight").forEach { name ->

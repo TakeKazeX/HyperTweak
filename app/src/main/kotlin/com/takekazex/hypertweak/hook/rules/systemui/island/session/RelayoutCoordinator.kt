@@ -13,6 +13,16 @@ internal class RelayoutCoordinator(private val runtime: IslandSessionState) : Re
     private val host get() = runtime.host
 
     override fun prepare(session: IslandSession) {
+        runtime.settlement.reconcileNative(session, refresh = true)
+        if (!runtime.schedulingEnabled(session)) {
+            // Placeholder removal owns measurement only. Refresh its fields without publishing
+            // a second native handler transaction when three-island scheduling is disabled.
+            runtime.settlement.restore(session)
+            // Native measurement publishes its own template animation. Suppressing that and
+            // replaying updateState later would create a second, unrelated state transition.
+            runtime.summaries(session).forEach { runtime.measure(it) }
+            return
+        }
         val tx = SchedulingTransaction(
             session,
             runtime.summaries(session),
@@ -31,20 +41,28 @@ internal class RelayoutCoordinator(private val runtime: IslandSessionState) : Re
     }
 
     override fun publish(session: IslandSession) {
-        val visible = runtime.summaries(session)
+        // Geometry measurement cannot restore root alpha/clip/translation after a configuration
+        // change. Publish once, after the new layout, in both native and module-owned modes.
+        val visible = (runtime.summaries(session) + listOfNotNull(
+            host.current(session.owner, IslandSlot.EXPANDED), host.current(session.owner, IslandSlot.SHOW_ONCE),
+        )).distinct().filter { runtime.key(it) != null }
         val windowState = visible.firstOrNull()?.let(host::windowState)
         if (windowState == null) {
             host.updateTouchRegion(session.owner)
             return
         }
         val previous = host.configChange(windowState)
+        val handler = host.handler(session.owner, IslandSlot.HIDDEN) ?: return
         try {
             host.setConfigChange(windowState, true)
             runtime.relayoutPublication.run {
                 visible.forEach { view ->
+                    host.addState(handler, view, null)
                     host.setLastState(view, host.state(view))
-                    host.viewModel(view)?.let { host.updateViewState(it, view) }
                 }
+                // One native batch drives controller state, templates, alpha and clipping.
+                // Do not publish a second direct ViewModel callback for those same views.
+                host.stop(handler)
             }
         } finally {
             host.setConfigChange(windowState, previous)

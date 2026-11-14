@@ -33,6 +33,7 @@ public class NativeMediaGeometryProbe {
                 (proxy,method,args)->{
                     switch(method.getName()) {
                         case "ownerOf": return owner;
+                        case "templateReady": return true;
                         case "isContent": return true;
                         case "key": return args[0]==media?"media":"timer";
                         case "orientationOf": return com.takekazex.hypertweak.hook.rules.systemui.island.model.IslandOrientation.PORTRAIT;
@@ -108,6 +109,7 @@ public class NativeMediaGeometryProbe {
                 (proxy,method,args)->{
                     switch(method.getName()) {
                         case "key": return args[0]==main?"main":"media";
+                        case "templateReady": return true;
                         case "isContent": return args[0]==main || args[0]==media;
                         case "ownerOf": return owner;
                         case "handler": return owner;
@@ -167,6 +169,7 @@ public class NativeMediaGeometryProbe {
                 (proxy,method,args)->{
                     if(method.getName().equals("orientationOf")) return
                         com.takekazex.hypertweak.hook.rules.systemui.island.model.IslandOrientation.PORTRAIT;
+                    if(method.getName().equals("templateReady")) return true;
                     if(method.getName().equals("templateAreas")) return java.util.List.of(
                         new com.takekazex.hypertweak.hook.rules.systemui.island.host.TemplateAreaPair(left,right));
                     if(method.getName().equals("fixedCutoutWidth")) {

@@ -142,6 +142,11 @@ class ThreeIslandHooker(
         }
         val runtime = runtime ?: return@Runnable
         mediaCover?.retire()
+        runtime.sessions.snapshot().forEach { session ->
+            if (!runtime.schedulingEnabled(session)) runtime.boundary.core(
+                session, IslandFeature.SCHEDULING, "release inactive layout ownership",
+            ) { runtime.settlement.restore(session) }
+        }
         runCatching { runtime.compact.refresh() }.onFailure { DebugLog.e(TAG, "refresh compact islands", it) }
         runtime.sessions.snapshot().forEach { session ->
             if (session.health.reset()) DebugLog.i(TAG, "island session retried after a settings refresh")

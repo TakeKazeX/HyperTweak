@@ -13,7 +13,53 @@ import com.takekazex.hypertweak.util.logging.DebugLog
 internal class SettlementCoordinator(private val runtime: IslandSessionState) : SettlementActions {
     private val host get() = runtime.host
 
+    override fun reconcileNative(session: IslandSession, refresh: Boolean): Boolean {
+        val owner = session.owner
+        if (runtime.retiring() || session.lifecycle.suspended != 0 || session.lifecycle.reconciling ||
+            host.inConfigRebuild(owner) || host.current(owner, IslandSlot.EXPANDED) != null ||
+            host.showOnce(owner) != null) return false
+        val bigHandler = host.handler(owner, IslandSlot.BIG) ?: return false
+        val smallHandler = host.handler(owner, IslandSlot.SMALL) ?: return false
+        if (host.tempShow(bigHandler) != null) return false
+        val big = host.current(owner, IslandSlot.BIG)
+        val small = host.current(owner, IslandSlot.SMALL)
+        // Native Empty markers belong in the hidden queue, never in a published summary
+        // slot. Testing only state==null misses the marker before its lifecycle clears state.
+        fun broken(view: Any?) = view != null && host.key(view) == null
+        val queue = host.queue(owner)
+        val pool = (host.contents(owner) + runtime.summaries(session) + queue).distinct()
+            .filter { host.key(it) != null && host.stateKind(it) != IslandStateKind.OTHER }
+            .distinctBy(host::key)
+        if (pool.isEmpty()) return false
+        val represented = (listOfNotNull(big, small) + queue + session.slot.extras).mapNotNull(host::key).toSet()
+        val orphaned = pool.filter { host.key(it) !in represented }
+        val corruptedQueue = queue.any { host.key(it) == null && !host.isEmptyState(host.state(it)) }
+        val refill = broken(big) || broken(small) ||
+            big == null && small != null || refresh && big == null && small == null
+        if (!refill && orphaned.isEmpty() && !corruptedQueue) return false
+        session.lifecycle.reconciling = true
+        try {
+            // Older module measurements may already have cleared Empty or changed it to
+            // Hidden. Those keyless entries are not valid native queue markers anymore.
+            if (queue.removeAll { host.key(it) == null && !host.isEmptyState(host.state(it)) }) {
+                host.handler(owner, IslandSlot.HIDDEN)?.let { host.setCurrent(it, queue.firstOrNull()) }
+            }
+            // Release invalid visible-slot pointers, not queue ordering markers. Native
+            // refill owns promotion, queue order and state transitions.
+            if (broken(big)) host.setCurrent(bigHandler, null)
+            if (broken(small)) host.setCurrent(smallHandler, null)
+            if (refill) host.fillNative(owner,
+                if (big != null && !broken(big)) IslandSlot.SMALL else IslandSlot.BIG)
+            orphaned.forEach { host.admitNative(owner, it) }
+            DebugLog.i(TAG, "native ownership reconciled tasks=${pool.size} orphaned=${orphaned.size} refill=$refill")
+            return true
+        } finally {
+            session.lifecycle.reconciling = false
+        }
+    }
+
     override fun commitSwipe(session: IslandSession, before: List<Any>, change: SummaryIslandScheduler.Change) {
+        if (!runtime.nativeSlotsReady(session)) return
         val queue = host.queue(session.owner)
         val pool = (before + queue).distinct()
         // Resolve everything before mutating: a task removed by a racing host update leaves
@@ -54,6 +100,7 @@ internal class SettlementCoordinator(private val runtime: IslandSessionState) : 
     }
 
     override fun selectSummaries(session: IslandSession): List<Any> {
+        if (!runtime.nativeSlotsReady(session)) return emptyList()
         val owner = session.owner
         val queue = host.queue(owner)
         val handler = host.handler(owner, IslandSlot.HIDDEN)!!
@@ -115,6 +162,7 @@ internal class SettlementCoordinator(private val runtime: IslandSessionState) : 
     override fun settle(tx: SchedulingTransaction) {
         tx.settled = true
         val session = tx.session
+        reconcileNative(session)
         runtime.diagnostics.register(session)
         val owner = session.owner
         val queue = host.queue(owner)
@@ -138,7 +186,7 @@ internal class SettlementCoordinator(private val runtime: IslandSessionState) : 
         val reserve = big != null && (
             (eligible && right != null && candidates.isNotEmpty()) ||
                 runtime.rowModeEnabled(session) ||
-                (right != null && runtime.preferences.threeIslands && runtime.spectrumTarget(right))
+                (right != null && runtime.phoneEligible(session) && runtime.preferences.threeIslands && runtime.spectrumTarget(right))
             )
         session.seats.assign(right?.let(runtime::key), candidates.firstOrNull()?.let(runtime::key))
         session.scene.layoutIntent = false
@@ -150,13 +198,13 @@ internal class SettlementCoordinator(private val runtime: IslandSessionState) : 
                 session.scene.portraitContent = null
             }
             if (reserve) (listOfNotNull(right) + candidates).forEach {
-                host.call(it, "calculateBigIslandWidth")
+                runtime.measure(it)
             }
             session.scene.layoutIntent = reserve
-            if (big != null) host.call(big, "calculateBigIslandWidth")
+            if (big != null) runtime.measure(big)
             if (reserve && session.scene.layout != null) {
                 (listOfNotNull(right) + session.slot.extras).forEach {
-                    host.call(it, "calculateBigIslandWidth")
+                    runtime.measure(it)
                 }
             }
         }
@@ -210,37 +258,53 @@ internal class SettlementCoordinator(private val runtime: IslandSessionState) : 
                 tx.forcePublication || tx.oldLayout?.screenWidth != session.scene.layout?.screenWidth,
             )
         }.plus(session.slot.extras + oldSurvivors + listOfNotNull(expanded?.takeIf { it in tx.visible }))
-            .distinct().filterNot { it in unchangedExtras }
+            .distinct().filter { runtime.key(it) != null && it !in unchangedExtras }
         val handler = host.handler(owner, IslandSlot.HIDDEN)!!
         changed.forEach { view ->
-            host.call(view, "calculateBigIslandWidth")
+            runtime.measure(view)
             host.addState(handler, view, null)
             tx.oldStates[view]?.let { host.setLastState(view, it) }
         }
         runtime.spectrum.syncLyricGuard(session)
     }
 
-    override fun restore(session: IslandSession) {
+    override fun clearLayout(session: IslandSession) {
         runtime.spectrum.releaseLyricGuard(session)
         session.spectrum.returnGeometry = null
         session.spectrum.returnTarget = null
         session.spectrum.returnContents = emptyMap()
         session.presentation.expanded = null
         session.presentation.big = null
-        val extras = session.slot.extras
-        val old = extras.associateWith { host.state(it) }
-        returnToQueue(session)
         session.scene.layout = null
         session.scene.layoutIntent = false
         session.scene.fullFrames.clear()
         session.scene.musicSmall = null
         session.scene.portraitContent = null
+        session.scene.displayOrder = emptyList()
+        session.scene.contentSizes.clear()
+        session.scene.rowAvailable = 0
+        session.scene.rowGap = 0
         session.interaction.gesture.begin(null)
         session.scheduler.clear()
+        session.seats.clear()
+        session.schedulerState.moreCapacity = false
         session.interaction.swipePreview = null
         session.interaction.summaryTracking = null
         session.interaction.departingPositions.clear()
-        session.template.templateWidths.releaseAll { view -> runtime.nativeCutoutRead.run { host.fixedCutoutWidth(view) } }
+        session.presentation.fullPresentation.clear()
+        session.presentation.departures.clear()
+        val templates = (session.template.templateWidths.owners() + session.presentation.fullOrigins.keys).distinct()
+        templates.forEach { runtime.templates.releaseFullPosition(session, it) }
+    }
+
+    override fun restore(session: IslandSession) {
+        val extras = session.slot.extras
+        val old = extras.associateWith { host.state(it) }
+        returnToQueue(session)
+        clearLayout(session)
+        // With no borrowed task there is no native state to restore. In particular, never
+        // flush the host's shared StateHandler publication list during a native transition.
+        if (extras.isEmpty()) return
         val handler = host.handler(session.owner, IslandSlot.HIDDEN)
         if (handler == null) {
             host.updateTouchRegion(session.owner)
@@ -249,8 +313,8 @@ internal class SettlementCoordinator(private val runtime: IslandSessionState) : 
         (extras + listOfNotNull(
             host.current(session.owner, IslandSlot.BIG),
             host.current(session.owner, IslandSlot.SMALL),
-        )).forEach {
-            host.call(it, "calculateBigIslandWidth")
+        )).filter { runtime.key(it) != null }.forEach {
+            runtime.measure(it)
             host.addState(handler, it, null)
         }
         old.forEach { (view, state) -> host.setLastState(view, state) }

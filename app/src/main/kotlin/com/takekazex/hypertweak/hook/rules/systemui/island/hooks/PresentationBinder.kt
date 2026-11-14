@@ -2,6 +2,7 @@ package com.takekazex.hypertweak.hook.rules.systemui.island.hooks
 
 import com.takekazex.hypertweak.hook.rules.systemui.island.model.IslandFeature
 import com.takekazex.hypertweak.hook.rules.systemui.island.session.TemplateAnimation
+import com.takekazex.hypertweak.hook.rules.systemui.island.host.NativeIslandMembers
 import com.takekazex.hypertweak.util.logging.DebugLog
 import io.github.libxposed.api.XposedInterface
 
@@ -32,6 +33,11 @@ internal object PresentationBinder {
                 } catch (error: Throwable) {
                     DebugLog.e("ThreeIslands", "align native template animation", error)
                     TemplateAnimation.Passthrough
+                }
+                if (runtime.diagnostics.tracing) runtime.sessionForView(view)?.let { session ->
+                    val final = (decision as? TemplateAnimation.Redirect)?.args ?: chain.args.toTypedArray()
+                    runtime.diagnostics.trace(session, view, "template.animation",
+                        "host=${System.identityHashCode(chain.thisObject)} in=${chain.args.take(4)} out=${final.take(4)} decision=${decision.javaClass.simpleName}")
                 }
                 when (decision) {
                     TemplateAnimation.Suppress -> null
@@ -95,9 +101,14 @@ internal object PresentationBinder {
                 val view = chain.args.firstOrNull() ?: return@Hooker chain.proceed()
                 runtime.context.withAnimating(view) {
                     val session = runtime.sessionForView(view)
+                    if (session != null && runtime.diagnostics.tracing) runtime.diagnostics.trace(session, view, "state.before")
                     session?.let { runtime.presentation.beforeStateChange(it, view) }
                     val result = chain.proceed()
                     session?.let { runtime.presentation.afterStateChange(it, view) }
+                    if (session != null && runtime.diagnostics.tracing) {
+                        runtime.diagnostics.trace(session, view, "state.after")
+                        runtime.diagnostics.sampleAnimation(session, view)
+                    }
                     result
                 }
             },
@@ -139,6 +150,13 @@ internal object PresentationBinder {
                 param.args[1] = after
             }
         }
+        registrar.after(access.method(access.resolver, "resolve"), "three_islands_transition_probe") { param ->
+            if (!runtime.diagnostics.tracing) return@after
+            val view = runtime.context.animatingView ?: return@after
+            val session = runtime.sessionForView(view) ?: return@after
+            runtime.diagnostics.trace(session, view, "transition.resolved",
+                "from=${param.args[0]} to=${param.args[1]} transitions=${(param.result as? List<*>)?.map { it?.javaClass?.simpleName }}")
+        }
 
         listOf("getCurrentBigIslandX", "getCurrentBigIslandWidth").forEach { name ->
             registrar.after(access.method(access.content, name), "three_islands_geometry_$name") { param ->
@@ -149,5 +167,34 @@ internal object PresentationBinder {
                 }
             }
         }
+
+        // Explicitly armed, bounded read-only probe of the properties the native animator writes.
+        // Verified dispatcher: this exact (IslandAnimProperties)V method calls the container,
+        // big, small and expanded writers. The per-part writers share its signature.
+        val update = NativeIslandMembers.named(access.updater, "update", listOf(access.properties))
+            .also { check(it.returnType == Void.TYPE) }
+        val propertyReaders = listOf("getContainerClipStart", "getContainerClipEnd", "getContainerX", "getContainerTransY", "getContainerAlpha",
+            "getBigIslandAlpha", "getBigIslandTransX", "getBigIslandTransY", "getSmallIslandAlpha",
+            "getSmallIslandTransX", "getSmallIslandTransY", "getExpandedTransX", "getExpandedTransY")
+            .associateWith { name -> NativeIslandMembers.named(access.properties, name, emptyList()).also {
+                check(it.returnType == Float::class.javaPrimitiveType)
+            } }
+        registrar.runtime(update.also(registrar::deoptimize), "three_islands_property_probe",
+            XposedInterface.Hooker { chain ->
+                if (!runtime.diagnostics.tracing) return@Hooker chain.proceed()
+                val real = runCatching { chain.thisObject?.let { access.updaterView.get(it) }?.let(host::realContent) }
+                    .onFailure { DebugLog.w("IslandAnimationProbe", "read property-update owner", it) }.getOrNull()
+                val session = real?.let(runtime::sessionForView)
+                if (session != null) {
+                    val properties = chain.args.firstOrNull()
+                    val values = runCatching { properties?.let { p ->
+                        propertyReaders.entries.joinToString { (name, getter) -> "$name=${getter.invoke(p)}" }
+                    } }.getOrElse { "unavailable=${it.javaClass.simpleName}" }
+                    runtime.diagnostics.trace(session, real, "properties.before", "props=[$values]")
+                }
+                val result = chain.proceed()
+                if (session != null) runtime.diagnostics.trace(session, real, "properties.after")
+                result
+            })
     }
 }

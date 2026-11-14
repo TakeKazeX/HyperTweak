@@ -11,6 +11,10 @@ internal interface SettlementActions {
     fun claimSmall(session: IslandSession, target: Any): Unit
     fun returnToQueue(session: IslandSession): Unit
     fun settle(tx: SchedulingTransaction): Unit
+    /** Revoke module projections without publishing or changing native handler state. */
+    fun clearLayout(session: IslandSession): Unit
+    /** Repair native ownership before publishing; does not flush the host state list itself. */
+    fun reconcileNative(session: IslandSession, refresh: Boolean = false): Boolean
     fun restore(session: IslandSession): Unit
     fun swipeCapacity(session: IslandSession, visible: List<Any>): Int
 }

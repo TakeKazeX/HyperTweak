@@ -55,6 +55,14 @@ internal abstract class IslandSessionState(
 
     fun budgetSmallWidth(view: Any): Int = nativeSmallWidthRead.run { host.nativeSmallWidth(view) }
 
+    /** Every module-initiated measurement crosses this boundary. Native Empty markers and
+     * asynchronously unbound templates must never reach the host's destructive error branch. */
+    fun measure(view: Any): Boolean {
+        if (!host.isContent(view) || key(view) == null || !host.templateReady(view)) return false
+        host.call(view, "calculateBigIslandWidth")
+        return true
+    }
+
     fun enabled(session: IslandSession): Boolean = IslandModePolicy.enabled(
         retiring = retiring(),
         failed = session.health.failed,
@@ -62,7 +70,9 @@ internal abstract class IslandSessionState(
         threeIslands = preferences.threeIslands,
         landscapeFull = preferences.landscapeFull,
         landscapeMore = preferences.landscapeMore,
-    )
+    ) && IslandModePolicy.requested(
+        host.orientationOf(session.owner), preferences.threeIslands, preferences.landscapeFull, preferences.landscapeMore,
+    ) && nativeSlotsReady(session)
 
     fun phoneEligible(session: IslandSession): Boolean {
         val owner = session.owner
@@ -97,18 +107,29 @@ internal abstract class IslandSessionState(
 
     fun summarySwipeEnabled(session: IslandSession): Boolean = flags(session).summarySwipe
 
+    /** Landscape switches install the hooks, but must not settle native portrait transactions. */
+    fun schedulingEnabled(session: IslandSession): Boolean = flags(session).let { it.summarySwipe || it.rowMode }
+
+    /** Native Empty/sentinel views have no task data and must never enter our task scheduler. */
+    fun nativeSlotsReady(session: IslandSession): Boolean = listOfNotNull(
+        host.current(session.owner, IslandSlot.BIG), host.current(session.owner, IslandSlot.SMALL),
+    ).all { key(it) != null }
+
     fun summaries(session: IslandSession): List<Any> = listOfNotNull(
         host.current(session.owner, IslandSlot.BIG),
         host.current(session.owner, IslandSlot.SMALL),
-    ).plus(session.slot.extras).distinct()
+    ).plus(session.slot.extras).distinct().filter { key(it) != null }
 
     fun queuedSummaries(session: IslandSession): List<Any> = host.queue(session.owner).filter {
-        host.stateKind(it) == com.takekazex.hypertweak.hook.rules.systemui.island.host.IslandStateKind.HIDDEN
+        key(it) != null && host.stateKind(it) == com.takekazex.hypertweak.hook.rules.systemui.island.host.IslandStateKind.HIDDEN
     }
 
     fun key(view: Any): String? = host.key(view)
 
     fun smallX(session: IslandSession, view: Any): Int? {
+        // Preferences are refreshed before the deferred relayout. Old frames must lose their
+        // authority immediately, including departing views and controller/region callbacks.
+        if (!enabled(session)) return null
         spectrum.renderingReturnFrame(session, view)?.let { return it.x }
         val isExtra = view in session.slot.extras
         if (!isExtra && host.current(session.owner, IslandSlot.SMALL) !== view) {
@@ -160,6 +181,11 @@ internal abstract class IslandSessionState(
 
     fun sessionForAnimation(animator: Any): IslandSession? =
         sessions.snapshot().firstOrNull { host.animationController(it.owner) === animator }
+
+    fun sessionForPublication(handler: Any): IslandSession? =
+        context.transaction?.session ?: context.nativeSession ?: sessions.snapshot().firstOrNull { session ->
+            IslandSlot.entries.any { host.handler(session.owner, it) === handler }
+        }
 
     fun isMainThread(): Boolean = Looper.myLooper() == main.looper
 

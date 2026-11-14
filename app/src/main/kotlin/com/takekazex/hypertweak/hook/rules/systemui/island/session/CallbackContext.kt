@@ -1,6 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui.island.session
 
 import com.takekazex.hypertweak.hook.rules.systemui.island.model.SchedulingTransaction
+import com.takekazex.hypertweak.hook.rules.systemui.island.model.IslandSession
 
 /**
  * The single ThreadLocal container for host callback context. Every scope restores the previous
@@ -9,12 +10,14 @@ import com.takekazex.hypertweak.hook.rules.systemui.island.model.SchedulingTrans
 internal class CallbackContext {
     private class Frame {
         var transaction: SchedulingTransaction? = null
+        var nativeSession: IslandSession? = null
         var measuringView: Any? = null
         var animatingView: Any? = null
         var renderingView: Any? = null
 
         fun clear() {
             transaction = null
+            nativeSession = null
             measuringView = null
             animatingView = null
             renderingView = null
@@ -24,6 +27,7 @@ internal class CallbackContext {
     private val local = ThreadLocal<Frame?>()
 
     val transaction: SchedulingTransaction? get() = local.get()?.transaction
+    val nativeSession: IslandSession? get() = local.get()?.nativeSession
     val measuringView: Any? get() = local.get()?.measuringView
     val animatingView: Any? get() = local.get()?.animatingView
     val renderingView: Any? get() = local.get()?.renderingView
@@ -36,6 +40,9 @@ internal class CallbackContext {
 
     fun <T> withTransaction(transaction: SchedulingTransaction?, block: () -> T): T =
         scoped(block) { it.transaction = transaction }
+
+    fun <T> withNativeSession(session: IslandSession, block: () -> T): T =
+        scoped(block) { it.nativeSession = session }
 
     fun <T> withMeasuring(view: Any?, block: () -> T): T =
         scoped(block) { it.measuringView = view }
@@ -66,12 +73,14 @@ internal class CallbackContext {
 
     private class Snapshot(frame: Frame) {
         private val transaction = frame.transaction
+        private val nativeSession = frame.nativeSession
         private val measuring = frame.measuringView
         private val animating = frame.animatingView
         private val rendering = frame.renderingView
 
         fun restore(frame: Frame) {
             frame.transaction = transaction
+            frame.nativeSession = nativeSession
             frame.measuringView = measuring
             frame.animatingView = animating
             frame.renderingView = rendering
@@ -79,5 +88,5 @@ internal class CallbackContext {
     }
 
     private fun Frame.isEmpty(): Boolean =
-        transaction == null && measuringView == null && animatingView == null && renderingView == null
+        transaction == null && nativeSession == null && measuringView == null && animatingView == null && renderingView == null
 }

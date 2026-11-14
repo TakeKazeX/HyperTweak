@@ -5,6 +5,7 @@ import android.widget.LinearLayout;
 import com.takekazex.hypertweak.hook.rules.systemui.island.IslandSettings;
 import com.takekazex.hypertweak.hook.rules.systemui.island.host.IslandHostPorts;
 import com.takekazex.hypertweak.hook.rules.systemui.island.host.IslandSlot;
+import com.takekazex.hypertweak.hook.rules.systemui.island.host.IslandStateKind;
 import com.takekazex.hypertweak.hook.rules.systemui.island.host.TemplateAreaPair;
 import com.takekazex.hypertweak.hook.rules.systemui.island.model.IslandOrientation;
 import com.takekazex.hypertweak.hook.rules.systemui.island.model.IslandResultGeometry;
@@ -66,6 +67,10 @@ public class IslandProgressRefreshProbe {
         Pair[] current = {real, fake};
         boolean[] enabled = {true};
         boolean[] main = {true};
+        int[] regions = {0};
+        int[] publications = {0};
+        boolean[] config = {false};
+        Object windowState = new Object();
         IslandSettings settings = (IslandSettings) Proxy.newProxyInstance(
             IslandProgressRefreshProbe.class.getClassLoader(), new Class[]{IslandSettings.class},
             (proxy, method, values) -> method.getName().equals("getRemovePlaceholder") && enabled[0]);
@@ -76,8 +81,10 @@ public class IslandProgressRefreshProbe {
             (proxy, method, values) -> {
                 switch (method.getName()) {
                     case "ownerOf": case "handler": return owner;
-                    case "isContent": return values[0] == download || values[0] == side;
+                    case "templateReady": return true;
+                        case "isContent": return values[0] == download || values[0] == side;
                     case "key": return values[0] == download ? "download" : "side";
+                    case "stateKind": return values[0] == download ? IslandStateKind.BIG : IslandStateKind.SMALL;
                     case "orientationOf": return IslandOrientation.PORTRAIT;
                     case "smallestScreenWidthDp": return 400;
                     case "isTinyScreen": case "inConfigRebuild": return false;
@@ -87,6 +94,20 @@ public class IslandProgressRefreshProbe {
                         if (values[1] == IslandSlot.EXPANDED) return main[0] ? null : download;
                         return values[1] == IslandSlot.SMALL ? side : null;
                     case "queue": return new ArrayList<>();
+                    case "updateTouchRegion": regions[0]++; return null;
+                    case "windowState": return windowState;
+                    case "viewModel": return values[0];
+                    case "configChange": return config[0];
+                    case "setConfigChange": config[0] = (boolean) values[1]; return null;
+                    case "setLastState": return null;
+                    case "addState": publications[0]++; return null;
+                    case "stop":
+                        if (!config[0]) throw new AssertionError("publication did not use native config reconciliation");
+                        return null;
+                    case "state": return null;
+                    case "updateViewState":
+                        if (!config[0]) throw new AssertionError("publication did not use native config reconciliation");
+                        publications[0]++; return null;
                     case "fixedCutoutWidth": return 72;
                     case "templateAreas": return values[0] == download ?
                         List.of(current[0].area(), current[1].area()) : List.of();
@@ -95,6 +116,10 @@ public class IslandProgressRefreshProbe {
                     case "measuredContentSize": return new IslandContentSize(93, 216);
                     case "measuredSmallWidth": return 0;
                     case "nativeResult": return new NativeMeasureResult(0, 0, 0, 0);
+                    case "layoutDirection": return 0;
+                    case "screenWidth": return 1200;
+                    case "nativeSmallWidth": return 100;
+                    case "call": return null;
                 }
                 throw new AssertionError("unexpected host call " + method.getName());
             });
@@ -105,6 +130,13 @@ public class IslandProgressRefreshProbe {
         if (first == null || first.getX() != 471 || first.getWidth() != 381)
             throw new AssertionError("compact geometry " + first);
         real.weight(0); fake.weight(0);
+        // Placeholder-only sessions must retire/reconcile without flushing native handlers.
+        // Every unexpected host publication/mutation is rejected by the proxy below.
+        for (int i = 0; i < 3; i++) runtime.getSettlement().restore(session);
+        real.weight(0); fake.weight(0);
+        runtime.getRelayout().publish(session);
+        if (regions[0] != 1) throw new AssertionError("native touch region was not refreshed once");
+        if (publications[0] != 2 || config[0]) throw new AssertionError("native display state was not reconciled");
         for (int i = 0; i < 100; i++) {
             // The host rebinds the template on every progress update, then measures again.
             runtime.getTemplates().templateBound(download, download);
@@ -140,7 +172,7 @@ public class IslandProgressRefreshProbe {
         current[0].weight(1); current[1].weight(1);
         if (root.getTranslationX() != 0f) throw new AssertionError("retire kept compact offset");
         System.out.println("COMPACT_OWNERSHIP_OK repeats=100 translation=61.5 realFakeReplacement=true " +
-            "leftMainKept=true nativeRestored=true retired=true");
+            "leftMainKept=true nativeRestored=true retired=true passiveRestore=true nativeDisplayReconciled=true");
         System.exit(0);
     }
 }

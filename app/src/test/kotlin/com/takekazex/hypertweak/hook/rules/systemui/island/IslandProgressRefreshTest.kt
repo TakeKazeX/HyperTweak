@@ -14,6 +14,7 @@ class IslandProgressRefreshTest {
     private val owner = Any()
     private val download = FakeTask("download", owner)
     private val side = FakeTask("side", owner)
+    private val shell = FakeTask("uninitialised", owner)
     private val settings = object : IslandSettings {
         override var threeIslands = false
         override val landscapeFull = false
@@ -21,8 +22,22 @@ class IslandProgressRefreshTest {
         override var removePlaceholder = true
     }
     private val releases = mutableListOf<Any>()
+    private var layoutDirection = 0
+    private var nativeScreenWidth = 1200
     private val ports = object : IslandHostPorts by host {
         override fun fixedCutoutWidth(view: Any) = 72
+        override fun layoutDirection(view: Any): Int = layoutDirection
+        override fun screenWidth(owner: Any): Int = nativeScreenWidth
+        override fun call(owner: Any, member: String, vararg args: Any?): Any? = when (member) {
+            "getCurrentBigIslandWidth" -> if (owner === shell) 0 else 381
+            "getCurrentBigIslandX" -> 471
+            "getSpace" -> 12
+            "getBigIslandViewWidth" -> 381
+            "getBigIslandViewWidthHasSmallIsland" -> 296
+            "getBigIslandX" -> 471
+            "getBigIslandXHasSmallIsland" -> 471
+            else -> host.call(owner, member, *args)
+        }
         override fun bigIslandView(view: Any): Any? {
             // Reached only when a module-owned position is restored to native.
             releases += view
@@ -34,6 +49,7 @@ class IslandProgressRefreshTest {
     private val content = IslandContentSize(93, 216)
 
     init {
+        download.state = FakeState(IslandStateKind.BIG)
         host.bind(owner, IslandSlot.BIG, download).bind(owner, IslandSlot.SMALL, side)
         host.sizes[download] = content
         host.scene = host.scene.copy(maxWidth = 722)
@@ -94,6 +110,23 @@ class IslandProgressRefreshTest {
         assertNull(offset(120, 120, 312))
     }
 
+    @Test fun `disabled row geometry cannot borrow placeholder removal to keep projecting`() {
+        settings.threeIslands = true
+        val claimed = com.takekazex.hypertweak.hook.rules.systemui.island.model.IslandResultGeometry(
+            381, 93, 216, 471, 0, 381, 93, 216, 471)
+        runtime.compact.afterMeasure(download, Any(), Any(), claimed)
+        assertEquals(61.5f, offset())
+        host.bind(owner, IslandSlot.BIG, shell)
+        assertNull(runtime.coordinates.nativeSmallTargetX(session))
+        settings.threeIslands = false
+        // A disabled row cannot project its old edge through placeholder removal.
+        assertNull(offset())
+        assertNull(runtime.coordinates.nativeSmallTargetX(session))
+        host.bind(owner, IslandSlot.BIG, download)
+        measure()
+        assertEquals(61.5f, offset())
+    }
+
     @Test fun `a small island that no longer fits keeps the native result`() {
         host.measuredSmall = 400
         assertNull(measure())
@@ -110,5 +143,15 @@ class IslandProgressRefreshTest {
     @Test fun `landscape never rewrites the main template`() {
         host.orientation = com.takekazex.hypertweak.hook.rules.systemui.island.model.IslandOrientation.LANDSCAPE
         assertNull(measure())
+    }
+
+    @Test fun `native coordinates are never reconstructed from old template edges`() {
+        measure()
+        host.bind(owner, IslandSlot.BIG, shell)
+        assertNull(runtime.coordinates.nativeSmallTargetX(session))
+        assertNull(runtime.coordinates.nativeCoordinateX(session, download))
+        settings.removePlaceholder = false
+        host.orientation = com.takekazex.hypertweak.hook.rules.systemui.island.model.IslandOrientation.LANDSCAPE
+        assertNull(runtime.coordinates.nativeCoordinateX(session, download))
     }
 }

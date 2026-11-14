@@ -45,6 +45,9 @@ internal class NativeIslandHost(
 
     override fun windowOf(owner: Any): Any? = access.call(owner, "getWindowView")
 
+    override fun layoutDirection(view: Any): Int? = (view as? View)?.layoutDirection
+    override fun screenWidth(owner: Any): Int? = (windowOf(owner) as? View)?.width?.takeIf { it > 0 }
+
     override fun orientationOf(owner: Any): IslandOrientation {
         val window = windowOf(owner) as? View ?: return IslandOrientation.UNDEFINED
         return when (window.resources.configuration.orientation) {
@@ -86,6 +89,17 @@ internal class NativeIslandHost(
 
     override fun queue(owner: Any): MutableList<Any> = access.queue(owner)
 
+    override fun contents(owner: Any): List<Any> =
+        (windowOf(owner)?.let { access.call(it, "getContentViewList") } as? List<*>)?.filterNotNull().orEmpty()
+
+    override fun fillNative(owner: Any, slot: IslandSlot) {
+        access.fillNative.invoke(handler(owner, slot), queue(owner))
+    }
+
+    override fun admitNative(owner: Any, view: Any) {
+        access.admitNative.invoke(handler(owner, IslandSlot.BIG), view, queue(owner), false)
+    }
+
     override fun key(view: Any): String? = access.call(view, "getIslandKey") as? String
 
     override fun state(view: Any): Any? = access.call(view, "getState")
@@ -104,6 +118,7 @@ internal class NativeIslandHost(
     override fun isCoordinator(value: Any): Boolean = access.coordinator.isInstance(value)
 
     override fun isSmallState(value: Any?): Boolean = access.small.isInstance(value)
+    override fun isEmptyState(value: Any?): Boolean = access.empty.isInstance(value)
 
     override fun realContent(view: Any): Any? = try {
         when {
@@ -185,6 +200,9 @@ internal class NativeIslandHost(
         }
         return pairs
     }
+
+    override fun templateReady(view: Any): Boolean =
+        access.call(view, "getBigIslandAreaLeft") is View && access.call(view, "getBigIslandAreaRight") is View
 
     override fun templateFactory(view: Any): Any? =
         access.templateController.invoke(view)?.let { access.templateFactory.invoke(it) }

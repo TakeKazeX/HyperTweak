@@ -7,6 +7,20 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class IslandModePolicyTest {
+    @Test fun `all switch combinations respect the current window orientation`() {
+        for (orientation in IslandOrientation.entries) for (mask in 0..7) {
+            val three = mask and 1 != 0
+            val full = mask and 2 != 0
+            val more = mask and 4 != 0
+            val expected = when (orientation) {
+                IslandOrientation.PORTRAIT -> three
+                IslandOrientation.LANDSCAPE -> three || full || more
+                IslandOrientation.UNDEFINED -> false
+            }
+            org.junit.Assert.assertEquals("$orientation mask=$mask", expected,
+                IslandModePolicy.requested(orientation, three, full, more))
+        }
+    }
     @Test fun `trimming installs hooks without enabling the scheduling session`() {
         assertFalse(IslandModePolicy.enabled(false, false, 0, false, false, false))
         assertTrue(IslandModePolicy.installed(false, false, false, true))

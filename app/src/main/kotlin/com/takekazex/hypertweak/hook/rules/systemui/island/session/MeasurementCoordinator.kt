@@ -15,6 +15,7 @@ internal class MeasurementCoordinator(private val runtime: IslandSessionState) :
 
     override fun afterMeasure(view: Any, input: Any, result: Any, helper: Any): IslandResultGeometry? {
         val session = runtime.sessionForView(view) ?: return null
+        if (!runtime.enabled(session)) return null
         return runtime.boundary.core(session, IslandFeature.MEASUREMENT, "measure three islands") {
             runtime.spectrum.renderingReturnFrame(session, view)?.takeIf { it.full }?.let { frame ->
                 return@core IslandResultGeometry(frame.width, frame.content.left, frame.content.right,

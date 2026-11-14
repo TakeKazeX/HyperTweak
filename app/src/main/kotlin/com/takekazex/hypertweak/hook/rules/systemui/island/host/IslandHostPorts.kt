@@ -46,6 +46,10 @@ internal interface IslandHostPorts {
     fun current(owner: Any, slot: IslandSlot): Any?
     fun handler(owner: Any, slot: IslandSlot): Any?
     fun queue(owner: Any): MutableList<Any>
+    /** Authoritative living content registry, including tasks missing from summary handlers. */
+    fun contents(owner: Any): List<Any> = emptyList()
+    fun fillNative(owner: Any, slot: IslandSlot = IslandSlot.BIG)
+    fun admitNative(owner: Any, view: Any)
     fun key(view: Any): String?
     fun state(view: Any): Any?
     fun stateKind(view: Any): IslandStateKind
@@ -53,8 +57,11 @@ internal interface IslandHostPorts {
     fun isFake(view: Any): Boolean
     fun isCoordinator(value: Any): Boolean
     fun isSmallState(value: Any?): Boolean
+    fun isEmptyState(value: Any?): Boolean = false
     fun realContent(view: Any): Any?
     fun nativeSmallWidth(view: Any): Int
+    fun layoutDirection(view: Any): Int? = null
+    fun screenWidth(owner: Any): Int? = null
     fun number(owner: Any, member: String): Int
     fun ceilDimension(owner: Any, member: String): Int
     fun call(owner: Any, member: String, vararg args: Any?): Any?
@@ -75,6 +82,8 @@ internal interface IslandHostPorts {
     fun swipeCoordinator(coordinator: Any): Any?
     fun fakeView(view: Any): Any?
     fun templateAreas(view: Any): List<TemplateAreaPair>
+    /** The native measurement removes the content as an error if either real area is absent. */
+    fun templateReady(view: Any): Boolean
     /** The template factory that sizes this content view's real and fake module holders. */
     fun templateFactory(view: Any): Any? = null
     fun fixedCutoutWidth(view: Any): Int

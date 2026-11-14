@@ -10,24 +10,25 @@ import com.takekazex.hypertweak.hook.rules.systemui.island.template.IslandTempla
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.util.WeakHashMap
 
-/**
- * Owns every camera-seated main template whose sides differ: placeholder removal, and the
- * portrait three-island main island. Geometry is keyed by the content view itself. It is
- * replaced only by that view's next measurement, never invalidated by a handler change, so
- * exit, expand and hide animations keep the compact width they started from.
- */
+/** Camera-seated main templates: placeholder removal and the portrait three-island main island. */
 internal class CompactCoordinator(private val runtime: IslandSessionState) : CompactActions {
     private val host get() = runtime.host
-    private class Presented(val geometry: IslandResultGeometry, val screenWidth: Int)
+    private var retired = false
+    private class Presented(val geometry: IslandResultGeometry, val screenWidth: Int, val scheduled: Boolean)
     private val presented = WeakHashMap<Any, Presented>()
     private val leases = IslandTemplateWidthLease()
 
     override fun afterMeasure(view: Any, input: Any, result: Any, claimed: IslandResultGeometry?): IslandResultGeometry? {
-        val owner = host.ownerOf(view)
-        val portrait = owner != null && portraitPhone(owner)
+        if (retired) return null
+        val owner = host.ownerOf(view) ?: run {
+            forget(view)
+            return null
+        }
+        val portrait = portraitPhone(owner)
         if (claimed != null) {
             if (portrait && CompactIslandGeometry.asymmetric(claimed)) {
-                present(view, claimed, host.sceneOf(owner!!, input, IslandOrientation.PORTRAIT).screenWidth)
+                val scene = host.sceneOf(owner, input, IslandOrientation.PORTRAIT)
+                present(owner, view, claimed, scene.screenWidth, scene.gap, scheduled = true)
             } else {
                 forget(view)
             }
@@ -38,7 +39,7 @@ internal class CompactCoordinator(private val runtime: IslandSessionState) : Com
             return null
         }
         val geometry = try {
-            compact(owner!!, view, input, result)
+            compact(owner, view, input, result)
         } catch (error: Throwable) {
             DebugLog.w(TAG, "compact island measurement failed; native width kept", error)
             null
@@ -47,7 +48,8 @@ internal class CompactCoordinator(private val runtime: IslandSessionState) : Com
             forget(view)
             return null
         }
-        present(view, geometry, host.sceneOf(owner!!, input, IslandOrientation.PORTRAIT).screenWidth)
+        val scene = host.sceneOf(owner, input, IslandOrientation.PORTRAIT)
+        present(owner, view, geometry, scene.screenWidth, scene.gap, scheduled = false)
         return geometry
     }
 
@@ -77,8 +79,8 @@ internal class CompactCoordinator(private val runtime: IslandSessionState) : Com
         ))
     }
 
-    private fun present(view: Any, geometry: IslandResultGeometry, screenWidth: Int) {
-        presented[view] = Presented(geometry, screenWidth)
+    private fun present(owner: Any, view: Any, geometry: IslandResultGeometry, screenWidth: Int, gap: Int, scheduled: Boolean) {
+        presented[view] = Presented(geometry, screenWidth, scheduled)
         // A full row or side-media template owns the same area pair; never stack two snapshots.
         if (runtime.sessionForView(view)?.template?.templateWidths?.holds(view) == true) return
         val areas = host.templateAreas(view).mapNotNull { pair ->
@@ -93,7 +95,11 @@ internal class CompactCoordinator(private val runtime: IslandSessionState) : Com
     }
 
     override fun translation(view: Any, args: Array<Any?>): Array<Any?>? {
+        if (retired || runtime.retiring()) return null
+        val owner = host.ownerOf(view) ?: return null
+        if (!portraitPhone(owner) || !runtime.preferences.removePlaceholder && !runtime.preferences.threeIslands) return null
         val current = presented[view] ?: return null
+        if (current.scheduled && !schedulingOwns(owner)) return null
         val geometry = current.geometry
         if (args.size < 4) return null
         // The host chooses the small/no-small field set; only redirect when it publishes ours.
@@ -104,6 +110,10 @@ internal class CompactCoordinator(private val runtime: IslandSessionState) : Com
             it[3] = native + CompactIslandGeometry.translation(geometry, current.screenWidth)
         }
     }
+
+    override fun holds(view: Any): Boolean = leases.holds(view)
+
+    private fun schedulingOwns(owner: Any): Boolean = runtime.sessions[owner]?.let(runtime::enabled) == true
 
     override fun forget(view: Any) {
         presented.remove(view)
@@ -122,7 +132,7 @@ internal class CompactCoordinator(private val runtime: IslandSessionState) : Com
             ) + presented.keys.filter { host.ownerOf(it) === owner }).distinct().filter { it !== big }
             views.forEach { view ->
                 runCatching {
-                    runtime.layoutMeasurement.run { host.call(view, "calculateBigIslandWidth") }
+                    runtime.layoutMeasurement.run { runtime.measure(view) }
                     if (presented[view] == null) (host.bigIslandView(view) as? View)?.translationX = 0f
                 }.onFailure { DebugLog.w(TAG, "refresh compact island fields", it) }
             }
@@ -130,6 +140,7 @@ internal class CompactCoordinator(private val runtime: IslandSessionState) : Com
     }
 
     override fun retire() {
+        retired = true
         presented.keys.toList().forEach { view ->
             runCatching { (host.bigIslandView(view) as? View)?.translationX = 0f }
                 .onFailure { DebugLog.w(TAG, "retire compact island position", it) }

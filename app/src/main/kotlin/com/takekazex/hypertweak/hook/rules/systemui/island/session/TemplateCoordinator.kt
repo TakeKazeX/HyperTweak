@@ -41,6 +41,10 @@ internal class TemplateCoordinator(private val runtime: IslandSessionState) : Te
         if (runtime.alignedTemplate(session, view)) return
         session.presentation.departures.remove(view)
         runtime.spectrum.syncLyricGuard(session)
+        // A compact main template is a different owner. Generic row cleanup must not
+        // overwrite its camera seat before every native measure/state callback.
+        if (runtime.compact.holds(view) && !session.template.templateWidths.holds(view) &&
+            view !in session.presentation.fullOrigins) return
         val nativeCutout = runtime.nativeCutoutRead.run { host.fixedCutoutWidth(view) }
         session.template.templateWidths.release(view, nativeCutout)
         host.templateAreas(view).forEach { pair ->

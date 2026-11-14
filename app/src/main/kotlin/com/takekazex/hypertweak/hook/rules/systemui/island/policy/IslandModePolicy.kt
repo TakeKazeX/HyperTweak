@@ -5,6 +5,11 @@ import com.takekazex.hypertweak.hook.rules.systemui.island.model.LayoutFlags
 
 /** Pure gate shared by every host callback. No preference or Android reads occur here. */
 internal object IslandModePolicy {
+    /** Installed hooks are not ownership: only switches for this window's orientation count. */
+    fun requested(orientation: IslandOrientation, threeIslands: Boolean, landscapeFull: Boolean, landscapeMore: Boolean): Boolean =
+        orientation != IslandOrientation.UNDEFINED &&
+            (threeIslands || orientation == IslandOrientation.LANDSCAPE && (landscapeFull || landscapeMore))
+
     /**
      * Session-level enablement for the scheduling and row features. Placeholder removal is a
      * stateless rewrite of each measurement and never enables the scheduling session.

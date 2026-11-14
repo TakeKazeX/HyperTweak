@@ -28,6 +28,7 @@ class SpectrumLyricModeTest {
         var rebuilding = false
         var temporary = false
         val ports = object : IslandHostPorts by host {
+            override fun key(view: Any) = if (view === media) "media" else "main"
             override fun inConfigRebuild(owner: Any) = rebuilding
             override fun showOnce(owner: Any): Any? = if (temporary) media else null
         }

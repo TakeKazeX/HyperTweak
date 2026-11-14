@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.island
 
+import android.view.View
 import com.takekazex.hypertweak.hook.rules.systemui.island.host.HostRect
 import com.takekazex.hypertweak.hook.rules.systemui.island.host.IslandHostPorts
 import com.takekazex.hypertweak.hook.rules.systemui.island.host.IslandSlot
@@ -34,8 +35,11 @@ internal class InMemoryIslandHost : IslandHostPorts {
     val slots = mutableMapOf<Any, MutableMap<IslandSlot, Any?>>()
     val handlers = mutableMapOf<Any, MutableMap<IslandSlot, FakeHandler>>()
     val queue = mutableListOf<Any>()
+    val contents = mutableListOf<Any>()
     val sizes = mutableMapOf<Any, IslandContentSize>()
     var onCalculate: (Any) -> Unit = {}
+    var onPublish: (Any) -> Unit = {}
+    private val pending = linkedSetOf<Any>()
     var scene = IslandScene(1200, 2600, 170, 170, 12, 72, 400, SafeInsets.NONE, IslandOrientation.PORTRAIT)
     var orientation = IslandOrientation.PORTRAIT
 
@@ -50,6 +54,8 @@ internal class InMemoryIslandHost : IslandHostPorts {
 
     override fun ownerOf(content: Any): Any? = (content as? FakeTask)?.owner
     override fun windowOf(owner: Any): Any? = null
+    override fun layoutDirection(view: Any): Int = View.LAYOUT_DIRECTION_LTR
+    override fun screenWidth(owner: Any): Int = scene.screenWidth
     override fun orientationOf(owner: Any): IslandOrientation = orientation
     override fun smallestScreenWidthDp(owner: Any): Int = 400
     override fun isTinyScreen(owner: Any): Boolean = false
@@ -66,6 +72,29 @@ internal class InMemoryIslandHost : IslandHostPorts {
             .getOrPut(slot) { FakeHandler(slot.name.lowercase(), owner, slot) }
 
     override fun queue(owner: Any): MutableList<Any> = queue
+    override fun contents(owner: Any): List<Any> = contents
+    override fun fillNative(owner: Any, slot: IslandSlot) {
+        record(if (slot == IslandSlot.BIG) "nativeFill" else "nativeFillSmall")
+        if (slot == IslandSlot.SMALL) {
+            bind(owner, IslandSlot.SMALL, queue.removeFirstOrNull())
+            current(owner, IslandSlot.SMALL)?.let { addState(handler(owner, slot), it, nextState(it, slot)) }
+            return
+        }
+        // Native refill first promotes SMALL, then fills both slots from the hidden queue.
+        val first = current(owner, IslandSlot.SMALL) ?: queue.removeFirstOrNull()
+        bind(owner, IslandSlot.BIG, first)
+        bind(owner, IslandSlot.SMALL, queue.removeFirstOrNull())
+        listOf(IslandSlot.BIG, IslandSlot.SMALL).forEach { slot ->
+            current(owner, slot)?.let { addState(handler(owner, slot), it, nextState(it, slot)) }
+        }
+    }
+    override fun admitNative(owner: Any, view: Any) {
+        record("nativeAdmit:${label(view)}")
+        queue.remove(view)
+        val slot = if (current(owner, IslandSlot.BIG) == null) IslandSlot.BIG else IslandSlot.SMALL
+        bind(owner, slot, view)
+        addState(handler(owner, slot), view, nextState(view, slot))
+    }
     override fun key(view: Any): String? = (view as? FakeTask)?.key
     override fun state(view: Any): Any? = (view as? FakeTask)?.state
     override fun stateKind(view: Any): IslandStateKind =
@@ -129,9 +158,14 @@ internal class InMemoryIslandHost : IslandHostPorts {
     override fun addState(handler: Any, view: Any, state: Any?) {
         record("addState:${label(handler)}:${label(view)}=${kind(state)}")
         if (state != null) (view as? FakeTask)?.state = state
+        pending += view
     }
 
-    override fun stop(handler: Any) = record("stop:${label(handler)}")
+    override fun stop(handler: Any) {
+        record("stop:${label(handler)}")
+        pending.toList().forEach(onPublish)
+        pending.clear()
+    }
     override fun enqueueHidden(handler: Any, view: Any) = record("enqueue:${label(view)}")
     override fun updateTouchRegion(owner: Any) = record("region")
     override fun userExpanded(owner: Any): Boolean = false
@@ -142,6 +176,7 @@ internal class InMemoryIslandHost : IslandHostPorts {
     val fakeViews = mutableMapOf<Any, Any>()
     override fun fakeView(view: Any): Any? = fakeViews[view]
     override fun templateAreas(view: Any): List<TemplateAreaPair> = emptyList()
+    override fun templateReady(view: Any): Boolean = true
     override fun fixedCutoutWidth(view: Any): Int = 0
     override fun bigIslandView(view: Any): Any? = null
     override fun packageName(view: Any): String? = null

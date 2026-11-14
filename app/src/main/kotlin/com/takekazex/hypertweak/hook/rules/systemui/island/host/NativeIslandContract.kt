@@ -8,7 +8,7 @@ internal object NativeIslandContract {
             "getAnimationController", "getUserExpanded", "setUserExpanded", "isTinyScreen", "getInConfigRebuild", "getTouchRegion", "getIslandRegion",
             "getSmallBigIslandRegion", "computeIslandRegion", "getBigIsLandAndSmallIsLandList", "hasIsland",
             "isBigOrSmallIsland", "updateTouchRegion", "setShadow", "dispatchSwipe", "resetSwipe", "getDefaultIslandTouchRegion"),
-        "miui.systemui.dynamicisland.window.DynamicIslandWindowView" to listOf("getEventCoordinator", "updateDynamicIslandView", "onConfigChanged", "dispatchTouchEvent", "collapse", "isSwipeTowardsSmallIsland"),
+        "miui.systemui.dynamicisland.window.DynamicIslandWindowView" to listOf("getEventCoordinator", "getContentViewList", "updateDynamicIslandView", "onConfigChanged", "dispatchTouchEvent", "collapse", "isSwipeTowardsSmallIsland"),
         "miui.systemui.dynamicisland.event.SwipeEventCoordinator" to listOf("getDynamicIslandEventCoordinator", "handleAppEvent", "handleSwipe", "resetSwipe"),
         "miui.systemui.dynamicisland.event.handler.HiddenStateHandler" to listOf("enqueueHiddenStateCallback"),
         "miui.systemui.dynamicisland.event.handler.StateHandler" to listOf("getCurrent", "setCurrent", "getCurrentTempShow", "addState", "stop"),

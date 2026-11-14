@@ -12,6 +12,51 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SettlementCoordinatorTest {
+    @Test fun `a native keyless placeholder is never converted into a hidden task`() {
+        val host = InMemoryIslandHost()
+        val owner = Any()
+        val empty = FakeTask("sentinel", owner)
+        val small = FakeTask("timer", owner).also { it.state = FakeState(IslandStateKind.SMALL) }
+        val queued = FakeTask("download", owner).also { it.state = FakeState(IslandStateKind.HIDDEN) }
+        host.bind(owner, IslandSlot.BIG, empty).bind(owner, IslandSlot.SMALL, small)
+        host.queue += queued
+        val ports = object : com.takekazex.hypertweak.hook.rules.systemui.island.host.IslandHostPorts by host {
+            override fun key(view: Any) = if (view === empty) null else host.key(view)
+        }
+        val runtime = IslandRuntime(ports, Settings(), { false }, null, null)
+        val session = runtime.sessions.getOrCreate(owner)
+        assertEquals(listOf(small), runtime.summaries(session))
+        org.junit.Assert.assertFalse(runtime.enabled(session))
+        assertTrue(runtime.settlement.selectSummaries(session).isEmpty())
+        assertSame(empty, host.current(owner, IslandSlot.BIG))
+        assertSame(small, host.current(owner, IslandSlot.SMALL))
+        assertEquals(listOf(queued), host.queue)
+        assertNull(empty.state)
+        assertTrue(host.calls.isEmpty())
+    }
+
+    @Test fun `a keyless legacy hidden view is not readmitted as a real task`() {
+        val host = InMemoryIslandHost()
+        val owner = Any()
+        val big = FakeTask("big", owner).also { it.state = FakeState(IslandStateKind.BIG) }
+        val small = FakeTask("small", owner).also { it.state = FakeState(IslandStateKind.SMALL) }
+        val empty = FakeTask("sentinel", owner).also { it.state = FakeState(IslandStateKind.HIDDEN) }
+        host.bind(owner, IslandSlot.BIG, big).bind(owner, IslandSlot.SMALL, small)
+        host.queue += empty
+        val ports = object : com.takekazex.hypertweak.hook.rules.systemui.island.host.IslandHostPorts by host {
+            override fun key(view: Any) = if (view === empty) null else host.key(view)
+        }
+        val runtime = IslandRuntime(ports, Settings(), { false }, null, null)
+        val session = runtime.sessions.getOrCreate(owner)
+        assertTrue(runtime.queuedSummaries(session).isEmpty())
+        assertTrue(runtime.settlement.selectSummaries(session).isEmpty())
+        assertSame(big, host.current(owner, IslandSlot.BIG))
+        assertSame(small, host.current(owner, IslandSlot.SMALL))
+        assertEquals(listOf(empty), host.queue)
+        assertEquals(FakeState(IslandStateKind.HIDDEN), empty.state)
+        assertTrue(host.calls.none { it.startsWith("addState:") && "sentinel" in it })
+    }
+
     private class Settings(
         override val threeIslands: Boolean = true,
         override val landscapeFull: Boolean = false,

@@ -10,6 +10,22 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class CallbackContextTest {
+    @Test fun `native event ownership survives nested animation and retires after failure`() {
+        val context = CallbackContext()
+        val outer = IslandSession(Any())
+        val inner = IslandSession(Any())
+        context.withNativeSession(outer) {
+            runCatching {
+                context.withNativeSession(inner) {
+                    context.withAnimating(Any()) { assertSame(inner, context.nativeSession) }
+                    error("native failure")
+                }
+            }
+            assertSame(outer, context.nativeSession)
+            assertNull(context.transaction)
+        }
+        assertNull(context.nativeSession)
+    }
     @Test fun `nested scopes restore the surrounding frame`() {
         val context = CallbackContext()
         val session = IslandSession(Any())

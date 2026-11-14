@@ -21,6 +21,7 @@ internal class NativeIslandAccess(private val discovery: NativeIslandDiscovery) 
     val small = load(root + "event.DynamicIslandState\$SmallIsland")
     val hidden = load(root + "event.DynamicIslandState\$Hidden")
     val big = load(root + "event.DynamicIslandState\$BigIsland")
+    val empty = load(root + "event.DynamicIslandState\$Empty")
     val swipe = load(root + "event.SwipeEventCoordinator")
     val swipeLeft = load(root + "event.DynamicIslandEvent\$SwipeLeft")
     val swipeRight = load(root + "event.DynamicIslandEvent\$SwipeRight")
@@ -162,6 +163,12 @@ internal class NativeIslandAccess(private val discovery: NativeIslandDiscovery) 
     val window = load(root + "window.DynamicIslandWindowView")
     val touchView = NativeIslandMembers.field(touch, window)
     val windowCoordinator = resolve(window, "getEventCoordinator")
+    // Native refill/arbitration, also used by deletion and RebuildStateKeeper. Resolve the
+    // unique virtual shapes before installing any callback, rather than guessing slot states.
+    val fillNative = handler.declaredMethods.single {
+        it.parameterTypes.toList() == listOf(ArrayList::class.java) && it.returnType == content
+    }.apply { isAccessible = true }
+    val admitNative = discovery.entries.getValue("nativeAdmit")
     private val eventFields = IslandEventFields(state)
     val smallConstructor = small.getDeclaredConstructor()
     val hiddenConstructor = hidden.getDeclaredConstructor()
