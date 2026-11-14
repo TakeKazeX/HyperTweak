@@ -2,6 +2,34 @@
 
 Per-feature mechanisms, host contracts and known limitations. Search by feature or class name and read only the matching section.
 
+## Package manager core patches
+
+`PackageManagerHooker` runs only in `system_server`. The shared UID signature option
+(`PackageManagerSettingsKeys.KEY_SHARED_UID`) defaults off and follows the core master
+switch through the shared runtime-settings dispatcher. With only this option enabled, it
+changes only error -8 from `PackageManagerServiceUtils.verifySignatures` during install
+preparation/reconciliation for ordinary application shared groups; factory packages remain excluded.
+The nested `KEY_SYSTEM_SHARED_UID` option also defaults off and requires the parent and master.
+It admits -7/-8 for system/privileged shared groups (including factory-package updates) and
+scopes the subsequent installed-data capability override to the exact incoming/installed
+signer pair for that prepare call. Permission-signature comparisons keep their native result;
+only same-package permission redeclaration may be allowed when incoming/installed shared-user
+names match and the installed package belongs to a system/privileged shared identity.
+Non-shared system updates, cross-package permission ownership, permission grants and signer
+identity retain native behavior. Reconciliation is deoptimized to retain the verify call boundary.
+`SharedUidInstallPolicy` centralizes the failure/UID/group classification for JVM regression tests.
+The hook owns no persistent host state; live disable/reset and hot reload restore the native
+decision for subsequent requests. Already installed shared-UID membership is persistent PMS
+state and is not undone by disabling the option. Both locale descriptions label it extremely
+dangerous and explain shared permissions/private-data access and this persistence limitation.
+`PackageManagerPage` expands the system option only under the enabled parent. Enabling it
+requires a Miuix WindowDialog confirmation before writing true; cancel/back/dismiss leaves it
+off. The warning body scrolls separately from the buttons. Master disable keeps selections,
+while disabling/resetting the shared-UID parent clears the system child (including debug edits).
+The page also clears a stale true child under a false parent from an older build. Re-enabling
+the parent therefore requires a new child confirmation. UI/installation acceptance,
+including any re-signed SystemUI plugin, remains separate from build and hook-load evidence.
+
 ## App UI shell
 
 Settings navigation uses Miuix `miuix-nav` in `ui/navigation/HyperTweakNavContainer.kt`.

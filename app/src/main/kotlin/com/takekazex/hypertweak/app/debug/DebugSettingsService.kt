@@ -82,6 +82,11 @@ internal object DebugSettingsService {
         require(method != "reset" || (changes.isEmpty() && remove.isNotEmpty())) { "RESET_REQUIRES_REMOVE" }
         remove.forEach { require(inventory[it]?.writable == true) { "READ_ONLY_SETTING: $it" } }
         val requested = (changes.keys + remove).toSet()
+        if ((changes[PackageManagerSettingsKeys.KEY_SHARED_UID] == false ||
+                PackageManagerSettingsKeys.KEY_SHARED_UID in remove) &&
+            PackageManagerSettingsKeys.KEY_SYSTEM_SHARED_UID !in remove) {
+            changes[PackageManagerSettingsKeys.KEY_SYSTEM_SHARED_UID] = false
+        }
         // Migration-aware UI setters remove obsolete selectors; independent power switches flatten
         // the effective old selection before opening the legacy gate.
         if (PlatformSettingsKeys.KEY_POWER_BUTTON_ACTION in changes) remove += PlatformSettingsKeys.KEY_POWER_BUTTON_CTS
@@ -179,6 +184,8 @@ internal object DebugSettingsService {
             PackageManagerSettingsKeys.KEY_AUTH_CREAK -> corePatchEnabled() && authCreakEnabled()
             PackageManagerSettingsKeys.KEY_DISABLE_INTEGRITY -> corePatchEnabled() &&
                 (bool(PackageManagerSettingsKeys.KEY_DISABLE_INTEGRITY) || authCreakEnabled())
+            PackageManagerSettingsKeys.KEY_SYSTEM_SHARED_UID -> corePatchEnabled() &&
+                bool(PackageManagerSettingsKeys.KEY_SHARED_UID) && bool(d.key)
             in PackageManagerSettingsKeys.corePatchKeys -> corePatchEnabled() && bool(d.key)
             in PackageManagerSettingsKeys.extendedPatchKeys -> bool(d.key)
             in powerKeys -> bool(PlatformSettingsKeys.KEY_POWER_SAVE_OVERRIDE_MASTER) && bool(d.key)

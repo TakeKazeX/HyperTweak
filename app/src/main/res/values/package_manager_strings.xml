@@ -16,6 +16,13 @@
     <string name="package_manager_disable_integrity_summary">Prohibit automatic recovery of modified content.</string>
     <string name="package_manager_split_signature">Allow mismatched split signatures</string>
     <string name="package_manager_split_signature_summary">Install a base APK and its split APKs even when their signatures differ.</string>
+    <string name="package_manager_shared_uid">Relax shared UID signature checks</string>
+    <string name="package_manager_shared_uid_summary">Extremely dangerous: allow differently signed apps to join the same ordinary app shared UID. They may share permissions and access each other’s private data, causing data leaks or app failures. Turning this off does not undo existing shared UID membership. System UIDs require the additional option below.</string>
+    <string name="package_manager_system_shared_uid">Allow system shared UIDs</string>
+    <string name="package_manager_system_shared_uid_summary">Extremely dangerous: also relax signature checks for system UIDs and privileged shared groups, including re-signed updates to their apps.</string>
+    <string name="package_manager_system_shared_uid_confirm_title">Allow system shared UIDs?</string>
+    <string name="package_manager_system_shared_uid_confirm_message">Extremely dangerous! Differently signed apps may join system or privileged shared groups such as android.uid.system and replace apps in those groups, including miui.systemui.plugin.\n\nUntrusted code could gain system-level privileges, access sensitive data, crash the system UI, or prevent the device from booting normally.\n\nTurning this off does not remove installed apps or shared UID membership, or restore original apps. Enable only if you understand the risks and have a recovery method. Whether an APK runs correctly still depends on compatibility with your system version.</string>
+    <string name="package_manager_system_shared_uid_confirm">Confirm enable</string>
     <string name="package_manager_low_target">Allow apps for older Android versions</string>
     <string name="package_manager_low_target_summary">Install apps that target an Android version the system normally blocks.</string>
     <string name="package_manager_verifier">Skip install verification service</string>

@@ -113,6 +113,25 @@ class RuntimeSettingsRoutingTest {
         assertTrue(Groups.PASSIVE_POLICIES in Groups.forProcess("com.xiaomi.bluetooth:application"))
     }
 
+    @Test fun systemSharedUidOptionCanBeAddedToAnOldSnapshotAndRemovedAfterReload() {
+        val parent = PackageManagerSettingsKeys.KEY_SHARED_UID
+        val child = PackageManagerSettingsKeys.KEY_SYSTEM_SHARED_UID
+        val groups = setOf(Groups.PACKAGE_MANAGER)
+        val legacy = RuntimeSettingsSnapshot.read(1, mapOf(parent to true), groups)!!
+        val ledger = RuntimeSettingsLedger().also { assertTrue(it.accept(legacy)) }
+        assertNull(ledger.value(child))
+        val enabled = legacy.mutate(child, true, 2)!!
+        assertEquals(groups, ledger.changedGroups(enabled))
+        assertTrue(ledger.accept(enabled))
+        val reloaded = RuntimeSettingsLedger().also { it.restore(ledger.save()) }
+        assertTrue(reloaded.accept(enabled.mutate(parent, false, 3)!!))
+        assertEquals(false, reloaded.value(parent))
+        assertEquals(true, reloaded.value(child))
+        assertTrue(reloaded.accept(RuntimeSettingsSnapshot.read(4, emptyMap<String, Any>(), groups)!!))
+        assertNull(reloaded.value(parent))
+        assertNull(reloaded.value(child))
+    }
+
     @Test fun aospRestoreAndPackageManagerPublishSwitchesAndResetToTheirOwners() {
         val keys = mapOf(
             Groups.PACKAGE_MANAGER to PackageManagerSettingsKeys.keys.toList(),

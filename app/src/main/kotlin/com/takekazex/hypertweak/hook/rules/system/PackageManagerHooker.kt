@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.system
 
+import android.content.pm.ApplicationInfo
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.HostAccess
@@ -41,6 +42,8 @@ internal object PackageManagerHooker : StaticHooker() {
     private val disableIntegrity get() = PackageManagerSettingsKeys.KEY_DISABLE_INTEGRITY in activePatches
     private val updateSignature get() = PackageManagerSettingsKeys.KEY_UPDATE_SIGNATURE in activePatches
     private val splitSignature get() = PackageManagerSettingsKeys.KEY_SPLIT_SIGNATURE in activePatches
+    private val sharedUid get() = PackageManagerSettingsKeys.KEY_SHARED_UID in activePatches
+    private val systemSharedUid get() = sharedUid && PackageManagerSettingsKeys.KEY_SYSTEM_SHARED_UID in activePatches
     private val verificationAgent get() = PackageManagerSettingsKeys.KEY_VERIFICATION_AGENT in activePatches
     private val persistentUpdate get() = PackageManagerSettingsKeys.KEY_PERSISTENT_UPDATE in activePatches
     private val systemAppUpdate get() = PackageManagerSettingsKeys.KEY_SYSTEM_APP_UPDATE in activePatches
@@ -59,7 +62,7 @@ internal object PackageManagerHooker : StaticHooker() {
             prepare.hook("pms.prepare") {
                 intercept { chain ->
                     if (!lowTarget && !authCreak && !disableIntegrity && !updateSignature &&
-                        !persistentUpdate && !systemAppUpdate && !isolation) return@intercept chain.proceed()
+                        !sharedUid && !persistentUpdate && !systemAppUpdate && !isolation) return@intercept chain.proceed()
                     val previous = updatePair.get()
                     updatePair.remove()
                     try {
@@ -80,7 +83,7 @@ internal object PackageManagerHooker : StaticHooker() {
         install("reconcile_scope") {
             pmMethod("InstallPackageHelper", "reconcileInstallPackages", List::class.java,
                 List::class.java, Map::class.java)
-                .scope("reconcile_install", reconciling) { updateSignature }
+                .scope("reconcile_install", reconciling) { updateSignature || sharedUid }
         }
 
         install("downgrade") {
@@ -165,6 +168,7 @@ internal object PackageManagerHooker : StaticHooker() {
             }
         }
         install("update_signature") { installSignaturePolicy(preparing, reconciling, permissionCheck, updatePair) }
+        install("shared_uid_signature") { installSharedUidPolicy(preparing, reconciling) }
         install("permission_redeclaration") { installPermissionRedeclarationPolicy(preparing) }
         install("split_signature") {
             val signing = host("android.content.pm.SigningDetails")
@@ -206,6 +210,87 @@ internal object PackageManagerHooker : StaticHooker() {
         }
     }
 
+    private fun installSharedUidPolicy(preparing: ThreadActivation, reconciling: ThreadActivation) {
+        val setting = pm("PackageSetting")
+        val shared = pm("SharedUserSetting")
+        val exception = pm("PackageManagerException")
+        val error = HostAccess.requireDeclaredField(exception, "error", accessible = true)
+        check(error.type == Integer.TYPE) { "Unexpected PackageManagerException.error type" }
+        val isSystem = method(setting, "isSystem", java.lang.Boolean.TYPE, accessible = true)
+        val appId = method(shared, "getAppId", Integer.TYPE, accessible = true)
+        val flags = method(pm("SettingBase"), "getFlags", Integer.TYPE, accessible = true)
+        val privileged = method(shared, "isPrivileged", java.lang.Boolean.TYPE, accessible = true)
+        val oldSigning = method(setting, "getSigningDetails", host("android.content.pm.SigningDetails"), accessible = true)
+        val signing = host("android.content.pm.SigningDetails")
+        val capability = method(signing, "checkCapability", java.lang.Boolean.TYPE, signing, Integer.TYPE)
+        val parsed = host("com.android.internal.pm.parsing.pkg.ParsedPackage")
+        val permissionCheck = ThreadActivation()
+        val systemUpdatePair = ThreadLocal<UpdateSigners>()
+        deoptimize(pmMethod("ReconcilePackageUtils", "reconcilePackages", List::class.java,
+            List::class.java, Map::class.java, Map::class.java, pm("SharedLibrariesImpl"),
+            pm("KeySetManagerService"), pm("Settings"), host("com.android.server.SystemConfig")))
+        // preparePackage repeats the installed-data comparison outside verifySignatures.
+        pmMethod("InstallPackageHelper", "preparePackage", Void.TYPE, pm("InstallRequest"))
+            .hook("pms.system_shared_uid_prepare") {
+                intercept { chain ->
+                    val previous = systemUpdatePair.get()
+                    systemUpdatePair.remove()
+                    try {
+                        chain.proceed()
+                    } finally {
+                        if (previous == null) systemUpdatePair.remove() else systemUpdatePair.set(previous)
+                    }
+                }
+            }
+        pmMethod("InstallPackageHelper", "doesSignatureMatchForPermissions", java.lang.Boolean.TYPE,
+            String::class.java, parsed, Integer.TYPE)
+            .scope("system_shared_uid_permission_signatures", permissionCheck) { preparing.active || reconciling.active }
+        capability.hook("pms.system_shared_uid_installed_data") {
+            before { param ->
+                if (!systemSharedUid || !preparing.active || permissionCheck.active ||
+                    param.args[1] != CAPABILITY_INSTALLED_DATA) return@before
+                val pair = systemUpdatePair.get() ?: return@before
+                if (param.thisObject === pair.incoming && param.args[0] === pair.installed) param.result = true
+            }
+        }
+        val verify = pmMethod("PackageManagerServiceUtils", "verifySignatures", java.lang.Boolean.TYPE,
+            setting, shared, setting, host("android.content.pm.SigningDetails"),
+            java.lang.Boolean.TYPE, java.lang.Boolean.TYPE, java.lang.Boolean.TYPE)
+        verify.hook("pms.shared_uid_signature") {
+            after { param ->
+                val failure = param.throwable
+                if (!sharedUid || (!preparing.active && !reconciling.active) ||
+                    !exception.isInstance(failure)) return@after
+                val existing = param.args[0] ?: return@after
+                val sharedUser = param.args[1] ?: return@after
+                val allow = HookFailurePolicy.open(hookerName, "classify shared UID signature failure", false) {
+                    val uid = appId.invoke(sharedUser) as? Int ?: return@open false
+                    val uidFlags = flags.invoke(sharedUser) as? Int ?: return@open false
+                    val systemFlags = ApplicationInfo.FLAG_SYSTEM or ApplicationInfo.FLAG_UPDATED_SYSTEM_APP
+                    val target = SharedUidInstallPolicy.Target(
+                        appId = uid,
+                        packageSystem = isSystem.invoke(existing) as? Boolean ?: return@open false,
+                        groupSystem = uidFlags and systemFlags != 0,
+                        privileged = privileged.invoke(sharedUser) as? Boolean ?: return@open false,
+                        factoryPackage = param.args[2] != null,
+                    )
+                    if (!SharedUidInstallPolicy.allows(error.getInt(failure), systemSharedUid, target)) return@open false
+                    if (target.requiresSystemOption && preparing.active) {
+                        val installed = oldSigning.invoke(existing) ?: return@open false
+                        val incoming = param.args[3] ?: return@open false
+                        systemUpdatePair.set(UpdateSigners(installed, incoming))
+                    }
+                    true
+                }
+                // False means no legacy keyset migration; PMS still owns signers and shared-user state.
+                if (allow) {
+                    param.throwable = null
+                    param.result = false
+                }
+            }
+        }
+    }
+
     private fun installPermissionRedeclarationPolicy(preparing: ThreadActivation) {
         val helper = pm("InstallPackageHelper")
         val service = pm("PackageManagerService")
@@ -230,22 +315,40 @@ internal object PackageManagerHooker : StaticHooker() {
         val isUpdatedSystem = HostAccess.requirePublicMethod(state, "isUpdatedSystemApp", accessible = true)
         val isPrivileged = HostAccess.requirePublicMethod(state, "isPrivileged", accessible = true)
         val hasSharedUser = HostAccess.requirePublicMethod(state, "hasSharedUser", accessible = true)
+        val sharedAppId = HostAccess.requirePublicMethod(state, "getSharedUserAppId", accessible = true).also {
+            check(it.returnType == Integer.TYPE) { "Unexpected shared user appId return type" }
+        }
 
         matchPermissions.hook("pms.same_package_permission_redeclaration") {
             after { param ->
-                if (!updateSignature || !preparing.active || param.throwable != null || param.result != false) {
+                if ((!updateSignature && !systemSharedUid) || !preparing.active ||
+                    param.throwable != null || param.result != false) {
                     return@after
                 }
                 val owner = param.args[0] as? String ?: return@after
                 val incoming = param.args[1] ?: return@after
                 val helperInstance = param.thisObject
                 val allow = HookFailurePolicy.open(hookerName, "classify same-package permission redeclaration", false) {
-                    if (owner.isEmpty() || owner == "android" || packageName.invoke(incoming) != owner ||
-                        sharedUserId.invoke(incoming) != null) return@open false
+                    if (owner.isEmpty() || owner == "android" || packageName.invoke(incoming) != owner) return@open false
                     val pmService = pmField.get(helperInstance) ?: return@open false
                     val packageSnapshot = snapshot.invoke(pmService) ?: return@open false
                     val installed = packageState.invoke(packageSnapshot, owner) ?: return@open false
-                    statePackageName.invoke(installed) == owner && installedPackage.invoke(installed) != null &&
+                    if (statePackageName.invoke(installed) != owner) return@open false
+                    val installedApk = installedPackage.invoke(installed) ?: return@open false
+                    val incomingShared = sharedUserId.invoke(incoming)
+                    if (incomingShared != null) {
+                        if (!systemSharedUid || hasSharedUser.invoke(installed) != true ||
+                            sharedUserId.invoke(installedApk) != incomingShared) return@open false
+                        val target = SharedUidInstallPolicy.Target(
+                            appId = sharedAppId.invoke(installed) as? Int ?: return@open false,
+                            packageSystem = isSystem.invoke(installed) as? Boolean ?: return@open false,
+                            groupSystem = false,
+                            privileged = isPrivileged.invoke(installed) as? Boolean ?: return@open false,
+                            factoryPackage = disabledSystemPackage.invoke(packageSnapshot, owner) != null,
+                        )
+                        return@open target.valid && target.requiresSystemOption
+                    }
+                    updateSignature &&
                         isSystem.invoke(installed) == false && isUpdatedSystem.invoke(installed) == false &&
                         isPrivileged.invoke(installed) == false && hasSharedUser.invoke(installed) == false &&
                         disabledSystemPackage.invoke(packageSnapshot, owner) == null

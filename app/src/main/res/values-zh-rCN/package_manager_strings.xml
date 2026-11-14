@@ -16,6 +16,13 @@
     <string name="package_manager_disable_integrity_summary">禁止系统自动恢复被篡改的内容。</string>
     <string name="package_manager_split_signature">允许拆分包签名不同</string>
     <string name="package_manager_split_signature_summary">主 APK 和拆分 APK 签名不同也能一起安装。</string>
+    <string name="package_manager_shared_uid">放宽共享 UID 的签名检查</string>
+    <string name="package_manager_shared_uid_summary">极度危险：允许不同签名的应用加入同一个普通应用共享 UID，可能共享权限并访问彼此的私有数据，导致数据泄露或应用异常。关闭后不会撤销已建立的共享关系。系统 UID 需另行开启下方选项。</string>
+    <string name="package_manager_system_shared_uid">允许系统共享 UID</string>
+    <string name="package_manager_system_shared_uid_summary">极度危险：进一步放行系统 UID 与特权共享组的签名检查，允许此类应用的异签名覆盖安装。</string>
+    <string name="package_manager_system_shared_uid_confirm_title">允许系统共享 UID？</string>
+    <string name="package_manager_system_shared_uid_confirm_message">极度危险！开启后，不同签名的应用可能加入 android.uid.system 等系统或特权共享组，并覆盖更新此类应用（如 miui.systemui.plugin）。\n\n这可能让不可信代码获得系统级权限、访问敏感数据，造成系统界面崩溃或设备无法正常启动。\n\n关闭开关不会撤销已安装的应用或共享关系，也不会自动恢复原版。仅在理解风险且已有恢复手段时开启。能否正常运行仍取决于 APK 与系统版本是否兼容。</string>
+    <string name="package_manager_system_shared_uid_confirm">确认开启</string>
     <string name="package_manager_low_target">允许安装面向旧版 Android 的应用</string>
     <string name="package_manager_low_target_summary">安装系统因 targetSdk 过旧而阻止的应用。</string>
     <string name="package_manager_verifier">跳过安装时的系统校验服务</string>

@@ -13,6 +13,8 @@ internal object PackageManagerSettingsKeys {
 
     const val KEY_UPDATE_SIGNATURE = "package_manager_allow_different_update_signature"
     const val KEY_SPLIT_SIGNATURE = "package_manager_allow_different_split_signature"
+    const val KEY_SHARED_UID = "package_manager_allow_different_shared_uid_signature"
+    const val KEY_SYSTEM_SHARED_UID = "package_manager_allow_system_shared_uid"
     const val KEY_VERIFICATION_AGENT = "package_manager_disable_verification_agent"
     const val KEY_PERSISTENT_UPDATE = "package_manager_allow_persistent_update"
     const val KEY_SYSTEM_APP_UPDATE = "package_manager_allow_system_app_update"
@@ -31,7 +33,7 @@ internal object PackageManagerSettingsKeys {
     /** Options controlled by the page's master switch. */
     val corePatchKeys = setOf(
         KEY_DOWNGRADE, KEY_UPDATE_SIGNATURE, KEY_AUTH_CREAK,
-        KEY_DISABLE_INTEGRITY, KEY_SPLIT_SIGNATURE,
+        KEY_DISABLE_INTEGRITY, KEY_SPLIT_SIGNATURE, KEY_SHARED_UID, KEY_SYSTEM_SHARED_UID,
     )
 
     /** Independent install options, always available regardless of the master switch. */
