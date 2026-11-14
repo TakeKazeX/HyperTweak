@@ -52,7 +52,8 @@ internal class CarrierRowRenderer {
     private val iconHeights = WeakHashMap<Resources, IconHeight>()
 
     fun renderRow(parts: CarrierRowParts, rows: List<CarrierRowModel>, input: CarrierRenderInput) {
-        val model = rows.firstOrNull { it.slot == parts.slot && it.visible }
+        val hidden = !input.mobileState.airplaneMode && parts.slot in input.hiddenCarrierSlots
+        val model = rows.firstOrNull { it.slot == parts.slot && it.visible }?.takeUnless { hidden }
         parts.model = model
         // Read the controller's raw custom value, not its merged carrier/SPN output: only the
         // explicit Settings override may take priority over a renamed SIM. Controller and row
@@ -64,7 +65,7 @@ internal class CarrierRowRenderer {
             customName, model?.subId?.let(input.simNames::get), parts.nativeCarrierText
         )
         if (parts.carrierText.text.toString() != name.toString()) parts.carrierText.text = name
-        parts.carrierText.visibility = if (parts.slot in input.hiddenCarrierSlots || input.mobileState.airplaneMode || parts.carrierText.text.isNullOrBlank()) View.GONE else View.VISIBLE
+        parts.carrierText.visibility = if (hidden || input.mobileState.airplaneMode || parts.carrierText.text.isNullOrBlank()) View.GONE else View.VISIBLE
         parts.airplaneText.visibility = if (model?.airplane == true && input.airplaneLabel != AirplaneLabelMode.HIDE)
             View.VISIBLE else View.GONE
         AirplaneLabelText.apply(parts.airplaneText, parts.airplaneLabel, input.airplaneLabel, input.mirrorAirplane)
@@ -77,7 +78,7 @@ internal class CarrierRowRenderer {
         if (model == null) {
             // Before reducer readiness the host label remains usable. An actually absent
             // slot is hidden only when another subscription establishes a known row set.
-            parts.row.visibility = if (parts.slot in input.hiddenCarrierSlots || input.mobileState.airplaneMode || rows.any { it.visible }) View.GONE else parts.rowState.visibility
+            parts.row.visibility = if (hidden || input.mobileState.airplaneMode || rows.any { it.visible }) View.GONE else parts.rowState.visibility
             parts.signal.setImageDrawable(null)
             parts.signal.visibility = View.GONE
             parts.networkSlot.visibility = View.GONE

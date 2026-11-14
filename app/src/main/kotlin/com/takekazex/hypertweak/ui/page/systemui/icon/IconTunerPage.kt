@@ -35,6 +35,7 @@ import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.presentation.icon.duo.DuoLayout
 import com.takekazex.hypertweak.presentation.icon.duo.DuoSizes
 import com.takekazex.hypertweak.settings.contract.AirplaneLabelModes
+import com.takekazex.hypertweak.settings.contract.CarrierRowVisibility
 import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
 import com.takekazex.hypertweak.settings.contract.IconSlotPolicy
 import com.takekazex.hypertweak.settings.contract.IconSlotPolicyConfig
@@ -433,6 +434,7 @@ fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit, onNavig
                     )
                     3 -> {
                         CarrierSection(
+                            carrierHiding = pref(IconSettingsKeys.KEY_ICON_CC_CARRIER_HIDING, 0),
                             hideHd = pref(IconSettingsKeys.KEY_ICON_HIDE_CARRIER_HD, false),
                             ccCarrierLeft = pref(SystemUiSettingsKeys.KEY_CC_CARRIER_LEFT, false),
                             ccHideDate = pref(SystemUiSettingsKeys.KEY_CC_HIDE_DATE, false),
@@ -1202,6 +1204,7 @@ private fun BatteryStyleSection(style: Int, onChange: (Int) -> Unit) {
 
 @Composable
 private fun CarrierSection(
+    carrierHiding: Int,
     hideHd: Boolean,
     ccCarrierLeft: Boolean,
     ccHideDate: Boolean,
@@ -1215,17 +1218,31 @@ private fun CarrierSection(
     onNavigateToIconRows: () -> Unit,
     onChange: (String, Any) -> Unit
 ) {
-    val carrierLeftEnabled = !(ccHideDate && ccTwoLine)
+    val nativeCarrierOptionsEnabled = CarrierRowVisibility.nativeControlsEnabled(ccHideDate, ccTwoLine)
     SmallTitle(stringResource(R.string.icon_carrier_title))
     Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
         Column(Modifier.fillMaxWidth()) {
+            OverlayDropdownPreference(
+                title = stringResource(R.string.icon_cc_hide_carrier_name),
+                summary = stringResource(if (nativeCarrierOptionsEnabled) R.string.icon_cc_hide_carrier_name_summary
+                    else R.string.icon_cc_hide_carrier_two_line_disabled),
+                items = listOf(
+                    stringResource(R.string.icon_cc_carrier_name_show),
+                    stringResource(R.string.icon_cc_carrier_name_hide_one),
+                    stringResource(R.string.icon_cc_carrier_name_hide_two),
+                    stringResource(R.string.icon_cc_carrier_name_hide_both)
+                ),
+                selectedIndex = carrierHiding,
+                enabled = nativeCarrierOptionsEnabled,
+                onSelectedIndexChange = { onChange(IconSettingsKeys.KEY_ICON_CC_CARRIER_HIDING, it) }
+            )
             // 开关 1: control-center carrier label on the leading edge.
             TunerSwitch(
                 ccCarrierLeft,
                 stringResource(R.string.icon_cc_carrier_left),
-                stringResource(if (carrierLeftEnabled) R.string.icon_cc_carrier_left_summary
+                stringResource(if (nativeCarrierOptionsEnabled) R.string.icon_cc_carrier_left_summary
                     else R.string.icon_cc_carrier_left_two_line_summary),
-                enabled = carrierLeftEnabled
+                enabled = nativeCarrierOptionsEnabled
             ) { onChange(SystemUiSettingsKeys.KEY_CC_CARRIER_LEFT, it) }
             // 开关 2: hide the control-center date; it is also the enabling switch of 开关 3/4.
             TunerSwitch(

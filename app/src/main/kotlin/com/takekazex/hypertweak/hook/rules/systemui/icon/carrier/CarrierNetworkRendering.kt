@@ -57,7 +57,9 @@ internal fun CarrierRenderer.hiddenSimIds(): Set<Int> = networkVisibility.hidden
     ) { slotIndices[it] ?: CarrierBlockPolicy.INVALID_SLOT }
 
 internal fun CarrierRenderer.hiddenCarrierSlots(): Set<Int> = (0 until CarrierBlockPolicy.ROW_COUNT)
-    .filterTo(linkedSetOf()) { slot -> networkVisibility.hidesCarrier(slot, mobileState, ::slotOf) }
+    .filterTo(linkedSetOf()) { slot ->
+        !mobileState.airplaneMode && networkVisibility.hidesCarrier(slot, mobileState, ::slotOf)
+    }
 
 internal fun CarrierRenderer.hidesWifi(): Boolean =
         networkVisibility.hidesWifi(IconSurface.CONTROL_CENTER, wifiDefault == true || wifiLevel != null)

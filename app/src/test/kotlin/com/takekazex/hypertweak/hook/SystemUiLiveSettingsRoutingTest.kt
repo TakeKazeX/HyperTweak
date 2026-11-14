@@ -3,6 +3,7 @@ package com.takekazex.hypertweak.hook
 import com.takekazex.hypertweak.hook.runtime.settings.RuntimeSettingsLedger
 import com.takekazex.hypertweak.hook.runtime.settings.RuntimeSettingsSnapshot
 import com.takekazex.hypertweak.settings.contract.AodSettingsKeys
+import com.takekazex.hypertweak.settings.contract.CarrierRowVisibility
 import com.takekazex.hypertweak.settings.contract.IconConfigDecoder
 import com.takekazex.hypertweak.settings.contract.IconConfigReload
 import com.takekazex.hypertweak.settings.contract.IndependentIconDomain
@@ -26,6 +27,46 @@ import org.junit.Test
  */
 class SystemUiLiveSettingsRoutingTest {
     private val systemUi = "com.android.systemui"
+
+    @Test fun carrierNameDropdownAndResetRefreshOnlyTheHeaderWithoutHidingSims() {
+        val key = IconSettingsKeys.KEY_ICON_CC_CARRIER_HIDING
+        val base = IconConfigDecoder.decode { null }
+        val expected = setOf(IndependentIconDomain.CONTROL_CENTER_HEADER)
+        for (mode in 0..3) {
+            val config = IconConfigDecoder.decode { if (it == key) mode else null }
+            assertEquals(mode, config.controlCenter.carrierHiding)
+            assertEquals(base.network, config.network)
+            assertEquals(base.cellular, config.cellular)
+            assertEquals(base.slots, config.slots)
+            assertEquals(setOf(Groups.ICONS), Groups.affected(key))
+            assertEquals(mapOf(key to mode), Groups.subset(systemUi, mapOf(key to mode)))
+            assertNotNull(RuntimeSettingsSnapshot.read(1, mapOf(key to mode), setOf(Groups.ICONS)))
+            for (next in 0..3) {
+                val changed = IconConfigDecoder.decode { if (it == key) next else null }
+                assertEquals(if (mode == next) emptySet() else expected, IconConfigReload.domains(config, changed))
+            }
+        }
+    }
+
+    @Test fun twoLineCarriersSuspendNativeHidingAndRestoreTheSavedSelection() {
+        fun config(mode: Int, hideDate: Boolean, twoLine: Boolean) = IconConfigDecoder.decode { key -> when (key) {
+            IconSettingsKeys.KEY_ICON_CC_CARRIER_HIDING -> mode
+            SystemUiSettingsKeys.KEY_CC_HIDE_DATE -> hideDate
+            SystemUiSettingsKeys.KEY_CC_CARRIER_TWO_LINE -> twoLine
+            else -> null
+        } }
+        for (mode in 0..3) for (hideDate in listOf(false, true)) for (twoLine in listOf(false, true)) {
+            val configured = config(mode, hideDate, twoLine)
+            val compact = hideDate && twoLine
+            assertEquals(mode, configured.controlCenter.carrierHiding)
+            assertEquals(if (compact) 0 else mode, configured.controlCenter.nativeCarrierHiding)
+            assertEquals(!compact, CarrierRowVisibility.nativeControlsEnabled(hideDate, twoLine))
+            val restored = config(mode, true, false)
+            assertEquals(mode, restored.controlCenter.nativeCarrierHiding)
+            if (compact) assertTrue(IconConfigReload.domains(configured, restored)!!.contains(IndependentIconDomain.CONTROL_CENTER_HEADER))
+            assertEquals(config(0, hideDate, twoLine).network, configured.network)
+        }
+    }
 
     @Test fun iconReloadUsesDecodedSectionsIncludingMigratedStyleKeys() {
         fun config(values: Map<String, Any>) = IconConfigDecoder.decode { values[it] }

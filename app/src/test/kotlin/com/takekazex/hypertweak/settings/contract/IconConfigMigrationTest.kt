@@ -10,6 +10,19 @@ class IconConfigMigrationTest {
     private fun decode(vararg stored: Pair<String, Any>): IconConfig = IconConfigDecoder.decode(mapOf(*stored)::get)
 
     @Test
+    fun carrierNameSwitchMigratesToBothWhileExplicitDropdownIncludingDefaultWins() {
+        val old = IconConfigMigration.LEGACY_CC_HIDE_CARRIER_NAME
+        val key = IconSettingsKeys.KEY_ICON_CC_CARRIER_HIDING
+        assertEquals(false, IconConfigMigration.legacyType(old))
+        assertEquals(3, decode(old to true).controlCenter.carrierHiding)
+        assertEquals(0, decode(old to false).controlCenter.carrierHiding)
+        assertEquals(0, decode().controlCenter.carrierHiding)
+        for (mode in 0..3) assertEquals(mode, decode(old to true, key to mode).controlCenter.carrierHiding)
+        for (invalid in listOf(-1, 4, Int.MAX_VALUE))
+            assertEquals(0, decode(old to true, key to invalid).controlCenter.carrierHiding)
+    }
+
+    @Test
     fun retiredStyleSwitchesSelectTheSignalStyleAndDuoWins() {
         assertEquals(SignalStyle.STACKED, decode(LEGACY_STACKED to true).signalStyle)
         assertEquals(SignalStyle.STACKED, decode(IconSettingsKeys.KEY_ICON_STACKED_ENABLED to true).signalStyle)

@@ -29,7 +29,7 @@ class DebugSettingTest {
     }
     @Test fun iconDropdownsAcceptAllUiModesAndRejectUnknownModes() {
         val entries = DebugSettingsCatalog.entries
-        for (key in listOf("icon_tuner_wifi_standard_mode", "icon_cellular_roam_mode")) {
+        for (key in listOf("icon_tuner_wifi_standard_mode", "icon_cellular_roam_mode", "icon_cc_carrier_name_hiding")) {
             assertEquals(3, entries.getValue(key).decode(3))
             rejects { entries.getValue(key).decode(4) }
         }
@@ -37,6 +37,7 @@ class DebugSettingTest {
         rejects { entries.getValue("systemui_cc_battery_percent_style").decode(3) }
     }
     @Test fun retiredAndRuntimeKeysCannotBecomeWritableByPresenceInStorage() {
+        assertNull(DebugSettingsCatalog.entries["icon_cc_hide_carrier_name"])
         assertNull(DebugSettingsCatalog.entries["prefs_epoch"])
         assertNull(DebugSettingsCatalog.entries["debug_access_session"])
         assertFalse(DebugSettingsCatalog.entries.getValue("native_rules_revision").writable)

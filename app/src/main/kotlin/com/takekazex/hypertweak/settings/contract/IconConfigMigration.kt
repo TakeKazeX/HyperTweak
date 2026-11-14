@@ -20,6 +20,7 @@ internal object IconConfigMigration {
     const val LEGACY_STACKED_ENABLED = "icon_tuner_stacked_enabled"
     const val LEGACY_IGNORE_SYS_HIDE = "statusbar_ignore_sys_hide"
     const val LEGACY_HIDE_PRIVACY = "icon_tuner_hide_privacy"
+    const val LEGACY_CC_HIDE_CARRIER_NAME = "icon_cc_hide_carrier_name"
 
     private const val TYPE_ORDER_RIGHT = 2
     private const val WIFI_STANDARD_HIDDEN = 1
@@ -33,6 +34,7 @@ internal object IconConfigMigration {
         add(IconSettingsKeys.KEY_ICON_HIDE_SIM_AUTO)
         add(LEGACY_IGNORE_SYS_HIDE)
         add(LEGACY_HIDE_PRIVACY)
+        add(LEGACY_CC_HIDE_CARRIER_NAME)
         addAll(IconTunerContract.leftPreferenceSlots.values)
         add(IconSettingsKeys.KEY_ICON_LEFT_CONTAINER_ENABLED)
         add(IconSettingsPreferencePolicy.LEGACY_LEFT_CONTAINER)
@@ -62,6 +64,8 @@ internal object IconConfigMigration {
     private fun resolve(key: String, read: (String) -> Any?): Any? {
         read(key)?.let { return migrateSlotReferences(key, it) }
         return when {
+            key == IconSettingsKeys.KEY_ICON_CC_CARRIER_HIDING ->
+                CarrierRowVisibility.BOTH.takeIf { read(LEGACY_CC_HIDE_CARRIER_NAME) == true }
             key == IconSettingsKeys.KEY_ICON_SIM_ONE_VISIBILITY -> legacySimMode(read,
                 IconSettingsKeys.KEY_ICON_HIDE_SIM_ONE, IconSettingsKeys.KEY_ICON_HIDE_CARRIER_ONE)
             key == IconSettingsKeys.KEY_ICON_SIM_TWO_VISIBILITY -> legacySimMode(read,

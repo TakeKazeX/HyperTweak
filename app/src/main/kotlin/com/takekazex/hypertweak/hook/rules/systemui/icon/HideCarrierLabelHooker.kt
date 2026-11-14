@@ -3,6 +3,7 @@ package com.takekazex.hypertweak.hook.rules.systemui.icon
 import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
 import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
 
+import com.takekazex.hypertweak.settings.contract.CarrierRowVisibility
 import com.takekazex.hypertweak.hook.base.HostAccess
 import android.view.View
 import android.widget.TextView
@@ -33,6 +34,9 @@ import androidx.core.view.isGone
 internal object HideCarrierLabelHooker : IconRenderer() {
     // Published on settings acceptance; hook callbacks perform no storage reads.
     private val simVisibility by hookSetting(NetworkIconVisibility()) { IconTunerOptions.networkVisibility() }
+    private val settingCcCarrierHiding by hookSetting(0) {
+        Preferences.iconConfig().controlCenter.nativeCarrierHiding
+    }
     private val settingIconHideCarrierHd by hookSetting(false) { Preferences.iconConfig().boolean(IconSettingsKeys.KEY_ICON_HIDE_CARRIER_HD) }
     private val settingIconHideLsCarrierOne by hookSetting(false) {
         Preferences.iconConfig().boolean(IconSettingsKeys.KEY_ICON_HIDE_LS_CARRIER_ONE)
@@ -54,6 +58,7 @@ internal object HideCarrierLabelHooker : IconRenderer() {
         "com.android.systemui.controlcenter.shade.ControlCenterCarrierText\$mCarrierTextCallback\$1"
 
     private val knownRows = generationMainResource(WeakHashMap<View, Boolean>()) { it.clear() }
+    private var ccCarrierHiding by generationState { 0 }
     private var hideHd by generationState { false }
     private var hideLsOne by generationState { false }
     private var hideLsTwo by generationState { false }
@@ -81,12 +86,13 @@ internal object HideCarrierLabelHooker : IconRenderer() {
     }
 
     override fun onHook() {
+        ccCarrierHiding = settingCcCarrierHiding
         hideHd = settingIconHideCarrierHd
         hideLsOne = settingIconHideLsCarrierOne
         hideLsTwo = settingIconHideLsCarrierTwo
         val hidesControlCenter = listOf(simVisibility.simOneMode, simVisibility.simTwoMode,
             simVisibility.nonDefaultSimMode).contains(SimVisibilityPolicy.ALL)
-        if (!hidesControlCenter && !hideHd && !hideLsOne && !hideLsTwo) {
+        if (ccCarrierHiding == CarrierRowVisibility.NONE && !hidesControlCenter && !hideHd && !hideLsOne && !hideLsTwo) {
             DebugLog.hookSkippedDebug(TAG, "HideCarrierLabel", "disabled")
             return
         }
@@ -126,11 +132,15 @@ internal object HideCarrierLabelHooker : IconRenderer() {
         }
 
         // 2. HD icon — force hidden after every HD-state update.
-        if (hideHd || hidesControlCenter) {
+        if (ccCarrierHiding != CarrierRowVisibility.NONE || hideHd || hidesControlCenter) {
             val ccClass = ccTextClass
             if (ccClass != null && hdTextField != null && plusTextField != null) {
                 ccClass.findMethodOrNull { name("updateHDText"); paramCount(2) }?.let { method ->
                     method.observe {
+                        before { param ->
+                            runCatching { prepareHdUpdate(param.thisObject) }
+                                .onFailure { DebugLog.w(TAG, "carrier HD restore before native update failed", it) }
+                        }
                         after { param ->
                             val text = param.thisObject
                             runCatching {
@@ -180,6 +190,7 @@ internal object HideCarrierLabelHooker : IconRenderer() {
                     it.name == "addCallback" && it.parameterCount == 1 && it.parameterTypes[0].isInstance(callback)
                 }?.invoke(controller, callback)
             }
+            hideRequestedRow(row)
         }
         views.filter { it.javaClass.name == LAYOUT_CLASS }.forEach { layout ->
             hideRow(leftTextField, layout)
@@ -212,9 +223,10 @@ internal object HideCarrierLabelHooker : IconRenderer() {
                 else -> false
             }
         } else {
-            simVisibility.hidesCarrier(slotId, MobileSignalHub.state) { subId ->
-                runCatching { SubscriptionManager.getSlotIndex(subId) }.getOrDefault(-1)
-            }
+            CarrierRowVisibility.hidesSlot(ccCarrierHiding, slotId) ||
+                simVisibility.hidesCarrier(slotId, MobileSignalHub.state) { subId ->
+                    runCatching { SubscriptionManager.getSlotIndex(subId) }.getOrDefault(-1)
+                }
         }
         runCatching {
             val text = carrierTextViewField?.get(row) as? View ?: return
@@ -222,12 +234,23 @@ internal object HideCarrierLabelHooker : IconRenderer() {
             // SIM suppression without restoring over another owner's newer GONE request.
             if (airplaneRow) hiddenViews.remove(text)
             else if (hide) hideView(text) else restoreView(text)
+            // Text alone is insufficient: native HD/plus and compact artwork share this row.
+            if (!isKeyguard) (row as? View)?.let { view ->
+                if (hide) hideView(view) else restoreView(view)
+            }
             if (!isKeyguard) listOf(hdTextField, plusTextField).forEach { field ->
                 (field?.get(row) as? View)?.let { view ->
                     if (hide || hideHd) hideView(view) else restoreView(view)
                 }
             }
         }.onFailure { DebugLog.w(TAG, "HideCarrierLabel carrier visibility failed", it) }
+    }
+
+    /** Let the native HD writer see/update its latest state before reapplying our suppression. */
+    private fun prepareHdUpdate(row: Any) {
+        listOf(hdTextField, plusTextField).forEach { field ->
+            (field?.get(row) as? View)?.let(::restoreView)
+        }
     }
 
     private fun restoreView(view: View) {

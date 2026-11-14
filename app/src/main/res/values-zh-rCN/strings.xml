@@ -593,6 +593,13 @@
     <string name="icon_hide_ls_carrier_one_summary">在锁屏头部隐藏第一个运营商标签</string>
     <string name="icon_hide_ls_carrier_two">锁屏隐藏第二个运营商</string>
     <string name="icon_hide_ls_carrier_two_summary">在锁屏头部隐藏第二个运营商标签</string>
+    <string name="icon_cc_hide_carrier_name">隐藏控制中心运营商</string>
+    <string name="icon_cc_hide_carrier_two_line_disabled">已启用双层运营商，此选项暂不可用；保留当前选择，关闭双层运营商后恢复生效。</string>
+    <string name="icon_cc_carrier_name_show">不隐藏</string>
+    <string name="icon_cc_carrier_name_hide_one">隐藏卡一</string>
+    <string name="icon_cc_carrier_name_hide_two">隐藏卡二</string>
+    <string name="icon_cc_carrier_name_hide_both">全部隐藏</string>
+    <string name="icon_cc_hide_carrier_name_summary">按卡隐藏原版控制中心的整行运营商信息，包括 HD 和附属标记；仅在未启用双层运营商时生效。</string>
     <string name="icon_carrier_title">运营商标签</string>
     <string name="icon_cc_carrier_left">运营商标签靠左</string>
     <string name="icon_cc_carrier_left_summary">将单行运营商标签靠左显示</string>

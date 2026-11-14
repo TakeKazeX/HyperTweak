@@ -108,6 +108,8 @@ object IconSettingsKeys {
     // rows and the HD icon; `KEY_ICON_HIDE_LS_CARRIER_*` cover the lockscreen header.
     const val KEY_ICON_HIDE_CARRIER_ONE = "statusbar_hide_carrier_one"
     const val KEY_ICON_HIDE_CARRIER_TWO = "statusbar_hide_carrier_two"
+    // Retain the dropdown storage key from the earlier name-only implementation.
+    const val KEY_ICON_CC_CARRIER_HIDING = "icon_cc_carrier_name_hiding"
     const val KEY_ICON_HIDE_CARRIER_HD = "statusbar_hide_carrier_hd"
     const val KEY_ICON_HIDE_LS_CARRIER_ONE = "systemui_ls_hide_carrier_one"
     const val KEY_ICON_HIDE_LS_CARRIER_TWO = "systemui_ls_hide_carrier_two"

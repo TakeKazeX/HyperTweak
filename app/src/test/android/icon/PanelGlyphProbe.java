@@ -123,6 +123,7 @@ public final class PanelGlyphProbe {
         Class<?> rendererType = loader.loadClass("com.takekazex.hypertweak.hook.rules.systemui.icon.carrier.CarrierRowRenderer");
         Object renderer = rendererType.getConstructor().newInstance();
         checkCarrierRowHeight(loader, context, renderer, rendererType, partsType);
+        checkCarrierNames(loader, context, renderer, rendererType, partsType);
         Method sync = rendererType.getMethod("syncTint", partsType);
         label.setTextColor(Color.WHITE);
         sync.invoke(renderer, parts);
@@ -355,6 +356,89 @@ public final class PanelGlyphProbe {
         System.out.println("PASS: idle recaptures, live tint, bitmap mutation, carrier badge selection and travel, "
             + "masked badge updates, moving-dot tint interpolation and reversal, held updates and alpha restoration, "
             + "stacked pending first draw, ready copies, reverse drag and invalid-endpoint restoration");
+    }
+
+    private static void checkCarrierNames(ClassLoader loader, Context context, Object renderer,
+                                          Class<?> rendererType, Class<?> partsType) throws Exception {
+        String carrierPackage = "com.takekazex.hypertweak.hook.rules.systemui.icon.carrier.";
+        Class<?> stateType = loader.loadClass("com.takekazex.hypertweak.presentation.icon.MobileSignalState");
+        Object state = stateType.getConstructor(java.util.List.class, java.util.Map.class, int.class, boolean.class)
+            .newInstance(java.util.List.of(11, 12), java.util.Map.of(), 11, false);
+        Class<?> modelType = loader.loadClass(carrierPackage + "CarrierRowModel");
+        var modelConstructor = modelType.getConstructor(int.class, Integer.class, Integer.class, Integer.class,
+            String.class, Integer.class, boolean.class, boolean.class);
+        java.util.List<Object> models = java.util.List.of(
+            modelConstructor.newInstance(0, 11, 11, 3, "5G", 4, false, false),
+            modelConstructor.newInstance(1, 12, 12, 2, "4G", null, false, false));
+        Class<?> inputType = loader.loadClass(carrierPackage + "CarrierRenderInput");
+        Class<?> configType = loader.loadClass("com.takekazex.hypertweak.hook.rules.systemui.icon.MobileTypeConfig");
+        Class<?> glyphType = loader.loadClass(carrierPackage + "CarrierNativeGlyph");
+        Class<?> airplaneType = loader.loadClass("com.takekazex.hypertweak.settings.contract.AirplaneLabelMode");
+        Object system = airplaneType.getField("SYSTEM").get(null);
+        var inputConstructor = inputType.getConstructor(stateType, java.util.Map.class, boolean.class,
+            boolean.class, configType, glyphType, java.util.Set.class, airplaneType, boolean.class);
+        Method render = rendererType.getMethod("renderRow", partsType, java.util.List.class, inputType);
+        ImageView artwork = new ImageView(context);
+        artwork.setImageDrawable(new android.graphics.drawable.ColorDrawable(Color.WHITE));
+        artwork.layout(0, 0, 16, 16);
+        Object glyph = glyphType.getConstructor(View.class, java.util.List.class).newInstance(artwork, null);
+        check((Boolean) glyphType.getMethod("update").invoke(glyph), "record carrier test artwork");
+        Object config = configType.getConstructor().newInstance();
+        for (int slot = 0; slot < 2; slot++) {
+            android.widget.LinearLayout row = new android.widget.LinearLayout(context);
+            android.widget.TextView name = new android.widget.TextView(context);
+            name.setText("Very long native carrier name");
+            name.setTextSize(32f); // Large text must disappear from the row's width budget.
+            android.widget.TextView badge = new android.widget.TextView(context);
+            badge.setText(Integer.toString(slot + 1));
+            ImageView signal = new ImageView(context), wifi = new ImageView(context), type = new ImageView(context);
+            FrameLayout network = new FrameLayout(context);
+            network.addView(type); network.addView(wifi);
+            row.addView(signal); row.addView(badge); row.addView(name); row.addView(network);
+            Object parts = partsType.getConstructors()[0].newInstance(slot, row, name, signal, badge, network, wifi, type);
+            partsType.getMethod("setNativeSignal", glyphType).invoke(parts, glyph);
+            android.widget.TextView airplane = (android.widget.TextView) partsType.getMethod("getAirplaneText").invoke(parts);
+            row.addView(airplane);
+            int shownWidth = 0;
+            for (int mode : new int[]{0, 1, 2, 3, 2, 1, 3, 0}) {
+                boolean hidden = mode == 3 || mode == slot + 1;
+                Object input = inputConstructor.newInstance(state, java.util.Map.of(11, "SIM One", 12, "SIM Two"),
+                    true, true, config, glyph,
+                    mode == 0 ? java.util.Set.of() : mode == 1 ? java.util.Set.of(0) : mode == 2 ? java.util.Set.of(1) : java.util.Set.of(0, 1),
+                    system, false);
+                render.invoke(renderer, parts, mode % 2 == 0 ? models : java.util.List.of(models.get(1), models.get(0)), input);
+                check(name.getVisibility() == (hidden ? View.GONE : View.VISIBLE), "carrier toggle slot=" + slot);
+                check(row.getVisibility() == (hidden ? View.GONE : View.VISIBLE), "whole carrier row toggle slot=" + slot);
+                check(badge.getVisibility() == (hidden ? View.GONE : View.VISIBLE), "SIM badge follows whole row");
+                if (hidden) {
+                    check(signal.getVisibility() == View.GONE && network.getVisibility() == View.GONE,
+                        "hidden carrier clears signal and network destination");
+                    check(wifi.getVisibility() == View.GONE && type.getVisibility() == View.GONE,
+                        "hidden carrier clears Wi-Fi/type children");
+                    check(partsType.getMethod("getModel").invoke(parts) == null,
+                        "hidden carrier cannot retain a live handover target");
+                } else {
+                    check(signal.getVisibility() == View.VISIBLE && signal.getDrawable() != null,
+                        "restoring carrier restores signal");
+                    check(type.getVisibility() == View.VISIBLE && type.getDrawable() != null,
+                        "restoring carrier restores network type");
+                    check(slot != 0 || wifi.getVisibility() == View.VISIBLE, "restoring carrier restores Wi-Fi");
+                }
+                row.measure(View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
+                    View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
+                if (!hidden) shownWidth = row.getMeasuredWidth();
+                else check(row.getMeasuredWidth() < shownWidth, "hidden row releases measured width");
+            }
+            // The name switch must not take ownership of the independent airplane label.
+            Object flyingState = stateType.getConstructor(java.util.List.class, java.util.Map.class, int.class, boolean.class)
+                .newInstance(java.util.List.of(11, 12), java.util.Map.of(), 11, true);
+            Object flying = modelConstructor.newInstance(slot, null, null, null, null, null, false, slot == 0);
+            Object input = inputConstructor.newInstance(flyingState, java.util.Map.of(), true, true, config, null,
+                java.util.Set.of(), system, false);
+            render.invoke(renderer, parts, java.util.List.of(flying), input);
+            check(airplane.getVisibility() == (slot == 0 ? View.VISIBLE : View.GONE), "independent airplane label");
+        }
+        System.out.println("PASS carrier_names: compact SIM-policy whole-row transitions (no native-dropdown input), reversed order, child/motion cleanup and restore, width, airplane");
     }
 
     private static void checkCarrierRowHeight(ClassLoader loader, Context context, Object renderer,

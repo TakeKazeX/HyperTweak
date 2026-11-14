@@ -139,6 +139,9 @@ data class ControlCenterIconConfig internal constructor(val values: Map<String, 
     fun string(key: String): String = values[key] as String
     val hideCarrierOne: Boolean get() = values.getValue(IconSettingsKeys.KEY_ICON_HIDE_CARRIER_ONE) as Boolean
     val hideCarrierTwo: Boolean get() = values.getValue(IconSettingsKeys.KEY_ICON_HIDE_CARRIER_TWO) as Boolean
+    val carrierHiding: Int get() = values.getValue(IconSettingsKeys.KEY_ICON_CC_CARRIER_HIDING) as Int
+    val nativeCarrierHiding: Int get() = if (CarrierRowVisibility.nativeControlsEnabled(hideDate, carrierTwoLine))
+        carrierHiding else CarrierRowVisibility.NONE
     val hideCarrierHd: Boolean get() = values.getValue(IconSettingsKeys.KEY_ICON_HIDE_CARRIER_HD) as Boolean
     val hideLsCarrierOne: Boolean get() = values.getValue(IconSettingsKeys.KEY_ICON_HIDE_LS_CARRIER_ONE) as Boolean
     val hideLsCarrierTwo: Boolean get() = values.getValue(IconSettingsKeys.KEY_ICON_HIDE_LS_CARRIER_TWO) as Boolean
@@ -280,6 +283,8 @@ internal object IconConfigReload {
         if (before.duo != after.duo) effects += IndependentIconDomain.DUO
         val oldCc = before.controlCenter
         val newCc = after.controlCenter
+        if (oldCc.carrierHiding != newCc.carrierHiding)
+            effects += IndependentIconDomain.CONTROL_CENTER_HEADER
         if (oldCc.carrierLeft != newCc.carrierLeft || oldCc.networkFirstRow != newCc.networkFirstRow ||
             oldCc.carrierShowNonDataType != newCc.carrierShowNonDataType ||
             oldCc.carrierShowBadge != newCc.carrierShowBadge || oldCc.carrierBadgeOne != newCc.carrierBadgeOne ||
@@ -381,6 +386,7 @@ object IconConfigDecoder {
         put(IconSettingsKeys.KEY_ICON_DUO_PERCENT_SCALE, 100)
         put(IconSettingsKeys.KEY_ICON_HIDE_CARRIER_ONE, false)
         put(IconSettingsKeys.KEY_ICON_HIDE_CARRIER_TWO, false)
+        put(IconSettingsKeys.KEY_ICON_CC_CARRIER_HIDING, 0)
         put(IconSettingsKeys.KEY_ICON_HIDE_CARRIER_HD, false)
         put(IconSettingsKeys.KEY_ICON_HIDE_LS_CARRIER_ONE, false)
         put(IconSettingsKeys.KEY_ICON_HIDE_LS_CARRIER_TWO, false)
@@ -435,6 +441,7 @@ object IconConfigDecoder {
                     key == IconSettingsKeys.KEY_ICON_CELLULAR_ROAM_MODE ||
                         key == IconSettingsKeys.KEY_ICON_WIFI_STANDARD_MODE -> (value as Int).coerceIn(0, 3)
                     key == IconSettingsKeys.KEY_ICON_STACKED_SIGNAL_STYLE -> SignalSvgStyle.fromStored(value as Int).storedValue
+                    key == IconSettingsKeys.KEY_ICON_CC_CARRIER_HIDING -> CarrierRowVisibility.normalize(value as Int)
                     key == IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_ORDER -> (value as Int).takeIf { it in 0..3 } ?: 0
                     key == IconSettingsKeys.KEY_ICON_SIM_ONE_VISIBILITY ||
                         key == IconSettingsKeys.KEY_ICON_SIM_TWO_VISIBILITY ||
@@ -540,6 +547,7 @@ object IconConfigDecoder {
     private val controlCenterKeys: Set<String> = setOf(
         IconSettingsKeys.KEY_ICON_HIDE_CARRIER_ONE,
         IconSettingsKeys.KEY_ICON_HIDE_CARRIER_TWO,
+        IconSettingsKeys.KEY_ICON_CC_CARRIER_HIDING,
         IconSettingsKeys.KEY_ICON_HIDE_CARRIER_HD,
         IconSettingsKeys.KEY_ICON_HIDE_LS_CARRIER_ONE,
         IconSettingsKeys.KEY_ICON_HIDE_LS_CARRIER_TWO,

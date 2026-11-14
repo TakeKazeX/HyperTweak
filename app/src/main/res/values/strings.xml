@@ -595,6 +595,13 @@
     <string name="icon_hide_ls_carrier_one_summary">Hide the first carrier label in the lockscreen header</string>
     <string name="icon_hide_ls_carrier_two">Hide Second Carrier on Lockscreen</string>
     <string name="icon_hide_ls_carrier_two_summary">Hide the second carrier label in the lockscreen header</string>
+    <string name="icon_cc_hide_carrier_name">Hide Control Center Carrier</string>
+    <string name="icon_cc_hide_carrier_two_line_disabled">Unavailable while the two-line carrier layout is active. Your selection is saved and applies again when it is turned off.</string>
+    <string name="icon_cc_carrier_name_show">Do not hide</string>
+    <string name="icon_cc_carrier_name_hide_one">Hide SIM 1</string>
+    <string name="icon_cc_carrier_name_hide_two">Hide SIM 2</string>
+    <string name="icon_cc_carrier_name_hide_both">Hide both</string>
+    <string name="icon_cc_hide_carrier_name_summary">Hide the selected SIM’s entire native Control Center carrier row, including HD and other labels. Available only when the two-line carrier layout is off.</string>
     <string name="icon_carrier_title">Carrier Label</string>
     <string name="icon_cc_carrier_left">Carrier Label on the Left</string>
     <string name="icon_cc_carrier_left_summary">Align single-line carrier labels to the left</string>

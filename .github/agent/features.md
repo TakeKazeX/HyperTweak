@@ -62,6 +62,21 @@ lost mid-flight re-resolves the location on the next main-loop turn. Flight uses
 keeps position, velocity and overlay. The glyph moves along the straight line between its endpoints without a cutout detour. The returning glyph waits for a drawn overlay before its
 previous owner yields.
 
+The Other tab's carrier-label card starts with `icon_cc_carrier_name_hiding` (the storage
+name is retained), a native-carrier-row dropdown: show / hide SIM 1 / hide SIM 2 / hide both
+(0–3), keyed by physical SIM slot. While hide-date + two-line carrier are both enabled, the
+row is disabled with an explanation and retains its saved value. UI and
+`ControlCenterIconConfig.nativeCarrierHiding` use `CarrierRowVisibility.nativeControlsEnabled`;
+the effective hook mode is NONE during compact layout. Compact render inputs and
+`hiddenCarrierSlots` do not consume this dropdown; only the separate shared SIM policy may
+suppress their rows. Disabling compact layout restores the saved native hiding choice.
+The former `icon_cc_hide_carrier_name` boolean migrates true to 3; explicit current values,
+including 0, win. `HideCarrierLabelHooker` suppresses native row, text, HD and plus children.
+Before native HD updates it releases its child masks and then recaptures the latest native
+visibility, preventing stale HD restoration. Scoped header reload handles layout transitions,
+reset and upgrade. Status-bar SIM visibility, notification/lockscreen labels and airplane
+labels retain their own controls; older SIM carrier booleans remain migration only.
+
 SIM visibility settings live together in the Mobile network tab's SIM visibility card:
 physical SIM 1/2 and the non-default data SIM each have Default / Hide status bar icons only /
 Hide everywhere dropdowns; the two lockscreen carrier switches stay independent in that card.

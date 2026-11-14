@@ -126,6 +126,7 @@ internal object DebugSettingsCatalog {
         DebugSetting("icon_airplane_label_control_center", "Int", 0),
         DebugSetting("icon_airplane_label_keyguard", "Int", 0),
         DebugSetting("icon_airplane_label_notification", "Int", 0),
+        DebugSetting("icon_cc_carrier_name_hiding", "Int", 0),
         DebugSetting("icon_cellular_roam_mode", "Int", 0),
         DebugSetting("icon_duo_airplane_scale", "Int", 100),
         DebugSetting("icon_duo_battery_scale", "Int", 100),

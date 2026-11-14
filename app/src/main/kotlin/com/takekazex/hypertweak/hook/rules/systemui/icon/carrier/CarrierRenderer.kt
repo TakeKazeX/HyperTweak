@@ -589,7 +589,9 @@ internal object CarrierRenderer : IconRenderer() {
                     if (!ownsRow(row)) return@runCatching
                     rowIndex[row]?.let { parts ->
                         parts.nativeCarrierText = parts.carrierText.text
-                        parts.carrierText.visibility = if (parts.carrierText.text.isNullOrBlank()) View.GONE else View.VISIBLE
+                        if (parts.slot in hiddenCarrierSlots() && !MobileSignalHub.state.airplaneMode)
+                            parts.row.visibility = View.GONE
+                        parts.carrierText.visibility = if (parts.slot in hiddenCarrierSlots() || parts.carrierText.text.isNullOrBlank()) View.GONE else View.VISIBLE
                     }
                     scheduleRender()
                 }.onFailure { DebugLog.w(TAG, "carrier name update failed", it) }

@@ -2,6 +2,7 @@
 
 package com.takekazex.hypertweak.hook.rules.systemui.icon.carrier
 
+import com.takekazex.hypertweak.hook.rules.systemui.icon.AirplaneLabelText
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IconHostPorts
 import com.takekazex.hypertweak.hook.rules.systemui.icon.TwoRowIconLayout
 import android.content.Context
@@ -117,7 +118,9 @@ internal class CarrierPresentation(private val host: Host, private val rowRender
             parts.carrierText.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
             parts.carrierText.includeFontPadding = false
             parts.carrierText.ellipsize = TextUtils.TruncateAt.END
-            parts.carrierText.visibility = if (parts.carrierText.text.isNullOrBlank()) View.GONE else View.VISIBLE
+            val hidden = parts.slot in host.hiddenCarrierSlots() && !AirplaneLabelText.isAirplaneLabel(parts.carrierText)
+            if (hidden) parts.row.visibility = View.GONE
+            parts.carrierText.visibility = if (hidden || parts.carrierText.text.isNullOrBlank()) View.GONE else View.VISIBLE
             parts.signal.layoutParams = LinearLayout.LayoutParams(icon, icon).apply { marginEnd = gap }
             parts.networkWidth = icon
             parts.networkSlot.layoutParams = LinearLayout.LayoutParams(icon,
@@ -161,7 +164,6 @@ internal class CarrierPresentation(private val host: Host, private val rowRender
             }
             parts.nativeCarrierColors = null
             parts.appliedCarrierColors = null
-            if (parts.slot in host.hiddenCarrierSlots()) parts.carrierText.visibility = View.GONE
             parts.row.gravity = parts.gravity
             parts.row.isBaselineAligned = parts.baselineAligned
             parts.row.contentDescription = parts.contentDescription
@@ -172,6 +174,12 @@ internal class CarrierPresentation(private val host: Host, private val rowRender
             parts.showHd?.let { field(parts.row.javaClass, "showHdIcon")?.setBoolean(parts.row, it) }
             (readField(parts.row, "hdText") as? View)?.let { parts.hd?.restore(it) }
             (readField(parts.row, "plusText") as? View)?.let { parts.plus?.restore(it) }
+            if (parts.slot in host.hiddenCarrierSlots() && !AirplaneLabelText.isAirplaneLabel(parts.carrierText)) {
+                parts.row.visibility = View.GONE
+                parts.carrierText.visibility = View.GONE
+                (readField(parts.row, "hdText") as? View)?.visibility = View.GONE
+                (readField(parts.row, "plusText") as? View)?.visibility = View.GONE
+            }
             parts.networkFade.clear()
             listOf(parts.signal, parts.badge, parts.airplaneText, parts.networkSlot, parts.wifi, parts.type)
                 .forEach { it.visibility = View.GONE }
@@ -201,7 +209,8 @@ internal class CarrierPresentation(private val host: Host, private val rowRender
                     val lp = view.layoutParams as LinearLayout.LayoutParams
                     (if (lp.width >= 0) lp.width else view.measuredWidth) + lp.marginStart + lp.marginEnd
                 }
-            val textParams = parts.carrierText.layoutParams as? ViewGroup.MarginLayoutParams
+            val textParams = (parts.carrierText.layoutParams as? ViewGroup.MarginLayoutParams)
+                ?.takeIf { parts.carrierText.isVisible }
             val padding = block.layout.paddingStart + block.layout.paddingEnd + parts.row.paddingStart +
                 parts.row.paddingEnd + (textParams?.marginStart ?: 0) + (textParams?.marginEnd ?: 0)
             parts to CarrierBlockPolicy.textWidth(rowWidth, fixed + padding)
@@ -221,7 +230,8 @@ internal class CarrierPresentation(private val host: Host, private val rowRender
         }
         val badgeWidths = CarrierBlockPolicy.badgeWidths(
             visibleBadges.map { it.second }, natural, gap,
-            visibleBadges.maxOfOrNull { (parts, _) -> ceil(parts.carrierText.paint.measureText("MMMM")).toInt() } ?: 0
+            visibleBadges.filter { it.first.carrierText.isVisible }
+                .maxOfOrNull { (parts, _) -> ceil(parts.carrierText.paint.measureText("MMMM")).toInt() } ?: 0
         )
         val widthByRow = visibleBadges.mapIndexed { index, (parts, _) -> parts to badgeWidths[index] }.toMap()
         rowWidths.forEach { (parts, available) ->
