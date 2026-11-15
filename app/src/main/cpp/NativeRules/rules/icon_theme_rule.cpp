@@ -9,6 +9,7 @@ extern "C" {
 __attribute__((visibility("hidden"))) uint32_t g_icon_theme_unlock=0,g_icon_theme_refresh=0;
 __attribute__((visibility("hidden"))) void* g_icon_theme_support_original=nullptr;
 __attribute__((visibility("hidden"))) void* g_icon_theme_refresh_original=nullptr;
+__attribute__((visibility("hidden"))) void* g_icon_theme_refresh_continue=nullptr;
 void HyperTweakIconThemeSupportHook();
 void HyperTweakIconThemeRefreshHook();
 }
@@ -55,7 +56,7 @@ bool ApplyIconThemeRule(void* handle) {
   Disable();__atomic_store_n(&reason,"theme_contract_changed",__ATOMIC_RELEASE);return false;
  }
 
- if(!dart::DecodeIconThemeObserver(image,resolution.Find("owner")-origin,resolution.Find("bootstrap")-origin,resolution.Find("refresh")-origin,&next)) {
+ if(!dart::DecodeIconThemeObserver(image,resolution.Find("owner")-origin,resolution.Find("bootstrap")-origin,resolution.Find("refresh")-origin,&next,owned[1])) {
   Disable();__atomic_store_n(&reason,"theme_observer_contract_changed",__ATOMIC_RELEASE);return false;
  }
  bool intact=base==resolution.base;
@@ -92,6 +93,7 @@ bool ApplyIconThemeRule(void* handle) {
   LogInfo("desktop icon theme support/refresh installed");
  }
  observer=next;
+ g_icon_theme_refresh_continue=reinterpret_cast<void*>(resolution.Find("refresh")+16u);
  __atomic_store_n(&observer_ready,1u,__ATOMIC_RELEASE);
  __atomic_store_n(&g_icon_theme_unlock,IconThemeNeedsPreparation()?1u:0u,__ATOMIC_RELEASE);
  __atomic_store_n(&g_icon_theme_refresh,__atomic_load_n(&requested_mode,__ATOMIC_ACQUIRE)>=2?1u:0u,__ATOMIC_RELEASE);

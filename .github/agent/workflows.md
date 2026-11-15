@@ -246,9 +246,18 @@ authorization, then inspect logs. Do not automate device UI.
 ### Desktop icon theme
 
 For desktop icon theme changes, run `run_icon_theme_test.py <verified-libapp.so>`
-for structural targets, cached-address revalidation, patch rollback, passive disable,
+against both the older split enable/color comparator and the newer combined-change
+compiler graph. Cover relocated/duplicate families, broken getter/URI relations,
+changed static slots and paired/mismatched registration fields, and reject native
+branches entering the interior of either 16-byte inline patch window, alongside
+structural targets, cached-address revalidation, patch rollback, passive disable,
 fork/remap, foreign patch rejection and observer registration. Run
-`run_icon_theme_abi_test.py <NDK-clang>`, `run_icon_scale_test.py <verified-libapp.so>`
+`run_icon_theme_abi_test.py <NDK-clang>` and
+`run_icon_theme_flow_test.py <NDK-clang> <verified-libapp.so>` for both compiler
+generations. The latter executes actual host decision words, native branch arms,
+the ADRP/ADD/BR inline entry and a relocated trampoline; passive paths must match
+native boundaries/registers/flags and active paths must reach the native join.
+Also run `run_icon_scale_test.py <verified-libapp.so>`
 and `run_icon_scale_abi_test.py <NDK-clang>` for native settings updates and the shared
 observer-adoption frame. Include `LauncherIconTheme*`, `Native*`, `RuntimeSettings*`,
 `DebugSetting*` JVM tests, native record migration, lint and release checks;

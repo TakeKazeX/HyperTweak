@@ -306,7 +306,7 @@ bool DecodeNativeDockGlass(const Image&, uintptr_t gate, uintptr_t factory, uint
                            NativeDockGlassLayout*);
 
 struct IconThemeObserverLayout { uint32_t static_slot, registered_field, cid; uintptr_t registration; };
-bool DecodeIconThemeObserver(const Image&,uintptr_t owner,uintptr_t bootstrap,uintptr_t refresh,IconThemeObserverLayout*);
+bool DecodeIconThemeObserver(const Image&,uintptr_t owner,uintptr_t bootstrap,uintptr_t refresh,IconThemeObserverLayout*,const uint8_t* refresh_original=nullptr);
 
 extern const TargetSpec* const kTargetSpecs[];
 extern const size_t kTargetSpecCount;

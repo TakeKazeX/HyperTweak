@@ -194,6 +194,38 @@ The idle callback requires a live phone HomePage and inactive drag and drop guar
 then sets the isolate-local selection and tail-transfers to the host's Element
 reassemble with the original caller PC. Disable restores stock on the same boundary.
 
+## Desktop icon theme
+
+`icon_theme_target.inc` follows a Settings/Rx/observer graph rather than whole-body
+instruction fingerprints. It retains the native SDK >= 33 admission, then proves
+the local region Boolean and the three related async logging/return arms. The
+observer callback's four Rx reads must retain the same controller fields and
+getter across the settings reload. Both compiler control flows are admitted:
+an enable comparison followed by a color comparison, or a combined changed flag
+followed by the final color comparison. Hook the complete 16-byte decision
+window ending at the proved EQ branch, never the branch alone: a native TBZ may
+target the following refresh join. Decode all direct branch targets in the
+containing function and reject any entry into either patch window's interior.
+Validate the new changed flag's getter provenance and the native refresh join's
+dead scratch registers. Passive refresh runs the relocated original decision;
+forced refresh transfers directly to the native join after the owned window,
+preserving value registers and NZCV. An inline backend may clobber x16/x17, so
+direct shim ABI checks alone cannot establish safe native branch entry.
+
+Settings keys and namespace pool operands must agree with both native URI
+registrations. Paired URI futures, await/parser/closure/observer callees, the
+registered flag's guard/success store, lifecycle static publication, and bootstrap
+allocation/DI/settings-load provenance establish the observer contract. Decode
+frame slots, pool/field/static displacements and allocation CID from operands.
+Incomplete or ambiguous graphs keep native behavior. Cache admission revalidates
+these semantic relations, overlaying only the exact original bytes of owned
+hooks. The changed site verification contract invalidates old persistent offsets.
+The existing settings journal, default-off modes, passive disable and shared
+frame-tail observer adoption remain the lifecycle owners. Removed automatic
+day/night refresh stays removed. Run the desktop-icon-theme workflow against both
+verified compiler generations; installation and native activation establish code
+delivery, while visible colors remain user acceptance.
+
 ## Native binary upgrade
 
 The hot-reload dialog includes a separate native-update action requiring root and an up-to-date SystemUI Java target. `NativeUpgradeManager` compares the actual payload hashes in the signed mapped/installed APKs. HYOS may label its root spawner `usap64`; ownership is established from the launcher's parent, exact executable, uid and `/proc` start time, not its displayed name or a ROM table. A changed native image is activated by guarded spawner replacement following upstream `abe7d4d6f880422d7faef973bd9c90457d662495`. Verification checks the new process family, current APK inode mapping and the native `runtime_identity` record (version/pid/start time/checksum). This is a launcher-process refresh, not same-process `.so` unloading. The previous complete signed APK is retained for explicit PackageManager rollback with data preserved. Root IO, output sizes and activation waits are bounded; an interrupted activation is reported after reopening. Temporary mapped APK copies are removed on inspection failure, and successful process checks are not restored as current facts from the journal. Rollback always resolves the current spawner afresh and records failures. Code loading/initialization does not prove native feature UI acceptance.

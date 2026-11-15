@@ -32,8 +32,12 @@ HyperTweakIconThemeRefreshHook:
  add x16,x16,:lo12:g_icon_theme_refresh
  ldar w17,[x16]
  cbz w17,1f
- // Canonical bools differ by bit 4. Force this comparison unequal, leaving Rx state intact.
- eor x3,x1,#0x10
+ // Skip the complete read/branch/compare decision, reaching the native join
+ // after the owned window. No incoming branch can enter its patched interior.
+ ldp x16,x17,[sp],#16
+ adrp x16,g_icon_theme_refresh_continue
+ ldr x16,[x16,:lo12:g_icon_theme_refresh_continue]
+ br x16
 1:
  ldp x16,x17,[sp],#16
  adrp x16,g_icon_theme_refresh_original

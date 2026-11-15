@@ -27,27 +27,72 @@ int main(int argc,char** argv){
  const auto clean=bytes;
  // Corrupt a required SDK/comparison contract and a repeated getter call relationship.
  for(unsigned site=0;site<4;site++){
-  bytes=clean;auto at=result.sites[site].offset;bytes[at]^=0x40;assert(!dart::ResolveTarget(image,dart::kIconThemeTarget).resolved);
+  bytes=clean;auto at=result.sites[site].offset;bytes[at]^=0x40;auto rejected=dart::ResolveTarget(image,dart::kIconThemeTarget);if(rejected.resolved)fprintf(stderr,"corrupt site retained: %s\n",result.sites[site].name);assert(!rejected.resolved);
  }
  bytes=clean;
- const auto refresh_base=result.sites[1].offset-35u*4u;
- uint32_t call=0;memcpy(&call,bytes.data()+refresh_base+13u*4u,4);call+=1;memcpy(bytes.data()+refresh_base+13u*4u,&call,4);
- assert(!dart::ResolveTarget(image,dart::kIconThemeTarget).resolved);bytes=clean;
- // Duplicate the full relation into executable padding: ambiguity must reject.
- const auto support_base=result.sites[0].offset-36u*4u;const size_t span=57u*4u;
- uintptr_t duplicate=0;
- for(auto segment:image.loads)if((segment.flags&dart::kFlagExec)&&segment.end-segment.start>4096){duplicate=segment.end-1024;break;}
- assert(duplicate);memcpy(bytes.data()+duplicate,bytes.data()+support_base,span);
- assert(!dart::ResolveTarget(image,dart::kIconThemeTarget).resolved);bytes=clean;
- // Relocate the entire candidate and retain all original call destinations.
- memcpy(bytes.data()+duplicate,bytes.data()+support_base,span);
- for(size_t i=0;i<span;i+=4){uint32_t word=0;memcpy(&word,bytes.data()+support_base+i,4);
-  if(dart::IsBl(word)){uintptr_t target=0;assert(dart::DecodeBlTarget(support_base+i,word,&target));
-   const auto delta=static_cast<int64_t>(target)-static_cast<int64_t>(duplicate+i);
-   word=0x94000000u|(static_cast<uint32_t>(delta/4)&0x3ffffffu);memcpy(bytes.data()+duplicate+i,&word,4);}
+ auto functionStart=[&](uintptr_t at){for(unsigned i=0;i<256&&at>=4;i++,at-=4)if(dart::IsDartPrologue(image,at))return at;assert(false);return uintptr_t{};};
+ auto functionEnd=[&](uintptr_t at){for(uintptr_t pc=at+8;pc<at+1024;pc+=4)if(dart::IsDartPrologue(image,pc))return pc;assert(false);return uintptr_t{};};
+ const auto refresh_base=functionStart(result.sites[1].offset);
+ // A predecessor must never enter the ADD/BR interior of a 16-byte patch.
+ // Retarget a real native TBZ without changing its condition or register.
+ bool interior_tested=false;
+ for(uintptr_t pc=refresh_base;pc<result.sites[1].offset+16;pc+=4){
+  uint32_t word=0;memcpy(&word,bytes.data()+pc,4);
+  if((word&0x7e000000u)!=0x36000000u)continue;
+  const auto target=static_cast<uintptr_t>(static_cast<int64_t>(pc)+(static_cast<int32_t>(word<<13u)>>16u));
+  if(target!=result.sites[1].offset&&target!=result.sites[1].offset+16)continue;
+  auto changed=(word&~(0x3fffu<<5u))|((static_cast<uint32_t>((static_cast<int64_t>(result.sites[1].offset+4)-static_cast<int64_t>(pc))/4)&0x3fffu)<<5u);
+  memcpy(bytes.data()+pc,&changed,4);assert(!dart::ResolveTarget(image,dart::kIconThemeTarget).resolved);bytes=clean;interior_tested=true;break;
  }
- memset(bytes.data()+support_base,0,span);
- auto moved=dart::ResolveTarget(image,dart::kIconThemeTarget);assert(moved.resolved&&moved.sites[0].offset==duplicate+36u*4u);bytes=clean;
+ assert(interior_tested);
+ // Break one repeated Rx getter edge while keeping a valid executable BL.
+ std::vector<uintptr_t> getters;
+ for(uintptr_t pc=refresh_base;pc<result.sites[1].offset;pc+=4){uint32_t word=0;assert(dart::ReadInsn(image,pc,&word));if(!dart::IsBl(word))continue;
+  uintptr_t target=0;assert(dart::DecodeBlTarget(pc,word,&target));unsigned count=0;
+  for(uintptr_t other=refresh_base;other<result.sites[1].offset;other+=4){uint32_t next=0;uintptr_t to=0;assert(dart::ReadInsn(image,other,&next));if(dart::IsBl(next)&&dart::DecodeBlTarget(other,next,&to)&&to==target)++count;}
+  if(count==4)getters.push_back(pc);
+ }
+ assert(getters.size()==4);uint32_t call=0;memcpy(&call,bytes.data()+getters[1],4);++call;memcpy(bytes.data()+getters[1],&call,4);
+ assert(!dart::ResolveTarget(image,dart::kIconThemeTarget).resolved);bytes=clean;
+ const auto support_base=functionStart(result.sites[0].offset),support_end=functionEnd(support_base);
+ const size_t span=support_end-support_base;uintptr_t duplicate=0;
+ for(auto segment:image.loads)if((segment.flags&dart::kFlagExec)&&segment.end-segment.start>8192){duplicate=segment.end-4096;break;}
+ assert(duplicate&&span<2048);
+ auto relocate=[&]{
+  // Preserve the following function boundary used by incoming-edge analysis.
+  memcpy(bytes.data()+duplicate,bytes.data()+support_base,span+8);
+  for(size_t i=0;i<span;i+=4){
+   uint32_t word=0;memcpy(&word,bytes.data()+support_base+i,4);uintptr_t target=0;unsigned bits=0;
+   if((word&0x7c000000u)==0x14000000u){assert(dart::DecodeBlTarget(support_base+i,word|0x80000000u,&target));bits=26;}
+   else if((word&0xff000010u)==0x54000000u){assert(dart::DecodeTestBranchTarget(support_base+i,word,&target));bits=19;}
+   else if((word&0x7e000000u)==0x34000000u){target=static_cast<uintptr_t>(static_cast<int64_t>(support_base+i)+(static_cast<int32_t>(word<<8u)>>11u));bits=19;}
+   else if((word&0x7e000000u)==0x36000000u){target=static_cast<uintptr_t>(static_cast<int64_t>(support_base+i)+(static_cast<int32_t>(word<<13u)>>16u));bits=14;}
+   if(!bits)continue;
+   if(target>=support_base&&target<support_end)target=duplicate+target-support_base;
+   auto delta=static_cast<int64_t>(target)-static_cast<int64_t>(duplicate+i);
+   assert(delta%4==0);auto encoded=static_cast<uint32_t>(delta/4);
+   if(bits==26)word=(word&0xfc000000u)|(encoded&0x3ffffffu);
+   else {auto mask=((1u<<bits)-1u)<<5u;word=(word&~mask)|((encoded<<5u)&mask);}
+   memcpy(bytes.data()+duplicate+i,&word,4);
+  }
+ };
+ // A copied connected SDK/region family is ambiguous, even at another address.
+ relocate();assert(!dart::ResolveTarget(image,dart::kIconThemeTarget).resolved);bytes=clean;
+ relocate();memset(bytes.data()+support_base,0,span);
+ auto moved=dart::ResolveTarget(image,dart::kIconThemeTarget);assert(moved.resolved&&moved.sites[0].offset==duplicate+result.sites[0].offset-support_base);bytes=clean;
+ // Derive changed static slots and guard fields from operands.
+ dart::IconThemeObserverLayout decoded{};assert(dart::DecodeIconThemeObserver(image,result.sites[2].offset,result.sites[3].offset,result.sites[1].offset,&decoded));
+ bool changed_slot=false;
+ for(uintptr_t pc=result.sites[2].offset;pc<functionEnd(result.sites[2].offset);pc+=4){uint32_t word=0;memcpy(&word,bytes.data()+pc,4);
+  if((word&0xffc003ffu)==0xf9000001u&&((word>>10u)&4095u)*8u==decoded.static_slot){word+=1u<<10u;memcpy(bytes.data()+pc,&word,4);changed_slot=true;}
+ }
+ assert(changed_slot);dart::IconThemeObserverLayout changed{};assert(dart::DecodeIconThemeObserver(image,result.sites[2].offset,result.sites[3].offset,result.sites[1].offset,&changed));assert(changed.static_slot==decoded.static_slot+8);bytes=clean;
+ unsigned flags=0;
+ for(uintptr_t pc=decoded.registration;pc<functionEnd(decoded.registration);pc+=4){uint32_t word=0;memcpy(&word,bytes.data()+pc,4);
+  if(((word&0xffe00fffu)==0xb8400001u||(word&0xffe00fffu)==0xb8000001u)&&((word>>12u)&511u)==decoded.registered_field){word+=4u<<12u;memcpy(bytes.data()+pc,&word,4);++flags;if(flags==1)assert(!dart::DecodeIconThemeObserver(image,result.sites[2].offset,result.sites[3].offset,result.sites[1].offset,&changed));}
+ }
+ assert(flags==2);assert(dart::DecodeIconThemeObserver(image,result.sites[2].offset,result.sites[3].offset,result.sites[1].offset,&changed));assert(changed.registered_field==decoded.registered_field+4);
+ assert(dart::ResolveTarget(image,dart::kIconThemeTarget).resolved);bytes=clean;
  SetIconTheme(3);prepared=false;assert(!ApplyIconThemeRule(nullptr));prepared=true;
  empty_backup=true;assert(!ApplyIconThemeRule(nullptr));assert(!hooks[0].address&&!hooks[1].address);empty_backup=false;
  fail_stage=installs+2;assert(!ApplyIconThemeRule(nullptr));assert(!hooks[0].address&&!hooks[1].address);
