@@ -114,8 +114,16 @@ field or Element dispatch.
 sites are patched. They supply the HomePage binding, DeviceConfig form-factor fields
 and drag guards that the idle admission check reads.
 
-Five glass gates and one scheduler idle shim install as a bank. The branch gate
-forces the background child only for the selected isolate. The factory gate acts only
+Five glass gates and one scheduler idle shim install as a bank. Track selections
+per native Dart Thread identity: Launcher settings and Home can use separate
+eligible engines on the same UI thread. A single process-wide owner makes them
+steal selection at every idle frame and repeatedly reassemble the whole tree.
+Each admitted engine has its own 0x200-byte construction/diagnostic frame bank and
+one-shot geometry/remap recovery bit. Preserve those identities during bank repair;
+passive admission checks ready, disable restores each engine once, and fork clears
+the bank. Store no managed references. The fixed 16-entry bank rejects additional
+engines without evicting existing ones; native activation resets the process bank.
+The branch gate forces the background child only for an admitted isolate. The factory gate acts only
 on the verified Hotseat call's return PC; every other path tail-calls the stock
 allocation stub. No module PC is ever on the Dart stack, and native code runs only
 between host fragments:
@@ -191,7 +199,7 @@ Hotseat rebuilds after an item change; it does not animate, and during a drag th
 keeps the full-row layout until the drop.
 
 The idle callback requires a live phone HomePage and inactive drag and drop guards. It
-then sets the isolate-local selection and tail-transfers to the host's Element
+then sets that engine's selection and tail-transfers to the host's Element
 reassemble with the original caller PC. Disable restores stock on the same boundary.
 
 ## Desktop icon theme

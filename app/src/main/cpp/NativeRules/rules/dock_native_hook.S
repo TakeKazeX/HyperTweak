@@ -16,9 +16,16 @@
 .endm
 
 .macro dock_owner target
-    dock_load x16, g_native_dock_owner
-    eor x16, x16, x26
-    cbz x16, \target
+    adrp x16, g_native_dock_ready
+    add x16, x16, :lo12:g_native_dock_ready
+    ldar w16, [x16]
+    cbz w16, .Lowner_done\@
+    .irp index,0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15
+        dock_load x16, g_native_dock_owners+(\index*8)
+        eor x16, x16, x26
+        cbz x16, \target
+    .endr
+.Lowner_done\@:
 .endm
 
 .macro dock_entry name
@@ -123,8 +130,23 @@ dock_entry HyperTweakNativeDockGlassBranch
 .endm
 
 .macro glass_frames out
+    // Fallback contains only decoded stock replay operands. Active engines
+    // use separate stage/frame/diagnostic storage, including simultaneous ones.
+    .irp index,0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15
+        dock_load \out, g_native_dock_owners+(\index*8)
+        eor \out, \out, x26
+        cbz \out, .Lframes\@_\index
+    .endr
     adrp \out, g_native_dock_glass_frames
     add \out, \out, :lo12:g_native_dock_glass_frames
+    b .Lframes_done\@
+    .irp index,0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15
+.Lframes\@_\index:
+        adrp \out, g_native_dock_context_frames+(\index*0x200)
+        add \out, \out, :lo12:g_native_dock_context_frames+(\index*0x200)
+        b .Lframes_done\@
+    .endr
+.Lframes_done\@:
 .endm
 
 // Open a host frame of \size bytes whose saved PC is x30, with every slot null.
@@ -485,22 +507,24 @@ dock_entry HyperTweakNativeDockIdle
     add x16, x16, :lo12:g_native_dock_requested
     ldar w16, [x16]
     cbz w16, .Lidle_disable
-    dock_owner .Lidle_selected
+    .irp index,0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15
+        dock_load x16, g_native_dock_owners+(\index*8)
+        eor x16, x16, x26
+        cbz x16, .Lidle_selected\index
+    .endr
     b .Lidle_check
-.Lidle_selected:
-    // A geometry change asks the selected owner for one rebuild.
-    adrp x16, g_native_dock_recovery
-    add x16, x16, :lo12:g_native_dock_recovery
-    ldar w16, [x16]
-    cbz w16, .Lidle_stock
-    b .Lidle_check
+    .irp index,0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15
+.Lidle_selected\index:
+        // Geometry/remap recovery belongs to this engine only.
+        adrp x16, g_native_dock_recovery
+        add x16, x16, :lo12:g_native_dock_recovery
+        ldar w16, [x16]
+        tbz w16, #\index, .Lidle_stock
+        b .Lidle_check
+    .endr
 .Lidle_disable:
-    dock_load x16, g_native_dock_owner
-    cbnz x16, .Lidle_check
-    adrp x16, g_native_dock_recovery
-    add x16, x16, :lo12:g_native_dock_recovery
-    ldar w16, [x16]
-    cbz w16, .Lidle_stock
+    dock_owner .Lidle_check
+    b .Lidle_stock
 .Lidle_check:
     sub sp, sp, #800
     stp x0, x1, [sp, #0]

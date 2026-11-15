@@ -16,6 +16,7 @@ from unicorn.arm64_const import (
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('compiler')
+parser.add_argument('--context-slot', type=int, choices=range(16), default=0)
 args = parser.parse_args()
 native = Path(__file__).resolve().parents[4] / 'app/src/main/cpp/NativeRules'
 entry_prefix = 'HyperTweakNativeDock'
@@ -25,7 +26,7 @@ null, heap = 0x123400001, 1
 true, false = null + 0x20, null + 0x30
 returns = ['glass_skip', 'glass_continue', 'glass_stub', 'glass_entry', 'glass_return', 'reassemble']
 destinations = {name: 0x300000 + 4 * index for index, name in enumerate(returns)}
-data_names = ['ready', 'requested', 'recovery', 'owner', 'glass_field', 'mock_root'] + returns
+data_names = ['ready', 'requested', 'recovery', 'glass_field', 'mock_root'] + returns
 # NativeDockGlassFrames (dock_native_rule.cpp); the host layout is the 9239 one.
 FRAMES = {'resume_continue': 0x00, 'resume_list': 0x08, 'resume_result': 0x10, 'resume_length': 0x18,
           'constraints_arg': 0x20, 'max_height': 0x28, 'insets_entry': 0x30, 'insets_frame': 0x38,
@@ -101,10 +102,11 @@ def machine(segments, symbols, owner, flag=False, frames=None, area=98.0, width=
     vm.mem_map(far, 0x1000)
     vm.mem_write(pool + center_call, pack(center_target) + pack(center_pair))
     vm.mem_write(pool + title_pool, pack(0x123470001))
-    data = dict(destinations, owner=owner, ready=0, requested=0, recovery=0, mock_root=0, glass_field=0xd7)
+    data = dict(destinations, ready=1, requested=0, recovery=0, mock_root=0, glass_field=0xd7)
     data.update(settings)
     for name, value in data.items():
         vm.mem_write(base + symbols[prefix + name], pack(value))
+    vm.mem_write(base + symbols[prefix + 'owners'] + args.context_slot * 8, pack(owner))
     for index, reg in enumerate(gpr):
         vm.reg_write(reg, 0x400000 + index * 32)
     for index, reg in enumerate(simd):
@@ -125,16 +127,23 @@ def machine(segments, symbols, owner, flag=False, frames=None, area=98.0, width=
     vm.mem_write(insets_object - 1, struct.pack('<I', insets_cid << 12))
     for name, value in dict(frames_default, **(frames or {})).items():
         vm.mem_write(base + symbols['g_native_dock_glass_frames'] + FRAMES[name], pack(value))
+        for context in range(16):
+            vm.mem_write(base + symbols['g_native_dock_context_frames'] + context * FRAMES_SIZE + FRAMES[name], pack(value))
     return vm
 
 
 def field(vm, symbols, name):
-    return struct.unpack('<Q', bytes(vm.mem_read(base + symbols['g_native_dock_glass_frames'] + FRAMES[name], 8)))[0]
+    address = base + symbols['g_native_dock_glass_frames']
+    for context in range(16):
+        if struct.unpack('<Q', bytes(vm.mem_read(base + symbols[prefix + 'owners'] + context * 8, 8)))[0] == vm.reg_read(gpr[26]):
+            address = base + symbols['g_native_dock_context_frames'] + context * FRAMES_SIZE
+            break
+    return struct.unpack('<Q', bytes(vm.mem_read(address + FRAMES[name], 8)))[0]
 
 
 def run(vm, symbols, entry, destination, outputs, stores=(), vectors=None, keep_flags=True, scratch=()):
     before = {reg: vm.reg_read(reg) for reg in gpr + simd}
-    vm.emu_start(base + symbols[entry_prefix + entry], destination, count=220)
+    vm.emu_start(base + symbols[entry_prefix + entry], destination, count=1000)
     assert vm.reg_read(UC_ARM64_REG_PC) == destination, (entry, hex(vm.reg_read(UC_ARM64_REG_PC)))
     expected = {gpr[index]: value for index, value in outputs.items()}
     expected.update({simd[index]: value for index, value in (vectors or {}).items()})
@@ -157,6 +166,12 @@ with tempfile.TemporaryDirectory(prefix='ht-native-dock-abi-') as directory:
         f'.global {prefix}{name}\n.hidden {prefix}{name}\n{prefix}{name}: .zero 8'
         for name in data_names
     ) + f"""
+.global g_native_dock_owners
+.hidden g_native_dock_owners
+g_native_dock_owners: .zero 128
+.global g_native_dock_context_frames
+.hidden g_native_dock_context_frames
+g_native_dock_context_frames: .zero {FRAMES_SIZE * 16}
 .global g_native_dock_glass_frames
 .hidden g_native_dock_glass_frames
 g_native_dock_glass_frames: .zero {FRAMES_SIZE}
@@ -197,6 +212,14 @@ HyperTweakNativeDockAtIdle:
             vm = machine(segments, symbols, owner)
             vm.reg_write(gpr[30], caller)
             run(vm, symbols, 'GlassFactory', destinations['glass_stub'], {})
+    # A passivated bank retains identities only for later restoration, and
+    # must not force the native branch/factory while ready is false.
+    for flag in (False, True):
+        vm = machine(segments, symbols, thread, flag, ready=0)
+        run(vm, symbols, 'GlassBranch', destinations['glass_continue' if flag else 'glass_skip'],
+            {1: true if flag else false, **({3: 0x123450001} if flag else {})})
+    vm = machine(segments, symbols, thread, ready=0)
+    run(vm, symbols, 'GlassFactory', destinations['glass_stub'], {})
     # Selected factory: insets frame with left/top/right/bottom = margin/top/margin/bottom.
     dart_sp = frame - 0x80
     fp = dart_sp - 16
@@ -384,15 +407,32 @@ HyperTweakNativeDockAtIdle:
                 for mock_root in (0, 0x123410001):
                     vm = machine(segments, symbols, owner, ready=ready, requested=requested,
                                  mock_root=mock_root)
-                    changes = ready and (owner != thread if requested else owner != 0)
+                    changes = ready and (owner != thread if requested else owner == thread)
                     tail = changes and mock_root
                     run(vm, symbols, 'Idle', destinations['reassemble'] if tail else 0x300100,
                         {0: null, 15: frame + 16, 29: 0x212100, 30: 0x300100,
                          **({1: mock_root} if tail else {})})
     root_element = 0x123410001
-    for owner, requested in ((0, 0), (thread, 1)):
-        vm = machine(segments, symbols, owner, ready=1, requested=requested, recovery=1, mock_root=root_element)
+    for owner, requested in ((thread, 0), (thread, 1)):
+        vm = machine(segments, symbols, owner, ready=1, requested=requested, recovery=1 << args.context_slot, mock_root=root_element)
         run(vm, symbols, 'Idle', destinations['reassemble'],
             {0: null, 1: root_element, 15: frame + 16, 29: 0x212100, 30: 0x300100})
+    # Two engines can suspend different host-frame chains without overwriting
+    # each other's stage, even when sharing one native UI task runner.
+    vm = machine(segments, symbols, thread)
+    other = (args.context_slot + 1) % 16
+    vm.mem_write(base + symbols[prefix + 'owners'] + other * 8, pack(thread + 8))
+    peer = base + symbols['g_native_dock_context_frames'] + other * FRAMES_SIZE
+    vm.mem_write(peer + FRAMES['stage'], pack(4))
+    vm.mem_write(peer + FRAMES['thread'], pack(thread + 8))
+    before_peer = bytes(vm.mem_read(peer, FRAMES_SIZE))
+    vm.emu_start(base + symbols[entry_prefix + 'GlassFactory'], insets_entry, count=1000)
+    assert field(vm, symbols, 'stage') == 1
+    assert bytes(vm.mem_read(peer, FRAMES_SIZE)) == before_peer
+    # A peer geometry update must not rebuild an already-current engine.
+    vm = machine(segments, symbols, thread, ready=1, requested=1,
+                 recovery=1 << other, mock_root=root_element)
+    run(vm, symbols, 'Idle', 0x300100,
+        {0: null, 15: frame + 16, 29: 0x212100, 30: 0x300100})
 print('PASS: Dock glass branch, scoped factory insets, adaptive width, Padding and unlock-wrapper return '
       'chain, center and wrap gates, item diagnostics, resume, idle recovery and ABI preservation')

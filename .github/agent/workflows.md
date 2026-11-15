@@ -152,6 +152,13 @@ For Native Dock glass, run `dart_probe` on the current Launcher snapshot for the
 `native_dock_glass`, `native_dock_route`, `native_dock_refresh` and `native_dock_interaction` families.
 Exercise conflicting calls/fields, partial installs and the frame admission/restore
 path, then run `python3 app/src/test/cpp/run_native_dock_abi_test.py <NDK-clang>`.
+Run the ABI runner with `--context-slot 15` as well as its default slot, plus
+`python3 app/src/test/cpp/run_native_dock_context_test.py` under ASan/UBSan. Alternate
+two eligible engines repeatedly: each may rebuild once, and their frame stages,
+geometry/remap recovery and disable restoration must stay independent. Cover a
+disable/re-enable before the next frame, missing HomePage state, fork reset and
+full-bank rejection without evicting a selected engine. ABI checks include peer
+frame preservation and a pending geometry bit belonging only to another engine.
 It executes the branch, factory (insets for fill, clamped and unbounded heights;
 adaptive margins for fewer, full, overfull and empty rows, both cell flag values, a
 foreign list class, missing columns, non-finite width and a missing table, flag holder,

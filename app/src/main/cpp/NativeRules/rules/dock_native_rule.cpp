@@ -17,7 +17,8 @@ extern "C" {
 DOCK_SHARED uint32_t g_native_dock_ready = 0;
 DOCK_SHARED uint32_t g_native_dock_requested = 0;
 DOCK_SHARED uint32_t g_native_dock_recovery = 0;
-DOCK_SHARED uintptr_t g_native_dock_owner = 0;
+constexpr size_t kNativeDockContextCount = 16;
+DOCK_SHARED uintptr_t g_native_dock_owners[kNativeDockContextCount]{};
 DOCK_SHARED uintptr_t g_native_dock_glass_field = 0;
 DOCK_SHARED uintptr_t g_native_dock_glass_skip = 0;
 DOCK_SHARED uintptr_t g_native_dock_glass_continue = 0;
@@ -123,6 +124,10 @@ DOCK_SHARED NativeDockGlassFrames g_native_dock_glass_frames{
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0.0, 0.0,
 };
 
+// Native Thread identities only; no retained managed objects. Each isolate owns
+// its transient host-frame chain, even when engines share the same UI thread.
+DOCK_SHARED NativeDockGlassFrames g_native_dock_context_frames[kNativeDockContextCount]{};
+
 void HyperTweakNativeDockGlassBranch();
 void HyperTweakNativeDockGlassFactory();
 void HyperTweakNativeDockGlassReturn();
@@ -190,10 +195,18 @@ bool AnyOwned() {
     return false;
 }
 
+uint32_t OwnerMask() {
+    uint32_t mask = 0;
+    for (size_t index = 0; index < kNativeDockContextCount; ++index)
+        if (__atomic_load_n(&g_native_dock_owners[index], __ATOMIC_ACQUIRE)) mask |= 1u << index;
+    return mask;
+}
+
 void Passivate(bool recover = false) {
     __atomic_store_n(&g_native_dock_ready, 0u, __ATOMIC_RELEASE);
-    const auto owner = __atomic_exchange_n(&g_native_dock_owner, uintptr_t{0}, __ATOMIC_ACQ_REL);
-    if (recover && owner) __atomic_store_n(&g_native_dock_recovery, 1u, __ATOMIC_RELEASE);
+    // Keep each identity for its own restoration. Assembly gates also check
+    // ready, so a rejected bank cannot keep forcing any isolate's background.
+    if (recover) __atomic_fetch_or(&g_native_dock_recovery, OwnerMask(), __ATOMIC_ACQ_REL);
 }
 
 bool Stock(const Site& site) {
@@ -382,6 +395,7 @@ void SetNativeDockEnabled(bool enabled) {
 
 bool SetNativeDockGlassGeometry(uint32_t packed) {
     if (!ValidNativeDockGlassGeometry(packed)) return false;
+    Lock guard(true);
     auto& frames = g_native_dock_glass_frames;
     const uintptr_t adaptive = (packed & kNativeDockGlassAdaptive) ? 1u : 0u;
     bool changed = __atomic_exchange_n(&frames.adaptive, adaptive, __ATOMIC_ACQ_REL) != adaptive;
@@ -397,9 +411,9 @@ bool SetNativeDockGlassGeometry(uint32_t packed) {
         __atomic_store(targets[index], const_cast<double*>(&values[index]), __ATOMIC_RELEASE);
         changed = true;
     }
-    // A selected Launcher rebuilds once on its next idle frame.
-    if (changed && NativeDockRequested() && __atomic_load_n(&g_native_dock_owner, __ATOMIC_ACQUIRE))
-        __atomic_store_n(&g_native_dock_recovery, 1u, __ATOMIC_RELEASE);
+    // Every selected isolate consumes its own one-shot geometry update.
+    if (changed)
+        __atomic_fetch_or(&g_native_dock_recovery, OwnerMask(), __ATOMIC_ACQ_REL);
     return true;
 }
 
@@ -415,6 +429,8 @@ void ResetNativeDockAfterFork() {
     pthread_mutex_t fresh = PTHREAD_MUTEX_INITIALIZER;
     lock = fresh;
     Passivate();
+    for (auto& owner : g_native_dock_owners) __atomic_store_n(&owner, uintptr_t{0}, __ATOMIC_RELEASE);
+    memset(g_native_dock_context_frames, 0, sizeof(g_native_dock_context_frames));
     __atomic_store_n(&g_native_dock_recovery, 0u, __ATOMIC_RELEASE);
 }
 
@@ -454,7 +470,7 @@ bool PrepareNativeDockRule(void* handle) {
 
 bool ApplyNativeDockRule(void* handle) {
     if (!NativeDockRequested() &&
-        !__atomic_load_n(&g_native_dock_owner, __ATOMIC_ACQUIRE) &&
+        !OwnerMask() &&
         !__atomic_load_n(&g_native_dock_recovery, __ATOMIC_ACQUIRE)) return true;
     Lock guard(false);
     if (!guard.acquired) return false;
@@ -522,10 +538,19 @@ extern "C" DOCK_SHARED uintptr_t HyperTweakNativeDockAtIdle(uintptr_t thread, ui
     Lock guard(false);
     if (!guard.acquired || !__atomic_load_n(&g_native_dock_ready, __ATOMIC_ACQUIRE)) return 0;
     const bool enable = NativeDockRequested();
-    const auto owner = __atomic_load_n(&g_native_dock_owner, __ATOMIC_ACQUIRE);
-    const bool recover = __atomic_load_n(&g_native_dock_recovery, __ATOMIC_ACQUIRE) != 0;
-    if (!recover && (enable ? owner == thread : owner != thread)) return 0;
-    if (!enable && owner && owner != thread) return 0;
+    size_t slot = kNativeDockContextCount, empty = kNativeDockContextCount;
+    for (size_t index = 0; index < kNativeDockContextCount; ++index) {
+        const auto owner = __atomic_load_n(&g_native_dock_owners[index], __ATOMIC_ACQUIRE);
+        if (owner == thread) slot = index;
+        if (!owner && empty == kNativeDockContextCount) empty = index;
+    }
+    const bool selected = slot != kNativeDockContextCount;
+    if (!enable && !selected) return 0;
+    if (enable && selected && !(__atomic_load_n(&g_native_dock_recovery, __ATOMIC_ACQUIRE) & (1u << slot))) return 0;
+    if (!selected) slot = empty;
+    // Bounded native identities; never evict another living engine and start
+    // a rebuild cycle. An exhausted bank leaves additional engines native.
+    if (slot == kNativeDockContextCount) return 0;
 
     const auto table = Read<uintptr_t>(thread + plan.route.static_table_field);
     if (!table) return 0;
@@ -546,9 +571,14 @@ extern "C" DOCK_SHARED uintptr_t HyperTweakNativeDockAtIdle(uintptr_t thread, ui
     if (!Object(root, null_value, sentinel) || !Object(build_owner, null_value, sentinel) ||
         !DragIdle(table, heap, null_value, sentinel)) return 0;
 
-    __atomic_store_n(&g_native_dock_owner, enable ? thread : uintptr_t{0}, __ATOMIC_RELEASE);
-    __atomic_store_n(&g_native_dock_recovery, 0u, __ATOMIC_RELEASE);
-    const auto& frames = g_native_dock_glass_frames;
+    auto& frames = g_native_dock_context_frames[slot];
+    if (enable) {
+        frames = g_native_dock_glass_frames;
+        frames.stage = 0;
+        frames.thread = 0;
+    }
+    __atomic_store_n(&g_native_dock_owners[slot], enable ? thread : uintptr_t{0}, __ATOMIC_RELEASE);
+    __atomic_fetch_and(&g_native_dock_recovery, ~(1u << slot), __ATOMIC_ACQ_REL);
     double area = 0, width = 0, center_x = 0, center_y = 0, first = 0, last = 0, columns = 0, cell = 0;
     __atomic_load(&frames.observed_cell, &cell, __ATOMIC_RELAXED);
     __atomic_load(&frames.observed_height, &area, __ATOMIC_RELAXED);
@@ -560,7 +590,7 @@ extern "C" DOCK_SHARED uintptr_t HyperTweakNativeDockAtIdle(uintptr_t thread, ui
     __atomic_load(&frames.columns, &columns, __ATOMIC_RELAXED);
     LogInfo("native Dock glass %s: rebuilding Launcher elements (area %.1fx%.1f, center %.1f,%.1f, "
             "adaptive %u/%.0f columns, cell %.1f, items %zu, built %zu centers %.1f..%.1f)",
-            enable ? (owner == thread ? "geometry" : "selected") : "released", width, area, center_x, center_y,
+            enable ? (selected ? "geometry" : "selected") : "released", width, area, center_x, center_y,
             static_cast<unsigned>(__atomic_load_n(&frames.adaptive, __ATOMIC_RELAXED)), columns, cell,
             static_cast<size_t>(__atomic_load_n(&frames.observed_items, __ATOMIC_RELAXED)),
             static_cast<size_t>(__atomic_load_n(&frames.observed_built, __ATOMIC_RELAXED)), first, last);
