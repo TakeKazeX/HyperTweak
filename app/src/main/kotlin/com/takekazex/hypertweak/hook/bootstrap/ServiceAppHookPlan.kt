@@ -29,6 +29,9 @@ import com.takekazex.hypertweak.hook.rules.xmsf.UnlockFocusAuthHooker
 internal object ServiceAppHookPlan {
     fun steps(packageName: String, processName: String): List<HookStep> = buildList {
         when (packageName) {
+            com.takekazex.hypertweak.settings.contract.SmsSettingsKeys.PACKAGE -> {
+                if (processName == packageName) hook { com.takekazex.hypertweak.hook.rules.sms.SmsCodeHooker }
+            }
             "com.miui.screenshot" -> {
                 // HyperOS delegates normal screenshots to this process. Its provider hard-codes
                 // screenshot.ogg, which is the short AOSP-style click on this CN build; redirect

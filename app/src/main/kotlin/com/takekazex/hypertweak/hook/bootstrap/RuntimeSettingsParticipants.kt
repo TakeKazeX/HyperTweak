@@ -264,6 +264,10 @@ internal object RuntimeSettingsParticipants {
             }
             true
         }
+        registerForProcess(RuntimeSettingsGroups.SMS) { _ ->
+            com.takekazex.hypertweak.hook.rules.sms.SmsCodeHooker.refreshSettings()
+            true
+        }
         registerForProcess(RuntimeSettingsGroups.MARKET) { _ -> true }
         registerForProcess(RuntimeSettingsGroups.COMMUNITY) { _ -> true }
         registerForProcess(RuntimeSettingsGroups.SHARE_PANEL) { _ ->

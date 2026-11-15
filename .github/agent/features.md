@@ -2,6 +2,50 @@
 
 Per-feature mechanisms, host contracts and known limitations. Search by feature or class name and read only the matching section.
 
+## SMS verification-code copying
+
+`SmsCodeHooker` runs in the Xiaomi Messaging main process only (`com.android.mms`),
+on OS4. `sms_auto_copy_code` defaults off and belongs to the SMS runtime-settings
+group. The app list opens a Miuix SMS page with local missing-scope guidance;
+`scope.list` and `xposed_scope` recommend the same package. Debugging never edits
+the live LSPosed scope. Package context publication and `AppHostRecovery` support
+cold attachment and upgrade from a generation with no SMS state.
+
+`SmsCodeResolver` follows the native copy-action Intent's text operand back to its
+OTP getter, then proves the recognition wrapper's message-ID getter and the
+SMS_DELIVER Handler caller. Names/version tables do not select targets. Contracts
+resolve on the managed DEX worker, validate against the host loader on replay,
+and fail closed when missing/ambiguous. Receive and recognition callers are
+deoptimized before managed hooks publish. A thread-local delivery scope excludes
+UI reclassification, notification updates, cloud SMS, RCS and Message Flow.
+The module consumes the native result without invoking recognition again, so
+it inherits the host's recognition/admission limitations. A cache miss preserves
+native behavior until preparation completes.
+
+`SmsCopyQueue` deduplicates up to 128 ordinary SMS message IDs per host/user
+process and orders recognition results by admission. Only nonempty OTPs qualify;
+express/pickup-code results do not. On keyguard, only the newest qualifying code
+waits, for at most two elapsed-time minutes. USER_PRESENT reevaluates the pending
+candidate; disable/reset cancels it and in-flight tickets. A newer readable
+clipboard-description timestamp suppresses delayed publication; background
+metadata can be unavailable on vendor builds, so this guard is best effort.
+No clipboard text is read. Pending state is lost if the host process dies.
+
+Hot replacement carries bounded ID/order state and an unexpired pending code as
+JDK values in process-local saved state, never preferences/files. Registration
+uses the published Application; retirement unregisters the unlock receiver and
+cancels main-thread tasks. Generations with no saved state start without scanning
+history. Publication writes text ClipData with both the native
+`mms_is_ververification_code` marker and `EXTRA_IS_SENSITIVE`. It does not send the
+native copy PendingIntent: that path also marks messages read. No SMS body,
+sender or OTP is logged, and no notification/clipboard overlay is added.
+
+Validation: `SmsCopyQueueTest`, `SmsSettingsRoutingTest`, and the optional
+`SmsCodeResolverApkTest` with `SMS_APK` pointing outside the checkout. The latter
+verifies the full artifact SHA-256 before resolving. Device acceptance must cover
+foreground/background SMS, lock/unlock, reset, hot replacement, duplicate/order
+handling, native recognition misses and preservation of unread state.
+
 ## Package manager core patches
 
 `PackageManagerHooker` runs only in `system_server`. The shared UID signature option

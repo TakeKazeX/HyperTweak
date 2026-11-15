@@ -325,6 +325,7 @@ internal object DebugSettingsCatalog {
         DebugSetting("share_panel_show_all", "Boolean", false),
         DebugSetting("show_google_services_in_settings", "Boolean", false),
         DebugSetting("show_in_settings", "Boolean", false),
+        DebugSetting("sms_auto_copy_code", "Boolean", false),
         DebugSetting("status_bar_clock_seconds", "Boolean", false),
         DebugSetting("statusbar_hide_carrier_hd", "Boolean", false),
         DebugSetting("statusbar_notif_icon_max", "Int", 3),

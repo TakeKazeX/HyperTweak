@@ -1984,4 +1984,9 @@
     <string name="back_status_bar_follow_summary">跟随应用和最近任务动画，默认关闭，空闲时应用更改。</string>
     <string name="back_home_preview">返回桌面图标预览（实验性）</string>
     <string name="back_home_preview_summary">Android 17 返回桌面图标动画预览，默认关闭，部分交接仍可能闪烁。</string>
+
+    <string name="sms_title">短信</string>
+    <string name="sms_auto_copy_title">自动复制验证码</string>
+    <string name="sms_auto_copy_summary">自动复制短信应用识别出的新短信验证码。锁屏时保留最新验证码，两分钟内解锁后复制，不改变已读状态。</string>
+    <string name="sms_live_summary">修改即时生效，仅处理新收到的短信，不复制历史短信。</string>
 </resources>

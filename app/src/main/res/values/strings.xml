@@ -2016,4 +2016,9 @@
     <string name="back_status_bar_follow_summary">Follow app and Recents animations. Off by default; changes apply when idle.</string>
     <string name="back_home_preview">Return to Home icon preview (experimental)</string>
     <string name="back_home_preview_summary">Preview the Home icon animation on Android 17. Off by default; some transitions may flicker.</string>
+
+    <string name="sms_title">Messaging</string>
+    <string name="sms_auto_copy_title">Automatically copy verification codes</string>
+    <string name="sms_auto_copy_summary">Copy verification codes recognized by Messaging in new SMS messages. While locked, copy only the latest code after unlocking, within two minutes. Messages stay unread.</string>
+    <string name="sms_live_summary">Changes apply immediately. Only newly received SMS messages are processed; existing messages are not copied.</string>
 </resources>

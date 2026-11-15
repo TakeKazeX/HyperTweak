@@ -19,6 +19,7 @@ sealed interface Route : NavKey {
     data object AospIme : Route
     data object SystemLauncher : Route
     data object SystemUi : Route
+    data object Sms : Route
     data object Screenshot : Route
     data object AodIcons : Route
     data object Notifications : Route
@@ -76,6 +77,7 @@ val Route.saveKey: String
         Route.AospIme -> "AospIme"
         Route.SystemLauncher -> "SystemLauncher"
         Route.SystemUi -> "SystemUi"
+        Route.Sms -> "Sms"
         Route.Screenshot -> "Screenshot"
         Route.AodIcons -> "AodIcons"
         Route.Notifications -> "Notifications"
@@ -128,6 +130,7 @@ fun routeFromSaveKey(key: String): Route? = when (key) {
     "AospIme" -> Route.AospIme
     "SystemLauncher" -> Route.SystemLauncher
     "SystemUi" -> Route.SystemUi
+    "Sms" -> Route.Sms
     "Screenshot" -> Route.Screenshot
     "AodIcons" -> Route.AodIcons
     "Notifications" -> Route.Notifications

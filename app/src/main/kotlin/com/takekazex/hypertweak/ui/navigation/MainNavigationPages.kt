@@ -23,6 +23,7 @@ internal fun NavEntryBuilder.mainPages(settings: NavigationSettings, navControll
                 paModelSpoofEnabled = paModelSpoofEnabled,
                 onPaModelSpoofEnabledChange = onPaModelSpoofEnabledChange,
                 onNavigateToSystemLauncher = { navController.navigateTo(Route.SystemLauncher) },
+                onNavigateToSms = { navController.navigateTo(Route.Sms) },
                 onNavigateToScreenshot = { navController.navigateTo(Route.Screenshot) },
                 onNavigateToSystemUi = {
                     navController.navigateTo(Route.SystemUi)

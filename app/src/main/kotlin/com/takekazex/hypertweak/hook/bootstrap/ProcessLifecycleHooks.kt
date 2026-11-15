@@ -56,6 +56,9 @@ internal object ProcessLifecycleHooks {
     fun retireRestartReceiver() = RestartBroadcastHooker.unregisterAll()
 
     fun onPackageContextReady(processName: String, packageName: String, appContext: Context) {
+        if (packageName == com.takekazex.hypertweak.settings.contract.SmsSettingsKeys.PACKAGE && processName == packageName) {
+            com.takekazex.hypertweak.hook.rules.sms.SmsCodeHooker.onPackageReady(appContext)
+        }
         if (packageName == BatteryInfoHooker.PACKAGE && processName == packageName) {
             BatteryInfoHooker.onPackageReady(appContext)
         }

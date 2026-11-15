@@ -50,6 +50,7 @@ fun TweaksScreenContent(
     padding: PaddingValues,
     onNavigateToSystemLauncher: () -> Unit,
     onNavigateToSystemUi: () -> Unit,
+    onNavigateToSms: () -> Unit,
     onNavigateToScreenshot: () -> Unit,
     onNavigateToDownloadManager: () -> Unit,
     onNavigateToSecurityCenter: () -> Unit,
@@ -143,6 +144,18 @@ fun TweaksScreenContent(
                             )
                         },
                         onClick = onNavigateToSystemUi
+                    )
+                    ArrowPreference(
+                        title = stringResource(R.string.sms_title),
+                        summary = stringResource(R.string.sms_auto_copy_title),
+                        startAction = {
+                            ApplicationIcon(
+                                packageName = "com.android.mms",
+                                modifier = Modifier.padding(end = 6.dp),
+                                contentDescription = stringResource(R.string.sms_title)
+                            )
+                        },
+                        onClick = onNavigateToSms
                     )
                     ArrowPreference(
                         title = stringResource(R.string.screenshot_section),

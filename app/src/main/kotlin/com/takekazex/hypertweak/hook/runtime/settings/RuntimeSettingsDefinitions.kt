@@ -68,6 +68,7 @@ internal object RuntimeSettingsDefinitions {
     const val XIAOAI_GESTURES = "xiaoai.gesture_input"
     const val SETTINGS_AI = "settings.hyperos_ai"
     const val WIFI_DETAILS = "settings.wifi_details"
+    const val SMS = "sms.auto_copy_code"
     const val MARKET = "market.purification"
     const val COMMUNITY = "community.feedback"
     const val SHARE_PANEL = "intentresolver.share_panel"
@@ -195,7 +196,7 @@ internal object RuntimeSettingsDefinitions {
         PlatformSettingsKeys.KEY_UNLOCK_MORE_AON_GESTURES,
         PlatformSettingsKeys.KEY_UNLOCK_ADAPTIVE_REFRESH_PRO
     )
-    val strictBooleanKeys = com.takekazex.hypertweak.settings.contract.CameraSettingsKeys.booleanKeys +
+    val strictBooleanKeys = setOf(com.takekazex.hypertweak.settings.contract.SmsSettingsKeys.KEY_SMS_AUTO_COPY_CODE) + com.takekazex.hypertweak.settings.contract.CameraSettingsKeys.booleanKeys +
         experimentalKeys + FreeformSettingsKeys.keys + PackageManagerSettingsKeys.keys + setOf(PlatformSettingsKeys.KEY_POWER_BUTTON_CTS,
             PlatformSettingsKeys.KEY_SHOW_IN_SETTINGS, SystemUiSettingsKeys.KEY_IMMEDIATE_MONET_REFRESH) + com.takekazex.hypertweak.settings.contract.MarketSettingsKeys.keys + setOf(com.takekazex.hypertweak.settings.contract.CommunitySettingsKeys.KEY_COMMUNITY_BLOCK_DETECTION,
         com.takekazex.hypertweak.settings.contract.CommunitySettingsKeys.KEY_COMMUNITY_DEVICE_MODIFY, PlatformSettingsKeys.KEY_AOSP_IME_ENABLED,
@@ -351,6 +352,9 @@ internal object RuntimeSettingsDefinitions {
         XIAOAI_GESTURES to Group(setOf("com.miui.voiceassist")) { it == PlatformSettingsKeys.KEY_XIAOAI_GESTURE_OPTIONS },
         SETTINGS_AI to Group(setOf("com.android.settings")) {
             it == PlatformSettingsKeys.KEY_SETTINGS_ONDEVICE_MODEL_ENTRY || it == PlatformSettingsKeys.KEY_SETTINGS_GEMINI_ENTRY
+        },
+        SMS to Group(setOf(com.takekazex.hypertweak.settings.contract.SmsSettingsKeys.PACKAGE)) {
+            it == com.takekazex.hypertweak.settings.contract.SmsSettingsKeys.KEY_SMS_AUTO_COPY_CODE
         },
         MARKET to Group(setOf(com.takekazex.hypertweak.settings.contract.MarketSettingsKeys.PACKAGE)) {
             it in com.takekazex.hypertweak.settings.contract.MarketSettingsKeys.keys
