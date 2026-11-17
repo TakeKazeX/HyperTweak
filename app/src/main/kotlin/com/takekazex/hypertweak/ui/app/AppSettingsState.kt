@@ -29,6 +29,7 @@ internal class AppSettingsState(val storage: AppSettingsStore) {
     var downloadAlwaysShowFullLink by settings.preference { storage.getBoolean(PlatformSettingsKeys.KEY_DOWNLOAD_ALWAYS_SHOW_FULL_LINK, false) }
     var downloadHideXl by settings.preference { storage.getBoolean(PlatformSettingsKeys.KEY_DOWNLOAD_HIDE_XL, false) }
     var downloadAddNewButton by settings.preference { storage.getBoolean(PlatformSettingsKeys.KEY_DOWNLOAD_ADD_NEW_BUTTON, false) }
+    var downloadFocusNotification by settings.preference { storage.getBoolean(PlatformSettingsKeys.KEY_DOWNLOAD_FOCUS_NOTIFICATION, false) }
     var fullScreenTranslate by settings.preference { storage.getBoolean(PlatformSettingsKeys.KEY_FULL_SCREEN_TRANSLATE, false) }
     var askAboutScreen by settings.preference { storage.getBoolean(PlatformSettingsKeys.KEY_ASK_ABOUT_SCREEN, false) }
     var hideFingerprintAod by settings.preference { storage.fingerprint.hideFingerprintAodEnabled() }
@@ -122,6 +123,7 @@ internal class AppSettingsState(val storage: AppSettingsStore) {
             PlatformSettingsKeys.KEY_DOWNLOAD_ALWAYS_SHOW_FULL_LINK -> downloadAlwaysShowFullLink
             PlatformSettingsKeys.KEY_DOWNLOAD_HIDE_XL -> downloadHideXl
             PlatformSettingsKeys.KEY_DOWNLOAD_ADD_NEW_BUTTON -> downloadAddNewButton
+            PlatformSettingsKeys.KEY_DOWNLOAD_FOCUS_NOTIFICATION -> downloadFocusNotification
             SystemUiSettingsKeys.KEY_HIDE_FINGERPRINT_AOD -> hideFingerprintAod
             SystemUiSettingsKeys.KEY_HIDE_FINGERPRINT_LOCKSCREEN -> hideFingerprintLockscreen
             SystemUiSettingsKeys.KEY_HIDE_FINGERPRINT_APP_AUTH -> hideFingerprintAppAuth

@@ -10,6 +10,7 @@ import com.takekazex.hypertweak.hook.rules.systemui.AospSystemUiPluginBlockHooke
 import com.takekazex.hypertweak.hook.rules.systemui.volume.AospVolumeExtrasHooker
 import com.takekazex.hypertweak.hook.rules.systemui.volume.AospVolumeHapticHooker
 import com.takekazex.hypertweak.hook.rules.systemui.ExtendUnlockHooker
+import com.takekazex.hypertweak.hook.rules.systemui.notification.DownloadFocusAuthPluginHooker
 import com.takekazex.hypertweak.hook.rules.systemui.notification.FocusNotificationWhitelistHooker
 import com.takekazex.hypertweak.hook.rules.systemui.freeform.FreeformBlurTransitionHooker
 import com.takekazex.hypertweak.hook.rules.systemui.gesturebar.HideBottomBarHooker
@@ -83,6 +84,7 @@ internal object SystemUiHookPlan {
                 hook { LockscreenAllNotificationsHooker }
                 hook { LockscreenKeepNotificationsHooker }
                 hook { FocusNotificationWhitelistHooker }
+                hook { DownloadFocusAuthPluginHooker }
                 hook { NotificationMiniWindowHooker }
                 hook { SystemUiFreeformHooker }
                 hook { NotificationWhitelistBypassHooker }

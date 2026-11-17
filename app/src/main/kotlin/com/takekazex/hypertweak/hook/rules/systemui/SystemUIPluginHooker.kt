@@ -32,6 +32,7 @@ import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.CompatibleMethodResolver
 import com.takekazex.hypertweak.hook.rules.systemui.media.MediaPlayerDeviceIconHooker
 import com.takekazex.hypertweak.hook.rules.systemui.media.MediaSuperIslandWhitelistHooker
+import com.takekazex.hypertweak.hook.rules.systemui.notification.DownloadFocusAuthPluginHooker
 
 object SystemUIPluginHooker : StaticHooker() {
     // Published on settings acceptance; hook callbacks perform no storage reads.
@@ -313,6 +314,9 @@ object SystemUIPluginHooker : StaticHooker() {
             DebugLog.hookFailed("SystemUIPlugin", "PluginInstance#loadPlugin classLoader", null)
             return
         }
+        // Focus notification auth lives in this plugin APK; install the narrow download pass on
+        // the loader that is actually being used, independent of plugin-session choices.
+        DownloadFocusAuthPluginHooker.hookPluginLoader(classLoader)
         if (isControlCenterPlugin(componentName)) {
             runCatching {
                 classLoader.loadClass("miui.systemui.controlcenter.panel.main.recyclerview.MainPanelAdapter")

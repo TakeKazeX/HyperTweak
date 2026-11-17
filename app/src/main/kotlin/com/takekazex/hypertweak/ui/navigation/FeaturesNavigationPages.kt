@@ -75,7 +75,9 @@ internal fun NavEntryBuilder.featuresPages(settings: NavigationSettings, navCont
                 hideXl = downloadHideXl,
                 onHideXlChange = onDownloadHideXlChange,
                 addNewButton = downloadAddNewButton,
-                onAddNewButtonChange = onDownloadAddNewButtonChange
+                onAddNewButtonChange = onDownloadAddNewButtonChange,
+                focusNotification = downloadFocusNotification,
+                onFocusNotificationChange = onDownloadFocusNotificationChange
             )
         }
         entry<Route.GlassTuner> {

@@ -83,6 +83,7 @@ internal object DebugSettingsCatalog {
         DebugSetting("disable_video_ringback", "Boolean", false),
         DebugSetting("download_add_new_button", "Boolean", false),
         DebugSetting("download_always_show_full_link", "Boolean", false),
+        DebugSetting("download_focus_notification", "Boolean", false),
         DebugSetting("download_hide_xl", "Boolean", false),
         DebugSetting("exit_power_save_when_charging", "Boolean", false),
         DebugSetting("extend_unlock_fix", "Boolean", false),

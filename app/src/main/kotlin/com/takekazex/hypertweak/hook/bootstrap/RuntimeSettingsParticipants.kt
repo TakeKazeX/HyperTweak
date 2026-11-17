@@ -108,6 +108,13 @@ internal object RuntimeSettingsParticipants {
             else actions.ime()
         }
         registerForProcess(RuntimeSettingsGroups.PASSIVE_POLICIES) { _ -> true }
+        registerForProcess(RuntimeSettingsGroups.DOWNLOAD_FOCUS) { _ ->
+            // SystemUI only reads the auth gate's hookSetting slot; the provider republishes.
+            if (processName != "com.android.systemui") {
+                com.takekazex.hypertweak.hook.rules.downloads.DownloadFocusNotificationHooker.refreshSettings()
+            }
+            true
+        }
         registerForProcess(RuntimeSettingsGroups.GOOGLE_APP) { _ ->
             com.takekazex.hypertweak.hook.rules.googleapp.GoogleAppRuntime.refreshSettings()
         }

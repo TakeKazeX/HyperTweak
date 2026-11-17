@@ -261,6 +261,11 @@ internal fun AppContent(
                             downloadAddNewButton = checked
                             settings.storage.putBoolean(PlatformSettingsKeys.KEY_DOWNLOAD_ADD_NEW_BUTTON, checked)
                         },
+                        downloadFocusNotification = downloadFocusNotification,
+                        onDownloadFocusNotificationChange = { checked ->
+                            downloadFocusNotification = checked
+                            settings.storage.putBoolean(PlatformSettingsKeys.KEY_DOWNLOAD_FOCUS_NOTIFICATION, checked)
+                        },
                         // Google services and the experimental switches now live on their own
                         // second-level pages; the nav container consumes their state directly.
                         removeGms = removeGms,

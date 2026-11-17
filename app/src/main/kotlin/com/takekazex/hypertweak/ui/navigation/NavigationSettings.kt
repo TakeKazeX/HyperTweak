@@ -52,6 +52,8 @@ class NavigationSettings(
     val onDownloadHideXlChange: (Boolean) -> Unit,
     val downloadAddNewButton: Boolean,
     val onDownloadAddNewButtonChange: (Boolean) -> Unit,
+    val downloadFocusNotification: Boolean,
+    val onDownloadFocusNotificationChange: (Boolean) -> Unit,
     val removeGms: Boolean,
     val onRemoveGmsChange: (Boolean) -> Unit,
     val fullScreenTranslate: Boolean,

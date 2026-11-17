@@ -1102,6 +1102,8 @@
     <string name="download_manager_hide_xl_summary">Hide the Xunlei icon and text</string>
     <string name="download_manager_add_new_button_title">Show new download button</string>
     <string name="download_manager_add_new_button_summary">Add a new-download button beside the Xunlei entry</string>
+    <string name="download_manager_focus_notification_title">Downloader focus notifications</string>
+    <string name="download_manager_focus_notification_summary">Show each active download as its own Super Island progress entry</string>
     <string name="download_manager_block_xl_title">Block the Xunlei log folder</string>
     <string name="download_manager_block_xl_summary">Prevent creation of the .xlDownload folder</string>
     <string name="download_manager_xl_dialog_title">.xlDownload folder detected</string>

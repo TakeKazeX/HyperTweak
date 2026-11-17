@@ -38,6 +38,7 @@
       "LockscreenAllNotificationsHooker",
       "LockscreenKeepNotificationsHooker",
       "FocusNotificationWhitelistHooker",
+      "DownloadFocusAuthPluginHooker",
       "NotificationMiniWindowHooker",
       "SystemUiFreeformHooker",
       "NotificationWhitelistBypassHooker",
@@ -86,6 +87,7 @@
       "LockscreenAllNotificationsHooker",
       "LockscreenKeepNotificationsHooker",
       "FocusNotificationWhitelistHooker",
+      "DownloadFocusAuthPluginHooker",
       "NotificationMiniWindowHooker",
       "SystemUiFreeformHooker",
       "NotificationWhitelistBypassHooker",
@@ -471,12 +473,12 @@
   {
     "process": "com.android.providers.downloads",
     "package": "com.android.providers.downloads",
-    "targets": ["DownloadXlLogDirectoryHooker"]
+    "targets": ["DownloadXlLogDirectoryHooker", "DownloadFocusNotificationHooker"]
   },
   {
     "process": "com.android.providers.downloads:aux",
     "package": "com.android.providers.downloads",
-    "targets": ["DownloadXlLogDirectoryHooker"]
+    "targets": ["DownloadXlLogDirectoryHooker", "DownloadFocusNotificationHooker"]
   },
   {
     "process": "com.android.providers.downloads.ui",

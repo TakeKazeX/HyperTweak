@@ -7,6 +7,7 @@ import com.takekazex.hypertweak.hook.rules.camera.CameraLegendaryProfileHooker
 import com.takekazex.hypertweak.hook.rules.camera.CameraUltraQualityHooker
 import com.takekazex.hypertweak.hook.rules.camera.CameraWatermarkHooker
 import com.takekazex.hypertweak.hook.rules.contacts.BusinessHallAdBlockHooker
+import com.takekazex.hypertweak.hook.rules.downloads.DownloadFocusNotificationHooker
 import com.takekazex.hypertweak.hook.rules.downloads.DownloadUiHooker
 import com.takekazex.hypertweak.hook.rules.downloads.DownloadXlLogDirectoryHooker
 import com.takekazex.hypertweak.hook.rules.intentresolver.SharePanelHooker
@@ -61,6 +62,9 @@ internal object AndroidAppHookPlan {
                 // even with debug logging off. The feature only blocks that log path; downloads
                 // continue through the provider's normal engine.
                 hook { DownloadXlLogDirectoryHooker }
+                // Per-task Super Island focus notifications are produced by the provider-side
+                // notifier; the Download Manager UI process never owns the task collection.
+                hook { DownloadFocusNotificationHooker }
             }
             "com.android.providers.downloads.ui" -> {
                 // The Download Manager UI has its own package/process and must be explicitly

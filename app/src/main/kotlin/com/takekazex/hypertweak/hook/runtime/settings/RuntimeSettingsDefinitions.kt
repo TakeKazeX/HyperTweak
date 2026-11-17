@@ -105,6 +105,8 @@ internal object RuntimeSettingsDefinitions {
     const val FCM = "google.fcm"
     const val POLICY_FEATURES = "features.policy"
     const val PASSIVE_POLICIES = "features.passive_policy"
+    /** Download provider per-task focus notifications. */
+    const val DOWNLOAD_FOCUS = "downloads.focus_notification"
     const val REVISION = "runtime_settings_revision"
     private val islandKeys = setOf(
         PlatformSettingsKeys.KEY_REMOVE_ISLAND_PLACEHOLDER, PlatformSettingsKeys.KEY_THREE_ISLANDS, PlatformSettingsKeys.KEY_LANDSCAPE_FULL_ISLANDS,
@@ -203,6 +205,7 @@ internal object RuntimeSettingsDefinitions {
         PlatformSettingsKeys.KEY_AOSP_IME_MIUI_IME_LIST) + policyKeys + passivePolicyKeys + googleKeys + aospUiKeys + aospSecurityKeys + setOf(
         PlatformSettingsKeys.KEY_AOSP_PACKAGE_INSTALLER,
         PlatformSettingsKeys.KEY_NATIVE_PICKER, PlatformSettingsKeys.KEY_NATIVE_PHOTO_PICKER, PlatformSettingsKeys.KEY_NATIVE_FILE_PICKER,
+        PlatformSettingsKeys.KEY_DOWNLOAD_FOCUS_NOTIFICATION,
         PlatformSettingsKeys.KEY_SETTINGS_ONDEVICE_MODEL_ENTRY,
         PlatformSettingsKeys.KEY_SETTINGS_GEMINI_ENTRY,
         PlatformSettingsKeys.KEY_WIFI_DETAIL_IP_MULTILINE,
@@ -275,6 +278,9 @@ internal object RuntimeSettingsDefinitions {
             "com.android.providers.downloads.ui", "com.android.settings",
             "com.milink.service", "com.xiaomi.bluetooth", "com.miui.voiceassist", "com.xiaomi.finddevice",
         )) { it in passivePolicyKeys },
+        DOWNLOAD_FOCUS to Group(setOf("com.android.providers.downloads", "com.android.systemui")) {
+            it == PlatformSettingsKeys.KEY_DOWNLOAD_FOCUS_NOTIFICATION
+        },
         GOOGLE_APP to Group(setOf("com.google.android.googlequicksearchbox")) {
             it == PlatformSettingsKeys.KEY_ASK_ABOUT_SCREEN || it == PlatformSettingsKeys.KEY_FULL_SCREEN_TRANSLATE
         },

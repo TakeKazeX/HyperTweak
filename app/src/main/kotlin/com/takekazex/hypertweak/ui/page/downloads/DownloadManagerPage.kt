@@ -58,7 +58,9 @@ fun DownloadManagerPage(
     hideXl: Boolean,
     onHideXlChange: (Boolean) -> Unit,
     addNewButton: Boolean,
-    onAddNewButtonChange: (Boolean) -> Unit
+    onAddNewButtonChange: (Boolean) -> Unit,
+    focusNotification: Boolean,
+    onFocusNotificationChange: (Boolean) -> Unit
 ) {
     val context = LocalContext.current
     val cleanup = LocalDownloadXlCleanup.current
@@ -127,6 +129,12 @@ fun DownloadManagerPage(
                         onCheckedChange = onAddNewButtonChange,
                         title = stringResource(R.string.download_manager_add_new_button_title),
                         summary = stringResource(R.string.download_manager_add_new_button_summary)
+                    )
+                    SwitchPreference(
+                        checked = focusNotification,
+                        onCheckedChange = onFocusNotificationChange,
+                        title = stringResource(R.string.download_manager_focus_notification_title),
+                        summary = stringResource(R.string.download_manager_focus_notification_summary)
                     )
                     SwitchPreference(
                         checked = blockDownloadXlLogDir,

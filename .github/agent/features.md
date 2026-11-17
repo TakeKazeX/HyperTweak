@@ -292,6 +292,39 @@ second gesture after hot reload/live enable. Add no Surface alpha/geometry write
 
 Download detail hooks select a semantically evidenced renderer, derive the download-model argument position and bind the original URL field from the host clipboard consumer. Same-prototype helper methods and other URL-like fields do not count as evidence. Credential row actions match the real Boolean-returning native launch call. Google AIM constructor overrides copy the immutable `Chain.args` and pass replacements to `proceed(array)` exactly once.
 
+`DownloadFocusNotificationHooker` (provider process) gives each task its own notification
+and the host's native `file_download` focus payload; SystemUI renders it with its own
+templates, text layout and animation. Five structural boundaries only:
+- The static tag builder splits active/waiting tasks to `1:<source>:<id>` (user-paused 193
+  keeps that identity so pause/resume never recreates the island) and successes to
+  `3:<source>:success:<id>`, keeping native completion channels, open/hide intents and
+  auto-cancel. Failures and other tags stay native.
+- `updateWithLocked` captures the live notifier/collection for settings refresh.
+- `NotificationHelper.notify` attaches `miui.focus.param` / `pics` / `actions` plus the
+  `hypertweak.download.focus.task_id` marker, and clears the icon URL (the host's async icon
+  queue is keyed by package + URL and would hold back same-source peers). A tag without a
+  snapshot is published natively.
+- The native notification receiver handles the injected pause/resume broadcasts.
+- `DownloadNotifier.cancelAll` (called when a stopped service restarts, e.g. resuming while
+  all tasks are paused) keeps marked task notifications and seeds the new notifier's
+  `mActiveNotifs` with their tags and posted `when`; the native stale-tag sweep then cancels
+  tasks that are gone. Otherwise every island is torn down and re-posted.
+Text comes from the provider's own string resources, speed from the notifier's
+`mDownloadSpeed`, icons from its `file_icon_*` drawables (island slots use a 15%-inset copy).
+Completion uses the native recorder's done style: the big island's right `picInfo` and the
+small island show its green check (redrawn from the recorder's 22dp finish vector), with no
+percentage, bar or action. Settings refresh rediscovers
+`DownloadService` via `ActivityThread.mServices`; a stopped service falls back to the
+retained notifier and replays only tasks represented by posted notifications (marker or
+native `extra_click_download_ids`), rejecting the whole replay if any identity is missing.
+
+`DownloadFocusAuthPluginHooker` (SystemUI plugin) runs the native auth-success callback only
+for a marked, identity-validated provider notification. It never changes the package-level
+XMS allowlist or the focus whitelist; native per-app `canShowFocus` still applies. There are
+no SystemUI title, mount or row hooks: long file names follow native island truncation.
+Validation: `DownloadFocus*Test` and package-plan/runtime-settings tests; the user checks
+multiple downloads, pause/resume, completion, enable/disable/reset and hot reload on device.
+
 ## Security Center privacy
 
 `SecurityCenterPrivacyResolver` reuses the operand/call-graph index to recover privacy gates, native function-card builders and the beauty initializer/support path. No obfuscated owner/member names or ROM-version branches are stored. Missing optional capabilities remain independent; selecting an absent anti-peeping variant preserves the native gates/visibility. Beauty support overrides are scoped to the native initializer with nested/exception-safe thread ownership.

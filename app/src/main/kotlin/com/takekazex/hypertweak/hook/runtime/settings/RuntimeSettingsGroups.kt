@@ -74,6 +74,7 @@ internal object RuntimeSettingsGroups {
     const val FCM = RuntimeSettingsDefinitions.FCM
     const val POLICY_FEATURES = RuntimeSettingsDefinitions.POLICY_FEATURES
     const val PASSIVE_POLICIES = RuntimeSettingsDefinitions.PASSIVE_POLICIES
+    const val DOWNLOAD_FOCUS = RuntimeSettingsDefinitions.DOWNLOAD_FOCUS
     const val REVISION = RuntimeSettingsDefinitions.REVISION
     private val groups get() = RuntimeSettingsDefinitions.groups
     val backKeys get() = RuntimeSettingsDefinitions.backKeys
