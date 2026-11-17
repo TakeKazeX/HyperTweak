@@ -37,6 +37,7 @@ internal object RuntimeSettingsGroups {
     const val SECURITY_POPUPS = RuntimeSettingsDefinitions.SECURITY_POPUPS
     const val SECURITY_SIDEBAR = RuntimeSettingsDefinitions.SECURITY_SIDEBAR
     const val SECURITY_DOCK = RuntimeSettingsDefinitions.SECURITY_DOCK
+    const val SECURITY_DOCK_SHORTCUTS = RuntimeSettingsDefinitions.SECURITY_DOCK_SHORTCUTS
     const val SECURITY_CHECKS = RuntimeSettingsDefinitions.SECURITY_CHECKS
     const val SECURITY_PRIVACY = RuntimeSettingsDefinitions.SECURITY_PRIVACY
     const val SECURITY_WARNINGS = RuntimeSettingsDefinitions.SECURITY_WARNINGS

@@ -57,6 +57,7 @@ internal object RuntimeSettingsDefinitions {
     const val SECURITY_POPUPS = "securitycenter.sidebar_popups"
     const val SECURITY_SIDEBAR = "securitycenter.sidebar"
     const val SECURITY_DOCK = "securitycenter.dock"
+    const val SECURITY_DOCK_SHORTCUTS = "securitycenter.dock_shortcuts"
     const val SECURITY_CHECKS = "securitycenter.checks"
     const val SECURITY_PRIVACY = "securitycenter.privacy"
     const val SECURITY_WARNINGS = "securitycenter.warnings"
@@ -220,6 +221,8 @@ internal object RuntimeSettingsDefinitions {
         PlatformSettingsKeys.KEY_SECURITY_CENTER_FORCE_UNLOCK_MACRO,
         PlatformSettingsKeys.KEY_SECURITY_CENTER_DOCK_UNLIMITED_PINNED,
         PlatformSettingsKeys.KEY_SECURITY_CENTER_DOCK_UNLIMITED_PREDICTIONS,
+        PlatformSettingsKeys.KEY_SECURITY_CENTER_DOCK_APP_SHORTCUTS,
+        PlatformSettingsKeys.KEY_SECURITY_CENTER_DOCK_APP_SHORTCUTS_FREEFORM,
         PlatformSettingsKeys.KEY_SECURITY_CENTER_PRIVACY_CALL_ENTRY,
         PlatformSettingsKeys.KEY_SECURITY_CENTER_FRONT_CAMERA_ASSISTANT_ENTRY,
         PlatformSettingsKeys.KEY_SECURITY_CENTER_CALL_PRIVACY_CAMERA_ENTRY,
@@ -411,6 +414,10 @@ internal object RuntimeSettingsDefinitions {
         SECURITY_DOCK to Group(setOf("com.miui.securitycenter")) {
             it == PlatformSettingsKeys.KEY_SECURITY_CENTER_DOCK_UNLIMITED_PINNED ||
                 it == PlatformSettingsKeys.KEY_SECURITY_CENTER_DOCK_UNLIMITED_PREDICTIONS || it == PlatformSettingsKeys.KEY_SECURITY_CENTER_DOCK_PREDICT_LIMIT
+        },
+        SECURITY_DOCK_SHORTCUTS to Group(setOf("com.miui.securitycenter")) {
+            it == PlatformSettingsKeys.KEY_SECURITY_CENTER_DOCK_APP_SHORTCUTS ||
+                it == PlatformSettingsKeys.KEY_SECURITY_CENTER_DOCK_APP_SHORTCUTS_FREEFORM
         },
         SECURITY_CHECKS to Group(setOf("com.miui.securitycenter", "com.miui.guardprovider")) {
             it == PlatformSettingsKeys.KEY_GUARD_PROVIDER_DISABLE_ENVIRONMENT_CHECK ||

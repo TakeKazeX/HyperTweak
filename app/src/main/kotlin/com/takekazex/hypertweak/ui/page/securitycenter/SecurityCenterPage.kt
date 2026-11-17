@@ -77,6 +77,12 @@ fun SecurityCenterPage(
     var dockUnlimitedPredictions by rememberSaveable {
         mutableStateOf(settingsStore.getBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_DOCK_UNLIMITED_PREDICTIONS, false))
     }
+    var dockAppShortcuts by rememberSaveable {
+        mutableStateOf(settingsStore.getBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_DOCK_APP_SHORTCUTS, false))
+    }
+    var dockAppShortcutsFreeform by rememberSaveable {
+        mutableStateOf(settingsStore.getBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_DOCK_APP_SHORTCUTS_FREEFORM, false))
+    }
     var dockPredictions by rememberSaveable {
         mutableIntStateOf(settingsStore.getInt(PlatformSettingsKeys.KEY_SECURITY_CENTER_DOCK_PREDICT_LIMIT, 8).coerceIn(0, 15))
     }
@@ -414,6 +420,25 @@ fun SecurityCenterPage(
                     },
                     title = stringResource(R.string.security_center_dock_unlimited_predictions),
                     summary = stringResource(R.string.security_center_dock_unlimited_predictions_summary)
+                )
+                SwitchPreference(
+                    checked = dockAppShortcuts,
+                    onCheckedChange = {
+                        dockAppShortcuts = it
+                        settingsStore.putBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_DOCK_APP_SHORTCUTS, it)
+                    },
+                    title = stringResource(R.string.security_center_dock_app_shortcuts),
+                    summary = stringResource(R.string.security_center_dock_app_shortcuts_summary)
+                )
+                SwitchPreference(
+                    checked = dockAppShortcutsFreeform,
+                    onCheckedChange = {
+                        dockAppShortcutsFreeform = it
+                        settingsStore.putBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_DOCK_APP_SHORTCUTS_FREEFORM, it)
+                    },
+                    enabled = dockAppShortcuts,
+                    title = stringResource(R.string.security_center_dock_app_shortcuts_freeform),
+                    summary = stringResource(R.string.security_center_dock_app_shortcuts_freeform_summary)
                 )
                 DockSlider(
                     title = stringResource(R.string.security_center_dock_predictions),

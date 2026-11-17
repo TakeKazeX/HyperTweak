@@ -302,6 +302,8 @@ internal object DebugSettingsCatalog {
         DebugSetting("securitycenter_disable_root_scan_item", "Boolean", false),
         DebugSetting("securitycenter_disable_safepay_auto_scan", "Boolean", false),
         DebugSetting("securitycenter_disable_usb_install_intercept", "Boolean", false),
+        DebugSetting("securitycenter_dock_app_shortcuts", "Boolean", false),
+        DebugSetting("securitycenter_dock_app_shortcuts_freeform", "Boolean", false),
         DebugSetting("securitycenter_dock_predict_limit", "Int", 8),
         DebugSetting("securitycenter_dock_unlimited_pinned", "Boolean", false),
         DebugSetting("securitycenter_dock_unlimited_predictions", "Boolean", false),

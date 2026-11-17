@@ -340,6 +340,34 @@ multiple downloads, pause/resume, completion, enable/disable/reset and hot reloa
 
 `SecurityCenterPrivacyResolver` reuses the operand/call-graph index to recover privacy gates, native function-card builders and the beauty initializer/support path. No obfuscated owner/member names or ROM-version branches are stored. Missing optional capabilities remain independent; selecting an absent anti-peeping variant preserves the native gates/visibility. Beauty support overrides are scoped to the native initializer with nested/exception-safe thread ownership.
 
+## Security Center sidebar app shortcuts
+
+`SecurityCenterDockShortcutsHooker` (`com.miui.securitycenter:ui`, switch
+`securitycenter_dock_app_shortcuts`, own runtime group `securitycenter.dock_shortcuts` so toggling
+never rebuilds dock models) adds a card of the long-pressed app's App Shortcuts under the native
+full-screen/split card. Security Center is UID 1000, which `checkPermission(ACCESS_SHORTCUTS)`
+grants, so `LauncherApps.getShortcuts`/`startShortcut` work in-process with no system_server hook.
+`SecurityCenterDockShortcutsResolver` anchors the window-manager show method
+(`showOrHideShortCutMenu: invalid!!!`, `(panel, item, View, callback, Z)V`), the CardView field it
+positions, the dismiss method (`dismissShortCut mShortCutMenu: `), and the app model via the
+callback base type's uid/package accessors; the model's `AppInfo{uid=` printer proves the int is
+a uid. Only an after-hook on the show method is installed. The card is a host `CardView` sibling in
+the same panel `FrameLayout`, copying radius, colour, compat padding, elevation and `setMiShadow`
+from the native card. A pre-draw listener mirrors its visibility, alpha and scale, so every native
+dismiss path also hides the card. The horizontal-sidebar branch (`Z = true`) stays native.
+Rows use the host's Miuix drop-down metrics/typography (`miuix_appcompat_popup_menu_item_min_height`,
+`drop_down_item_text_size`, `miuix_font_weight_headline2`, immersion text colours). Each row's
+foreground is the host's `drawable/miuix_popup_window_list_item_fg` (`PressEffectDrawable`: inset,
+rounded, Folme-animated alpha over the whole row, light/night variants). Folme touch tint is not
+used: on a transparent row it only darkens the icon pixels. After `startShortcut` the hooker calls the
+window manager's animated collapse (`hideNewDockSidebar withAnim`, `(I)V`, gesture 0), which SystemUI
+normally requests over the overlay binder for native launches. Results are cached per user/package and invalidated by `LauncherApps.Callback`.
+Ordering follows the launcher (manifest first, then rank) with no count cap; a card taller than the
+window scrolls. `securitycenter_dock_app_shortcuts_freeform` passes the framework
+`MiuiMultiWindowUtils.getActivityOptions(ctx, pkg, true)` to `startShortcut`; a null result (app
+without small-window support) opens normally. Validation: `SecurityCenterDockShortcutsContractTest`
+(set `SECURITY_CENTER_APK`); the user checks placement, tapping, dark mode and hot reload on device.
+
 ## Personal Assistant widget picker
 
 The PA main-process `AndroidWidgetPickerHooker` resolves the existing native classic-widget footer lifecycle, navigator and source. Catalog gates resolve independently, including Kotlin accessors; chooser reflection is resolved lazily and cannot prevent entry registration. Assistant

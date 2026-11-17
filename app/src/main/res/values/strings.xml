@@ -1719,6 +1719,10 @@
     <string name="security_center_dock_predictions_summary">Default: 8. Independent of pinned additions; 0 hides predictions. Extra apps scroll within the panel.</string>
     <string name="security_center_dock_unlimited_predictions">Show predictions beyond 16 apps</string>
     <string name="security_center_dock_unlimited_predictions_summary">Allow predicted apps beyond the 16-app display limit. The slider still controls their count.</string>
+    <string name="security_center_dock_app_shortcuts">Long-press app shortcuts</string>
+    <string name="security_center_dock_app_shortcuts_summary">Long-pressing an app in the sidebar shows its app shortcuts below Full screen / Split screen, the same ones the launcher shows.</string>
+    <string name="security_center_dock_app_shortcuts_freeform">Open shortcuts in a small window</string>
+    <string name="security_center_dock_app_shortcuts_freeform_summary">Shortcuts from the sidebar open in a small window. Apps that do not support small windows open normally.</string>
     <string name="security_center_hide_game_popup">Hide Berserk mode popups</string>
     <string name="security_center_hide_game_popup_summary">Hide game launch awareness cards and Berserk mode tips</string>
     <string name="security_center_hide_dolby_popup">Hide Dolby popups</string>

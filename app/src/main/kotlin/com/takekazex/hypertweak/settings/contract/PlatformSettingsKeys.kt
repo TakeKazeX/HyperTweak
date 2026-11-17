@@ -51,6 +51,8 @@ object PlatformSettingsKeys {
     const val KEY_GUARD_PROVIDER_DISABLE_ENVIRONMENT_CHECK = "guard_provider_disable_environment_check"
     const val KEY_SECURITY_CENTER_DOCK_UNLIMITED_PINNED = "securitycenter_dock_unlimited_pinned"
     const val KEY_SECURITY_CENTER_DOCK_UNLIMITED_PREDICTIONS = "securitycenter_dock_unlimited_predictions"
+    const val KEY_SECURITY_CENTER_DOCK_APP_SHORTCUTS = "securitycenter_dock_app_shortcuts"
+    const val KEY_SECURITY_CENTER_DOCK_APP_SHORTCUTS_FREEFORM = "securitycenter_dock_app_shortcuts_freeform"
     const val KEY_SECURITY_CENTER_FORCE_UNLOCK_GUNSIGHT = "securitycenter_force_unlock_gunsight"
     const val KEY_SECURITY_CENTER_FORCE_UNLOCK_MACRO = "securitycenter_force_unlock_macro"
     const val KEY_SECURITY_CENTER_SIDEBAR_MODE = "securitycenter_sidebar_mode"

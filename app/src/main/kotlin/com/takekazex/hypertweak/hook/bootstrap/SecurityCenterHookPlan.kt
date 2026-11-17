@@ -18,6 +18,7 @@ import com.takekazex.hypertweak.hook.rules.securitycenter.battery.MoreBatteryInf
 import com.takekazex.hypertweak.hook.rules.securitycenter.battery.PowerRankingHooker
 import com.takekazex.hypertweak.hook.rules.securitycenter.battery.PowerSaveOverrideHooker
 import com.takekazex.hypertweak.hook.rules.securitycenter.sidebar.SecurityCenterDockHooker
+import com.takekazex.hypertweak.hook.rules.securitycenter.sidebar.SecurityCenterDockShortcutsHooker
 import com.takekazex.hypertweak.hook.rules.securitycenter.sidebar.SecurityCenterDockHost
 import com.takekazex.hypertweak.hook.rules.securitycenter.sidebar.SecurityCenterSidebarHooker
 import com.takekazex.hypertweak.hook.rules.securitycenter.sidebar.SecurityCenterGameBoosterHooker
@@ -75,6 +76,7 @@ internal object SecurityCenterHookPlan {
                     }
                     if (processName == SecurityCenterDockHost.PROCESS) {
                         hook { SecurityCenterDockHooker }
+                        hook { SecurityCenterDockShortcutsHooker }
                         hook { SecurityCenterPopupHooker }
                         hook { SecurityCenterSidebarHooker }
                     }

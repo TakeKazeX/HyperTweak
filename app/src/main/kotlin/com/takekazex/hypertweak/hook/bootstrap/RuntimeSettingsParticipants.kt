@@ -19,6 +19,7 @@ import com.takekazex.hypertweak.hook.rules.securitycenter.sidebar.SecurityCenter
 import com.takekazex.hypertweak.hook.rules.securitycenter.sidebar.SecurityCenterGameBoosterHooker
 import com.takekazex.hypertweak.hook.rules.securitycenter.sidebar.SecurityCenterPopupHooker
 import com.takekazex.hypertweak.hook.rules.securitycenter.sidebar.SecurityCenterDockHooker
+import com.takekazex.hypertweak.hook.rules.securitycenter.sidebar.SecurityCenterDockShortcutsHooker
 import com.takekazex.hypertweak.hook.rules.securitycenter.sidebar.SecurityCenterDockHost
 import com.takekazex.hypertweak.hook.rules.system.NativePhotoPickerHooker
 import com.takekazex.hypertweak.hook.rules.system.NativeFilePickerHooker
@@ -233,6 +234,9 @@ internal object RuntimeSettingsParticipants {
                 SecurityCenterDockHooker.Refresh.APPLIED -> true
                 SecurityCenterDockHooker.Refresh.UNAVAILABLE -> false
             }
+        }
+        registerForProcess(RuntimeSettingsGroups.SECURITY_DOCK_SHORTCUTS) { _ ->
+            if (processName == SecurityCenterDockHost.PROCESS) SecurityCenterDockShortcutsHooker.refreshSettings() else true
         }
         registerForProcess(RuntimeSettingsGroups.SECURITY_CHECKS) { _ -> Preferences.invalidateRuntimeReadCache(); true }
         registerForProcess(RuntimeSettingsGroups.SECURITY_PRIVACY) { _ ->

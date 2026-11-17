@@ -5,4 +5,8 @@
     <string name="security_center_sidebar_disabled">隱藏並關閉側滑</string>
     <string name="security_center_sidebar_invisible">隱藏但保留側滑</string>
     <string name="security_center_sidebar_mode_summary">隱藏螢幕邊緣提示線；保留側滑時，原生觸控區域仍會接收邊緣觸控。</string>
+    <string name="security_center_dock_app_shortcuts">長按顯示應用程式捷徑</string>
+    <string name="security_center_dock_app_shortcuts_summary">長按側邊欄中的應用程式時，在「全螢幕 / 分割畫面」下方顯示該應用程式的捷徑（與桌面長按圖示相同）</string>
+    <string name="security_center_dock_app_shortcuts_freeform">以小窗開啟捷徑</string>
+    <string name="security_center_dock_app_shortcuts_freeform_summary">從側邊欄點按捷徑時以小窗開啟；不支援小窗的應用程式仍會正常開啟</string>
 </resources>

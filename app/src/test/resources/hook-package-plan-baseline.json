@@ -361,6 +361,7 @@
       "LbeClipboardToastHooker",
       "SecurityCenterGameBoosterHooker",
       "SecurityCenterDockHooker",
+      "SecurityCenterDockShortcutsHooker",
       "SecurityCenterPopupHooker",
       "SecurityCenterSidebarHooker"
     ]
