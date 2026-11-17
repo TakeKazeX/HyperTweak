@@ -67,14 +67,19 @@ internal object IslandLayoutPolicy {
         // only to budget side seats. Any later non-main measurement falls back to that rewrite.
         val portrait = if (context.flags.portraitCompact) {
             context.contentSizes[context.big]?.let { content ->
-                PortraitIslandLayout.calculate(
+                val leftSmall = sideSources.any { context.seatLeft(it) == true }
+                val rightSmall = sideSources.any { context.seatLeft(it) != true }
+                PortraitIslandLayout.fit(
                     scene.screenWidth, scene.screenHeight, scene.clockWidth, scene.batteryWidth,
-                    content, scene.cutoutWidth,
-                    leftSmallWidth, scene.gap,
-                    sideSources.any { context.seatLeft(it) == true },
-                    sideSources.any { context.seatLeft(it) != true },
+                    content, scene.cutoutWidth, leftSmallWidth, scene.gap, leftSmall, rightSmall,
                     scene.safe.left, scene.safe.right, rightSmallWidth = rightSmallWidth,
-                )?.also { portraitContent = content }
+                )?.let { fitted ->
+                    PortraitIslandLayout.calculate(
+                        scene.screenWidth, scene.screenHeight, scene.clockWidth, scene.batteryWidth,
+                        fitted, scene.cutoutWidth, leftSmallWidth, scene.gap, leftSmall, rightSmall,
+                        scene.safe.left, scene.safe.right, rightSmallWidth = rightSmallWidth,
+                    )?.also { portraitContent = fitted }
+                }
             }
         } else {
             null
