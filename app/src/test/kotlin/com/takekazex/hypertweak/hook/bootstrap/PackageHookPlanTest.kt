@@ -16,7 +16,7 @@ class PackageHookPlanTest {
         val json = requireNotNull(javaClass.getResourceAsStream("/hook-package-plan-baseline.json"))
             .bufferedReader().use { it.readText() }
         val cases = JSONArray(json)
-        assertEquals(68, cases.length())
+        assertEquals(69, cases.length())
         for (i in 0 until cases.length()) {
             val case = cases.getJSONObject(i)
             val expected = case.getJSONArray("targets")

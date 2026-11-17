@@ -80,6 +80,11 @@ internal object AndroidAppHookPlan {
             "com.xiaomi.barrage" -> if (processName == packageName) {
                 hook { BarrageAnyAppHooker }
             }
+            "miui.systemui.plugin" -> if (processName == "$packageName:flashlight") {
+                // The full-screen flashlight page (MiFlashlightActivity) runs in its own process;
+                // its back exit shrinks into the island SystemUI shows for the lit torch.
+                hook { com.takekazex.hypertweak.hook.rules.systemui.island.flashlight.FlashlightPageExitHooker }
+            }
             "com.android.contacts" -> {
                 hook { RestartBroadcastHooker }
                 hook { CarrierOfflineConfigHooker }

@@ -591,6 +591,7 @@ internal fun AppContent(
                     islandNarrowTimeFont = islandNarrowTimeFont,
                     islandPullDownStretch = islandPullDownStretch,
                     islandLottieResume = islandLottieResume,
+                    islandFlashlightControl = islandFlashlightControl,
                     onIslandLiveUpdateIconChange = { checked ->
                         islandLiveUpdateIcon = checked
                         markTweaked(PlatformSettingsKeys.KEY_ISLAND_LIVE_UPDATE_ICON, checked)
@@ -610,6 +611,11 @@ internal fun AppContent(
                         islandLottieResume = checked
                         markTweaked(PlatformSettingsKeys.KEY_ISLAND_LOTTIE_RESUME, checked)
                         settings.storage.putBoolean(PlatformSettingsKeys.KEY_ISLAND_LOTTIE_RESUME, checked)
+                    },
+                    onIslandFlashlightControlChange = { checked ->
+                        islandFlashlightControl = checked
+                        markTweaked(PlatformSettingsKeys.KEY_ISLAND_FLASHLIGHT_CONTROL, checked)
+                        settings.storage.putBoolean(PlatformSettingsKeys.KEY_ISLAND_FLASHLIGHT_CONTROL, checked)
                     },
                     onCcHideSuperIslandChange = { checked ->
                         ccHideSuperIsland = checked

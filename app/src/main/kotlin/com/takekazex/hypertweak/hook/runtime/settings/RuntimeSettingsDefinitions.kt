@@ -107,12 +107,15 @@ internal object RuntimeSettingsDefinitions {
     const val PASSIVE_POLICIES = "features.passive_policy"
     /** Download provider per-task focus notifications. */
     const val DOWNLOAD_FOCUS = "downloads.focus_notification"
+    /** The plugin's full-screen flashlight page process. */
+    const val FLASHLIGHT_PAGE = "plugin.flashlight_page"
     const val REVISION = "runtime_settings_revision"
     private val islandKeys = setOf(
         PlatformSettingsKeys.KEY_REMOVE_ISLAND_PLACEHOLDER, PlatformSettingsKeys.KEY_THREE_ISLANDS, PlatformSettingsKeys.KEY_LANDSCAPE_FULL_ISLANDS,
         PlatformSettingsKeys.KEY_LANDSCAPE_MORE_ISLANDS, SystemUiSettingsKeys.KEY_CC_HIDE_SUPER_ISLAND,
         PlatformSettingsKeys.KEY_ISLAND_NARROW_TIME_FONT, PlatformSettingsKeys.KEY_ISLAND_LIVE_UPDATE_ICON,
         PlatformSettingsKeys.KEY_ISLAND_PULL_DOWN_STRETCH, PlatformSettingsKeys.KEY_ISLAND_LOTTIE_RESUME,
+        PlatformSettingsKeys.KEY_ISLAND_FLASHLIGHT_CONTROL,
         PlatformSettingsKeys.KEY_MEDIA_SUPER_ISLAND_UNLOCK_WHITELIST,
         PlatformSettingsKeys.KEY_FOCUS_NOTIFICATION_UNLOCK_WHITELIST
     )
@@ -281,6 +284,7 @@ internal object RuntimeSettingsDefinitions {
         DOWNLOAD_FOCUS to Group(setOf("com.android.providers.downloads", "com.android.systemui")) {
             it == PlatformSettingsKeys.KEY_DOWNLOAD_FOCUS_NOTIFICATION
         },
+        FLASHLIGHT_PAGE to Group(setOf("miui.systemui.plugin")) { it == PlatformSettingsKeys.KEY_ISLAND_FLASHLIGHT_CONTROL },
         GOOGLE_APP to Group(setOf("com.google.android.googlequicksearchbox")) {
             it == PlatformSettingsKeys.KEY_ASK_ABOUT_SCREEN || it == PlatformSettingsKeys.KEY_FULL_SCREEN_TRANSLATE
         },

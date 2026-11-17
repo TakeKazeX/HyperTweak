@@ -4,6 +4,7 @@ package com.takekazex.hypertweak.util.restart
 internal object RestartRootScript {
     fun forPackage(packageName: String): String {
         require(Regex("[A-Za-z0-9_]+(?:\\.[A-Za-z0-9_]+)+").matches(packageName))
+        require(packageName !in RestartScopeSelection.SHARED_WITH_SYSTEM_UI) { "$packageName runs inside SystemUI" }
         if (packageName != RestartScopeSelection.PACKAGE_SYSTEM_UI) {
             return "am force-stop '$packageName' || exit 1\nprintf '%s\\n' HT_RESTART_OK"
         }

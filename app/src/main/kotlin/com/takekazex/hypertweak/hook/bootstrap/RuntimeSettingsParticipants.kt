@@ -115,6 +115,8 @@ internal object RuntimeSettingsParticipants {
             }
             true
         }
+        // The page exit reads only its hookSetting slot, refreshed with every accepted snapshot.
+        registerForProcess(RuntimeSettingsGroups.FLASHLIGHT_PAGE) { _ -> true }
         registerForProcess(RuntimeSettingsGroups.GOOGLE_APP) { _ ->
             com.takekazex.hypertweak.hook.rules.googleapp.GoogleAppRuntime.refreshSettings()
         }

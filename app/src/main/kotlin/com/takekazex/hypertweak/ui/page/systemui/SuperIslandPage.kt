@@ -16,6 +16,12 @@ import androidx.compose.foundation.ScrollState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.rememberCoroutineScope
+import android.widget.Toast
+import androidx.compose.ui.platform.LocalContext
+import com.takekazex.hypertweak.ui.app.LocalAppServices
+import com.takekazex.hypertweak.util.scope.ScopeManager
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.stringResource
@@ -47,6 +53,7 @@ fun SuperIslandPage(
     islandNarrowTimeFont: Boolean,
     islandPullDownStretch: Boolean,
     islandLottieResume: Boolean,
+    islandFlashlightControl: Boolean,
     onThreeIslandsChange: (Boolean) -> Unit,
     onLandscapeFullIslandsChange: (Boolean) -> Unit,
     onLandscapeMoreIslandsChange: (Boolean) -> Unit,
@@ -55,6 +62,7 @@ fun SuperIslandPage(
     onIslandNarrowTimeFontChange: (Boolean) -> Unit,
     onIslandPullDownStretchChange: (Boolean) -> Unit,
     onIslandLottieResumeChange: (Boolean) -> Unit,
+    onIslandFlashlightControlChange: (Boolean) -> Unit,
     focusNotificationUnlockWhitelist: Boolean,
     onFocusNotificationUnlockWhitelistChange: (Boolean) -> Unit,
     mediaSuperIslandUnlockWhitelist: Boolean,
@@ -64,6 +72,27 @@ fun SuperIslandPage(
 ) {
     val scrollBehavior = MiuixScrollBehavior()
     val scrollState = rememberSaveable(saver = ScrollState.Saver) { ScrollState(0) }
+    val services = LocalAppServices.current
+    val context = LocalContext.current
+    val coroutines = rememberCoroutineScope()
+    val scopeRejected = stringResource(R.string.feature_scope_rejected)
+    val scopeUnavailable = stringResource(R.string.home_scope_service_unavailable)
+    // The full-screen flashlight page runs in the plugin's own process; its exit animation needs
+    // that package in scope, so enabling the panel asks LSPosed for it when it is missing.
+    val onFlashlightChange: (Boolean) -> Unit = { checked ->
+        onIslandFlashlightControlChange(checked)
+        if (checked) coroutines.launch {
+            val live = services.scopes.currentScope() ?: return@launch
+            if (FLASHLIGHT_PAGE_PACKAGE in live) return@launch
+            val message = when (val result = services.scopes.request(setOf(FLASHLIGHT_PAGE_PACKAGE))) {
+                is ScopeManager.Result.Failed -> result.message
+                ScopeManager.Result.ServiceUnavailable -> scopeUnavailable
+                is ScopeManager.Result.Rejected -> scopeRejected
+                is ScopeManager.Result.Applied, ScopeManager.Result.NoChange -> null
+            }
+            message?.let { Toast.makeText(context, it, Toast.LENGTH_LONG).show() }
+        }
+    }
     Scaffold(topBar = {
         TopAppBar(
             title = stringResource(R.string.tweaks_focus_notification_title),
@@ -83,7 +112,8 @@ fun SuperIslandPage(
                 .verticalScroll(scrollState)
         ) {
             Spacer(Modifier.height(padding.calculateTopPadding() + 8.dp))
-            MissingScopeCard("com.android.systemui", "com.xiaomi.xmsf")
+            if (islandFlashlightControl) MissingScopeCard("com.android.systemui", "com.xiaomi.xmsf", FLASHLIGHT_PAGE_PACKAGE)
+            else MissingScopeCard("com.android.systemui", "com.xiaomi.xmsf")
 
             SmallTitle(text = stringResource(R.string.tweaks_focus_notification_title))
             Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
@@ -143,6 +173,12 @@ fun SuperIslandPage(
                         summary = stringResource(R.string.tweaks_island_lottie_resume_summary)
                     )
                     SwitchPreference(
+                        checked = islandFlashlightControl,
+                        onCheckedChange = onFlashlightChange,
+                        title = stringResource(R.string.tweaks_island_flashlight_control_title),
+                        summary = stringResource(R.string.tweaks_island_flashlight_control_summary)
+                    )
+                    SwitchPreference(
                         checked = focusNotificationUnlockWhitelist,
                         onCheckedChange = onFocusNotificationUnlockWhitelistChange,
                         title = stringResource(R.string.tweaks_focus_unlock_whitelist_title),
@@ -167,3 +203,6 @@ fun SuperIslandPage(
         }
     }
 }
+
+/** 系统界面组件: hosts the full-screen flashlight page (`miui.systemui.plugin:flashlight`). */
+private const val FLASHLIGHT_PAGE_PACKAGE = "miui.systemui.plugin"

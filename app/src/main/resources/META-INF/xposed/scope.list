@@ -32,6 +32,7 @@ com.android.phone
 com.xiaomi.phone
 com.android.thememanager
 com.android.photopicker
+miui.systemui.plugin
 com.xiaomi.vipaccount
 com.xiaomi.market
 com.android.mms

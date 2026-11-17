@@ -12,6 +12,7 @@ import com.takekazex.hypertweak.hook.rules.systemui.island.IslandTimeFontHooker
 import com.takekazex.hypertweak.hook.rules.systemui.island.LiveUpdateIconHooker
 import com.takekazex.hypertweak.hook.rules.systemui.island.IslandPullDownHooker
 import com.takekazex.hypertweak.hook.rules.systemui.island.IslandLottieResumeHooker
+import com.takekazex.hypertweak.hook.rules.systemui.island.flashlight.IslandFlashlightHooker
 import android.content.ComponentName
 import android.content.Context
 import android.content.ContextWrapper
@@ -53,6 +54,7 @@ object SystemUIPluginHooker : StaticHooker() {
         val timeFontHooker: IslandTimeFontHooker,
         val pullDownHooker: IslandPullDownHooker,
         val lottieResumeHooker: IslandLottieResumeHooker,
+        val flashlightHooker: IslandFlashlightHooker,
         var cardsEditHooker: ControlCenterCardsEditHooker? = null,
         var cardResizeHooker: ControlCenterCardResizeHooker? = null,
         var mediaDeviceIconHooker: MediaPlayerDeviceIconHooker? = null,
@@ -80,6 +82,7 @@ object SystemUIPluginHooker : StaticHooker() {
             session.superIslandHooker.refreshSettings()
             session.liveUpdateIconHooker.refreshSettings()
             session.pullDownHooker.refreshSettings()
+            session.flashlightHooker.refreshSettings()
             session.timeFontHooker.restoreIslandOwners(session.threeIslandHooker.snapshotOwners())
         }
         // A plugin arriving later attaches directly against the current committed snapshot.
@@ -158,7 +161,7 @@ object SystemUIPluginHooker : StaticHooker() {
         listOf(owner, session.threeIslandHooker.snapshotOwners(), session.superIslandHooker.snapshotControllers(),
             session.liveUpdateIconHooker.snapshotHolders(), session.timeFontHooker.snapshotHolders(),
             session.tileMessageHooker.snapshotSlots(), session.cardsEditHooker?.saveHotReloadState(),
-            session.cardResizeHooker?.saveHotReloadState())
+            session.cardResizeHooker?.saveHotReloadState(), session.flashlightHooker.snapshotController())
     }
 
     override fun restoreHotReloadState(state: Any?) {
@@ -178,6 +181,7 @@ object SystemUIPluginHooker : StaticHooker() {
             session.cardsEditHooker?.restoreHotReloadState(entry.getOrNull(6))
             session.cardResizeHooker?.restoreHotReloadState(entry.getOrNull(7))
             session.timeFontHooker.restoreIslandOwners((entry.getOrNull(1) as? List<*>)?.filterNotNull().orEmpty())
+            session.flashlightHooker.restoreController((entry.getOrNull(8) as? List<*>)?.filterNotNull().orEmpty())
         }
     }
 
@@ -256,6 +260,8 @@ object SystemUIPluginHooker : StaticHooker() {
                             detach(session.pullDownHooker)
                             runCatching { session.lottieResumeHooker.prepareForHotReload() }
                             detach(session.lottieResumeHooker)
+                            runCatching { session.flashlightHooker.prepareForHotReload() }
+                            detach(session.flashlightHooker)
                             runCatching { session.superIslandHooker.prepareForHotReload() }
                             detach(session.superIslandHooker)
                             runCatching { session.volumeKeyHooker.prepareForHotReload() }
@@ -378,6 +384,7 @@ object SystemUIPluginHooker : StaticHooker() {
                 timeFontHooker = timeFontHooker,
                 pullDownHooker = IslandPullDownHooker(),
                 lottieResumeHooker = IslandLottieResumeHooker(),
+                flashlightHooker = IslandFlashlightHooker(),
                 mediaSuperIslandWhitelistHooker = mediaSuperIslandWhitelistHooker,
                 classLoader = state.classLoader
             ).also { session ->
@@ -427,6 +434,8 @@ object SystemUIPluginHooker : StaticHooker() {
                 .onFailure { DebugLog.e("SystemUIPlugin", "failed to attach island pull-down stretch", it) }
             runCatching { attach(session.lottieResumeHooker, state.classLoader) }
                 .onFailure { DebugLog.e("SystemUIPlugin", "failed to attach island Lottie resume", it) }
+            runCatching { attach(session.flashlightHooker, state.classLoader) }
+                .onFailure { DebugLog.e("SystemUIPlugin", "failed to attach island flashlight panel", it) }
             runCatching { attach(superIslandHooker, state.classLoader) }
                 .onFailure { DebugLog.e("SystemUIPlugin", "failed to attach Control Center Super Island hook", it) }
             runCatching { attach(hooker, state.classLoader) }

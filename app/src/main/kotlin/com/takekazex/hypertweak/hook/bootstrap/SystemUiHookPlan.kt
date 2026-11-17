@@ -41,6 +41,7 @@ import com.takekazex.hypertweak.hook.rules.systemui.notification.SystemUiBubbleN
 import com.takekazex.hypertweak.hook.rules.systemui.SystemUiScreenshotSoundHooker
 import com.takekazex.hypertweak.hook.rules.systemui.UnlockClipboardHooker
 import com.takekazex.hypertweak.hook.rules.systemui.glass.GlassMaterialHooker
+import com.takekazex.hypertweak.hook.rules.systemui.island.flashlight.FlashlightIslandRetentionHooker
 
 /** Host-owned installation order; factories run only when the caller installs the plan. */
 internal object SystemUiHookPlan {
@@ -84,6 +85,9 @@ internal object SystemUiHookPlan {
                 hook { LockscreenAllNotificationsHooker }
                 hook { LockscreenKeepNotificationsHooker }
                 hook { FocusNotificationWhitelistHooker }
+                // Keeps the flashlight island open in its off state; the panel itself attaches
+                // with the plugin session (IslandFlashlightHooker).
+                hook { FlashlightIslandRetentionHooker }
                 hook { DownloadFocusAuthPluginHooker }
                 hook { NotificationMiniWindowHooker }
                 hook { SystemUiFreeformHooker }

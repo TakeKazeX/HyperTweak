@@ -138,6 +138,11 @@ data class RestartScopeSelection(
         private const val KEY_ADDITIONAL_PREFIX = "package:"
 
         const val PACKAGE_SYSTEM_UI = "com.android.systemui"
+        /**
+         * Scoped for their own processes, but SystemUI also loads their code: force-stopping one
+         * kills SystemUI with it. `miui.systemui.plugin` is scoped for its `:flashlight` page.
+         */
+        val SHARED_WITH_SYSTEM_UI = setOf("miui.systemui.plugin")
         const val PACKAGE_MIUI_HOME = "com.miui.home"
         const val PACKAGE_SETTINGS = "com.android.settings"
         const val PACKAGE_AOD = "com.miui.aod"

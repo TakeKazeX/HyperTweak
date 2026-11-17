@@ -66,6 +66,10 @@ class RuntimeSettingsSnapshotTest {
             assertTrue(key, RuntimeSettingsSnapshot.owns(key))
             assertEquals(key, setOf(RuntimeSettingsGroups.ISLANDS), RuntimeSettingsGroups.affected(key))
         }
+        // The flashlight switch also reaches the plugin's full-screen page process.
+        assertEquals(setOf(RuntimeSettingsGroups.ISLANDS, RuntimeSettingsGroups.FLASHLIGHT_PAGE),
+            RuntimeSettingsGroups.affected(PlatformSettingsKeys.KEY_ISLAND_FLASHLIGHT_CONTROL))
+        assertEquals(setOf(RuntimeSettingsGroups.FLASHLIGHT_PAGE), RuntimeSettingsGroups.forProcess("miui.systemui.plugin:flashlight"))
         // Duo also changes the island's right status budget (its bolt sits inside its own bounds).
         assertEquals(setOf(RuntimeSettingsGroups.ICONS, RuntimeSettingsGroups.ISLANDS),
             RuntimeSettingsGroups.affected("icon_duo_enabled"))

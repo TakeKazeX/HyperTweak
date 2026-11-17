@@ -76,6 +76,11 @@ class RestartRootScriptTest {
         assertTrue(result.output.contains("HT_RESTART_OK"))
     }
 
+    @Test fun `packages SystemUI loads are never force-stopped`() {
+        // Force-stopping the plugin package kills SystemUI, which loads its code.
+        assertTrue(runCatching { RestartRootScript.forPackage("miui.systemui.plugin") }.isFailure)
+    }
+
     @Test fun `replacement before dispatch is never killed`() {
         val result = run(listOf(primary, replacement), initial = "123", afterKill = "456", listedAtRecheck = "456")
         assertEquals(2, result.exit)

@@ -38,6 +38,7 @@
       "LockscreenAllNotificationsHooker",
       "LockscreenKeepNotificationsHooker",
       "FocusNotificationWhitelistHooker",
+      "FlashlightIslandRetentionHooker",
       "DownloadFocusAuthPluginHooker",
       "NotificationMiniWindowHooker",
       "SystemUiFreeformHooker",
@@ -87,6 +88,7 @@
       "LockscreenAllNotificationsHooker",
       "LockscreenKeepNotificationsHooker",
       "FocusNotificationWhitelistHooker",
+      "FlashlightIslandRetentionHooker",
       "DownloadFocusAuthPluginHooker",
       "NotificationMiniWindowHooker",
       "SystemUiFreeformHooker",
@@ -575,6 +577,11 @@
     "process": "com.android.photopicker:aux",
     "package": "com.android.photopicker",
     "targets": ["NativeFilePickerHooker"]
+  },
+  {
+    "process": "miui.systemui.plugin:flashlight",
+    "package": "miui.systemui.plugin",
+    "targets": ["FlashlightPageExitHooker"]
   },
   {
     "process": "com.android.intentresolver",

@@ -390,6 +390,7 @@ internal object DebugSettingsCatalog {
         DebugSetting("systemui_control_center_tile_card_specs", "String", ""),
         DebugSetting("systemui_control_center_tile_message_duration_ms", "Int", com.takekazex.hypertweak.settings.contract.TileStateMessageDuration.DEFAULT_MS),
         DebugSetting("systemui_control_center_top_card_order", "String", ""),
+        DebugSetting("systemui_island_flashlight_control", "Boolean", false),
         DebugSetting("systemui_island_live_update_icon", "Boolean", false),
         DebugSetting("systemui_island_lottie_resume", "Boolean", false),
         DebugSetting("systemui_island_narrow_time_font", "Boolean", false),

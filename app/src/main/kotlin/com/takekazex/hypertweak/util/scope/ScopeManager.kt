@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.util.scope
 
+import com.takekazex.hypertweak.util.restart.RestartScopeSelection
 import android.content.Context
 import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.settings.contract.ScopeService
@@ -116,12 +117,12 @@ internal class ScopeManager(
      */
     suspend fun restartableScope(context: Context): Set<String>? {
         val live = currentScope() ?: return null
-        return live.filterNot { it in NON_APPLICATION_SCOPE || it == context.packageName }.toSet()
+        return live.filterNot { it in NON_APPLICATION_SCOPE || it in RestartScopeSelection.SHARED_WITH_SYSTEM_UI || it == context.packageName }.toSet()
     }
 
     /** The declared application scope, used while the Xposed service is still connecting. */
     fun declaredRestartableScope(context: Context): Set<String> =
-        requiredScope(context).filterNot { it in NON_APPLICATION_SCOPE || it == context.packageName }.toSet()
+        requiredScope(context).filterNot { it in NON_APPLICATION_SCOPE || it in RestartScopeSelection.SHARED_WITH_SYSTEM_UI || it == context.packageName }.toSet()
 
     /**
      * Moves [managed] packages from [current] to [target] without touching anything else.

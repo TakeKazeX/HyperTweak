@@ -135,7 +135,8 @@ internal class RestartUtils(private val flushSettings: () -> Unit) {
         .filterNot { it in NON_RESTARTABLE_PACKAGES }
         .toSet()
 
-    private val NON_RESTARTABLE_PACKAGES = setOf("system", "system_server", "android", "com.takekazex.hypertweak")
+    private val NON_RESTARTABLE_PACKAGES = setOf("system", "system_server", "android", "com.takekazex.hypertweak") +
+        RestartScopeSelection.SHARED_WITH_SYSTEM_UI
     private val SAFE_PACKAGE_NAME = Regex("[A-Za-z0-9_]+(?:\\.[A-Za-z0-9_]+)+")
 
     private fun isSafePackageName(packageName: String): Boolean = SAFE_PACKAGE_NAME.matches(packageName)
