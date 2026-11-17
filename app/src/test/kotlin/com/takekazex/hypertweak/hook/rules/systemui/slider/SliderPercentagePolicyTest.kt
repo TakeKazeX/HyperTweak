@@ -1,6 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui.slider
 
 import com.takekazex.hypertweak.settings.contract.SliderPercentagePolicy
+import com.takekazex.hypertweak.settings.contract.SliderPercentageTypography
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 import org.junit.Assert.*
 import org.junit.Test
@@ -82,5 +83,23 @@ class SliderPercentagePolicyTest {
         assertEquals(2, invalid.values)
         assertEquals(1, invalid.popupPosition)
         assertEquals(2, invalid.popupStyle)
+    }
+
+    @Test fun storedTypographyIsClamped() {
+        val absent = SliderPercentagePolicy.read({ _, default -> default }, { _, default -> default })
+        assertEquals(SliderPercentageTypography(), absent.typography)
+        val stored = mapOf(SystemUiSettingsKeys.KEY_SLIDER_SIZE_PERCENT to 999, SystemUiSettingsKeys.KEY_SLIDER_WEIGHT to 1)
+        val policy = SliderPercentagePolicy.read({ key, default -> key == SystemUiSettingsKeys.KEY_SLIDER_TYPOGRAPHY || default },
+            { key, default -> stored[key] ?: default })
+        assertEquals(SliderPercentageTypography(true, SliderPercentageTypography.MAX_SIZE_PERCENT, SliderPercentageTypography.MIN_WEIGHT),
+            policy.typography)
+    }
+
+    @Test fun disabledCustomTypographyStillDrawsTheDefaults() {
+        // Stored custom values only apply while the option is on.
+        val off = SliderPercentageTypography(enabled = false, sizePercent = 180, weight = 200).effective()
+        assertEquals(110 to 400, off.sizePercent to off.weight)
+        val on = SliderPercentageTypography(enabled = true, sizePercent = 999, weight = 1).effective()
+        assertEquals(SliderPercentageTypography.MAX_SIZE_PERCENT to SliderPercentageTypography.MIN_WEIGHT, on.sizePercent to on.weight)
     }
 }

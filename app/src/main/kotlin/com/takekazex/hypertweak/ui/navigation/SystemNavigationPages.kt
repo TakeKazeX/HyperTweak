@@ -4,6 +4,7 @@ import androidx.compose.animation.*
 import androidx.compose.runtime.*
 import com.takekazex.hypertweak.ui.page.Route
 import com.takekazex.hypertweak.ui.page.systemui.AodIconsPage
+import com.takekazex.hypertweak.ui.page.systemui.SliderPercentagePage
 import com.takekazex.hypertweak.ui.page.systemui.SystemUIPage
 import com.takekazex.hypertweak.ui.page.systemui.notification.NotificationPage
 import com.takekazex.hypertweak.ui.page.systemui.notification.MediaCardPage
@@ -65,16 +66,6 @@ internal fun NavEntryBuilder.systemPages(settings: NavigationSettings, navContro
                 lockscreenKeepNotifications = lockscreenKeepNotifications,
                 onLockscreenKeepNotificationsChange = onLockscreenKeepNotificationsChange,
                 sliderDisplayMode = sliderDisplayMode,
-                onSliderDisplayModeChange = onSliderDisplayModeChange,
-                sliderValueMode = sliderValueMode,
-                onSliderValueModeChange = onSliderValueModeChange,
-                sliderPopupStyle = sliderPopupStyle,
-                onSliderPopupStyleChange = onSliderPopupStyleChange,
-                sliderPopupPosition = sliderPopupPosition,
-                onSliderPopupPositionChange = onSliderPopupPositionChange,
-
-                sliderSamePercentageStyle = sliderSamePercentageStyle,
-                onSliderSamePercentageChange = onSliderSamePercentageChange,
                 hideGestureBar = hideGestureBar,
                 onHideGestureBarChange = onHideGestureBarChange,
                 gestureBarRaiseLayout = gestureBarRaiseLayout,
@@ -97,11 +88,27 @@ internal fun NavEntryBuilder.systemPages(settings: NavigationSettings, navContro
                     navController.navigateTo(Route.IconTuner)
                 },
                 onNavigateToPrivacyIndicator = { navController.navigateTo(Route.PrivacyIndicator) },
-                onNavigateToAodIcons = { navController.navigateTo(Route.AodIcons) }
+                onNavigateToAodIcons = { navController.navigateTo(Route.AodIcons) },
+                onNavigateToSliderPercentage = { navController.navigateTo(Route.SliderPercentage) }
             )
         }
         entry<Route.AodIcons> {
             AodIconsPage(onBack = { navController.pop() })
+        }
+        entry<Route.SliderPercentage> {
+            SliderPercentagePage(
+                onBack = { navController.pop() },
+                sliderDisplayMode = sliderDisplayMode,
+                onSliderDisplayModeChange = onSliderDisplayModeChange,
+                sliderValueMode = sliderValueMode,
+                onSliderValueModeChange = onSliderValueModeChange,
+                sliderPopupStyle = sliderPopupStyle,
+                onSliderPopupStyleChange = onSliderPopupStyleChange,
+                sliderPopupPosition = sliderPopupPosition,
+                onSliderPopupPositionChange = onSliderPopupPositionChange,
+                sliderSamePercentageStyle = sliderSamePercentageStyle,
+                onSliderSamePercentageChange = onSliderSamePercentageChange
+            )
         }
         entry<Route.Notifications> {
             NotificationPage(

@@ -1836,6 +1836,10 @@
     <string name="slider_percentage_values">控制中心数值</string>
     <string name="slider_percentage_color">颜色</string>
     <string name="slider_percentage_popup_position">弹出音量条百分比</string>
+    <string name="slider_percentage_typography">自定义字号字重</string>
+    <string name="slider_percentage_typography_summary">作用于控制中心与弹出音量条的百分比，关闭后恢复默认样式</string>
+    <string name="slider_percentage_size">字号</string>
+    <string name="slider_percentage_weight">字重</string>
     <string name="slider_percentage_off">关闭</string>
     <string name="slider_percentage_cc_only">仅控制中心</string>
     <string name="slider_percentage_popup_only">仅弹出音量条</string>

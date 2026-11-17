@@ -352,12 +352,7 @@ object SystemUIPluginHooker : StaticHooker() {
     }
 
     private fun createPluginSession(state: HotReloadPluginState): PluginHookSession {
-        val hooker = if (state.appContext != null && state.pluginApkPath.isNotEmpty()) {
-            SliderPercentageHooker(state.appContext, state.pluginApkPath)
-        } else {
-            DebugLog.w("SystemUIPlugin", "Missing context or APK paths, instantiating with default fallback")
-            SliderPercentageHooker()
-        }
+        val hooker = SliderPercentageHooker()
         val cornerHooker = if (state.appContext != null && state.pluginApkPath.isNotEmpty()) {
             ControlCenterCornerHooker(state.appContext, state.pluginApkPath)
         } else {

@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.slider
 
+import com.takekazex.hypertweak.presentation.slider.SliderPercentageColors
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -33,13 +34,15 @@ class VolumeBadgePolicyTest {
         assertNotEquals(0, VolumeBadgePolicy.frostBlend(false)[0])
     }
 
-    @Test fun fallbackPaletteAndTextFollowBothThemes() {
-        val light = VolumeBadgePolicy.palette(false)
-        val dark = VolumeBadgePolicy.palette(true)
-        assertEquals(0xFFE5E5E5.toInt(), light.background)
-        assertEquals(0xFF3A3A3C.toInt(), dark.background)
-        assertEquals(0xB3000000.toInt(), light.text)
-        assertEquals(0xB3FFFFFF.toInt(), dark.text)
+    @Test fun flatCapsuleFollowsThemeAndTextContrastsWithIt() {
+        fun gray(color: Int) = ((color shr 16 and 0xFF) + (color shr 8 and 0xFF) + (color and 0xFF)) / 3
+        val light = SliderPercentageColors.popup(false)
+        val dark = SliderPercentageColors.popup(true)
+        // The host's collapsed colour is dark in both themes; light mode must get a light capsule.
+        assertTrue(gray(light.background) > 200)
+        assertTrue(gray(dark.background) < 80)
+        assertTrue(gray(light.text) < 80)
+        assertTrue(gray(dark.text) > 200)
         assertNotEquals(light.stroke, dark.stroke)
     }
 }

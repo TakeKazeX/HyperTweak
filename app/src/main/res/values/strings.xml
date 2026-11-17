@@ -1868,6 +1868,10 @@
     <string name="slider_percentage_values">Control center values</string>
     <string name="slider_percentage_color">Color</string>
     <string name="slider_percentage_popup_position">Popup volume percentage</string>
+    <string name="slider_percentage_typography">Custom size and weight</string>
+    <string name="slider_percentage_typography_summary">Applies to control center and popup volume percentages; turn off to restore the default style</string>
+    <string name="slider_percentage_size">Font size</string>
+    <string name="slider_percentage_weight">Font weight</string>
     <string name="slider_percentage_off">Off</string>
     <string name="slider_percentage_cc_only">Control center only</string>
     <string name="slider_percentage_popup_only">Volume popup only</string>

@@ -2,17 +2,15 @@ package com.takekazex.hypertweak.hook.rules.systemui.slider
 
 import android.content.Context
 import android.content.res.Configuration
-import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.view.View
 import android.widget.TextView
 import com.takekazex.hypertweak.hook.base.HostAccess
+import com.takekazex.hypertweak.presentation.slider.SliderPercentageColors
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.reflect.Method
 
 internal enum class VolumeBadgeSurface { FLAT, FROST, GLASS }
-
-internal data class VolumeBadgePalette(val background: Int, val stroke: Int, val text: Int)
 
 internal object VolumeBadgePolicy {
     fun surface(style: Int): VolumeBadgeSurface = when (style) {
@@ -27,11 +25,12 @@ internal object VolumeBadgePolicy {
         3 // BlendModeToken.SRC_OVER.value, verified in the current plugin.
     )
 
-    fun palette(dark: Boolean): VolumeBadgePalette = if (dark) {
-        VolumeBadgePalette(0xFF3A3A3C.toInt(), 0x33FFFFFF, 0xB3FFFFFF.toInt())
-    } else {
-        VolumeBadgePalette(0xFFE5E5E5.toInt(), 0x33000000, 0xB3000000.toInt())
-    }
+    /** A themed plugin wrapper may keep a stale Configuration; read the running application's. */
+    fun nightMode(context: Context): Int =
+        (context.applicationContext ?: context).resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
+
+    fun isDark(context: Context) = nightMode(context) == Configuration.UI_MODE_NIGHT_YES
+
 }
 
 /** Explicit materials scoped to the percentage view, independent of the host's global mode. */
@@ -41,25 +40,28 @@ internal class VolumeBadgeStyler(private val tag: String) {
         val mode: Method?, val glassToken: Method?, val openGlassToken: Method?,
         val materialType: Method?, val glassParams: Method?, val glassLight: Method?, val glassCompat: Method?, val glassMode: Int?,
         val nativeBlur: Method?, val nativeBlurRadius: Method?, val blurOutline: Method?,
-        val labelWidth: Method?, val labelHeight: Int?, val buttonBackground: Method?
+        val labelWidth: Method?, val labelHeight: Int?
     )
 
     private data class Appearance(
-        val style: Int, val night: Int, val density: Int, val expanded: Boolean,
+        val style: Int, val night: Int, val density: Int, val expanded: Boolean, val height: Int,
         val drawable: android.graphics.drawable.Drawable?, val applied: VolumeBadgeSurface
     )
     private val appearances = java.util.WeakHashMap<View, Appearance>()
-    private val nativeTypeface = Typeface.create("MiSans-Medium", Typeface.NORMAL)
     private var lastSurface: VolumeBadgeSurface? = null
     private var lastNight: Boolean? = null
     fun clear() { lastSurface = null; lastNight = null; appearances.clear() }
 
-    /** Use the super-volume label's dimensions, including when recovering an older generation. */
-    fun restoreNativeSize(background: View, loader: ClassLoader) {
+    /**
+     * The super-volume label's native dimensions times [scale], so a larger percentage keeps its
+     * padding inside the capsule. Also repairs a size left by an older generation.
+     */
+    fun restoreNativeSize(background: View, loader: ClassLoader, scale: Float = 1f) {
         val metadata = handles(loader) ?: return
-        val width = call(metadata.labelWidth, null, background.context) as? Int ?: return
+        val nativeWidth = call(metadata.labelWidth, null, background.context) as? Int ?: return
         val heightId = metadata.labelHeight ?: return
-        val height = background.resources.getDimensionPixelSize(heightId)
+        val width = (nativeWidth * scale).toInt()
+        val height = (background.resources.getDimensionPixelSize(heightId) * scale).toInt()
         val params = background.layoutParams ?: return
         if (width > 0 && height > 0 && (params.width != width || params.height != height)) {
             params.width = width
@@ -68,12 +70,17 @@ internal class VolumeBadgeStyler(private val tag: String) {
         }
     }
 
+    /** The native capsule height in px, or null when the host metadata is unavailable. */
+    fun nativeHeight(background: View, loader: ClassLoader): Int? =
+        handles(loader)?.labelHeight?.let { runCatching { background.resources.getDimensionPixelSize(it) }.getOrNull() }
+
     fun applyCapsule(background: View, expanded: Boolean, hostLoader: ClassLoader, style: Int): VolumeBadgeSurface {
         val config = background.resources.configuration
         val night = nightMode(background.context)
         val previous = appearances[background]
         if (previous != null && previous.style == style && previous.night == night &&
-            previous.density == config.densityDpi && previous.expanded == expanded && previous.drawable === background.background) {
+            previous.density == config.densityDpi && previous.expanded == expanded && previous.drawable === background.background &&
+            previous.height == background.layoutParams?.height) {
             return previous.applied
         }
         val handles = handles(hostLoader)
@@ -89,7 +96,8 @@ internal class VolumeBadgeStyler(private val tag: String) {
             paintNeutralCapsule(background, radius, handles)
             VolumeBadgeSurface.FLAT
         }
-        appearances[background] = Appearance(style, night, config.densityDpi, expanded, background.background, applied)
+        appearances[background] = Appearance(style, night, config.densityDpi, expanded, background.layoutParams?.height ?: 0,
+            background.background, applied)
         val dark = night == Configuration.UI_MODE_NIGHT_YES
         if (lastSurface != applied || lastNight != dark) {
             lastSurface = applied
@@ -100,17 +108,7 @@ internal class VolumeBadgeStyler(private val tag: String) {
         return applied
     }
 
-    fun restoreNativeFont(text: TextView) {
-        if (text.typeface != nativeTypeface) text.typeface = nativeTypeface
-    }
-
     fun invalidateAppearance(view: View) { appearances.remove(view) }
-
-    fun applyTextStyle(text: TextView, sameStyle: Boolean) {
-        restoreNativeFont(text)
-        val color = if (sameStyle) SliderHookHelper.ACTIVE_BLUE_COLOR else VolumeBadgePolicy.palette(isDark(text.context)).text
-        withColorOverride { text.setTextColor(color) }
-    }
 
     fun detachTextBackground(text: TextView) {
         val padding = intArrayOf(text.paddingLeft, text.paddingTop, text.paddingRight, text.paddingBottom)
@@ -170,27 +168,7 @@ internal class VolumeBadgeStyler(private val tag: String) {
     private fun paintNeutralCapsule(view: View, radius: Float, handles: HostHandles?) {
         // Also clean a partially applied unsupported material before the fallback.
         clearMaterial(view, handles)
-        val nativeBackground = call(handles?.buttonBackground, null, false, true, false) as? Int
-        if (nativeBackground != null && nativeBackground != 0) {
-            // Plugin wrappers can retain a stale night configuration; use current application mode.
-            val configuration = Configuration(view.resources.configuration).apply {
-                uiMode = (uiMode and Configuration.UI_MODE_NIGHT_MASK.inv()) or nightMode(view.context)
-            }
-            val drawable = runCatching {
-                // Keep the plugin's AssetManager: a wrapped Context's base may be SystemUI.
-                @Suppress("DEPRECATION")
-                val resources = android.content.res.Resources(view.resources.assets, view.resources.displayMetrics, configuration)
-                resources.getDrawable(nativeBackground, null)?.mutate()
-            }.getOrNull()
-            if (drawable != null) {
-                // Keep the native button's selector/colours while sizing its capsule to this label.
-                (drawable as? GradientDrawable)?.cornerRadius = radius
-                view.background = drawable
-                view.backgroundTintList = null
-                return
-            }
-        }
-        val colors = VolumeBadgePolicy.palette(isDark(view.context))
+        val colors = SliderPercentageColors.popup(isDark(view.context))
         view.background = capsule(radius, colors.background).apply {
             setStroke(view.resources.displayMetrics.density.toInt().coerceAtLeast(1), colors.stroke)
         }
@@ -203,11 +181,8 @@ internal class VolumeBadgeStyler(private val tag: String) {
         cornerRadius = radius
     }
 
-    // A themed plugin wrapper may retain its own Configuration. Read the running application's
-    // system configuration for both the cache key and the actual blend/text palette.
-    private fun nightMode(context: Context): Int =
-        (context.applicationContext ?: context).resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
-    private fun isDark(context: Context) = nightMode(context) == Configuration.UI_MODE_NIGHT_YES
+    private fun nightMode(context: Context) = VolumeBadgePolicy.nightMode(context)
+    private fun isDark(context: Context) = VolumeBadgePolicy.isDark(context)
     private fun call(method: Method?, owner: Any?, vararg args: Any?): Any? =
         method?.let { runCatching { it.invoke(owner, *args) }.getOrNull() }
 
@@ -216,7 +191,6 @@ internal class VolumeBadgeStyler(private val tag: String) {
         val style = loader.loadClass("miui.systemui.util.MiBackgroundStyle")
         HostAccess.cached(style, "slider.percentage.materialHandles", HostHandles::class.java) {
             val blur = loader.loadClass("miui.systemui.util.MiBlurCompat")
-            val buttons = loader.loadClass("com.android.systemui.miui.volume.RingerButtonRes")
             val util = loader.loadClass("com.android.systemui.miui.volume.Util")
             val dialogRes = loader.loadClass("com.android.systemui.miui.volume.MiuiVolumeDialogRes")
             val bionics = loader.loadClass("miui.systemui.util.BionicsToken")
@@ -240,8 +214,7 @@ internal class VolumeBadgeStyler(private val tag: String) {
                 HostAccess.publicMethod(dialogRes, "getBlandBlurRadius", Context::class.java, accessible = false),
                 HostAccess.publicMethod(blur, "setBlurOutlineRoundRect", View::class.java, Float::class.javaPrimitiveType!!, accessible = false),
                 HostAccess.publicMethod(dialogRes, "getSuperVolumeWidth", Context::class.java, accessible = false),
-                HostAccess.requirePublicField(dimensions, "miui_super_volume_text_height_collapsed", accessible = false).getInt(null),
-                HostAccess.publicMethod(buttons, "getButtonBgId", Boolean::class.javaPrimitiveType!!, Boolean::class.javaPrimitiveType!!, Boolean::class.javaPrimitiveType!!, accessible = false)
+                HostAccess.requirePublicField(dimensions, "miui_super_volume_text_height_collapsed", accessible = false).getInt(null)
             )
         }
     }.getOrNull()

@@ -40,6 +40,9 @@ object SystemUiSettingsKeys {
     const val KEY_SLIDER_POPUP_POSITION = "systemui_slider_percentage_popup_position"
     const val KEY_SLIDER_SHOW_PERCENTAGE = "systemui_control_center_slider_show_percentage_enabled"
     const val KEY_SLIDER_SAME_PERCENTAGE_STYLE = "systemui_control_center_slider_same_percentage_style_enabled"
+    const val KEY_SLIDER_TYPOGRAPHY = "systemui_slider_percentage_typography"
+    const val KEY_SLIDER_SIZE_PERCENT = "systemui_slider_percentage_size_percent"
+    const val KEY_SLIDER_WEIGHT = "systemui_slider_percentage_weight"
     // Control Center corner-radius overrides. Each group keeps its own dp value (Float);
     // 0 means "no override" (follow the system design), any positive value is applied as the
     // GradientDrawable/outline corner radius of the corresponding control center element.

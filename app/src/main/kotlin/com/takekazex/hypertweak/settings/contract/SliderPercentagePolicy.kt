@@ -6,7 +6,8 @@ data class SliderPercentagePolicy(
     val values: Int = 2,
     val unifiedColor: Boolean = false,
     val popupPosition: Int = 1,
-    val popupStyle: Int = 0
+    val popupStyle: Int = 0,
+    val typography: SliderPercentageTypography = SliderPercentageTypography()
 ) {
     fun controlCenter(brightness: Boolean): Boolean =
         (display == 1 || display == 3) && if (brightness) values != 1 else values != 0
@@ -31,7 +32,8 @@ data class SliderPercentagePolicy(
             values = integer(SystemUiSettingsKeys.KEY_SLIDER_VALUE_MODE, 2).coerceIn(0, 2),
             unifiedColor = boolean(SystemUiSettingsKeys.KEY_SLIDER_SAME_PERCENTAGE_STYLE, false),
             popupPosition = integer(SystemUiSettingsKeys.KEY_SLIDER_POPUP_POSITION, 1).coerceIn(0, 1),
-            popupStyle = integer(SystemUiSettingsKeys.KEY_SLIDER_POPUP_STYLE, 0).coerceIn(0, 2)
+            popupStyle = integer(SystemUiSettingsKeys.KEY_SLIDER_POPUP_STYLE, 0).coerceIn(0, 2),
+            typography = SliderPercentageTypography.read(boolean, integer)
         )
     }
 }
