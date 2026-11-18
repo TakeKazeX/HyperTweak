@@ -42,6 +42,14 @@ Do not report a partially retired owner as a healthy old generation. Settings qu
 may cancel unstarted bulk work; started commits must return their actual receipt before
 the caller updates local mirrors or reports success/failure. These waits belong on IO dispatchers.
 
+Changes to retirement, host registrations, threads, executors or coroutines need a hot-reload
+leak check on the device: `python3 .github/scripts/hot_reload_check.py --root-adbd rounds <apk>`
+(3 rounds by default). Expect no reload errors, crashes or host pid changes, and system_server,
+powerkeeper and xmsf back to their starting loader/DEX counts after the final settle. SystemUI
+grows while HyperLyricsEnhanced is installed (it retains every loader); confirm ours with
+`hot_reload_check.py heap com.android.systemui` only after telling the user not to touch the
+phone, since the dump pauses SystemUI and a touch restarts it.
+
 ## Debug settings and diagnostics
 
 For the root settings interface or diagnostic collector, see `docs/DEBUG_DIAGNOSTICS.md`.
