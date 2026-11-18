@@ -4,6 +4,7 @@ import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.hook.rules.systemui.controlcenter.ControlCenterCardsEditHooker
 import com.takekazex.hypertweak.hook.rules.systemui.controlcenter.ControlCenterSuperIslandHooker
 import com.takekazex.hypertweak.hook.rules.systemui.controlcenter.ControlCenterVolumeKeyHooker
+import com.takekazex.hypertweak.hook.rules.systemui.controlcenter.DeviceCenterSingleRowHooker
 import com.takekazex.hypertweak.hook.rules.systemui.controlcenter.TileStateMessageHooker
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 
@@ -42,6 +43,9 @@ object SystemUIPluginHooker : StaticHooker() {
     private val settingMediaCardHideDeviceSwitch by hookSetting(false) {
         Preferences.getBoolean(SystemUiSettingsKeys.KEY_MEDIA_CARD_HIDE_DEVICE_SWITCH, false)
     }
+    private val settingDeviceCenterSingleRow by hookSetting(false) {
+        Preferences.getBoolean(SystemUiSettingsKeys.KEY_CC_DEVICE_CENTER_SINGLE_ROW, false)
+    }
 
     private data class PluginHookSession(
         val sliderPercentHooker: SliderPercentageHooker,
@@ -58,6 +62,7 @@ object SystemUIPluginHooker : StaticHooker() {
         var cardsEditHooker: ControlCenterCardsEditHooker? = null,
         var cardResizeHooker: ControlCenterCardResizeHooker? = null,
         var mediaDeviceIconHooker: MediaPlayerDeviceIconHooker? = null,
+        var deviceCenterSingleRowHooker: DeviceCenterSingleRowHooker? = null,
         val mediaSuperIslandWhitelistHooker: MediaSuperIslandWhitelistHooker,
         /** The plugin's own loader; optional sub-hookers attach with the same one. */
         val classLoader: ClassLoader
@@ -65,6 +70,7 @@ object SystemUIPluginHooker : StaticHooker() {
         fun attachCardsEdit(hooker: ControlCenterCardsEditHooker?) { cardsEditHooker = hooker }
         fun attachCardResize(hooker: ControlCenterCardResizeHooker?) { cardResizeHooker = hooker }
         fun attachMediaDeviceIcon(hooker: MediaPlayerDeviceIconHooker?) { mediaDeviceIconHooker = hooker }
+        fun attachDeviceCenterSingleRow(hooker: DeviceCenterSingleRowHooker?) { deviceCenterSingleRowHooker = hooker }
     }
 
     private data class AodPluginSession(
@@ -119,7 +125,8 @@ object SystemUIPluginHooker : StaticHooker() {
             // committed value for the surfaces that are already on screen.
             runCatching { ensureOptionalHookers(session) }
                 .onFailure { DebugLog.w("SystemUIPlugin", "optional plugin hooks attach failed", it) }
-            listOf(session.cardsEditHooker, session.cardResizeHooker, session.mediaDeviceIconHooker)
+            listOf(session.cardsEditHooker, session.cardResizeHooker, session.mediaDeviceIconHooker,
+                session.deviceCenterSingleRowHooker)
                 .filterNotNull()
                 .forEach { hooker ->
                     runCatching {
@@ -127,6 +134,7 @@ object SystemUIPluginHooker : StaticHooker() {
                             is ControlCenterCardsEditHooker -> hooker.refreshSettings()
                             is ControlCenterCardResizeHooker -> hooker.refreshSettings()
                             is MediaPlayerDeviceIconHooker -> hooker.refreshSettings()
+                            is DeviceCenterSingleRowHooker -> hooker.refreshSettings()
                         }
                     }.onFailure { DebugLog.w("SystemUIPlugin", "optional plugin hook refresh failed", it) }
                 }
@@ -139,6 +147,7 @@ object SystemUIPluginHooker : StaticHooker() {
         val edit = settingCcEditEnabled
         val resize = settingCcResizeEnabled
         val deviceIcon = settingMediaCardHideDeviceSwitch
+        val deviceRow = settingDeviceCenterSingleRow
         val loader = session.classLoader
         if (edit && session.cardsEditHooker == null) {
             val hooker = ControlCenterCardsEditHooker()
@@ -155,13 +164,19 @@ object SystemUIPluginHooker : StaticHooker() {
             runCatching { attach(hooker, loader) }.onSuccess { session.attachMediaDeviceIcon(hooker) }
                 .onFailure { DebugLog.e("SystemUIPlugin", "failed to attach media-device-icon plugin hook", it) }
         }
+        if (deviceRow && session.deviceCenterSingleRowHooker == null) {
+            val hooker = DeviceCenterSingleRowHooker()
+            runCatching { attach(hooker, loader) }.onSuccess { session.attachDeviceCenterSingleRow(hooker) }
+                .onFailure { DebugLog.e("SystemUIPlugin", "failed to attach device-center single-row hook", it) }
+        }
     }
 
     override fun saveHotReloadState(): Any = activeSessions.bindings().map { (owner, session) ->
         listOf(owner, session.threeIslandHooker.snapshotOwners(), session.superIslandHooker.snapshotControllers(),
             session.liveUpdateIconHooker.snapshotHolders(), session.timeFontHooker.snapshotHolders(),
             session.tileMessageHooker.snapshotSlots(), session.cardsEditHooker?.saveHotReloadState(),
-            session.cardResizeHooker?.saveHotReloadState(), session.flashlightHooker.snapshotController())
+            session.cardResizeHooker?.saveHotReloadState(), session.flashlightHooker.snapshotController(),
+            session.deviceCenterSingleRowHooker?.saveHotReloadState())
     }
 
     override fun restoreHotReloadState(state: Any?) {
@@ -182,6 +197,12 @@ object SystemUIPluginHooker : StaticHooker() {
             session.cardResizeHooker?.restoreHotReloadState(entry.getOrNull(7))
             session.timeFontHooker.restoreIslandOwners((entry.getOrNull(1) as? List<*>)?.filterNotNull().orEmpty())
             session.flashlightHooker.restoreController((entry.getOrNull(8) as? List<*>)?.filterNotNull().orEmpty())
+            if (entry.getOrNull(9) != null && session.deviceCenterSingleRowHooker == null) {
+                val hooker = DeviceCenterSingleRowHooker()
+                attach(hooker, session.classLoader)
+                session.attachDeviceCenterSingleRow(hooker)
+            }
+            session.deviceCenterSingleRowHooker?.restoreHotReloadState(entry.getOrNull(9))
         }
     }
 
@@ -245,6 +266,10 @@ object SystemUIPluginHooker : StaticHooker() {
                             session.mediaDeviceIconHooker?.let { deviceIcon ->
                                 runCatching { deviceIcon.prepareForHotReload() }
                                 detach(deviceIcon)
+                            }
+                            session.deviceCenterSingleRowHooker?.let { deviceRow ->
+                                runCatching { deviceRow.prepareForHotReload() }
+                                detach(deviceRow)
                             }
                             session.mediaSuperIslandWhitelistHooker.let { mediaWhitelist ->
                                 runCatching { mediaWhitelist.prepareForHotReload() }
@@ -397,6 +422,9 @@ object SystemUIPluginHooker : StaticHooker() {
                 if (settingMediaCardHideDeviceSwitch) {
                     session.mediaDeviceIconHooker = MediaPlayerDeviceIconHooker()
                 }
+                if (settingDeviceCenterSingleRow) {
+                    session.deviceCenterSingleRowHooker = DeviceCenterSingleRowHooker()
+                }
             }
     }
 
@@ -418,6 +446,7 @@ object SystemUIPluginHooker : StaticHooker() {
         val cardsEditHooker = session.cardsEditHooker
         val cardResizeHooker = session.cardResizeHooker
         val mediaDeviceIconHooker = session.mediaDeviceIconHooker
+        val deviceCenterSingleRowHooker = session.deviceCenterSingleRowHooker
         val mediaSuperIslandWhitelistHooker = session.mediaSuperIslandWhitelistHooker
         val sharedSession = state.pluginApkPath.takeIf(String::isNotBlank)?.let(DexRuntime::beginSession)
         try {
@@ -466,6 +495,12 @@ object SystemUIPluginHooker : StaticHooker() {
                 runCatching { attach(mediaDeviceIconHooker, state.classLoader) }
                     .onFailure { t ->
                         DebugLog.e("SystemUIPlugin", "failed to attach media-device-icon plugin hook", t)
+                    }
+            }
+            if (deviceCenterSingleRowHooker != null) {
+                runCatching { attach(deviceCenterSingleRowHooker, state.classLoader) }
+                    .onFailure { t ->
+                        DebugLog.e("SystemUIPlugin", "failed to attach device-center single-row hook", t)
                     }
             }
             run {

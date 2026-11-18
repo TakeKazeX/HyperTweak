@@ -63,6 +63,7 @@ object SystemUiSettingsKeys {
     const val KEY_CC_SIZE_BRIGHTNESS = "systemui_control_center_size_brightness"
     const val KEY_CC_SIZE_VOLUME = "systemui_control_center_size_volume"
     const val KEY_CC_SIZE_DEVICE = "systemui_control_center_size_device"
+    const val KEY_CC_DEVICE_CENTER_SINGLE_ROW = "systemui_cc_device_center_single_row"
     const val KEY_CC_TILE_CARD_SPECS = "systemui_control_center_tile_card_specs"
     const val KEY_IMMEDIATE_MONET_REFRESH = "immediate_monet_refresh"
     const val KEY_MEDIA_CARD_HIDE_APP_ICON = "media_card_hide_app_icon"

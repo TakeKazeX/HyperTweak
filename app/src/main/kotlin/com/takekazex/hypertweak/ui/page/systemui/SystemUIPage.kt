@@ -58,6 +58,7 @@ fun SystemUIPage(
     val settingsStore = LocalAppSettingsStore.current
     val context = LocalContext.current
     val upstreamBackGesture = com.takekazex.hypertweak.ui.effect.rememberUpstreamBackGestureInstalled()
+    var deviceCenterSingleRow by rememberStoredSetting(SystemUiSettingsKeys.KEY_CC_DEVICE_CENTER_SINGLE_ROW, settingsStore::putBoolean) { settingsStore.getBoolean(SystemUiSettingsKeys.KEY_CC_DEVICE_CENTER_SINGLE_ROW, false) }
     var hideLockscreenDate by rememberStoredSetting(SystemUiSettingsKeys.KEY_HIDE_LOCKSCREEN_DATE, settingsStore::putBoolean) { settingsStore.getBoolean(SystemUiSettingsKeys.KEY_HIDE_LOCKSCREEN_DATE, false) }
 
     var tileMessageDialog by rememberSaveable { mutableStateOf(false) }
@@ -265,6 +266,12 @@ fun SystemUIPage(
                 title = stringResource(R.string.tweaks_slider_show_percentage_title),
                 summary = stringResource(sliderDisplayModeLabels[appSettings.sliderDisplayMode.coerceIn(sliderDisplayModeLabels.indices)]),
                 onClick = onNavigateToSliderPercentage
+            )
+            if (PlatformLevel.isOs4) SwitchPreference(
+                checked = deviceCenterSingleRow,
+                onCheckedChange = { deviceCenterSingleRow = it },
+                title = stringResource(R.string.cc_device_center_single_row_title),
+                summary = stringResource(R.string.cc_device_center_single_row_summary)
             )
         }
 

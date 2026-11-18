@@ -71,7 +71,8 @@ internal object SystemUiLiveSettings {
         SystemUiSettingsKeys.KEY_CC_SIZE_MEDIA,
         SystemUiSettingsKeys.KEY_CC_SIZE_BRIGHTNESS,
         SystemUiSettingsKeys.KEY_CC_SIZE_VOLUME,
-        SystemUiSettingsKeys.KEY_CC_SIZE_DEVICE
+        SystemUiSettingsKeys.KEY_CC_SIZE_DEVICE,
+        SystemUiSettingsKeys.KEY_CC_DEVICE_CENTER_SINGLE_ROW
     )
 
     /** Glass material tuner coefficients cached at install time. */

@@ -1640,6 +1640,8 @@
     <string name="fullscreen_back_direct_summary">Like Xiaomi gestures: go back without a separate gesture to reveal system bars</string>
     <string name="tweaks_cc_hide_super_island_title">Hide Super Island in Control Center</string>
     <string name="tweaks_cc_hide_super_island_summary">Hide Super Island while Control Center is open</string>
+    <string name="cc_device_center_single_row_title">Single-row Device Center</string>
+    <string name="cc_device_center_single_row_summary">Show up to 3 devices in one row, with More in the fourth slot</string>
     <string name="tweaks_three_islands_title">Three Islands (Experimental)</string>
     <string name="tweaks_three_islands_summary">Show up to three islands in portrait and landscape, using native task priority and gestures. Falls back to two islands when space is limited. Changes apply immediately.</string>
     <string name="tweaks_landscape_full_islands_title">Full islands in landscape</string>
