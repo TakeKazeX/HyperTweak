@@ -129,7 +129,10 @@ bool HapticConstructor(const Image& image, uintptr_t at, HapticUpdate* out) {
             if(block && target!=barrier_target)valid=false;
             barrier_target=target;
         }
-        if (!valid || HapticWord(image,p+28)!=0xaa0403e0u ||
+        // The delta's source is whichever scratch register the optional-named
+        // argument parser picked (x4 or x8 so far); only its role is fixed.
+        const auto delta_move=HapticWord(image,p+28), delta_source=(delta_move>>16)&31u;
+        if (!valid || (delta_move&0xffe0ffffu)!=0xaa0003e0u || delta_source<4u || delta_source>14u ||
             HapticWord(image,p+60)!=0xaa0103e0u || HapticWord(image,p+92)!=0xaa0203e0u ||
             !HapticStore(HapticWord(image,p+32),0xb8000000u,0,3,&delta) ||
             !HapticStore(HapticWord(image,p+64),0xb8000000u,0,3,&metrics) ||

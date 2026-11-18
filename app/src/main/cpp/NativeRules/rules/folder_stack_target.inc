@@ -23,64 +23,8 @@ constexpr uint32_t kStackProducerMasks[] = {
     0xffffffffu, 0xfc000000u, 0xffffffffu, 0xffffffffu,
 };
 constexpr uint32_t kStackFactoryWords[] = {
-    0xa9bf79fdu, 0xaa0f03fdu, 0xd10081efu, 0xf81e83a2u, 0xb8413080u, 0xb841f083u,
-    0x8b1c8063u, 0x91400370u, 0xf9400210u, 0x6b10007fu, 0x54000121u, 0xb8423083u,
-    0x8b1c8063u, 0x4b030005u, 0x8b25cba3u, 0xf9400463u, 0xaa0303e5u, 0xd2800023u,
-    0x14000003u, 0x9100c2c5u, 0xd2800003u, 0xf81f03a5u, 0xd37ff866u, 0x531f78c3u,
-    0x11002066u, 0x8b26c490u, 0xb840f207u, 0x8b1c80e7u, 0x91400370u, 0xf9400210u,
-    0x6b1000ffu, 0x54000141u, 0x11002866u, 0x8b26c490u, 0xb840f203u, 0x8b1c8063u,
-    0x4b030004u, 0x8b24cba0u, 0xf9400400u, 0xaa0003e3u, 0x14000002u, 0x9100c2c3u,
-    0xf81f83a3u, 0xf8407024u, 0xf1005c9fu, 0x540007ecu, 0xf1004c9fu, 0x5400046cu,
-    0xf100089fu, 0x5400028cu, 0x937f7880u, 0xeb80049fu, 0x54000060u, 0x94000000u,
-    0xf8007004u, 0x7100101fu, 0x54000c01u, 0x94000000u, 0xf81e03a0u, 0xf806f01fu,
-    0xaa0003e1u, 0xf85e83a2u, 0xf85f03a3u, 0xf85f83a5u, 0x94000000u, 0xf85e03a0u,
-    0xaa1d03efu, 0xa8c179fdu, 0xd65f03c0u, 0xf1004c9fu, 0x54000a4bu, 0x94000000u,
-    0xaa0003e1u, 0xf85e83a2u, 0xf85f03a3u, 0xf85f83a5u, 0xf81e03a0u, 0x94000000u,
-    0xf85e03a0u, 0xaa1d03efu, 0xa8c179fdu, 0xd65f03c0u, 0xf100509fu, 0x5400018cu,
-    0x94000000u, 0xaa0003e1u, 0xf85e83a2u, 0xf85f03a3u, 0xf85f83a5u, 0xf81e03a0u,
-    0x94000000u, 0xf85e03a0u, 0xaa1d03efu, 0xa8c179fdu, 0xd65f03c0u, 0xf1005c9fu,
-    0x5400070bu, 0x94000000u, 0xaa0003e1u, 0xf85e83a2u, 0xf85f03a3u, 0xf85f83a5u,
-    0xf81e03a0u, 0x94000000u, 0xf85e03a0u, 0xaa1d03efu, 0xa8c179fdu, 0xd65f03c0u,
-    0xf100649fu, 0x5400032cu, 0xf100609fu, 0x5400018cu, 0x94000000u, 0xaa0003e1u,
-    0xf85e83a2u, 0xf85f03a3u, 0xf85f83a5u, 0xf81e03a0u, 0x94000000u, 0xf85e03a0u,
-    0xaa1d03efu, 0xa8c179fdu, 0xd65f03c0u, 0x94000000u, 0xaa0003e1u, 0xf85e83a2u,
-    0xf85f03a3u, 0xf85f83a5u, 0xf81e03a0u, 0x94000000u, 0xf85e03a0u, 0xaa1d03efu,
-    0xa8c179fdu, 0xd65f03c0u, 0x937f7880u, 0xeb80049fu, 0x54000060u, 0x94000000u,
-    0xf8007004u, 0x7100d01fu, 0x54000181u, 0x94000000u, 0xaa0003e1u, 0xf85e83a2u,
-    0xf85f03a3u, 0xf85f83a5u, 0xf81e03a0u, 0x94000000u, 0xf85e03a0u, 0xaa1d03efu,
-    0xa8c179fdu, 0xd65f03c0u, 0x94000000u, 0xf81e03a0u, 0xf806f01fu, 0xaa0003e1u,
-    0xf85e83a2u, 0xf85f03a3u, 0xf85f83a5u, 0x94000000u, 0xf85e03a0u, 0xaa1d03efu,
-    0xa8c179fdu, 0xd65f03c0u,
-};
-constexpr uint32_t kStackFactoryMasks[] = {
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffc003ffu, 0xffc003ffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffc003ffu, 0xffc003ffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xfc000000u,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xfc000000u, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffe00fffu, 0xffe00fffu, 0xfc000000u, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xfc000000u,
-    0xffffffffu, 0xffffffffu, 0xffe00fffu, 0xffe00fffu, 0xffffffffu, 0xfc000000u,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xfc000000u, 0xffffffffu, 0xffffffffu, 0xffe00fffu, 0xffe00fffu, 0xffffffffu,
-    0xfc000000u, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xfc000000u, 0xffffffffu, 0xffffffffu, 0xffe00fffu, 0xffe00fffu,
-    0xffffffffu, 0xfc000000u, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xfc000000u, 0xffffffffu,
-    0xffffffffu, 0xffe00fffu, 0xffe00fffu, 0xffffffffu, 0xfc000000u, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xfc000000u, 0xffffffffu, 0xffffffffu,
-    0xffe00fffu, 0xffe00fffu, 0xffffffffu, 0xfc000000u, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xfc000000u,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xfc000000u, 0xffffffffu, 0xffffffffu,
-    0xffe00fffu, 0xffe00fffu, 0xffffffffu, 0xfc000000u, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xfc000000u, 0xffffffffu, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffe00fffu, 0xffe00fffu, 0xfc000000u, 0xffffffffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu,
+    0xa9bf79fdu, 0xaa0f03fdu, 0xd10081efu, 0xf81e83a2u,
+    0xb8413080u, 0xb841f083u, 0x8b1c8063u, 0x91400370u,
 };
 constexpr uint32_t kStackBuilderWords[] = {
     0xa9bf79fdu, 0xaa0f03fdu, 0xd10241efu, 0xf9400fa0u,
@@ -94,9 +38,10 @@ constexpr uint32_t kStackChildrenWords[] = {
     0xa9bf79fdu, 0xaa0f03fdu, 0xd10101efu, 0xf9400ba0u,
     0xb8417001u, 0x8b1c8021u, 0xf81f83a1u, 0xd2800021u,
 };
+// The closure-context size (mov x1, #slots) grows with captured variables.
 constexpr uint32_t kStackChildrenMasks[] = {
     0xffffffffu, 0xffffffffu, 0xffc003ffu, 0xffffffffu,
-    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu,
+    0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffe0001fu,
 };
 constexpr uint8_t kStackCountWindow[] = {0xe3,0x03,0x00,0xaa,0xa0,0x83,0x5f,0xf8,0xa3,0x03,0x1f,0xf8,0x02,0x7c,0x41,0x93};
 constexpr uint8_t kStackLoopWindow[] = {0x80,0xf8,0x7f,0xd3,0xb0,0x03,0x5f,0xf8,0xe0,0x41,0x00,0xa9,0xa0,0x03,0x5f,0xf8};
@@ -250,11 +195,18 @@ bool FindStackProducer(const Image&,uintptr_t*,uint32_t*);
 bool FindStackBuilder(const Image&,uintptr_t*,uint32_t*);
 bool FindStackChildren(const Image&,uintptr_t*,uint32_t*);
 bool FindStackOwner(const Image&,uintptr_t*,uint32_t*);
+bool FindStackFactory(const Image&,uintptr_t*,uint32_t*);
+// Entry of the layout factory: frame, saved positional argument and the first
+// optional-named-argument descriptor reads. Only compiler operands are masked.
+constexpr uint32_t kStackFactoryEntryMasks[] = {
+    0xffffffffu, 0xffffffffu, 0xffc003ffu, 0xffe00fffu,
+    0xffe00fffu, 0xffe00fffu, 0xffffffffu, 0xffc003ffu,
+};
 bool ValidateStackSite(const Image&,unsigned,uintptr_t);
 const SiteSpec kFolderStackSites[] = {
     {"getter", {}, FindStackGetter, true, {reinterpret_cast<const uint8_t*>(kStackGetterWords), reinterpret_cast<const uint8_t*>(kStackGetterMasks), 32u}, 0u},
     {"producer", {}, FindStackProducer, true, {reinterpret_cast<const uint8_t*>(kStackProducerWords), reinterpret_cast<const uint8_t*>(kStackProducerMasks), 32u}, 0u},
-    {"factory", {reinterpret_cast<const uint8_t*>(kStackFactoryWords), reinterpret_cast<const uint8_t*>(kStackFactoryMasks), sizeof(kStackFactoryWords)}, nullptr, true, {reinterpret_cast<const uint8_t*>(kStackFactoryWords), reinterpret_cast<const uint8_t*>(kStackFactoryMasks), sizeof(kStackFactoryWords)}, 0u},
+    {"factory", {}, FindStackFactory, true, {reinterpret_cast<const uint8_t*>(kStackFactoryWords), reinterpret_cast<const uint8_t*>(kStackFactoryEntryMasks), sizeof(kStackFactoryEntryMasks)}, 0u},
     {"builder", {}, FindStackBuilder, true, {reinterpret_cast<const uint8_t*>(kStackBuilderWords), reinterpret_cast<const uint8_t*>(kStackBuilderMasks), 32u}, 0u},
     {"children", {}, FindStackChildren, true, {reinterpret_cast<const uint8_t*>(kStackChildrenWords), reinterpret_cast<const uint8_t*>(kStackChildrenMasks), 32u}, 0u},
     {"frame", {reinterpret_cast<const uint8_t*>(kStackFrameWords), reinterpret_cast<const uint8_t*>(kStackFrameMasks), sizeof(kStackFrameWords)}, nullptr, true, {reinterpret_cast<const uint8_t*>(kStackFrameWords), reinterpret_cast<const uint8_t*>(kStackFrameMasks), 16u}, 0u},
@@ -384,12 +336,12 @@ bool FindStackProducer(const Image& image,uintptr_t* out,uint32_t* n){return Fin
 bool FindStackBuilder(const Image& image,uintptr_t* out,uint32_t* n){return FindStackContract(image,3,kStackBuilderWords,kStackBuilderMasks,out,n);}
 bool FindStackChildren(const Image& image,uintptr_t* out,uint32_t* n){return FindStackContract(image,4,kStackChildrenWords,kStackChildrenMasks,out,n);}
 bool FindStackOwner(const Image& image,uintptr_t* out,uint32_t* n){return FindStackContract(image,7,kStackLayoutOwnerWords,kStackLayoutOwnerMasks,out,n);}
-bool StackFactoryArguments(const Image& image, uintptr_t factory) {
+bool StackFactoryArguments(const Image& image, uintptr_t factory, size_t span) {
     int saved[2] = {}, argument[2] = {};
     unsigned stores = 0, pairs = 0;
     // The two values are saved before reading the layout enum. Decode their
     // actual frame slots, then require every constructor branch to use both.
-    for (size_t i = 0; i < sizeof(kStackFactoryWords); i += 4) {
+    for (size_t i = 0; i < span; i += 4) {
         const auto word = StackWord(image, factory + i);
         if (word == 0xf8407024u) break;
         if ((word & 0xffe00fffu) != 0xf80003a3u &&
@@ -398,7 +350,7 @@ bool StackFactoryArguments(const Image& image, uintptr_t factory) {
         saved[stores++] = StackFrameDisplacement(word);
     }
     if (stores != 2 || saved[0] >= 0 || saved[1] >= 0 || saved[0] == saved[1]) return false;
-    for (size_t i = 0; i + 8 <= sizeof(kStackFactoryWords); i += 4) {
+    for (size_t i = 0; i + 8 <= span; i += 4) {
         const auto first = StackWord(image, factory + i);
         const auto second = StackWord(image, factory + i + 4);
         if ((first & 0xffe00fffu) != 0xf84003a3u ||
@@ -410,11 +362,83 @@ bool StackFactoryArguments(const Image& image, uintptr_t factory) {
     }
     return pairs >= 2;
 }
+// The factory has one return per switch case; bound it by control flow.
+size_t StackFunctionSpan(const Image& image, uintptr_t at) { return DartBodySpan(image, at, 4096); }
+// Evaluate the compiled enum switch for one ordinal and return the allocation
+// call of the branch it reaches. Only compare/branch/SMI-check instructions
+// may lie on the path; the compiler's tree balancing is therefore irrelevant.
+bool StackSelectOrdinal(const Image& image, uintptr_t begin, size_t span, uintptr_t start,
+                        int64_t ordinal, uintptr_t* allocation) {
+    int64_t lhs = 0, rhs = 0, smi = 0;
+    bool flags = false, boxed = false;
+    uintptr_t pc = start;
+    for (unsigned step = 0; step < 96; ++step) {
+        if (pc < begin || pc + 4 > begin + span) return false;
+        const auto w = StackWord(image, pc);
+        uint32_t cid = 0;
+        if (StackAllocation(image, pc, &cid)) { *allocation = pc; return true; }
+        if ((w & 0xffc003ffu) == 0xf100009fu) {          // cmp x4, #imm
+            lhs = ordinal; rhs = (w >> 10u) & 0xfffu; flags = true; pc += 4; continue;
+        }
+        if (w == 0x937f7880u) { smi = ordinal * 2; boxed = true; pc += 4; continue; } // sbfiz x0, x4, #1, #31
+        if (w == 0xeb80049fu && boxed) { lhs = ordinal; rhs = smi / 2; flags = true; pc += 4; continue; }
+        if ((w & 0xffc003ffu) == 0x7100001fu && boxed) {  // cmp w0, #imm
+            lhs = smi; rhs = (w >> 10u) & 0xfffu; flags = true; pc += 4; continue;
+        }
+        if ((w & 0xff000010u) == 0x54000000u && flags) {
+            bool taken = false;
+            switch (w & 0xfu) {
+                case 0x0: taken = lhs == rhs; break;
+                case 0x1: taken = lhs != rhs; break;
+                case 0xa: taken = lhs >= rhs; break;
+                case 0xb: taken = lhs < rhs; break;
+                case 0xc: taken = lhs > rhs; break;
+                case 0xd: taken = lhs <= rhs; break;
+                default: return false;
+            }
+            if (!taken) { pc += 4; continue; }
+            uintptr_t target = 0;
+            if (!DecodeLocalBranch(pc, w, &target)) return false;
+            pc = target; continue;
+        }
+        if ((w & 0xfc000000u) == 0x14000000u) {
+            uintptr_t target = 0;
+            if (!DecodeLocalBranch(pc, w, &target)) return false;
+            pc = target; continue;
+        }
+        return false;
+    }
+    return false;
+}
+// The 2x1 big folder is enum ordinal 24. The ordinal is a semantic switch
+// case of this factory, not a launcher version or address.
+constexpr int64_t kStackFolder2x1 = 24;
+bool StackFactoryBranch(const Image& image, uintptr_t factory, size_t* span_out, uintptr_t* allocation) {
+    const auto span = StackFunctionSpan(image, factory);
+    if (!span || !MatchBytes(image, factory, kFolderStackSites[2].verify, kFlagRead | kFlagExec) ||
+        !StackFactoryArguments(image, factory, span)) return false;
+    uintptr_t start = 0; unsigned loads = 0;
+    for (size_t i = 0; i < span; i += 4)
+        if (StackWord(image, factory + i) == 0xf8407024u) { start = factory + i + 4; ++loads; } // ldur x4,[x1,#7]
+    if (loads != 1 || !StackSelectOrdinal(image, factory, span, start, kStackFolder2x1, allocation)) return false;
+    *span_out = span;
+    return true;
+}
+bool FindStackFactory(const Image& image, uintptr_t* out, uint32_t* candidates) {
+    uintptr_t offsets[512]{}; size_t count = 0; uint32_t total = 0; *candidates = 0;
+    if (!CollectBytes(image, kFolderStackSites[2].verify, offsets, 512, &count, &total) || total > 512) return false;
+    for (size_t i = 0; i < count; ++i) {
+        size_t span = 0; uintptr_t allocation = 0;
+        if (StackFactoryBranch(image, offsets[i], &span, &allocation)) { *out = offsets[i]; ++*candidates; }
+    }
+    return *candidates == 1;
+}
 }
 size_t FolderStackSiteSpan(const Image& image,unsigned site,uintptr_t offset) {
     if(site>=8)return 0;
     if(site==0)return StackGetterSpan(image,offset);
-    return site==2 || site==5 || site==6 ? kFolderStackSites[site].pattern.size : StackBodySpan(image,offset);
+    if(site==2)return StackFunctionSpan(image,offset);
+    return site==5 || site==6 ? kFolderStackSites[site].pattern.size : StackBodySpan(image,offset);
 }
 bool VerifyFolderStackReturn(uintptr_t address) {
     return MatchPatternAtAddress(address, {kStackReturn, nullptr, sizeof(kStackReturn)});
@@ -422,18 +446,17 @@ bool VerifyFolderStackReturn(uintptr_t address) {
 bool DecodeFolderStackLayout(const Image& image, uintptr_t getter, uintptr_t producer,
                             uintptr_t factory, uintptr_t builder, uintptr_t children, FolderStackLayout* output) {
     if (output == nullptr) return false;
-    const uintptr_t locations[] = {getter, producer, factory};
-    for (unsigned i = 0; i < 3; ++i)
-        if (i==2 ? !MatchBytes(image, locations[i], kFolderStackSites[i].pattern,kFlagRead|kFlagExec) :
-            !ValidateStackSite(image,i,locations[i])) return false;
+    size_t factory_span = 0;
+    uintptr_t branch_allocation = 0;
+    if (!ValidateStackSite(image,0,getter) || !ValidateStackSite(image,1,producer) ||
+        !StackFactoryBranch(image, factory, &factory_span, &branch_allocation)) return false;
     if (!ValidateStackSite(image,3,builder) || !ValidateStackSite(image,4,children)) return false;
-    if (!StackFactoryArguments(image, factory)) return false;
     const auto getter_span=FolderStackSiteSpan(image,0,getter);
     const auto producer_span=FolderStackSiteSpan(image,1,producer);
     const auto builder_span=FolderStackSiteSpan(image,3,builder);
     const auto children_span=FolderStackSiteSpan(image,4,children);
     FolderStackLayout out{};
-    unsigned patch_count = 0, list_count = 0, factory_count = 0, allocation_count = 0;
+    unsigned patch_count = 0, list_count = 0, allocation_count = 0;
     // Derive the return site from the validated indexed compressed-array read,
     // rather than carrying a research-time function-relative address.
     for (size_t i = 0; i + 32 <= getter_span; i += 4) {
@@ -445,13 +468,8 @@ bool DecodeFolderStackLayout(const Image& image, uintptr_t getter, uintptr_t pro
             out.patch = getter+i+16; ++patch_count;
         }
     }
-    // Enum ordinal 24 is the semantic folder_2x1 branch of this validated switch,
-    // not a launcher version/CID. A changed enum/switch contract is rejected.
-    for (size_t i = 0; i + 12 <= sizeof(kStackFactoryWords); i += 4) {
-        if (StackWord(image, factory+i) == 0xf100609fu &&
-            (StackWord(image, factory+i+4) & 0xff00001fu) == 0x5400000cu &&
-            StackAllocation(image, factory+i+8, &out.strategy)) ++factory_count;
-    }
+    // The folder_2x1 branch was selected by evaluating the validated switch.
+    if (!StackAllocation(image, branch_allocation, &out.strategy)) return false;
     constexpr uint32_t ld = 0xfc400000u;
     unsigned found = 0;
     uint16_t producer_list = 0, gap_width = 0, gap_height = 0, small_gap_again = 0, small_width_again = 0;
@@ -490,7 +508,7 @@ bool DecodeFolderStackLayout(const Image& image, uintptr_t getter, uintptr_t pro
                 if (StackAllocation(image, producer+i+distance, &out.item)) ++allocation_count;
         }
     }
-    if (patch_count != 1 || list_count != 1 || factory_count != 1 || allocation_count != 1 ||
+    if (patch_count != 1 || list_count != 1 || allocation_count != 1 ||
         found != 511u || gap_height != out.large_h || producer_list != out.list || gap_width != out.large_w ||
         small_gap_again != out.small_gap || small_width_again != out.small_w || out.strategy == out.item) return false;
     // Layout relations, not a known-ROM displacement list.
@@ -554,25 +572,21 @@ bool DecodeFolderStackLayout(const Image& image, uintptr_t getter, uintptr_t pro
     // then decode each member CID from its own current-image allocation stub.
     uintptr_t common_ctor=0;
     const auto ctor_after=[&](uintptr_t call,uintptr_t* ctor) {
-        for(size_t d=4;d<=48 && call+d+4<=factory+sizeof(kStackFactoryWords);d+=4) {
+        for(size_t d=4;d<=48 && call+d+4<=factory+factory_span;d+=4) {
             const auto w=StackWord(image,call+d);
             if(!IsBl(w)) continue;
             return DecodeBlTarget(call+d,w,ctor) && IsDartPrologue(image,*ctor);
         }
         return false;
     };
-    for(size_t i=0;i+12<=sizeof(kStackFactoryWords);i+=4) {
-        if(StackWord(image,factory+i)==0xf100609fu &&
-           (StackWord(image,factory+i+4)&0xff00001fu)==0x5400000cu &&
-           !ctor_after(factory+i+8,&common_ctor)) return false;
-    }
+    if(!ctor_after(branch_allocation,&common_ctor)) return false;
     if(!common_ctor || !Contains(image,common_ctor,48,kFlagRead|kFlagExec)) return false;
     // Big-folder constructor initializes five independent primitive double slots.
     unsigned initialized=0;
     for(size_t j=8;j<28;j+=4)
         if((StackWord(image,common_ctor+j)&0xffe00fffu)==0xf800003fu) ++initialized;
     if(initialized!=5 || !IsBl(StackWord(image,common_ctor+28))) return false;
-    for(size_t i=0;i+4<=sizeof(kStackFactoryWords);i+=4) {
+    for(size_t i=0;i+4<=factory_span;i+=4) {
         uint32_t cid=0;uintptr_t ctor=0;
         if(!StackAllocation(image,factory+i,&cid) || !ctor_after(factory+i,&ctor) || ctor!=common_ctor) continue;
         for(unsigned j=0;j<out.strategy_count;++j) if(out.strategies[j]==cid) return false;

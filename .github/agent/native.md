@@ -12,7 +12,7 @@ The launcher-side rule switches normally arrive from SystemUI, which reads compl
 
 ### Stacked-folder preview
 
-The stacked-folder preview rule for the structurally verified big-folder family transforms validated cached preview geometry at the native getter boundary and adjusts primitive count/index arguments in the original Dart child generator. It decodes family CIDs through the shared constructor, infers rows/columns from canonical native geometry, preserves every large icon and small-preview interaction classification, and renders at most three stacked cards with the earliest small application in front, and leaves the source application list and original Dart stores/write barriers intact. All six hook sites (geometry/count/order/frame/scoped-ID/completion) must be ready before callbacks apply the feature; staged failures roll back and contended callbacks retain native arguments. Value changes, first installation and fork recovery enqueue one primitive refresh generation. At the next native begin-frame boundary, before build/layout, a verified Dart tail transfer invokes the existing all-folder preview invalidation body after popping the original frame. Within this module-owned DartThread scope, the original ID-array fill reads the parent layout GetBuilder ID decoded from its registration site; normal monochrome calls retain their preview ID. The parent rebuild is required because the preview-container builder can return its cached Widget unchanged. The original refresh return records completion and clears scope. This restores canonical geometry on disable/reset without retaining heap roots or calling Dart from C++. Model/DI initialization guards retain pending work; equal snapshots remain idle. No new frame is forced while the launcher is fully idle or paused; returning Home supplies the next frame.
+The stacked-folder preview rule for the structurally verified big-folder family transforms validated cached preview geometry at the native getter boundary and adjusts primitive count/index arguments in the original Dart child generator. The layout factory is found by its optional-argument entry seed, bounded with `DartBodySpan`, and its enum switch is evaluated for ordinal 24 (folder 2x1) instruction by instruction (cmp/b.cond/SMI check/b only), so rebalanced switch trees and added ordinals (801030308 added 27/28) do not matter. The children generator's closure-context size operand is masked. It decodes family CIDs through the shared constructor, infers rows/columns from canonical native geometry, preserves every large icon and small-preview interaction classification, and renders at most three stacked cards with the earliest small application in front, and leaves the source application list and original Dart stores/write barriers intact. All six hook sites (geometry/count/order/frame/scoped-ID/completion) must be ready before callbacks apply the feature; staged failures roll back and contended callbacks retain native arguments. Value changes, first installation and fork recovery enqueue one primitive refresh generation. At the next native begin-frame boundary, before build/layout, a verified Dart tail transfer invokes the existing all-folder preview invalidation body after popping the original frame. Within this module-owned DartThread scope, the original ID-array fill reads the parent layout GetBuilder ID decoded from its registration site; normal monochrome calls retain their preview ID. The parent rebuild is required because the preview-container builder can return its cached Widget unchanged. The original refresh return records completion and clears scope. This restores canonical geometry on disable/reset without retaining heap roots or calling Dart from C++. Model/DI initialization guards retain pending work; equal snapshots remain idle. No new frame is forced while the launcher is fully idle or paused; returning Home supplies the next frame.
 
 ### Rule switches
 
@@ -24,7 +24,7 @@ The switches are `folder_stack_preview`, `android_widget_stack`, `hide_recents_c
 
 ### Opened-folder columns
 
-The opened grid reads a late-static column cache rather than recomputing the getter on each open. A separately resolved `onFolderOpen` Dart shim synchronizes that cache on the owning Dart thread before layout, using the field displacement decoded from the unique width-calculation reader. It captures and restores the native SMI on disable, leaves sentinels/objects untouched, and retains a passive open boundary after removing grid/preview overrides. It preserves the native frame, arguments and NZCV without entering a C++ or Dart trampoline. Device testing on 2026-10-03 confirmed live clear-button changes, idle preparation while dozing, and user-visible 4/5/native column changes on reopening, with folder close/Home return and preview intact.
+The opened grid reads a late-static column cache rather than recomputing the getter on each open. A separately resolved `onFolderOpen` Dart shim synchronizes that cache on the owning Dart thread before layout, using the field displacement decoded from the unique width-calculation reader. The reader's spacing/width displacements are masked and must satisfy width = spacing + 0x10; the open entry's receiver field is masked, and an entry candidate is accepted only if it contains exactly one companion reset fragment whose two cleared fields are 4 bytes apart (801030308 moved the receiver from 0x1f to 0x23). It captures and restores the native SMI on disable, leaves sentinels/objects untouched, and retains a passive open boundary after removing grid/preview overrides. It preserves the native frame, arguments and NZCV without entering a C++ or Dart trampoline. Device testing on 2026-10-03 confirmed live clear-button changes, idle preparation while dozing, and user-visible 4/5/native column changes on reopening, with folder close/Home return and preview intact.
 
 ### Packaging
 
@@ -51,7 +51,9 @@ Authoring a new hook:
   `clang++ -std=c++17 -O2 -Wall -Wextra -Werror -I resolver -I rules -o /tmp/dart_probe tools/dart_probe.cpp resolver/dart_image.cpp resolver/dart_targets.cpp`
   (run from `app/src/main/cpp/NativeRules`; `rules/` supplies the `*_target.inc` files that `dart_targets.cpp` includes)
   then `dart_probe <libapp.so>` (resolve + report), `--expect site=0xADDR` (assert a known RVA), `--mutate 0xADDR` (fail-closed negative control), `--classes 0xADDR` (dump the instruction-class sequence used for structural specs).
-- `dart_runtime_resolver.cpp` stays byte-identical to upstream. `runtime_profile_resolver.cpp` retains the upstream structural algorithms with the fixed-address side-handler fallback removed; the launcher entry path never consults a per-build profile table.
+- Bound a body with `DartBodySpan` (first terminal instruction that no earlier forward branch passes), never with "until the next prologue": frameless stubs often follow a Dart body. A body ending in no-return throw `bl`s may include the short stub after it, so count only shapes such a stub cannot complete. `TraceGprSource` / `TraceCompressedField` give register provenance instead of fixed instruction distances.
+- 801030308 lessons (verified 2026-11-18): register reallocation and inserted calls (`_closeLayoutPreviewWindow`) broke every whole-function pattern. `desktop_grid_pipeline` now finds `hideLayoutPreview` by its apply/cancel tail, verifies `applyPreviewLayout` by a 36-word head with role masks, and decodes `loadGridConfig` by roles: async-return branches to one validated tail, a class-guard family whose single layout kind feeds the same enum conversion twice, a unique `cmp w0, #26` prepare call, and the migrate callee contract. `recents_card_haptic` accepts the out-of-line `ScrollUpdateNotification` constructor with any x4–x14 delta source register. Its policy (`recents_haptic_policy.h`) is an early detent: a tick fires once the focused card has travelled 0.3 of a card (the incoming card is still at the side), the neighbour becomes committed, reversing needs 0.25 of travel back from the furthest point since the last tick (without it the early forward threshold immediately satisfies the backward one), and a multi-slot frame gives one tick. SystemUI plays Xiaomi `mesh_normal` (0x10000005, `sys.haptic.mesh.normal=[5,2]` HEAVY_CLICK strong); `mesh_light` `[5,1]` and an on-arrival (centre) trigger were both tried on device and rejected as too weak / odd. `_StackListState.build` keeps `widget` at +0xb and `itemExtent` at +0x13 on 9239 and 801030308.
+- `dart_runtime_resolver.cpp` stays byte-identical to upstream. `runtime_profile_resolver.cpp` retains the upstream structural algorithms with the fixed-address side-handler fallback removed; the launcher entry path never consults a per-build profile table. The side boundary (the Rust `libapp_launcher.so` back-gesture handler) is the unique function that starts with any AAPCS64 callee-save prologue (sp allocation, sp-based saves, `stp x29, x30`, `add x29, sp, #k`; 801030308 added d12–d14 and broke both literal prologues), reads the `ldrb w20, [x0, #edge]` flag before its first MotionEvent call, and issues the ordered actionMasked/actionIndex/rawX/actionIndex/rawY import calls with no `ret` before them (the `ret` guard rejects the preceding function's tail window). When this rejects (`runtime side-boundary launcher profile rejected: stage=103`), input hooks, business hooks and the native broadcast runtime are all absent, so back gestures, haptic signals and settings delivery after a launcher restart fail together. Gate: `run_launcher_profile_target_test.py` over every stored `libapp_launcher.so`.
 - New launcher artifacts and AOT research: [launcher research manual](../../docs/LAUNCHER_UNPACK_RESEARCH_MANUAL.md). Native target discovery, settings, lifecycle and ABI work: [native hook implementation manual](../../docs/NATIVE_HOOK_IMPLEMENTATION_MANUAL.md). Never add version/build-ID/RVA target tables.
 
 ## Native settings delivery
@@ -68,8 +70,8 @@ option bit keep their historical `native_pad_dock` names.
 
 `native_dock_glass` matches the phone Hotseat LayoutBuilder's optional background
 branch, which appends the factory result only while a captured Rx flag is true. The
-captured flag displacement comes from the branch. The `tbnz` skip must land on the
-list-without-background move. The factory must be a single allocation whose stub
+captured flag displacement comes from the branch. The shim branches to the host's own
+`tbnz` skip target, so the skip destination's shape is not part of the contract. The factory must be a single allocation whose stub
 differs from the glass arm's stub. The glass arm is `_buildStrategy`'s first mode arm.
 Its prologue must spill state, mode and the radius as an unboxed double into the
 0x20-byte frame. The arm fills radius, tint and opacity only from that frame and the
@@ -84,10 +86,13 @@ object pool. The same family also decodes the geometry wrapper:
   child, and the Padding class id comes from its allocation stub. Of several insets
   candidates (EdgeInsets and EdgeInsetsDirectional), only the one whose stub feeds a
   Padding fragment is accepted.
-- The item builder (`_buildItems`, found from the closure's `ldur x6, [fp, #S]; bl`
-  call): the Dock center call is a switchable call through a pool pair whose receiver
-  is the context field that the x6 spill feeds and that the closure slot `S` holds
-  (stored only before the gate). The fragment after it gives the item slot, center slot
+- The item builder (`_buildItems`, found from the closure's call whose x6 argument is
+  traced back by `TraceGprSource` to `ldur xR, [fp, #S]`): the Dock center call is
+  either a switchable call through a pool pair, or (801030308) a direct `bl` whose x1
+  is traced through `TraceCompressedField` to the same context field. Exactly one of the
+  two shapes must decode; the direct target is published as `center_target` and the
+  shim calls it with the host's `mov x1, x10` replay. The receiver is the context field
+  that the x6 spill feeds and that the closure slot `S` holds (stored only before the gate). The fragment after it gives the item slot, center slot
   and info field it displaces. The unlock wrapper allocation (class id distinct from
   Padding and EdgeInsets) must store child, position, kind 2 (hotseat), fixed `true`
   and screen −1, then the title (field 0x2b) from its slot, followed by a pool load.
@@ -111,14 +116,18 @@ It rejects a duplicate frame or changes to the frame return, exception cleanup, 
 field or Element dispatch.
 
 `native_dock_route` and `native_dock_interaction` are still resolved, but none of their
-sites are patched. They supply the HomePage binding, DeviceConfig form-factor fields
+sites are patched. The interaction contract pairs the drag-end observer with its
+drag-start writer: the start caller may be a closure (801030308), so the start write is
+found among callers that share the end caller's first seven words, a `bl`, and the
+`mov x1, x0` handler hand-off; at most six instructions may separate that move from the
+handler call, and none may branch or write x1. They supply the HomePage binding, DeviceConfig form-factor fields
 and drag guards that the idle admission check reads.
 
 Five glass gates and one scheduler idle shim install as a bank. Track selections
 per native Dart Thread identity: Launcher settings and Home can use separate
 eligible engines on the same UI thread. A single process-wide owner makes them
 steal selection at every idle frame and repeatedly reassemble the whole tree.
-Each admitted engine has its own 0x200-byte construction/diagnostic frame bank and
+Each admitted engine has its own 0x208-byte (`GLASS_FRAMES_SIZE`) construction/diagnostic frame bank and
 one-shot geometry/remap recovery bit. Preserve those identities during bank repair;
 passive admission checks ready, disable restores each engine once, and fork clears
 the bank. Store no managed references. The fixed 16-entry bank rejects additional
@@ -173,20 +182,25 @@ cell (`GridController.dockCellWidth`) and centers fewer icons, so with the flag 
 factory gate uses the default full-row margin (the packed margin is ignored) and adds
 (columns − max(n, 1)) × cell / 2 to both sides, capped at half the width: an empty row
 keeps one cell, n ≥ columns or unbounded width keep the margin. The cell is read the way
-the item builder computes it: static table `[THR + table]`, a flag holder static whose
+the item builder computes it (inline `kCell`, or on 801030308 a separate
+`GridController.dockCellWidth` body found from its unique `bl F; mov v1, v0;
+fmov d0, #2; fdiv d2, d1, d0` call site): static table `[THR + table]`, a flag holder static whose
 bool field is tested with the host's own `tbnz #4` (true → `config.cell + extra`, false →
 `config.alt`), and `config` = the `currentConfig` holder static → Rx field → Rx value. A
 null, sentinel (`pp[sentinel]`) or non-object at any step, or a cell outside
 (0, maxWidth), keeps the margin. The decoder takes, from the Hotseat builder, the
 `ldur xC, [fp, #slot]; ldur w5, [xC, #items]; add x5, x5, heap` load before the item
 builder call (followed only by frame reloads, the slot written only before the gate) and
-the single `ldur d, [x, #maxWidth]; fmov d, #columns; fdiv` (an integer 3–6). The item
+the single `fdiv` whose operands trace back (`fmov d, #columns` within four words,
+`ldur d, [x, #maxWidth]` within eight) to an integer 3–6 and the width field. The item
 builder must spill x5, publish it into its own context and iterate it with the resume
 length field, and contain exactly one `kCell` sequence (flag load, `tbnz #4`, two
 `currentConfig` calls on the same receiver, `fmov #extra`, `fadd`, the alt load, then a
 halved add to the item x); `currentConfig` must be the static-or-find getter whose Rx
 getter rejects the sentinel. Any mismatch leaves columns 0 and the glass at fixed width,
 logged once. At run time the list must have the child list's class id and a Smi length.
+801030308 decodes flag 0x2830/0xe7, config 0x2898 → 0x2f → 0x13, cell 0x77 + 20,
+alt 0x2b, 4 columns, items −8/0x13, controller −16, build frame 0xd8.
 9239 and 9226 both decode slot −8, field 0x13, 4 columns, table 0x78, flag 0x27c0/0xe7,
 config 0x2828 → 0x2f → 0x13, cell 0x77 + 20, alt 0x2b (the device measures a 94.4 dp
 pitch). Mutations of the fmov, fdiv, maxWidth load, x5 load/add, argument reloads, a
@@ -244,7 +258,7 @@ The Android-widget-stack rule (`widget_stack`) resolves the launcher's paired el
 
 ## OS4 Android widget to assistant
 
-The OS4 Android-widget rule resolves a unique eligibility/serializer family from the current Dart image, deriving the provider flag displacement and AppWidget CID. Its assembly replays the stolen instructions and bypasses the MIUI identity and size eligibility rejection only for ordinary AppWidgets of that CID. It derives and verifies the native success continuation; model dimensions/identity, Bundle metadata, placement, and drop acknowledgement remain stock. MIUI providers and other card types keep their size policy. It uses the same preparation/cache/settings/remap lifecycle and restores its owned hook when disabled. Test the structural contract with `assistant_widget_target_test.cpp` and the actual assembly offline with `run_assistant_widget_abi_test.py` (Unicorn + pyelftools, Android NDK clang). Current 7722 static/build verification is not manual drag acceptance.
+The OS4 Android-widget rule resolves a unique eligibility/serializer family from the current Dart image, deriving the provider flag displacement and AppWidget CID. The span-check argument register is masked (x6 on 9239, x5 on 801030308; the accepted block reloads its registers), and the second rejection may be a tail-merged copy of the first block's first word plus a branch to its second. Its assembly replays the stolen instructions and bypasses the MIUI identity and size eligibility rejection only for ordinary AppWidgets of that CID. It derives and verifies the native success continuation; model dimensions/identity, Bundle metadata, placement, and drop acknowledgement remain stock. MIUI providers and other card types keep their size policy. It uses the same preparation/cache/settings/remap lifecycle and restores its owned hook when disabled. Test the structural contract with `assistant_widget_target_test.cpp` and the actual assembly offline with `run_assistant_widget_abi_test.py` (Unicorn + pyelftools, Android NDK clang). Current 7722 static/build verification is not manual drag acceptance.
 
 ## Back gesture 0.13.0 native extensions
 

@@ -255,4 +255,39 @@ bool CountQualified(const Image& image, const BytePattern& pattern,
                     const ClassSequence* classes, uintptr_t* first_out,
                     uint32_t* total_out);
 
+// ------------------------------------------------ argument provenance --
+//
+// Dart AOT call sites move arguments through scratch registers in whatever
+// order the register allocator picks. These helpers recover where an argument
+// came from without pinning that order.
+
+// Direct target of b, b.cond, cbz/cbnz or tbz/tbnz.
+bool DecodeLocalBranch(uintptr_t pc, uint32_t instruction, uintptr_t* target);
+
+// Byte length of the Dart body starting at a prologue: it ends at the first
+// terminal instruction (ret, b, br, brk) that no earlier forward branch of the
+// body jumps past, so out-of-line slow paths placed after the main return are
+// included and a following frameless function is not. Returns 0 if the body
+// is not a Dart prologue or exceeds `limit` bytes. A body that ends in
+// no-return stub calls (throw/null-error `bl`s) cannot be bounded exactly
+// and may include a short following frameless stub; callers must only count
+// shapes such a stub cannot complete.
+size_t DartBodySpan(const Image& image, uintptr_t function, size_t limit);
+
+// Walks back from `call` (exclusive) over at most `limit` straight-line
+// instructions, following `mov xD, xS` renames, to the instruction that last
+// wrote `reg`. `*source_reg` receives the register that instruction wrote.
+// Rejects any branch, call, writeback addressing or unclassified instruction in
+// the walked range, and any direct branch in [function, end) that lands inside
+// (source, call], so the reported source is the only definition that reaches
+// the call. `function` is the enclosing Dart prologue.
+bool TraceGprSource(const Image& image, uintptr_t function, uintptr_t call,
+                    uint32_t reg, size_t limit, uintptr_t* source_pc,
+                    uint32_t* source_reg);
+
+// TraceGprSource, then steps through `add xR, xR, x28, lsl #32` to the 32-bit
+// compressed field load `ldur wR, [xB, #field]` that produced xR.
+bool TraceCompressedField(const Image& image, uintptr_t function, uintptr_t call,
+                          uint32_t reg, size_t limit, uintptr_t* load_pc);
+
 }  // namespace hypertweak::native::dart

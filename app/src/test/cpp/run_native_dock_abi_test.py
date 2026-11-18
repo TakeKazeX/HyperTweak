@@ -43,8 +43,8 @@ FRAMES = {'resume_continue': 0x00, 'resume_list': 0x08, 'resume_result': 0x10, '
           'observed_first': 0x190, 'observed_last': 0x198, 'observed_built': 0x1a0,
           'static_table': 0x1a8, 'sentinel_pool': 0x1b0, 'flag_static': 0x1b8, 'flag_field': 0x1c0,
           'config_static': 0x1c8, 'config_rx': 0x1d0, 'rx_value': 0x1d8, 'cell_field': 0x1e0,
-          'alt_cell_field': 0x1e8, 'cell_extra': 0x1f0, 'observed_cell': 0x1f8}
-FRAMES_SIZE = 0x200
+          'alt_cell_field': 0x1e8, 'cell_extra': 0x1f0, 'observed_cell': 0x1f8, 'center_target': 0x200}
+FRAMES_SIZE = 0x208
 resume, insets_entry, padding_return = 0x300040, 0x300060, 0x300070
 center_target, center_return, center_continue = 0x300080, 0x300090, 0x3000a0
 wrap_entry, title_continue = 0x3000b0, 0x3000c0
@@ -78,8 +78,9 @@ frames_default = {
     'observed_width': 0, 'observed_items': 0, 'observed_first': 0, 'observed_last': 0, 'observed_built': 0,
     'static_table': 0x78, 'sentinel_pool': 0x40, 'flag_static': 0x27c0, 'flag_field': 0xe7,
     'config_static': 0x2828, 'config_rx': 0x2f, 'rx_value': 0x13, 'cell_field': 0x77, 'alt_cell_field': 0x2b,
-    'cell_extra': bits(20.0), 'observed_cell': 0,
+    'cell_extra': bits(20.0), 'observed_cell': 0, 'center_target': 0,
 }
+direct_center = 0x3000d0  # devirtualized center callee (801030308)
 # Compressed references decompress above 4 GiB (heap base 1); objects read through one live here.
 far = 0x100240000
 gpr = [UC_ARM64_REG_X0 + index for index in range(29)] + [UC_ARM64_REG_X29, UC_ARM64_REG_X30]
@@ -328,6 +329,19 @@ HyperTweakNativeDockAtIdle:
         ((build_fp, frame), (build_fp + 8, hotseat), (build_fp - 0x68, padding_object),
          (build_fp - 0xe0, controller)) + tuple((build_fp - offset, null) for offset in range(8, 0xe0, 8)
                                                 if offset != 0x68),
+        keep_flags=False)
+    assert field(vm, symbols, 'stage') == 3
+    # Later builds call the center getter directly with the controller as the x1 receiver; the
+    # frame is identical and nothing is passed on the Dart stack.
+    vm = machine(segments, symbols, thread, frames={'stage': 2, 'thread': thread, 'center_target': direct_center})
+    vm.mem_write(padding_object - 1, struct.pack('<I', padding_cid << 12))
+    vm.mem_write(frame - 0x10, pack(controller))
+    vm.reg_write(gpr[0], padding_object)
+    run(vm, symbols, 'GlassReturn', direct_center,
+        {0: padding_object, 1: controller, 9: 3, 10: controller, 11: 0xe0,
+         15: build_fp - 0xe0, 17: direct_center, 29: build_fp, 30: center_return},
+        ((build_fp, frame), (build_fp + 8, hotseat), (build_fp - 0x68, padding_object))
+        + tuple((build_fp - offset, null) for offset in range(8, 0xe0, 8) if offset != 0x68),
         keep_flags=False)
     assert field(vm, symbols, 'stage') == 3
     # Center gate. The owned frame takes the center as the wrapper position.

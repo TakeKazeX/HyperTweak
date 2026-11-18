@@ -290,15 +290,23 @@ bool FindFolderCacheReader(const Image& image, uintptr_t* offset_out,
         0xa1, 0x03, 0x5f, 0xf8, 0x30, 0x7c, 0x41, 0x93,
         0x01, 0x02, 0x62, 0x1e, 0x02, 0x08, 0x61, 0x1e,
     };
+    // ldur d0, [x2, #spacing] and stur d0, [x2, #width] keep their roles; the
+    // controller's field displacements move when the host adds fields.
     constexpr uint8_t tail[] = {
-        0xa2, 0x83, 0x5f, 0xf8, 0x40, 0x30, 0x44, 0xfc,
+        0xa2, 0x83, 0x5f, 0xf8, 0x40, 0x00, 0x40, 0xfc,
         0x23, 0x7c, 0x41, 0x93, 0x61, 0x04, 0x00, 0xd1,
         0x21, 0x00, 0x62, 0x9e, 0x03, 0x08, 0x61, 0x1e,
-        0x40, 0x28, 0x63, 0x1e, 0x40, 0x30, 0x05, 0xfc,
+        0x40, 0x28, 0x63, 0x1e, 0x40, 0x00, 0x00, 0xfc,
+    };
+    constexpr uint8_t tail_mask[] = {
+        0xff, 0xff, 0xff, 0xff, 0xff, 0x0f, 0xe0, 0xff,
+        0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+        0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+        0xff, 0xff, 0xff, 0xff, 0xff, 0x0f, 0xe0, 0xff,
     };
     const ByteProbe probes[] = {
         {0x2cu, {body, nullptr, sizeof(body)}},
-        {0x3cu, {tail, nullptr, sizeof(tail)}},
+        {0x3cu, {tail, tail_mask, sizeof(tail)}},
     };
     uintptr_t first = 0u;
     uint32_t total = 0u;
@@ -306,6 +314,11 @@ bool FindFolderCacheReader(const Image& image, uintptr_t* offset_out,
                         &first, &total)) return false;
     if (candidates_out != nullptr) *candidates_out = total;
     if (total != 1u) return false;
+    // The grid width is stored two doubles past the spacing it reads.
+    uint32_t spacing = 0u, width = 0u;
+    if (!ReadInsn(image, first + 0x40u, &spacing) || !ReadInsn(image, first + 0x58u, &width)) return false;
+    const uint32_t spacing_field = (spacing >> 12u) & 0x1ffu, width_field = (width >> 12u) & 0x1ffu;
+    if ((spacing_field & 3u) != 3u || width_field != spacing_field + 0x10u) return false;
     if (offset_out != nullptr) *offset_out = first;
     return true;
 }
@@ -320,8 +333,10 @@ constexpr uint8_t kFolderOpenEntry[] = {
     0x21, 0x00, 0x80, 0xd2, 0x00, 0x00, 0x00, 0x94,
     0xe2, 0x03, 0x00, 0xaa, 0xa1, 0x83, 0x5f, 0xf8,
     0xa2, 0x83, 0x1e, 0xf8, 0x41, 0xf0, 0x00, 0xb8,
-    0xa0, 0x03, 0x5f, 0xf8, 0x20, 0xf0, 0x01, 0xb8,
+    0xa0, 0x03, 0x5f, 0xf8, 0x20, 0x00, 0x00, 0xb8,
 };
+// The last store writes the folder into a receiver field whose displacement
+// moves with the controller's layout.
 constexpr uint8_t kFolderOpenMask[] = {
     0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
     0xff, 0x03, 0xc0, 0xff, 0xff, 0xff, 0xff, 0xff,
@@ -329,9 +344,51 @@ constexpr uint8_t kFolderOpenMask[] = {
     0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0xfc,
     0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
     0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-    0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+    0xff, 0xff, 0xff, 0xff, 0xff, 0x0f, 0xe0, 0xff,
 };
 
+
+// The masked entry also fits other controllers' setters. onFolderOpen alone
+// then resets its open state: true/false/0/false into four receiver fields,
+// one call on the receiver, clears two adjacent collection fields and nulls a
+// third field.
+constexpr uint32_t kFolderOpenResetWords[] = {
+    0xf85f83a0u, 0x910082c1u, 0xb8000001u, 0x9100c2c1u, 0xb8000001u,
+    0xf800001fu, 0xb8000001u, 0xaa0003e1u, 0x94000000u, 0xf85f83a0u,
+    0xb8400001u, 0x8b1c8021u, 0x94000000u, 0xf85f83a0u, 0xb8400001u,
+    0x8b1c8021u, 0x94000000u, 0xf85f83a0u, 0xb8000016u,
+};
+constexpr uint32_t kFolderOpenResetMasks[] = {
+    ~0u, ~0u, 0xffe00fffu, ~0u, 0xffe00fffu,
+    0xffe00fffu, 0xffe00fffu, ~0u, 0xfc000000u, ~0u,
+    0xffe00fffu, ~0u, 0xfc000000u, ~0u, 0xffe00fffu,
+    ~0u, 0xfc000000u, ~0u, 0xffe00fffu,
+};
+
+bool FindFolderOpen(const Image& image, uintptr_t* offset_out, uint32_t* candidates_out) {
+    const BytePattern entry{kFolderOpenEntry, kFolderOpenMask, sizeof(kFolderOpenEntry)};
+    const BytePattern reset{reinterpret_cast<const uint8_t*>(kFolderOpenResetWords),
+                            reinterpret_cast<const uint8_t*>(kFolderOpenResetMasks),
+                            sizeof(kFolderOpenResetWords)};
+    uintptr_t offsets[16]{};
+    size_t stored = 0u;
+    uint32_t total = 0u, matched = 0u;
+    if (!CollectBytes(image, entry, offsets, 16u, &stored, &total) || total != stored) return false;
+    for (size_t index = 0u; index < stored; ++index) {
+        uintptr_t end = offsets[index] + 8u;
+        while (end < offsets[index] + 0x1000u && !IsDartPrologue(image, end)) end += 4u;
+        uintptr_t at = 0u;
+        uint32_t count = 0u, first = 0u, second = 0u;
+        if (!CountBytes(image, offsets[index], end, reset, &count) || count != 1u ||
+            !FindBytesForward(image, offsets[index], end - offsets[index], reset, &at) ||
+            !ReadInsn(image, at + 40u, &first) || !ReadInsn(image, at + 56u, &second) ||
+            ((second >> 12u) & 0x1ffu) != ((first >> 12u) & 0x1ffu) + 4u) continue;
+        if (offset_out != nullptr) *offset_out = offsets[index];
+        ++matched;
+    }
+    if (candidates_out != nullptr) *candidates_out = matched;
+    return matched == 1u;
+}
 
 // Only compiler operands are masked: object-field displacement, CID, pool
 // displacement and branch/call distances are derived from the current image.
@@ -340,9 +397,11 @@ constexpr uint32_t kWidgetGateWords[] = {
     0xaa0603e2u, 0x94000000u, 0x37200480u,
     0xf84003a0u, 0xf84003a2u, 0xaa0003e1u,
 };
+// The span argument's source register is an allocator choice; the accepted
+// path never reads it, because the success block reloads x0, x2 and x1.
 constexpr uint32_t kWidgetGateMasks[] = {
     0xffe00fffu, 0xffffffffu, 0xfff8001fu, 0xffffffffu,
-    0xffffffffu, 0xfc000000u, 0xfff8001fu,
+    0xffe0ffffu, 0xfc000000u, 0xfff8001fu,
     0xffe00fffu, 0xffe00fffu, 0xffffffffu,
 };
 const BytePattern kWidgetGatePattern = {
@@ -357,6 +416,18 @@ bool DecodeWidgetReject(uintptr_t pc, uint32_t word, uintptr_t* target) {
     if (address < 0) return false;
     *target = static_cast<uintptr_t>(address);
     return true;
+}
+
+// Both rejections take one path. The compiler may tail-merge the second one as
+// a copy of the path's first instruction followed by a branch to its second.
+bool SameWidgetReject(const Image& image, uintptr_t reject, uintptr_t other) {
+    if (reject == other) return true;
+    uint32_t first = 0u, copy = 0u, branch = 0u;
+    uintptr_t target = 0u;
+    return ReadInsn(image, reject, &first) && ReadInsn(image, other, &copy) &&
+        ReadInsn(image, other + 4u, &branch) && copy == first &&
+        (branch & 0xfc000000u) == 0x14000000u && DecodeBlTarget(other + 4u, branch | 0x80000000u, &target) &&
+        target == reject + 4u;
 }
 
 bool IsWidgetSpanContract(const Image& image, uintptr_t offset) {
@@ -429,8 +500,11 @@ WidgetFamily FindWidgetFamily(const Image& image) {
         uintptr_t reject = 0u, second_reject = 0u, span = 0u;
         if (!ReadInsns(image, gate, w, 7u) ||
             !DecodeWidgetReject(gate + 8u, w[2], &reject) ||
-            !DecodeWidgetReject(gate + 24u, w[6], &second_reject) || reject != second_reject ||
+            !DecodeWidgetReject(gate + 24u, w[6], &second_reject) ||
+            ((w[4] >> 16u) & 31u) >= 29u || ((w[4] >> 16u) & 31u) == 2u ||
             reject <= gate + 28u || reject > gate + 512u ||
+            second_reject <= gate + 28u || second_reject > gate + 512u ||
+            !SameWidgetReject(image, reject, second_reject) ||
             !Contains(image, reject, 16u, kFlagRead | kFlagExec) ||
             !DecodeBlTarget(gate + 20u, w[5], &span) || !IsWidgetSpanContract(image, span)) continue;
         // Skipping the two eligibility checks must land on the native success
@@ -528,7 +602,7 @@ constexpr SiteSpec kFolderColumnsSites[] = {
     {"cache_reader", {nullptr, nullptr, 0u}, FindFolderCacheReader, true,
      {kIcPreamble, kIcPreambleMask, sizeof(kIcPreamble)}, 0u},
     {"folder_open", {kFolderOpenEntry, kFolderOpenMask, sizeof(kFolderOpenEntry)},
-     nullptr, true, {kFolderOpenEntry, kFolderOpenMask, sizeof(kFolderOpenEntry)}, 0u},
+     FindFolderOpen, true, {kFolderOpenEntry, kFolderOpenMask, sizeof(kFolderOpenEntry)}, 0u},
 };
 
 }  // namespace

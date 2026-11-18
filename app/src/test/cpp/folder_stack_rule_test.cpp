@@ -75,11 +75,21 @@ int main(int argc, char** argv) {
     Layout decoded{}; assert(Decode(resolution,&decoded));
     assert(decoded.strategy != decoded.item);
     // Fixture evidence is permitted in tests; production decodes scaled LDR operands.
-    const bool earlier_fixture = decoded.model_slot==0x3340 && decoded.registry_slot==0x1d00 &&
-        decoded.layout_id_pool==0xef10 && decoded.preview_id_pool==0xf128 && decoded.typeargs_pool==0x1318;
-    const bool current_fixture = decoded.model_slot==0x3250 && decoded.registry_slot==0x1cd8 &&
-        decoded.layout_id_pool==0xf240 && decoded.preview_id_pool==0xff68 && decoded.typeargs_pool==0x1318;
-    assert(earlier_fixture || current_fixture);
+    struct Fixture { uint32_t model, registry, layout, preview, typeargs; };
+    const Fixture fixtures[] = {
+        {0x3340, 0x1d00, 0xef10, 0xf128, 0x1318},
+        {0x3250, 0x1cd8, 0xf240, 0xff68, 0x1318},
+        {0x33d0, 0x1d30, 0x12658, 0xfad8, 0x1320},  // MiuiHome 9239
+        {0x3490, 0x1de0, 0x1fad0, 0x1d410, 0x1320}, // MiuiHome 801030308
+    };
+    bool known_fixture = false;
+    for (const auto& f : fixtures)
+        known_fixture |= decoded.model_slot==f.model && decoded.registry_slot==f.registry &&
+            decoded.layout_id_pool==f.layout && decoded.preview_id_pool==f.preview && decoded.typeargs_pool==f.typeargs;
+    if (!known_fixture) fprintf(stderr,"fixture model=%#x registry=%#x layout=%#x preview=%#x typeargs=%#x\n",
+        unsigned(decoded.model_slot),unsigned(decoded.registry_slot),unsigned(decoded.layout_id_pool),
+        unsigned(decoded.preview_id_pool),unsigned(decoded.typeargs_pool));
+    assert(known_fixture);
     assert(dart::VerifyFolderStackIdentity(image,decoded.refresh_id,decoded));
     assert(dart::VerifyFolderStackFrame(reinterpret_cast<uintptr_t>(image_bytes.data())+decoded.refresh_return));
     // A saved frame slot must match its reload across the native builder call.
@@ -118,11 +128,24 @@ int main(int argc, char** argv) {
     // Allocation-class relocation is decoded from the current image, never from a CID table.
     uint32_t call=0, allocatorWord=0; uintptr_t allocation=0;
     const auto factory=resolved.sites[2].offset;
+    // The 2x1 branch is chosen by evaluating the enum switch. Turning every
+    // `b.gt` into an unknown condition makes the evaluation fail closed.
+    {
+        std::vector<std::pair<uintptr_t,uint32_t>> branches;
+        for (size_t i=0;i+4<=dart::FolderStackSiteSpan(image,2,factory);i+=4) {
+            uint32_t w=0;assert(dart::ReadInsn(image,factory+i,&w));
+            if ((w&0xff00001fu)==0x5400000cu) branches.push_back({factory+i,w});
+        }
+        assert(branches.size()>=3);
+        for (const auto& b:branches){const auto bad=(b.second&~0xfu)|0x8u;memcpy(image_bytes.data()+b.first,&bad,4);}
+        Layout unknown_switch{};assert(!Decode(resolution,&unknown_switch));
+        for (const auto& b:branches)memcpy(image_bytes.data()+b.first,&b.second,4);
+    }
     // A compiler may exchange the two argument spill slots in every branch.
     // Aliasing them, reading an unsaved slot or changing only one branch must
     // still fail even though the instruction masks admit displacement changes.
     std::vector<std::pair<uintptr_t,uint32_t>> arguments;
-    for (size_t i=0;i+8<=dart::kFolderStackTarget.sites[2].pattern.size;i+=4) {
+    for (size_t i=0;i+8<=dart::FolderStackSiteSpan(image,2,factory);i+=4) {
         uint32_t a=0,b=0;assert(dart::ReadInsn(image,factory+i,&a));
         assert(dart::ReadInsn(image,factory+i+4,&b));
         if ((a&0xffe00fffu)!=0xf84003a3u || (b&0xffe00fffu)!=0xf84003a5u) continue;
@@ -155,7 +178,7 @@ int main(int argc, char** argv) {
     memcpy(image_bytes.data()+arguments[0].first,&bad_argument,4);
     assert(!Decode(resolution,&bad_arguments));
     memcpy(image_bytes.data()+arguments[0].first,&arguments[0].second,4);
-    for (size_t i=0; i+4<dart::kFolderStackTarget.sites[2].pattern.size; i+=4) {
+    for (size_t i=0; i+4<dart::FolderStackSiteSpan(image,2,factory); i+=4) {
         uintptr_t stub=0; uint32_t lo=0, hi=0;
         assert(dart::ReadInsn(image,factory+i,&call));
         if (!dart::IsBl(call) || !dart::DecodeBlTarget(factory+i,call,&stub) ||

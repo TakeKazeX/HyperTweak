@@ -21,8 +21,10 @@ bool GridCall(const Image&,uintptr_t,uintptr_t*);
 bool FindGridTo(const Image& image,uintptr_t* at,uint32_t* count){
  uintptr_t init=0,hide=0,apply=0;
  if(!FindUniqueBytes(image,kGridOnInit,&init,count)||!FindUniqueBytes(image,kGridHide,&hide,count))return false;
- uintptr_t offsets[32]{};size_t stored=0;uint32_t total=0;
- if(!CollectBytes(image,kGridTo,offsets,32,&stored,&total)||total>32)return false;
+ // Every GetX `to` getter shares this shape; the controller's static slot,
+ // written by LayoutPreviewGetxController.onInit, selects the right one.
+ uintptr_t offsets[128]{};size_t stored=0;uint32_t total=0;
+ if(!CollectBytes(image,kGridTo,offsets,128,&stored,&total)||total>128)return false;
  uint32_t store=0;ReadInsn(image,init+56,&store);
  if((store&0xffc003ffu)!=0xf9000001u)return false;
  *count=0;
@@ -33,7 +35,7 @@ bool FindGridTo(const Image& image,uintptr_t* at,uint32_t* count){
  }
  if(*count!=1)return false;
  uint32_t matches=0;if(!FindGridApply(image,&apply,&matches))return false;
- uintptr_t call=0;if(!GridCall(image,hide+236,&call)||call!=apply)return false;
+ uintptr_t call=0;if(!GridCall(image,hide+kGridHideApplyCall,&call)||call!=apply)return false;
  return true;
 }
 bool FindGridPrepare(const Image& image,uintptr_t* at,uint32_t* count){
@@ -68,36 +70,91 @@ bool GridAsyncReturnBranch(const Image& image, uintptr_t at, uintptr_t* target) 
         DecodeBlTarget(at, word | 0x80000000u, target);
 }
 
-bool VerifyGridAsyncReturn(const Image& image, uintptr_t apply, uintptr_t load) {
- uintptr_t tail = 0;
- if (!GridAsyncReturnBranch(image, apply + 0xcc, &tail)) return false;
- // The shared Dart tail reloads the async state, replaces the caller frame,
- // calls the thread's async return stub and unwinds its own frame.
+size_t GridFunctionSpan(const Image& image, uintptr_t at) { return DartBodySpan(image, at, 0x4000); }
+
+// Every branch leaving the async body goes to the shared Dart tail, which
+// reloads the async state, replaces the caller frame, calls the thread's
+// async return stub and unwinds its own frame.
+bool GridAsyncReturns(const Image& image, uintptr_t body, uintptr_t* tail, unsigned* count) {
  constexpr uint32_t tail_words[] = {
   0xf85f83a2u, 0xaa1d03efu, 0xa8c179fdu, 0xa9bf79fdu, 0xaa0f03fdu,
   0xa9bf09e0u, 0xf9431b5eu, 0xd63f03c0u, 0xaa1d03efu, 0xa8c179fdu, 0xd65f03c0u,
  };
- if (!Contains(image, tail, sizeof(tail_words), kFlagRead | kFlagExec) ||
-     memcmp(image.base + tail, tail_words, sizeof(tail_words)) != 0) return false;
- uintptr_t target = 0;
- if (!GridAsyncReturnBranch(image, apply + 0x410, &target) || target != tail) return false;
- if (!load) return true;
- constexpr uintptr_t load_returns[] = {0x2a0u, 0x580u, 0xd60u, 0x1038u, 0x1614u, 0x1ae8u};
- for (const auto offset : load_returns) {
-  if (!GridAsyncReturnBranch(image, load + offset, &target) || target != tail) return false;
+ const auto span = GridFunctionSpan(image, body);
+ if (!span) return false;
+ *count = 0;
+ for (size_t i = 0; i < span; i += 4) {
+  uintptr_t target = 0;
+  if (!GridAsyncReturnBranch(image, body + i, &target) || (target >= body && target < body + span)) continue;
+  if (*tail && target != *tail) return false;
+  if (!*tail) {
+   if (!Contains(image, target, sizeof(tail_words), kFlagRead | kFlagExec) ||
+       memcmp(image.base + target, tail_words, sizeof(tail_words)) != 0) return false;
+   *tail = target;
+  }
+  ++*count;
  }
- return true;
+ return *count >= 2;
 }
 
-bool VerifyExpandedGridLoadCid(const Image& image, uintptr_t load) {
- const auto cid = [&](uintptr_t offset) { return (GridWord(image, load + offset) >> 10u) & 4095u; };
- // The two layout enum conversions and the cached-config store guard the
- // same class after extracting the CID from the object header.
- const auto config_cid = cid(0x73c);
- uintptr_t first_enum = 0, second_enum = 0;
- return config_cid != 0 && config_cid == cid(0xa4c) && config_cid == cid(0xe30) &&
-        GridCall(image, load + 0x748, &first_enum) &&
-        GridCall(image, load + 0xa58, &second_enum) && first_enum == second_enum;
+bool VerifyGridAsyncReturn(const Image& image, uintptr_t apply, uintptr_t load) {
+ uintptr_t tail = 0; unsigned returns = 0;
+ if (!GridAsyncReturns(image, apply, &tail, &returns)) return false;
+ return !load || GridAsyncReturns(image, load, &tail, &returns);
+}
+
+// Expanded loadGridConfig, decoded by roles instead of a whole-body pattern:
+//  - a family of class guards `ldur xR,[xS,#-1]; ubfx xR,xR,#12,#20;
+//    cmp xR,#CID; b.ne`, exactly two of which convert the same object's
+//    layout field through one shared enum conversion;
+//  - one `cmp w0,#26; b.ne` selecting the all-condition config call;
+//  - calls to tryToMigrateDefaultDatabase, identified by its own contract.
+struct GridLoadShape { uintptr_t prepare = 0, migrate = 0; };
+bool DecodeExpandedGridLoad(const Image& image, uintptr_t load, GridLoadShape* out) {
+ const auto span = GridFunctionSpan(image, load);
+ if (!span || !out) return false;
+ uint32_t cids[8]{}; unsigned guards[8]{}, conversions[8]{}; uintptr_t convert[8]{};
+ unsigned kinds = 0, sentinels = 0;
+ uintptr_t prepare = 0, migrate = 0;
+ for (size_t i = 0; i + 24 <= span; i += 4) {
+  const auto at = load + i;
+  const auto w0 = GridWord(image, at), w1 = GridWord(image, at + 4);
+  const auto w2 = GridWord(image, at + 8), w3 = GridWord(image, at + 12);
+  const uint32_t r = w0 & 31u, base = (w0 >> 5) & 31u;
+  if ((w0 & 0xfffffc00u) == 0xf85ff000u && w1 == (0xd34c7c00u | (r << 5) | r) &&
+      (w2 & 0xffc003ffu) == (0xf100001fu | (r << 5)) && (w3 & 0xff00001fu) == 0x54000001u) {
+   const uint32_t cid = (w2 >> 10) & 4095u;
+   unsigned k = 0;
+   while (k < kinds && cids[k] != cid) ++k;
+   if (k == kinds) { if (kinds == 8) return false; cids[kinds++] = cid; }
+   ++guards[k];
+   uintptr_t target = 0;
+   const auto field = GridWord(image, at + 16);
+   if ((field & 0xffe003ffu) == (0xf8400001u | (base << 5)) && GridCall(image, at + 20, &target)) {
+    if (convert[k] && convert[k] != target) return false;
+    convert[k] = target; ++conversions[k];
+   }
+  }
+  if (w0 == 0x7100681fu && (w1 & 0xff00001fu) == 0x54000001u) {
+   for (size_t d = 8; d <= 16; d += 4)
+    if (IsBl(GridWord(image, at + d))) { if (prepare || !GridCall(image, at + d, &prepare)) return false; break; }
+   ++sentinels;
+  }
+  uintptr_t target = 0;
+  if (GridCall(image, at, &target) && MatchBytes(image, target, kGridMigrate, kFlagRead | kFlagExec)) {
+   if (migrate && migrate != target) return false;
+   migrate = target;
+  }
+ }
+ unsigned layout_kinds = 0;
+ for (unsigned k = 0; k < kinds; ++k)
+  if (conversions[k]) {
+   if (conversions[k] != 2u || guards[k] < 3u || !cids[k]) return false;
+   ++layout_kinds;
+  }
+ if (layout_kinds != 1 || sentinels != 1 || !prepare || !migrate) return false;
+ out->prepare = prepare; out->migrate = migrate;
+ return true;
 }
 }
 const TargetSpec kDesktopGridTarget={"desktop_grid_pipeline","libapp.so",kGridSites,8};
@@ -192,20 +249,30 @@ bool DecodeDesktopGridLayout(const Image& image,const uintptr_t* sites,DesktopGr
  v.input_rows=GridField(row_word);const int64_t delta=static_cast<int32_t>(row_branch<<8)>>11;v.rows_null=static_cast<uintptr_t>(static_cast<int64_t>(v.rows_window+12)+delta);
  if(!Contains(image,v.rows_null,4,kFlagRead|kFlagExec)||!IsBl(GridWord(image,v.rows_null)))return false;
  if(!GridCall(image,sites[2]+248,&v.load)||!GridCall(image,sites[3]+340,&call)||call!=v.load)return false;
- const bool expanded_load=verify(v.load,kGridExpandedLoad);
+ GridLoadShape expanded{};
+ const bool expanded_load=inline_apply&&DecodeExpandedGridLoad(image,v.load,&expanded);
  if(!expanded_load&&!verify(v.load,kGridLoad))return false;
  if(inline_apply&&!VerifyGridAsyncReturn(image,sites[4],expanded_load?v.load:0))return false;
- if(expanded_load&&(!inline_apply||!VerifyExpandedGridLoadCid(image,v.load)))return false;
- if(GridWord(image,v.load+(expanded_load?0xa94:0xa0c))!=0x7100681fu||!GridCall(image,v.load+(expanded_load?0xaa0:0xa18),&call))return false;
- if(!GridCall(image,v.load+(expanded_load?0x1330:0x120c),&v.migrate)||!verify(v.migrate,kGridMigrate))return false;
+ if(expanded_load) v.migrate=expanded.migrate;
+ else if(GridWord(image,v.load+0xa0c)!=0x7100681fu||!GridCall(image,v.load+0xa18,&call)||
+         !GridCall(image,v.load+0x120c,&v.migrate)||!verify(v.migrate,kGridMigrate))return false;
  if(inline_apply) {
-  // The apply body inlines currentConfig. Recover its separate getter by the
-  // same controller slot and Rx field, rejecting any duplicate consumer.
+  // The apply body inlines currentConfig: it loads the controller's static
+  // slot and then the Rx config field of the returned instance. Recover the
+  // separate getter that does the same, rejecting any duplicate consumer.
+  const auto apply_span=GridFunctionSpan(image,sites[4]);
   uintptr_t offsets[64]{};size_t stored=0;uint32_t total=0,matched=0;
-  if(!CollectBytes(image,kGridCurrent,offsets,64,&stored,&total)||total>64)return false;
+  if(!apply_span||!CollectBytes(image,kGridCurrent,offsets,64,&stored,&total)||total>64)return false;
   for(size_t i=0;i<stored;++i) {
-   if(GridWord(image,offsets[i]+16)!=GridWord(image,sites[4]+0x250)||
-      GridField(GridWord(image,offsets[i]+76))!=GridField(GridWord(image,sites[4]+0x2cc)))continue;
+   const auto slot=GridWord(image,offsets[i]+16),field=GridField(GridWord(image,offsets[i]+76));
+   bool slot_read=false,rx_read=false;
+   for(size_t j=0;j+12<=apply_span;j+=4) {
+    const auto w=GridWord(image,sites[4]+j);
+    slot_read|=w==slot&&GridWord(image,sites[4]+j-4)==0xf9403f40u; // ldr x0,[x26,#0x78]
+    rx_read|=(w&0xffe00fffu)==0xb8400001u&&GridField(w)==field&&       // ldur w1,[x0,#F]
+             GridWord(image,sites[4]+j+4)==0x8b1c8021u&&IsBl(GridWord(image,sites[4]+j+8));
+   }
+   if(!slot_read||!rx_read)continue;
    current=offsets[i];++matched;
   }
   if(matched!=1)return false;

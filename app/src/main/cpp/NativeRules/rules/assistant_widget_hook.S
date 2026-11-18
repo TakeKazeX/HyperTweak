@@ -34,6 +34,9 @@ HyperTweakAssistantWidgetGateHook:
     str w17, [x16]
     // Skip only this AppWidget call-site's dimension eligibility helper.
     // The shared helper remains stock for MIUI/MAML/service cards.
+    // Replays the host's argument moves for the span check; the accepted
+    // block reloads x0, x2 and x1 from the frame before any use, so the
+    // span source register (x6 or x5, depending on the build) is not needed.
     mov x1, x4
     mov x2, x6
     add x0, x22, #0x20

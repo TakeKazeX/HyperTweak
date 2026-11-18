@@ -269,7 +269,8 @@ struct NativeDockGlassLayout {
     int32_t controller_slot;     // Hotseat builder slot passed as the controller
     uint32_t build_frame;
     int32_t build_child_slot;
-    uint32_t center_call;        // object pool offset of the switchable call pair
+    uint32_t center_call;        // object pool offset of the switchable call pair, or 0
+    uintptr_t center_target;     // image offset of a direct center call, or 0
     uintptr_t center_return;
     int32_t center_item_slot;
     int32_t center_slot;

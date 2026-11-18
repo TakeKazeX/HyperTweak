@@ -45,7 +45,6 @@ constexpr uint32_t kBranchMasks[] = {
 constexpr size_t kResumeOffset = 52;
 constexpr size_t kGateOffset = 24;
 constexpr size_t kFactoryCallOffset = 48;
-constexpr uint32_t kSkipMove = 0xaa0203e3u;  // mov x3, x2: the list without a background
 
 // `return BackgroundWidget()`: the factory body is one allocation.
 constexpr uint32_t kFactory[] = {
@@ -162,6 +161,9 @@ constexpr uint32_t kCenterMasks[] = {
 };
 constexpr size_t kCenterReturn = 11 * 4;
 constexpr size_t kCenterGate = 12 * 4;
+// The center call returns into this tail; the patched gate is its second word.
+constexpr uint32_t kCenterTail[] = {0xaa0003e3, 0xf84003a2, 0xf80003a3, 0xb8400040, 0x8b1c8000};
+constexpr uint32_t kCenterTailMasks[] = {~0u, kField, kField, kField, ~0u};
 
 // The per-item unlock animation wrapper: child, center position, item info,
 // Hotseat kind 2, fixed-screen flag, screen -1 and a debug title. The gate
@@ -424,6 +426,22 @@ bool StaticBefore(const Image& image, uintptr_t target, uint32_t reg, uint32_t* 
     return false;
 }
 
+// Rx getter: ... ldur w0, [x1, #value]; add x0, x0, heap; ldr x16, [pp, #sentinel];
+// cmp w0, w16; b.eq late-error.
+bool DecodeRxGetter(const Image& image, uintptr_t value, NativeDockGlassLayout* out) {
+    if (!IsDartPrologue(image, value)) return false;
+    for (uintptr_t at = value + 12; at < value + 0x80; at += 4) {
+        const uint32_t load = Insn(image, at), add = Insn(image, at + 4), sentinel = Insn(image, at + 8);
+        if ((load & 0xffe00fffu) != 0xb8400020u || add != 0x8b1c8000u ||
+            (sentinel & 0xffc003ffu) != 0xf9400370u || Insn(image, at + 12) != 0x6b10001fu ||
+            (Insn(image, at + 16) & 0xff00001fu) != 0x54000000u) continue;
+        out->rx_value_field = UnscaledOffset(load);
+        out->sentinel_pool = ((sentinel >> 10u) & 0xfffu) * 8u;
+        return (out->rx_value_field & 3u) == 3u;
+    }
+    return false;
+}
+
 // currentConfig: B = static slot; return (B ?? find()).rx.value, and the Rx
 // getter returns rx.value_field unless it still holds the sentinel.
 bool DecodeConfig(const Image& image, uintptr_t getter, uint32_t table, NativeDockGlassLayout* out) {
@@ -436,22 +454,91 @@ bool DecodeConfig(const Image& image, uintptr_t getter, uint32_t table, NativeDo
         !StaticBefore(image, join, 0, &slot_table, &slot) || slot_table != table) return false;
     const uint32_t rx = Insn(image, join), widen = Insn(image, join + 4);
     uintptr_t value = 0;
-    if ((rx & 0xffe00fffu) != 0xb8400001u || widen != 0x8b1c8021u || !Calls(image, join + 8, &value) ||
-        !IsDartPrologue(image, value)) return false;
-    // Rx getter: ... ldur w0, [x1, #value]; add x0, x0, heap; ldr x16, [pp, #sentinel];
-    // cmp w0, w16; b.eq late-error.
-    for (uintptr_t at = value + 12; at < value + 0x80; at += 4) {
-        const uint32_t load = Insn(image, at), add = Insn(image, at + 4), sentinel = Insn(image, at + 8);
-        if ((load & 0xffe00fffu) != 0xb8400020u || add != 0x8b1c8000u ||
-            (sentinel & 0xffc003ffu) != 0xf9400370u || Insn(image, at + 12) != 0x6b10001fu ||
-            (Insn(image, at + 16) & 0xff00001fu) != 0x54000000u) continue;
-        out->config_static = slot;
-        out->config_rx_field = UnscaledOffset(rx);
-        out->rx_value_field = UnscaledOffset(load);
-        out->sentinel_pool = ((sentinel >> 10u) & 0xfffu) * 8u;
-        return (out->config_rx_field & 3u) == 3u && (out->rx_value_field & 3u) == 3u;
+    if ((rx & 0xffe00fffu) != 0xb8400001u || widen != 0x8b1c8021u || !Calls(image, join + 8, &value)) return false;
+    out->config_static = slot;
+    out->config_rx_field = UnscaledOffset(rx);
+    return DecodeRxGetter(image, value, out) && (out->config_rx_field & 3u) == 3u;
+}
+
+// Inlined `(B ?? find()).field` reads: the static test branches to `join`
+// when the singleton is set; find() falls through to the same join.
+bool ReadSingleton(const Image& image, uintptr_t at, uint32_t table, uint32_t* slot, uintptr_t* join) {
+    uint32_t found_table = 0;
+    const uint32_t branch = Insn(image, at + 12);
+    return (branch & 0xff00001fu) == 0x54000001u && BranchTarget(at + 12, branch, join) &&
+        *join > at + 16 && *join <= at + 0x80 && StaticBefore(image, *join, 0, &found_table, slot) &&
+        found_table == table && Insn(image, at) == (0xf9400340u | (((table / 8u) & 0xfffu) << 10u)) &&
+        ((Insn(image, at + 4) >> 10u) & 0xfffu) * 8u == *slot;
+}
+
+// config = singleton.rx.value; returns the PC after the Rx getter call.
+bool ReadConfig(const Image& image, uintptr_t at, uint32_t table, NativeDockGlassLayout* out,
+                uintptr_t* next) {
+    uint32_t slot = 0;
+    uintptr_t join = 0, value = 0;
+    if (!ReadSingleton(image, at, table, &slot, &join)) return false;
+    const uint32_t rx = Insn(image, join);
+    if ((rx & 0xffe00fffu) != 0xb8400001u || Insn(image, join + 4) != 0x8b1c8021u ||
+        !Calls(image, join + 8, &value) || !DecodeRxGetter(image, value, out)) return false;
+    if (out->config_static && (out->config_static != slot || out->config_rx_field != UnscaledOffset(rx)))
+        return false;
+    out->config_static = slot;
+    out->config_rx_field = UnscaledOffset(rx);
+    *next = join + 12;
+    return (out->config_rx_field & 3u) == 3u;
+}
+
+// The Dock cell width as its own function (later builds):
+//   flag = (F ?? find()).flag; if flag: config.cell + extra else config.alt
+// with config read through an inlined currentConfig in each arm.
+bool DecodeCellFunction(const Image& image, uintptr_t function, NativeDockGlassLayout* out) {
+    if (!IsDartPrologue(image, function)) return false;
+    const uint32_t table = ((Insn(image, function + 12) >> 10u) & 0xfffu) * 8u;
+    uint32_t flag_static = 0;
+    uintptr_t join = 0, alt = 0, next = 0, end = 0;
+    if (!table || !ReadSingleton(image, function + 12, table, &flag_static, &join)) return false;
+    const uint32_t flag = Insn(image, join);
+    if ((flag & 0xffe00fffu) != 0xb8400001u || Insn(image, join + 4) != 0x8b1c8021u ||
+        (Insn(image, join + 8) & 0xfff8001fu) != 0x37200001u ||  // tbnz w1, #4, alt
+        !DecodeBitTestTarget(join + 8, Insn(image, join + 8), &alt) || alt <= join + 12 || alt > join + 0x100)
+        return false;
+    out->config_static = 0;
+    if (!ReadConfig(image, join + 12, table, out, &next)) return false;
+    const uint32_t cell = Insn(image, next), extra = Insn(image, next + 4);
+    if ((cell & 0xffe00fffu) != 0xfc400000u || (extra & 0xffe01fffu) != 0x1e601001u ||
+        Insn(image, next + 8) != 0x1e612802u || Insn(image, next + 12) != 0x4ea21c40u ||
+        !BranchTarget(next + 16, Insn(image, next + 16), &end) || (Insn(image, next + 16) & 0xfc000000u) != 0x14000000u ||
+        next + 20 != alt) return false;
+    if (!ReadConfig(image, alt, table, out, &next)) return false;
+    const uint32_t alt_cell = Insn(image, next);
+    if ((alt_cell & 0xffe00fffu) != 0xfc400001u || Insn(image, next + 4) != 0x4ea11c20u || next + 8 != end ||
+        Insn(image, end) != 0xaa1d03efu) return false;
+    out->static_table = table;
+    out->cell_flag_static = flag_static;
+    out->cell_flag_field = UnscaledOffset(flag);
+    out->cell_field = UnscaledOffset(cell);
+    out->alt_cell_field = UnscaledOffset(alt_cell);
+    out->cell_extra = FmovImmediate(extra);
+    return true;
+}
+
+// The one call in the item builder whose double result is halved like the
+// inline cell width: mov v1, v0; fmov d0, #2.0; fdiv d2, d1, d0.
+bool DecodeCellCall(const Image& image, uintptr_t builder, uintptr_t end, NativeDockGlassLayout* out) {
+    unsigned found = 0;
+    NativeDockGlassLayout decoded = *out;
+    for (uintptr_t at = builder + 12; at + 16 <= end; at += 4) {
+        uintptr_t function = 0;
+        if (!Calls(image, at, &function) || Insn(image, at + 4) != 0x4ea01c01u ||
+            Insn(image, at + 8) != 0x1e601000u || Insn(image, at + 12) != 0x1e601822u) continue;
+        NativeDockGlassLayout candidate = *out;
+        if (!DecodeCellFunction(image, function, &candidate)) return false;
+        decoded = candidate;
+        ++found;
     }
-    return false;
+    if (found != 1) return false;
+    *out = decoded;
+    return true;
 }
 
 bool DecodeCell(const Image& image, uintptr_t builder, NativeDockGlassLayout* out) {
@@ -459,8 +546,11 @@ bool DecodeCell(const Image& image, uintptr_t builder, NativeDockGlassLayout* ou
     while (end < builder + 0x2000 && !IsDartPrologue(image, end)) end += 4;
     uintptr_t cell = 0;
     uint32_t count = 0;
-    if (!CountBytes(image, builder, end, Words(kCell, kCellMasks), &count) || count != 1 ||
-        !FindBytesForward(image, builder, end - builder, Words(kCell, kCellMasks), &cell)) return false;
+    if (!CountBytes(image, builder, end, Words(kCell, kCellMasks), &count)) return false;
+    if (count == 0) return DecodeCellCall(image, builder, end, out) && out->cell_extra >= 0.0 &&
+        out->cell_extra <= 64.0 && out->cell_flag_static != out->config_static &&
+        (out->cell_flag_field & 3u) == 3u && (out->cell_field & 3u) == 3u && (out->alt_cell_field & 3u) == 3u;
+    if (count != 1 || !FindBytesForward(image, builder, end - builder, Words(kCell, kCellMasks), &cell)) return false;
     uintptr_t first = 0, second = 0, alt = 0;
     const uint32_t extra = Insn(image, cell + 24);
     if (!Calls(image, cell + 16, &first) || !Calls(image, cell + 48, &second) || first != second ||
@@ -490,27 +580,59 @@ bool WritesFrameSlot(uint32_t word, int32_t slot) {
     return ((word & 0xffe00fe0u) == 0xf80003a0u || (word & 0xffe00fe0u) == 0xb80003a0u) && Slot(word) == slot;
 }
 
+// The Hotseat builder passes its controller, spilled in a frame slot, as the
+// item builder's sixth argument. The reload may go through a scratch register.
+bool ControllerArgument(const Image& image, uintptr_t closure, uintptr_t call, int32_t* slot,
+                        uintptr_t* load) {
+    uint32_t reg = 0;
+    if (!TraceGprSource(image, closure, call, 6u, 24u, load, &reg)) return false;
+    const uint32_t word = Insn(image, *load);
+    if ((word & 0xffe00fe0u) != 0xf84003a0u || (word & 31u) != reg) return false;
+    *slot = Slot(word);
+    return true;
+}
+
+// Whether an instruction writes floating-point register `reg`: FP loads,
+// including pairs, and FP data processing.
+bool WritesFp(uint32_t w, uint32_t reg) {
+    if ((w & 0x0a000000u) == 0x08000000u) {
+        if (!((w >> 26u) & 1u) || !((w >> 22u) & 1u)) return false;
+        if ((w & 0x3a000000u) == 0x28000000u && ((w >> 10u) & 31u) == reg) return true;
+        return (w & 31u) == reg;
+    }
+    return (w & 0x1f000000u) == 0x1e000000u && (w & 31u) == reg;
+}
+
+// The nearest instruction before `at`, within `limit` words, that writes `reg`.
+bool LastFpWrite(const Image& image, uintptr_t floor, uintptr_t at, uint32_t reg, unsigned limit,
+                 uint32_t* word) {
+    for (unsigned step = 1; step <= limit && at - step * 4 > floor; ++step) {
+        const uint32_t w = Insn(image, at - step * 4);
+        if (!WritesFp(w, reg)) continue;
+        *word = w;
+        return true;
+    }
+    return false;
+}
+
 // Optional adaptive-width contract. The Hotseat builder passes the item list
 // as x5, loaded from a context it keeps in a frame slot:
-//   ldur xC, [fp, #slot]; ldur w5, [xC, #items]; add x5, x5, heap, lsl #32
-// followed only by frame reloads of the other arguments. The item builder
+//   ldur xC, [fp, #slot]; ldur wR, [xC, #items]; add xR, xR, heap, lsl #32
+// and no other definition of x5 (through any register moves) reaches the call. The item builder
 // spills x5, publishes it into its own context and iterates it, reading the
 // growable-list length field the resume words read. The Hotseat builder also
-// derives the cell width as constraints.maxWidth / columns.
+// derives the cell width as constraints.maxWidth / columns, possibly with
+// unrelated instructions between the load, the constant and the division.
 bool DecodeAdaptive(const Image& image, uintptr_t closure, uintptr_t gate, uintptr_t call,
                     uintptr_t builder, NativeDockGlassLayout* out) {
     uintptr_t list_load = 0;
-    for (uintptr_t at = call; at > call - 0x20 && at > closure + 8; at -= 4) {
-        if ((Insn(image, at) & 0xffe00c1fu) == 0xb8400005u) { list_load = at; break; }  // ldur w5, [xC, #items]
-    }
-    if (!list_load || Insn(image, list_load + 4) != 0x8b1c80a5u) return false;  // add x5, x5, heap, lsl #32
-    for (uintptr_t at = list_load + 8; at < call; at += 4) {
-        const uint32_t word = Insn(image, at);
-        if ((word & 0xffe00fe0u) != 0xf84003a0u || (word & 31u) == 5u) return false;
-    }
+    uintptr_t context_load = 0;
+    uint32_t context_register = 0;
+    if (!TraceCompressedField(image, closure, call, 5u, 24u, &list_load)) return false;
     const uint32_t list_word = Insn(image, list_load);
-    const uint32_t context_word = Insn(image, list_load - 4);
-    const uint32_t context_register = (list_word >> 5u) & 31u;
+    if (!TraceGprSource(image, closure, list_load, (list_word >> 5u) & 31u, 24u, &context_load,
+                        &context_register)) return false;
+    const uint32_t context_word = Insn(image, context_load);
     if ((context_word & 0xffe00fe0u) != 0xf84003a0u || (context_word & 31u) != context_register) return false;
     const int32_t slot = Slot(context_word);
     const uint32_t field = UnscaledOffset(list_word);
@@ -556,11 +678,14 @@ bool DecodeAdaptive(const Image& image, uintptr_t closure, uintptr_t gate, uintp
     const uint32_t width = out->max_height_field - 0x10u;
     unsigned found = 0;
     double columns = 0;
-    for (uintptr_t at = closure + 8; at + 8 < gate; at += 4) {
-        const uint32_t load = Insn(image, at), constant = Insn(image, at + 4), divide = Insn(image, at + 8);
-        if ((load & 0xffe00c00u) != 0xfc400000u || UnscaledOffset(load) != width ||
-            (constant & 0xffe01fe0u) != 0x1e601000u || (divide & 0xffe0fc00u) != 0x1e601800u ||
-            ((divide >> 5u) & 31u) != (load & 31u) || ((divide >> 16u) & 31u) != (constant & 31u)) continue;
+    for (uintptr_t at = closure + 8; at < gate; at += 4) {
+        const uint32_t divide = Insn(image, at);
+        if ((divide & 0xffe0fc00u) != 0x1e601800u) continue;  // fdiv dD, dN, dM
+        uint32_t constant = 0, load = 0;
+        if (!LastFpWrite(image, closure, at, (divide >> 16u) & 31u, 4, &constant) ||
+            !LastFpWrite(image, closure, at, (divide >> 5u) & 31u, 8, &load) ||
+            (constant & 0xffe01fe0u) != 0x1e601000u || (load & 0xffe00c00u) != 0xfc400000u ||
+            UnscaledOffset(load) != width) continue;
         columns = FmovImmediate(constant);
         ++found;
     }
@@ -575,28 +700,79 @@ bool DecodeAdaptive(const Image& image, uintptr_t closure, uintptr_t gate, uintp
 
 // The item builder and its unlock wrapper. The controller reaches it as the
 // sixth argument, captured into a context field the center call reads.
+// The Dock center call is either a switchable call through the object pool
+// (kCenter) or, once the compiler devirtualizes it, a direct call whose
+// receiver x1 is the controller read from the item builder's context:
+//   ldur xC, [fp, #context] ... ldur wR, [xC, #field]; add xR, xR, heap, lsl #32
+//   ... mov x1, xR; bl center
+struct CenterCall {
+    uintptr_t ret;
+    int32_t context;
+    uint32_t field;
+    uint32_t pool;
+    uintptr_t target;
+};
+
+bool ReadCenterCall(const Image& image, uintptr_t entry, uintptr_t ret, CenterCall* out) {
+    if (ret < entry + kCenterReturn ||
+        !MatchBytes(image, ret, Words(kCenterTail, kCenterTailMasks), kExec)) return false;
+    const uintptr_t call = ret - 4;
+    if (Insn(image, call) == 0xd63f03c0u) {
+        const uintptr_t begin = ret - kCenterReturn;
+        if (!MatchBytes(image, begin, Words(kCenter, kCenterMasks), kExec)) return false;
+        *out = {ret, Slot(Insn(image, begin)), UnscaledOffset(Insn(image, begin + 8)),
+                PoolOffset(Insn(image, begin + 28), Insn(image, begin + 32), false), 0};
+        return out->pool != 0u && (out->pool & 7u) == 0u;
+    }
+    uintptr_t target = 0;
+    uintptr_t field_load = 0;
+    uintptr_t context_load = 0;
+    uint32_t context_register = 0;
+    if (!Calls(image, call, &target) || !IsDartPrologue(image, target) ||
+        !TraceCompressedField(image, entry, call, 1u, 16u, &field_load) ||
+        !TraceGprSource(image, entry, field_load, (Insn(image, field_load) >> 5u) & 31u, 16u,
+                        &context_load, &context_register)) return false;
+    const uint32_t context_word = Insn(image, context_load);
+    if ((context_word & 0xffe00fe0u) != 0xf84003a0u || (context_word & 31u) != context_register) return false;
+    *out = {ret, Slot(context_word), UnscaledOffset(Insn(image, field_load)), 0, target};
+    return true;
+}
+
+// Exactly one center call may decode inside the item builder.
+bool FindCenterCall(const Image& image, uintptr_t entry, uintptr_t end, CenterCall* out) {
+    unsigned found = 0;
+    for (uintptr_t at = entry + kCenterReturn; at + sizeof(kCenterTail) <= end; at += 4) {
+        CenterCall call{};
+        if (!ReadCenterCall(image, entry, at, &call)) continue;
+        *out = call;
+        ++found;
+    }
+    return found == 1;
+}
+
 bool DecodeWrap(const Image& image, uintptr_t gate, uintptr_t center, uintptr_t wrap,
                 NativeDockGlassLayout* out) {
     if (center < kCenterGate || wrap < kWrapGate) return false;
-    const uintptr_t center_begin = center - kCenterGate;
     const uintptr_t wrap_begin = wrap - kWrapGate;
-    if (!MatchBytes(image, center_begin, Words(kCenter, kCenterMasks), kExec) ||
-        !MatchBytes(image, wrap_begin, Words(kWrap, kWrapMasks), kExec)) return false;
-    const uintptr_t entry = PrologueBefore(image, center_begin, 0x1000);
-    if (!entry || entry != PrologueBefore(image, wrap_begin, 0x1000) || wrap_begin <= center_begin) return false;
+    if (!MatchBytes(image, wrap_begin, Words(kWrap, kWrapMasks), kExec)) return false;
+    const uintptr_t entry = PrologueBefore(image, center, 0x1000);
+    CenterCall call{};
+    if (!entry || entry != PrologueBefore(image, wrap_begin, 0x1000) || wrap_begin <= center ||
+        !ReadCenterCall(image, entry, center - 4, &call)) return false;
     const uint32_t sub = Insn(image, entry + 8);
     if ((sub & 0xffc003ffu) != kSubFrame || FrameSize(sub) == 0 || FrameSize(sub) > 0x200) return false;
     const uint32_t frame = FrameSize(sub);
     uintptr_t end = wrap_begin + sizeof(kWrap);
     while (end < wrap_begin + 0x400 && !IsDartPrologue(image, end)) end += 4;
     uint32_t count = 0;
-    if (!CountBytes(image, entry, end, Words(kCenter, kCenterMasks), &count) || count != 1 ||
+    CenterCall unique{};
+    if (!FindCenterCall(image, entry, end, &unique) || unique.ret != call.ret ||
         !CountBytes(image, entry, end, Words(kWrap, kWrapMasks), &count) || count != 1 ||
         !NoBranchInto(image, entry, end, center) || !NoBranchInto(image, entry, end, wrap)) return false;
 
     // Prologue: x6 spilled, then copied into the context the center call reads.
-    const int32_t context = Slot(Insn(image, center_begin));
-    const uint32_t field = UnscaledOffset(Insn(image, center_begin + 8));
+    const int32_t context = call.context;
+    const uint32_t field = call.field;
     int32_t spill = 0;
     bool captured = false, published = false;
     for (uintptr_t at = entry + 12; at < entry + 0x80; at += 4) {
@@ -622,8 +798,9 @@ bool DecodeWrap(const Image& image, uintptr_t gate, uintptr_t center, uintptr_t 
     // The item-cell flag stored as `true`: with it, the unlock animation looks up
     // item info or the screen id, neither of which the glass has.
     out->fixed_field = UnscaledOffset(Insn(image, wrap_begin + 48));
-    out->center_call = PoolOffset(Insn(image, center_begin + 28), Insn(image, center_begin + 32), false);
-    out->center_return = center_begin + kCenterReturn;
+    out->center_call = call.pool;
+    out->center_target = call.target;
+    out->center_return = call.ret;
     out->center_item_slot = Slot(Insn(image, center));
     out->center_slot = Slot(Insn(image, center + 4));
     out->center_field = UnscaledOffset(Insn(image, center + 8));
@@ -639,20 +816,20 @@ bool DecodeWrap(const Image& image, uintptr_t gate, uintptr_t center, uintptr_t 
         out->fixed_field != 0x27u || Insn(image, wrap_begin + 44) != 0x910082c3u ||
         !Calls(image, wrap_begin, &stub) || !StubCid(image, stub, &out->wrap_cid) ||
         out->wrap_cid == out->padding_cid || out->wrap_cid == out->insets_cid ||
-        (out->center_call & 7u) != 0u || out->center_call == 0u || (out->title_pool & 7u) != 0u)
+        (out->center_call == 0u) == (out->center_target == 0u) || (out->title_pool & 7u) != 0u)
         return false;
 
     // The Hotseat builder passes its controller slot as x6, never rewriting it
     // after the background call.
-    for (uintptr_t at = gate; at < gate + 0x400; at += 4) {
+    const uintptr_t closure = PrologueBefore(image, gate, 0x400);
+    for (uintptr_t at = gate; closure && at < gate + 0x400; at += 4) {
         uintptr_t called = 0;
-        const uint32_t word = Insn(image, at);
-        if ((word & 0xffe00fffu) != 0xf84003a6u || !Calls(image, at + 4, &called) || called != entry) continue;
-        const int32_t controller = Slot(word);
-        const uintptr_t closure = PrologueBefore(image, gate, 0x400);
-        if (!closure || controller >= 0) return false;
+        uintptr_t load = 0;
+        int32_t controller = 0;
+        if (!Calls(image, at, &called) || called != entry) continue;
+        if (!ControllerArgument(image, closure, at, &controller, &load) || controller >= 0) return false;
         bool stored = false;
-        for (uintptr_t scan = closure; scan < at; scan += 4) {
+        for (uintptr_t scan = closure; scan < load; scan += 4) {
             const uint32_t store = Insn(image, scan);
             if ((store & 0xffe00fe0u) != 0xf80003a0u || Slot(store) != controller) continue;
             if (scan >= gate) return false;
@@ -687,7 +864,7 @@ bool Decode(const Image& image, uintptr_t gate, uintptr_t factory, uintptr_t gla
     if (!Calls(image, gate - kGateOffset + kFactoryCallOffset, &called) || called != factory ||
         !DecodeBitTestTarget(test, Insn(image, test), &skip) ||
         skip <= gate - kGateOffset + sizeof(kBranch) || skip - gate > 0x200 ||
-        Insn(image, skip) != kSkipMove || !Calls(image, factory + 8, &stub) ||
+        !Calls(image, factory + 8, &stub) ||
         !Calls(image, glass, &glass_stub) || stub == glass_stub) return false;
 
     // The glass arm is only safe to enter with the frame this builder sets up:
@@ -766,16 +943,22 @@ bool FindFamily(const Image& image, uintptr_t* sites) {
     sites[0] = branch + kGateOffset;
     sites[1] = factory;
     sites[2] = strategy + kGlassOffset;
-    // The item builder is the function the Hotseat builder calls with x6.
-    for (uintptr_t at = sites[0]; at < sites[0] + 0x400; at += 4) {
+    // The item builder is the function the Hotseat builder passes the
+    // controller frame slot to as x6.
+    const uintptr_t closure = PrologueBefore(image, sites[0], 0x400);
+    for (uintptr_t at = sites[0]; closure && at < sites[0] + 0x400; at += 4) {
         uintptr_t builder = 0;
-        if ((Insn(image, at) & 0xffe00fffu) != 0xf84003a6u || !Calls(image, at + 4, &builder)) continue;
+        uintptr_t load = 0;
+        int32_t controller = 0;
+        if (!Calls(image, at, &builder) || !IsDartPrologue(image, builder) ||
+            !ControllerArgument(image, closure, at, &controller, &load)) continue;
         uintptr_t end = builder + 12;
         while (end < builder + 0x2000 && !IsDartPrologue(image, end)) end += 4;
-        uintptr_t center = 0, wrap = 0;
-        if (!FindBytesForward(image, builder, end - builder, Words(kCenter, kCenterMasks), &center) ||
+        CenterCall center{};
+        uintptr_t wrap = 0;
+        if (!FindCenterCall(image, builder, end, &center) ||
             !FindBytesForward(image, builder, end - builder, Words(kWrap, kWrapMasks), &wrap)) continue;
-        sites[5] = center + kCenterGate;
+        sites[5] = center.ret + 4;
         sites[6] = wrap + kWrapGate;
         NativeDockGlassLayout layout{};
         return Decode(image, sites[0], sites[1], sites[2], sites[3], sites[4], sites[5], sites[6], &layout);

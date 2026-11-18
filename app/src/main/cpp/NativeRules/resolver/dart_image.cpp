@@ -621,3 +621,135 @@ bool MatchPatternAtAddress(uintptr_t address, const BytePattern& pattern) {
 }
 
 }  // namespace hypertweak::native::dart
+
+namespace {
+
+constexpr int kNoGprWrite = -1;
+constexpr int kUnknownWrite = -2;
+
+// The general-purpose register an instruction writes, kNoGprWrite, or
+// kUnknownWrite for control flow and every form this walker does not model.
+int GprWrite(uint32_t w) {
+    if ((w & 0x1c000000u) == 0x14000000u) return kUnknownWrite;  // branches, system
+    if ((w & 0x0a000000u) == 0x08000000u) {                       // loads and stores
+        const bool simd = ((w >> 26u) & 1u) != 0u;
+        const bool load = ((w >> 22u) & 3u) != 0u;
+        if ((w & 0x3a000000u) == 0x28000000u) {                   // pairs
+            const uint32_t mode = (w >> 23u) & 3u;
+            if (mode == 1u || mode == 3u) return kUnknownWrite;
+            if (simd || !((w >> 22u) & 1u)) return kNoGprWrite;
+            return kUnknownWrite;
+        }
+        if ((w & 0x3b000000u) == 0x39000000u) {                   // unsigned offset
+            return simd || !load ? kNoGprWrite : static_cast<int>(w & 31u);
+        }
+        if ((w & 0x3b200000u) == 0x38000000u) {                   // imm9 forms
+            const uint32_t index = (w >> 10u) & 3u;
+            if (index == 1u || index == 3u) return kUnknownWrite;
+            return simd || !load ? kNoGprWrite : static_cast<int>(w & 31u);
+        }
+        if ((w & 0x3b200c00u) == 0x38200800u) {                   // register offset
+            return simd || !load ? kNoGprWrite : static_cast<int>(w & 31u);
+        }
+        return kUnknownWrite;
+    }
+    if ((w & 0x1c000000u) == 0x10000000u) return static_cast<int>(w & 31u);  // dp immediate
+    if ((w & 0x0e000000u) == 0x0a000000u) return static_cast<int>(w & 31u);  // dp register
+    if ((w & 0x0e000000u) == 0x0e000000u) {                                 // simd / fp
+        if ((w & 0x5f20fc00u) == 0x1e200000u) return kUnknownWrite;          // fp <-> gpr
+        if ((w & 0x9fe00400u) == 0x0e000400u) return kUnknownWrite;          // dup/ins/umov
+        return kNoGprWrite;
+    }
+    return kUnknownWrite;
+}
+
+}  // namespace
+
+namespace hypertweak::native::dart {
+
+bool DecodeLocalBranch(uintptr_t pc, uint32_t w, uintptr_t* target) {
+    int64_t words = 0;
+    if ((w & 0x7c000000u) == 0x14000000u && !(w & 0x80000000u)) {
+        words = w & 0x3ffffffu;
+        if (words & 0x2000000) words -= 0x4000000;
+    } else if ((w & 0xff000010u) == 0x54000000u || (w & 0x7e000000u) == 0x34000000u) {
+        words = (w >> 5u) & 0x7ffffu;
+        if (words & 0x40000) words -= 0x80000;
+    } else if ((w & 0x7e000000u) == 0x36000000u) {
+        words = (w >> 5u) & 0x3fffu;
+        if (words & 0x2000) words -= 0x4000;
+    } else {
+        return false;
+    }
+    *target = static_cast<uintptr_t>(static_cast<int64_t>(pc) + words * 4);
+    return true;
+}
+
+size_t DartBodySpan(const Image& image, uintptr_t function, size_t limit) {
+    if (!IsDartPrologue(image, function)) return 0u;
+    uintptr_t reach = function;
+    for (size_t offset = 0u; offset < limit; offset += 4u) {
+        const uintptr_t at = function + offset;
+        uint32_t w = 0u;
+        if (!ReadInsn(image, at, &w)) return 0u;
+        uintptr_t target = 0u;
+        if (DecodeLocalBranch(at, w, &target) && target > at && target < function + limit &&
+            target > reach) reach = target;
+        const bool terminal = w == kDartReturn || (w & 0xfc000000u) == 0x14000000u ||
+            (w & 0xfffffc1fu) == 0xd61f0000u || (w & 0xffe0001fu) == 0xd4200000u;
+        if (terminal && at >= reach) return offset + 4u;
+    }
+    return 0u;
+}
+
+bool TraceGprSource(const Image& image, uintptr_t function, uintptr_t call,
+                    uint32_t reg, size_t limit, uintptr_t* source_pc,
+                    uint32_t* source_reg) {
+    if (reg >= 31u || function >= call || !IsDartPrologue(image, function)) return false;
+    uint32_t current = reg;
+    uintptr_t source = 0u;
+    for (size_t step = 1u; step <= limit && !source; ++step) {
+        const uintptr_t at = call - step * 4u;
+        if (at <= function) return false;
+        uint32_t w = 0u;
+        if (!ReadInsn(image, at, &w)) return false;
+        const int written = GprWrite(w);
+        if (written == kUnknownWrite) return false;
+        if (written != static_cast<int>(current)) continue;
+        if ((w & 0xffe0ffe0u) == 0xaa0003e0u) {  // mov xD, xS
+            current = (w >> 16u) & 31u;
+            if (current == 31u) return false;
+            continue;
+        }
+        source = at;
+    }
+    if (!source) return false;
+    for (uintptr_t at = function + 4u; at < function + 0x10000u; at += 4u) {
+        if (at != call && IsDartPrologue(image, at)) break;
+        uint32_t w = 0u;
+        uintptr_t target = 0u;
+        if (!ReadInsn(image, at, &w)) return false;
+        if (DecodeLocalBranch(at, w, &target) && target > source && target <= call) return false;
+    }
+    *source_pc = source;
+    *source_reg = current;
+    return true;
+}
+
+bool TraceCompressedField(const Image& image, uintptr_t function, uintptr_t call,
+                          uint32_t reg, size_t limit, uintptr_t* load_pc) {
+    uintptr_t add = 0u;
+    uint32_t value = 0u;
+    uint32_t w = 0u;
+    if (!TraceGprSource(image, function, call, reg, limit, &add, &value) ||
+        !ReadInsn(image, add, &w) || w != (0x8b1c8000u | (value << 5u) | value)) return false;
+    uintptr_t load = 0u;
+    uint32_t loaded = 0u;
+    if (!TraceGprSource(image, function, add, value, limit, &load, &loaded) ||
+        loaded != value || !ReadInsn(image, load, &w) ||
+        (w & 0xffe00c1fu) != (0xb8400000u | value)) return false;
+    *load_pc = load;
+    return true;
+}
+
+}  // namespace hypertweak::native::dart

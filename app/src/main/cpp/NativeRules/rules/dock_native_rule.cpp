@@ -96,6 +96,8 @@ struct NativeDockGlassFrames {
     uintptr_t alt_cell_field;
     double cell_extra;
     double observed_cell;  // diagnostics only
+    // Direct center callee; 0 selects the switchable call through center_call.
+    uintptr_t center_target;
 };
 static_assert(offsetof(NativeDockGlassFrames, resume_continue) == 0x00);
 static_assert(offsetof(NativeDockGlassFrames, insets_entry) == 0x30);
@@ -116,12 +118,13 @@ static_assert(offsetof(NativeDockGlassFrames, columns) == 0x178);
 static_assert(offsetof(NativeDockGlassFrames, observed_built) == 0x1a0);
 static_assert(offsetof(NativeDockGlassFrames, static_table) == 0x1a8);
 static_assert(offsetof(NativeDockGlassFrames, cell_extra) == 0x1f0);
-static_assert(sizeof(NativeDockGlassFrames) == 0x200);
+static_assert(offsetof(NativeDockGlassFrames, center_target) == 0x200);
+static_assert(sizeof(NativeDockGlassFrames) == 0x208);
 DOCK_SHARED NativeDockGlassFrames g_native_dock_glass_frames{
     0, 0, 0, 0, 0, 0, 0, 0, {0, 0, 0, 0}, 0, 0, 0, 0, 0, 95.0, 5.0, 5.0, 24.0, 4096.0, 0, 0, 0.0,  // kNativeDockGlassDefault
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, {0.0, 0.0}, 0,
     0, 0, 0, 0, 0.0, 0.0, 0, 0.0, 0.0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0.0, 0.0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0.0, 0.0, 0,
 };
 
 // Native Thread identities only; no retained managed objects. Each isolate owns
@@ -328,6 +331,7 @@ void PublishContinuations() {
     frames.build_child_slot = glass.build_child_slot;
     frames.controller_slot = glass.controller_slot;
     frames.center_call = glass.center_call;
+    frames.center_target = glass.center_target ? base + glass.center_target : 0;
     frames.center_return = base + glass.center_return;
     frames.center_item_slot = glass.center_item_slot;
     frames.center_slot = glass.center_slot;

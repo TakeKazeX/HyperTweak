@@ -115,6 +115,8 @@ dock_entry HyperTweakNativeDockGlassBranch
 .equ GLASS_ALT_CELL_FIELD, 0x1e8
 .equ GLASS_CELL_EXTRA, 0x1f0
 .equ GLASS_OBSERVED_CELL, 0x1f8
+.equ GLASS_CENTER_TARGET, 0x200
+.equ GLASS_FRAMES_SIZE, 0x208  // sizeof(NativeDockGlassFrames)
 
 .macro glass_owned_frame fail
     // Only the item builder frame this module opened returns to the Hotseat
@@ -142,8 +144,8 @@ dock_entry HyperTweakNativeDockGlassBranch
     b .Lframes_done\@
     .irp index,0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15
 .Lframes\@_\index:
-        adrp \out, g_native_dock_context_frames+(\index*0x200)
-        add \out, \out, :lo12:g_native_dock_context_frames+(\index*0x200)
+        adrp \out, g_native_dock_context_frames+(\index*GLASS_FRAMES_SIZE)
+        add \out, \out, :lo12:g_native_dock_context_frames+(\index*GLASS_FRAMES_SIZE)
         b .Lframes_done\@
     .endr
 .Lframes_done\@:
@@ -381,13 +383,19 @@ dock_entry HyperTweakNativeDockGlassReturn
     glass_frame x11
     ldr x9, [x16, #GLASS_BUILD_CHILD]
     str x0, [x29, x9]
+    mov x9, #3
+    str x9, [x16, #GLASS_STAGE]
+    ldr x30, [x16, #GLASS_CENTER_RETURN]
+    ldr x17, [x16, #GLASS_CENTER_TARGET]
+    cbz x17, .Lglass_center_switchable
+    // Direct call: the controller is the register receiver.
+    mov x1, x10
+    br x17
+.Lglass_center_switchable:
     str x10, [x15]                  // receiver argument
     mov x0, x10
     mov x4, #0
-    mov x9, #3
-    str x9, [x16, #GLASS_STAGE]
     ldr x9, [x16, #GLASS_CENTER_CALL]
-    ldr x30, [x16, #GLASS_CENTER_RETURN]
     add x16, x27, x9
     ldp x17, x5, [x16]
     br x17

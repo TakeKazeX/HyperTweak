@@ -19,6 +19,8 @@ internal class RecentsCardHaptics(
     companion object {
         const val ACTION = "com.takekazex.hypertweak.action.RECENTS_CARD_HAPTIC"
         const val EVENT_TIME = "hypertweak_haptic_event_time_nanos"
+        // Xiaomi's predefined mesh_normal (motor-tuned HEAVY_CLICK, strong). mesh_light
+        // is the same waveform one strength lower and was reported as too weak.
         private const val MESH_NORMAL = 0x10000005
     }
     private val timing = RecentsHapticTiming()

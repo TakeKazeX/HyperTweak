@@ -49,19 +49,33 @@ int main(int argc,char** argv){
  dart::DesktopGridLayout decoded{};assert(dart::DecodeDesktopGridLayout(image,sites,&decoded));
  // The inlined/expanded family permits relocation and CID renumbering, but
  // divergent async returns or type guards must still reject the contract.
- uint32_t load_reason_guard=0;
- assert(dart::ReadInsn(image,decoded.load+0xa94,&load_reason_guard));
- if(load_reason_guard==0x7100681fu){
-  const uintptr_t offsets[]={sites[4]+0xcc,decoded.load+0x2a0,decoded.load+0xa4c};
-  const uint32_t changed_bits[]={1u,1u,1u<<10u};
-  for(size_t i=0;i<3;++i){
-   uint32_t original=0;assert(dart::ReadInsn(image,offsets[i],&original));
-   const auto changed=original^changed_bits[i];
-   memcpy(image_bytes.data()+offsets[i],&changed,4);
-   assert(!dart::DecodeDesktopGridLayout(image,sites,&decoded));
-   memcpy(image_bytes.data()+offsets[i],&original,4);
-  }
+ // Sites are located by role: the first branch leaving each async body, and
+ // a class guard that feeds the layout enum conversion.
+ const auto word=[&](uintptr_t at){uint32_t w=0;assert(dart::ReadInsn(image,at,&w));return w;};
+ const auto span=[&](uintptr_t at){size_t i=8;while(!(word(at+i)==0xa9bf79fdu&&word(at+i+4)==0xaa0f03fdu))i+=4;return i;};
+ const auto leaving=[&](uintptr_t body){
+  const auto n=span(body);
+  for(size_t i=0;i<n;i+=4){const auto w=word(body+i);if((w&0xfc000000u)!=0x14000000u)continue;
+   uintptr_t t=0;assert(dart::DecodeBlTarget(body+i,w|0x80000000u,&t));if(t<body||t>=body+n)return body+i;}
+  return uintptr_t{0};
+ };
+ uintptr_t layout_guard=0;
+ for(size_t i=0,n=span(decoded.load);i+24<=n&&!layout_guard;i+=4){
+  const auto at=decoded.load+i;const auto w0=word(at),r=w0&31u,base=(w0>>5)&31u;
+  if((w0&0xfffffc00u)==0xf85ff000u&&word(at+4)==(0xd34c7c00u|(r<<5)|r)&&(word(at+8)&0xffc003ffu)==(0xf100001fu|(r<<5))&&
+     (word(at+16)&0xffe003ffu)==(0xf8400001u|(base<<5))&&dart::IsBl(word(at+20)))layout_guard=at+8;
  }
+ const uintptr_t offsets[]={leaving(sites[4]),leaving(decoded.load),layout_guard};
+ const uint32_t changed_bits[]={1u,1u,1u<<10u};
+ for(size_t i=0;i<3;++i){
+  assert(offsets[i]);
+  const auto original=word(offsets[i]);
+  const auto changed=original^changed_bits[i];
+  memcpy(image_bytes.data()+offsets[i],&changed,4);
+  assert(!dart::DecodeDesktopGridLayout(image,sites,&decoded));
+  memcpy(image_bytes.data()+offsets[i],&original,4);
+ }
+ assert(dart::DecodeDesktopGridLayout(image,sites,&decoded));
  // Preview reads and the independent live-geometry consumer must agree.
  uint32_t prepare_word=0;uintptr_t prepare_current=0;
  assert(dart::ReadInsn(image,sites[1]+20,&prepare_word)&&dart::DecodeBlTarget(sites[1]+20,prepare_word,&prepare_current));

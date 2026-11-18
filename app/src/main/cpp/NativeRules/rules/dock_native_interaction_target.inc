@@ -22,6 +22,7 @@ constexpr uint32_t kManagerCaller[] = {
 constexpr uint32_t kManagerCallerMasks[] = {
     kLoad, kLoad, kLoad, ~0u, ~0u, kLoad, kLoad, kCall, ~0u, ~0u, kCall,
 };
+constexpr uintptr_t kEndCall = 40;
 constexpr uint32_t kWriteBool[] = {
     0xf85f83a0, 0xb8400001, 0x8b1c8021, 0x910082c2, 0x94000000,
 };
@@ -52,10 +53,33 @@ struct BoolWrite {
     bool value;
 };
 
-bool ReadBoolWrite(const Image& image, uintptr_t caller, BoolWrite* out) {
+// The receiver move ends the shared manager prologue. The start side may run
+// inside a closure, which reloads its captured argument from the context before
+// the call. Accept only straight-line instructions that keep x1 intact.
+constexpr uintptr_t kReceiverMove = 32;
+constexpr uintptr_t kHandlerWindow = 6;
+
+bool HandlerCall(const Image& image, uintptr_t caller, uintptr_t* pc) {
+    if (Insn(image, caller + kReceiverMove) != 0xaa0003e1u) return false;
+    for (uintptr_t i = 1; i <= kHandlerWindow; ++i) {
+        const uintptr_t at = caller + kReceiverMove + i * 4;
+        const uint32_t w = Insn(image, at);
+        if (IsBl(w)) {
+            *pc = at;
+            return true;
+        }
+        const bool branch = (w & 0x7c000000u) == 0x14000000u ||
+            (w & 0xff000010u) == 0x54000000u || (w & 0x7c000000u) == 0x34000000u ||
+            (w & 0xff9ffc1fu) == 0xd61f0000u;
+        if (branch || (w & 31u) == 1u) return false;
+    }
+    return false;
+}
+
+bool ReadBoolWrite(const Image& image, uintptr_t call, BoolWrite* out) {
     uintptr_t handler = 0;
     uintptr_t write = 0;
-    if (!Calls(image, caller + 40, &handler) || !IsDartPrologue(image, handler) ||
+    if (!Calls(image, call, &handler) || !IsDartPrologue(image, handler) ||
         !FindBytesForward(image, handler, 0xe0, Words(kWriteBool, kWriteBoolMasks), &write) ||
         (write & 3u) != 0) return false;
     uintptr_t setter = 0;
@@ -108,6 +132,37 @@ bool SameManager(const Image& image, uintptr_t left, uintptr_t right) {
         left_init == right_init;
 }
 
+// Finds the opposite-value write through the same manager. The end caller has
+// already fixed the static slot, sentinel and initializer operands, so the
+// start side is collected by those exact words rather than by its call shape.
+bool HasStartWrite(const Image& image, uintptr_t end_caller, const BoolWrite& end) {
+    uint32_t words[9]{};
+    uint32_t masks[9]{};
+    for (unsigned i = 0; i < 7; ++i) {
+        words[i] = Insn(image, end_caller + i * 4);
+        masks[i] = ~0u;
+    }
+    words[7] = 0x94000000u;
+    masks[7] = kCall;
+    words[8] = 0xaa0003e1u;
+    masks[8] = ~0u;
+    const BytePattern prologue{reinterpret_cast<const uint8_t*>(words),
+                               reinterpret_cast<const uint8_t*>(masks), sizeof(words)};
+    uintptr_t callers[128]{};
+    size_t found = 0;
+    uint32_t total = 0;
+    if (!CollectBytes(image, prologue, callers, 128, &found, &total) || total != found) return false;
+    for (size_t i = 0; i < found; ++i) {
+        uintptr_t call = 0;
+        BoolWrite start{};
+        if (callers[i] == end_caller || !SameManager(image, end_caller, callers[i]) ||
+            !HandlerCall(image, callers[i], &call) || !ReadBoolWrite(image, call, &start) ||
+            !start.value || start.field != end.field || start.setter != end.setter) continue;
+        return true;
+    }
+    return false;
+}
+
 bool FindGuard(const Image& image, uintptr_t* out, uint32_t* count) {
     uintptr_t candidates[128]{};
     size_t found = 0;
@@ -118,17 +173,11 @@ bool FindGuard(const Image& image, uintptr_t* out, uint32_t* count) {
     for (size_t i = 0; i < found; ++i) {
         BoolWrite end{};
         NativeDockInteractionLayout layout{};
-        if (!ReadBoolWrite(image, candidates[i], &end) ||
-            !ReadDropContract(image, candidates[i], end, &layout)) continue;
-        for (size_t j = 0; j < found; ++j) {
-            if (i == j || !SameManager(image, candidates[i], candidates[j])) continue;
-            BoolWrite start{};
-            if (!ReadBoolWrite(image, candidates[j], &start) || !start.value ||
-                start.field != end.field || start.setter != end.setter) continue;
-            *out = candidates[i];
-            ++*count;
-            break;
-        }
+        if (!ReadBoolWrite(image, candidates[i] + kEndCall, &end) ||
+            !ReadDropContract(image, candidates[i], end, &layout) ||
+            !HasStartWrite(image, candidates[i], end)) continue;
+        *out = candidates[i];
+        ++*count;
     }
     return *count == 1;
 }
@@ -145,7 +194,7 @@ bool DecodeNativeDockInteraction(const Image& image, uintptr_t observer, NativeD
     uint32_t count = 0;
     BoolWrite write{};
     return out && FindGuard(image, &unique, &count) && unique == observer &&
-        ReadBoolWrite(image, observer, &write) && ReadDropContract(image, observer, write, out);
+        ReadBoolWrite(image, observer + kEndCall, &write) && ReadDropContract(image, observer, write, out);
 }
 
 const TargetSpec kNativeDockInteractionTarget{

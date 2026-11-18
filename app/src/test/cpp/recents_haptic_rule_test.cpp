@@ -172,9 +172,12 @@ int main(int argc, char** argv) {
     pointer(metrics, 0xf, pixels); pointer(metrics, 7, min); pointer(metrics, 0xb, max);
     number(min, 7, -400); number(max, 7, 0); number(pixels, 7, 0);
     HyperTweakObserveRecentsScroll(state, notification, heap, null); assert(signals == 0);
-    object(896, layout.update); number(pixels, 7, -60);
-    HyperTweakObserveRecentsScroll(state, notification, heap, null); assert(signals == 1);
-    number(pixels, 7, -65); HyperTweakObserveRecentsScroll(state, notification, heap, null); assert(signals == 1);
+    object(896, layout.update); number(pixels, 7, -20);
+    HyperTweakObserveRecentsScroll(state, notification, heap, null); assert(signals == 0);
+    number(pixels, 7, -60);
+    HyperTweakObserveRecentsScroll(state, notification, heap, null); assert(signals == 1); // Early detent.
+    number(pixels, 7, -100); HyperTweakObserveRecentsScroll(state, notification, heap, null); assert(signals == 1);
+    number(pixels, 7, -103); HyperTweakObserveRecentsScroll(state, notification, heap, null); assert(signals == 1);
     SetRecentsHapticEnabled(false); number(pixels, 7, -200);
     HyperTweakObserveRecentsScroll(state, notification, heap, null); assert(signals == 1);
     SetRecentsHapticEnabled(true); HyperTweakObserveRecentsScroll(state, notification, heap, null); assert(signals == 1);
@@ -182,10 +185,10 @@ int main(int argc, char** argv) {
     object(896, layout.start); pointer(notification, 0x17, null); number(pixels, 7, 0);
     HyperTweakObserveRecentsScroll(state, notification, heap, null);
     object(896, layout.update); pointer(notification, 0x17, state);
-    number(pixels, 7, -60); number(delta, 7, -60);
+    number(pixels, 7, -100); number(delta, 7, -100);
     HyperTweakObserveRecentsScroll(state, notification, heap, null); assert(signals == 2);
     SetRecentsHapticEnabled(true); // Identical settings replay must keep this drag session.
-    number(pixels, 7, -160); number(delta, 7, NAN);
+    number(pixels, 7, -200); number(delta, 7, NAN);
     HyperTweakObserveRecentsScroll(state, notification, heap, null); assert(signals == 3);
     // Foreign patches are preserved; a remapped original can be repaired.
     auto site = image_bytes.data()+layout.observer_entry;

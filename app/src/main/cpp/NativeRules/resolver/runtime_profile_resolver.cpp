@@ -520,6 +520,35 @@ namespace miui_home_runtime_profile {
                     count * sizeof(uint32_t)) == 0;
         }
 
+        // An AAPCS64 callee-save prologue of any save-set size: an initial sp
+        // allocation (pre-indexed store or sub), then only stores based on sp,
+        // including x29/x30, ending with `add x29, sp, #k`. 8.01.03.308 grew the
+        // save-set by d12-d14, which shifted every slot of the 6144 shape.
+        bool IsCalleeSavePrologue(const ElfView &view, uintptr_t offset) {
+            uint32_t instruction = 0u;
+            if (!ReadInstruction(view, offset, &instruction)) return false;
+            const bool allocates =
+                    (instruction & 0xffc003ffu) == 0xd10003ffu ||  // sub sp, sp, #N
+                    (instruction & 0xffc003e0u) == 0x6d8003e0u ||  // stp d, d, [sp, #-N]!
+                    (instruction & 0xffc003e0u) == 0xa98003e0u ||  // stp x, x, [sp, #-N]!
+                    (instruction & 0xffe00fe0u) == 0xfc000fe0u ||  // str d, [sp, #-N]!
+                    (instruction & 0xffe00fe0u) == 0xf8000fe0u;    // str x, [sp, #-N]!
+            if (!allocates) return false;
+            bool frame_saved = false;
+            for (uintptr_t cursor = 4u; cursor < 0x40u; cursor += 4u) {
+                if (!ReadInstruction(view, offset + cursor, &instruction)) return false;
+                if ((instruction & 0xffc003ffu) == 0x910003fdu) return frame_saved; // add x29, sp, #k
+                if ((instruction & 0xffc07fffu) == 0xa9007bfdu) { frame_saved = true; continue; }
+                const bool save =
+                        (instruction & 0xffc003e0u) == 0xa90003e0u ||  // stp x, x, [sp, #k]
+                        (instruction & 0xffc003e0u) == 0x6d0003e0u ||  // stp d, d, [sp, #k]
+                        (instruction & 0xffc003e0u) == 0xf90003e0u ||  // str x, [sp, #k]
+                        (instruction & 0xffc003e0u) == 0xfd0003e0u;    // str d, [sp, #k]
+                if (!save) return false;
+            }
+            return false;
+        }
+
         bool IsSideCandidate(const ElfView &view, const RequiredImports &imports,
                 uintptr_t offset, uintptr_t *edge_offset) {
             uint32_t instruction = 0u;
@@ -529,7 +558,7 @@ namespace miui_home_runtime_profile {
             const bool modern_shape = MatchesWords(
                     view, offset, kSide6144Prologue,
                     sizeof(kSide6144Prologue) / sizeof(kSide6144Prologue[0]));
-            if (!legacy_shape && !modern_shape) return false;
+            if (!legacy_shape && !modern_shape && !IsCalleeSavePrologue(view, offset)) return false;
             uintptr_t discovered_edge = 0u;
             bool edge_seen = false;
             // The 8.01.02.6144 build changed the native wrapper's save-set and moved
@@ -540,7 +569,13 @@ namespace miui_home_runtime_profile {
             size_t call_index = 0u;
             for (uintptr_t cursor = 0x20u; cursor <= 0x1c0u; cursor += 4u) {
                 if (!ReadInstruction(view, offset + cursor, &instruction)) continue;
-                if (!edge_seen && (instruction & 0xffc003ffu) == 0x39400014u) {
+                // The query graph belongs to this body: a return before it
+                // means the window ran into the following function.
+                if (instruction == 0xd65f03c0u && call_index < 5u) return false;
+                // The edge flag is read from the incoming receiver before the
+                // first MotionEvent query; a sibling handler that first moves
+                // the event into x0 is not the side boundary.
+                if (!edge_seen && call_index == 0u && (instruction & 0xffc003ffu) == 0x39400014u) {
                     const uintptr_t edge = (instruction >> 10u) & 0xfffu;
                     if (edge >= 0x40u && edge <= 0x400u && (edge & 0x3u) == 0u) {
                         discovered_edge = edge;
