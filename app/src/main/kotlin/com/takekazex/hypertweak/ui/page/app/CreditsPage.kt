@@ -61,11 +61,6 @@ fun CreditsPage(
                         onClick = { uriHandler.openUri("https://github.com/JesusFreke/smali/tree/master/dexlib2") }
                     )
                     ArrowPreference(
-                        title = "HiddenApiBypass",
-                        summary = stringResource(R.string.credits_hiddenapibypass_desc, BuildConfig.CREDIT_HIDDEN_API_BYPASS_VERSION),
-                        onClick = { uriHandler.openUri("https://github.com/LSPosed/AndroidHiddenApiBypass") }
-                    )
-                    ArrowPreference(
                         title = stringResource(R.string.credits_miuix_title),
                         summary = stringResource(R.string.credits_miuix_desc, BuildConfig.CREDIT_MIUIX_VERSION),
                         onClick = { uriHandler.openUri("https://github.com/compose-miuix-ui/miuix") }

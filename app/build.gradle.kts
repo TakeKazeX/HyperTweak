@@ -296,7 +296,6 @@ dependencies {
     compileOnly("io.github.libxposed:api:102.0.0")
     compileOnly(project(":hidden-api"))
     implementation("io.github.libxposed:service:102.0.0")
-    implementation("org.lsposed.hiddenapibypass:hiddenapibypass:6.2")
 
     // EzHookTool
     implementation("io.github.lingqiqi5211.ezhooktool:core:1.3.1")
@@ -323,7 +322,6 @@ val creditedLibraries = mapOf(
     "CREDIT_EZHOOKTOOL_VERSION" to "io.github.lingqiqi5211.ezhooktool:core",
     "CREDIT_DEXKIT_VERSION" to "org.luckypray:dexkit",
     "CREDIT_DEXLIB2_VERSION" to "org.smali:dexlib2",
-    "CREDIT_HIDDEN_API_BYPASS_VERSION" to "org.lsposed.hiddenapibypass:hiddenapibypass",
     "CREDIT_MIUIX_VERSION" to "top.yukonga.miuix.kmp:miuix-ui",
 )
 val declaredLibraries = listOf("implementation", "compileOnly")

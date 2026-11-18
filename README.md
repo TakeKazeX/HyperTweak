@@ -82,7 +82,6 @@ Special thanks to the following open-source projects for their support and inspi
 * **[LSPosed](https://github.com/LSPosed/LSPosed)** - The mainstream Xposed framework runtime environment.
 * **[EzHookTool](https://github.com/lingqiqi5211/EzHookTool)** - Kotlin Xposed helper library by lingqiqi5211.
 * **[DexKit](https://github.com/LuckyPray/DexKit)** - Powerful Dex analysis tool for finding hook points dynamically.
-* **[HiddenApiBypass](https://github.com/LSPosed/AndroidHiddenApiBypass)** - Bypass restrictions on non-SDK interfaces in Android 9+.
 * **[Miuix UI](https://github.com/Yukonga/miuix)** - Modern HyperOS style Compose components.
 * **[InstallerX Revived](https://github.com/wxxsfxyzm/InstallerX-Revived)** - Inspiration for themes and UI/UX layout.
 * **[HyperOShape](https://github.com/xzakota/HyperOShape)** - Reference logic for fingerprint icon rendering bypass.

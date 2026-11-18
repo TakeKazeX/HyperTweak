@@ -82,7 +82,6 @@ app/build/outputs/apk/release/HyperTweak-v<version>-<versionCode>-release.apk
 * **[LSPosed](https://github.com/LSPosed/LSPosed)** - 主流 Xposed 框架运行环境实现。
 * **[EzHookTool](https://github.com/lingqiqi5211/EzHookTool)** - lingqiqi5211 编写的 Kotlin Xposed 辅助库。
 * **[DexKit](https://github.com/LuckyPray/DexKit)** - 强大的 Dex 动态分析与 Hook 点寻找工具。
-* **[HiddenApiBypass](https://github.com/LSPosed/AndroidHiddenApiBypass)** - 绕过 Android 9+ 非 SDK 接口限制。
 * **[Miuix UI](https://github.com/Yukonga/miuix)** - 现代化的 HyperOS 风格 Compose 组件库。
 * **[InstallerX Revived](https://github.com/wxxsfxyzm/InstallerX-Revived)** - 启发了模块的主题与 UI/UX 布局设计。
 * **[HyperOShape](https://github.com/xzakota/HyperOShape)** - 绕过指纹图标绘制的基本实现逻辑参考。

@@ -235,7 +235,6 @@
     <string name="credits_dexlib2_desc">DEX instruction and control-flow analysis · v%1$s · BSD-3-Clause</string>
     <string name="credits_ezhook_desc">Kotlin Xposed helper library by lingqiqi5211 · v%1$s</string>
     <string name="credits_fcm_desc">Google Push / FCM Live implementation by howard20181</string>
-    <string name="credits_hiddenapibypass_desc">Bypass restrictions on non-SDK interfaces in Android 9+ · v%1$s</string>
     <string name="credits_highlighticons_desc">App shortcut icons by @GotohHitoriBocchi0221</string>
     <string name="credits_hydtrust_desc">Extend Unlock trust state repair by StevenWin818 · GPL-3.0</string>
     <string name="credits_hyperceiler_desc">AICR browser hook and DexKit obfuscation fix reference · AGPL-3.0</string>

@@ -233,7 +233,6 @@
     <string name="credits_dexlib2_desc">DEX 指令与控制流分析 · v%1$s · BSD-3-Clause</string>
     <string name="credits_ezhook_desc">lingqiqi5211 的 Kotlin Xposed 辅助库 · v%1$s</string>
     <string name="credits_fcm_desc">howard20181 的 Google 推送 / FCM Live 实现</string>
-    <string name="credits_hiddenapibypass_desc">绕过 Android 9+ 非 SDK 接口限制 · v%1$s</string>
     <string name="credits_highlighticons_desc">@GotohHitoriBocchi0221 的应用快捷方式图标</string>
     <string name="credits_hydtrust_desc">StevenWin818 的扩展解锁信任状态修复 · GPL-3.0</string>
     <string name="credits_hyperceiler_desc">AI 引擎浏览器 Hook 与 DexKit 混淆修复参考 · AGPL-3.0</string>
