@@ -3,22 +3,22 @@ package com.takekazex.hypertweak.ui.navigation
 import androidx.compose.animation.*
 import androidx.compose.runtime.*
 import com.takekazex.hypertweak.ui.page.Route
-import com.takekazex.hypertweak.ui.page.platform.AospRestorePage
-import com.takekazex.hypertweak.ui.page.platform.FreeformPage
-import com.takekazex.hypertweak.ui.page.platform.SystemFrameworkPage
-import com.takekazex.hypertweak.ui.page.securitycenter.SecurityCenterPage
-import com.takekazex.hypertweak.ui.page.platform.AospImePage
-import com.takekazex.hypertweak.ui.page.glass.GlassTunerPage
-import com.takekazex.hypertweak.ui.page.platform.PurificationPage
-import com.takekazex.hypertweak.ui.page.platform.GoogleServicesPage
-import com.takekazex.hypertweak.ui.page.platform.ExperimentalFeaturesPage
-import com.takekazex.hypertweak.ui.page.securitycenter.PowerSavePage
 import com.takekazex.hypertweak.ui.page.camera.CameraWatermarkUnlockPage
-import com.takekazex.hypertweak.ui.page.systemui.lockscreen.ChargingDetailPage
-import com.takekazex.hypertweak.ui.page.systemui.lockscreen.LockscreenBottomTextPage
+import com.takekazex.hypertweak.ui.page.downloads.DownloadManagerPage
+import com.takekazex.hypertweak.ui.page.glass.GlassTunerPage
+import com.takekazex.hypertweak.ui.page.platform.AospImePage
+import com.takekazex.hypertweak.ui.page.platform.AospRestorePage
+import com.takekazex.hypertweak.ui.page.platform.ExperimentalFeaturesPage
+import com.takekazex.hypertweak.ui.page.platform.FreeformPage
+import com.takekazex.hypertweak.ui.page.platform.GoogleServicesPage
+import com.takekazex.hypertweak.ui.page.platform.PurificationPage
+import com.takekazex.hypertweak.ui.page.platform.SystemFrameworkPage
+import com.takekazex.hypertweak.ui.page.securitycenter.PowerSavePage
+import com.takekazex.hypertweak.ui.page.securitycenter.SecurityCenterPage
 import com.takekazex.hypertweak.ui.page.systemui.controlcenter.ControlCenterCornerPage
 import com.takekazex.hypertweak.ui.page.systemui.controlcenter.ControlCenterResizePage
-import com.takekazex.hypertweak.ui.page.downloads.DownloadManagerPage
+import com.takekazex.hypertweak.ui.page.systemui.lockscreen.ChargingDetailPage
+import com.takekazex.hypertweak.ui.page.systemui.lockscreen.LockscreenBottomTextPage
 import top.yukonga.miuix.kmp.nav.core.*
 
 internal fun NavEntryBuilder.featuresPages(settings: NavigationSettings, navController: NavController) {
@@ -32,26 +32,18 @@ internal fun NavEntryBuilder.featuresPages(settings: NavigationSettings, navCont
                 onBack = { navController.pop() },
                 onNavigateToFreeform = { navController.navigateTo(Route.Freeform) },
                 onNavigateToPackageManager = { navController.navigateTo(Route.PackageManager) },
-                allowThirdPartyTheme = allowThirdPartyTheme,
-                onAllowThirdPartyThemeChange = onAllowThirdPartyThemeChange,
-                unlockThirdPartyDarkMode = unlockThirdPartyDarkMode,
-                onUnlockThirdPartyDarkModeChange = onUnlockThirdPartyDarkModeChange,
             )
         }
         entry<Route.AospRestore> {
             AospRestorePage(
                 onBack = { navController.pop() },
                 onNavigateToAospIme = { navController.navigateTo(Route.AospIme) },
-                settingsGlobalInterface = settingsGlobalInterface,
-                onSettingsGlobalInterfaceChange = onSettingsGlobalInterfaceChange
             )
         }
         entry<Route.SecurityCenter> {
             SecurityCenterPage(
                 onBack = { navController.pop() },
                 onNavigateToPowerSave = { navController.navigateTo(Route.PowerSave) },
-                lbeClipboardToast = lbeClipboardToast,
-                onLbeClipboardToastChange = onLbeClipboardToastChange,
             )
         }
         entry<Route.AospIme> {
@@ -68,16 +60,6 @@ internal fun NavEntryBuilder.featuresPages(settings: NavigationSettings, navCont
         entry<Route.DownloadManager> {
             DownloadManagerPage(
                 onBack = { navController.pop() },
-                blockDownloadXlLogDir = blockDownloadXlLogDir,
-                onBlockDownloadXlLogDirChange = onBlockDownloadXlLogDirChange,
-                alwaysShowFullLink = downloadAlwaysShowFullLink,
-                onAlwaysShowFullLinkChange = onDownloadAlwaysShowFullLinkChange,
-                hideXl = downloadHideXl,
-                onHideXlChange = onDownloadHideXlChange,
-                addNewButton = downloadAddNewButton,
-                onAddNewButtonChange = onDownloadAddNewButtonChange,
-                focusNotification = downloadFocusNotification,
-                onFocusNotificationChange = onDownloadFocusNotificationChange
             )
         }
         entry<Route.GlassTuner> {
@@ -101,34 +83,12 @@ internal fun NavEntryBuilder.featuresPages(settings: NavigationSettings, navCont
                 onBack = { navController.pop() },
                 onNavigateToMarket = { navController.navigateTo(Route.Market) },
                 onNavigateToCommunity = { navController.navigateTo(Route.Community) },
-                disableVideoRingback = disableVideoRingback,
-                onDisableVideoRingbackChange = onDisableVideoRingbackChange,
-                disableMiTrustRiskMonitoring = disableMiTrustRiskMonitoring,
-                onDisableMiTrustRiskMonitoringChange = onDisableMiTrustRiskMonitoringChange,
-                disableGuardEnvironmentCheck = disableGuardEnvironmentCheck,
-                onDisableGuardEnvironmentCheckChange = onDisableGuardEnvironmentCheckChange,
-                blockGuardUploadAppList = blockGuardUploadAppList,
-                onBlockGuardUploadAppListChange = onBlockGuardUploadAppListChange,
-                blockMiLinkHpplayFiles = blockMiLinkHpplayFiles,
-                onBlockMiLinkHpplayFilesChange = onBlockMiLinkHpplayFilesChange,
             )
         }
 
         entry<Route.GoogleServices> {
             GoogleServicesPage(
                 onBack = { navController.pop() },
-                showGoogleServicesInSettings = showGoogleServicesInSettings,
-                onShowGoogleServicesInSettingsChange = onShowGoogleServicesInSettingsChange,
-                removeGms = removeGms,
-                onRemoveGmsChange = onRemoveGmsChange,
-                fullScreenTranslate = fullScreenTranslate,
-                onFullScreenTranslateChange = onFullScreenTranslateChange,
-                askAboutScreen = askAboutScreen,
-                onAskAboutScreenChange = onAskAboutScreenChange,
-                unlockPasskey = unlockPasskey,
-                onUnlockPasskeyChange = onUnlockPasskeyChange,
-                fcmLiveEnabled = fcmLiveEnabled,
-                onFcmLiveEnabledChange = onFcmLiveEnabledChange
             )
         }
         entry<Route.ExperimentalFeatures> {
@@ -137,8 +97,6 @@ internal fun NavEntryBuilder.featuresPages(settings: NavigationSettings, navCont
                 onNavigateToGlassTuner = { navController.navigateTo(Route.GlassTuner) },
                 onNavigateToControlCenterCorner = { navController.navigateTo(Route.ControlCenterCorner) },
                 onNavigateToControlCenterResize = { navController.navigateTo(Route.ControlCenterResize) },
-                ccEditEnabled = ccEditEnabled,
-                onCcEditEnabledChange = onCcEditEnabledChange
             )
         }
         entry<Route.SystemLauncher> {

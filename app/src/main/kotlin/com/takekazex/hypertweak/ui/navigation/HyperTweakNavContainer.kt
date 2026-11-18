@@ -5,11 +5,12 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.takekazex.hypertweak.ui.effect.scaleBackTransition
 import com.takekazex.hypertweak.ui.page.Route
 import com.takekazex.hypertweak.ui.page.saveKey
 import top.yukonga.miuix.kmp.nav.core.*
 import top.yukonga.miuix.kmp.nav.transition.NavTransitions
-import com.takekazex.hypertweak.ui.effect.scaleBackTransition
 
 @Composable
 fun HyperTweakNavContainer(
@@ -51,10 +52,13 @@ fun HyperTweakNavContainer(
         toolsPages(settings, navController)
     }
 
+    val appSettings = com.takekazex.hypertweak.ui.app.LocalAppSettings.current
+    val predictiveBackStyle = appSettings.predictiveBackStyle
+    val predictiveBackFollowGesture = appSettings.predictiveBackFollowGesture
     val scaleTransition = remember(predictiveBackFollowGesture) {
         scaleBackTransition(predictiveBackFollowGesture)
     }
-    val debugRevision by com.takekazex.hypertweak.util.diagnostics.DebugSettingsEvents.revision.collectAsState()
+    val debugRevision by com.takekazex.hypertweak.util.diagnostics.DebugSettingsEvents.revision.collectAsStateWithLifecycle()
     key(debugRevision) {
     NavDisplay(
         backStack = backStack,

@@ -1,11 +1,5 @@
 package com.takekazex.hypertweak.ui.page.platform
 
-import com.takekazex.hypertweak.ui.components.dialog.AppWindowDialog
-import com.takekazex.hypertweak.util.diagnostics.WirelessFailure
-import com.takekazex.hypertweak.util.diagnostics.WirelessLogger
-import com.takekazex.hypertweak.util.diagnostics.WirelessResult
-import com.takekazex.hypertweak.util.diagnostics.WirelessState
-import com.takekazex.hypertweak.ui.app.LocalAppServices
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -24,21 +18,26 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.currentStateAsState
 import com.takekazex.hypertweak.R
+import com.takekazex.hypertweak.ui.app.LocalAppServices
+import com.takekazex.hypertweak.ui.chrome.AppSection
+import com.takekazex.hypertweak.ui.chrome.AppTextButton as TextButton
+import com.takekazex.hypertweak.ui.components.dialog.AppWindowDialog
 import com.takekazex.hypertweak.util.*
+import com.takekazex.hypertweak.util.diagnostics.WirelessFailure
+import com.takekazex.hypertweak.util.diagnostics.WirelessLogger
+import com.takekazex.hypertweak.util.diagnostics.WirelessResult
+import com.takekazex.hypertweak.util.diagnostics.WirelessState
+import java.util.Locale
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.BasicComponentDefaults
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
-import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.InfiniteProgressIndicator
-import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.LocalDismissState
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import java.util.Locale
 
 /** Device properties are authoritative, including after app upgrades or module preference resets. */
 @Composable
@@ -65,8 +64,7 @@ internal fun WirelessDiagnosticsSection() {
     }
     val snapshot = result?.snapshot
     val supported = snapshot?.cnss?.supported == true
-    SmallTitle(text = stringResource(R.string.wireless_title))
-    Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+    AppSection(stringResource(R.string.wireless_title)) {
         Column {
             if (supported) {
                 WirelessLogger.entries.forEach { logger ->

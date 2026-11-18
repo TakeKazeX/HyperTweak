@@ -3,6 +3,7 @@
 
 package com.takekazex.hypertweak.ui.page.app
 
+import top.yukonga.miuix.kmp.interfaces.ExperimentalScrollBarApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -29,7 +30,6 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -40,15 +40,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.BlendMode as ComposeBlendMode
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
-import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -57,43 +54,30 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.graphics.drawable.toBitmap
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.takekazex.hypertweak.BuildConfig
 import com.takekazex.hypertweak.R
-import com.takekazex.hypertweak.ui.effect.AppBlurMode
+import com.takekazex.hypertweak.ui.chrome.AppPage
+import com.takekazex.hypertweak.ui.chrome.appPageScroll
+import com.takekazex.hypertweak.ui.chrome.rememberPageBackdrop
 import com.takekazex.hypertweak.ui.effect.BgEffectBackground
-import com.takekazex.hypertweak.ui.effect.LocalAppBlurMode
-import com.takekazex.hypertweak.ui.effect.appTextureBlur
 import com.takekazex.hypertweak.ui.page.update.updateStatusSummary
 import com.takekazex.hypertweak.util.update.UpdateManager
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
-import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
-import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.ScrollBehavior
 import top.yukonga.miuix.kmp.basic.SmallTitle
-import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.VerticalScrollBar
 import top.yukonga.miuix.kmp.basic.rememberScrollBarAdapter
 import top.yukonga.miuix.kmp.blur.BlendColorEntry
 import top.yukonga.miuix.kmp.blur.BlurBlendMode
 import top.yukonga.miuix.kmp.blur.BlurDefaults
-import top.yukonga.miuix.kmp.blur.LayerBackdrop
-import top.yukonga.miuix.kmp.blur.ProgressiveBlur
-import top.yukonga.miuix.kmp.blur.isRuntimeShaderSupported
 import top.yukonga.miuix.kmp.blur.layerBackdrop
-import top.yukonga.miuix.kmp.blur.progressiveTextureBlur
-import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.blur.textureBlur
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Back
-import top.yukonga.miuix.kmp.interfaces.ExperimentalScrollBarApi
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.utils.MiuixPopupUtils.Companion.MiuixPopupHost
-import top.yukonga.miuix.kmp.utils.overScrollVertical
 
 private val AboutContentWidth = 600.dp
 
@@ -109,70 +93,6 @@ private val CardBlendLight = listOf(
 private fun Color.isLight(): Boolean {
     val luminance = 0.2126f * red + 0.7152f * green + 0.0722f * blue
     return luminance > 0.5f
-}
-
-@Composable
-private fun rememberBlurBackdrop(): LayerBackdrop? {
-    val blurMode = LocalAppBlurMode.current
-    if (blurMode == AppBlurMode.Off || !isRuntimeShaderSupported()) return null
-    val surfaceColor = MiuixTheme.colorScheme.surface
-    return rememberLayerBackdrop {
-        drawRect(surfaceColor)
-        drawContent()
-    }
-}
-
-@Composable
-private fun Modifier.appTopBarBlur(
-    backdrop: LayerBackdrop?,
-    enabled: Boolean = true,
-): Modifier {
-    if (!enabled || backdrop == null) return this
-    val blurMode = LocalAppBlurMode.current
-    if (blurMode == AppBlurMode.Off) return this
-
-    val colors = BlurDefaults.blurColors(
-        blendColors = listOf(
-            BlendColorEntry(color = MiuixTheme.colorScheme.surface.copy(alpha = 0.8f)),
-        ),
-    )
-    return if (blurMode == AppBlurMode.Progressive) {
-        progressiveTextureBlur(
-            backdrop = backdrop,
-            shape = RectangleShape,
-            blurRadius = 25f,
-            gradient = ProgressiveBlur.Top,
-            colors = colors,
-        )
-    } else {
-        appTextureBlur(
-            backdrop = backdrop,
-            shape = RectangleShape,
-            blurRadius = 25f,
-            colors = colors,
-        )
-    }
-}
-
-@Composable
-private fun BackNavigationIcon(
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val layoutDirection = LocalLayoutDirection.current
-    IconButton(
-        modifier = modifier,
-        onClick = onClick,
-    ) {
-        Icon(
-            modifier = Modifier.graphicsLayer {
-                if (layoutDirection == LayoutDirection.Rtl) scaleX = -1f
-            },
-            imageVector = MiuixIcons.Back,
-            contentDescription = stringResource(R.string.about_back),
-            tint = MiuixTheme.colorScheme.onBackground,
-        )
-    }
 }
 
 @Composable
@@ -210,47 +130,30 @@ fun AboutPage(
         }
     }
 
-    val topBarBackdrop = rememberBlurBackdrop()
-
-    Scaffold(
-        topBar = {
-            SmallTopAppBar(
-                modifier = Modifier.appTopBarBlur(
-                    backdrop = topBarBackdrop,
-                    enabled = scrollProgress == 1f,
-                ),
-                title = stringResource(R.string.about_title),
-                scrollBehavior = topAppBarScrollBehavior,
-                color = if (topBarBackdrop != null && scrollProgress == 1f) {
-                    Color.Transparent
-                } else {
-                    MiuixTheme.colorScheme.surface.copy(alpha = if (scrollProgress == 1f) 1f else 0f)
-                },
-                titleColor = MiuixTheme.colorScheme.onSurface.copy(alpha = scrollProgress),
-                navigationIcon = {
-                    BackNavigationIcon(
-                        onClick = onBack,
-                    )
-                },
-            )
-        },
-        popupHost = { MiuixPopupHost() },
+    // Upstream About: the title fades in as the logo collapses; the bar's blur and the glass
+    // band appear once the logo has fully scrolled away.
+    AppPage(
+        title = stringResource(R.string.about_title),
+        onBack = onBack,
+        backContentDescription = stringResource(R.string.about_back),
+        expandable = false,
+        scrollBehavior = topAppBarScrollBehavior,
+        contentScrolled = scrollProgress == 1f,
+        titleAlpha = { ((scrollProgress - 0.35f) / 0.65f).coerceIn(0f, 1f) },
     ) { innerPadding ->
-        Box(modifier = topBarBackdrop?.let { Modifier.layerBackdrop(it) } ?: Modifier) {
-            AboutContentBody(
-                innerPadding = innerPadding,
-                topAppBarScrollBehavior = topAppBarScrollBehavior,
-                lazyListState = lazyListState,
-                scrollProgressProvider = { scrollProgress },
-                onLogoHeightChanged = { logoHeightPx = it },
-                onViewSourceCode = onViewSourceCode,
-                onJoinTelegramGroup = onJoinTelegramGroup,
-                onNavigateToCredits = onNavigateToCredits,
-                onNavigateToDebug = onNavigateToDebug,
-                onNavigateToUpdate = onNavigateToUpdate,
-                updateManager = updateManager,
-            )
-        }
+        AboutContentBody(
+            innerPadding = innerPadding,
+            topAppBarScrollBehavior = topAppBarScrollBehavior,
+            lazyListState = lazyListState,
+            scrollProgressProvider = { scrollProgress },
+            onLogoHeightChanged = { logoHeightPx = it },
+            onViewSourceCode = onViewSourceCode,
+            onJoinTelegramGroup = onJoinTelegramGroup,
+            onNavigateToCredits = onNavigateToCredits,
+            onNavigateToDebug = onNavigateToDebug,
+            onNavigateToUpdate = onNavigateToUpdate,
+            updateManager = updateManager,
+        )
     }
 }
 
@@ -270,7 +173,7 @@ private fun AboutContentBody(
 ) {
     val layoutDirection = LocalLayoutDirection.current
     val uriHandler = LocalUriHandler.current
-    val contentBackdrop = rememberBlurBackdrop()
+    val contentBackdrop = rememberPageBackdrop()
 
     val blurRadius = 60f
     val noiseCoefficient = BlurDefaults.NoiseCoefficient
@@ -315,7 +218,7 @@ private fun AboutContentBody(
         end = horizontalSafeInsets.calculateEndPadding(layoutDirection) + displayCutoutInsets.calculateRightPadding(layoutDirection),
     )
 
-    val updateState by updateManager.state.collectAsState()
+    val updateState by updateManager.state.collectAsStateWithLifecycle()
     val lastCheckedAt = remember(updateManager, updateState) { updateManager.lastCheckedAt() }
 
     BgEffectBackground(
@@ -419,7 +322,7 @@ private fun AboutContentBody(
                     },
                 color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                 text = stringResource(R.string.about_version, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE),
-                fontSize = 14.sp,
+                style = MiuixTheme.textStyles.body2,
                 textAlign = TextAlign.Center,
             )
         }
@@ -428,8 +331,7 @@ private fun AboutContentBody(
             state = lazyListState,
             modifier = Modifier
                 .fillMaxSize()
-                .overScrollVertical()
-                .nestedScroll(topAppBarScrollBehavior.nestedScrollConnection),
+                .appPageScroll(topAppBarScrollBehavior),
             contentPadding = listContentPadding,
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {

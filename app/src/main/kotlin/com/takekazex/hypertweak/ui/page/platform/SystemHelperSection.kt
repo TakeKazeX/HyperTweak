@@ -2,7 +2,6 @@ package com.takekazex.hypertweak.ui.page.platform
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
@@ -21,15 +20,14 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.currentStateAsState
 import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.ui.app.LocalAppServices
+import com.takekazex.hypertweak.ui.chrome.AppSection
 import com.takekazex.hypertweak.util.platform.SystemHelperFailure
 import com.takekazex.hypertweak.util.platform.SystemHelperPackageState
 import com.takekazex.hypertweak.util.platform.SystemHelperResult
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.BasicComponentDefaults
-import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.InfiniteProgressIndicator
-import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -61,8 +59,7 @@ internal fun SystemHelperSection() {
     }
 
     val state = result?.state
-    SmallTitle(text = stringResource(R.string.system_helper_title))
-    Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+    AppSection(stringResource(R.string.system_helper_title)) {
         Column {
             SwitchPreference(
                 checked = state?.installed == true && !state.enabled,

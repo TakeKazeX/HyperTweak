@@ -1,12 +1,5 @@
 package com.takekazex.hypertweak.ui.page.glass
 
-import com.takekazex.hypertweak.ui.components.MiuixExpandableContent
-import com.takekazex.hypertweak.ui.components.slider.rememberSliderEdit
-
-import com.takekazex.hypertweak.ui.components.dialog.AppDialog
-import com.takekazex.hypertweak.ui.components.dialog.IntValueDialog
-import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
-
 import android.annotation.SuppressLint
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -22,26 +15,15 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.WindowInsetsSides
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -52,16 +34,20 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
 import com.takekazex.hypertweak.R
+import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 import com.takekazex.hypertweak.ui.app.LocalAppSettingsStore
+import com.takekazex.hypertweak.ui.chrome.AppScrollPage
+import com.takekazex.hypertweak.ui.chrome.AppSection
+import com.takekazex.hypertweak.ui.chrome.AppTextButton as TextButton
+import com.takekazex.hypertweak.ui.components.MiuixExpandableContent
+import com.takekazex.hypertweak.ui.components.dialog.AppDialog
 import com.takekazex.hypertweak.ui.effect.GlassPreviewConfig
 import com.takekazex.hypertweak.ui.effect.GlassTunerPreset
 import com.takekazex.hypertweak.ui.effect.GlassTunerPresetStore
@@ -70,33 +56,22 @@ import com.takekazex.hypertweak.ui.effect.NativeGlassPreviewView
 import com.takekazex.hypertweak.ui.effect.decodeBundledGlassPreviewSample
 import com.takekazex.hypertweak.ui.effect.decodeGlassPreviewImage
 import com.takekazex.hypertweak.util.logging.DebugLog
+import kotlin.math.abs
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlin.math.roundToInt
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
-import com.takekazex.hypertweak.ui.effect.AppScaffold as Scaffold
-import top.yukonga.miuix.kmp.basic.Slider
-import top.yukonga.miuix.kmp.basic.SliderDefaults
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextField
-import top.yukonga.miuix.kmp.basic.TextButton
-import com.takekazex.hypertweak.ui.effect.AppTopAppBar as TopAppBar
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.icon.extended.Edit
 import top.yukonga.miuix.kmp.icon.extended.Share
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.utils.overScrollVertical
-import kotlin.math.abs
 
 /**
  * OS4 material-style glass tuner. Overrides the blur/blend resources behind 清透磨砂 and
@@ -109,7 +84,6 @@ import kotlin.math.abs
 @Composable
 fun GlassTunerPage(onBack: () -> Unit) {
     val settingsStore = LocalAppSettingsStore.current
-    val scrollBehavior = MiuixScrollBehavior()
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
 
@@ -358,278 +332,259 @@ fun GlassTunerPage(onBack: () -> Unit) {
         onDispose { context.contentResolver.unregisterContentObserver(observer) }
     }
 
-    Scaffold(topBar = {
-        TopAppBar(
-            title = stringResource(R.string.glass_title),
-            color = MiuixTheme.colorScheme.background,
-            scrollBehavior = scrollBehavior,
-            navigationIcon = {
-                IconButton(onClick = onBack) { Icon(MiuixIcons.Back, stringResource(R.string.glass_back)) }
-            }
-        )
-    }, containerColor = MiuixTheme.colorScheme.background) { padding ->
-        Column(
-            Modifier.fillMaxSize()
-                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
-                .overScrollVertical()
-                .nestedScroll(scrollBehavior.nestedScrollConnection)
-                .verticalScroll(rememberScrollState())
-        ) {
-            Spacer(Modifier.height(padding.calculateTopPadding() + 8.dp))
+    AppScrollPage(
+        title = stringResource(R.string.glass_title),
+        onBack = onBack,
+        backContentDescription = stringResource(R.string.glass_back),
+    ) {
 
-            SmallTitle(stringResource(R.string.glass_preview_title))
-            Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp).padding(bottom = 8.dp)) {
-                Column(Modifier.fillMaxWidth()) {
-                    Row(
-                        Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 8.dp, bottom = 4.dp),
-                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            text = stringResource(
-                                if (previewDark) R.string.glass_preview_auto_dark
-                                else R.string.glass_preview_auto_light
-                            ),
-                            modifier = Modifier.weight(1f),
-                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                        )
-                        TextButton(
-                            text = stringResource(R.string.glass_preview_change_image),
-                            onClick = {
-                                photoPickerLauncher.launch(
-                                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                                )
-                            },
-                            colors = ButtonDefaults.textButtonColorsPrimary(),
-                        )
-                    }
-                    if (imageLoading) {
-                        PreviewEmptyState(stringResource(R.string.glass_preview_loading_image))
-                    } else {
-                        val bitmap = previewBitmap
-                        val imagePanTarget = remember(bitmap) { mutableStateOf<NativeGlassPreviewView?>(null) }
-                        AndroidView(
-                            factory = {
-                                NativeGlassPreviewView(it).also { view -> imagePanTarget.value = view }
-                            },
-                            update = { view ->
-                                view.update(
-                                    GlassPreviewConfig(
-                                        darkTheme = previewDark,
-                                        materialStyle = materialStyle,
-                                        tunerEnabled = enabled,
-                                        blendAlpha = previewBlendAlpha,
-                                        blendLightness = previewBlendLightness,
-                                        radiusScale = previewRadiusScale,
-                                        glassOpacity = previewGlassOpacity,
-                                        glassTone = previewGlassTone,
-                                    ),
-                                    bitmap,
-                                )
-                            },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(216.dp)
-                                .padding(horizontal = 12.dp, vertical = 8.dp)
-                                .clip(RoundedCornerShape(18.dp))
-                                .pointerInput(bitmap) {
-                                    awaitEachGesture {
-                                        val down = awaitFirstDown(
-                                            requireUnconsumed = false,
-                                            pass = PointerEventPass.Initial,
-                                        )
-                                        var lastPosition = down.position
-                                        var totalX = 0f
-                                        var totalY = 0f
-                                        var draggingBackground = false
-                                        while (true) {
-                                            val event = awaitPointerEvent(PointerEventPass.Initial)
-                                            val change = event.changes.firstOrNull() ?: break
-                                            if (!change.pressed) break
-                                            val delta = change.position - lastPosition
-                                            lastPosition = change.position
-                                            totalX += delta.x
-                                            totalY += delta.y
-                                            if (!draggingBackground &&
-                                                abs(totalY) > viewConfiguration.touchSlop &&
-                                                abs(totalY) > abs(totalX)
-                                            ) {
-                                                draggingBackground = true
-                                            }
-                                            if (draggingBackground) {
-                                                change.consume()
-                                                imagePanTarget.value?.panBackground(delta.y)
-                                            }
+        SmallTitle(stringResource(R.string.glass_preview_title))
+        Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp).padding(bottom = 8.dp)) {
+            Column(Modifier.fillMaxWidth()) {
+                Row(
+                    Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 8.dp, bottom = 4.dp),
+                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = stringResource(
+                            if (previewDark) R.string.glass_preview_auto_dark
+                            else R.string.glass_preview_auto_light
+                        ),
+                        modifier = Modifier.weight(1f),
+                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                    )
+                    TextButton(
+                        text = stringResource(R.string.glass_preview_change_image),
+                        onClick = {
+                            photoPickerLauncher.launch(
+                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                            )
+                        },
+                        colors = ButtonDefaults.textButtonColorsPrimary(),
+                    )
+                }
+                if (imageLoading) {
+                    PreviewEmptyState(stringResource(R.string.glass_preview_loading_image))
+                } else {
+                    val bitmap = previewBitmap
+                    val imagePanTarget = remember(bitmap) { mutableStateOf<NativeGlassPreviewView?>(null) }
+                    AndroidView(
+                        factory = {
+                            NativeGlassPreviewView(it).also { view -> imagePanTarget.value = view }
+                        },
+                        update = { view ->
+                            view.update(
+                                GlassPreviewConfig(
+                                    darkTheme = previewDark,
+                                    materialStyle = materialStyle,
+                                    tunerEnabled = enabled,
+                                    blendAlpha = previewBlendAlpha,
+                                    blendLightness = previewBlendLightness,
+                                    radiusScale = previewRadiusScale,
+                                    glassOpacity = previewGlassOpacity,
+                                    glassTone = previewGlassTone,
+                                ),
+                                bitmap,
+                            )
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(216.dp)
+                            .padding(horizontal = 12.dp, vertical = 8.dp)
+                            .clip(RoundedCornerShape(18.dp))
+                            .pointerInput(bitmap) {
+                                awaitEachGesture {
+                                    val down = awaitFirstDown(
+                                        requireUnconsumed = false,
+                                        pass = PointerEventPass.Initial,
+                                    )
+                                    var lastPosition = down.position
+                                    var totalX = 0f
+                                    var totalY = 0f
+                                    var draggingBackground = false
+                                    while (true) {
+                                        val event = awaitPointerEvent(PointerEventPass.Initial)
+                                        val change = event.changes.firstOrNull() ?: break
+                                        if (!change.pressed) break
+                                        val delta = change.position - lastPosition
+                                        lastPosition = change.position
+                                        totalX += delta.x
+                                        totalY += delta.y
+                                        if (!draggingBackground &&
+                                            abs(totalY) > viewConfiguration.touchSlop &&
+                                            abs(totalY) > abs(totalX)
+                                        ) {
+                                            draggingBackground = true
+                                        }
+                                        if (draggingBackground) {
+                                            change.consume()
+                                            imagePanTarget.value?.panBackground(delta.y)
                                         }
                                     }
                                 }
-                        )
-                    }
+                            }
+                    )
                 }
             }
+        }
 
-            SmallTitle(stringResource(R.string.glass_parameters))
-            Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+        AppSection(stringResource(R.string.glass_parameters)) {
+            SwitchPreference(
+                checked = enabled,
+                onCheckedChange = { changed(SystemUiSettingsKeys.KEY_GLASS_TUNER_ENABLED, it) },
+                title = stringResource(R.string.glass_custom_parameters),
+                summary = stringResource(R.string.glass_parameters_summary)
+            )
+            MiuixExpandableContent(visible = enabled) {
                 Column(Modifier.fillMaxWidth()) {
-                    SwitchPreference(
-                        checked = enabled,
-                        onCheckedChange = { changed(SystemUiSettingsKeys.KEY_GLASS_TUNER_ENABLED, it) },
-                        title = stringResource(R.string.glass_custom_parameters),
-                        summary = stringResource(R.string.glass_parameters_summary)
+                    GlassSliderPreference(
+                        title = stringResource(R.string.glass_blend_opacity),
+                        summary = stringResource(R.string.glass_blend_opacity_summary),
+                        value = previewBlendAlpha,
+                        rangeStart = 0f,
+                        rangeEnd = 1f,
+                        defaultValue = 1f,
+                        format = { "${(it * 100).toInt()}%" },
+                        onValueChange = { previewBlendAlpha = it },
+                        onValueChangeFinished = { changed(SystemUiSettingsKeys.KEY_GLASS_TUNER_BLEND_ALPHA, it) },
                     )
-                    MiuixExpandableContent(visible = enabled) {
-                        Column(Modifier.fillMaxWidth()) {
-                            GlassSliderPreference(
-                                title = stringResource(R.string.glass_blend_opacity),
-                                summary = stringResource(R.string.glass_blend_opacity_summary),
-                                value = previewBlendAlpha,
-                                rangeStart = 0f,
-                                rangeEnd = 1f,
-                                defaultValue = 1f,
-                                format = { "${(it * 100).toInt()}%" },
-                                onValueChange = { previewBlendAlpha = it },
-                                onValueChangeFinished = { changed(SystemUiSettingsKeys.KEY_GLASS_TUNER_BLEND_ALPHA, it) },
-                            )
-                            GlassSliderPreference(
-                                title = stringResource(R.string.glass_blend_lightness),
-                                summary = stringResource(R.string.glass_blend_lightness_summary),
-                                value = previewBlendLightness,
-                                rangeStart = 0f,
-                                rangeEnd = 2f,
-                                defaultValue = 1f,
-                                format = { "${(it * 100).toInt()}%" },
-                                onValueChange = { previewBlendLightness = it },
-                                onValueChangeFinished = { changed(SystemUiSettingsKeys.KEY_GLASS_TUNER_BLEND_LIGHTNESS, it) },
-                            )
-                            GlassSliderPreference(
-                                title = stringResource(R.string.glass_blur_radius),
-                                summary = stringResource(R.string.glass_blur_radius_summary),
-                                value = previewRadiusScale,
-                                rangeStart = 0f,
-                                rangeEnd = 2f,
-                                defaultValue = 1f,
-                                format = { "${(it * 100).toInt()}%" },
-                                onValueChange = { previewRadiusScale = it },
-                                onValueChangeFinished = { changed(SystemUiSettingsKeys.KEY_GLASS_TUNER_RADIUS_SCALE, it) },
-                            )
-                            GlassSliderPreference(
-                                title = stringResource(R.string.glass_glass_opacity),
-                                summary = stringResource(R.string.glass_glass_opacity_summary),
-                                value = previewGlassOpacity,
-                                rangeStart = 0f,
-                                rangeEnd = 1f,
-                                defaultValue = 1f,
-                                format = { "${(it * 100).toInt()}%" },
-                                onValueChange = { previewGlassOpacity = it },
-                                onValueChangeFinished = { changed(SystemUiSettingsKeys.KEY_GLASS_TUNER_GLASS_OPACITY, it) },
-                            )
-                            GlassSliderPreference(
-                                title = stringResource(R.string.glass_glass_tone),
-                                summary = stringResource(R.string.glass_glass_tone_summary),
-                                value = previewGlassTone,
-                                rangeStart = 0f,
-                                rangeEnd = 2f,
-                                defaultValue = 1f,
-                                format = { "${(it * 100).toInt()}%" },
-                                onValueChange = { previewGlassTone = it },
-                                onValueChangeFinished = { changed(SystemUiSettingsKeys.KEY_GLASS_TUNER_GLASS_TONE, it) },
-                            )
-                        }
-                    }
-                    ArrowPreference(
-                        title = stringResource(R.string.glass_reset),
-                        summary = stringResource(R.string.glass_reset_summary),
-                        onClick = {
-                            previewBlendAlpha = 1f
-                            previewBlendLightness = 1f
-                            previewRadiusScale = 1f
-                            previewGlassOpacity = 1f
-                            previewGlassTone = 1f
-                            changed(SystemUiSettingsKeys.KEY_GLASS_TUNER_BLEND_ALPHA, 1f)
-                            changed(SystemUiSettingsKeys.KEY_GLASS_TUNER_BLEND_LIGHTNESS, 1f)
-                            changed(SystemUiSettingsKeys.KEY_GLASS_TUNER_RADIUS_SCALE, 1f)
-                            changed(SystemUiSettingsKeys.KEY_GLASS_TUNER_GLASS_OPACITY, 1f)
-                            changed(SystemUiSettingsKeys.KEY_GLASS_TUNER_GLASS_TONE, 1f)
-                            Toast.makeText(context, R.string.glass_reset_done, Toast.LENGTH_SHORT).show()
-                        },
+                    GlassSliderPreference(
+                        title = stringResource(R.string.glass_blend_lightness),
+                        summary = stringResource(R.string.glass_blend_lightness_summary),
+                        value = previewBlendLightness,
+                        rangeStart = 0f,
+                        rangeEnd = 2f,
+                        defaultValue = 1f,
+                        format = { "${(it * 100).toInt()}%" },
+                        onValueChange = { previewBlendLightness = it },
+                        onValueChangeFinished = { changed(SystemUiSettingsKeys.KEY_GLASS_TUNER_BLEND_LIGHTNESS, it) },
+                    )
+                    GlassSliderPreference(
+                        title = stringResource(R.string.glass_blur_radius),
+                        summary = stringResource(R.string.glass_blur_radius_summary),
+                        value = previewRadiusScale,
+                        rangeStart = 0f,
+                        rangeEnd = 2f,
+                        defaultValue = 1f,
+                        format = { "${(it * 100).toInt()}%" },
+                        onValueChange = { previewRadiusScale = it },
+                        onValueChangeFinished = { changed(SystemUiSettingsKeys.KEY_GLASS_TUNER_RADIUS_SCALE, it) },
+                    )
+                    GlassSliderPreference(
+                        title = stringResource(R.string.glass_glass_opacity),
+                        summary = stringResource(R.string.glass_glass_opacity_summary),
+                        value = previewGlassOpacity,
+                        rangeStart = 0f,
+                        rangeEnd = 1f,
+                        defaultValue = 1f,
+                        format = { "${(it * 100).toInt()}%" },
+                        onValueChange = { previewGlassOpacity = it },
+                        onValueChangeFinished = { changed(SystemUiSettingsKeys.KEY_GLASS_TUNER_GLASS_OPACITY, it) },
+                    )
+                    GlassSliderPreference(
+                        title = stringResource(R.string.glass_glass_tone),
+                        summary = stringResource(R.string.glass_glass_tone_summary),
+                        value = previewGlassTone,
+                        rangeStart = 0f,
+                        rangeEnd = 2f,
+                        defaultValue = 1f,
+                        format = { "${(it * 100).toInt()}%" },
+                        onValueChange = { previewGlassTone = it },
+                        onValueChangeFinished = { changed(SystemUiSettingsKeys.KEY_GLASS_TUNER_GLASS_TONE, it) },
                     )
                 }
             }
+            ArrowPreference(
+                title = stringResource(R.string.glass_reset),
+                summary = stringResource(R.string.glass_reset_summary),
+                onClick = {
+                    previewBlendAlpha = 1f
+                    previewBlendLightness = 1f
+                    previewRadiusScale = 1f
+                    previewGlassOpacity = 1f
+                    previewGlassTone = 1f
+                    changed(SystemUiSettingsKeys.KEY_GLASS_TUNER_BLEND_ALPHA, 1f)
+                    changed(SystemUiSettingsKeys.KEY_GLASS_TUNER_BLEND_LIGHTNESS, 1f)
+                    changed(SystemUiSettingsKeys.KEY_GLASS_TUNER_RADIUS_SCALE, 1f)
+                    changed(SystemUiSettingsKeys.KEY_GLASS_TUNER_GLASS_OPACITY, 1f)
+                    changed(SystemUiSettingsKeys.KEY_GLASS_TUNER_GLASS_TONE, 1f)
+                    Toast.makeText(context, R.string.glass_reset_done, Toast.LENGTH_SHORT).show()
+                },
+            )
+        }
 
-            SmallTitle(stringResource(R.string.glass_presets))
+        SmallTitle(stringResource(R.string.glass_presets))
+        Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp).padding(bottom = 8.dp)) {
+            Column(Modifier.fillMaxWidth()) {
+                ArrowPreference(
+                    title = stringResource(R.string.glass_preset_save),
+                    summary = stringResource(R.string.glass_preset_save_summary),
+                    onClick = { saveCurrentPreset(suggestPresetName()) },
+                )
+                ArrowPreference(
+                    title = stringResource(R.string.glass_preset_share_current),
+                    summary = stringResource(R.string.glass_preset_share_current_summary),
+                    onClick = { sharePreset(currentTunerValues()) },
+                )
+                ArrowPreference(
+                    title = stringResource(R.string.glass_preset_clipboard_import),
+                    summary = stringResource(R.string.glass_preset_clipboard_import_summary),
+                    onClick = ::importPresetFromClipboard,
+                )
+            }
+        }
+
+        SmallTitle(stringResource(R.string.glass_saved_presets))
+        if (presets.isEmpty()) {
             Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp).padding(bottom = 8.dp)) {
-                Column(Modifier.fillMaxWidth()) {
-                    ArrowPreference(
-                        title = stringResource(R.string.glass_preset_save),
-                        summary = stringResource(R.string.glass_preset_save_summary),
-                        onClick = { saveCurrentPreset(suggestPresetName()) },
-                    )
-                    ArrowPreference(
-                        title = stringResource(R.string.glass_preset_share_current),
-                        summary = stringResource(R.string.glass_preset_share_current_summary),
-                        onClick = { sharePreset(currentTunerValues()) },
-                    )
-                    ArrowPreference(
-                        title = stringResource(R.string.glass_preset_clipboard_import),
-                        summary = stringResource(R.string.glass_preset_clipboard_import_summary),
-                        onClick = ::importPresetFromClipboard,
-                    )
-                }
+                Text(
+                    text = stringResource(R.string.glass_preset_empty),
+                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                    modifier = Modifier.fillMaxWidth().padding(20.dp),
+                )
             }
-
-            SmallTitle(stringResource(R.string.glass_saved_presets))
-            if (presets.isEmpty()) {
+        } else {
+            presets.forEach { preset ->
                 Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp).padding(bottom = 8.dp)) {
-                    Text(
-                        text = stringResource(R.string.glass_preset_empty),
-                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                        modifier = Modifier.fillMaxWidth().padding(20.dp),
-                    )
-                }
-            } else {
-                presets.forEach { preset ->
-                    Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp).padding(bottom = 8.dp)) {
-                        Column(Modifier.fillMaxWidth()) {
-                            ArrowPreference(
-                                title = preset.name,
-                                summary = stringResource(R.string.glass_preset_apply_summary),
+                    Column(Modifier.fillMaxWidth()) {
+                        ArrowPreference(
+                            title = preset.name,
+                            summary = stringResource(R.string.glass_preset_apply_summary),
+                            onClick = {
+                                applyTunerValues(preset.values)
+                                Toast.makeText(context, R.string.glass_preset_applied, Toast.LENGTH_SHORT).show()
+                            },
+                        )
+                        Row(
+                            Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceEvenly,
+                        ) {
+                            PresetIconAction(
+                                label = stringResource(R.string.glass_preset_rename),
+                                icon = MiuixIcons.Edit,
                                 onClick = {
-                                    applyTunerValues(preset.values)
-                                    Toast.makeText(context, R.string.glass_preset_applied, Toast.LENGTH_SHORT).show()
+                                    DebugLog.i("GlassTuner", "preset rename requested")
+                                    renameText = preset.name
+                                    presetToRename = preset
                                 },
                             )
-                            Row(
-                                Modifier.fillMaxWidth().padding(bottom = 8.dp),
-                                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceEvenly,
-                            ) {
-                                PresetIconAction(
-                                    label = stringResource(R.string.glass_preset_rename),
-                                    icon = MiuixIcons.Edit,
-                                    onClick = {
-                                        DebugLog.i("GlassTuner", "preset rename requested")
-                                        renameText = preset.name
-                                        presetToRename = preset
-                                    },
-                                )
-                                PresetIconAction(
-                                    label = stringResource(R.string.glass_preset_share),
-                                    icon = MiuixIcons.Share,
-                                    onClick = { sharePreset(preset.values) },
-                                )
-                                PresetIconAction(
-                                    label = stringResource(R.string.glass_preset_delete),
-                                    icon = MiuixIcons.Delete,
-                                    onClick = {
-                                        DebugLog.i("GlassTuner", "preset delete confirmation requested")
-                                        presetToDelete = preset
-                                    },
-                                )
-                            }
+                            PresetIconAction(
+                                label = stringResource(R.string.glass_preset_share),
+                                icon = MiuixIcons.Share,
+                                onClick = { sharePreset(preset.values) },
+                            )
+                            PresetIconAction(
+                                label = stringResource(R.string.glass_preset_delete),
+                                icon = MiuixIcons.Delete,
+                                onClick = {
+                                    DebugLog.i("GlassTuner", "preset delete confirmation requested")
+                                    presetToDelete = preset
+                                },
+                            )
                         }
                     }
                 }
             }
-
-            Spacer(Modifier.height(padding.calculateBottomPadding() + 16.dp))
         }
     }
 
@@ -779,132 +734,3 @@ fun GlassTunerPage(onBack: () -> Unit) {
         }
     }
 }
-
-@Composable
-private fun GlassSliderPreference(
-    title: String,
-    summary: String,
-    value: Float,
-    rangeStart: Float,
-    rangeEnd: Float,
-    defaultValue: Float,
-    format: (Float) -> String,
-    onValueChange: (Float) -> Unit,
-    onValueChangeFinished: (Float) -> Unit
-) {
-    val slider = rememberSliderEdit(value)
-    val sliderValue = slider.value
-    var expanded by remember(title) { mutableStateOf(false) }
-    var showValueDialog by remember(title) { mutableStateOf(false) }
-    ArrowPreference(
-        title = title,
-        summary = summary,
-        endActions = {
-            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                Text(format(sliderValue), color = MiuixTheme.colorScheme.onSurfaceVariantActions)
-                IconButton(
-                    onClick = {
-                        DebugLog.i("GlassTuner", "numeric editor opened: $title")
-                        showValueDialog = true
-                    },
-                    modifier = Modifier.size(40.dp),
-                ) {
-                    Icon(
-                        MiuixIcons.Edit,
-                        contentDescription = stringResource(R.string.glass_slider_edit_value),
-                        modifier = Modifier.size(18.dp),
-                    )
-                }
-            }
-        },
-        onClick = {
-            if (!expanded) {
-                expanded = true
-                DebugLog.i("GlassTuner", "numeric editor opened: $title")
-                showValueDialog = true
-            } else {
-                expanded = false
-            }
-        },
-        holdDownState = expanded,
-        bottomAction = {
-            Slider(
-                value = sliderValue.coerceIn(rangeStart, rangeEnd),
-                onValueChange = { newValue ->
-                    slider.update(newValue.coerceIn(rangeStart, rangeEnd))
-                    onValueChange(slider.value)
-                },
-                onValueChangeFinished = { slider.finish()?.let(onValueChangeFinished) },
-                valueRange = rangeStart..rangeEnd,
-                showKeyPoints = true,
-                keyPoints = listOf(rangeStart, defaultValue, rangeEnd).distinct(),
-                magnetThreshold = 0.01f,
-                hapticEffect = SliderDefaults.SliderHapticEffect.Step,
-            )
-        }
-    )
-    IntValueDialog(
-        show = showValueDialog,
-        title = title,
-        summary = summary,
-        suffix = stringResource(R.string.scale_percent),
-        range = (rangeStart * 100).roundToInt()..(rangeEnd * 100).roundToInt(),
-        currentValue = { (sliderValue * 100).roundToInt() },
-        emptyValue = (sliderValue * 100).roundToInt(),
-        onValueConfirmed = { percent ->
-            val newValue = percent / 100f
-            slider.update(newValue)
-            onValueChange(newValue)
-            slider.finish()?.let(onValueChangeFinished)
-            DebugLog.i("GlassTuner", "numeric editor applied: $title=$percent%")
-        },
-        onDismissRequest = {
-            showValueDialog = false
-            // Clear ArrowPreference's pressed/expanded state with the dialog. Otherwise the first
-            // tap after closing only collapses the row and a second tap is needed to edit again.
-            expanded = false
-            DebugLog.i("GlassTuner", "numeric editor dismissed; slider collapsed: $title")
-        },
-    )
-}
-
-@Composable
-private fun PresetIconAction(
-    label: String,
-    icon: ImageVector,
-    onClick: () -> Unit,
-) {
-    Column(
-        modifier = Modifier.width(72.dp),
-        horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally,
-    ) {
-        IconButton(onClick = onClick, modifier = Modifier.size(48.dp)) {
-            Icon(icon, contentDescription = label, modifier = Modifier.size(22.dp))
-        }
-        Text(
-            text = label,
-            style = MiuixTheme.textStyles.footnote2,
-            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-        )
-    }
-}
-
-@Composable
-private fun PreviewEmptyState(message: String) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(216.dp),
-        contentAlignment = androidx.compose.ui.Alignment.Center,
-    ) {
-        Text(
-            text = message,
-            modifier = Modifier.padding(24.dp),
-            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-        )
-    }
-}
-
-private fun readMaterialStyle(context: Context): Int = runCatching {
-    Settings.Secure.getInt(context.contentResolver, "material_style", 1)
-}.getOrDefault(1)

@@ -1,12 +1,7 @@
 package com.takekazex.hypertweak.ui.page.diagnostics
 
-import com.takekazex.hypertweak.ui.components.dialog.HotReloadDialog
-import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
-import com.takekazex.hypertweak.settings.contract.BackGestureKeys
-import androidx.compose.runtime.saveable.rememberSaveable
-
-import android.app.Activity
 import android.annotation.SuppressLint
+import android.app.Activity
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.ContextWrapper
@@ -14,49 +9,33 @@ import android.hardware.biometrics.BiometricManager
 import android.hardware.biometrics.BiometricPrompt
 import android.os.CancellationSignal
 import android.widget.Toast
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.WindowInsetsSides
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawing
-import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.takekazex.hypertweak.R
-import com.takekazex.hypertweak.ui.app.LocalAppSettingsStore
+import com.takekazex.hypertweak.settings.contract.BackGestureKeys
 import com.takekazex.hypertweak.settings.contract.HotReloadReport
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+import com.takekazex.hypertweak.ui.app.LocalAppSettingsStore
+import com.takekazex.hypertweak.ui.app.rememberStoredSetting
+import com.takekazex.hypertweak.ui.chrome.AppScrollPage
+import com.takekazex.hypertweak.ui.chrome.AppSection
+import com.takekazex.hypertweak.ui.components.dialog.HotReloadDialog
 import com.takekazex.hypertweak.util.diagnostics.TestNotifier
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
-import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
-import com.takekazex.hypertweak.ui.effect.AppScaffold as Scaffold
-import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
-import com.takekazex.hypertweak.ui.effect.AppTopAppBar as TopAppBar
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
-import top.yukonga.miuix.kmp.utils.overScrollVertical
 
 @Composable
 @SuppressLint("LocalContextGetResourceValueCall")
@@ -71,138 +50,113 @@ fun DebugPage(
     onRestartAllScopes: () -> Unit
 ) {
     val settingsStore = LocalAppSettingsStore.current
-    val scrollBehavior = MiuixScrollBehavior()
     val context = LocalContext.current
-    var upstreamDetectionDisabled by rememberSaveable {
-        mutableStateOf(settingsStore.getBoolean(BackGestureKeys.KEY_BACK_GESTURE_UPSTREAM_DETECTION_DISABLED, false))
-    }
-    var recordLogs by remember { mutableStateOf(settingsStore.getBoolean(PlatformSettingsKeys.KEY_RECORD_LOGS, true)) }
+    var upstreamDetectionDisabled by rememberStoredSetting(BackGestureKeys.KEY_BACK_GESTURE_UPSTREAM_DETECTION_DISABLED, settingsStore::putBoolean) { settingsStore.getBoolean(BackGestureKeys.KEY_BACK_GESTURE_UPSTREAM_DETECTION_DISABLED, false) }
+    var recordLogs by rememberStoredSetting(PlatformSettingsKeys.KEY_RECORD_LOGS, settingsStore::putBoolean) { settingsStore.getBoolean(PlatformSettingsKeys.KEY_RECORD_LOGS, true) }
     var clipboardReadSucceeded by remember { mutableStateOf<Boolean?>(null) }
     var showHotReloadDialog by remember { mutableStateOf(false) }
     // Posts via `su`/shell (see TestNotifier); no runtime permission is needed because the
     // notification is posted by the shell uid, not the module app process.
     val postTestNotifications: (Int) -> Unit = { count -> TestNotifier.post(context, count) }
-    Scaffold(topBar = {
-        TopAppBar(
-            title = stringResource(R.string.debug_page_title),
-            scrollBehavior = scrollBehavior,
-            navigationIcon = { IconButton(onClick = onBack) { Icon(MiuixIcons.Back, stringResource(R.string.debug_back)) } }
-        )
-    }) { padding ->
-        Column(
-            Modifier.fillMaxSize()
-                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
-                .overScrollVertical()
-                .nestedScroll(scrollBehavior.nestedScrollConnection)
-                .verticalScroll(rememberScrollState())
-        ) {
-            Spacer(Modifier.height(padding.calculateTopPadding() + 8.dp))
-            SmallTitle(stringResource(R.string.debug_diagnostics_title))
-            Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-                Column(Modifier.fillMaxWidth()) {
-                    SwitchPreference(
-                        checked = recordLogs,
-                        onCheckedChange = { enabled ->
-                            recordLogs = enabled
-                            settingsStore.putBoolean(PlatformSettingsKeys.KEY_RECORD_LOGS, enabled)
-                        },
-                        title = stringResource(R.string.debug_record_logs_title),
-                        summary = stringResource(R.string.debug_record_logs_summary)
-                    )
-                    SwitchPreference(
-                        title = stringResource(R.string.back_gesture_upstream_detection_disabled_title),
-                        summary = stringResource(R.string.back_gesture_upstream_detection_disabled_summary),
-                        checked = upstreamDetectionDisabled,
-                        onCheckedChange = {
-                            upstreamDetectionDisabled = it
-                            settingsStore.putBoolean(BackGestureKeys.KEY_BACK_GESTURE_UPSTREAM_DETECTION_DISABLED, it)
-                        }
-                    )
-                    ArrowPreference(
-                        title = stringResource(R.string.debug_logs_title),
-                        summary = stringResource(R.string.debug_logs_summary),
-                        onClick = onNavigateToLogs
-                    )
+    AppScrollPage(
+        title = stringResource(R.string.debug_page_title),
+        onBack = onBack,
+        backContentDescription = stringResource(R.string.debug_back),
+    ) {
+        AppSection(stringResource(R.string.debug_diagnostics_title)) {
+            SwitchPreference(
+                checked = recordLogs,
+                onCheckedChange = { enabled ->
+                    recordLogs = enabled
+                },
+                title = stringResource(R.string.debug_record_logs_title),
+                summary = stringResource(R.string.debug_record_logs_summary)
+            )
+            SwitchPreference(
+                title = stringResource(R.string.back_gesture_upstream_detection_disabled_title),
+                summary = stringResource(R.string.back_gesture_upstream_detection_disabled_summary),
+                checked = upstreamDetectionDisabled,
+                onCheckedChange = {
+                    upstreamDetectionDisabled = it
                 }
-            }
-            DebugAccessSection()
-            SmallTitle(stringResource(R.string.debug_actions_title))
-            Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-                Column(Modifier.fillMaxWidth()) {
-                    ArrowPreference(
-                        title = stringResource(R.string.debug_adb_tcp_title),
-                        summary = stringResource(R.string.debug_adb_tcp_summary),
-                        onClick = onNavigateToWirelessAdb,
-                    )
-                    Button(
-                        onClick = { showHotReloadDialog = true },
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                        colors = ButtonDefaults.buttonColorsPrimary()
-                    ) {
-                        Text(stringResource(R.string.debug_hot_reload_button))
-                    }
-                    Button(
-                        onClick = { launchBiometricAuthentication(context) },
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                        colors = ButtonDefaults.buttonColorsPrimary()
-                    ) {
-                        Text(stringResource(R.string.debug_biometric_button))
-                    }
-                    Button(
-                        onClick = { clipboardReadSucceeded = readClipboard(context) },
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                        colors = ButtonDefaults.buttonColorsPrimary()
-                    ) {
-                        Text(stringResource(R.string.debug_read_clipboard_button))
-                    }
-                    clipboardReadSucceeded?.let { succeeded ->
-                        Text(
-                            text = stringResource(
-                                if (succeeded) {
-                                    R.string.debug_clipboard_read_success
-                                } else {
-                                    R.string.debug_clipboard_read_failed
-                                }
-                            ),
-                            modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 8.dp)
-                        )
-                    }
-                }
-            }
-            SmallTitle(stringResource(R.string.debug_notification_test_title))
-            Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-                Column(Modifier.fillMaxWidth()) {
-                    Button(
-                        onClick = { postTestNotifications(1) },
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                        colors = ButtonDefaults.buttonColorsPrimary()
-                    ) {
-                        Text(stringResource(R.string.debug_notification_test_one))
-                    }
-                    Button(
-                        onClick = { postTestNotifications(3) },
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                        colors = ButtonDefaults.buttonColorsPrimary()
-                    ) {
-                        Text(stringResource(R.string.debug_notification_test_three))
-                    }
-                    Button(
-                        onClick = {
-                            Toast.makeText(
-                                context,
-                                R.string.debug_toast_test,
-                                Toast.LENGTH_SHORT
-                            ).show()
-                        },
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                        colors = ButtonDefaults.buttonColorsPrimary()
-                    ) {
-                        Text(stringResource(R.string.debug_toast_test))
-                    }
-                }
-            }
-            Spacer(Modifier.height(padding.calculateBottomPadding() + 16.dp))
+            )
+            ArrowPreference(
+                title = stringResource(R.string.debug_logs_title),
+                summary = stringResource(R.string.debug_logs_summary),
+                onClick = onNavigateToLogs
+            )
         }
+        DebugAccessSection()
+        AppSection(stringResource(R.string.debug_actions_title)) {
+            ArrowPreference(
+                title = stringResource(R.string.debug_adb_tcp_title),
+                summary = stringResource(R.string.debug_adb_tcp_summary),
+                onClick = onNavigateToWirelessAdb,
+            )
+            Button(
+                onClick = { showHotReloadDialog = true },
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                colors = ButtonDefaults.buttonColorsPrimary()
+            ) {
+                Text(stringResource(R.string.debug_hot_reload_button))
+            }
+            Button(
+                onClick = { launchBiometricAuthentication(context) },
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                colors = ButtonDefaults.buttonColorsPrimary()
+            ) {
+                Text(stringResource(R.string.debug_biometric_button))
+            }
+            Button(
+                onClick = { clipboardReadSucceeded = readClipboard(context) },
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                colors = ButtonDefaults.buttonColorsPrimary()
+            ) {
+                Text(stringResource(R.string.debug_read_clipboard_button))
+            }
+            clipboardReadSucceeded?.let { succeeded ->
+                Text(
+                    text = stringResource(
+                        if (succeeded) {
+                            R.string.debug_clipboard_read_success
+                        } else {
+                            R.string.debug_clipboard_read_failed
+                        }
+                    ),
+                    modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 8.dp)
+                )
+            }
+        }
+        AppSection(stringResource(R.string.debug_notification_test_title)) {
+            Button(
+                onClick = { postTestNotifications(1) },
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                colors = ButtonDefaults.buttonColorsPrimary()
+            ) {
+                Text(stringResource(R.string.debug_notification_test_one))
+            }
+            Button(
+                onClick = { postTestNotifications(3) },
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                colors = ButtonDefaults.buttonColorsPrimary()
+            ) {
+                Text(stringResource(R.string.debug_notification_test_three))
+            }
+            Button(
+                onClick = {
+                    Toast.makeText(
+                        context,
+                        R.string.debug_toast_test,
+                        Toast.LENGTH_SHORT
+                    ).show()
+                },
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                colors = ButtonDefaults.buttonColorsPrimary()
+            ) {
+                Text(stringResource(R.string.debug_toast_test))
+            }
+        }
+
         HotReloadDialog(
             show = showHotReloadDialog,
             hotReloading = hotReloading,

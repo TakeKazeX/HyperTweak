@@ -1,37 +1,14 @@
 package com.takekazex.hypertweak.ui.page.platform
 
-import com.takekazex.hypertweak.ui.components.scope.MissingScopeCard
 import android.annotation.SuppressLint
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.WindowInsetsSides
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.only
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawing
-import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import com.takekazex.hypertweak.R
-import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
-import com.takekazex.hypertweak.ui.effect.AppScaffold as Scaffold
-import top.yukonga.miuix.kmp.basic.SmallTitle
-import com.takekazex.hypertweak.ui.effect.AppTopAppBar as TopAppBar
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Back
+import com.takekazex.hypertweak.ui.app.LocalAppSettings
+import com.takekazex.hypertweak.ui.chrome.AppScrollPage
+import com.takekazex.hypertweak.ui.chrome.AppSection
+import com.takekazex.hypertweak.ui.components.scope.MissingScopeCard
 import top.yukonga.miuix.kmp.preference.SwitchPreference
-import top.yukonga.miuix.kmp.utils.overScrollVertical
 
 /**
  * Google-related services (Features tab → System components → Google Services).
@@ -44,88 +21,56 @@ import top.yukonga.miuix.kmp.utils.overScrollVertical
 @Composable
 fun GoogleServicesPage(
     onBack: () -> Unit,
-    showGoogleServicesInSettings: Boolean,
-    onShowGoogleServicesInSettingsChange: (Boolean) -> Unit,
-    removeGms: Boolean,
-    onRemoveGmsChange: (Boolean) -> Unit,
-    fullScreenTranslate: Boolean,
-    onFullScreenTranslateChange: (Boolean) -> Unit,
-    askAboutScreen: Boolean,
-    onAskAboutScreenChange: (Boolean) -> Unit,
-    unlockPasskey: Boolean,
-    onUnlockPasskeyChange: (Boolean) -> Unit,
-    fcmLiveEnabled: Boolean,
-    onFcmLiveEnabledChange: (Boolean) -> Unit
 ) {
-    val scrollBehavior = MiuixScrollBehavior()
+    val appSettings = LocalAppSettings.current
 
-    Scaffold(topBar = {
-        TopAppBar(
-            title = stringResource(R.string.google_services_title),
-            scrollBehavior = scrollBehavior,
-            navigationIcon = {
-                IconButton(onClick = onBack) {
-                    Icon(MiuixIcons.Back, stringResource(R.string.google_services_back))
-                }
-            }
+    AppScrollPage(
+        title = stringResource(R.string.google_services_title),
+        onBack = onBack,
+        backContentDescription = stringResource(R.string.google_services_back),
+    ) {
+        MissingScopeCard(
+            "com.android.settings", "com.google.android.googlequicksearchbox",
+            "system", "com.miui.securitycenter", "com.xiaomi.scanner", "com.miui.powerkeeper"
         )
-    }) { padding ->
-        Column(
-            Modifier.fillMaxSize()
-                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
-                .overScrollVertical()
-                .nestedScroll(scrollBehavior.nestedScrollConnection)
-                .verticalScroll(rememberScrollState())
-        ) {
-            Spacer(Modifier.height(padding.calculateTopPadding() + 8.dp))
-            MissingScopeCard(
-                "com.android.settings", "com.google.android.googlequicksearchbox",
-                "system", "com.miui.securitycenter", "com.xiaomi.scanner", "com.miui.powerkeeper"
+
+        AppSection(stringResource(R.string.google_services_title)) {
+            SwitchPreference(
+                checked = appSettings.showGoogleServicesInSettings,
+                onCheckedChange = { appSettings.showGoogleServicesInSettings = it },
+                title = stringResource(R.string.settings_show_google_services_in_settings),
+                summary = stringResource(R.string.settings_show_google_services_in_settings_summary)
             )
-
-            SmallTitle(stringResource(R.string.google_services_title))
-            Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-                Column(Modifier.fillMaxWidth()) {
-                    SwitchPreference(
-                        checked = showGoogleServicesInSettings,
-                        onCheckedChange = onShowGoogleServicesInSettingsChange,
-                        title = stringResource(R.string.settings_show_google_services_in_settings),
-                        summary = stringResource(R.string.settings_show_google_services_in_settings_summary)
-                    )
-                    SwitchPreference(
-                        checked = removeGms,
-                        onCheckedChange = onRemoveGmsChange,
-                        title = stringResource(R.string.tweaks_gms_bypass_title),
-                        summary = stringResource(R.string.tweaks_gms_bypass_summary)
-                    )
-                    SwitchPreference(
-                        checked = fullScreenTranslate,
-                        onCheckedChange = onFullScreenTranslateChange,
-                        title = stringResource(R.string.tweaks_full_screen_translate_title),
-                        summary = stringResource(R.string.tweaks_full_screen_translate_summary)
-                    )
-                    SwitchPreference(
-                        checked = askAboutScreen,
-                        onCheckedChange = onAskAboutScreenChange,
-                        title = stringResource(R.string.tweaks_ask_about_screen_title),
-                        summary = stringResource(R.string.tweaks_ask_about_screen_summary)
-                    )
-                    SwitchPreference(
-                        checked = unlockPasskey,
-                        onCheckedChange = onUnlockPasskeyChange,
-                        title = stringResource(R.string.tweaks_passkey_title),
-                        summary = stringResource(R.string.tweaks_passkey_summary)
-                    )
-                    SwitchPreference(
-                        checked = fcmLiveEnabled,
-                        onCheckedChange = onFcmLiveEnabledChange,
-                        title = stringResource(R.string.tweaks_fcm_live_title),
-                        summary = stringResource(R.string.tweaks_fcm_live_summary)
-                    )
-                }
-            }
-
-            Spacer(Modifier.height(padding.calculateBottomPadding() + 16.dp))
+            SwitchPreference(
+                checked = appSettings.removeGms,
+                onCheckedChange = { appSettings.removeGms = it },
+                title = stringResource(R.string.tweaks_gms_bypass_title),
+                summary = stringResource(R.string.tweaks_gms_bypass_summary)
+            )
+            SwitchPreference(
+                checked = appSettings.fullScreenTranslate,
+                onCheckedChange = { appSettings.fullScreenTranslate = it },
+                title = stringResource(R.string.tweaks_full_screen_translate_title),
+                summary = stringResource(R.string.tweaks_full_screen_translate_summary)
+            )
+            SwitchPreference(
+                checked = appSettings.askAboutScreen,
+                onCheckedChange = { appSettings.askAboutScreen = it },
+                title = stringResource(R.string.tweaks_ask_about_screen_title),
+                summary = stringResource(R.string.tweaks_ask_about_screen_summary)
+            )
+            SwitchPreference(
+                checked = appSettings.unlockPasskey,
+                onCheckedChange = { appSettings.unlockPasskey = it },
+                title = stringResource(R.string.tweaks_passkey_title),
+                summary = stringResource(R.string.tweaks_passkey_summary)
+            )
+            SwitchPreference(
+                checked = appSettings.fcmLiveEnabled,
+                onCheckedChange = { appSettings.fcmLiveEnabled = it },
+                title = stringResource(R.string.tweaks_fcm_live_title),
+                summary = stringResource(R.string.tweaks_fcm_live_summary)
+            )
         }
     }
 }

@@ -1,47 +1,33 @@
 package com.takekazex.hypertweak.ui.page.diagnostics
 
-import com.takekazex.hypertweak.ui.app.LocalAppServices
-import com.takekazex.hypertweak.settings.contract.AppSettingsKeys
-
 import android.annotation.SuppressLint
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
-import android.content.Intent
 import android.content.ContextWrapper
-import androidx.core.content.FileProvider
+import android.content.Intent
 import androidx.annotation.StringRes
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.WindowInsetsSides
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawing
-import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -49,39 +35,39 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import androidx.core.content.FileProvider
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.takekazex.hypertweak.R
+import com.takekazex.hypertweak.settings.contract.AppSettingsKeys
+import com.takekazex.hypertweak.ui.app.LocalAppServices
 import com.takekazex.hypertweak.ui.app.LocalAppSettingsStore
+import com.takekazex.hypertweak.ui.chrome.AppDropdownPreference as OverlayDropdownPreference
+import com.takekazex.hypertweak.ui.chrome.AppLazyPage
+import com.takekazex.hypertweak.ui.chrome.AppSection
+import com.takekazex.hypertweak.ui.components.MiuixExpandableContent
+import com.takekazex.hypertweak.ui.theme.StatusTone
+import com.takekazex.hypertweak.ui.theme.statusColors
+import com.takekazex.hypertweak.util.logging.DebugLog
 import com.takekazex.hypertweak.util.logging.LogRecord
 import com.takekazex.hypertweak.util.logging.LogRepository
 import com.takekazex.hypertweak.util.logging.LsposedLogReader
-import com.takekazex.hypertweak.util.logging.DebugLog
-import top.yukonga.miuix.kmp.basic.BasicComponent
-import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.HorizontalDivider
-import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
-import com.takekazex.hypertweak.ui.components.MiuixExpandableContent
-import com.takekazex.hypertweak.ui.effect.AppScaffold as Scaffold
-import top.yukonga.miuix.kmp.basic.SmallTitle
-import top.yukonga.miuix.kmp.basic.Text
-import com.takekazex.hypertweak.ui.effect.AppTopAppBar as TopAppBar
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Back
-import top.yukonga.miuix.kmp.icon.extended.Filter
-import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
-import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.utils.PressFeedbackType
-import top.yukonga.miuix.kmp.utils.overScrollVertical
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import androidx.compose.runtime.mutableIntStateOf
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import top.yukonga.miuix.kmp.basic.BasicComponent
+import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.HorizontalDivider
+import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.SmallTitle
+import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.Filter
+import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.utils.PressFeedbackType
 
 private enum class LogFilter(@StringRes val labelRes: Int) {
     All(R.string.logs_filter_all),
@@ -118,19 +104,16 @@ fun LogsPage(
     val services = LocalAppServices.current
     val settingsStore = LocalAppSettingsStore.current
     val context = LocalContext.current
-    val topAppBarScrollBehavior = MiuixScrollBehavior()
     // Reading (up to ~0.5MB of prefs) and parsing (regex per line + sort) are too heavy for
     // composition on the main thread, so run them once off-thread and show a loading placeholder.
     var entries by remember { mutableStateOf<List<DebugLogEntry>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
     var selectedFilter by rememberSaveable { mutableStateOf(LogFilter.All) }
-    var logLevel by remember {
-        mutableStateOf(logLevelFromPriority(settingsStore.getInt(AppSettingsKeys.KEY_LOG_LEVEL, DebugLog.DEFAULT_LEVEL)))
-    }
+    var logLevel by remember { mutableStateOf(logLevelFromPriority(settingsStore.getInt(AppSettingsKeys.KEY_LOG_LEVEL, DebugLog.DEFAULT_LEVEL))) }
     var exportStatus by remember { mutableStateOf<String?>(null) }
     var refreshGeneration by remember { mutableIntStateOf(0) }
     var lsposedStatus by remember { mutableStateOf<LsposedLogReader.Status?>(null) }
-    val service by services.module.connection.collectAsState()
+    val service by services.module.connection.collectAsStateWithLifecycle()
     val coroutineScope = rememberCoroutineScope()
     LaunchedEffect(refreshGeneration, service) {
         loading = true
@@ -189,87 +172,61 @@ fun LogsPage(
         }
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = stringResource(R.string.logs_title),
-                color = Color.Transparent,
-                scrollBehavior = topAppBarScrollBehavior,
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            imageVector = MiuixIcons.Back,
-                            contentDescription = stringResource(R.string.logs_back_content_description)
-                        )
-                    }
-                },
-            )
-        }
-    ) { innerPadding ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
-
-                .nestedScroll(topAppBarScrollBehavior.nestedScrollConnection)
-                .overScrollVertical(),
-            contentPadding = innerPadding
-        ) {
-            item(key = "overview") {
-                Spacer(modifier = Modifier.height(8.dp))
-                SmallTitle(text = stringResource(R.string.logs_overview))
-                SummaryCard(entries = entries)
-                Card(
-                    onClick = { if (!loading) refreshGeneration++ },
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)
-                ) {
-                    BasicComponent(
-                        title = stringResource(R.string.logs_refresh),
-                        summary = stringResource(when {
-                            loading -> R.string.logs_loading_summary
-                            lsposedStatus == LsposedLogReader.Status.READY -> R.string.logs_source_ready
-                            lsposedStatus == LsposedLogReader.Status.NO_FILES -> R.string.logs_source_no_files
-                            lsposedStatus == LsposedLogReader.Status.TIMED_OUT -> R.string.logs_source_timeout
-                            lsposedStatus == LsposedLogReader.Status.ROOT_UNAVAILABLE -> R.string.logs_source_root
-                            else -> R.string.logs_source_failed
-                        })
-                    )
-                }
-            }
-            item(key = "options") {
-                SmallTitle(text = stringResource(R.string.logs_options))
-                FilterCard(
-                    selectedFilter = selectedFilter,
-                    shownCount = filteredEntries.size,
-                    exportStatus = exportStatus,
-                    logLevel = logLevel,
-                    onSelected = { selectedFilter = it },
-                    onLogLevelSelected = {
-                        logLevel = it
-                        settingsStore.putInt(AppSettingsKeys.KEY_LOG_LEVEL, it.priority)
-                    },
-                    onExport = onExport
+    AppLazyPage(
+        title = stringResource(R.string.logs_title),
+        onBack = onBack,
+        backContentDescription = stringResource(R.string.logs_back_content_description),
+    ) {
+        item(key = "overview") {
+            SmallTitle(text = stringResource(R.string.logs_overview))
+            SummaryCard(entries = entries)
+            Card(
+                onClick = { if (!loading) refreshGeneration++ },
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)
+            ) {
+                BasicComponent(
+                    title = stringResource(R.string.logs_refresh),
+                    summary = stringResource(when {
+                        loading -> R.string.logs_loading_summary
+                        lsposedStatus == LsposedLogReader.Status.READY -> R.string.logs_source_ready
+                        lsposedStatus == LsposedLogReader.Status.NO_FILES -> R.string.logs_source_no_files
+                        lsposedStatus == LsposedLogReader.Status.TIMED_OUT -> R.string.logs_source_timeout
+                        lsposedStatus == LsposedLogReader.Status.ROOT_UNAVAILABLE -> R.string.logs_source_root
+                        else -> R.string.logs_source_failed
+                    })
                 )
             }
-            item(key = "runtime-title") {
-                SmallTitle(text = stringResource(R.string.logs_runtime_title, filteredEntries.size))
-            }
-            if (loading) {
-                item(key = "runtime-loading") { LoadingLogCard() }
-            } else if (filteredEntries.isEmpty()) {
-                item(key = "runtime-empty") { EmptyLogCard() }
-            } else {
-                items(filteredEntries, key = { it.id }) { entry ->
-                    LogEntryCard(
-                        entry = entry,
-                        onCopy = {
-                            copyText(context, context.getString(R.string.logs_copy_label), formatSingleEntry(entry))
-                        }
-                    )
-                }
-            }
-            item(key = "bottom-spacer") {
-                Spacer(modifier = Modifier.height(48.dp))
+        }
+        item(key = "options") {
+            SmallTitle(text = stringResource(R.string.logs_options))
+            FilterCard(
+                selectedFilter = selectedFilter,
+                shownCount = filteredEntries.size,
+                exportStatus = exportStatus,
+                logLevel = logLevel,
+                onSelected = { selectedFilter = it },
+                onLogLevelSelected = {
+                    logLevel = it
+                    settingsStore.putInt(AppSettingsKeys.KEY_LOG_LEVEL, it.priority)
+                },
+                onExport = onExport
+            )
+        }
+        item(key = "runtime-title") {
+            SmallTitle(text = stringResource(R.string.logs_runtime_title, filteredEntries.size))
+        }
+        if (loading) {
+            item(key = "runtime-loading") { LoadingLogCard() }
+        } else if (filteredEntries.isEmpty()) {
+            item(key = "runtime-empty") { EmptyLogCard() }
+        } else {
+            items(filteredEntries, key = { it.id }) { entry ->
+                LogEntryCard(
+                    entry = entry,
+                    onCopy = {
+                        copyText(context, context.getString(R.string.logs_copy_label), formatSingleEntry(entry))
+                    }
+                )
             }
         }
     }
@@ -277,11 +234,7 @@ fun LogsPage(
 
 @Composable
 private fun SummaryCard(entries: List<DebugLogEntry>) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 12.dp)
-    ) {
+    AppSection {
         val errorCount = entries.count { it.isError }
         val warningCount = entries.count { it.isWarning }
         val hookOkCount = entries.count { it.event == "HOOK_OK" }
@@ -294,7 +247,7 @@ private fun SummaryCard(entries: List<DebugLogEntry>) {
                 Text(
                     text = entries.size.toString(),
                     color = MiuixTheme.colorScheme.onSurfaceVariantActions,
-                    fontSize = 17.sp,
+                    style = MiuixTheme.textStyles.main,
                     fontWeight = FontWeight.Medium
                 )
             }
@@ -307,7 +260,7 @@ private fun SummaryCard(entries: List<DebugLogEntry>) {
                 Text(
                     text = (errorCount + warningCount).toString(),
                     color = if (errorCount > 0) levelColor("E") else MiuixTheme.colorScheme.onSurfaceVariantActions,
-                    fontSize = 17.sp,
+                    style = MiuixTheme.textStyles.main,
                     fontWeight = FontWeight.Medium
                 )
             }
@@ -320,7 +273,7 @@ private fun SummaryCard(entries: List<DebugLogEntry>) {
                 Text(
                     text = hookOkCount.toString(),
                     color = MiuixTheme.colorScheme.onSurfaceVariantActions,
-                    fontSize = 17.sp,
+                    style = MiuixTheme.textStyles.main,
                     fontWeight = FontWeight.Medium
                 )
             }
@@ -338,11 +291,7 @@ private fun FilterCard(
     onLogLevelSelected: (LogLevelOption) -> Unit,
     onExport: () -> Unit
 ) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 12.dp)
-    ) {
+    AppSection {
         OverlayDropdownPreference(
             title = stringResource(R.string.logs_log_level),
             summary = stringResource(R.string.logs_log_level_summary),
@@ -476,20 +425,16 @@ private fun LogEntryCard(
 @Composable
 private fun levelBadgeColor(level: String): Color {
     return when (level) {
-        "E" -> Color(0xFFE5484D)
-        "W" -> Color(0xFFE6A700)
-        "I" -> Color(0xFF0091EA)
+        "E" -> statusColors(StatusTone.Error).accent
+        "W" -> statusColors(StatusTone.Warning).accent
+        "I" -> statusColors(StatusTone.Info).accent
         else -> MiuixTheme.colorScheme.onSurfaceVariantActions.copy(alpha = 0.6f)
     }
 }
 
 @Composable
 private fun EmptyLogCard() {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 12.dp)
-    ) {
+    AppSection {
         BasicComponent(
             title = stringResource(R.string.logs_empty_title),
             summary = stringResource(R.string.logs_empty_summary)
@@ -499,11 +444,7 @@ private fun EmptyLogCard() {
 
 @Composable
 private fun LoadingLogCard() {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 12.dp)
-    ) {
+    AppSection {
         BasicComponent(
             title = stringResource(R.string.logs_loading_title),
             summary = stringResource(R.string.logs_loading_summary)
@@ -514,8 +455,8 @@ private fun LoadingLogCard() {
 @Composable
 private fun levelColor(level: String): Color {
     return when (level) {
-        "E" -> Color(0xFFE5484D)
-        "W" -> Color(0xFFE6A700)
+        "E" -> statusColors(StatusTone.Error).accent
+        "W" -> statusColors(StatusTone.Warning).accent
         else -> MiuixTheme.colorScheme.onSurfaceVariantActions
     }
 }

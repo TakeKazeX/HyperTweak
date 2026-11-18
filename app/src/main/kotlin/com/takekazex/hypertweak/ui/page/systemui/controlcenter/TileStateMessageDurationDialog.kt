@@ -16,11 +16,11 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.takekazex.hypertweak.R
+import com.takekazex.hypertweak.ui.chrome.AppOverlayDialog as OverlayDialog
+import com.takekazex.hypertweak.ui.chrome.AppTextButton as TextButton
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TextField
-import com.takekazex.hypertweak.ui.effect.AppOverlayDialog as OverlayDialog
 import top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme
 
 @Composable

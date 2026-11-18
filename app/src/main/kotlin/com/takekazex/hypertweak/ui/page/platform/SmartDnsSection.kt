@@ -1,9 +1,7 @@
 package com.takekazex.hypertweak.ui.page.platform
 
 import android.widget.Toast
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
@@ -22,16 +20,15 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.currentStateAsState
 import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.ui.app.LocalAppSettingsStore
+import com.takekazex.hypertweak.ui.chrome.AppDropdownPreference as OverlayDropdownPreference
+import com.takekazex.hypertweak.ui.chrome.AppSection
 import com.takekazex.hypertweak.util.platform.CloudDnsSettings
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
@@ -127,34 +124,31 @@ internal fun SmartDnsSection() {
         stringResource(R.string.smartdns_mode_off),
     )
 
-    SmallTitle(text = stringResource(R.string.smartdns_section_title))
-    Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-        Column(Modifier.fillMaxWidth()) {
-            OverlayDropdownPreference(
-                title = stringResource(R.string.smartdns_enable_title),
-                summary = smartDnsSummary(state),
-                items = modeItems,
-                selectedIndex = state?.smartDnsMode ?: CloudDnsSettings.MODE_DEFAULT,
-                enabled = state != null && !busy,
-                onSelectedIndexChange = ::updateSmartDnsMode,
-            )
-            OverlayDropdownPreference(
-                title = stringResource(R.string.smartdns_ipv4_first_title),
-                summary = ipv4FirstSummary(state),
-                items = modeItems,
-                selectedIndex = state?.ipv4FirstMode ?: CloudDnsSettings.MODE_DEFAULT,
-                enabled = !busy && state?.let { it.smartDnsMode != CloudDnsSettings.MODE_OFF } == true,
-                onSelectedIndexChange = ::updateIpv4FirstMode,
-            )
-            OverlayDropdownPreference(
-                title = stringResource(R.string.smartdns_happy_eyeballs_title),
-                summary = happyEyeballsSummary(state),
-                items = modeItems,
-                selectedIndex = state?.happyEyeballsMode ?: CloudDnsSettings.MODE_DEFAULT,
-                enabled = state != null && !busy,
-                onSelectedIndexChange = ::updateHappyEyeballsMode,
-            )
-        }
+    AppSection(stringResource(R.string.smartdns_section_title)) {
+        OverlayDropdownPreference(
+            title = stringResource(R.string.smartdns_enable_title),
+            summary = smartDnsSummary(state),
+            items = modeItems,
+            selectedIndex = state?.smartDnsMode ?: CloudDnsSettings.MODE_DEFAULT,
+            enabled = state != null && !busy,
+            onSelectedIndexChange = ::updateSmartDnsMode,
+        )
+        OverlayDropdownPreference(
+            title = stringResource(R.string.smartdns_ipv4_first_title),
+            summary = ipv4FirstSummary(state),
+            items = modeItems,
+            selectedIndex = state?.ipv4FirstMode ?: CloudDnsSettings.MODE_DEFAULT,
+            enabled = !busy && state?.let { it.smartDnsMode != CloudDnsSettings.MODE_OFF } == true,
+            onSelectedIndexChange = ::updateIpv4FirstMode,
+        )
+        OverlayDropdownPreference(
+            title = stringResource(R.string.smartdns_happy_eyeballs_title),
+            summary = happyEyeballsSummary(state),
+            items = modeItems,
+            selectedIndex = state?.happyEyeballsMode ?: CloudDnsSettings.MODE_DEFAULT,
+            enabled = state != null && !busy,
+            onSelectedIndexChange = ::updateHappyEyeballsMode,
+        )
     }
     Text(
         text = stringResource(R.string.smartdns_footer),

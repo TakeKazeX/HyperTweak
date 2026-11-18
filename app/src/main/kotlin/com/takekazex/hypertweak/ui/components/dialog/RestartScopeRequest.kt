@@ -1,10 +1,10 @@
 package com.takekazex.hypertweak.ui.components.dialog
 
-import com.takekazex.hypertweak.ui.app.LocalAppServices
-import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.takekazex.hypertweak.ui.app.LocalAppServices
 import com.takekazex.hypertweak.util.restart.RestartScopeSelection
 
 /**
@@ -23,6 +23,6 @@ val LocalRestartScopeHandled = staticCompositionLocalOf<(RestartScopeSelection) 
 @Composable
 internal fun restartInProgress(selection: RestartScopeSelection): Boolean {
     val services = LocalAppServices.current
-    val running by services.restarts.runningPackages.collectAsState()
+    val running by services.restarts.runningPackages.collectAsStateWithLifecycle()
     return selection.toPackageSet().any { it in running }
 }

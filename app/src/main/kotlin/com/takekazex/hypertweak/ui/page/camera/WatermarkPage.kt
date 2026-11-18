@@ -1,12 +1,8 @@
 package com.takekazex.hypertweak.ui.page.camera
 
-import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
-
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -17,9 +13,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.takekazex.hypertweak.R
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 import com.takekazex.hypertweak.ui.app.LocalAppSettingsStore
-import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.SmallTitle
+import com.takekazex.hypertweak.ui.chrome.AppSection
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 
 /**
@@ -44,42 +40,18 @@ fun WatermarkUnlockContent(
 
     // Local remember-backed state so the switches update instantly; the remote preference write is
     // async and reading Preferences directly in composition made them bounce back.
-    var master by remember {
-        mutableStateOf(settingsStore.getBoolean(PlatformSettingsKeys.KEY_WM_UNLOCK_MASTER, false))
-    }
-    var camera by remember {
-        mutableStateOf(settingsStore.getBoolean(PlatformSettingsKeys.KEY_WM_CAMERA, false))
-    }
-    var leica by remember {
-        mutableStateOf(settingsStore.getBoolean(PlatformSettingsKeys.KEY_WM_LEICA, false))
-    }
-    var xiaomi by remember {
-        mutableStateOf(settingsStore.getBoolean(PlatformSettingsKeys.KEY_WM_XIAOMI, false))
-    }
-    var redmi by remember {
-        mutableStateOf(settingsStore.getBoolean(PlatformSettingsKeys.KEY_WM_REDMI, false))
-    }
-    var poco by remember {
-        mutableStateOf(settingsStore.getBoolean(PlatformSettingsKeys.KEY_WM_POCO, false))
-    }
-    var disney1 by remember {
-        mutableStateOf(settingsStore.getBoolean(PlatformSettingsKeys.KEY_WM_DISNEY1, false))
-    }
-    var disney2 by remember {
-        mutableStateOf(settingsStore.getBoolean(PlatformSettingsKeys.KEY_WM_DISNEY2, false))
-    }
-    var disney3 by remember {
-        mutableStateOf(settingsStore.getBoolean(PlatformSettingsKeys.KEY_WM_DISNEY3, false))
-    }
-    var victoria by remember {
-        mutableStateOf(settingsStore.getBoolean(PlatformSettingsKeys.KEY_WM_VICTORIA, false))
-    }
-    var lcc by remember {
-        mutableStateOf(settingsStore.getBoolean(PlatformSettingsKeys.KEY_WM_LCC, false))
-    }
-    var downloadAll by remember {
-        mutableStateOf(settingsStore.getBoolean(PlatformSettingsKeys.KEY_WM_DOWNLOAD_ALL, false))
-    }
+    var master by remember { mutableStateOf(settingsStore.getBoolean(PlatformSettingsKeys.KEY_WM_UNLOCK_MASTER, false)) }
+    var camera by remember { mutableStateOf(settingsStore.getBoolean(PlatformSettingsKeys.KEY_WM_CAMERA, false)) }
+    var leica by remember { mutableStateOf(settingsStore.getBoolean(PlatformSettingsKeys.KEY_WM_LEICA, false)) }
+    var xiaomi by remember { mutableStateOf(settingsStore.getBoolean(PlatformSettingsKeys.KEY_WM_XIAOMI, false)) }
+    var redmi by remember { mutableStateOf(settingsStore.getBoolean(PlatformSettingsKeys.KEY_WM_REDMI, false)) }
+    var poco by remember { mutableStateOf(settingsStore.getBoolean(PlatformSettingsKeys.KEY_WM_POCO, false)) }
+    var disney1 by remember { mutableStateOf(settingsStore.getBoolean(PlatformSettingsKeys.KEY_WM_DISNEY1, false)) }
+    var disney2 by remember { mutableStateOf(settingsStore.getBoolean(PlatformSettingsKeys.KEY_WM_DISNEY2, false)) }
+    var disney3 by remember { mutableStateOf(settingsStore.getBoolean(PlatformSettingsKeys.KEY_WM_DISNEY3, false)) }
+    var victoria by remember { mutableStateOf(settingsStore.getBoolean(PlatformSettingsKeys.KEY_WM_VICTORIA, false)) }
+    var lcc by remember { mutableStateOf(settingsStore.getBoolean(PlatformSettingsKeys.KEY_WM_LCC, false)) }
+    var downloadAll by remember { mutableStateOf(settingsStore.getBoolean(PlatformSettingsKeys.KEY_WM_DOWNLOAD_ALL, false)) }
 
     fun set(key: String, value: Boolean) {
         settingsStore.putBoolean(key, value)
@@ -88,146 +60,134 @@ fun WatermarkUnlockContent(
     Column(modifier = modifier) {
         Spacer(Modifier.height(topPadding + 8.dp))
 
-        SmallTitle(stringResource(R.string.watermark_master))
-        Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-            Column(Modifier.fillMaxWidth()) {
-                SwitchPreference(
-                    checked = master,
-                    onCheckedChange = { enabled ->
-                        master = enabled
-                        set(PlatformSettingsKeys.KEY_WM_UNLOCK_MASTER, enabled)
-                    },
-                    title = stringResource(R.string.watermark_master_title),
-                    summary = stringResource(R.string.watermark_master_summary)
-                )
-                SwitchPreference(
-                    checked = camera,
-                    onCheckedChange = { enabled ->
-                        camera = enabled
-                        set(PlatformSettingsKeys.KEY_WM_CAMERA, enabled)
-                    },
-                    title = stringResource(R.string.watermark_camera_title),
-                    summary = stringResource(R.string.watermark_camera_summary)
-                )
-            }
+        AppSection(stringResource(R.string.watermark_master)) {
+            SwitchPreference(
+                checked = master,
+                onCheckedChange = { enabled ->
+                    master = enabled
+                    set(PlatformSettingsKeys.KEY_WM_UNLOCK_MASTER, enabled)
+                },
+                title = stringResource(R.string.watermark_master_title),
+                summary = stringResource(R.string.watermark_master_summary)
+            )
+            SwitchPreference(
+                checked = camera,
+                onCheckedChange = { enabled ->
+                    camera = enabled
+                    set(PlatformSettingsKeys.KEY_WM_CAMERA, enabled)
+                },
+                title = stringResource(R.string.watermark_camera_title),
+                summary = stringResource(R.string.watermark_camera_summary)
+            )
         }
 
-        SmallTitle(stringResource(R.string.watermark_brand))
-        Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-            Column(Modifier.fillMaxWidth()) {
-                SwitchPreference(
-                    checked = leica,
-                    onCheckedChange = { enabled ->
-                        leica = enabled
-                        set(PlatformSettingsKeys.KEY_WM_LEICA, enabled)
-                    },
-                    title = stringResource(R.string.watermark_leica_title),
-                    summary = stringResource(R.string.watermark_leica_summary),
-                    enabled = master
-                )
-                SwitchPreference(
-                    checked = xiaomi,
-                    onCheckedChange = { enabled ->
-                        xiaomi = enabled
-                        set(PlatformSettingsKeys.KEY_WM_XIAOMI, enabled)
-                    },
-                    title = stringResource(R.string.watermark_xiaomi_title),
-                    summary = stringResource(R.string.watermark_xiaomi_summary),
-                    enabled = master
-                )
-                SwitchPreference(
-                    checked = redmi,
-                    onCheckedChange = { enabled ->
-                        redmi = enabled
-                        set(PlatformSettingsKeys.KEY_WM_REDMI, enabled)
-                    },
-                    title = stringResource(R.string.watermark_redmi_title),
-                    summary = stringResource(R.string.watermark_redmi_summary),
-                    enabled = master
-                )
-                SwitchPreference(
-                    checked = poco,
-                    onCheckedChange = { enabled ->
-                        poco = enabled
-                        set(PlatformSettingsKeys.KEY_WM_POCO, enabled)
-                    },
-                    title = stringResource(R.string.watermark_poco_title),
-                    summary = stringResource(R.string.watermark_poco_summary),
-                    enabled = master
-                )
-            }
+        AppSection(stringResource(R.string.watermark_brand)) {
+            SwitchPreference(
+                checked = leica,
+                onCheckedChange = { enabled ->
+                    leica = enabled
+                    set(PlatformSettingsKeys.KEY_WM_LEICA, enabled)
+                },
+                title = stringResource(R.string.watermark_leica_title),
+                summary = stringResource(R.string.watermark_leica_summary),
+                enabled = master
+            )
+            SwitchPreference(
+                checked = xiaomi,
+                onCheckedChange = { enabled ->
+                    xiaomi = enabled
+                    set(PlatformSettingsKeys.KEY_WM_XIAOMI, enabled)
+                },
+                title = stringResource(R.string.watermark_xiaomi_title),
+                summary = stringResource(R.string.watermark_xiaomi_summary),
+                enabled = master
+            )
+            SwitchPreference(
+                checked = redmi,
+                onCheckedChange = { enabled ->
+                    redmi = enabled
+                    set(PlatformSettingsKeys.KEY_WM_REDMI, enabled)
+                },
+                title = stringResource(R.string.watermark_redmi_title),
+                summary = stringResource(R.string.watermark_redmi_summary),
+                enabled = master
+            )
+            SwitchPreference(
+                checked = poco,
+                onCheckedChange = { enabled ->
+                    poco = enabled
+                    set(PlatformSettingsKeys.KEY_WM_POCO, enabled)
+                },
+                title = stringResource(R.string.watermark_poco_title),
+                summary = stringResource(R.string.watermark_poco_summary),
+                enabled = master
+            )
         }
 
-        SmallTitle(stringResource(R.string.watermark_theme))
-        Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-            Column(Modifier.fillMaxWidth()) {
-                SwitchPreference(
-                    checked = disney1,
-                    onCheckedChange = { enabled ->
-                        disney1 = enabled
-                        set(PlatformSettingsKeys.KEY_WM_DISNEY1, enabled)
-                    },
-                    title = stringResource(R.string.watermark_disney1_title),
-                    summary = stringResource(R.string.watermark_disney1_summary),
-                    enabled = master
-                )
-                SwitchPreference(
-                    checked = disney2,
-                    onCheckedChange = { enabled ->
-                        disney2 = enabled
-                        set(PlatformSettingsKeys.KEY_WM_DISNEY2, enabled)
-                    },
-                    title = stringResource(R.string.watermark_disney2_title),
-                    summary = stringResource(R.string.watermark_disney2_summary),
-                    enabled = master
-                )
-                SwitchPreference(
-                    checked = disney3,
-                    onCheckedChange = { enabled ->
-                        disney3 = enabled
-                        set(PlatformSettingsKeys.KEY_WM_DISNEY3, enabled)
-                    },
-                    title = stringResource(R.string.watermark_disney3_title),
-                    summary = stringResource(R.string.watermark_disney3_summary),
-                    enabled = master
-                )
-                SwitchPreference(
-                    checked = victoria,
-                    onCheckedChange = { enabled ->
-                        victoria = enabled
-                        set(PlatformSettingsKeys.KEY_WM_VICTORIA, enabled)
-                    },
-                    title = stringResource(R.string.watermark_victoria_title),
-                    summary = stringResource(R.string.watermark_victoria_summary),
-                    enabled = master
-                )
-                SwitchPreference(
-                    checked = lcc,
-                    onCheckedChange = { enabled ->
-                        lcc = enabled
-                        set(PlatformSettingsKeys.KEY_WM_LCC, enabled)
-                    },
-                    title = stringResource(R.string.watermark_lcc_title),
-                    summary = stringResource(R.string.watermark_lcc_summary),
-                    enabled = master
-                )
-            }
+        AppSection(stringResource(R.string.watermark_theme)) {
+            SwitchPreference(
+                checked = disney1,
+                onCheckedChange = { enabled ->
+                    disney1 = enabled
+                    set(PlatformSettingsKeys.KEY_WM_DISNEY1, enabled)
+                },
+                title = stringResource(R.string.watermark_disney1_title),
+                summary = stringResource(R.string.watermark_disney1_summary),
+                enabled = master
+            )
+            SwitchPreference(
+                checked = disney2,
+                onCheckedChange = { enabled ->
+                    disney2 = enabled
+                    set(PlatformSettingsKeys.KEY_WM_DISNEY2, enabled)
+                },
+                title = stringResource(R.string.watermark_disney2_title),
+                summary = stringResource(R.string.watermark_disney2_summary),
+                enabled = master
+            )
+            SwitchPreference(
+                checked = disney3,
+                onCheckedChange = { enabled ->
+                    disney3 = enabled
+                    set(PlatformSettingsKeys.KEY_WM_DISNEY3, enabled)
+                },
+                title = stringResource(R.string.watermark_disney3_title),
+                summary = stringResource(R.string.watermark_disney3_summary),
+                enabled = master
+            )
+            SwitchPreference(
+                checked = victoria,
+                onCheckedChange = { enabled ->
+                    victoria = enabled
+                    set(PlatformSettingsKeys.KEY_WM_VICTORIA, enabled)
+                },
+                title = stringResource(R.string.watermark_victoria_title),
+                summary = stringResource(R.string.watermark_victoria_summary),
+                enabled = master
+            )
+            SwitchPreference(
+                checked = lcc,
+                onCheckedChange = { enabled ->
+                    lcc = enabled
+                    set(PlatformSettingsKeys.KEY_WM_LCC, enabled)
+                },
+                title = stringResource(R.string.watermark_lcc_title),
+                summary = stringResource(R.string.watermark_lcc_summary),
+                enabled = master
+            )
         }
 
-        SmallTitle(stringResource(R.string.watermark_advanced))
-        Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-            Column(Modifier.fillMaxWidth()) {
-                SwitchPreference(
-                    checked = downloadAll,
-                    onCheckedChange = { enabled ->
-                        downloadAll = enabled
-                        set(PlatformSettingsKeys.KEY_WM_DOWNLOAD_ALL, enabled)
-                    },
-                    title = stringResource(R.string.watermark_download_all_title),
-                    summary = stringResource(R.string.watermark_download_all_summary),
-                    enabled = master
-                )
-            }
+        AppSection(stringResource(R.string.watermark_advanced)) {
+            SwitchPreference(
+                checked = downloadAll,
+                onCheckedChange = { enabled ->
+                    downloadAll = enabled
+                    set(PlatformSettingsKeys.KEY_WM_DOWNLOAD_ALL, enabled)
+                },
+                title = stringResource(R.string.watermark_download_all_title),
+                summary = stringResource(R.string.watermark_download_all_summary),
+                enabled = master
+            )
         }
 
         Spacer(Modifier.height(bottomPadding + 24.dp))

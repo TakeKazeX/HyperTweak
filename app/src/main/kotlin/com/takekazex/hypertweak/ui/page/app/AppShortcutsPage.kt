@@ -1,47 +1,41 @@
 package com.takekazex.hypertweak.ui.page.app
 
 import android.widget.Toast
-import com.takekazex.hypertweak.ui.app.LocalAppServices
 import androidx.compose.foundation.Image
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
-import top.yukonga.miuix.kmp.preference.ArrowPreference
-import com.takekazex.hypertweak.util.platform.ShortcutUtils
-import kotlinx.coroutines.launch
-import androidx.lifecycle.compose.LocalLifecycleOwner
-import androidx.lifecycle.withResumed
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.awaitLongPressOrCancellation
 import androidx.compose.foundation.gestures.drag
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
-import top.yukonga.miuix.kmp.basic.Card
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.withResumed
+import com.takekazex.hypertweak.R
+import com.takekazex.hypertweak.ui.app.LocalAppServices
+import com.takekazex.hypertweak.ui.chrome.AppIconButton as IconButton
+import com.takekazex.hypertweak.ui.chrome.AppLazyPage
+import com.takekazex.hypertweak.ui.chrome.AppSection
+import com.takekazex.hypertweak.util.platform.ShortcutUtils
+import kotlin.math.roundToInt
+import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
-import com.takekazex.hypertweak.ui.effect.AppScaffold as Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
-import com.takekazex.hypertweak.ui.effect.AppTopAppBar as TopAppBar
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Back
+import top.yukonga.miuix.kmp.icon.glass.Refresh
+import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.utils.overScrollVertical
-import com.takekazex.hypertweak.R
-import kotlin.math.roundToInt
 
 private val DEFAULT_ORDER = listOf("lsposed", "installerx", "dev_settings")
 
@@ -109,7 +103,6 @@ fun AppShortcutsPage(
     val pinUnsupported = stringResource(R.string.shortcuts_pin_unsupported)
     val pinPermissionRequired = stringResource(R.string.shortcuts_pin_permission_required)
     val pinFailed = stringResource(R.string.shortcuts_pin_failed)
-    val topAppBarScrollBehavior = MiuixScrollBehavior()
     val allShortcuts = remember { services.shortcuts.getAvailableShortcuts() }
     val itemHeightPx = with(LocalDensity.current) { 56.dp.toPx() }
 
@@ -140,133 +133,112 @@ fun AppShortcutsPage(
 
     val lazyListState = rememberLazyListState()
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = stringResource(R.string.shortcuts_title),
-                scrollBehavior = topAppBarScrollBehavior,
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(imageVector = MiuixIcons.Back, contentDescription = stringResource(R.string.shortcuts_back))
-                    }
-                },
-                actions = {
-                    IconButton(onClick = { reset() }, modifier = Modifier.padding(end = 4.dp)) {
-                        Icon(
-                            imageVector = Icons.Rounded.Refresh,
-                            contentDescription = stringResource(R.string.shortcuts_reset),
-                            tint = MiuixTheme.colorScheme.onSurfaceVariantActions
-                        )
-                    }
-                }
-            )
-        }
-    ) { innerPadding ->
-        LazyColumn(
-            state = lazyListState,
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(top = innerPadding.calculateTopPadding())
-                .overScrollVertical(),
-        ) {
-            item("spacer_top") { Spacer(modifier = Modifier.height(8.dp)) }
+    AppLazyPage(
+        title = stringResource(R.string.shortcuts_title),
+        onBack = onBack,
+        backContentDescription = stringResource(R.string.shortcuts_back),
+        state = lazyListState,
+        actions = {
+            IconButton(onClick = { reset() }) {
+                Icon(
+                    imageVector = MiuixIcons.Glass.Refresh,
+                    contentDescription = stringResource(R.string.shortcuts_reset),
+                    tint = MiuixTheme.colorScheme.onSurfaceVariantActions
+                )
+            }
+        },
+    ) {
             item("desktop_shortcut") {
-                Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-                    ArrowPreference(
-                        enabled = !pinInProgress,
-                        title = stringResource(R.string.shortcuts_pin_lsposed),
-                        summary = stringResource(
-                            if (pinInProgress) R.string.shortcuts_pin_preparing
-                            else R.string.shortcuts_pin_lsposed_summary
-                        ),
-                        startAction = {
-                            Image(
-                                painter = painterResource(R.drawable.ic_shortcut_lsposed),
-                                contentDescription = null,
-                                modifier = Modifier.padding(end = 6.dp).size(32.dp)
-                            )
-                        },
-                        onClick = {
-                            if (!pinInProgress) {
-                                pinInProgress = true
-                                scope.launch {
-                                    try {
-                                        val result = services.shortcuts.pinLsposedShortcut(context) {
-                                            lifecycle.withResumed { }
-                                        }
-                                        val message = when (result) {
-                                            ShortcutUtils.PinResult.REQUESTED -> pinRequested
-                                            ShortcutUtils.PinResult.UNSUPPORTED -> pinUnsupported
-                                            ShortcutUtils.PinResult.PERMISSION_REQUIRED -> pinPermissionRequired
-                                            ShortcutUtils.PinResult.FAILED -> pinFailed
-                                        }
-                                        Toast.makeText(context, message, Toast.LENGTH_LONG).show()
-                                    } finally {
-                                        pinInProgress = false
+            AppSection {
+                ArrowPreference(
+                    enabled = !pinInProgress,
+                    title = stringResource(R.string.shortcuts_pin_lsposed),
+                    summary = stringResource(
+                        if (pinInProgress) R.string.shortcuts_pin_preparing
+                        else R.string.shortcuts_pin_lsposed_summary
+                    ),
+                    startAction = {
+                        Image(
+                            painter = painterResource(R.drawable.ic_shortcut_lsposed),
+                            contentDescription = null,
+                            modifier = Modifier.padding(end = 6.dp).size(32.dp)
+                        )
+                    },
+                    onClick = {
+                        if (!pinInProgress) {
+                            pinInProgress = true
+                            scope.launch {
+                                try {
+                                    val result = services.shortcuts.pinLsposedShortcut(context) {
+                                        lifecycle.withResumed { }
                                     }
+                                    val message = when (result) {
+                                        ShortcutUtils.PinResult.REQUESTED -> pinRequested
+                                        ShortcutUtils.PinResult.UNSUPPORTED -> pinUnsupported
+                                        ShortcutUtils.PinResult.PERMISSION_REQUIRED -> pinPermissionRequired
+                                        ShortcutUtils.PinResult.FAILED -> pinFailed
+                                    }
+                                    Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+                                } finally {
+                                    pinInProgress = false
                                 }
                             }
+                        }
+                    }
+                )
+            }
+        }
+        item("title") {
+            SmallTitle(text = stringResource(R.string.shortcuts_hint))
+        }
+        item("card") {
+            AppSection {
+                orderedIds.forEachIndexed { index, id ->
+                    val def = allShortcuts.find { it.id == id } ?: return@forEachIndexed
+                    val isDragged = index == dragIndex
+                    val shift = when {
+                        !isDragged && dragIndex in 0 until orderedIds.size && index in (dragIndex + 1)..virtualIndex -> -itemHeightPx
+                        !isDragged && dragIndex in 0 until orderedIds.size && index in virtualIndex until dragIndex -> itemHeightPx
+                        else -> 0f
+                    }
+                    DraggableItem(
+                        id = id,
+                        label = stringResource(def.labelRes),
+                        checked = id in enabledIds,
+                        isDragging = isDragged,
+                        translationY = if (isDragged) dragOffsetY else shift,
+                        onDragStart = {
+                            dragIndex = index
+                            dragOffsetY = 0f
+                        },
+                        onDrag = { deltaY ->
+                            dragOffsetY += deltaY
+                        },
+                        onDragEnd = { totalY ->
+                            val offset = (totalY / itemHeightPx).roundToInt()
+                            val fi = (dragIndex + offset).coerceIn(0, orderedIds.size - 1)
+                            if (fi != dragIndex) {
+                                val m = orderedIds.toMutableList()
+                                val item = m.removeAt(dragIndex)
+                                m.add(fi, item)
+                                orderedIds = m
+                            }
+                            dragIndex = -1
+                            dragOffsetY = 0f
+                            save()
+                        },
+                        onCheckedChange = { enabled ->
+                            enabledIds = if (enabled) {
+                                if (enabledIds.size >= 5) return@DraggableItem
+                                enabledIds + id
+                            } else {
+                                enabledIds - id
+                            }
+                            save()
                         }
                     )
                 }
             }
-            item("title") {
-                SmallTitle(text = stringResource(R.string.shortcuts_hint))
-            }
-            item("card") {
-                Card(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)
-                ) {
-                    Column(modifier = Modifier.fillMaxWidth()) {
-                        orderedIds.forEachIndexed { index, id ->
-                            val def = allShortcuts.find { it.id == id } ?: return@forEachIndexed
-                            val isDragged = index == dragIndex
-                            val shift = when {
-                                !isDragged && dragIndex in 0 until orderedIds.size && index in (dragIndex + 1)..virtualIndex -> -itemHeightPx
-                                !isDragged && dragIndex in 0 until orderedIds.size && index in virtualIndex until dragIndex -> itemHeightPx
-                                else -> 0f
-                            }
-                            DraggableItem(
-                                id = id,
-                                label = stringResource(def.labelRes),
-                                checked = id in enabledIds,
-                                isDragging = isDragged,
-                                translationY = if (isDragged) dragOffsetY else shift,
-                                onDragStart = {
-                                    dragIndex = index
-                                    dragOffsetY = 0f
-                                },
-                                onDrag = { deltaY ->
-                                    dragOffsetY += deltaY
-                                },
-                                onDragEnd = { totalY ->
-                                    val offset = (totalY / itemHeightPx).roundToInt()
-                                    val fi = (dragIndex + offset).coerceIn(0, orderedIds.size - 1)
-                                    if (fi != dragIndex) {
-                                        val m = orderedIds.toMutableList()
-                                        val item = m.removeAt(dragIndex)
-                                        m.add(fi, item)
-                                        orderedIds = m
-                                    }
-                                    dragIndex = -1
-                                    dragOffsetY = 0f
-                                    save()
-                                },
-                                onCheckedChange = { enabled ->
-                                    enabledIds = if (enabled) {
-                                        if (enabledIds.size >= 5) return@DraggableItem
-                                        enabledIds + id
-                                    } else {
-                                        enabledIds - id
-                                    }
-                                    save()
-                                }
-                            )
-                        }
-                    }
-                }
-            }
-            item("spacer_bottom") { Spacer(modifier = Modifier.height(48.dp)) }
         }
     }
 }

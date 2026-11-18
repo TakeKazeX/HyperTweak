@@ -1,41 +1,41 @@
 package com.takekazex.hypertweak.ui.components.dialog
 
-import com.takekazex.hypertweak.ui.app.LocalAppServices
 import android.content.Context
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.drawable.toBitmap
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.takekazex.hypertweak.R
+import com.takekazex.hypertweak.ui.app.LocalAppServices
+import com.takekazex.hypertweak.ui.chrome.AppTextButton as TextButton
 import com.takekazex.hypertweak.util.restart.RestartHistory
 import com.takekazex.hypertweak.util.restart.RestartScopeSelection
-import com.takekazex.hypertweak.util.scope.ScopeManager
 import com.takekazex.hypertweak.util.restart.smartRestartScopeOrder
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.layout.DialogDefaults
 import top.yukonga.miuix.kmp.basic.VerticalDivider
-import androidx.compose.ui.Alignment
-import androidx.compose.runtime.saveable.rememberSaveable
-import top.yukonga.miuix.kmp.preference.CheckboxPreference
+import top.yukonga.miuix.kmp.layout.DialogDefaults
 import top.yukonga.miuix.kmp.preference.CheckboxLocation
+import top.yukonga.miuix.kmp.preference.CheckboxPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 
 private fun fallbackAppName(context: Context, packageName: String): String = when (packageName) {
     RestartScopeSelection.PACKAGE_SYSTEM_UI -> context.getString(R.string.restart_scope_system_ui)
@@ -68,9 +68,9 @@ fun RestartScopeDialog(
     onConfirm: (RestartScopeSelection) -> Unit
 ) {
     val services = LocalAppServices.current
-    val runningPackages by services.restarts.runningPackages.collectAsState()
+    val runningPackages by services.restarts.runningPackages.collectAsStateWithLifecycle()
     val context = LocalContext.current
-    val service by services.module.connection.collectAsState()
+    val service by services.module.connection.collectAsStateWithLifecycle()
     val fallbackScope = remember(context) { services.scopes.declaredRestartableScope(context) }
 
     // The service scope is the source of truth. The declared list is only a first-frame fallback
@@ -130,7 +130,7 @@ fun RestartScopeDialog(
                             Text(
                                 text = stringResource(R.string.restart_detected_tweaks_note),
                                 color = MiuixTheme.colorScheme.onPrimaryContainer,
-                                fontSize = 13.sp,
+                                style = MiuixTheme.textStyles.footnote1,
                                 lineHeight = 18.sp,
                             )
                         }

@@ -1,60 +1,33 @@
 package com.takekazex.hypertweak.ui.page.app
 
-import com.takekazex.hypertweak.BuildConfig
-
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.takekazex.hypertweak.BuildConfig
 import com.takekazex.hypertweak.R
+import com.takekazex.hypertweak.ui.chrome.AppScrollPage
 import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
-import com.takekazex.hypertweak.ui.effect.AppScaffold as Scaffold
-import com.takekazex.hypertweak.ui.effect.AppTopAppBar as TopAppBar
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.preference.ArrowPreference
-import top.yukonga.miuix.kmp.utils.overScrollVertical
 
 @Composable
 fun CreditsPage(
     onBack: () -> Unit
 ) {
-    val topAppBarScrollBehavior = MiuixScrollBehavior()
     val uriHandler = LocalUriHandler.current
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = stringResource(R.string.credits_title),
-                scrollBehavior = topAppBarScrollBehavior,
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(imageVector = MiuixIcons.Back, contentDescription = stringResource(R.string.credits_back))
-                    }
-                }
-            )
-        }
-    ) { innerPadding ->
+    AppScrollPage(
+        title = stringResource(R.string.credits_title),
+        onBack = onBack,
+        backContentDescription = stringResource(R.string.credits_back),
+    ) {
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(top = innerPadding.calculateTopPadding())
-                .padding(horizontal = 16.dp)
-                .overScrollVertical()
-                .nestedScroll(topAppBarScrollBehavior.nestedScrollConnection)
-                .verticalScroll(rememberScrollState()),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Spacer(modifier = Modifier.height(8.dp))
 
             Card(
                 modifier = Modifier.fillMaxWidth()
@@ -160,7 +133,7 @@ fun CreditsPage(
                 }
             }
 
-            Spacer(modifier = Modifier.height(48.dp))
+            Spacer(modifier = Modifier.height(32.dp))
         }
     }
 }

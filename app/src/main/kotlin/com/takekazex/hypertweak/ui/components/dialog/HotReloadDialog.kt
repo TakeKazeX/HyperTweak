@@ -1,37 +1,37 @@
 package com.takekazex.hypertweak.ui.components.dialog
 
-import com.takekazex.hypertweak.ui.page.home.friendlyProcessName
-import com.takekazex.hypertweak.ui.app.LocalAppServices
-import com.takekazex.hypertweak.settings.contract.NativeUpgradeState
 import android.annotation.SuppressLint
-import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.settings.contract.HotReloadOutcome
 import com.takekazex.hypertweak.settings.contract.HotReloadReport
+import com.takekazex.hypertweak.settings.contract.NativeUpgradeState
+import com.takekazex.hypertweak.ui.app.LocalAppServices
+import com.takekazex.hypertweak.ui.chrome.AppTextButton as TextButton
+import com.takekazex.hypertweak.ui.page.home.friendlyProcessName
+import com.takekazex.hypertweak.ui.theme.StatusTone
+import com.takekazex.hypertweak.ui.theme.statusColors
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
@@ -57,10 +57,10 @@ internal fun HotReloadDialog(
 
     // An unbound service and "genuinely nothing stale" both produce an empty target list, so the
     // empty state has to name which one it is instead of claiming there is nothing to reload.
-    val service by services.module.connection.collectAsState()
-    val nativeBusy by services.nativeUpgrade.busy.collectAsState()
-    val nativeReport by services.nativeUpgrade.report.collectAsState()
-    val runningPackages by services.restarts.runningPackages.collectAsState()
+    val service by services.module.connection.collectAsStateWithLifecycle()
+    val nativeBusy by services.nativeUpgrade.busy.collectAsStateWithLifecycle()
+    val nativeReport by services.nativeUpgrade.report.collectAsStateWithLifecycle()
+    val runningPackages by services.restarts.runningPackages.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
     AppWindowDialog(
@@ -73,7 +73,7 @@ internal fun HotReloadDialog(
             Text(
                 text = stringResource(R.string.home_hot_reload_question),
                 color = MiuixTheme.colorScheme.onSurface,
-                fontSize = 14.sp
+                style = MiuixTheme.textStyles.body2
             )
             Spacer(modifier = Modifier.height(8.dp))
             if (targets.isNotEmpty()) {
@@ -89,7 +89,7 @@ internal fun HotReloadDialog(
                             else R.string.home_hot_reload_no_targets
                         ),
                         color = MiuixTheme.colorScheme.onSurface.copy(alpha = 0.78f),
-                        fontSize = 13.sp,
+                        style = MiuixTheme.textStyles.footnote1,
                         lineHeight = 18.sp
                     )
                 }
@@ -120,7 +120,7 @@ internal fun HotReloadDialog(
                 Text(
                     text = stringResource(R.string.native_update_description),
                     color = MiuixTheme.colorScheme.onSurface.copy(alpha = 0.78f),
-                    fontSize = 13.sp, lineHeight = 18.sp
+                    style = MiuixTheme.textStyles.footnote1, lineHeight = 18.sp
                 )
                 TextButton(
                     text = stringResource(if (nativeBusy) R.string.native_update_running else R.string.native_update_action),
@@ -135,7 +135,7 @@ internal fun HotReloadDialog(
                         NativeUpgradeState.UPDATED -> R.string.native_update_success
                         NativeUpgradeState.FAILED -> R.string.native_update_failed
                         NativeUpgradeState.ROLLBACK_REQUESTED -> R.string.native_update_rollback_requested
-                    }), color = MiuixTheme.colorScheme.onSurface, fontSize = 13.sp, lineHeight = 18.sp)
+                    }), color = MiuixTheme.colorScheme.onSurface, style = MiuixTheme.textStyles.footnote1, lineHeight = 18.sp)
                 }
                 if (services.nativeUpgrade.canRollback()) {
                     TextButton(text = stringResource(R.string.native_update_rollback),
@@ -178,7 +178,7 @@ private fun HotReloadTargetsCard(targets: List<String>) {
             Text(
                 text = stringResource(R.string.home_stale_targets_title),
                 color = MiuixTheme.colorScheme.onSurface,
-                fontSize = 13.sp,
+                style = MiuixTheme.textStyles.footnote1,
                 fontWeight = FontWeight.Medium
             )
             LazyColumn(
@@ -194,7 +194,7 @@ private fun HotReloadTargetsCard(targets: List<String>) {
                             friendlyProcessName(context, processName)
                         ),
                         color = MiuixTheme.colorScheme.onSurface.copy(alpha = 0.78f),
-                        fontSize = 12.sp,
+                        style = MiuixTheme.textStyles.footnote1,
                         lineHeight = 17.sp
                     )
                 }
@@ -206,19 +206,17 @@ private fun HotReloadTargetsCard(targets: List<String>) {
 @Composable
 private fun HotReloadResultCard(report: HotReloadReport) {
     val context = LocalContext.current
-    val isDark = isSystemInDarkTheme()
     val hasFailure = report.failedCount > 0
     val incomplete = report.exitedCount > 0 || report.pendingCount > 0
-    val container = when {
-        hasFailure -> if (isDark) Color(0xFF3A1F1F) else Color(0xFFFFECEC)
-        (report.results.isEmpty() || incomplete) -> if (isDark) Color(0xFF2F2A1B) else Color(0xFFFFF6D9)
-        else -> if (isDark) Color(0xFF1A3825) else Color(0xFFDFFAE4)
-    }
-    val content = when {
-        hasFailure -> if (isDark) Color(0xFFFFB4AB) else Color(0xFF8C1D18)
-        (report.results.isEmpty() || incomplete) -> if (isDark) Color(0xFFFFD166) else Color(0xFF7A5200)
-        else -> if (isDark) Color(0xFF9BE6B3) else Color(0xFF12622D)
-    }
+    val status = statusColors(
+        when {
+            hasFailure -> StatusTone.Error
+            report.results.isEmpty() || incomplete -> StatusTone.Warning
+            else -> StatusTone.Success
+        }
+    )
+    val container = status.container
+    val content = status.onContainer
     val title = when {
         incomplete -> pluralStringResource(R.plurals.home_hot_reload_result_states, report.pendingCount, report.succeededCount, report.failedCount, report.exitedCount, report.pendingCount)
         hasFailure -> stringResource(R.string.home_hot_reload_result_counts, report.succeededCount, report.failedCount)
@@ -235,7 +233,7 @@ private fun HotReloadResultCard(report: HotReloadReport) {
             Text(
                 text = title,
                 color = content,
-                fontSize = 13.sp,
+                style = MiuixTheme.textStyles.footnote1,
                 fontWeight = FontWeight.Medium
             )
             if (report.results.isNotEmpty()) {
@@ -259,7 +257,7 @@ private fun HotReloadResultCard(report: HotReloadReport) {
                         Text(
                             text = "$marker ${friendlyProcessName(context, result.processName)}$message",
                             color = content.copy(alpha = 0.86f),
-                            fontSize = 12.sp,
+                            style = MiuixTheme.textStyles.footnote1,
                             lineHeight = 17.sp
                         )
                     }

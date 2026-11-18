@@ -1,22 +1,9 @@
 package com.takekazex.hypertweak.ui.page.systemui.controlcenter
 
-import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
-
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.WindowInsetsSides
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
@@ -24,31 +11,23 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.takekazex.hypertweak.R
-import com.takekazex.hypertweak.ui.app.LocalAppSettingsStore
 import com.takekazex.hypertweak.settings.contract.AppSettingsStore
+import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
+import com.takekazex.hypertweak.ui.app.LocalAppSettingsStore
+import com.takekazex.hypertweak.ui.chrome.AppDropdownPreference as OverlayDropdownPreference
+import com.takekazex.hypertweak.ui.chrome.AppOverlayDialog as OverlayDialog
+import com.takekazex.hypertweak.ui.chrome.AppScrollPage
+import com.takekazex.hypertweak.ui.chrome.AppSection
+import com.takekazex.hypertweak.ui.chrome.AppTextButton as TextButton
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
-import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
-import com.takekazex.hypertweak.ui.effect.AppScaffold as Scaffold
-import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TextField
-import com.takekazex.hypertweak.ui.effect.AppTopAppBar as TopAppBar
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Back
-import com.takekazex.hypertweak.ui.effect.AppOverlayDialog as OverlayDialog
-import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.utils.overScrollVertical
 
 /**
  * Control Center element sizes (Settings → Experimental → 控制中心尺寸).
@@ -64,141 +43,105 @@ import top.yukonga.miuix.kmp.utils.overScrollVertical
 @Composable
 fun ControlCenterResizePage(onBack: () -> Unit) {
     val settingsStore = LocalAppSettingsStore.current
-    val scrollBehavior = MiuixScrollBehavior()
 
-    var enabled by remember {
-        mutableStateOf(settingsStore.getBoolean(SystemUiSettingsKeys.KEY_CC_RESIZE_ENABLED, false))
-    }
+    var enabled by remember { mutableStateOf(settingsStore.getBoolean(SystemUiSettingsKeys.KEY_CC_RESIZE_ENABLED, false)) }
 
-    Scaffold(topBar = {
-        TopAppBar(
-            title = stringResource(R.string.cc_resize_title),
-            scrollBehavior = scrollBehavior,
-            navigationIcon = {
-                IconButton(onClick = onBack) {
-                    Icon(MiuixIcons.Back, stringResource(R.string.charging_back))
-                }
-            }
-        )
-    }) { padding ->
-        Column(
-            Modifier.fillMaxSize()
-                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
-                .overScrollVertical()
-                .nestedScroll(scrollBehavior.nestedScrollConnection)
-                .verticalScroll(rememberScrollState())
-        ) {
-            Spacer(Modifier.height(padding.calculateTopPadding() + 8.dp))
+    AppScrollPage(
+        title = stringResource(R.string.cc_resize_title),
+        onBack = onBack,
+        backContentDescription = stringResource(R.string.charging_back),
+    ) {
 
-            SmallTitle(stringResource(R.string.cc_resize_title))
-            Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-                Column(Modifier.fillMaxWidth()) {
-                    SwitchPreference(
-                        checked = enabled,
-                        onCheckedChange = { checked ->
-                            enabled = checked
+        AppSection(stringResource(R.string.cc_resize_title)) {
+            SwitchPreference(
+                checked = enabled,
+                onCheckedChange = { checked ->
+                    enabled = checked
 
-                            settingsStore.putBoolean(SystemUiSettingsKeys.KEY_CC_RESIZE_ENABLED, checked)
-                        },
-                        title = stringResource(R.string.cc_resize_title),
-                        summary = stringResource(R.string.cc_resize_enabled_summary)
-                    )
+                    settingsStore.putBoolean(SystemUiSettingsKeys.KEY_CC_RESIZE_ENABLED, checked)
+                },
+                title = stringResource(R.string.cc_resize_title),
+                summary = stringResource(R.string.cc_resize_enabled_summary)
+            )
+        }
 
-                }
-            }
+        // ─── Big cards (WiFi / cellular / BT / VoWiFi) ───
+        AppSection(stringResource(R.string.cc_size_section_cards)) {
+            CardSpecRow.entries.forEach { entry ->
+                CardSizeRow(
+                    title = stringResource(entry.titleRes),
+                    current = cardSizeFor(settingsStore, entry.spec),
+                    options = CARD_SIZE_OPTIONS,
+                    onSelect = { value ->
+                        setCardSize(settingsStore, entry.spec, value)
 
-            // ─── Big cards (WiFi / cellular / BT / VoWiFi) ───
-            SmallTitle(stringResource(R.string.cc_size_section_cards))
-            Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-                Column(Modifier.fillMaxWidth()) {
-                    CardSpecRow.entries.forEach { entry ->
-                        CardSizeRow(
-                            title = stringResource(entry.titleRes),
-                            current = cardSizeFor(settingsStore, entry.spec),
-                            options = CARD_SIZE_OPTIONS,
-                            onSelect = { value ->
-                                setCardSize(settingsStore, entry.spec, value)
-
-                            }
-                        )
                     }
-                }
+                )
             }
+        }
 
-            // ─── Sliders ───
-            SmallTitle(stringResource(R.string.cc_size_section_sliders))
-            Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-                Column(Modifier.fillMaxWidth()) {
-                    TokenSizeRow(
-                        title = stringResource(R.string.cc_size_brightness),
-                        summary = stringResource(R.string.cc_size_brightness_summary),
-                        key = SystemUiSettingsKeys.KEY_CC_SIZE_BRIGHTNESS,
-                        options = SLIDER_SIZE_OPTIONS,
-                        defaults = SizeOption(1, 2),
-                        onSelect = {  }
-                    )
-                    TokenSizeRow(
-                        title = stringResource(R.string.cc_size_volume),
-                        summary = stringResource(R.string.cc_size_volume_summary),
-                        key = SystemUiSettingsKeys.KEY_CC_SIZE_VOLUME,
-                        options = SLIDER_SIZE_OPTIONS,
-                        defaults = SizeOption(1, 2),
-                        onSelect = {  }
-                    )
+        // ─── Sliders ───
+        AppSection(stringResource(R.string.cc_size_section_sliders)) {
+            TokenSizeRow(
+                title = stringResource(R.string.cc_size_brightness),
+                summary = stringResource(R.string.cc_size_brightness_summary),
+                key = SystemUiSettingsKeys.KEY_CC_SIZE_BRIGHTNESS,
+                options = SLIDER_SIZE_OPTIONS,
+                defaults = SizeOption(1, 2),
+                onSelect = {  }
+            )
+            TokenSizeRow(
+                title = stringResource(R.string.cc_size_volume),
+                summary = stringResource(R.string.cc_size_volume_summary),
+                key = SystemUiSettingsKeys.KEY_CC_SIZE_VOLUME,
+                options = SLIDER_SIZE_OPTIONS,
+                defaults = SizeOption(1, 2),
+                onSelect = {  }
+            )
+        }
+
+        // ─── Media player / device center ───
+        AppSection(stringResource(R.string.cc_size_section_other)) {
+            TokenSizeRow(
+                title = stringResource(R.string.cc_size_media),
+                summary = stringResource(R.string.cc_size_media_summary),
+                key = SystemUiSettingsKeys.KEY_CC_SIZE_MEDIA,
+                options = MEDIA_SIZE_OPTIONS,
+                defaults = SizeOption(2, 2),
+                onSelect = {  }
+            )
+            TokenSizeRow(
+                title = stringResource(R.string.cc_size_device),
+                summary = stringResource(R.string.cc_size_device_summary),
+                key = SystemUiSettingsKeys.KEY_CC_SIZE_DEVICE,
+                options = DEVICE_SIZE_OPTIONS,
+                defaults = SizeOption(4, 1),
+                onSelect = {  }
+            )
+        }
+
+        // ─── Quick switches rendered as big cards ───
+        AppSection(stringResource(R.string.cc_tile_specs_section)) {
+            Text(
+                text = stringResource(R.string.cc_tile_specs_section_summary),
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                color = MiuixTheme.colorScheme.onSurfaceVariantActions
+            )
+            KnownTileSpec.entries.forEach { entry ->
+                var checked by remember(entry.spec) {
+                    mutableStateOf(entry.spec in readTileCardSpecs(settingsStore))
                 }
+                SwitchPreference(
+                    checked = checked,
+                    onCheckedChange = { newValue ->
+                        checked = newValue
+                        writeTileCardSpecs(settingsStore, entry.spec, newValue)
+
+                    },
+                    title = stringResource(entry.titleRes)
+                )
             }
-
-            // ─── Media player / device center ───
-            SmallTitle(stringResource(R.string.cc_size_section_other))
-            Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-                Column(Modifier.fillMaxWidth()) {
-                    TokenSizeRow(
-                        title = stringResource(R.string.cc_size_media),
-                        summary = stringResource(R.string.cc_size_media_summary),
-                        key = SystemUiSettingsKeys.KEY_CC_SIZE_MEDIA,
-                        options = MEDIA_SIZE_OPTIONS,
-                        defaults = SizeOption(2, 2),
-                        onSelect = {  }
-                    )
-                    TokenSizeRow(
-                        title = stringResource(R.string.cc_size_device),
-                        summary = stringResource(R.string.cc_size_device_summary),
-                        key = SystemUiSettingsKeys.KEY_CC_SIZE_DEVICE,
-                        options = DEVICE_SIZE_OPTIONS,
-                        defaults = SizeOption(4, 1),
-                        onSelect = {  }
-                    )
-                }
-            }
-
-            // ─── Quick switches rendered as big cards ───
-            SmallTitle(stringResource(R.string.cc_tile_specs_section))
-            Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-                Column(Modifier.fillMaxWidth()) {
-                    Text(
-                        text = stringResource(R.string.cc_tile_specs_section_summary),
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                        color = MiuixTheme.colorScheme.onSurfaceVariantActions
-                    )
-                    KnownTileSpec.entries.forEach { entry ->
-                        var checked by remember(entry.spec) {
-                            mutableStateOf(entry.spec in readTileCardSpecs(settingsStore))
-                        }
-                        SwitchPreference(
-                            checked = checked,
-                            onCheckedChange = { newValue ->
-                                checked = newValue
-                                writeTileCardSpecs(settingsStore, entry.spec, newValue)
-
-                            },
-                            title = stringResource(entry.titleRes)
-                        )
-                    }
-                    CustomTileSpecRow(onSelect = {  })
-                }
-            }
-
-            Spacer(Modifier.height(padding.calculateBottomPadding() + 16.dp))
+            CustomTileSpecRow(onSelect = {  })
         }
     }
 }

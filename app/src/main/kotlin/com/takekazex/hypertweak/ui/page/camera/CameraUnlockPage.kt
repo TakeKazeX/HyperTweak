@@ -1,7 +1,5 @@
 package com.takekazex.hypertweak.ui.page.camera
 
-import com.takekazex.hypertweak.settings.contract.CameraSettingsKeys
-
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -19,21 +17,20 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.settings.contract.CameraLegendaryMomentMode
+import com.takekazex.hypertweak.settings.contract.CameraSettingsKeys
 import com.takekazex.hypertweak.ui.app.LocalAppSettingsStore
-import top.yukonga.miuix.kmp.basic.ButtonDefaults
-import top.yukonga.miuix.kmp.basic.Card
+import com.takekazex.hypertweak.ui.app.rememberStoredSetting
+import com.takekazex.hypertweak.ui.chrome.AppDropdownPreference as OverlayDropdownPreference
+import com.takekazex.hypertweak.ui.chrome.AppOverlayDialog as OverlayDialog
+import com.takekazex.hypertweak.ui.chrome.AppSection
+import com.takekazex.hypertweak.ui.chrome.AppTextButton as TextButton
 import com.takekazex.hypertweak.ui.components.MiuixExpandableContent
-import com.takekazex.hypertweak.ui.effect.AppScaffold as Scaffold
-import top.yukonga.miuix.kmp.basic.SmallTitle
+import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TextField
-import com.takekazex.hypertweak.ui.effect.AppOverlayDialog as OverlayDialog
 import top.yukonga.miuix.kmp.preference.ArrowPreference
-import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -60,66 +57,24 @@ fun CameraUnlockContent(
     bottomPadding: Dp
 ) {
     val settingsStore = LocalAppSettingsStore.current
-    var ignoreDeviceMismatch by remember {
-        mutableStateOf(settingsStore.getBoolean(CameraSettingsKeys.KEY_CAMERA_IGNORE_DEVICE_MISMATCH, false))
-    }
-    var leicaStyle by remember {
-        mutableStateOf(settingsStore.getBoolean(CameraSettingsKeys.KEY_CAMERA_LEICA_STYLE, false))
-    }
-    var allShutterSounds by remember {
-        mutableStateOf(settingsStore.getBoolean(CameraSettingsKeys.KEY_CAMERA_ALL_SHUTTER_SOUNDS, false))
-    }
-    var ultraHdQuality by remember {
-        mutableStateOf(settingsStore.getBoolean(CameraSettingsKeys.KEY_CAMERA_ULTRA_HD_QUALITY, false))
-    }
-    var selfieSettings by remember {
-        mutableStateOf(settingsStore.getBoolean(CameraSettingsKeys.KEY_CAMERA_SELFIE_SETTINGS, false))
-    }
-    var legendaryMomentMode by remember {
-        mutableStateOf(settingsStore.camera.cameraLegendaryMomentMode())
-    }
-    var legendaryExtraModes by remember {
-        mutableStateOf(settingsStore.getBoolean(CameraSettingsKeys.KEY_CAMERA_LEGENDARY_EXTRA_MODES, false))
-    }
-    var smartComposition by remember {
-        mutableStateOf(settingsStore.getBoolean(CameraSettingsKeys.KEY_CAMERA_SMART_COMPOSITION, false))
-    }
-    var contentCredential by remember {
-        mutableStateOf(settingsStore.getBoolean(CameraSettingsKeys.KEY_CAMERA_CONTENT_CREDENTIAL, false))
-    }
-    var adaptiveLens by remember {
-        mutableStateOf(settingsStore.getBoolean(CameraSettingsKeys.KEY_CAMERA_ADAPTIVE_LENS, false))
-    }
-    var masterLiveEnable by remember {
-        mutableStateOf(settingsStore.getBoolean(CameraSettingsKeys.KEY_CAMERA_MASTERLIVE_ENABLE, false))
-    }
-    var mlRedCarpet by remember {
-        mutableStateOf(
-            settingsStore.getBoolean(CameraSettingsKeys.KEY_CAMERA_MASTERLIVE_RED_CARPET, false)
-        )
-    }
-    var mlFullFocal by remember {
-        mutableStateOf(
-            settingsStore.getBoolean(CameraSettingsKeys.KEY_CAMERA_MASTERLIVE_FULL_FOCAL, false)
-        )
-    }
-    var mlVideoSizeProbe by remember {
-        mutableStateOf(
-            settingsStore.getBoolean(CameraSettingsKeys.KEY_CAMERA_MASTERLIVE_VIDEO_SIZE_PROBE, false)
-        )
-    }
-    var themeLcc by remember {
-        mutableStateOf(settingsStore.getBoolean(CameraSettingsKeys.KEY_CAMERA_IMPERSONATE_THEME_LCC, false))
-    }
-    var customWm by remember {
-        mutableStateOf(settingsStore.getBoolean(CameraSettingsKeys.KEY_CAMERA_WM_CUSTOM, false))
-    }
-    var customBrand by remember {
-        mutableStateOf(settingsStore.getString(CameraSettingsKeys.KEY_CAMERA_WM_CUSTOM_BRAND))
-    }
-    var customModel by remember {
-        mutableStateOf(settingsStore.getString(CameraSettingsKeys.KEY_CAMERA_WM_CUSTOM_MODEL))
-    }
+    var ignoreDeviceMismatch by remember { mutableStateOf(settingsStore.getBoolean(CameraSettingsKeys.KEY_CAMERA_IGNORE_DEVICE_MISMATCH, false)) }
+    var leicaStyle by remember { mutableStateOf(settingsStore.getBoolean(CameraSettingsKeys.KEY_CAMERA_LEICA_STYLE, false)) }
+    var allShutterSounds by remember { mutableStateOf(settingsStore.getBoolean(CameraSettingsKeys.KEY_CAMERA_ALL_SHUTTER_SOUNDS, false)) }
+    var ultraHdQuality by remember { mutableStateOf(settingsStore.getBoolean(CameraSettingsKeys.KEY_CAMERA_ULTRA_HD_QUALITY, false)) }
+    var selfieSettings by remember { mutableStateOf(settingsStore.getBoolean(CameraSettingsKeys.KEY_CAMERA_SELFIE_SETTINGS, false)) }
+    var legendaryMomentMode by remember { mutableStateOf(settingsStore.camera.cameraLegendaryMomentMode()) }
+    var legendaryExtraModes by remember { mutableStateOf(settingsStore.getBoolean(CameraSettingsKeys.KEY_CAMERA_LEGENDARY_EXTRA_MODES, false)) }
+    var smartComposition by remember { mutableStateOf(settingsStore.getBoolean(CameraSettingsKeys.KEY_CAMERA_SMART_COMPOSITION, false)) }
+    var contentCredential by remember { mutableStateOf(settingsStore.getBoolean(CameraSettingsKeys.KEY_CAMERA_CONTENT_CREDENTIAL, false)) }
+    var adaptiveLens by remember { mutableStateOf(settingsStore.getBoolean(CameraSettingsKeys.KEY_CAMERA_ADAPTIVE_LENS, false)) }
+    var masterLiveEnable by remember { mutableStateOf(settingsStore.getBoolean(CameraSettingsKeys.KEY_CAMERA_MASTERLIVE_ENABLE, false)) }
+    var mlRedCarpet by remember { mutableStateOf(settingsStore.getBoolean(CameraSettingsKeys.KEY_CAMERA_MASTERLIVE_RED_CARPET, false)) }
+    var mlFullFocal by remember { mutableStateOf(settingsStore.getBoolean(CameraSettingsKeys.KEY_CAMERA_MASTERLIVE_FULL_FOCAL, false)) }
+    var mlVideoSizeProbe by remember { mutableStateOf(settingsStore.getBoolean(CameraSettingsKeys.KEY_CAMERA_MASTERLIVE_VIDEO_SIZE_PROBE, false)) }
+    var themeLcc by remember { mutableStateOf(settingsStore.getBoolean(CameraSettingsKeys.KEY_CAMERA_IMPERSONATE_THEME_LCC, false)) }
+    var customWm by remember { mutableStateOf(settingsStore.getBoolean(CameraSettingsKeys.KEY_CAMERA_WM_CUSTOM, false)) }
+    var customBrand by rememberStoredSetting(CameraSettingsKeys.KEY_CAMERA_WM_CUSTOM_BRAND, settingsStore::putString) { settingsStore.getString(CameraSettingsKeys.KEY_CAMERA_WM_CUSTOM_BRAND) }
+    var customModel by rememberStoredSetting(CameraSettingsKeys.KEY_CAMERA_WM_CUSTOM_MODEL, settingsStore::putString) { settingsStore.getString(CameraSettingsKeys.KEY_CAMERA_WM_CUSTOM_MODEL) }
     var editingBrand by remember { mutableStateOf(false) }
     var editingModel by remember { mutableStateOf(false) }
 
@@ -130,209 +85,205 @@ fun CameraUnlockContent(
     Column(modifier = modifier) {
         Spacer(Modifier.height(topPadding + 8.dp))
 
-        SmallTitle(stringResource(R.string.camera_unlock_features))
-        Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-            Column(Modifier.fillMaxWidth()) {
-                SwitchPreference(
-                    checked = ignoreDeviceMismatch,
-                    onCheckedChange = { enabled ->
-                        ignoreDeviceMismatch = enabled
-                        set(CameraSettingsKeys.KEY_CAMERA_IGNORE_DEVICE_MISMATCH, enabled)
+        AppSection(stringResource(R.string.camera_unlock_features)) {
+            SwitchPreference(
+                checked = ignoreDeviceMismatch,
+                onCheckedChange = { enabled ->
+                    ignoreDeviceMismatch = enabled
+                    set(CameraSettingsKeys.KEY_CAMERA_IGNORE_DEVICE_MISMATCH, enabled)
+                },
+                title = stringResource(R.string.camera_unlock_ignore_mismatch_title),
+                summary = stringResource(R.string.camera_unlock_ignore_mismatch_summary)
+            )
+            SwitchPreference(
+                checked = leicaStyle,
+                onCheckedChange = { enabled ->
+                    leicaStyle = enabled
+                    set(CameraSettingsKeys.KEY_CAMERA_LEICA_STYLE, enabled)
+                },
+                title = stringResource(R.string.camera_unlock_leica_style_title),
+                summary = stringResource(R.string.camera_unlock_leica_style_summary)
+            )
+            SwitchPreference(
+                checked = allShutterSounds,
+                onCheckedChange = { enabled ->
+                    allShutterSounds = enabled
+                    set(CameraSettingsKeys.KEY_CAMERA_ALL_SHUTTER_SOUNDS, enabled)
+                },
+                title = stringResource(R.string.camera_unlock_all_shutter_sounds_title),
+                summary = stringResource(R.string.camera_unlock_all_shutter_sounds_summary)
+            )
+            SwitchPreference(
+                checked = ultraHdQuality,
+                onCheckedChange = { enabled ->
+                    ultraHdQuality = enabled
+                    set(CameraSettingsKeys.KEY_CAMERA_ULTRA_HD_QUALITY, enabled)
+                },
+                title = stringResource(R.string.camera_unlock_ultra_hd_title),
+                summary = stringResource(R.string.camera_unlock_ultra_hd_summary)
+            )
+            SwitchPreference(
+                checked = selfieSettings,
+                onCheckedChange = { enabled ->
+                    selfieSettings = enabled
+                    set(CameraSettingsKeys.KEY_CAMERA_SELFIE_SETTINGS, enabled)
+                },
+                title = stringResource(R.string.camera_unlock_selfie_settings_title),
+                summary = stringResource(R.string.camera_unlock_selfie_settings_summary)
+            )
+            OverlayDropdownPreference(
+                title = stringResource(R.string.camera_unlock_legendary_moment_title),
+                summary = stringResource(R.string.camera_unlock_legendary_moment_summary),
+                items = listOf(
+                    stringResource(R.string.camera_unlock_legendary_moment_off),
+                    stringResource(R.string.camera_unlock_legendary_moment_leica),
+                    stringResource(R.string.camera_unlock_legendary_moment_legendary)
+                ),
+                selectedIndex = CameraLegendaryMomentMode.index(legendaryMomentMode),
+                onSelectedIndexChange = { index ->
+                    val mode = CameraLegendaryMomentMode.fromIndex(index)
+                    legendaryMomentMode = mode
+                    settingsStore.camera.setCameraLegendaryMomentMode(mode)
+                },
+            )
+            SwitchPreference(
+                checked = legendaryExtraModes,
+                onCheckedChange = { enabled ->
+                    legendaryExtraModes = enabled
+                    set(CameraSettingsKeys.KEY_CAMERA_LEGENDARY_EXTRA_MODES, enabled)
+                },
+                title = stringResource(R.string.camera_unlock_legendary_extra_modes_title),
+                summary = stringResource(R.string.camera_unlock_legendary_extra_modes_summary)
+            )
+            SwitchPreference(
+                checked = smartComposition,
+                onCheckedChange = { enabled ->
+                    smartComposition = enabled
+                    set(CameraSettingsKeys.KEY_CAMERA_SMART_COMPOSITION, enabled)
+                },
+                title = stringResource(R.string.camera_unlock_smart_composition_title),
+                summary = stringResource(R.string.camera_unlock_smart_composition_summary)
+            )
+            SwitchPreference(
+                checked = contentCredential,
+                onCheckedChange = { enabled ->
+                    contentCredential = enabled
+                    set(CameraSettingsKeys.KEY_CAMERA_CONTENT_CREDENTIAL, enabled)
+                },
+                title = stringResource(R.string.camera_unlock_content_credential_title),
+                summary = stringResource(R.string.camera_unlock_content_credential_summary)
+            )
+            SwitchPreference(
+                checked = adaptiveLens,
+                onCheckedChange = { enabled ->
+                    adaptiveLens = enabled
+                    set(CameraSettingsKeys.KEY_CAMERA_ADAPTIVE_LENS, enabled)
+                },
+                title = stringResource(R.string.camera_unlock_adaptive_lens_title),
+                summary = stringResource(R.string.camera_unlock_adaptive_lens_summary)
+            )
+            SwitchPreference(
+                checked = masterLiveEnable,
+                onCheckedChange = { enabled ->
+                    masterLiveEnable = enabled
+                    set(CameraSettingsKeys.KEY_CAMERA_MASTERLIVE_ENABLE, enabled)
+                },
+                title = stringResource(R.string.camera_unlock_masterlive_title),
+                summary = stringResource(R.string.camera_unlock_masterlive_summary)
+            )
+            SwitchPreference(
+                checked = mlRedCarpet,
+                onCheckedChange = { enabled ->
+                    mlRedCarpet = enabled
+                    set(CameraSettingsKeys.KEY_CAMERA_MASTERLIVE_RED_CARPET, enabled)
+                },
+                title = stringResource(R.string.camera_unlock_red_carpet_title),
+                summary = stringResource(R.string.camera_unlock_red_carpet_summary)
+            )
+            SwitchPreference(
+                checked = mlFullFocal,
+                onCheckedChange = { enabled ->
+                    mlFullFocal = enabled
+                    set(CameraSettingsKeys.KEY_CAMERA_MASTERLIVE_FULL_FOCAL, enabled)
+                },
+                title = stringResource(R.string.camera_unlock_full_focal_title),
+                summary = stringResource(R.string.camera_unlock_full_focal_summary)
+            )
+            SwitchPreference(
+                checked = mlVideoSizeProbe,
+                onCheckedChange = { enabled ->
+                    mlVideoSizeProbe = enabled
+                    set(CameraSettingsKeys.KEY_CAMERA_MASTERLIVE_VIDEO_SIZE_PROBE, enabled)
+                },
+                title = stringResource(R.string.camera_unlock_video_size_probe_title),
+                summary = stringResource(R.string.camera_unlock_video_size_probe_summary)
+            )
+            SwitchPreference(
+                checked = themeLcc,
+                onCheckedChange = { enabled ->
+                    themeLcc = enabled
+                    set(CameraSettingsKeys.KEY_CAMERA_IMPERSONATE_THEME_LCC, enabled)
+                },
+                title = stringResource(R.string.camera_unlock_theme_lcc_title),
+                summary = stringResource(R.string.camera_unlock_theme_lcc_summary)
+            )
+            SwitchPreference(
+                checked = customWm,
+                onCheckedChange = { enabled ->
+                    customWm = enabled
+                    set(CameraSettingsKeys.KEY_CAMERA_WM_CUSTOM, enabled)
+                    if (!enabled) {
+                        editingBrand = false
+                        editingModel = false
+                    }
+                },
+                title = stringResource(R.string.camera_unlock_custom_title),
+                summary = stringResource(R.string.camera_unlock_custom_summary)
+            )
+            MiuixExpandableContent(visible = customWm) {
+                ArrowPreference(
+                    title = stringResource(R.string.camera_unlock_custom_brand_title),
+                    summary = if (customBrand.isEmpty()) {
+                        stringResource(R.string.camera_unlock_custom_unset)
+                    } else {
+                        customBrand
                     },
-                    title = stringResource(R.string.camera_unlock_ignore_mismatch_title),
-                    summary = stringResource(R.string.camera_unlock_ignore_mismatch_summary)
+                    onClick = { editingBrand = true },
+                    enabled = customWm,
+                    holdDownState = editingBrand
                 )
-                SwitchPreference(
-                    checked = leicaStyle,
-                    onCheckedChange = { enabled ->
-                        leicaStyle = enabled
-                        set(CameraSettingsKeys.KEY_CAMERA_LEICA_STYLE, enabled)
+                ArrowPreference(
+                    title = stringResource(R.string.camera_unlock_custom_model_title),
+                    summary = if (customModel.isEmpty()) {
+                        stringResource(R.string.camera_unlock_custom_unset)
+                    } else {
+                        customModel
                     },
-                    title = stringResource(R.string.camera_unlock_leica_style_title),
-                    summary = stringResource(R.string.camera_unlock_leica_style_summary)
+                    onClick = { editingModel = true },
+                    enabled = customWm,
+                    holdDownState = editingModel
                 )
-                SwitchPreference(
-                    checked = allShutterSounds,
-                    onCheckedChange = { enabled ->
-                        allShutterSounds = enabled
-                        set(CameraSettingsKeys.KEY_CAMERA_ALL_SHUTTER_SOUNDS, enabled)
-                    },
-                    title = stringResource(R.string.camera_unlock_all_shutter_sounds_title),
-                    summary = stringResource(R.string.camera_unlock_all_shutter_sounds_summary)
-                )
-                SwitchPreference(
-                    checked = ultraHdQuality,
-                    onCheckedChange = { enabled ->
-                        ultraHdQuality = enabled
-                        set(CameraSettingsKeys.KEY_CAMERA_ULTRA_HD_QUALITY, enabled)
-                    },
-                    title = stringResource(R.string.camera_unlock_ultra_hd_title),
-                    summary = stringResource(R.string.camera_unlock_ultra_hd_summary)
-                )
-                SwitchPreference(
-                    checked = selfieSettings,
-                    onCheckedChange = { enabled ->
-                        selfieSettings = enabled
-                        set(CameraSettingsKeys.KEY_CAMERA_SELFIE_SETTINGS, enabled)
-                    },
-                    title = stringResource(R.string.camera_unlock_selfie_settings_title),
-                    summary = stringResource(R.string.camera_unlock_selfie_settings_summary)
-                )
-                OverlayDropdownPreference(
-                    title = stringResource(R.string.camera_unlock_legendary_moment_title),
-                    summary = stringResource(R.string.camera_unlock_legendary_moment_summary),
-                    items = listOf(
-                        stringResource(R.string.camera_unlock_legendary_moment_off),
-                        stringResource(R.string.camera_unlock_legendary_moment_leica),
-                        stringResource(R.string.camera_unlock_legendary_moment_legendary)
-                    ),
-                    selectedIndex = CameraLegendaryMomentMode.index(legendaryMomentMode),
-                    onSelectedIndexChange = { index ->
-                        val mode = CameraLegendaryMomentMode.fromIndex(index)
-                        legendaryMomentMode = mode
-                        settingsStore.camera.setCameraLegendaryMomentMode(mode)
-                    },
-                )
-                SwitchPreference(
-                    checked = legendaryExtraModes,
-                    onCheckedChange = { enabled ->
-                        legendaryExtraModes = enabled
-                        set(CameraSettingsKeys.KEY_CAMERA_LEGENDARY_EXTRA_MODES, enabled)
-                    },
-                    title = stringResource(R.string.camera_unlock_legendary_extra_modes_title),
-                    summary = stringResource(R.string.camera_unlock_legendary_extra_modes_summary)
-                )
-                SwitchPreference(
-                    checked = smartComposition,
-                    onCheckedChange = { enabled ->
-                        smartComposition = enabled
-                        set(CameraSettingsKeys.KEY_CAMERA_SMART_COMPOSITION, enabled)
-                    },
-                    title = stringResource(R.string.camera_unlock_smart_composition_title),
-                    summary = stringResource(R.string.camera_unlock_smart_composition_summary)
-                )
-                SwitchPreference(
-                    checked = contentCredential,
-                    onCheckedChange = { enabled ->
-                        contentCredential = enabled
-                        set(CameraSettingsKeys.KEY_CAMERA_CONTENT_CREDENTIAL, enabled)
-                    },
-                    title = stringResource(R.string.camera_unlock_content_credential_title),
-                    summary = stringResource(R.string.camera_unlock_content_credential_summary)
-                )
-                SwitchPreference(
-                    checked = adaptiveLens,
-                    onCheckedChange = { enabled ->
-                        adaptiveLens = enabled
-                        set(CameraSettingsKeys.KEY_CAMERA_ADAPTIVE_LENS, enabled)
-                    },
-                    title = stringResource(R.string.camera_unlock_adaptive_lens_title),
-                    summary = stringResource(R.string.camera_unlock_adaptive_lens_summary)
-                )
-                SwitchPreference(
-                    checked = masterLiveEnable,
-                    onCheckedChange = { enabled ->
-                        masterLiveEnable = enabled
-                        set(CameraSettingsKeys.KEY_CAMERA_MASTERLIVE_ENABLE, enabled)
-                    },
-                    title = stringResource(R.string.camera_unlock_masterlive_title),
-                    summary = stringResource(R.string.camera_unlock_masterlive_summary)
-                )
-                SwitchPreference(
-                    checked = mlRedCarpet,
-                    onCheckedChange = { enabled ->
-                        mlRedCarpet = enabled
-                        set(CameraSettingsKeys.KEY_CAMERA_MASTERLIVE_RED_CARPET, enabled)
-                    },
-                    title = stringResource(R.string.camera_unlock_red_carpet_title),
-                    summary = stringResource(R.string.camera_unlock_red_carpet_summary)
-                )
-                SwitchPreference(
-                    checked = mlFullFocal,
-                    onCheckedChange = { enabled ->
-                        mlFullFocal = enabled
-                        set(CameraSettingsKeys.KEY_CAMERA_MASTERLIVE_FULL_FOCAL, enabled)
-                    },
-                    title = stringResource(R.string.camera_unlock_full_focal_title),
-                    summary = stringResource(R.string.camera_unlock_full_focal_summary)
-                )
-                SwitchPreference(
-                    checked = mlVideoSizeProbe,
-                    onCheckedChange = { enabled ->
-                        mlVideoSizeProbe = enabled
-                        set(CameraSettingsKeys.KEY_CAMERA_MASTERLIVE_VIDEO_SIZE_PROBE, enabled)
-                    },
-                    title = stringResource(R.string.camera_unlock_video_size_probe_title),
-                    summary = stringResource(R.string.camera_unlock_video_size_probe_summary)
-                )
-                SwitchPreference(
-                    checked = themeLcc,
-                    onCheckedChange = { enabled ->
-                        themeLcc = enabled
-                        set(CameraSettingsKeys.KEY_CAMERA_IMPERSONATE_THEME_LCC, enabled)
-                    },
-                    title = stringResource(R.string.camera_unlock_theme_lcc_title),
-                    summary = stringResource(R.string.camera_unlock_theme_lcc_summary)
-                )
-                SwitchPreference(
-                    checked = customWm,
-                    onCheckedChange = { enabled ->
-                        customWm = enabled
-                        set(CameraSettingsKeys.KEY_CAMERA_WM_CUSTOM, enabled)
-                        if (!enabled) {
-                            editingBrand = false
-                            editingModel = false
-                        }
-                    },
-                    title = stringResource(R.string.camera_unlock_custom_title),
-                    summary = stringResource(R.string.camera_unlock_custom_summary)
-                )
-                MiuixExpandableContent(visible = customWm) {
-                    ArrowPreference(
-                        title = stringResource(R.string.camera_unlock_custom_brand_title),
-                        summary = if (customBrand.isEmpty()) {
-                            stringResource(R.string.camera_unlock_custom_unset)
-                        } else {
-                            customBrand
-                        },
-                        onClick = { editingBrand = true },
-                        enabled = customWm,
-                        holdDownState = editingBrand
-                    )
-                    ArrowPreference(
-                        title = stringResource(R.string.camera_unlock_custom_model_title),
-                        summary = if (customModel.isEmpty()) {
-                            stringResource(R.string.camera_unlock_custom_unset)
-                        } else {
-                            customModel
-                        },
-                        onClick = { editingModel = true },
-                        enabled = customWm,
-                        holdDownState = editingModel
-                    )
-                }
             }
         }
         Spacer(Modifier.height(12.dp))
-        SmallTitle(stringResource(R.string.camera_unlock_notes))
-        Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+        AppSection(stringResource(R.string.camera_unlock_notes)) {
             Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
                 Text(
                     text = stringResource(R.string.camera_unlock_note_scope),
                     color = MiuixTheme.colorScheme.onSurface,
-                    fontSize = 13.sp
+                    style = MiuixTheme.textStyles.footnote1
                 )
                 Spacer(Modifier.height(8.dp))
                 Text(
                     text = stringResource(R.string.camera_unlock_note_restart),
                     color = MiuixTheme.colorScheme.onSurface,
-                    fontSize = 13.sp
+                    style = MiuixTheme.textStyles.footnote1
                 )
                 Spacer(Modifier.height(8.dp))
                 Text(
                     text = stringResource(R.string.camera_unlock_note_exif),
                     color = MiuixTheme.colorScheme.onSurface,
-                    fontSize = 13.sp
+                    style = MiuixTheme.textStyles.footnote1
                 )
             }
         }
@@ -345,7 +296,6 @@ fun CameraUnlockContent(
             onDismissRequest = { editingBrand = false },
             onConfirm = { value ->
                 customBrand = value
-                settingsStore.putString(CameraSettingsKeys.KEY_CAMERA_WM_CUSTOM_BRAND, value)
                 editingBrand = false
             }
         )
@@ -356,7 +306,6 @@ fun CameraUnlockContent(
             onDismissRequest = { editingModel = false },
             onConfirm = { value ->
                 customModel = value
-                settingsStore.putString(CameraSettingsKeys.KEY_CAMERA_WM_CUSTOM_MODEL, value)
                 editingModel = false
             }
         )

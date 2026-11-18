@@ -1,50 +1,26 @@
 package com.takekazex.hypertweak.ui.page.systemui.controlcenter
 
-import com.takekazex.hypertweak.ui.components.slider.rememberSliderEdit
-
-import com.takekazex.hypertweak.ui.components.dialog.IntValueDialog
-import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
-
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.WindowInsetsSides
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.only
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawing
-import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.takekazex.hypertweak.R
+import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 import com.takekazex.hypertweak.ui.app.LocalAppSettingsStore
-import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
-import com.takekazex.hypertweak.ui.effect.AppScaffold as Scaffold
+import com.takekazex.hypertweak.ui.app.rememberStoredSetting
+import com.takekazex.hypertweak.ui.chrome.AppScrollPage
+import com.takekazex.hypertweak.ui.chrome.AppSection
+import com.takekazex.hypertweak.ui.components.dialog.IntValueDialog
+import com.takekazex.hypertweak.ui.components.slider.rememberSliderEdit
 import top.yukonga.miuix.kmp.basic.Slider
 import top.yukonga.miuix.kmp.basic.SliderDefaults
-import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
-import com.takekazex.hypertweak.ui.effect.AppTopAppBar as TopAppBar
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.utils.overScrollVertical
 
 /**
  * Control Center corner-radius overrides (Settings → Experimental → 控制中心圆角).
@@ -59,10 +35,7 @@ import top.yukonga.miuix.kmp.utils.overScrollVertical
 @Composable
 fun ControlCenterCornerPage(onBack: () -> Unit) {
     val settingsStore = LocalAppSettingsStore.current
-    val scrollBehavior = MiuixScrollBehavior()
-    var enabled by remember {
-        mutableStateOf(settingsStore.getBoolean(SystemUiSettingsKeys.KEY_CC_CORNER_ENABLED, false))
-    }
+    var enabled by rememberStoredSetting(SystemUiSettingsKeys.KEY_CC_CORNER_ENABLED, settingsStore::putBoolean) { settingsStore.getBoolean(SystemUiSettingsKeys.KEY_CC_CORNER_ENABLED, false) }
 
     // All corner radius items with their preference keys, in the fixed display order.
     val items = remember {
@@ -84,55 +57,33 @@ fun ControlCenterCornerPage(onBack: () -> Unit) {
         }
     }
 
-    Scaffold(topBar = {
-        TopAppBar(
-            title = stringResource(R.string.tweaks_cc_corner_enabled_title),
-            scrollBehavior = scrollBehavior,
-            navigationIcon = {
-                IconButton(onClick = onBack) {
-                    Icon(MiuixIcons.Back, stringResource(R.string.charging_back))
+    AppScrollPage(
+        title = stringResource(R.string.tweaks_cc_corner_enabled_title),
+        onBack = onBack,
+        backContentDescription = stringResource(R.string.charging_back),
+    ) {
+
+        AppSection(stringResource(R.string.tweaks_cc_corner_enabled_title)) {
+            SwitchPreference(
+                checked = enabled,
+                onCheckedChange = { checked ->
+                    enabled = checked
+                },
+                title = stringResource(R.string.tweaks_cc_corner_enabled_title),
+                summary = stringResource(R.string.tweaks_cc_corner_enabled_summary)
+            )
+        }
+
+        items.forEach { item ->
+            CornerRadiusRow(
+                title = stringResource(item.titleRes),
+                summary = stringResource(item.summaryRes),
+                value = itemValues[item.key] ?: 0f,
+                onValueChange = { newValue ->
+                    itemValues[item.key] = newValue
+                    settingsStore.putFloat(item.key, newValue)
                 }
-            }
-        )
-    }) { padding ->
-        Column(
-            Modifier.fillMaxSize()
-                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
-                .overScrollVertical()
-                .nestedScroll(scrollBehavior.nestedScrollConnection)
-                .verticalScroll(rememberScrollState())
-        ) {
-            Spacer(Modifier.height(padding.calculateTopPadding() + 8.dp))
-
-            SmallTitle(stringResource(R.string.tweaks_cc_corner_enabled_title))
-            Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-                Column(Modifier.fillMaxWidth()) {
-                    SwitchPreference(
-                        checked = enabled,
-                        onCheckedChange = { checked ->
-                            enabled = checked
-                            settingsStore.putBoolean(SystemUiSettingsKeys.KEY_CC_CORNER_ENABLED, checked)
-                        },
-                        title = stringResource(R.string.tweaks_cc_corner_enabled_title),
-                        summary = stringResource(R.string.tweaks_cc_corner_enabled_summary)
-                    )
-
-                }
-            }
-
-            items.forEach { item ->
-                CornerRadiusRow(
-                    title = stringResource(item.titleRes),
-                    summary = stringResource(item.summaryRes),
-                    value = itemValues[item.key] ?: 0f,
-                    onValueChange = { newValue ->
-                        itemValues[item.key] = newValue
-                        settingsStore.putFloat(item.key, newValue)
-                    }
-                )
-            }
-
-            Spacer(Modifier.height(padding.calculateBottomPadding() + 16.dp))
+            )
         }
     }
 }

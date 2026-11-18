@@ -1,8 +1,5 @@
 package com.takekazex.hypertweak.ui.page.platform
 
-import com.takekazex.hypertweak.ui.components.dialog.AppWindowDialog
-import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
-
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -12,8 +9,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.takekazex.hypertweak.R
+import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 import com.takekazex.hypertweak.ui.app.LocalAppSettingsStore
+import com.takekazex.hypertweak.ui.app.rememberStoredSetting
+import com.takekazex.hypertweak.ui.chrome.AppSection
+import com.takekazex.hypertweak.ui.components.dialog.AppWindowDialog
 import com.takekazex.hypertweak.util.platform.NotificationBannerBatchController
 import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.preference.ArrowPreference
@@ -25,14 +27,12 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 internal fun NotificationBannerBatchSection() {
     val settingsStore = LocalAppSettingsStore.current
     val context = LocalContext.current
-    val state by NotificationBannerBatchController.state.collectAsState()
+    val state by NotificationBannerBatchController.state.collectAsStateWithLifecycle()
     var confirmation by rememberSaveable { mutableIntStateOf(0) }
     var waitingForScan by rememberSaveable { mutableStateOf(false) }
     var showReport by remember { mutableStateOf(false) }
     var showDetails by rememberSaveable { mutableStateOf(false) }
-    var whitelistBypass by rememberSaveable {
-        mutableStateOf(settingsStore.getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_WHITELIST_BYPASS, false))
-    }
+    var whitelistBypass by rememberStoredSetting(SystemUiSettingsKeys.KEY_NOTIFICATION_WHITELIST_BYPASS, settingsStore::putBoolean) { settingsStore.getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_WHITELIST_BYPASS, false) }
     val result = state.result
 
     fun dismissReport() {
@@ -62,27 +62,22 @@ internal fun NotificationBannerBatchSection() {
         if (confirmation == 2 && (state.result == null || state.applied || state.busy)) confirmation = 0
     }
 
-    SmallTitle(stringResource(R.string.notification_batch_title))
-    Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-        Column(Modifier.fillMaxWidth()) {
-            ArrowPreference(
-                title = stringResource(R.string.notification_batch_enable),
-                summary = stringResource(if (state.busy) R.string.notification_batch_busy else R.string.notification_batch_summary),
-                enabled = !state.busy,
-                onClick = { confirmation = 1 },
-                endActions = { if (state.busy) InfiniteProgressIndicator() }
-            )
-            SwitchPreference(
-                title = stringResource(R.string.notification_batch_whitelist_title),
-                summary = stringResource(R.string.notification_batch_whitelist_summary),
-                checked = whitelistBypass,
-                onCheckedChange = {
-                    whitelistBypass = it
-                    settingsStore.putBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_WHITELIST_BYPASS, it)
-                    settingsStore.flush()
-                },
-            )
-        }
+    AppSection(stringResource(R.string.notification_batch_title)) {
+        ArrowPreference(
+            title = stringResource(R.string.notification_batch_enable),
+            summary = stringResource(if (state.busy) R.string.notification_batch_busy else R.string.notification_batch_summary),
+            enabled = !state.busy,
+            onClick = { confirmation = 1 },
+            endActions = { if (state.busy) InfiniteProgressIndicator() }
+        )
+        SwitchPreference(
+            title = stringResource(R.string.notification_batch_whitelist_title),
+            summary = stringResource(R.string.notification_batch_whitelist_summary),
+            checked = whitelistBypass,
+            onCheckedChange = {
+                whitelistBypass = it
+            },
+        )
     }
 
     val preview = result?.let {

@@ -10,6 +10,12 @@ import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.takekazex.hypertweak.ui.chrome.AppUiStyle
+import com.takekazex.hypertweak.ui.chrome.LocalAppOverlayHost
+import com.takekazex.hypertweak.ui.chrome.LocalAppUiStyle
+import com.takekazex.hypertweak.ui.chrome.LocalGlassDialog
+import com.takekazex.hypertweak.ui.chrome.LocalPageBackdrop
+import top.yukonga.miuix.kmp.glass.GlassDialog
 import top.yukonga.miuix.kmp.layout.DialogDefaults
 import top.yukonga.miuix.kmp.window.WindowDialog
 
@@ -25,6 +31,23 @@ internal fun AppWindowDialog(
     cornerRadius: Dp? = null,
     content: @Composable () -> Unit,
 ) {
+    // OS4 pages host the upstream glass dialog in-page (it has the same sizing and back
+    // handling); outside a page, and in OS3, the dialog keeps its own window.
+    if (LocalAppUiStyle.current == AppUiStyle.Os4 && LocalAppOverlayHost.current) {
+        GlassDialog(
+            show = show,
+            title = title,
+            summary = summary,
+            onDismissRequest = onDismissRequest,
+            backdrop = LocalPageBackdrop.current,
+            maxWidth = maxWidth,
+            largeScreen = largeScreen,
+            cornerRadius = cornerRadius,
+        ) {
+            CompositionLocalProvider(LocalGlassDialog provides true, content = content)
+        }
+        return
+    }
     WindowDialog(
         show = show,
         title = title,

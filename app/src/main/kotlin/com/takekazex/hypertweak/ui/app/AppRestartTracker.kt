@@ -71,6 +71,17 @@ internal suspend fun currentRestartableScopes(context: Context, scopes: ScopeMan
 internal class AppRestartTracker(context: Context, private val values: AppSettingsState) {
     val localPrefs = context.getSharedPreferences(AppSettingsKeys.NAME, Context.MODE_PRIVATE)
     private val bootToken = currentBootToken()
+
+    init {
+        // Every persisted setting write reports here first, so restart tracking no longer has to
+        // be repeated next to each switch; untracked keys return early.
+        values.beforeWrite = { key, value ->
+            when (value) {
+                is Boolean -> markTweaked(key, value)
+                is Int -> markTweakedInt(key, value)
+            }
+        }
+    }
     var dirtyTweakKeys by run {
         val storedBootToken = localPrefs.getString(KEY_PENDING_RESTART_BOOT_TOKEN, null)
         if (storedBootToken == bootToken) {

@@ -7,7 +7,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import top.yukonga.miuix.kmp.blur.*
-import top.yukonga.miuix.kmp.blur.highlight.Highlight
+import top.yukonga.miuix.kmp.material.EdgeStroke
+import top.yukonga.miuix.kmp.material.edgeStroke
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /** Persisted IDs follow this declaration order; uniform blur preserves the previous default. */
@@ -21,7 +22,7 @@ fun Modifier.appTextureBlur(
     shape: Shape,
     blurRadius: Float = 25f,
     colors: BlurColors = BlurColors(),
-    highlight: Highlight? = null,
+    edgeStroke: EdgeStroke? = null,
     enabled: Boolean = true,
     fallbackColor: Color = MiuixTheme.colorScheme.surface,
 ): Modifier {
@@ -29,6 +30,7 @@ fun Modifier.appTextureBlur(
     return if (LocalAppBlurMode.current == AppBlurMode.Off) {
         background(fallbackColor, shape)
     } else {
-        textureBlur(backdrop, shape, blurRadius, colors = colors, highlight = highlight)
+        val blurred = textureBlur(backdrop, shape, blurRadius, colors = colors)
+        if (edgeStroke != null) blurred.edgeStroke(shape = shape, stroke = edgeStroke) else blurred
     }
 }

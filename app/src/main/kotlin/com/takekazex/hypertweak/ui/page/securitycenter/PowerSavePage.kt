@@ -1,24 +1,5 @@
 package com.takekazex.hypertweak.ui.page.securitycenter
 
-import com.takekazex.hypertweak.ui.components.scope.MissingScopeCard
-import com.takekazex.hypertweak.ui.components.slider.rememberSliderEdit
-
-import com.takekazex.hypertweak.ui.components.dialog.IntValueDialog
-import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
-
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.WindowInsetsSides
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.only
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawing
-import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -26,44 +7,34 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import com.takekazex.hypertweak.R
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 import com.takekazex.hypertweak.ui.app.LocalAppSettingsStore
+import com.takekazex.hypertweak.ui.chrome.AppScrollPage
+import com.takekazex.hypertweak.ui.chrome.AppSection
+import com.takekazex.hypertweak.ui.components.dialog.IntValueDialog
+import com.takekazex.hypertweak.ui.components.scope.MissingScopeCard
+import com.takekazex.hypertweak.ui.components.slider.rememberSliderEdit
 import kotlin.math.roundToInt
-import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
-import com.takekazex.hypertweak.ui.effect.AppScaffold as Scaffold
 import top.yukonga.miuix.kmp.basic.Slider
 import top.yukonga.miuix.kmp.basic.SliderDefaults
-import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
-import com.takekazex.hypertweak.ui.effect.AppTopAppBar as TopAppBar
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.utils.overScrollVertical
 
 /** Power-save overrides and battery automation. */
 @Composable
 fun PowerSavePage(onBack: () -> Unit) {
     val settingsStore = LocalAppSettingsStore.current
-    val scrollBehavior = MiuixScrollBehavior()
 
     var refreshRate by remember { mutableStateOf(settingsStore.powerSave.keepRefreshRateInPowerSave()) }
     var hapticFeedback by remember { mutableStateOf(settingsStore.powerSave.keepHapticFeedbackInPowerSave()) }
     var systemSounds by remember { mutableStateOf(settingsStore.powerSave.keepSystemSoundsInPowerSave()) }
     var wakeupGestures by remember { mutableStateOf(settingsStore.powerSave.keepWakeupGesturesInPowerSave()) }
     var autoPowerSave by remember { mutableStateOf(settingsStore.powerSave.batteryAutoPowerSaveEnabled()) }
-    var autoThreshold by remember {
-        mutableFloatStateOf(settingsStore.powerSave.batteryAutoPowerSaveThreshold().toFloat())
-    }
+    var autoThreshold by remember { mutableFloatStateOf(settingsStore.powerSave.batteryAutoPowerSaveThreshold().toFloat()) }
     var exitWhenCharging by remember { mutableStateOf(settingsStore.powerSave.exitPowerSaveWhenCharging()) }
 
     fun setOverride(key: String, value: Boolean, powerSaveFeature: Boolean) {
@@ -71,135 +42,110 @@ fun PowerSavePage(onBack: () -> Unit) {
         else settingsStore.putBoolean(key, value)
     }
 
-    Scaffold(topBar = {
-        TopAppBar(
-            title = stringResource(R.string.power_save_override_title),
-            scrollBehavior = scrollBehavior,
-            navigationIcon = {
-                IconButton(onClick = onBack) {
-                    Icon(MiuixIcons.Back, stringResource(R.string.power_save_override_back))
-                }
-            }
-        )
-    }) { padding ->
-        Column(
-            Modifier.fillMaxSize()
-                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
-                .overScrollVertical()
-                .nestedScroll(scrollBehavior.nestedScrollConnection)
-                .verticalScroll(rememberScrollState())
-        ) {
-            // The top bar is transparent and content scrolls beneath it, so the first item has to
-            // clear its height explicitly (same as the other second-level pages).
-            Spacer(Modifier.height(padding.calculateTopPadding() + 8.dp))
-            MissingScopeCard("com.miui.securitycenter", "com.android.systemui")
+    AppScrollPage(
+        title = stringResource(R.string.power_save_override_title),
+        onBack = onBack,
+        backContentDescription = stringResource(R.string.power_save_override_back),
+    ) {
+        MissingScopeCard("com.miui.securitycenter", "com.android.systemui")
 
-            SmallTitle(stringResource(R.string.power_save_override_section_features))
-            Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-                Column(Modifier.fillMaxWidth()) {
-                    SwitchPreference(
-                        checked = refreshRate,
-                        onCheckedChange = { checked ->
-                            refreshRate = checked
-                            setOverride(
-                                PlatformSettingsKeys.KEY_KEEP_REFRESH_RATE_IN_POWER_SAVE,
-                                checked,
-                                true,
-                            )
-                        },
-                        title = stringResource(R.string.power_save_override_refresh_rate_title),
-                        summary = stringResource(R.string.power_save_override_refresh_rate_summary)
+        AppSection(stringResource(R.string.power_save_override_section_features)) {
+            SwitchPreference(
+                checked = refreshRate,
+                onCheckedChange = { checked ->
+                    refreshRate = checked
+                    setOverride(
+                        PlatformSettingsKeys.KEY_KEEP_REFRESH_RATE_IN_POWER_SAVE,
+                        checked,
+                        true,
                     )
-                    SwitchPreference(
-                        checked = hapticFeedback,
-                        onCheckedChange = { checked ->
-                            hapticFeedback = checked
-                            setOverride(
-                                PlatformSettingsKeys.KEY_KEEP_HAPTIC_FEEDBACK_IN_POWER_SAVE,
-                                checked,
-                                true,
-                            )
-                        },
-                        title = stringResource(R.string.power_save_override_haptic_title),
-                        summary = stringResource(R.string.power_save_override_haptic_summary)
+                },
+                title = stringResource(R.string.power_save_override_refresh_rate_title),
+                summary = stringResource(R.string.power_save_override_refresh_rate_summary)
+            )
+            SwitchPreference(
+                checked = hapticFeedback,
+                onCheckedChange = { checked ->
+                    hapticFeedback = checked
+                    setOverride(
+                        PlatformSettingsKeys.KEY_KEEP_HAPTIC_FEEDBACK_IN_POWER_SAVE,
+                        checked,
+                        true,
                     )
-                    SwitchPreference(
-                        checked = systemSounds,
-                        onCheckedChange = { checked ->
-                            systemSounds = checked
-                            setOverride(
-                                PlatformSettingsKeys.KEY_KEEP_SYSTEM_SOUNDS_IN_POWER_SAVE,
-                                checked,
-                                true,
-                            )
-                        },
-                        title = stringResource(R.string.power_save_override_sounds_title),
-                        summary = stringResource(R.string.power_save_override_sounds_summary)
+                },
+                title = stringResource(R.string.power_save_override_haptic_title),
+                summary = stringResource(R.string.power_save_override_haptic_summary)
+            )
+            SwitchPreference(
+                checked = systemSounds,
+                onCheckedChange = { checked ->
+                    systemSounds = checked
+                    setOverride(
+                        PlatformSettingsKeys.KEY_KEEP_SYSTEM_SOUNDS_IN_POWER_SAVE,
+                        checked,
+                        true,
                     )
-                    SwitchPreference(
-                        checked = wakeupGestures,
-                        onCheckedChange = { checked ->
-                            wakeupGestures = checked
-                            setOverride(
-                                PlatformSettingsKeys.KEY_KEEP_WAKEUP_GESTURES_IN_POWER_SAVE,
-                                checked,
-                                true,
-                            )
-                        },
-                        title = stringResource(R.string.power_save_override_wakeup_title),
-                        summary = stringResource(R.string.power_save_override_wakeup_summary)
+                },
+                title = stringResource(R.string.power_save_override_sounds_title),
+                summary = stringResource(R.string.power_save_override_sounds_summary)
+            )
+            SwitchPreference(
+                checked = wakeupGestures,
+                onCheckedChange = { checked ->
+                    wakeupGestures = checked
+                    setOverride(
+                        PlatformSettingsKeys.KEY_KEEP_WAKEUP_GESTURES_IN_POWER_SAVE,
+                        checked,
+                        true,
                     )
-                }
-            }
+                },
+                title = stringResource(R.string.power_save_override_wakeup_title),
+                summary = stringResource(R.string.power_save_override_wakeup_summary)
+            )
+        }
 
-            SmallTitle(stringResource(R.string.power_save_override_section_auto))
-            Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-                Column(Modifier.fillMaxWidth()) {
-                    SwitchPreference(
-                        checked = autoPowerSave,
-                        onCheckedChange = { checked ->
-                            autoPowerSave = checked
-                            setOverride(
-                                PlatformSettingsKeys.KEY_BATTERY_AUTO_POWER_SAVE_ENABLED,
-                                checked,
-                                false,
-                            )
-                        },
-                        title = stringResource(R.string.power_save_auto_title),
-                        summary = stringResource(R.string.power_save_auto_summary)
+        AppSection(stringResource(R.string.power_save_override_section_auto)) {
+            SwitchPreference(
+                checked = autoPowerSave,
+                onCheckedChange = { checked ->
+                    autoPowerSave = checked
+                    setOverride(
+                        PlatformSettingsKeys.KEY_BATTERY_AUTO_POWER_SAVE_ENABLED,
+                        checked,
+                        false,
                     )
-                    var thresholdExpanded by rememberSaveable { mutableStateOf(false) }
-                    ThresholdRow(
-                        value = autoThreshold,
-                        expanded = thresholdExpanded,
-                        onExpandedChange = { thresholdExpanded = it },
-                        onValueChange = { value ->
-                            autoThreshold = value
-                        },
-                        onValueSettled = {
-                            settingsStore.putInt(
-                                PlatformSettingsKeys.KEY_BATTERY_AUTO_POWER_SAVE_THRESHOLD,
-                                autoThreshold.roundToInt(),
-                            )
-                        },
+                },
+                title = stringResource(R.string.power_save_auto_title),
+                summary = stringResource(R.string.power_save_auto_summary)
+            )
+            var thresholdExpanded by rememberSaveable { mutableStateOf(false) }
+            ThresholdRow(
+                value = autoThreshold,
+                expanded = thresholdExpanded,
+                onExpandedChange = { thresholdExpanded = it },
+                onValueChange = { value ->
+                    autoThreshold = value
+                },
+                onValueSettled = {
+                    settingsStore.putInt(
+                        PlatformSettingsKeys.KEY_BATTERY_AUTO_POWER_SAVE_THRESHOLD,
+                        autoThreshold.roundToInt(),
                     )
-                    SwitchPreference(
-                        checked = exitWhenCharging,
-                        onCheckedChange = { checked ->
-                            exitWhenCharging = checked
-                            setOverride(
-                                PlatformSettingsKeys.KEY_EXIT_POWER_SAVE_WHEN_CHARGING,
-                                checked,
-                                false,
-                            )
-                        },
-                        title = stringResource(R.string.power_save_exit_charging_title),
-                        summary = stringResource(R.string.power_save_exit_charging_summary)
+                },
+            )
+            SwitchPreference(
+                checked = exitWhenCharging,
+                onCheckedChange = { checked ->
+                    exitWhenCharging = checked
+                    setOverride(
+                        PlatformSettingsKeys.KEY_EXIT_POWER_SAVE_WHEN_CHARGING,
+                        checked,
+                        false,
                     )
-                }
-            }
-
-            Spacer(Modifier.height(padding.calculateBottomPadding() + 16.dp))
+                },
+                title = stringResource(R.string.power_save_exit_charging_title),
+                summary = stringResource(R.string.power_save_exit_charging_summary)
+            )
         }
     }
 }

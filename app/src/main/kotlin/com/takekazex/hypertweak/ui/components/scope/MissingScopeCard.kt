@@ -11,9 +11,11 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.compose.currentStateAsState
 import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.ui.app.LocalAppServices
+import com.takekazex.hypertweak.ui.chrome.AppTextButton as TextButton
 import com.takekazex.hypertweak.util.scope.ScopeManager
 import com.takekazex.hypertweak.util.scope.ScopePrompt
 import com.takekazex.hypertweak.util.scope.ScopePromptAction
@@ -23,7 +25,6 @@ import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.TextButton
 
 /** Place inside the feature page's scrolling content, alongside the affected application. */
 @Composable
@@ -34,7 +35,7 @@ internal fun MissingScopeCard(vararg packages: String) {
     val systemName = stringResource(R.string.home_scope_system_server)
     val serviceUnavailable = stringResource(R.string.home_scope_service_unavailable)
     val rejected = stringResource(R.string.feature_scope_rejected)
-    val service by services.module.connection.collectAsState()
+    val service by services.module.connection.collectAsStateWithLifecycle()
     val lifecycle = LocalLifecycleOwner.current.lifecycle.currentStateAsState().value
     val targets = packages.toSet()
     var refreshKey by remember { mutableIntStateOf(0) }

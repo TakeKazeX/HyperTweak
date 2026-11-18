@@ -127,12 +127,13 @@ class AppSettingsStateTest {
         assertTrue(state.hideFingerprintAod)
     }
 
-    @Test fun `restart projection uses observable edits and reads unknown keys from the same store`() {
+    @Test fun `edits write through and restart projection reads unknown keys from the same store`() {
         val store = MemoryAppSettings()
         val state = AppSettingsState(store)
         state.threeIslands = true
         assertTrue(state.currentTweakValue(PlatformSettingsKeys.KEY_THREE_ISLANDS))
-        assertFalse(store.getBoolean(PlatformSettingsKeys.KEY_THREE_ISLANDS, false))
+        // Assigning a state property persists it; pages no longer pair it with a manual put.
+        assertTrue(store.getBoolean(PlatformSettingsKeys.KEY_THREE_ISLANDS, false))
         store.putBoolean("secondary_page_key", true)
         assertTrue(state.currentTweakValue("secondary_page_key"))
         store.putInt("secondary_selector", 7)

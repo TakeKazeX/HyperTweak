@@ -8,11 +8,12 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.compose.currentStateAsState
 import com.takekazex.hypertweak.R
-import com.takekazex.hypertweak.settings.contract.CommunitySettings
 import com.takekazex.hypertweak.settings.contract.CommunitySettingsKeys
 import com.takekazex.hypertweak.ui.app.LocalAppSettingsStore
+import com.takekazex.hypertweak.ui.chrome.AppSection
 import com.takekazex.hypertweak.ui.components.MiuixExpandableContent
 import com.takekazex.hypertweak.ui.components.dialog.CenteredDialog
 import top.yukonga.miuix.kmp.basic.*
@@ -28,7 +29,7 @@ internal fun CommunitySection() {
     var editing by rememberSaveable { mutableStateOf(false) }
     var draft by rememberSaveable { mutableStateOf("") }
     val lifecycle = LocalLifecycleOwner.current.lifecycle.currentStateAsState().value
-    val debugRevision by com.takekazex.hypertweak.util.diagnostics.DebugSettingsEvents.revision.collectAsState()
+    val debugRevision by com.takekazex.hypertweak.util.diagnostics.DebugSettingsEvents.revision.collectAsStateWithLifecycle()
     LaunchedEffect(lifecycle, debugRevision) {
         if (lifecycle == Lifecycle.State.RESUMED) {
             block = store.getBoolean(CommunitySettingsKeys.KEY_COMMUNITY_BLOCK_DETECTION, false)
@@ -36,8 +37,7 @@ internal fun CommunitySection() {
             model = store.getString(CommunitySettingsKeys.KEY_COMMUNITY_MODEL, "")
         }
     }
-    SmallTitle(stringResource(R.string.community_title))
-    Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+    AppSection(stringResource(R.string.community_title)) {
         Column {
             SwitchPreference(checked = block, onCheckedChange = {
                 store.putBoolean(CommunitySettingsKeys.KEY_COMMUNITY_BLOCK_DETECTION, it); block = it

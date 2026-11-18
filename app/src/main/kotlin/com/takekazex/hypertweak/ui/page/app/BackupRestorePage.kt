@@ -1,6 +1,5 @@
 package com.takekazex.hypertweak.ui.page.app
 
-import com.takekazex.hypertweak.ui.components.dialog.AppWindowDialog
 import android.annotation.SuppressLint
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -9,18 +8,9 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.WindowInsetsSides
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.only
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -28,36 +18,26 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.ui.app.LocalAppSettingsStore
-import com.takekazex.hypertweak.util.logging.DebugLog
+import com.takekazex.hypertweak.ui.chrome.AppScrollPage
+import com.takekazex.hypertweak.ui.chrome.AppSection
+import com.takekazex.hypertweak.ui.chrome.AppTextButton as TextButton
+import com.takekazex.hypertweak.ui.components.dialog.AppWindowDialog
 import com.takekazex.hypertweak.util.backup.SettingsBackupDocument
+import com.takekazex.hypertweak.util.logging.DebugLog
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
-import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
-import com.takekazex.hypertweak.ui.effect.AppScaffold as Scaffold
-import top.yukonga.miuix.kmp.basic.SmallTitle
-import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TextButton
-import com.takekazex.hypertweak.ui.effect.AppTopAppBar as TopAppBar
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
-import top.yukonga.miuix.kmp.utils.overScrollVertical
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 @SuppressLint("LocalContextResourcesRead")
 @Composable
@@ -70,7 +50,6 @@ fun BackupRestorePage(
     val context = LocalContext.current
     val resolver = context.contentResolver
     val scope = rememberCoroutineScope()
-    val scrollBehavior = MiuixScrollBehavior()
     var busy by remember { mutableStateOf(false) }
     var showClearDialog by remember { mutableStateOf(false) }
     var showClearConfirmationDialog by remember { mutableStateOf(false) }
@@ -145,65 +124,39 @@ fun BackupRestorePage(
         }
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = stringResource(R.string.settings_backup_restore),
-                scrollBehavior = scrollBehavior,
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            MiuixIcons.Back,
-                            contentDescription = stringResource(R.string.debug_back)
-                        )
-                    }
+    AppScrollPage(
+        title = stringResource(R.string.settings_backup_restore),
+        onBack = onBack,
+        backContentDescription = stringResource(R.string.debug_back),
+    ) {
+        AppSection(stringResource(R.string.settings_backup_restore_title)) {
+            ArrowPreference(
+                title = stringResource(R.string.settings_backup),
+                summary = stringResource(R.string.settings_backup_summary),
+                enabled = !busy,
+                onClick = {
+                    val timestamp = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US)
+                        .format(Date())
+                    createBackupLauncher.launch("HyperTweak-backup-$timestamp.json")
+                }
+            )
+            ArrowPreference(
+                title = stringResource(R.string.settings_restore),
+                summary = stringResource(R.string.settings_restore_summary),
+                enabled = !busy,
+                onClick = {
+                    openBackupLauncher.launch(arrayOf("application/json", "text/plain"))
                 }
             )
         }
-    ) { padding ->
-        Column(
-            Modifier
-                .fillMaxSize()
-                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
-                .overScrollVertical()
-                .nestedScroll(scrollBehavior.nestedScrollConnection)
-                .verticalScroll(rememberScrollState())
-        ) {
-            Spacer(Modifier.height(padding.calculateTopPadding() + 8.dp))
-            SmallTitle(stringResource(R.string.settings_backup_restore_title))
-            Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-                Column(Modifier.fillMaxWidth()) {
-                    ArrowPreference(
-                        title = stringResource(R.string.settings_backup),
-                        summary = stringResource(R.string.settings_backup_summary),
-                        enabled = !busy,
-                        onClick = {
-                            val timestamp = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US)
-                                .format(Date())
-                            createBackupLauncher.launch("HyperTweak-backup-$timestamp.json")
-                        }
-                    )
-                    ArrowPreference(
-                        title = stringResource(R.string.settings_restore),
-                        summary = stringResource(R.string.settings_restore_summary),
-                        enabled = !busy,
-                        onClick = {
-                            openBackupLauncher.launch(arrayOf("application/json", "text/plain"))
-                        }
-                    )
-                }
-            }
 
-            SmallTitle(stringResource(R.string.settings_danger_zone))
-            Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-                ArrowPreference(
-                    title = stringResource(R.string.settings_clear_all_settings),
-                    summary = stringResource(R.string.settings_clear_all_settings_summary),
-                    enabled = !busy,
-                    onClick = { showClearDialog = true }
-                )
-            }
-            Spacer(Modifier.height(padding.calculateBottomPadding() + 16.dp))
+        AppSection(stringResource(R.string.settings_danger_zone)) {
+            ArrowPreference(
+                title = stringResource(R.string.settings_clear_all_settings),
+                summary = stringResource(R.string.settings_clear_all_settings_summary),
+                enabled = !busy,
+                onClick = { showClearDialog = true }
+            )
         }
     }
 
@@ -270,12 +223,7 @@ fun BackupRestorePage(
                             )
                         },
                         modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.textButtonColorsPrimary(
-                            color = Color(0xFFD32F2F),
-                            disabledColor = Color(0xFF6D3434),
-                            textColor = Color.White,
-                            disabledTextColor = Color(0xFFBDBDBD)
-                        )
+                        destructive = true
                     )
                 }
             }

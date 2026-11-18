@@ -37,6 +37,7 @@ internal object DebugSettingsCatalog {
         DebugSetting("app_language", "Int", 0),
         DebugSetting("app_shortcuts", "StringSet", setOf("lsposed", "installerx", "dev_settings")),
         DebugSetting("app_shortcuts_order", "String", ""),
+        DebugSetting("app_ui_style", "Int", 1),
         DebugSetting("back_gesture_cross_activity_wallpaper", "Boolean", false),
         DebugSetting("back_gesture_cross_task_wallpaper", "Boolean", false),
         DebugSetting("back_gesture_enabled", "Boolean", false),

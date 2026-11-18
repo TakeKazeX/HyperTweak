@@ -1,87 +1,63 @@
 package com.takekazex.hypertweak.ui.page.app
 
-import com.takekazex.hypertweak.ui.components.MiuixExpandableContent
-import com.takekazex.hypertweak.ui.components.slider.rememberSliderEdit
-
-import com.takekazex.hypertweak.ui.components.dialog.ScaleDialog
-import com.takekazex.hypertweak.ui.effect.AppScaffold as Scaffold
-import com.takekazex.hypertweak.ui.effect.AppTopAppBar as TopAppBar
-
 import android.annotation.SuppressLint
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.takekazex.hypertweak.R
+import com.takekazex.hypertweak.ui.app.LocalAppSettings
+import com.takekazex.hypertweak.ui.chrome.AppDropdownPreference as OverlayDropdownPreference
+import com.takekazex.hypertweak.ui.chrome.AppScrollPage
+import com.takekazex.hypertweak.ui.chrome.AppSection
+import com.takekazex.hypertweak.ui.chrome.BottomBarStyle
+import com.takekazex.hypertweak.ui.chrome.appUiStyleFromStored
+import com.takekazex.hypertweak.ui.chrome.bottomBarStyle
+import com.takekazex.hypertweak.ui.chrome.bottomBarStyles
+import com.takekazex.hypertweak.ui.chrome.stored
+import com.takekazex.hypertweak.ui.components.MiuixExpandableContent
+import com.takekazex.hypertweak.ui.components.dialog.ScaleDialog
+import com.takekazex.hypertweak.ui.components.slider.rememberSliderEdit
 import com.takekazex.hypertweak.ui.theme.*
 import top.yukonga.miuix.kmp.basic.*
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.preference.ArrowPreference
-import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.utils.overScrollVertical
 
 @SuppressLint("LocalContextGetResourceValueCall")
 @Composable
 fun AppearancePage(
-    appBlurMode: Int,
-    onAppBlurModeChange: (Int) -> Unit,
     onBack: () -> Unit,
-    themeMode: Int,
-    onThemeModeChange: (Int) -> Unit,
-    useMonet: Boolean,
-    onUseMonetChange: (Boolean) -> Unit,
-    seedColorHex: Int,
-    onSeedColorChange: (Int) -> Unit,
-    paletteStyle: Int,
-    onPaletteStyleChange: (Int) -> Unit,
-    pureBlackDarkTheme: Boolean,
-    onPureBlackDarkThemeChange: (Boolean) -> Unit,
-    useFloatingBottomBar: Boolean,
-    onUseFloatingBottomBarChange: (Boolean) -> Unit,
-    floatingBarStyle: Int,
-    onFloatingBarStyleChange: (Int) -> Unit,
-    predictiveBackStyle: Int,
-    onPredictiveBackStyleChange: (Int) -> Unit,
-    predictiveBackFollowGesture: Boolean,
-    onPredictiveBackFollowGestureChange: (Boolean) -> Unit,
-    pageScale: Float,
-    onPageScaleChange: (Float) -> Unit
 ) {
-    val scrollBehavior = MiuixScrollBehavior()
+    val appSettings = LocalAppSettings.current
     val context = LocalContext.current
     val systemAccent = rememberDeviceAccentColor()
-    val resolvedSeed = if (seedColorHex == 0) systemAccent else seedColorHex
-    val darkPreview = isEffectivelyDark(themeMode, isSystemInDarkTheme())
-    val customSeed = seedColorHex !in presetAccentColors
-    val accentLabels = remember(context, seedColorHex, customSeed) {
+    val resolvedSeed = if (appSettings.seedColorHex == 0) systemAccent else appSettings.seedColorHex
+    val darkPreview = isEffectivelyDark(appSettings.themeMode, isSystemInDarkTheme())
+    val customSeed = appSettings.seedColorHex !in presetAccentColors
+    val accentLabels = remember(context, appSettings.seedColorHex, customSeed) {
         buildList {
             addAll(presetAccentLabels.map { context.getString(it) })
             if (customSeed) {
-                add(context.getString(R.string.appearance_custom_accent, formatSeedColor(seedColorHex)))
+                add(context.getString(R.string.appearance_custom_accent, formatSeedColor(appSettings.seedColorHex)))
             }
         }
     }
-    val accentColors = remember(seedColorHex, systemAccent, customSeed) {
+    val accentColors = remember(appSettings.seedColorHex, systemAccent, customSeed) {
         buildList {
             add(Color(systemAccent))
             presetAccentColors.drop(1).forEach { add(Color(it)) }
-            if (customSeed) add(Color(seedColorHex))
+            if (customSeed) add(Color(appSettings.seedColorHex))
         }
     }
-    val selectedAccentIndex = presetAccentColors.indexOf(seedColorHex)
+    val selectedAccentIndex = presetAccentColors.indexOf(appSettings.seedColorHex)
         .takeIf { it >= 0 } ?: presetAccentColors.size
     val accentEntry = DropdownEntry(
         items = accentLabels.mapIndexed { index, label ->
@@ -89,9 +65,7 @@ fun AppearancePage(
                 text = label,
                 selected = index == selectedAccentIndex,
                 onClick = {
-                    onSeedColorChange(
-                        if (index in presetAccentColors.indices) presetAccentColors[index] else seedColorHex
-                    )
+                    appSettings.seedColorHex = if (index in presetAccentColors.indices) presetAccentColors[index] else appSettings.seedColorHex
                 },
                 icon = { modifier ->
                     Box(
@@ -113,8 +87,8 @@ fun AppearancePage(
         items = PaletteStyleOption.entries.mapIndexed { index, option ->
             DropdownItem(
                 text = stringResource(option.labelRes),
-                selected = index == paletteStyleIndex(paletteStyle),
-                onClick = { onPaletteStyleChange(option.persistedId) },
+                selected = index == paletteStyleIndex(appSettings.paletteStyle),
+                onClick = { appSettings.paletteStyle = option.persistedId },
                 icon = { modifier ->
                     Row(
                         modifier = modifier.width(42.dp).height(18.dp),
@@ -130,144 +104,134 @@ fun AppearancePage(
         }
     )
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = stringResource(R.string.appearance_title),
-                scrollBehavior = scrollBehavior,
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(MiuixIcons.Back, contentDescription = stringResource(R.string.appearance_back))
-                    }
+    AppScrollPage(
+        title = stringResource(R.string.appearance_title),
+        onBack = onBack,
+        backContentDescription = stringResource(R.string.appearance_back),
+    ) {
+        AppSection(stringResource(R.string.appearance_theme)) {
+            OverlayDropdownPreference(
+                title = stringResource(R.string.appearance_ui_style),
+                summary = stringResource(R.string.appearance_ui_style_summary),
+                items = listOf(
+                    stringResource(R.string.appearance_ui_style_os3),
+                    stringResource(R.string.appearance_ui_style_os4)
+                ),
+                selectedIndex = appSettings.appUiStyle.coerceIn(0, 1),
+                onSelectedIndexChange = { appSettings.appUiStyle = it }
+            )
+            OverlayDropdownPreference(
+                title = stringResource(R.string.appearance_theme_mode),
+                items = listOf(
+                    stringResource(R.string.appearance_theme_follow_system),
+                    stringResource(R.string.appearance_theme_light),
+                    stringResource(R.string.appearance_theme_dark)
+                ),
+                selectedIndex = appSettings.themeMode.coerceIn(0, 2),
+                onSelectedIndexChange = { appSettings.themeMode = it }
+            )
+            SwitchPreference(
+                checked = appSettings.useMonet,
+                onCheckedChange = { appSettings.useMonet = it },
+                title = stringResource(R.string.appearance_monet_color),
+                summary = stringResource(R.string.appearance_monet_color_summary)
+            )
+            MiuixExpandableContent(visible = appSettings.useMonet) {
+                Column(Modifier.fillMaxWidth()) {
+                    OverlayDropdownPreference(entry = accentEntry, title = stringResource(R.string.appearance_accent_color))
+                    OverlayDropdownPreference(entry = paletteEntry, title = stringResource(R.string.appearance_color_style))
                 }
+            }
+            SwitchPreference(
+                checked = appSettings.pureBlackDarkTheme,
+                onCheckedChange = { appSettings.pureBlackDarkTheme = it },
+                title = stringResource(R.string.appearance_pure_black_background),
+                summary = stringResource(R.string.appearance_pure_black_background_summary)
             )
         }
-    ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
-                .overScrollVertical()
-                .nestedScroll(scrollBehavior.nestedScrollConnection)
-                .verticalScroll(rememberScrollState())
-        ) {
-            Spacer(Modifier.height(innerPadding.calculateTopPadding() + 8.dp))
-            SmallTitle(stringResource(R.string.appearance_theme))
-            Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-                Column(Modifier.fillMaxWidth()) {
-                    OverlayDropdownPreference(
-                        title = stringResource(R.string.appearance_theme_mode),
-                        items = listOf(
-                            stringResource(R.string.appearance_theme_follow_system),
-                            stringResource(R.string.appearance_theme_light),
-                            stringResource(R.string.appearance_theme_dark)
-                        ),
-                        selectedIndex = themeMode.coerceIn(0, 2),
-                        onSelectedIndexChange = onThemeModeChange
-                    )
-                    SwitchPreference(
-                        checked = useMonet,
-                        onCheckedChange = onUseMonetChange,
-                        title = stringResource(R.string.appearance_monet_color),
-                        summary = stringResource(R.string.appearance_monet_color_summary)
-                    )
-                    MiuixExpandableContent(visible = useMonet) {
-                        Column(Modifier.fillMaxWidth()) {
-                            OverlayDropdownPreference(entry = accentEntry, title = stringResource(R.string.appearance_accent_color))
-                            OverlayDropdownPreference(entry = paletteEntry, title = stringResource(R.string.appearance_color_style))
-                        }
-                    }
-                    SwitchPreference(
-                        checked = pureBlackDarkTheme,
-                        onCheckedChange = onPureBlackDarkThemeChange,
-                        title = stringResource(R.string.appearance_pure_black_background),
-                        summary = stringResource(R.string.appearance_pure_black_background_summary)
+
+        AppSection(stringResource(R.string.appearance_navigation)) {
+            val uiStyle = appUiStyleFromStored(appSettings.appUiStyle)
+            val barStyles = bottomBarStyles(uiStyle)
+            val barStyle = bottomBarStyle(uiStyle, appSettings.useFloatingBottomBar, appSettings.floatingBarStyle)
+            OverlayDropdownPreference(
+                title = stringResource(R.string.appearance_bottom_bar_style),
+                items = barStyles.map { stringResource(it.labelRes()) },
+                selectedIndex = barStyles.indexOf(barStyle).coerceAtLeast(0),
+                onSelectedIndexChange = { index ->
+                    val (floating, style) = barStyles[index].stored()
+                    appSettings.useFloatingBottomBar = floating
+                    if (floating) appSettings.floatingBarStyle = style
+                }
+            )
+            OverlayDropdownPreference(
+                title = stringResource(R.string.appearance_back_style),
+                items = listOf(
+                    stringResource(R.string.appearance_back_style_disabled),
+                    stringResource(R.string.appearance_back_style_miuix),
+                    stringResource(R.string.appearance_back_style_scale)
+                ),
+                selectedIndex = appSettings.predictiveBackStyle.coerceIn(0, 2),
+                onSelectedIndexChange = { appSettings.predictiveBackStyle = it }
+            )
+            MiuixExpandableContent(visible = appSettings.predictiveBackStyle == 2) {
+                SwitchPreference(
+                    checked = appSettings.predictiveBackFollowGesture,
+                    onCheckedChange = { appSettings.predictiveBackFollowGesture = it },
+                    title = stringResource(R.string.appearance_follow_gesture_direction),
+                    summary = stringResource(R.string.appearance_follow_gesture_direction_summary)
+                )
+            }
+        }
+
+        AppSection(stringResource(R.string.appearance_display)) {
+            OverlayDropdownPreference(
+                title = stringResource(R.string.appearance_global_blur),
+                items = listOf(
+                    stringResource(R.string.appearance_blur_off),
+                    stringResource(R.string.appearance_blur_uniform),
+                    stringResource(R.string.appearance_blur_progressive),
+                ),
+                selectedIndex = appSettings.appBlurMode.coerceIn(0, 2),
+                onSelectedIndexChange = { appSettings.appBlurMode = it },
+            )
+            val slider = rememberSliderEdit(appSettings.pageScale)
+            val sliderValue = slider.value
+            var expanded by remember { mutableStateOf(false) }
+            ArrowPreference(
+                title = stringResource(R.string.appearance_interface_scale),
+                summary = stringResource(R.string.appearance_interface_scale_summary),
+                endActions = {
+                    Text("${(sliderValue * 100).toInt()}%", color = MiuixTheme.colorScheme.onSurfaceVariantActions)
+                },
+                onClick = { expanded = !expanded },
+                holdDownState = expanded,
+                bottomAction = {
+                    Slider(
+                        value = sliderValue,
+                        onValueChange = slider::update,
+                        onValueChangeFinished = { slider.finish()?.let({ appSettings.pageScale = it }) },
+                        valueRange = 0.85f..1.15f,
+                        showKeyPoints = true,
+                        keyPoints = listOf(0.85f, 1f, 1.15f),
+                        magnetThreshold = 0.01f,
+                        hapticEffect = SliderDefaults.SliderHapticEffect.Step
                     )
                 }
-            }
-
-            SmallTitle(stringResource(R.string.appearance_navigation))
-            Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-                Column(Modifier.fillMaxWidth()) {
-                    SwitchPreference(
-                        checked = useFloatingBottomBar,
-                        onCheckedChange = onUseFloatingBottomBarChange,
-                        title = stringResource(R.string.appearance_floating_bottom_bar),
-                        summary = stringResource(R.string.appearance_floating_bottom_bar_summary)
-                    )
-                    MiuixExpandableContent(visible = useFloatingBottomBar) {
-                        OverlayDropdownPreference(
-                            title = stringResource(R.string.appearance_floating_bar_style),
-                            items = listOf("Miuix", stringResource(R.string.appearance_bar_style_ios)),
-                            selectedIndex = floatingBarStyle.coerceIn(0, 1),
-                            onSelectedIndexChange = onFloatingBarStyleChange
-                        )
-                    }
-                    OverlayDropdownPreference(
-                        title = stringResource(R.string.appearance_back_style),
-                        items = listOf(
-                            stringResource(R.string.appearance_back_style_disabled),
-                            stringResource(R.string.appearance_back_style_miuix),
-                            stringResource(R.string.appearance_back_style_scale)
-                        ),
-                        selectedIndex = predictiveBackStyle.coerceIn(0, 2),
-                        onSelectedIndexChange = onPredictiveBackStyleChange
-                    )
-                    MiuixExpandableContent(visible = predictiveBackStyle == 2) {
-                        SwitchPreference(
-                            checked = predictiveBackFollowGesture,
-                            onCheckedChange = onPredictiveBackFollowGestureChange,
-                            title = stringResource(R.string.appearance_follow_gesture_direction),
-                            summary = stringResource(R.string.appearance_follow_gesture_direction_summary)
-                        )
-                    }
-                }
-            }
-
-            SmallTitle(stringResource(R.string.appearance_display))
-            Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-                OverlayDropdownPreference(
-                    title = stringResource(R.string.appearance_global_blur),
-                    items = listOf(
-                        stringResource(R.string.appearance_blur_off),
-                        stringResource(R.string.appearance_blur_uniform),
-                        stringResource(R.string.appearance_blur_progressive),
-                    ),
-                    selectedIndex = appBlurMode.coerceIn(0, 2),
-                    onSelectedIndexChange = onAppBlurModeChange,
-                )
-                val slider = rememberSliderEdit(pageScale)
-                val sliderValue = slider.value
-                var expanded by remember { mutableStateOf(false) }
-                ArrowPreference(
-                    title = stringResource(R.string.appearance_interface_scale),
-                    summary = stringResource(R.string.appearance_interface_scale_summary),
-                    endActions = {
-                        Text("${(sliderValue * 100).toInt()}%", color = MiuixTheme.colorScheme.onSurfaceVariantActions)
-                    },
-                    onClick = { expanded = !expanded },
-                    holdDownState = expanded,
-                    bottomAction = {
-                        Slider(
-                            value = sliderValue,
-                            onValueChange = slider::update,
-                            onValueChangeFinished = { slider.finish()?.let(onPageScaleChange) },
-                            valueRange = 0.85f..1.15f,
-                            showKeyPoints = true,
-                            keyPoints = listOf(0.85f, 1f, 1.15f),
-                            magnetThreshold = 0.01f,
-                            hapticEffect = SliderDefaults.SliderHapticEffect.Step
-                        )
-                    }
-                )
-                ScaleDialog(
-                    show = expanded,
-                    onDismissRequest = { expanded = false },
-                    volumeState = { pageScale },
-                    onVolumeChange = onPageScaleChange
-                )
-            }
-            Spacer(Modifier.height(innerPadding.calculateBottomPadding() + 16.dp))
+            )
+            ScaleDialog(
+                show = expanded,
+                onDismissRequest = { expanded = false },
+                volumeState = { appSettings.pageScale },
+                onVolumeChange = { appSettings.pageScale = it },
+            )
         }
     }
+}
+
+private fun BottomBarStyle.labelRes(): Int = when (this) {
+    BottomBarStyle.Glass -> R.string.appearance_bar_style_glass
+    BottomBarStyle.Miuix -> R.string.appearance_bar_style_miuix
+    BottomBarStyle.MiuixFloating -> R.string.appearance_bar_style_miuix_floating
+    BottomBarStyle.IosLiquid -> R.string.appearance_bar_style_ios
 }

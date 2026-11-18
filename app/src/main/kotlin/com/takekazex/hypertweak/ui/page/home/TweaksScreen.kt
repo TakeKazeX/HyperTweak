@@ -1,48 +1,38 @@
 package com.takekazex.hypertweak.ui.page.home
 
-import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
-
 import android.annotation.SuppressLint
-import com.takekazex.hypertweak.R
-import com.takekazex.hypertweak.ui.app.LocalAppSettingsStore
 import androidx.compose.animation.*
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.ButtonDefaults
-import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
-import com.takekazex.hypertweak.ui.components.MiuixExpandableContent
-import com.takekazex.hypertweak.ui.effect.AppScaffold as Scaffold
-import top.yukonga.miuix.kmp.basic.SmallTitle
-import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.basic.TextField
-import com.takekazex.hypertweak.ui.effect.AppTopAppBar as TopAppBar
-import com.takekazex.hypertweak.ui.effect.AppOverlayDialog as OverlayDialog
-import top.yukonga.miuix.kmp.preference.ArrowPreference
-import top.yukonga.miuix.kmp.preference.SwitchPreference
-import top.yukonga.miuix.kmp.utils.overScrollVertical
-import androidx.compose.ui.graphics.Color
-import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.blur.LayerBackdrop
-import com.takekazex.hypertweak.util.restart.RestartScopeSelection
 import androidx.core.graphics.drawable.toBitmap
-import androidx.compose.ui.graphics.asImageBitmap
+import com.takekazex.hypertweak.R
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+import com.takekazex.hypertweak.ui.app.LocalAppSettings
+import com.takekazex.hypertweak.ui.app.LocalAppSettingsStore
+import com.takekazex.hypertweak.ui.chrome.AppOverlayDialog as OverlayDialog
+import com.takekazex.hypertweak.ui.chrome.AppScrollPage
+import com.takekazex.hypertweak.ui.chrome.AppSection
+import com.takekazex.hypertweak.ui.chrome.AppTextButton as TextButton
+import com.takekazex.hypertweak.ui.components.MiuixExpandableContent
+import com.takekazex.hypertweak.util.restart.RestartScopeSelection
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import top.yukonga.miuix.kmp.basic.ButtonDefaults
+import top.yukonga.miuix.kmp.basic.TextField
+import top.yukonga.miuix.kmp.preference.ArrowPreference
+import top.yukonga.miuix.kmp.preference.SwitchPreference
 
 @SuppressLint("LocalContextGetResourceValueCall")
 @Composable
@@ -58,227 +48,189 @@ fun TweaksScreenContent(
     onNavigateToSystemFramework: () -> Unit,
     onNavigateToGoogleServices: () -> Unit,
     onNavigateToCameraWatermark: () -> Unit,
-    paModelSpoofEnabled: Boolean,
-    onPaModelSpoofEnabledChange: (Boolean) -> Unit,
-
-
-    disableSpatialAudio: Boolean,
-    onDisableSpatialAudioChange: (Boolean) -> Unit,
-    forceAdaptiveAnc: Boolean,
-    onForceAdaptiveAncChange: (Boolean) -> Unit,
     onNavigateToSuperIsland: () -> Unit,
     onNavigateToPurification: () -> Unit,
-    backdrop: LayerBackdrop
 ) {
-    val topAppBarScrollBehavior = MiuixScrollBehavior()
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = stringResource(R.string.tweaks_features),
-                color = Color.Transparent,
-                scrollBehavior = topAppBarScrollBehavior
+    val appSettings = LocalAppSettings.current
+    AppScrollPage(
+        title = stringResource(R.string.tweaks_features),
+        onBack = null,
+        bottomInset = padding.calculateBottomPadding(),
+    ) {
+
+        // Keep the pages that operate on a complete system component together, with a visual
+        // cue for the app each entry opens.
+        AppSection(stringResource(R.string.tweaks_system_components_title)) {
+            ArrowPreference(
+                title = stringResource(R.string.settings_aosp_restore),
+                summary = stringResource(R.string.settings_aosp_restore_summary),
+                startAction = {
+                    ApplicationIcon(
+                        packageName = RestartScopeSelection.PACKAGE_SETTINGS,
+                        modifier = Modifier.padding(end = 6.dp),
+                        contentDescription = stringResource(R.string.settings_aosp_restore)
+                    )
+                },
+                onClick = onNavigateToAospRestore
+            )
+            ArrowPreference(
+                title = stringResource(R.string.settings_launcher_section),
+                summary = stringResource(R.string.settings_launcher_summary),
+                startAction = {
+                    ApplicationIcon(
+                        packageName = "com.miui.home",
+                        modifier = Modifier.padding(end = 6.dp),
+                        contentDescription = stringResource(R.string.settings_launcher_section)
+                    )
+                },
+                onClick = onNavigateToSystemLauncher
+            )
+            ArrowPreference(
+                title = stringResource(R.string.force_screenshot_section),
+                summary = stringResource(R.string.system_framework_summary),
+                startAction = {
+                    ApplicationIcon(
+                        packageName = "android",
+                        modifier = Modifier.padding(end = 6.dp),
+                        contentDescription = stringResource(R.string.force_screenshot_section)
+                    )
+                },
+                onClick = onNavigateToSystemFramework
+            )
+            ArrowPreference(
+                title = stringResource(R.string.settings_system_ui),
+                summary = stringResource(R.string.settings_system_ui_summary),
+                startAction = {
+                    ApplicationIcon(
+                        packageName = RestartScopeSelection.PACKAGE_SYSTEM_UI,
+                        modifier = Modifier.padding(end = 6.dp),
+                        contentDescription = stringResource(R.string.settings_system_ui)
+                    )
+                },
+                onClick = onNavigateToSystemUi
+            )
+            ArrowPreference(
+                title = stringResource(R.string.sms_title),
+                summary = stringResource(R.string.sms_auto_copy_title),
+                startAction = {
+                    ApplicationIcon(
+                        packageName = "com.android.mms",
+                        modifier = Modifier.padding(end = 6.dp),
+                        contentDescription = stringResource(R.string.sms_title)
+                    )
+                },
+                onClick = onNavigateToSms
+            )
+            ArrowPreference(
+                title = stringResource(R.string.screenshot_section),
+                summary = stringResource(R.string.screenshot_page_summary),
+                startAction = {
+                    ApplicationIcon(
+                        packageName = "com.miui.screenshot",
+                        modifier = Modifier.padding(end = 6.dp),
+                        contentDescription = stringResource(R.string.screenshot_section)
+                    )
+                },
+                onClick = onNavigateToScreenshot
+            )
+            ArrowPreference(
+                title = stringResource(R.string.download_manager_title),
+                summary = stringResource(R.string.download_manager_summary),
+                startAction = {
+                    ApplicationIcon(
+                        packageName = RestartScopeSelection.PACKAGE_DOWNLOADS_UI,
+                        modifier = Modifier.padding(end = 6.dp),
+                        contentDescription = stringResource(R.string.download_manager_title)
+                    )
+                },
+                onClick = onNavigateToDownloadManager
+            )
+            ArrowPreference(
+                title = stringResource(R.string.tweaks_security_center_title),
+                summary = stringResource(R.string.tweaks_security_center_summary),
+                startAction = {
+                    ApplicationIcon(
+                        packageName = RestartScopeSelection.PACKAGE_SECURITY_CENTER,
+                        modifier = Modifier.padding(end = 6.dp),
+                        contentDescription = stringResource(R.string.tweaks_security_center_title)
+                    )
+                },
+                onClick = onNavigateToSecurityCenter
+            )
+            // Google-related services live on their own second-level page so this card stays
+            // a list of system components; the row carries the GMS icon like the others.
+            ArrowPreference(
+                title = stringResource(R.string.tweaks_system_core_title),
+                summary = stringResource(R.string.tweaks_system_core_summary),
+                startAction = {
+                    ApplicationIcon(
+                        packageName = RestartScopeSelection.PACKAGE_GMS,
+                        modifier = Modifier.padding(end = 6.dp),
+                        contentDescription = stringResource(R.string.tweaks_system_core_title)
+                    )
+                },
+                onClick = onNavigateToGoogleServices
+            )
+            // Camera (com.android.camera) and media-editor watermark unlocks share one
+            // second-level page split by a TabRow; the row carries the camera icon.
+            ArrowPreference(
+                title = stringResource(R.string.camera_unlock_title),
+                summary = stringResource(R.string.tweaks_camera_watermark_summary),
+                startAction = {
+                    ApplicationIcon(
+                        packageName = RestartScopeSelection.PACKAGE_CAMERA,
+                        modifier = Modifier.padding(end = 6.dp),
+                        contentDescription = stringResource(R.string.camera_unlock_title)
+                    )
+                },
+                onClick = onNavigateToCameraWatermark
             )
         }
-    ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
-                .overScrollVertical()
-                .nestedScroll(topAppBarScrollBehavior.nestedScrollConnection)
-                .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(0.dp)
-        ) {
-            Spacer(modifier = Modifier.height(innerPadding.calculateTopPadding()))
-            Spacer(modifier = Modifier.height(8.dp))
 
-            // Keep the pages that operate on a complete system component together, with a visual
-            // cue for the app each entry opens.
-            SmallTitle(text = stringResource(R.string.tweaks_system_components_title))
-            Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    ArrowPreference(
-                        title = stringResource(R.string.settings_aosp_restore),
-                        summary = stringResource(R.string.settings_aosp_restore_summary),
-                        startAction = {
-                            ApplicationIcon(
-                                packageName = RestartScopeSelection.PACKAGE_SETTINGS,
-                                modifier = Modifier.padding(end = 6.dp),
-                                contentDescription = stringResource(R.string.settings_aosp_restore)
-                            )
-                        },
-                        onClick = onNavigateToAospRestore
-                    )
-                    ArrowPreference(
-                        title = stringResource(R.string.settings_launcher_section),
-                        summary = stringResource(R.string.settings_launcher_summary),
-                        startAction = {
-                            ApplicationIcon(
-                                packageName = "com.miui.home",
-                                modifier = Modifier.padding(end = 6.dp),
-                                contentDescription = stringResource(R.string.settings_launcher_section)
-                            )
-                        },
-                        onClick = onNavigateToSystemLauncher
-                    )
-                    ArrowPreference(
-                        title = stringResource(R.string.force_screenshot_section),
-                        summary = stringResource(R.string.system_framework_summary),
-                        startAction = {
-                            ApplicationIcon(
-                                packageName = "android",
-                                modifier = Modifier.padding(end = 6.dp),
-                                contentDescription = stringResource(R.string.force_screenshot_section)
-                            )
-                        },
-                        onClick = onNavigateToSystemFramework
-                    )
-                    ArrowPreference(
-                        title = stringResource(R.string.settings_system_ui),
-                        summary = stringResource(R.string.settings_system_ui_summary),
-                        startAction = {
-                            ApplicationIcon(
-                                packageName = RestartScopeSelection.PACKAGE_SYSTEM_UI,
-                                modifier = Modifier.padding(end = 6.dp),
-                                contentDescription = stringResource(R.string.settings_system_ui)
-                            )
-                        },
-                        onClick = onNavigateToSystemUi
-                    )
-                    ArrowPreference(
-                        title = stringResource(R.string.sms_title),
-                        summary = stringResource(R.string.sms_auto_copy_title),
-                        startAction = {
-                            ApplicationIcon(
-                                packageName = "com.android.mms",
-                                modifier = Modifier.padding(end = 6.dp),
-                                contentDescription = stringResource(R.string.sms_title)
-                            )
-                        },
-                        onClick = onNavigateToSms
-                    )
-                    ArrowPreference(
-                        title = stringResource(R.string.screenshot_section),
-                        summary = stringResource(R.string.screenshot_page_summary),
-                        startAction = {
-                            ApplicationIcon(
-                                packageName = "com.miui.screenshot",
-                                modifier = Modifier.padding(end = 6.dp),
-                                contentDescription = stringResource(R.string.screenshot_section)
-                            )
-                        },
-                        onClick = onNavigateToScreenshot
-                    )
-                    ArrowPreference(
-                        title = stringResource(R.string.download_manager_title),
-                        summary = stringResource(R.string.download_manager_summary),
-                        startAction = {
-                            ApplicationIcon(
-                                packageName = RestartScopeSelection.PACKAGE_DOWNLOADS_UI,
-                                modifier = Modifier.padding(end = 6.dp),
-                                contentDescription = stringResource(R.string.download_manager_title)
-                            )
-                        },
-                        onClick = onNavigateToDownloadManager
-                    )
-                    ArrowPreference(
-                        title = stringResource(R.string.tweaks_security_center_title),
-                        summary = stringResource(R.string.tweaks_security_center_summary),
-                        startAction = {
-                            ApplicationIcon(
-                                packageName = RestartScopeSelection.PACKAGE_SECURITY_CENTER,
-                                modifier = Modifier.padding(end = 6.dp),
-                                contentDescription = stringResource(R.string.tweaks_security_center_title)
-                            )
-                        },
-                        onClick = onNavigateToSecurityCenter
-                    )
-                    // Google-related services live on their own second-level page so this card stays
-                    // a list of system components; the row carries the GMS icon like the others.
-                    ArrowPreference(
-                        title = stringResource(R.string.tweaks_system_core_title),
-                        summary = stringResource(R.string.tweaks_system_core_summary),
-                        startAction = {
-                            ApplicationIcon(
-                                packageName = RestartScopeSelection.PACKAGE_GMS,
-                                modifier = Modifier.padding(end = 6.dp),
-                                contentDescription = stringResource(R.string.tweaks_system_core_title)
-                            )
-                        },
-                        onClick = onNavigateToGoogleServices
-                    )
-                    // Camera (com.android.camera) and media-editor watermark unlocks share one
-                    // second-level page split by a TabRow; the row carries the camera icon.
-                    ArrowPreference(
-                        title = stringResource(R.string.camera_unlock_title),
-                        summary = stringResource(R.string.tweaks_camera_watermark_summary),
-                        startAction = {
-                            ApplicationIcon(
-                                packageName = RestartScopeSelection.PACKAGE_CAMERA,
-                                modifier = Modifier.padding(end = 6.dp),
-                                contentDescription = stringResource(R.string.camera_unlock_title)
-                            )
-                        },
-                        onClick = onNavigateToCameraWatermark
-                    )
-                }
+        com.takekazex.hypertweak.ui.page.wifi.WifiDetailsControls()
+
+        AppSection(stringResource(R.string.purification_title)) {
+            ArrowPreference(
+                title = stringResource(R.string.purification_title),
+                summary = stringResource(R.string.purification_summary),
+                onClick = onNavigateToPurification
+            )
+        }
+
+        AppSection(stringResource(R.string.tweaks_personal_assistant_title)) {
+            SwitchPreference(
+                checked = appSettings.paModelSpoofEnabled,
+                onCheckedChange = { appSettings.paModelSpoofEnabled = it },
+                title = stringResource(R.string.settings_pa_model_spoof_title),
+                summary = stringResource(R.string.settings_pa_model_spoof_summary)
+            )
+            MiuixExpandableContent(visible = appSettings.paModelSpoofEnabled) {
+                ModelSpoofValuesRow()
             }
+        }
 
-            com.takekazex.hypertweak.ui.page.wifi.WifiDetailsControls()
+        // Scope 5: Bluetooth
+        AppSection(stringResource(R.string.tweaks_bluetooth_title)) {
+            SwitchPreference(
+                checked = appSettings.disableSpatialAudio,
+                onCheckedChange = { appSettings.disableSpatialAudio = it },
+                title = stringResource(R.string.tweaks_block_spatial_audio_title),
+                summary = stringResource(R.string.tweaks_block_spatial_audio_summary)
+            )
+            SwitchPreference(
+                checked = appSettings.forceAdaptiveAnc,
+                onCheckedChange = { appSettings.forceAdaptiveAnc = it },
+                title = stringResource(R.string.tweaks_force_adaptive_anc_title),
+                summary = stringResource(R.string.tweaks_force_adaptive_anc_summary)
+            )
+        }
 
-            SmallTitle(text = stringResource(R.string.purification_title))
-            Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-                ArrowPreference(
-                    title = stringResource(R.string.purification_title),
-                    summary = stringResource(R.string.purification_summary),
-                    onClick = onNavigateToPurification
-                )
-            }
-
-            SmallTitle(text = stringResource(R.string.tweaks_personal_assistant_title))
-            Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    SwitchPreference(
-                        checked = paModelSpoofEnabled,
-                        onCheckedChange = onPaModelSpoofEnabledChange,
-                        title = stringResource(R.string.settings_pa_model_spoof_title),
-                        summary = stringResource(R.string.settings_pa_model_spoof_summary)
-                    )
-                    MiuixExpandableContent(visible = paModelSpoofEnabled) {
-                        ModelSpoofValuesRow()
-                    }
-                }
-            }
-
-            // Scope 5: Bluetooth
-            SmallTitle(text = stringResource(R.string.tweaks_bluetooth_title))
-            Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    SwitchPreference(
-                        checked = disableSpatialAudio,
-                        onCheckedChange = onDisableSpatialAudioChange,
-                        title = stringResource(R.string.tweaks_block_spatial_audio_title),
-                        summary = stringResource(R.string.tweaks_block_spatial_audio_summary)
-                    )
-                    SwitchPreference(
-                        checked = forceAdaptiveAnc,
-                        onCheckedChange = onForceAdaptiveAncChange,
-                        title = stringResource(R.string.tweaks_force_adaptive_anc_title),
-                        summary = stringResource(R.string.tweaks_force_adaptive_anc_summary)
-                    )
-                }
-            }
-
-            SmallTitle(text = stringResource(R.string.tweaks_focus_notification_title))
-            Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-                ArrowPreference(
-                    title = stringResource(R.string.tweaks_focus_notification_title),
-                    summary = stringResource(R.string.tweaks_super_island_summary),
-                    onClick = onNavigateToSuperIsland
-                )
-            }
-
-            Spacer(modifier = Modifier.height(padding.calculateBottomPadding() + 16.dp))
+        AppSection(stringResource(R.string.tweaks_focus_notification_title)) {
+            ArrowPreference(
+                title = stringResource(R.string.tweaks_focus_notification_title),
+                summary = stringResource(R.string.tweaks_super_island_summary),
+                onClick = onNavigateToSuperIsland
+            )
         }
     }
 }
@@ -327,22 +279,8 @@ private fun ModelSpoofValuesRow() {
     var editing by remember { mutableStateOf(false) }
     // Display state that refreshes right after the dialog commits, so the summary reflects the
     // edited model/device without leaving the screen.
-    var displayModel by remember {
-        mutableStateOf(
-            settingsStore.getString(
-                PlatformSettingsKeys.KEY_PA_MODEL_SPOOF_MODEL,
-                PlatformSettingsKeys.DEFAULT_PA_MODEL_SPOOF_MODEL
-            )
-        )
-    }
-    var displayDevice by remember {
-        mutableStateOf(
-            settingsStore.getString(
-                PlatformSettingsKeys.KEY_PA_MODEL_SPOOF_DEVICE,
-                PlatformSettingsKeys.DEFAULT_PA_MODEL_SPOOF_DEVICE
-            )
-        )
-    }
+    var displayModel by remember { mutableStateOf(settingsStore.getString(PlatformSettingsKeys.KEY_PA_MODEL_SPOOF_MODEL, PlatformSettingsKeys.DEFAULT_PA_MODEL_SPOOF_MODEL)) }
+    var displayDevice by remember { mutableStateOf(settingsStore.getString(PlatformSettingsKeys.KEY_PA_MODEL_SPOOF_DEVICE, PlatformSettingsKeys.DEFAULT_PA_MODEL_SPOOF_DEVICE)) }
     var modelInput by remember { mutableStateOf(displayModel) }
     var deviceInput by remember { mutableStateOf(displayDevice) }
 

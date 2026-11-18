@@ -1,46 +1,18 @@
 package com.takekazex.hypertweak.ui.page.systemui.lockscreen
 
-import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
-
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.WindowInsetsSides
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.only
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawing
-import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import com.takekazex.hypertweak.R
-import com.takekazex.hypertweak.ui.app.LocalAppSettingsStore
 import com.takekazex.hypertweak.settings.contract.LockscreenChargingOptions
-import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
-import com.takekazex.hypertweak.ui.effect.AppScaffold as Scaffold
-import top.yukonga.miuix.kmp.basic.SmallTitle
-import com.takekazex.hypertweak.ui.effect.AppTopAppBar as TopAppBar
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Back
-import top.yukonga.miuix.kmp.preference.ArrowPreference
-import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
+import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
+import com.takekazex.hypertweak.ui.app.LocalAppSettingsStore
+import com.takekazex.hypertweak.ui.app.rememberStoredSetting
+import com.takekazex.hypertweak.ui.chrome.AppDropdownPreference as OverlayDropdownPreference
+import com.takekazex.hypertweak.ui.chrome.AppScrollPage
+import com.takekazex.hypertweak.ui.chrome.AppSection
 import top.yukonga.miuix.kmp.preference.SwitchPreference
-import top.yukonga.miuix.kmp.utils.overScrollVertical
 
 /**
  * Options for the lockscreen charging detail (Features → System UI → Lockscreen → Charging Detail Options).
@@ -51,150 +23,101 @@ import top.yukonga.miuix.kmp.utils.overScrollVertical
 @Composable
 fun ChargingDetailPage(onBack: () -> Unit) {
     val settingsStore = LocalAppSettingsStore.current
-    val scrollBehavior = MiuixScrollBehavior()
 
-    var enabled by remember {
-        mutableStateOf(settingsStore.getBoolean(SystemUiSettingsKeys.KEY_LOCKSCREEN_CHARGING_DETAIL, false))
-    }
-    var twoRows by remember {
-        mutableStateOf(settingsStore.getBoolean(SystemUiSettingsKeys.KEY_LOCKSCREEN_CHARGING_DETAIL_TWO_ROWS, true))
-    }
-    var intervalMs by remember {
-        mutableIntStateOf(
-            settingsStore.getInt(
-                SystemUiSettingsKeys.KEY_LOCKSCREEN_CHARGING_DETAIL_INTERVAL_MS,
-                LockscreenChargingOptions.DEFAULT_INTERVAL_MS
+    var enabled by rememberStoredSetting(SystemUiSettingsKeys.KEY_LOCKSCREEN_CHARGING_DETAIL, settingsStore::putBoolean) { settingsStore.getBoolean(SystemUiSettingsKeys.KEY_LOCKSCREEN_CHARGING_DETAIL, false) }
+    var twoRows by rememberStoredSetting(SystemUiSettingsKeys.KEY_LOCKSCREEN_CHARGING_DETAIL_TWO_ROWS, settingsStore::putBoolean) { settingsStore.getBoolean(SystemUiSettingsKeys.KEY_LOCKSCREEN_CHARGING_DETAIL_TWO_ROWS, true) }
+    var intervalMs by rememberStoredSetting(SystemUiSettingsKeys.KEY_LOCKSCREEN_CHARGING_DETAIL_INTERVAL_MS, settingsStore::putInt) { settingsStore.getInt(SystemUiSettingsKeys.KEY_LOCKSCREEN_CHARGING_DETAIL_INTERVAL_MS, LockscreenChargingOptions.DEFAULT_INTERVAL_MS) }
+    var fields by rememberStoredSetting(SystemUiSettingsKeys.KEY_LOCKSCREEN_CHARGING_DETAIL_FIELDS, settingsStore::putInt) { settingsStore.getInt(SystemUiSettingsKeys.KEY_LOCKSCREEN_CHARGING_DETAIL_FIELDS, LockscreenChargingOptions.DEFAULT_FIELDS) }
+
+    AppScrollPage(
+        title = stringResource(R.string.charging_title),
+        onBack = onBack,
+        backContentDescription = stringResource(R.string.charging_back),
+    ) {
+
+        AppSection(stringResource(R.string.charging_section_main)) {
+            SwitchPreference(
+                checked = enabled,
+                onCheckedChange = { checked ->
+                    enabled = checked
+                },
+                title = stringResource(R.string.charging_enabled_title),
+                summary = stringResource(R.string.charging_enabled_summary)
             )
-        )
-    }
-    var fields by remember {
-        mutableIntStateOf(
-            settingsStore.getInt(
-                SystemUiSettingsKeys.KEY_LOCKSCREEN_CHARGING_DETAIL_FIELDS,
-                LockscreenChargingOptions.DEFAULT_FIELDS
+        }
+
+        AppSection(stringResource(R.string.charging_section_layout)) {
+            SwitchPreference(
+                checked = twoRows,
+                onCheckedChange = { checked ->
+                    twoRows = checked
+                },
+                title = stringResource(R.string.charging_two_rows_title),
+                summary = stringResource(R.string.charging_two_rows_summary)
             )
-        )
-    }
+        }
 
-    Scaffold(topBar = {
-        TopAppBar(
-            title = stringResource(R.string.charging_title),
-            scrollBehavior = scrollBehavior,
-            navigationIcon = { IconButton(onClick = onBack) { Icon(MiuixIcons.Back, stringResource(R.string.charging_back)) } }
-        )
-    }) { padding ->
-        Column(
-            Modifier.fillMaxSize()
-                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
-                .overScrollVertical()
-                .nestedScroll(scrollBehavior.nestedScrollConnection)
-                .verticalScroll(rememberScrollState())
-        ) {
-            Spacer(Modifier.height(padding.calculateTopPadding() + 8.dp))
-
-            SmallTitle(stringResource(R.string.charging_section_main))
-            Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-                Column(Modifier.fillMaxWidth()) {
-                    SwitchPreference(
-                        checked = enabled,
-                        onCheckedChange = { checked ->
-                            enabled = checked
-                            settingsStore.putBoolean(SystemUiSettingsKeys.KEY_LOCKSCREEN_CHARGING_DETAIL, checked)
-                        },
-                        title = stringResource(R.string.charging_enabled_title),
-                        summary = stringResource(R.string.charging_enabled_summary)
-                    )
-                }
-            }
-
-            SmallTitle(stringResource(R.string.charging_section_layout))
-            Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-                SwitchPreference(
-                    checked = twoRows,
-                    onCheckedChange = { checked ->
-                        twoRows = checked
-                        settingsStore.putBoolean(SystemUiSettingsKeys.KEY_LOCKSCREEN_CHARGING_DETAIL_TWO_ROWS, checked)
-                    },
-                    title = stringResource(R.string.charging_two_rows_title),
-                    summary = stringResource(R.string.charging_two_rows_summary)
-                )
-            }
-
-            SmallTitle(stringResource(R.string.charging_section_refresh))
-            Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-                Column(Modifier.fillMaxWidth()) {
-                    OverlayDropdownPreference(
-                        title = stringResource(R.string.charging_interval_title),
-                        summary = stringResource(R.string.charging_interval_summary),
-                        items = listOf(
-                            stringResource(R.string.charging_interval_1s),
-                            stringResource(R.string.charging_interval_2s),
-                            stringResource(R.string.charging_interval_3s),
-                            stringResource(R.string.charging_interval_5s)
-                        ),
-                        selectedIndex = when (intervalMs) {
-                            1000 -> 0
-                            3000 -> 2
-                            5000 -> 3
-                            else -> 1
-                        },
-                        onSelectedIndexChange = { index ->
-                            listOf(1000, 2000, 3000, 5000).getOrNull(index)?.let { ms ->
-                                intervalMs = ms
-                                settingsStore.putInt(SystemUiSettingsKeys.KEY_LOCKSCREEN_CHARGING_DETAIL_INTERVAL_MS, ms)
-                            }
-                        }
-                    )
-                }
-            }
-
-            SmallTitle(stringResource(R.string.charging_section_fields))
-            Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-                Column(Modifier.fillMaxWidth()) {
-                    ChargingFieldSwitch(
-                        checked = (fields and LockscreenChargingOptions.FIELD_WATTAGE) != 0,
-                        title = stringResource(R.string.charging_field_wattage_title),
-                        summary = stringResource(R.string.charging_field_wattage_summary),
-                        current = fields,
-                        bit = LockscreenChargingOptions.FIELD_WATTAGE
-                    ) { value ->
-                        fields = value
-                        settingsStore.putInt(SystemUiSettingsKeys.KEY_LOCKSCREEN_CHARGING_DETAIL_FIELDS, value)
-                    }
-                    ChargingFieldSwitch(
-                        checked = (fields and LockscreenChargingOptions.FIELD_VOLTAGE) != 0,
-                        title = stringResource(R.string.charging_field_voltage_title),
-                        summary = stringResource(R.string.charging_field_voltage_summary),
-                        current = fields,
-                        bit = LockscreenChargingOptions.FIELD_VOLTAGE
-                    ) { value ->
-                        fields = value
-                        settingsStore.putInt(SystemUiSettingsKeys.KEY_LOCKSCREEN_CHARGING_DETAIL_FIELDS, value)
-                    }
-                    ChargingFieldSwitch(
-                        checked = (fields and LockscreenChargingOptions.FIELD_CURRENT) != 0,
-                        title = stringResource(R.string.charging_field_current_title),
-                        summary = stringResource(R.string.charging_field_current_summary),
-                        current = fields,
-                        bit = LockscreenChargingOptions.FIELD_CURRENT
-                    ) { value ->
-                        fields = value
-                        settingsStore.putInt(SystemUiSettingsKeys.KEY_LOCKSCREEN_CHARGING_DETAIL_FIELDS, value)
-                    }
-                    ChargingFieldSwitch(
-                        checked = (fields and LockscreenChargingOptions.FIELD_TEMPERATURE) != 0,
-                        title = stringResource(R.string.charging_field_temperature_title),
-                        summary = stringResource(R.string.charging_field_temperature_summary),
-                        current = fields,
-                        bit = LockscreenChargingOptions.FIELD_TEMPERATURE
-                    ) { value ->
-                        fields = value
-                        settingsStore.putInt(SystemUiSettingsKeys.KEY_LOCKSCREEN_CHARGING_DETAIL_FIELDS, value)
+        AppSection(stringResource(R.string.charging_section_refresh)) {
+            OverlayDropdownPreference(
+                title = stringResource(R.string.charging_interval_title),
+                summary = stringResource(R.string.charging_interval_summary),
+                items = listOf(
+                    stringResource(R.string.charging_interval_1s),
+                    stringResource(R.string.charging_interval_2s),
+                    stringResource(R.string.charging_interval_3s),
+                    stringResource(R.string.charging_interval_5s)
+                ),
+                selectedIndex = when (intervalMs) {
+                    1000 -> 0
+                    3000 -> 2
+                    5000 -> 3
+                    else -> 1
+                },
+                onSelectedIndexChange = { index ->
+                    listOf(1000, 2000, 3000, 5000).getOrNull(index)?.let { ms ->
+                        intervalMs = ms
                     }
                 }
-            }
+            )
+        }
 
-            Spacer(Modifier.height(padding.calculateBottomPadding() + 16.dp))
+        AppSection(stringResource(R.string.charging_section_fields)) {
+            ChargingFieldSwitch(
+                checked = (fields and LockscreenChargingOptions.FIELD_WATTAGE) != 0,
+                title = stringResource(R.string.charging_field_wattage_title),
+                summary = stringResource(R.string.charging_field_wattage_summary),
+                current = fields,
+                bit = LockscreenChargingOptions.FIELD_WATTAGE
+            ) { value ->
+                fields = value
+            }
+            ChargingFieldSwitch(
+                checked = (fields and LockscreenChargingOptions.FIELD_VOLTAGE) != 0,
+                title = stringResource(R.string.charging_field_voltage_title),
+                summary = stringResource(R.string.charging_field_voltage_summary),
+                current = fields,
+                bit = LockscreenChargingOptions.FIELD_VOLTAGE
+            ) { value ->
+                fields = value
+            }
+            ChargingFieldSwitch(
+                checked = (fields and LockscreenChargingOptions.FIELD_CURRENT) != 0,
+                title = stringResource(R.string.charging_field_current_title),
+                summary = stringResource(R.string.charging_field_current_summary),
+                current = fields,
+                bit = LockscreenChargingOptions.FIELD_CURRENT
+            ) { value ->
+                fields = value
+            }
+            ChargingFieldSwitch(
+                checked = (fields and LockscreenChargingOptions.FIELD_TEMPERATURE) != 0,
+                title = stringResource(R.string.charging_field_temperature_title),
+                summary = stringResource(R.string.charging_field_temperature_summary),
+                current = fields,
+                bit = LockscreenChargingOptions.FIELD_TEMPERATURE
+            ) { value ->
+                fields = value
+            }
         }
     }
 }

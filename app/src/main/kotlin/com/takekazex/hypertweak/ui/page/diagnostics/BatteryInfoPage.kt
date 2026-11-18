@@ -10,17 +10,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.WindowInsetsSides
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawing
-import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -29,7 +22,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -41,39 +33,33 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.currentStateAsState
 import com.takekazex.hypertweak.R
+import com.takekazex.hypertweak.ui.chrome.AppIconButton as IconButton
+import com.takekazex.hypertweak.ui.chrome.AppScrollPage
+import com.takekazex.hypertweak.ui.chrome.AppSection
 import com.takekazex.hypertweak.util.device.BatteryInfoChannel
 import com.takekazex.hypertweak.util.device.BatteryInfoReader
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.UUID
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
-import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.HorizontalDivider
 import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
-import com.takekazex.hypertweak.ui.effect.AppScaffold as Scaffold
-import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
-import com.takekazex.hypertweak.ui.effect.AppTopAppBar as TopAppBar
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.Copy
 import top.yukonga.miuix.kmp.icon.extended.Refresh
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.utils.overScrollVertical
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
-import java.util.UUID
 
 private const val REFRESH_MS = 1_000L
 
 @Composable
 fun BatteryInfoPage(onBack: () -> Unit) {
     val context = LocalContext.current
-    val scrollBehavior = MiuixScrollBehavior()
 
     var sections by remember { mutableStateOf<List<BatteryInfoReader.Section>>(emptyList()) }
     var snapshotStatus by remember { mutableStateOf(BatteryInfoChannel.Status.MISSING) }
@@ -137,64 +123,44 @@ fun BatteryInfoPage(onBack: () -> Unit) {
         }
     }
 
-    Scaffold(topBar = {
-        TopAppBar(
-            title = stringResource(R.string.battery_info_title),
-            scrollBehavior = scrollBehavior,
-            navigationIcon = {
-                IconButton(onClick = onBack) {
-                    Icon(MiuixIcons.Back, stringResource(R.string.battery_info_back))
-                }
-            },
-            actions = {
+    AppScrollPage(
+        title = stringResource(R.string.battery_info_title),
+        onBack = onBack,
+        backContentDescription = stringResource(R.string.battery_info_back),
+        actions = {
                 IconButton(onClick = { refreshRequests.trySend(Unit) }) {
                     Icon(MiuixIcons.Refresh, stringResource(R.string.battery_info_refresh))
                 }
                 IconButton(onClick = { copyAll(context, sections) }) {
                     Icon(MiuixIcons.Copy, stringResource(R.string.battery_info_copy))
                 }
+            },
+    ) {
+        if (loading || snapshotStatus != BatteryInfoChannel.Status.FRESH) {
+            AppSection {
+                Text(
+                    text = stringResource(when {
+                        loading -> R.string.battery_info_loading
+                        snapshotStatus == BatteryInfoChannel.Status.STALE -> R.string.battery_info_stale
+                        else -> R.string.battery_info_proxy_hint
+                    }),
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                    style = MiuixTheme.textStyles.body2,
+                    color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                )
             }
-        )
-    }) { padding ->
-        Column(
-            Modifier
-                .fillMaxSize()
-                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
-                .overScrollVertical()
-                .nestedScroll(scrollBehavior.nestedScrollConnection)
-                .verticalScroll(rememberScrollState())
-        ) {
-            Spacer(Modifier.height(padding.calculateTopPadding() + 8.dp))
-            if (loading || snapshotStatus != BatteryInfoChannel.Status.FRESH) {
-                Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-                    Text(
-                        text = stringResource(when {
-                            loading -> R.string.battery_info_loading
-                            snapshotStatus == BatteryInfoChannel.Status.STALE -> R.string.battery_info_stale
-                            else -> R.string.battery_info_proxy_hint
-                        }),
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                        style = MiuixTheme.textStyles.body2,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantActions
-                    )
-                }
-                Spacer(Modifier.height(8.dp))
-            }
-            sections.forEach { section ->
-                SmallTitle(section.title)
-                Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-                    Column(Modifier.fillMaxWidth()) {
-                        section.rows.forEachIndexed { index, row ->
-                            if (index > 0) {
-                                HorizontalDivider(Modifier.padding(start = 16.dp))
-                            }
-                            BatteryInfoRow(row, onLongPress = { copyRow(context, row) })
-                        }
+            Spacer(Modifier.height(8.dp))
+        }
+        sections.forEach { section ->
+            AppSection(section.title) {
+                section.rows.forEachIndexed { index, row ->
+                    if (index > 0) {
+                        HorizontalDivider(Modifier.padding(start = 16.dp))
                     }
+                    BatteryInfoRow(row, onLongPress = { copyRow(context, row) })
                 }
-                Spacer(Modifier.height(8.dp))
             }
-            Spacer(Modifier.height(padding.calculateBottomPadding() + 24.dp))
+            Spacer(Modifier.height(8.dp))
         }
     }
 }

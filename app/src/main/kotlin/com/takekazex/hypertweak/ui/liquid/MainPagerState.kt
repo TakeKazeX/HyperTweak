@@ -21,6 +21,8 @@ class MainPagerState(
     var isNavigating by mutableStateOf(false)
         private set
 
+    var snapTransitions by mutableStateOf(false)
+
     private var navJob: Job? = null
 
     fun animateToPage(targetIndex: Int) {
@@ -34,7 +36,11 @@ class MainPagerState(
         navJob = coroutineScope.launch {
             val myJob = coroutineContext.job
             try {
-                pagerState.springAnimateToPage(targetIndex)
+                if (snapTransitions) {
+                    pagerState.scrollToPage(targetIndex)
+                } else {
+                    pagerState.springAnimateToPage(targetIndex)
+                }
             } finally {
                 if (navJob == myJob) {
                     isNavigating = false

@@ -1,7 +1,7 @@
 package com.takekazex.hypertweak.ui.app
 
-import com.takekazex.hypertweak.settings.contract.AppSettingsStore
 import android.widget.Toast
+import androidx.activity.ComponentActivity
 import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.LocalActivityResultRegistryOwner
 import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
@@ -13,27 +13,27 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.unit.Density
 import androidx.core.net.toUri
-import androidx.activity.ComponentActivity
-import com.takekazex.hypertweak.util.update.UpdateManager
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.takekazex.hypertweak.R
-import com.takekazex.hypertweak.settings.contract.AodSettingsKeys
 import com.takekazex.hypertweak.settings.contract.AppSettingsKeys
-import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
-import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
+import com.takekazex.hypertweak.settings.contract.AppSettingsStore
+import com.takekazex.hypertweak.ui.chrome.LocalAppUiStyle
+import com.takekazex.hypertweak.ui.chrome.appUiStyleFromStored
+import com.takekazex.hypertweak.ui.components.dialog.LocalRestartScopeHandled
+import com.takekazex.hypertweak.ui.components.dialog.LocalRestartScopeRequest
 import com.takekazex.hypertweak.ui.effect.AppBlurMode
 import com.takekazex.hypertweak.ui.effect.LocalAppBlurMode
 import com.takekazex.hypertweak.ui.navigation.HyperTweakNavContainer
 import com.takekazex.hypertweak.ui.navigation.NavigationSettings
-import com.takekazex.hypertweak.ui.components.dialog.LocalRestartScopeHandled
-import com.takekazex.hypertweak.ui.components.dialog.LocalRestartScopeRequest
+import com.takekazex.hypertweak.ui.page.update.UpdateAvailablePrompt
 import com.takekazex.hypertweak.ui.state.DownloadXlCleanup
 import com.takekazex.hypertweak.ui.state.LocalDownloadXlCleanup
-import com.takekazex.hypertweak.ui.page.update.UpdateAvailablePrompt
 import com.takekazex.hypertweak.ui.theme.MiuixSpec2025Adapter
 import com.takekazex.hypertweak.ui.theme.isEffectivelyDark
 import com.takekazex.hypertweak.ui.theme.rememberDeviceAccentColor
 import com.takekazex.hypertweak.util.platform.AdbTcpPort
 import com.takekazex.hypertweak.util.platform.LocaleHelper
+import com.takekazex.hypertweak.util.update.UpdateManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -50,7 +50,7 @@ internal fun AppContent(
     services: com.takekazex.hypertweak.app.AppServicePorts
 ) {
     val settings = remember { AppSettingsState(store) }
-    val debugRevision by com.takekazex.hypertweak.util.diagnostics.DebugSettingsEvents.revision.collectAsState()
+    val debugRevision by com.takekazex.hypertweak.util.diagnostics.DebugSettingsEvents.revision.collectAsStateWithLifecycle()
     LaunchedEffect(debugRevision) { if (debugRevision > 0) settings.reload() }
     val restarts = remember { AppRestartTracker(activity, settings) }
     with(settings) {
@@ -65,10 +65,10 @@ internal fun AppContent(
 
             ReconcileUpdates(activity, updateManager, snackbarHostState, localizedContext)
 
-            val serviceConnected by services.module.connection.collectAsState()
-            val staleTargets by services.module.staleProcessNames.collectAsState()
-            val hotReloading by services.module.hotReloadingFlow.collectAsState()
-            val hotReloadReport by services.module.hotReloadReportFlow.collectAsState()
+            val serviceConnected by services.module.connection.collectAsStateWithLifecycle()
+            val staleTargets by services.module.staleProcessNames.collectAsStateWithLifecycle()
+            val hotReloading by services.module.hotReloadingFlow.collectAsStateWithLifecycle()
+            val hotReloadReport by services.module.hotReloadReportFlow.collectAsStateWithLifecycle()
 
             val coroutineScope = rememberCoroutineScope()
             val downloadXlCleanup = remember(coroutineScope) { DownloadXlCleanup(coroutineScope) }
@@ -82,55 +82,11 @@ internal fun AppContent(
             }
 
             val moduleActive = rememberModuleActivation(settings, restarts, serviceConnected, isModuleActive)
-            /**
-             * Removing the Super Island notification whitelist installs SystemUI hooks (SystemUI is a
-             * declared required scope), so the toggle flips the preference and marks the tweak
-             * dirty: the standard Home restart button then restarts SystemUI. The hooker reads the
-             * per-app `<pkg>_focus` preference live, so a user's explicit shade-menu off for a
-             * given app is always respected and disabling applies without another restart once
-             * the hooks are installed.
-             */
-            fun handleFocusNotificationUnlockWhitelistChange(checked: Boolean) {
-                focusNotificationUnlockWhitelist = checked
-                markTweaked(PlatformSettingsKeys.KEY_FOCUS_NOTIFICATION_UNLOCK_WHITELIST, checked)
-                settings.storage.putBoolean(PlatformSettingsKeys.KEY_FOCUS_NOTIFICATION_UNLOCK_WHITELIST, checked)
-            }
 
-            /**
-             * Removing the media Super Island dropdown whitelist uses its own SystemUI hook and
-             * `<pkg>_focusmedia` per-app state, so it can be enabled without changing the normal
-             * Super Island notification gate.
-             */
-            fun handleMediaSuperIslandUnlockWhitelistChange(checked: Boolean) {
-                mediaSuperIslandUnlockWhitelist = checked
-                markTweaked(PlatformSettingsKeys.KEY_MEDIA_SUPER_ISLAND_UNLOCK_WHITELIST, checked)
-                settings.storage.putBoolean(PlatformSettingsKeys.KEY_MEDIA_SUPER_ISLAND_UNLOCK_WHITELIST, checked)
-            }
 
-            /** The toggle only changes the preference; scope membership is managed separately. */
-            fun handleXmsfUnlockFocusAuthChange(checked: Boolean) {
-                xmsfUnlockFocusAuth = checked
-                markTweaked(PlatformSettingsKeys.KEY_XMSF_UNLOCK_FOCUS_AUTH, checked)
-                settings.storage.putBoolean(PlatformSettingsKeys.KEY_XMSF_UNLOCK_FOCUS_AUTH, checked)
-            }
 
-            /** The toggle only changes the preference; scope membership is managed separately. */
-            fun handleFullScreenTranslateChange(checked: Boolean) {
-                fullScreenTranslate = checked
-                settings.storage.putBoolean(PlatformSettingsKeys.KEY_FULL_SCREEN_TRANSLATE, checked)
-            }
 
-            /** The toggle only changes the preference; scope membership is managed separately. */
-            fun handleAskAboutScreenChange(checked: Boolean) {
-                askAboutScreen = checked
-                settings.storage.putBoolean(PlatformSettingsKeys.KEY_ASK_ABOUT_SCREEN, checked)
-            }
 
-            /** Model spoof is read on every assistant request, so no process restart is needed. */
-            fun handlePaModelSpoofChange(checked: Boolean) {
-                paModelSpoofEnabled = checked
-                settings.storage.putBoolean(PlatformSettingsKeys.KEY_PA_MODEL_SPOOF, checked)
-            }
 
             val isDark = isSystemInDarkTheme()
             val deviceAccent = rememberDeviceAccentColor()
@@ -148,6 +104,7 @@ internal fun AppContent(
 
             CompositionLocalProvider(
                 LocalAppSettingsStore provides store,
+                LocalAppSettings provides settings,
                 LocalDownloadXlCleanup provides downloadXlCleanup,
                 LocalAppServices provides services,
                 // A localized ConfigurationContext is not an Activity. Keep Activity-owned
@@ -156,6 +113,7 @@ internal fun AppContent(
                 LocalActivityResultRegistryOwner provides activity,
                 LocalOnBackPressedDispatcherOwner provides activity,
                 LocalAppBlurMode provides AppBlurMode.entries[appBlurMode],
+                LocalAppUiStyle provides appUiStyleFromStored(appUiStyle),
                 LocalContext provides localizedContext,
                 LocalConfiguration provides localizedContext.resources.configuration,
                 LocalResources provides localizedContext.resources,
@@ -171,327 +129,12 @@ internal fun AppContent(
                     }
 
                     HyperTweakNavContainer(settings = NavigationSettings(
-                        appBlurMode = appBlurMode,
-                        onAppBlurModeChange = { mode ->
-                            appBlurMode = mode.coerceIn(0, 2)
-                            settings.storage.putInt(AppSettingsKeys.KEY_APP_BLUR_MODE, appBlurMode)
-                        },
-                        themeMode = themeMode,
-                        onThemeModeChange = { mode ->
-                            themeMode = mode
-                            settings.storage.putInt(AppSettingsKeys.KEY_THEME_MODE, mode)
-                        },
-                        useMonet = useMonet,
-                        onUseMonetChange = { monet ->
-                            useMonet = monet
-                            settings.storage.putBoolean(AppSettingsKeys.KEY_USE_MONET, monet)
-                        },
-                        seedColorHex = seedColorHex,
-                        onSeedColorChange = { color ->
-                            seedColorHex = color
-                            settings.storage.putInt(AppSettingsKeys.KEY_SEED_COLOR, color)
-                        },
-                        paletteStyle = paletteStyle,
-                        onPaletteStyleChange = { style ->
-                            paletteStyle = style
-                            settings.storage.putInt(AppSettingsKeys.KEY_THEME_PALETTE_STYLE, style)
-                        },
-                        pureBlackDarkTheme = pureBlackDarkTheme,
-                        onPureBlackDarkThemeChange = { enabled ->
-                            pureBlackDarkTheme = enabled
-                            settings.storage.putBoolean(AppSettingsKeys.KEY_PURE_BLACK_DARK_THEME, enabled)
-                        },
-                        useFloatingBottomBar = useFloatingBottomBar,
-                        onUseFloatingBottomBarChange = { floating ->
-                            useFloatingBottomBar = floating
-                            settings.storage.putBoolean(PlatformSettingsKeys.KEY_USE_FLOATING_BOTTOM_BAR, floating)
-                        },
-                        floatingBarStyle = floatingBarStyle,
-                        onFloatingBarStyleChange = { style ->
-                            floatingBarStyle = style
-                            settings.storage.putInt(PlatformSettingsKeys.KEY_FLOATING_BAR_STYLE, style)
-                        },
-                        predictiveBackStyle = predictiveBackStyle,
-                        onPredictiveBackStyleChange = { style ->
-                            predictiveBackStyle = style
-                            settings.storage.putInt(PlatformSettingsKeys.KEY_PREDICTIVE_BACK_STYLE, style)
-                        },
-                        predictiveBackFollowGesture = predictiveBackFollowGesture,
-                        onPredictiveBackFollowGestureChange = { follow ->
-                            predictiveBackFollowGesture = follow
-                            settings.storage.putBoolean(PlatformSettingsKeys.KEY_PREDICTIVE_BACK_FOLLOW_GESTURE, follow)
-                        },
-                        allowLandscape = allowLandscape,
-                        onAllowLandscapeChange = { allowed ->
-                            allowLandscape = allowed
-                            settings.storage.putBoolean(PlatformSettingsKeys.KEY_ALLOW_LANDSCAPE, allowed)
-                        },
                         moduleActive = moduleActive,
                         hotReloadAvailable = staleTargets.isNotEmpty(),
                         hotReloading = hotReloading,
                         hotReloadTargets = staleTargets,
                         hotReloadReport = hotReloadReport,
                         pendingRestartScopes = pendingRestartScopes,
-                        aodFullscreen = aodFullscreen,
-                        onAodFullscreenChange = { checked ->
-                            aodFullscreen = checked
-                            settings.storage.putBoolean(AodSettingsKeys.KEY_AOD_FULLSCREEN, checked)
-                        },
-                        blockDownloadXlLogDir = blockDownloadXlLogDir,
-                        onBlockDownloadXlLogDirChange = { checked ->
-                            markTweaked(PlatformSettingsKeys.KEY_BLOCK_DOWNLOAD_XL_LOG_DIR, checked)
-                            blockDownloadXlLogDir = checked
-                            settings.storage.putBoolean(PlatformSettingsKeys.KEY_BLOCK_DOWNLOAD_XL_LOG_DIR, checked)
-                        },
-                        downloadAlwaysShowFullLink = downloadAlwaysShowFullLink,
-                        onDownloadAlwaysShowFullLinkChange = { checked ->
-                            markTweaked(PlatformSettingsKeys.KEY_DOWNLOAD_ALWAYS_SHOW_FULL_LINK, checked)
-                            downloadAlwaysShowFullLink = checked
-                            settings.storage.putBoolean(PlatformSettingsKeys.KEY_DOWNLOAD_ALWAYS_SHOW_FULL_LINK, checked)
-                        },
-                        downloadHideXl = downloadHideXl,
-                        onDownloadHideXlChange = { checked ->
-                            markTweaked(PlatformSettingsKeys.KEY_DOWNLOAD_HIDE_XL, checked)
-                            downloadHideXl = checked
-                            settings.storage.putBoolean(PlatformSettingsKeys.KEY_DOWNLOAD_HIDE_XL, checked)
-                        },
-                        downloadAddNewButton = downloadAddNewButton,
-                        onDownloadAddNewButtonChange = { checked ->
-                            markTweaked(PlatformSettingsKeys.KEY_DOWNLOAD_ADD_NEW_BUTTON, checked)
-                            downloadAddNewButton = checked
-                            settings.storage.putBoolean(PlatformSettingsKeys.KEY_DOWNLOAD_ADD_NEW_BUTTON, checked)
-                        },
-                        downloadFocusNotification = downloadFocusNotification,
-                        onDownloadFocusNotificationChange = { checked ->
-                            downloadFocusNotification = checked
-                            settings.storage.putBoolean(PlatformSettingsKeys.KEY_DOWNLOAD_FOCUS_NOTIFICATION, checked)
-                        },
-                        // Google services and the experimental switches now live on their own
-                        // second-level pages; the nav container consumes their state directly.
-                        removeGms = removeGms,
-                        onRemoveGmsChange = { checked ->
-                            removeGms = checked
-                            settings.storage.putBoolean(PlatformSettingsKeys.KEY_REMOVE_GMS_RESTRICTION, checked)
-                        },
-                        fullScreenTranslate = fullScreenTranslate,
-                        onFullScreenTranslateChange = { checked ->
-                            handleFullScreenTranslateChange(checked)
-                        },
-                        askAboutScreen = askAboutScreen,
-                        onAskAboutScreenChange = { checked ->
-                            handleAskAboutScreenChange(checked)
-                        },
-                        showGoogleServicesInSettings = showGoogleServicesInSettings,
-                        onShowGoogleServicesInSettingsChange = { checked ->
-                            showGoogleServicesInSettings = checked
-                            settings.storage.putBoolean(
-                                PlatformSettingsKeys.KEY_SHOW_GOOGLE_SERVICES_IN_SETTINGS,
-                                checked
-                        )
-                    },
-                    settingsGlobalInterface = settingsGlobalInterface,
-                    onSettingsGlobalInterfaceChange = { checked ->
-                        settingsGlobalInterface = checked
-                        settings.storage.putBoolean(PlatformSettingsKeys.KEY_SETTINGS_GLOBAL_INTERFACE, checked)
-                    },
-                    unlockPasskey = unlockPasskey,
-                    onUnlockPasskeyChange = { checked ->
-                        unlockPasskey = checked
-                        settings.storage.putBoolean(PlatformSettingsKeys.KEY_UNLOCK_PASSKEY, checked)
-                    },
-                    fcmLiveEnabled = fcmLiveEnabled,
-                    onFcmLiveEnabledChange = { checked ->
-                        fcmLiveEnabled = checked
-                        settings.storage.putBoolean(PlatformSettingsKeys.KEY_FCM_LIVE_ENABLED, checked)
-                    },
-                    lbeClipboardToast = lbeClipboardToast,
-                    onLbeClipboardToastChange = { checked ->
-                        lbeClipboardToast = checked
-                        settings.storage.putBoolean(PlatformSettingsKeys.KEY_LBE_CLIPBOARD_TOAST, checked)
-                    },
-                    ccEditEnabled = ccEditEnabled,
-                    onCcEditEnabledChange = { checked ->
-                        markTweaked(SystemUiSettingsKeys.KEY_CC_EDIT_ENABLED, checked)
-                        ccEditEnabled = checked
-                        settings.storage.putBoolean(SystemUiSettingsKeys.KEY_CC_EDIT_ENABLED, checked)
-                    },
-                    hideFingerprintAod = hideFingerprintAod,
-                    onHideFingerprintAodChange = { checked ->
-                        markTweaked(SystemUiSettingsKeys.KEY_HIDE_FINGERPRINT_AOD, checked)
-                        hideFingerprintAod = checked
-                        settings.storage.putBoolean(SystemUiSettingsKeys.KEY_HIDE_FINGERPRINT_AOD, checked)
-                    },
-                    hideFingerprintLockscreen = hideFingerprintLockscreen,
-                    onHideFingerprintLockscreenChange = { checked ->
-                        markTweaked(SystemUiSettingsKeys.KEY_HIDE_FINGERPRINT_LOCKSCREEN, checked)
-                        hideFingerprintLockscreen = checked
-                        settings.storage.putBoolean(SystemUiSettingsKeys.KEY_HIDE_FINGERPRINT_LOCKSCREEN, checked)
-                    },
-                    hideFingerprintAppAuth = hideFingerprintAppAuth,
-                    onHideFingerprintAppAuthChange = { checked ->
-                        markTweaked(
-                            SystemUiSettingsKeys.KEY_HIDE_FINGERPRINT_APP_AUTH,
-                            checked,
-                            defaultValue = settings.storage.getBoolean(SystemUiSettingsKeys.KEY_HIDE_FINGERPRINT, false)
-                        )
-                        hideFingerprintAppAuth = checked
-                        settings.storage.putBoolean(SystemUiSettingsKeys.KEY_HIDE_FINGERPRINT_APP_AUTH, checked)
-                    },
-                    hideLockscreenStatusBar = hideLockscreenStatusBar,
-                    onHideLockscreenStatusBarChange = { checked ->
-                        markTweaked(SystemUiSettingsKeys.KEY_HIDE_LOCKSCREEN_STATUS_BAR, checked)
-                        hideLockscreenStatusBar = checked
-                        settings.storage.putBoolean(SystemUiSettingsKeys.KEY_HIDE_LOCKSCREEN_STATUS_BAR, checked)
-                    },
-                    statusBarClockSeconds = statusBarClockSeconds,
-                    onStatusBarClockSecondsChange = { checked ->
-                        markTweaked(SystemUiSettingsKeys.KEY_STATUS_BAR_CLOCK_SECONDS, checked)
-                        statusBarClockSeconds = checked
-                        settings.storage.putBoolean(SystemUiSettingsKeys.KEY_STATUS_BAR_CLOCK_SECONDS, checked)
-                    },
-                    notificationHeaderClockSeconds = notificationHeaderClockSeconds,
-                    onNotificationHeaderClockSecondsChange = { checked ->
-                        markTweaked(SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_CLOCK_SECONDS, checked)
-                        notificationHeaderClockSeconds = checked
-                        settings.storage.putBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_CLOCK_SECONDS, checked)
-                    },
-                    notificationMonetTextColor = notificationMonetTextColor,
-                    onNotificationMonetTextColorChange = { checked ->
-                        markTweaked(SystemUiSettingsKeys.KEY_NOTIFICATION_MONET_TEXT_COLOR, checked)
-                        notificationMonetTextColor = checked
-                        settings.storage.putBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_MONET_TEXT_COLOR, checked)
-                    },
-                    notificationAbsoluteTime = notificationAbsoluteTime,
-                    onNotificationAbsoluteTimeChange = { checked ->
-                        markTweaked(SystemUiSettingsKeys.KEY_NOTIFICATION_ABSOLUTE_TIME, checked)
-                        notificationAbsoluteTime = checked
-                        settings.storage.putBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_ABSOLUTE_TIME, checked)
-                    },
-                    notificationFontWeight = notificationFontWeight,
-                    onNotificationFontWeightChange = { checked ->
-                        markTweaked(SystemUiSettingsKeys.KEY_NOTIFICATION_FONT_WEIGHT, checked)
-                        notificationFontWeight = checked
-                        settings.storage.putBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_FONT_WEIGHT, checked)
-                    },
-                    lockscreenFingerprintAvoid = lockscreenFingerprintAvoid,
-                    onLockscreenFingerprintAvoidChange = { mode ->
-                        markTweakedInt(SystemUiSettingsKeys.KEY_LOCKSCREEN_FINGERPRINT_AVOID, mode)
-                        lockscreenFingerprintAvoid = mode
-                        settings.storage.putInt(SystemUiSettingsKeys.KEY_LOCKSCREEN_FINGERPRINT_AVOID, mode)
-                    },
-                    hideGestureBar = hideGestureBar,
-                    onHideGestureBarChange = { checked ->
-                        hideGestureBar = checked
-                        settings.storage.putBoolean(PlatformSettingsKeys.KEY_HIDE_GESTURE_BAR, checked)
-                    },
-                    gestureBarRaiseLayout = gestureBarRaiseLayout,
-                    onGestureBarRaiseLayoutChange = { checked ->
-                        gestureBarRaiseLayout = checked
-                        settings.storage.putBoolean(SystemUiSettingsKeys.KEY_GESTURE_BAR_RAISE_LAYOUT, checked)
-                    },
-                    hideGestureBarRecents = hideGestureBarRecents,
-                    onHideGestureBarRecentsChange = { checked ->
-                        hideGestureBarRecents = checked
-                        settings.storage.putBoolean(PlatformSettingsKeys.KEY_HIDE_GESTURE_BAR_RECENTS, checked)
-                    },
-                    hideGestureBarLauncher = hideGestureBarLauncher,
-                    onHideGestureBarLauncherChange = { checked ->
-                        // SystemUI re-reads the top task from its own task-stack callbacks, so
-                        // the switch applies on the next task move without a restart.
-                        hideGestureBarLauncher = checked
-                        settings.storage.putBoolean(PlatformSettingsKeys.KEY_HIDE_GESTURE_BAR_LAUNCHER, checked)
-                    },
-                    gestureBarAttachTransition = gestureBarAttachTransition,
-                    onGestureBarAttachTransitionChange = { checked ->
-                        // Shared settings reach system_server; its native transition gate reads
-                        // the accepted value on the next swipe, including after APK replacement.
-                        gestureBarAttachTransition = checked
-                        settings.storage.putBoolean(SystemUiSettingsKeys.KEY_GESTURE_BAR_ATTACH_TRANSITION, checked)
-                    },
-                    contextualSearchHaptics = contextualSearchHaptics,
-                    onContextualSearchHapticsChange = { enabled ->
-                        settings.storage.putBoolean(PlatformSettingsKeys.KEY_CONTEXTUAL_SEARCH_HAPTICS, enabled)
-                        contextualSearchHaptics = enabled
-                    },
-                    contextualSearchLongPress = contextualSearchLongPress,
-                    onContextualSearchLongPressChange = { enabled ->
-                        contextualSearchLongPress = enabled
-                        settings.storage.putBoolean(
-                            PlatformSettingsKeys.KEY_CONTEXTUAL_SEARCH_LONG_PRESS,
-                            enabled
-                        )
-                    },
-                    powerButtonAction = powerButtonAction,
-                    onPowerButtonActionChange = { action ->
-                        // The committed snapshot reaches the retained power-key hooks and
-                        // re-aligns the default assistant in the living system_server.
-                        powerButtonAction = action
-                        settings.storage.powerButton.setPowerButtonAction(action)
-                    },
-                    sliderDisplayMode = sliderDisplayMode,
-                    onSliderDisplayModeChange = { value ->
-                        sliderDisplayMode = value
-                        settings.storage.putInt(SystemUiSettingsKeys.KEY_SLIDER_DISPLAY_MODE, value)
-                    },
-                    sliderValueMode = sliderValueMode,
-                    onSliderValueModeChange = { value ->
-                        sliderValueMode = value
-                        settings.storage.putInt(SystemUiSettingsKeys.KEY_SLIDER_VALUE_MODE, value)
-                    },
-                    sliderPopupStyle = sliderPopupStyle,
-                    onSliderPopupStyleChange = { value ->
-                        sliderPopupStyle = value
-                        settings.storage.putInt(SystemUiSettingsKeys.KEY_SLIDER_POPUP_STYLE, value)
-                    },
-                    sliderPopupPosition = sliderPopupPosition,
-                    onSliderPopupPositionChange = { value ->
-                        sliderPopupPosition = value
-                        settings.storage.putInt(SystemUiSettingsKeys.KEY_SLIDER_POPUP_POSITION, value)
-                    },
-
-                    sliderSamePercentageStyle = sliderSamePercentageStyle,
-                    onSliderSamePercentageChange = { checked ->
-                        markTweaked(SystemUiSettingsKeys.KEY_SLIDER_SAME_PERCENTAGE_STYLE, checked)
-                        sliderSamePercentageStyle = checked
-                        settings.storage.putBoolean(SystemUiSettingsKeys.KEY_SLIDER_SAME_PERCENTAGE_STYLE, checked)
-                    },
-                    paModelSpoofEnabled = paModelSpoofEnabled,
-                    mediaCardHideAppIcon = mediaCardHideAppIcon,
-                    onMediaCardHideAppIconChange = { checked ->
-                        markTweaked(SystemUiSettingsKeys.KEY_MEDIA_CARD_HIDE_APP_ICON, checked)
-                        mediaCardHideAppIcon = checked
-                        settings.storage.putBoolean(SystemUiSettingsKeys.KEY_MEDIA_CARD_HIDE_APP_ICON, checked)
-                    },
-                    mediaCardHideDeviceSwitch = mediaCardHideDeviceSwitch,
-                    onMediaCardHideDeviceSwitchChange = { checked ->
-                        markTweaked(SystemUiSettingsKeys.KEY_MEDIA_CARD_HIDE_DEVICE_SWITCH, checked)
-                        mediaCardHideDeviceSwitch = checked
-                        settings.storage.putBoolean(SystemUiSettingsKeys.KEY_MEDIA_CARD_HIDE_DEVICE_SWITCH, checked)
-                    },
-                    lockscreenAllNotifications = lockscreenAllNotifications,
-                    onLockscreenAllNotificationsChange = { checked ->
-                        lockscreenAllNotifications = checked
-                        settings.storage.putBoolean(SystemUiSettingsKeys.KEY_LOCKSCREEN_ALL_NOTIFICATIONS, checked)
-                    },
-                    lockscreenKeepNotifications = lockscreenKeepNotifications,
-                    onLockscreenKeepNotificationsChange = { checked ->
-                        lockscreenKeepNotifications = checked
-                        settings.storage.putBoolean(SystemUiSettingsKeys.KEY_LOCKSCREEN_KEEP_NOTIFICATIONS, checked)
-                    },
-                    onPaModelSpoofEnabledChange = { checked ->
-                        handlePaModelSpoofChange(checked)
-                    },
-                    showInSettings = showInSettings,
-                    onShowInSettingsChange = { checked ->
-                        showInSettings = checked
-                        settings.storage.putBoolean(PlatformSettingsKeys.KEY_SHOW_IN_SETTINGS, checked)
-                    },
-                    disableVideoRingback = disableVideoRingback,
-                    onDisableVideoRingbackChange = { checked ->
-                        markTweaked(PlatformSettingsKeys.KEY_DISABLE_VIDEO_RINGBACK, checked)
-                        disableVideoRingback = checked
-                        settings.storage.putBoolean(PlatformSettingsKeys.KEY_DISABLE_VIDEO_RINGBACK, checked)
-                    },
                     hideLauncherIcon = hideLauncherIcon,
                     onHideLauncherIconChange = { checked ->
                         hideLauncherIcon = checked
@@ -502,144 +145,7 @@ internal fun AppContent(
                             settings.storage.putBoolean(AppSettingsKeys.KEY_HIDE_LAUNCHER_ICON, checked)
                         }
                     },
-                    immediateMonetRefresh = immediateMonetRefresh,
-                    onImmediateMonetRefreshChange = { enabled ->
-                        immediateMonetRefresh = enabled
-                        settings.storage.putBoolean(SystemUiSettingsKeys.KEY_IMMEDIATE_MONET_REFRESH, enabled)
-                    },
-                    unlockThirdPartyDarkMode = unlockThirdPartyDarkMode,
-                     onUnlockThirdPartyDarkModeChange = { checked ->
-                         unlockThirdPartyDarkMode = checked
-                         settings.storage.putBoolean(PlatformSettingsKeys.KEY_UNLOCK_THIRD_PARTY_DARK_MODE, checked)
-                     },
-                     disableSpatialAudio = disableSpatialAudio,
-                    onDisableSpatialAudioChange = { checked ->
-                        markTweaked(PlatformSettingsKeys.KEY_DISABLE_SPATIAL_AUDIO, checked)
-                        disableSpatialAudio = checked
-                        settings.storage.putBoolean(PlatformSettingsKeys.KEY_DISABLE_SPATIAL_AUDIO, checked)
-                    },
-                    forceAdaptiveAnc = forceAdaptiveAnc,
-                    onForceAdaptiveAncChange = { checked ->
-                        markTweaked(PlatformSettingsKeys.KEY_FORCE_ADAPTIVE_ANC, checked)
-                        forceAdaptiveAnc = checked
-                        settings.storage.putBoolean(PlatformSettingsKeys.KEY_FORCE_ADAPTIVE_ANC, checked)
-                    },
-                    disableMiTrustRiskMonitoring = disableMiTrustRiskMonitoring,
-                    onDisableMiTrustRiskMonitoringChange = { checked ->
-                        markTweaked(PlatformSettingsKeys.KEY_MITRUST_DISABLE_RISK_MONITORING, checked)
-                        disableMiTrustRiskMonitoring = checked
-                        settings.storage.putBoolean(
-                            PlatformSettingsKeys.KEY_MITRUST_DISABLE_RISK_MONITORING,
-                            checked
-                        )
-                    },
-                    disableGuardEnvironmentCheck = disableGuardEnvironmentCheck,
-                    onDisableGuardEnvironmentCheckChange = { checked ->
-                        disableGuardEnvironmentCheck = checked
-                        settings.storage.putBoolean(
-                            PlatformSettingsKeys.KEY_GUARD_PROVIDER_DISABLE_ENVIRONMENT_CHECK,
-                            checked
-                        )
-                    },
-                    blockGuardUploadAppList = blockGuardUploadAppList,
-                    onBlockGuardUploadAppListChange = { checked ->
-                        markTweaked(PlatformSettingsKeys.KEY_GUARD_PROVIDER_BLOCK_UPLOAD_APP_LIST, checked)
-                        blockGuardUploadAppList = checked
-                        settings.storage.putBoolean(
-                            PlatformSettingsKeys.KEY_GUARD_PROVIDER_BLOCK_UPLOAD_APP_LIST,
-                            checked
-                        )
-                    },
-                    blockMiLinkHpplayFiles = blockMiLinkHpplayFiles,
-                    onBlockMiLinkHpplayFilesChange = { checked ->
-                        markTweaked(PlatformSettingsKeys.KEY_MILINK_BLOCK_HPPLAY_FILES, checked)
-                        blockMiLinkHpplayFiles = checked
-                        settings.storage.putBoolean(PlatformSettingsKeys.KEY_MILINK_BLOCK_HPPLAY_FILES, checked)
-                    },
-                    allowThirdPartyTheme = allowThirdPartyTheme,
-                    onAllowThirdPartyThemeChange = { checked ->
-                        markTweaked(PlatformSettingsKeys.KEY_ALLOW_THIRD_PARTY_THEME, checked)
-                        allowThirdPartyTheme = checked
-                        settings.storage.putBoolean(PlatformSettingsKeys.KEY_ALLOW_THIRD_PARTY_THEME, checked)
-                    },
-                    removeIslandPlaceholder = removeIslandPlaceholder,
-                    onRemoveIslandPlaceholderChange = { checked ->
-                        removeIslandPlaceholder = checked
-                        markTweaked(PlatformSettingsKeys.KEY_REMOVE_ISLAND_PLACEHOLDER, checked)
-                        settings.storage.putBoolean(PlatformSettingsKeys.KEY_REMOVE_ISLAND_PLACEHOLDER, checked)
-                    },
-                    threeIslands = threeIslands,
-                    landscapeFullIslands = landscapeFullIslands,
-                    landscapeMoreIslands = landscapeMoreIslands,
-                    onLandscapeMoreIslandsChange = { checked ->
-                        landscapeMoreIslands = checked
-                        markTweaked(PlatformSettingsKeys.KEY_LANDSCAPE_MORE_ISLANDS, checked)
-                        settings.storage.putBoolean(PlatformSettingsKeys.KEY_LANDSCAPE_MORE_ISLANDS, checked)
-                    },
-                    onLandscapeFullIslandsChange = { checked ->
-                        landscapeFullIslands = checked
-                        markTweaked(PlatformSettingsKeys.KEY_LANDSCAPE_FULL_ISLANDS, checked)
-                        settings.storage.putBoolean(PlatformSettingsKeys.KEY_LANDSCAPE_FULL_ISLANDS, checked)
-                    },
-                    onThreeIslandsChange = { checked ->
-                        threeIslands = checked
-                        markTweaked(PlatformSettingsKeys.KEY_THREE_ISLANDS, checked)
-                        settings.storage.putBoolean(PlatformSettingsKeys.KEY_THREE_ISLANDS, checked)
-                    },
-                    ccHideSuperIsland = ccHideSuperIsland,
-                    islandLiveUpdateIcon = islandLiveUpdateIcon,
-                    islandNarrowTimeFont = islandNarrowTimeFont,
-                    islandPullDownStretch = islandPullDownStretch,
-                    islandLottieResume = islandLottieResume,
-                    islandFlashlightControl = islandFlashlightControl,
-                    onIslandLiveUpdateIconChange = { checked ->
-                        islandLiveUpdateIcon = checked
-                        markTweaked(PlatformSettingsKeys.KEY_ISLAND_LIVE_UPDATE_ICON, checked)
-                        settings.storage.putBoolean(PlatformSettingsKeys.KEY_ISLAND_LIVE_UPDATE_ICON, checked)
-                    },
-                    onIslandNarrowTimeFontChange = { checked ->
-                        islandNarrowTimeFont = checked
-                        markTweaked(PlatformSettingsKeys.KEY_ISLAND_NARROW_TIME_FONT, checked)
-                        settings.storage.putBoolean(PlatformSettingsKeys.KEY_ISLAND_NARROW_TIME_FONT, checked)
-                    },
-                    onIslandPullDownStretchChange = { checked ->
-                        islandPullDownStretch = checked
-                        markTweaked(PlatformSettingsKeys.KEY_ISLAND_PULL_DOWN_STRETCH, checked)
-                        settings.storage.putBoolean(PlatformSettingsKeys.KEY_ISLAND_PULL_DOWN_STRETCH, checked)
-                    },
-                    onIslandLottieResumeChange = { checked ->
-                        islandLottieResume = checked
-                        markTweaked(PlatformSettingsKeys.KEY_ISLAND_LOTTIE_RESUME, checked)
-                        settings.storage.putBoolean(PlatformSettingsKeys.KEY_ISLAND_LOTTIE_RESUME, checked)
-                    },
-                    onIslandFlashlightControlChange = { checked ->
-                        islandFlashlightControl = checked
-                        markTweaked(PlatformSettingsKeys.KEY_ISLAND_FLASHLIGHT_CONTROL, checked)
-                        settings.storage.putBoolean(PlatformSettingsKeys.KEY_ISLAND_FLASHLIGHT_CONTROL, checked)
-                    },
-                    onCcHideSuperIslandChange = { checked ->
-                        ccHideSuperIsland = checked
-                        markTweaked(SystemUiSettingsKeys.KEY_CC_HIDE_SUPER_ISLAND, checked)
-                        settings.storage.putBoolean(SystemUiSettingsKeys.KEY_CC_HIDE_SUPER_ISLAND, checked)
-                    },
-                    focusNotificationUnlockWhitelist = focusNotificationUnlockWhitelist,
-                    onFocusNotificationUnlockWhitelistChange = { checked ->
-                        handleFocusNotificationUnlockWhitelistChange(checked)
-                    },
-                    mediaSuperIslandUnlockWhitelist = mediaSuperIslandUnlockWhitelist,
-                    onMediaSuperIslandUnlockWhitelistChange = { checked ->
-                        handleMediaSuperIslandUnlockWhitelistChange(checked)
-                    },
-                    xmsfUnlockFocusAuth = xmsfUnlockFocusAuth,
-                    onXmsfUnlockFocusAuthChange = { checked ->
-                        handleXmsfUnlockFocusAuthChange(checked)
-                    },
                     backdrop = backdrop,
-                    pageScale = pageScale,
-                    onPageScaleChange = { scale ->
-                        pageScale = scale
-                        settings.storage.putFloat(AppSettingsKeys.KEY_PAGE_SCALE, scale)
-                    },
                     onViewSourceCode = {
                         try {
                             val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, "https://github.com/takekazex/HyperTweak".toUri())
@@ -729,11 +235,6 @@ internal fun AppContent(
                             // disappears without requiring a second app launch.
                             services.module.refreshHotReloadTargets()
                         }
-                    },
-                    appLanguage = appLanguage,
-                    onAppLanguageChange = { lang ->
-                        appLanguage = lang
-                        settings.storage.putInt(AppSettingsKeys.KEY_LANGUAGE, lang)
                     },
                     onShortcutsChanged = {
                         coroutineScope.launch(Dispatchers.IO) {

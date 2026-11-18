@@ -4,19 +4,6 @@ import android.content.Context
 import android.content.Intent
 import android.provider.Settings
 import android.widget.Toast
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.WindowInsetsSides
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.only
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawing
-import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -25,36 +12,24 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.takekazex.hypertweak.R
+import com.takekazex.hypertweak.ui.chrome.AppScrollPage
+import com.takekazex.hypertweak.ui.chrome.AppSection
 import com.takekazex.hypertweak.util.platform.DeveloperSettings
 import kotlinx.coroutines.launch
-import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
-import com.takekazex.hypertweak.ui.effect.AppScaffold as Scaffold
-import top.yukonga.miuix.kmp.basic.SmallTitle
-import com.takekazex.hypertweak.ui.effect.AppTopAppBar as TopAppBar
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
-import top.yukonga.miuix.kmp.utils.overScrollVertical
 
 @Composable
 fun DeveloperSettingsPage(onBack: () -> Unit) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val scope = rememberCoroutineScope()
-    val scrollBehavior = MiuixScrollBehavior()
 
     var showRefreshRate by remember { mutableStateOf(false) }
     var showHdrSdrRatio by remember { mutableStateOf(false) }
@@ -92,124 +67,97 @@ fun DeveloperSettingsPage(onBack: () -> Unit) {
     }
     LaunchedEffect(Unit) { reload() }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = stringResource(R.string.developer_settings_page_title),
-                scrollBehavior = scrollBehavior,
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(MiuixIcons.Back, stringResource(R.string.developer_settings_back))
-                    }
-                }
+    AppScrollPage(
+        title = stringResource(R.string.developer_settings_page_title),
+        onBack = onBack,
+        backContentDescription = stringResource(R.string.developer_settings_back),
+    ) {
+        // Entry point for the full system developer options. The switches below cover the
+        // handful of toggles worth surfacing directly; anything else lives in the system page.
+        AppSection {
+            ArrowPreference(
+                title = stringResource(R.string.developer_settings_system_options_title),
+                summary = stringResource(R.string.developer_settings_system_options_summary),
+                onClick = { openSystemDeveloperOptions(context) }
             )
         }
-    ) { padding ->
-        Column(
-            Modifier.fillMaxSize()
-                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
-                .overScrollVertical()
-                .nestedScroll(scrollBehavior.nestedScrollConnection)
-                .verticalScroll(rememberScrollState())
-        ) {
-            Spacer(Modifier.height(padding.calculateTopPadding() + 8.dp))
-            // Entry point for the full system developer options. The switches below cover the
-            // handful of toggles worth surfacing directly; anything else lives in the system page.
-            Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-                ArrowPreference(
-                    title = stringResource(R.string.developer_settings_system_options_title),
-                    summary = stringResource(R.string.developer_settings_system_options_summary),
-                    onClick = { openSystemDeveloperOptions(context) }
-                )
-            }
-            SmallTitle(stringResource(R.string.developer_settings_display_title))
-            Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-                Column(Modifier.fillMaxWidth()) {
-                    SwitchPreference(
-                        checked = showRefreshRate,
-                        onCheckedChange = { value ->
-                            update(value, {
-                                DeveloperSettings.writeSurfaceFlingerBoolean(
-                                    DeveloperSettings.SHOW_REFRESH_RATE_TRANSACTION,
-                                    value
-                                )
-                            }) {
-                                showRefreshRate = it
-                            }
-                        },
-                        title = stringResource(R.string.developer_settings_show_refresh_rate),
-                        summary = stringResource(R.string.developer_settings_show_refresh_rate_summary)
-                    )
-                    SwitchPreference(
-                        checked = showHdrSdrRatio,
-                        onCheckedChange = { value ->
-                            update(value, {
-                                DeveloperSettings.writeSurfaceFlingerBoolean(
-                                    DeveloperSettings.SHOW_HDR_SDR_RATIO_TRANSACTION,
-                                    value
-                                )
-                            }) {
-                                showHdrSdrRatio = it
-                            }
-                        },
-                        title = stringResource(R.string.developer_settings_show_hdr_sdr_ratio),
-                        summary = stringResource(R.string.developer_settings_show_hdr_sdr_ratio_summary)
-                    )
-                }
-            }
+        AppSection(stringResource(R.string.developer_settings_display_title)) {
+            SwitchPreference(
+                checked = showRefreshRate,
+                onCheckedChange = { value ->
+                    update(value, {
+                        DeveloperSettings.writeSurfaceFlingerBoolean(
+                            DeveloperSettings.SHOW_REFRESH_RATE_TRANSACTION,
+                            value
+                        )
+                    }) {
+                        showRefreshRate = it
+                    }
+                },
+                title = stringResource(R.string.developer_settings_show_refresh_rate),
+                summary = stringResource(R.string.developer_settings_show_refresh_rate_summary)
+            )
+            SwitchPreference(
+                checked = showHdrSdrRatio,
+                onCheckedChange = { value ->
+                    update(value, {
+                        DeveloperSettings.writeSurfaceFlingerBoolean(
+                            DeveloperSettings.SHOW_HDR_SDR_RATIO_TRANSACTION,
+                            value
+                        )
+                    }) {
+                        showHdrSdrRatio = it
+                    }
+                },
+                title = stringResource(R.string.developer_settings_show_hdr_sdr_ratio),
+                summary = stringResource(R.string.developer_settings_show_hdr_sdr_ratio_summary)
+            )
+        }
 
-            SmallTitle(stringResource(R.string.developer_settings_input_title))
-            Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-                Column(Modifier.fillMaxWidth()) {
-                    SwitchPreference(
-                        checked = showTouches,
-                        onCheckedChange = { value ->
-                            update(value, {
-                                DeveloperSettings.writeSystemBoolean(context, DeveloperSettings.SHOW_TOUCHES, value)
-                            }) { showTouches = it }
-                        },
-                        title = stringResource(R.string.developer_settings_show_touches),
-                        summary = stringResource(R.string.developer_settings_show_touches_summary)
-                    )
-                    SwitchPreference(
-                        checked = pointerLocation,
-                        onCheckedChange = { value ->
-                            update(value, {
-                                DeveloperSettings.writeSystemBoolean(context, DeveloperSettings.POINTER_LOCATION, value)
-                            }) { pointerLocation = it }
-                        },
-                        title = stringResource(R.string.developer_settings_pointer_location),
-                        summary = stringResource(R.string.developer_settings_pointer_location_summary)
-                    )
-                }
-            }
+        AppSection(stringResource(R.string.developer_settings_input_title)) {
+            SwitchPreference(
+                checked = showTouches,
+                onCheckedChange = { value ->
+                    update(value, {
+                        DeveloperSettings.writeSystemBoolean(context, DeveloperSettings.SHOW_TOUCHES, value)
+                    }) { showTouches = it }
+                },
+                title = stringResource(R.string.developer_settings_show_touches),
+                summary = stringResource(R.string.developer_settings_show_touches_summary)
+            )
+            SwitchPreference(
+                checked = pointerLocation,
+                onCheckedChange = { value ->
+                    update(value, {
+                        DeveloperSettings.writeSystemBoolean(context, DeveloperSettings.POINTER_LOCATION, value)
+                    }) { pointerLocation = it }
+                },
+                title = stringResource(R.string.developer_settings_pointer_location),
+                summary = stringResource(R.string.developer_settings_pointer_location_summary)
+            )
+        }
 
-            SmallTitle(stringResource(R.string.developer_settings_networking_title))
-            Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-                Column(Modifier.fillMaxWidth()) {
-                    ArrowPreference(
-                        title = stringResource(R.string.developer_settings_mobile_data_title),
-                        summary = stringResource(R.string.developer_settings_mobile_data_summary),
-                        onClick = { openCellularNetworkDebug(context) }
-                    )
-                    SwitchPreference(
-                        checked = usbDebugging,
-                        onCheckedChange = { value ->
-                            update(value, {
-                                DeveloperSettings.writeGlobalBoolean(context, Settings.Global.ADB_ENABLED, value)
-                            }) { usbDebugging = it }
-                        },
-                        title = stringResource(R.string.developer_settings_usb_debugging),
-                        summary = stringResource(R.string.developer_settings_usb_debugging_summary)
-                    )
-                    ArrowPreference(
-                        title = stringResource(R.string.developer_settings_wireless_debugging),
-                        summary = stringResource(R.string.developer_settings_wireless_debugging_summary),
-                        onClick = { openWirelessDebugging(context) }
-                    )
-                }
-            }
-            Spacer(Modifier.height(padding.calculateBottomPadding() + 16.dp))
+        AppSection(stringResource(R.string.developer_settings_networking_title)) {
+            ArrowPreference(
+                title = stringResource(R.string.developer_settings_mobile_data_title),
+                summary = stringResource(R.string.developer_settings_mobile_data_summary),
+                onClick = { openCellularNetworkDebug(context) }
+            )
+            SwitchPreference(
+                checked = usbDebugging,
+                onCheckedChange = { value ->
+                    update(value, {
+                        DeveloperSettings.writeGlobalBoolean(context, Settings.Global.ADB_ENABLED, value)
+                    }) { usbDebugging = it }
+                },
+                title = stringResource(R.string.developer_settings_usb_debugging),
+                summary = stringResource(R.string.developer_settings_usb_debugging_summary)
+            )
+            ArrowPreference(
+                title = stringResource(R.string.developer_settings_wireless_debugging),
+                summary = stringResource(R.string.developer_settings_wireless_debugging_summary),
+                onClick = { openWirelessDebugging(context) }
+            )
         }
     }
 }

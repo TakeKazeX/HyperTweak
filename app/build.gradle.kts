@@ -13,7 +13,11 @@ plugins {
 
 android {
     namespace = "com.takekazex.hypertweak"
-    compileSdk = 37
+    compileSdk {
+        version = release(37) {
+            minorApiLevel = 2
+        }
+    }
     // The native payload is built by CMake and injected by LSPosed. Pin the NDK
     // so the hook trampolines come from a toolchain we have verified. r30 is the
     // first release whose platform list covers API 37; older NDKs clamp the
@@ -275,16 +279,17 @@ dependencies {
     implementation("androidx.compose.ui:ui:1.12.1")
     implementation("androidx.compose.ui:ui-graphics:1.12.1")
     implementation("androidx.compose.ui:ui-tooling-preview:1.12.1")
-    implementation("androidx.compose.material:material-icons-core:1.7.8")
-    implementation("androidx.compose.material:material-icons-extended:1.7.8")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.11.0")
 
     // Miuix UI & Preferences
-    implementation("top.yukonga.miuix.kmp:miuix-ui:0.9.4")
-    implementation("top.yukonga.miuix.kmp:miuix-preference:0.9.4")
-    implementation("top.yukonga.miuix.kmp:miuix-icons:0.9.4")
-    implementation("top.yukonga.miuix.kmp:miuix-blur:0.9.4")
-    implementation("top.yukonga.miuix.kmp:miuix-nav:0.9.4")
+    implementation("top.yukonga.miuix.kmp:miuix-ui:0.9.5-beta01")
+    implementation("top.yukonga.miuix.kmp:miuix-preference:0.9.5-beta01")
+    implementation("top.yukonga.miuix.kmp:miuix-icons:0.9.5-beta01")
+    implementation("top.yukonga.miuix.kmp:miuix-blur:0.9.5-beta01")
+    implementation("top.yukonga.miuix.kmp:miuix-nav:0.9.5-beta01")
+    implementation("top.yukonga.miuix.kmp:miuix-material:0.9.5-beta01")
+    implementation("top.yukonga.miuix.kmp:miuix-glass:0.9.5-beta01")
+    implementation("top.yukonga.miuix.kmp:miuix-glass-icons:0.9.5-beta01")
     implementation("androidx.navigationevent:navigationevent-compose:1.2.0")
 
     // libxposed

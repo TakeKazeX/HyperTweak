@@ -4,18 +4,18 @@ import androidx.compose.animation.*
 import androidx.compose.runtime.*
 import com.takekazex.hypertweak.ui.page.Route
 import com.takekazex.hypertweak.ui.page.app.AboutPage
-import com.takekazex.hypertweak.ui.page.app.CreditsPage
-import com.takekazex.hypertweak.ui.page.platform.HiddenFeaturesPage
 import com.takekazex.hypertweak.ui.page.app.AppShortcutsPage
-import com.takekazex.hypertweak.ui.page.diagnostics.WirelessAdbPage
+import com.takekazex.hypertweak.ui.page.app.AppearancePage
+import com.takekazex.hypertweak.ui.page.app.BackupRestorePage
+import com.takekazex.hypertweak.ui.page.app.CreditsPage
+import com.takekazex.hypertweak.ui.page.app.ScopePromptsPage
+import com.takekazex.hypertweak.ui.page.diagnostics.BatteryInfoPage
 import com.takekazex.hypertweak.ui.page.diagnostics.DebugPage
 import com.takekazex.hypertweak.ui.page.diagnostics.DeveloperSettingsPage
-import com.takekazex.hypertweak.ui.page.diagnostics.BatteryInfoPage
 import com.takekazex.hypertweak.ui.page.diagnostics.DeviceInfoPage
 import com.takekazex.hypertweak.ui.page.diagnostics.LogsPage
-import com.takekazex.hypertweak.ui.page.app.AppearancePage
-import com.takekazex.hypertweak.ui.page.app.ScopePromptsPage
-import com.takekazex.hypertweak.ui.page.app.BackupRestorePage
+import com.takekazex.hypertweak.ui.page.diagnostics.WirelessAdbPage
+import com.takekazex.hypertweak.ui.page.platform.HiddenFeaturesPage
 import com.takekazex.hypertweak.ui.page.update.UpdatePage
 import top.yukonga.miuix.kmp.nav.core.*
 
@@ -23,29 +23,7 @@ internal fun NavEntryBuilder.toolsPages(settings: NavigationSettings, navControl
     with(settings) {
         entry<Route.Appearance> {
             AppearancePage(
-                appBlurMode = appBlurMode,
-                onAppBlurModeChange = onAppBlurModeChange,
                 onBack = { navController.pop() },
-                themeMode = themeMode,
-                onThemeModeChange = onThemeModeChange,
-                useMonet = useMonet,
-                onUseMonetChange = onUseMonetChange,
-                seedColorHex = seedColorHex,
-                onSeedColorChange = onSeedColorChange,
-                paletteStyle = paletteStyle,
-                onPaletteStyleChange = onPaletteStyleChange,
-                pureBlackDarkTheme = pureBlackDarkTheme,
-                onPureBlackDarkThemeChange = onPureBlackDarkThemeChange,
-                useFloatingBottomBar = useFloatingBottomBar,
-                onUseFloatingBottomBarChange = onUseFloatingBottomBarChange,
-                floatingBarStyle = floatingBarStyle,
-                onFloatingBarStyleChange = onFloatingBarStyleChange,
-                predictiveBackStyle = predictiveBackStyle,
-                onPredictiveBackStyleChange = onPredictiveBackStyleChange,
-                predictiveBackFollowGesture = predictiveBackFollowGesture,
-                onPredictiveBackFollowGestureChange = onPredictiveBackFollowGestureChange,
-                pageScale = pageScale,
-                onPageScaleChange = onPageScaleChange
             )
         }
         entry<Route.ScopePrompts> {

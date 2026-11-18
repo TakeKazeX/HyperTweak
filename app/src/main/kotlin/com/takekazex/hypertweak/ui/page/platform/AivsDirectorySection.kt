@@ -13,6 +13,7 @@ import androidx.lifecycle.compose.currentStateAsState
 import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 import com.takekazex.hypertweak.ui.app.LocalAppSettingsStore
+import com.takekazex.hypertweak.ui.chrome.AppSection
 import com.takekazex.hypertweak.ui.components.MiuixExpandableContent
 import com.takekazex.hypertweak.ui.components.dialog.CenteredDialog
 import com.takekazex.hypertweak.util.platform.AivsDirectoryMigration
@@ -55,8 +56,7 @@ internal fun AivsDirectorySection() {
         pending = folders.isNotEmpty()
         checkedEmpty = folders.isEmpty()
     }
-    SmallTitle(stringResource(R.string.aivs_section))
-    Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+    AppSection(stringResource(R.string.aivs_section)) {
         Column {
             SwitchPreference(
                 checked = enabled,

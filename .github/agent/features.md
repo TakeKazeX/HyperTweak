@@ -77,22 +77,65 @@ including any re-signed SystemUI plugin, remains separate from build and hook-lo
 ## App UI shell
 
 Settings navigation uses Miuix `miuix-nav` in `ui/navigation/HyperTweakNavContainer.kt`.
-The container owns the saved stack, pager-back behavior and transitions; four `*NavigationPages` builders register destinations from the current immutable `NavigationSettings` values/callbacks. The builders are recreated with composition so already-open entries observe updates; page-local remember/saveable ownership is unchanged.
+The container owns the saved stack, pager-back behavior and transitions; four `*NavigationPages` builders register destinations from `NavigationSettings`, which now carries only shell state and actions (module/hot-reload status, restart, backup, links). Setting values are not passed through it: pages read and assign `LocalAppSettings.current` (`AppSettingsState`). The builders are recreated with composition so already-open entries observe updates; page-local remember/saveable ownership is unchanged.
 `NavController` centralizes push/pop; `navigateTo` admits each singleton route only once,
 returning to an existing entry on repeat navigation. `Route.saveKey` keeps the restored stack
 stable across updates, and restoration discards duplicate/unknown routes; Miuix owns gesture cancellation,
 settling and entry state. `ui/effect/ScalePredictiveBack.kt` supplies the optional scale transition.
 The app's global blur preference is `Preferences.KEY_APP_BLUR_MODE` (0 off, 1 uniform, 2 progressive).
-`ui/effect/AppScaffold.kt` captures each page's content for its top bar; About supplies its raw
-animated backdrop to avoid sampling the already blurred project card. Its expanded top bar stays
-transparent, enabling global top-bar blur only after the logo/title has fully collapsed. Top bars
-respect explicit transparent colors in the unblurred state. `AppBlur.kt` applies the
-same policy to existing card and navigation-bar blur. Progressive mode uses Miuix's native
-`progressiveTextureBlur` / `progressiveBlur` pipeline, with top and bottom gradients as appropriate.
+Interface style is `AppSettingsKeys.KEY_APP_UI_STYLE` (0 HyperOS 3, 1 HyperOS 4, default 1).
+
+Page chrome lives only in `ui/chrome/` and mirrors the upstream example (`AdaptiveTopAppBar`,
+`BlurredBar`, `rememberBlurBackdrop`, `pageScrollModifiers`, `pageContentPadding`):
+- Every route is an `AppScrollPage` (column), `AppLazyPage` (lazy list) or, for custom layouts,
+  `AppPage { padding -> }`. The frame owns the scroll behavior, Miuix `Scaffold`, popup host,
+  `LocalAppOverlayHost`, the page backdrop (`rememberPageBackdrop`, null when blur is off or
+  RuntimeShader is missing) and `AppTopBar` with the built-in back button. Pages never build a
+  Scaffold or top bar themselves and never pad content *below* the bar: content is laid out under
+  it from the Scaffold padding, so the bar can collapse and blur over it. Tab rows and pinned
+  previews go in `topBarBottom` (Icon tuner, Camera). Root tabs pass `onBack = null` and the
+  pager's bottom bar height as `bottomInset`.
+- `AppTopBar`: OS4 renders upstream `GlassTopAppBar` (band clear until content scrolls under it,
+  then a progressive blur of the page backdrop, or a surface gradient when blur is off); OS3 renders
+  the classic `TopAppBar` over a uniform/progressive blur layer. `contentScrolled`/`titleAlpha`
+  serve About's collapsing logo. Slot buttons use `AppIconButton` (imported as `IconButton`), which
+  becomes a `GlassIconButton` pill only inside the OS4 bar.
+- `Modifier.appPageScroll` mirrors elastic overscroll into `TopAppBarState.overscrollOffset` and
+  attaches the nested-scroll connection. OS3 defers the backdrop capture until the entry transition
+  settles; OS4 captures from the first frame so glass never enters as its fallback.
+- `AppOverlayDialog` → `GlassDialog` and the string-items `AppDropdownPreference` (imported as
+  `OverlayDropdownPreference`) → `GlassDropdownPreference` in OS4, sampling `LocalPageBackdrop`.
+  `AppWindowDialog` (and `CenteredDialog`) also renders an in-page `GlassDialog` in OS4 when it is
+  inside an `AppPage`; outside a page and in OS3 it keeps its own `WindowDialog`. Inside a glass
+  dialog `AppTextButton` (imported as `TextButton`) becomes `GlassDialogButton` (Primary for
+  `textButtonColorsPrimary()`, Destructive for `destructive = true`). The entry-form dropdown stays classic.
+- About records its own animated backdrop for the cards; its bar uses the shared frame.
+- Icons are Miuix only (`MiuixIcons` / `MiuixIcons.Glass`); there is no Material icons dependency.
+- Settings groups use `AppSection(title) { rows }` (SmallTitle + 12dp-inset card + full-width
+  column); page tab rows use `AppTabRow` (OS4 `GlassTabRow` over the page backdrop, OS3
+  `TabRowWithContour`). Dark-dependent colors use `isAppInDarkTheme()` (active Miuix scheme), not
+  `isSystemInDarkTheme()`, so the in-app theme mode is honoured.
+- Settings state is write-through. `AppSettingsState` properties are `persisted(KEY, put) { read }`:
+  assigning one stores it and notifies `AppRestartTracker` through `beforeWrite`. Keys without a
+  property use `rememberStoredSetting(KEY, settingsStore::putX) { read }` in the page. Do not pair
+  an assignment with a manual `put`. `reload()` refreshes values without writing.
+- Status tones (success/warning/error/info × container/onContainer/accent) come from
+  `ui/theme/StatusPalette.kt`; text sizes use `MiuixTheme.textStyles`, not `fontSize` literals.
+- UI setting writes do not call `settingsStore.flush()`; it blocks on the daemon queue and is only
+  for restart paths, which already flush before killing scopes. Flows are collected with
+  `collectAsStateWithLifecycle`.
+
+The main bottom bar style is independent of the interface style (`BottomBarStyle` in
+`ui/chrome/AppChrome.kt`), stored in the existing `KEY_USE_FLOATING_BOTTOM_BAR` +
+`KEY_FLOATING_BAR_STYLE` pair: floating + style 1 is the iOS-like liquid bar in both styles;
+otherwise OS4 shows `GlassNavigationBar` and OS3 the classic or floating Miuix bar with stock
+items. Landscape OS4 overlays a `GlassNavigationRail` whose progress pads the page and drives
+`LocalTopBarTitleAlpha`. `AppBlur.kt` applies the blur policy to card and navigation-bar blur;
+progressive mode uses Miuix's native `progressiveTextureBlur` pipeline.
 The shared `CenteredDialog` delegates to Miuix's centered `WindowDialog`. MainPager uses the
 cross-axis Pager gesture driver and spring tab navigation; the liquid indicator follows Pager
 selection without redispatching tab clicks. Liquid rendering and its six auxiliary files follow
-Miuix v0.9.4 at `39c40f99844227b853f0049a0933b1f3ae6c00ba`: auxiliary algorithms and indicator
+Miuix v0.9.5-beta01 at `6d2554a850b8960e2616c968263ff64beb5ffb03`: auxiliary algorithms and indicator
 input/animation are copied unchanged apart from package names. The complete upstream MainPagerState
 also owns tab selection, page navigation and root-page back, with the upstream syncPage effect.
 Local renderer adaptations are theme wiring and the centered 80%-width pill (maximum constraint

@@ -1,7 +1,5 @@
 package com.takekazex.hypertweak.ui.page.systemui.icon
 
-import com.takekazex.hypertweak.settings.contract.IconTunerContract
-
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -38,7 +36,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -47,29 +44,27 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import com.takekazex.hypertweak.R
-import com.takekazex.hypertweak.ui.app.LocalAppSettingsStore
 import com.takekazex.hypertweak.settings.contract.IconSlotPolicy
 import com.takekazex.hypertweak.settings.contract.IconSlotPolicyConfig
+import com.takekazex.hypertweak.settings.contract.IconTunerContract
+import com.takekazex.hypertweak.ui.app.LocalAppSettingsStore
+import com.takekazex.hypertweak.ui.app.rememberStoredSetting
+import com.takekazex.hypertweak.ui.chrome.AppDropdownPreference as OverlayDropdownPreference
+import com.takekazex.hypertweak.ui.chrome.AppPage
+import com.takekazex.hypertweak.ui.chrome.AppSection
+import com.takekazex.hypertweak.ui.chrome.AppTextButton as TextButton
+import com.takekazex.hypertweak.ui.chrome.appPageScroll
+import com.takekazex.hypertweak.ui.components.MiuixExpandableContent
+import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
-import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
-import com.takekazex.hypertweak.ui.components.MiuixExpandableContent
-import com.takekazex.hypertweak.ui.effect.AppScaffold as Scaffold
-import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TextButton
-import com.takekazex.hypertweak.ui.effect.AppTopAppBar as TopAppBar
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.Sort
-import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.utils.overScrollVertical
-import kotlin.math.roundToInt
 
 /** Uniform row height: the drag math converts a pixel offset into an index with it. */
 private val ORDER_ROW_HEIGHT = 56.dp
@@ -118,24 +113,13 @@ fun IconOrderPage(onBack: () -> Unit) {
             .mapTo(linkedSetOf()) { "${it.index}:${it.slot}" }
     }
 
-    var position by rememberSaveable {
-        mutableIntStateOf(
-            config.value(IconTunerContract.KEY_POSITION) as? Int ?: IconSlotPolicyConfig.POSITION_SYSTEM
-        )
-    }
-    var reorderHidden by rememberSaveable {
-        mutableStateOf(config.value(IconTunerContract.KEY_POSITION_REORDER) as? Boolean ?: false)
-    }
-    var order by rememberSaveable {
-        mutableStateOf(IconSlotPolicy.displayOrder(storedEntries, IconSlotCatalog.orderSlots))
-    }
+    var position by rememberStoredSetting(IconTunerContract.KEY_POSITION, settingsStore::putInt) { config.value(IconTunerContract.KEY_POSITION) as? Int ?: IconSlotPolicyConfig.POSITION_SYSTEM }
+    var reorderHidden by rememberStoredSetting(IconTunerContract.KEY_POSITION_REORDER, settingsStore::putBoolean) { config.value(IconTunerContract.KEY_POSITION_REORDER) as? Boolean ?: false }
+    var order by rememberSaveable { mutableStateOf(IconSlotPolicy.displayOrder(storedEntries, IconSlotCatalog.orderSlots)) }
 
     /** Stores the displayed order plus the carry-over entries the list cannot show. */
     fun persistOrder(slots: List<String>) {
-        settingsStore.putStringSet(
-            IconTunerContract.KEY_POSITION_VALUES,
-            IconSlotPolicy.editedOrderEntries(slots, storedEntries)
-        )
+        settingsStore.putStringSet(IconTunerContract.KEY_POSITION_VALUES, IconSlotPolicy.editedOrderEntries(slots, storedEntries))
     }
 
     fun writeOrder(slots: List<String>) {
@@ -151,17 +135,12 @@ fun IconOrderPage(onBack: () -> Unit) {
     )
     val custom = position == IconSlotPolicyConfig.POSITION_CUSTOM
 
-    Scaffold(topBar = {
-        TopAppBar(
-            title = stringResource(R.string.icon_position_title),
-            scrollBehavior = scrollBehavior,
-            navigationIcon = {
-                IconButton(onClick = onBack) {
-                    Icon(MiuixIcons.Back, stringResource(R.string.icon_back))
-                }
-            }
-        )
-    }) { padding ->
+    AppPage(
+        title = stringResource(R.string.icon_position_title),
+        onBack = onBack,
+        backContentDescription = stringResource(R.string.icon_back),
+        scrollBehavior = scrollBehavior,
+    ) { padding ->
         // The measurement has to sit outside the scroll modifier: coordinates reported from inside
         // a scrolling container move with the content instead of describing the viewport.
         Box(
@@ -174,68 +153,53 @@ fun IconOrderPage(onBack: () -> Unit) {
             Column(
                 Modifier.fillMaxSize()
                     .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
-                    .overScrollVertical()
-                    .nestedScroll(scrollBehavior.nestedScrollConnection)
+                    .appPageScroll(scrollBehavior)
                     .verticalScroll(pageScroll)
             ) {
                 Spacer(Modifier.height(padding.calculateTopPadding() + 8.dp))
 
-                SmallTitle(stringResource(R.string.icon_order_mode_title))
-                Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-                    Column(Modifier.fillMaxWidth()) {
-                        OverlayDropdownPreference(
-                            title = stringResource(R.string.icon_order_mode_title),
-                            summary = stringResource(R.string.icon_position_summary),
-                            items = positions,
-                            selectedIndex = position.coerceIn(0, positions.lastIndex),
-                            onSelectedIndexChange = { index ->
-                                position = index
-                                settingsStore.putInt(IconTunerContract.KEY_POSITION, index)
-                            }
-                        )
-                        SwitchPreference(
-                            checked = reorderHidden,
-                            onCheckedChange = { checked ->
-                                reorderHidden = checked
-                                settingsStore.putBoolean(
-                                    IconTunerContract.KEY_POSITION_REORDER,
-                                    checked
-                                )
-                            },
-                            title = stringResource(R.string.icon_position_reorder_hidden),
-                            summary = stringResource(R.string.icon_position_reorder_hidden_summary)
-                        )
-                        // Hiding itself stays on the 其他图标 tab, where the per-slot mode dropdown
-                        // already offers 隐藏; say so instead of leaving a dead end here.
-                        OrderHint(stringResource(R.string.icon_order_hide_pointer))
-                    }
+                AppSection(stringResource(R.string.icon_order_mode_title)) {
+                    OverlayDropdownPreference(
+                        title = stringResource(R.string.icon_order_mode_title),
+                        summary = stringResource(R.string.icon_position_summary),
+                        items = positions,
+                        selectedIndex = position.coerceIn(0, positions.lastIndex),
+                        onSelectedIndexChange = { index ->
+                            position = index
+                        }
+                    )
+                    SwitchPreference(
+                        checked = reorderHidden,
+                        onCheckedChange = { checked ->
+                            reorderHidden = checked
+                        },
+                        title = stringResource(R.string.icon_position_reorder_hidden),
+                        summary = stringResource(R.string.icon_position_reorder_hidden_summary)
+                    )
+                    // Hiding itself stays on the 其他图标 tab, where the per-slot mode dropdown
+                    // already offers 隐藏; say so instead of leaving a dead end here.
+                    OrderHint(stringResource(R.string.icon_order_hide_pointer))
                 }
 
                 MiuixExpandableContent(visible = custom) {
-                    SmallTitle(stringResource(R.string.icon_position_custom))
-                    Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-                        Column(Modifier.fillMaxWidth()) {
-                            OrderHint(stringResource(R.string.icon_order_custom_hint))
-                            SlotOrderList(
-                                slots = order,
-                                scrollState = pageScroll,
-                                viewport = viewport,
-                                onReorder = { writeOrder(it) }
-                            )
-                            TextButton(
-                                text = stringResource(R.string.icon_order_custom_reset),
-                                onClick = {
-                                    // Reset re-writes the stored set from the carry-over entries
-                                    // only: an empty set is the stored form of "system order".
-                                    order = IconSlotCatalog.orderSlots
-                                    settingsStore.putStringSet(
-                                        IconTunerContract.KEY_POSITION_VALUES,
-                                        offCatalogEntries
-                                    )
-                                },
-                                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
-                            )
-                        }
+                    AppSection(stringResource(R.string.icon_position_custom)) {
+                        OrderHint(stringResource(R.string.icon_order_custom_hint))
+                        SlotOrderList(
+                            slots = order,
+                            scrollState = pageScroll,
+                            viewport = viewport,
+                            onReorder = { writeOrder(it) }
+                        )
+                        TextButton(
+                            text = stringResource(R.string.icon_order_custom_reset),
+                            onClick = {
+                                // Reset re-writes the stored set from the carry-over entries
+                                // only: an empty set is the stored form of "system order".
+                                order = IconSlotCatalog.orderSlots
+                                settingsStore.putStringSet(IconTunerContract.KEY_POSITION_VALUES, offCatalogEntries)
+                            },
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+                        )
                     }
                 }
 

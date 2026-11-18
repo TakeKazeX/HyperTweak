@@ -1,55 +1,30 @@
 package com.takekazex.hypertweak.ui.page.launcher
 
-import com.takekazex.hypertweak.ui.components.scope.MissingScopeCard
-import com.takekazex.hypertweak.ui.components.dialog.LocalRestartScopeHandled
-import com.takekazex.hypertweak.ui.components.dialog.restartInProgress
-import com.takekazex.hypertweak.ui.app.LocalAppServices
-import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
-
-import com.takekazex.hypertweak.settings.contract.BackGestureKeys
-
 import android.annotation.SuppressLint
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.WindowInsetsSides
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.only
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawing
-import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import com.takekazex.hypertweak.R
+import com.takekazex.hypertweak.settings.contract.BackGestureKeys
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+import com.takekazex.hypertweak.ui.app.LocalAppServices
 import com.takekazex.hypertweak.ui.app.LocalAppSettingsStore
+import com.takekazex.hypertweak.ui.app.rememberStoredSetting
+import com.takekazex.hypertweak.ui.chrome.AppDropdownPreference as OverlayDropdownPreference
+import com.takekazex.hypertweak.ui.chrome.AppScrollPage
+import com.takekazex.hypertweak.ui.chrome.AppSection
+import com.takekazex.hypertweak.ui.components.dialog.LocalRestartScopeHandled
+import com.takekazex.hypertweak.ui.components.dialog.restartInProgress
+import com.takekazex.hypertweak.ui.components.scope.MissingScopeCard
 import com.takekazex.hypertweak.util.platform.PlatformLevel
 import com.takekazex.hypertweak.util.restart.RestartScopeSelection
-import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
-import com.takekazex.hypertweak.ui.effect.AppScaffold as Scaffold
-import top.yukonga.miuix.kmp.basic.SmallTitle
-import com.takekazex.hypertweak.ui.effect.AppTopAppBar as TopAppBar
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.preference.ArrowPreference
-import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
-import top.yukonga.miuix.kmp.utils.overScrollVertical
 
 /** Launcher controls and predictive back gestures (Features → System Launcher). */
 @SuppressLint("LocalContextGetResourceValueCall")
@@ -57,263 +32,229 @@ import top.yukonga.miuix.kmp.utils.overScrollVertical
 fun SystemLauncherPage(onBack: () -> Unit, onNavigateToDockBackground: () -> Unit, onNavigateToDesktopIconSize: () -> Unit) {
     val services = LocalAppServices.current
     val settingsStore = LocalAppSettingsStore.current
-    val scrollBehavior = MiuixScrollBehavior()
     val context = LocalContext.current
     val upstreamInstalled = com.takekazex.hypertweak.ui.effect.rememberUpstreamBackGestureInstalled()
     val backOptionsAvailable = upstreamInstalled == false
     val upstreamOpenFailed = stringResource(R.string.back_gesture_upstream_open_failed)
     val coroutineScope = rememberCoroutineScope()
     val handleRestartedScopes = LocalRestartScopeHandled.current
-    var hideRecentsClearButton by rememberSaveable { mutableStateOf(settingsStore.launcher.hideRecentsClearButton()) }
+    var hideRecentsClearButton by rememberStoredSetting(PlatformSettingsKeys.KEY_HIDE_RECENTS_CLEAR_BUTTON, settingsStore::putBoolean) { settingsStore.launcher.hideRecentsClearButton() }
     var xiaoaiOptions by rememberSaveable { mutableStateOf(settingsStore.launcher.xiaoaiGestureOptions()) }
     var widgetStack by rememberSaveable { mutableStateOf(settingsStore.launcher.androidWidgetStack()) }
     var recentsHaptic by rememberSaveable { mutableStateOf(settingsStore.launcher.recentsCardHaptic()) }
     var assistantWidgets by rememberSaveable { mutableStateOf(settingsStore.launcher.allowAndroidWidgetsToAssistant()) }
-    var backGestureEnabled by rememberSaveable { mutableStateOf(settingsStore.backGesture.backGestureBoolean(BackGestureKeys.KEY_BACK_GESTURE_ENABLED, false)) }
+    var backGestureEnabled by rememberStoredSetting(BackGestureKeys.KEY_BACK_GESTURE_ENABLED, settingsStore::putBoolean) { settingsStore.backGesture.backGestureBoolean(BackGestureKeys.KEY_BACK_GESTURE_ENABLED, false) }
     var hyperosIndicator by rememberSaveable { mutableStateOf(settingsStore.getBoolean(BackGestureKeys.KEY_BACK_GESTURE_HYPEROS_INDICATOR, false)) }
     var indicatorBlur by rememberSaveable { mutableStateOf(settingsStore.getBoolean(BackGestureKeys.KEY_BACK_GESTURE_INDICATOR_BLUR, false)) }
     var hapticsDisabled by rememberSaveable { mutableStateOf(settingsStore.getBoolean(BackGestureKeys.KEY_BACK_GESTURE_HAPTICS_DISABLED, false)) }
     var hyperosHaptics by rememberSaveable { mutableStateOf(settingsStore.getBoolean(BackGestureKeys.KEY_BACK_GESTURE_HYPEROS_HAPTICS, false)) }
-    var enhancedHaptics by rememberSaveable { mutableStateOf(settingsStore.getBoolean(BackGestureKeys.KEY_BACK_GESTURE_ENHANCED_HAPTICS, false)) }
-    var slideAnimation by rememberSaveable { mutableStateOf(settingsStore.getBoolean(BackGestureKeys.KEY_BACK_GESTURE_SLIDE_ANIMATION, false)) }
-    var crossActivityWallpaper by rememberSaveable { mutableStateOf(settingsStore.getBoolean(BackGestureKeys.KEY_BACK_GESTURE_CROSS_ACTIVITY_WALLPAPER, false)) }
-    var crossTaskWallpaper by rememberSaveable { mutableStateOf(settingsStore.getBoolean(BackGestureKeys.KEY_BACK_GESTURE_CROSS_TASK_WALLPAPER, false)) }
-    var fullscreenDirectBack by rememberSaveable {
-        mutableStateOf(settingsStore.getBoolean(BackGestureKeys.KEY_FULLSCREEN_DIRECT_BACK, false))
-    }
+    var enhancedHaptics by rememberStoredSetting(BackGestureKeys.KEY_BACK_GESTURE_ENHANCED_HAPTICS, settingsStore::putBoolean) { settingsStore.getBoolean(BackGestureKeys.KEY_BACK_GESTURE_ENHANCED_HAPTICS, false) }
+    var slideAnimation by rememberStoredSetting(BackGestureKeys.KEY_BACK_GESTURE_SLIDE_ANIMATION, settingsStore::putBoolean) { settingsStore.getBoolean(BackGestureKeys.KEY_BACK_GESTURE_SLIDE_ANIMATION, false) }
+    var crossActivityWallpaper by rememberStoredSetting(BackGestureKeys.KEY_BACK_GESTURE_CROSS_ACTIVITY_WALLPAPER, settingsStore::putBoolean) { settingsStore.getBoolean(BackGestureKeys.KEY_BACK_GESTURE_CROSS_ACTIVITY_WALLPAPER, false) }
+    var crossTaskWallpaper by rememberStoredSetting(BackGestureKeys.KEY_BACK_GESTURE_CROSS_TASK_WALLPAPER, settingsStore::putBoolean) { settingsStore.getBoolean(BackGestureKeys.KEY_BACK_GESTURE_CROSS_TASK_WALLPAPER, false) }
+    var fullscreenDirectBack by rememberStoredSetting(BackGestureKeys.KEY_FULLSCREEN_DIRECT_BACK, settingsStore::putBoolean) { settingsStore.getBoolean(BackGestureKeys.KEY_FULLSCREEN_DIRECT_BACK, false) }
     var statusBarFollow by rememberSaveable { mutableStateOf(settingsStore.getBoolean(BackGestureKeys.KEY_STATUS_BAR_FOLLOW, false)) }
     var homePreview by rememberSaveable { mutableStateOf(settingsStore.getBoolean(BackGestureKeys.KEY_RETURN_HOME_ICON_PREVIEW, false)) }
-    Scaffold(topBar = {
-        TopAppBar(
-            title = stringResource(R.string.settings_launcher_section),
-            scrollBehavior = scrollBehavior,
-            navigationIcon = {
-                IconButton(onClick = onBack) {
-                    Icon(MiuixIcons.Back, stringResource(R.string.icon_back))
-                }
-            }
-        )
-    }) { padding ->
-        Column(
-            Modifier.fillMaxSize()
-                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
-                .overScrollVertical()
-                .nestedScroll(scrollBehavior.nestedScrollConnection)
-                .verticalScroll(rememberScrollState())
-        ) {
-            Spacer(Modifier.height(padding.calculateTopPadding() + 8.dp))
-            MissingScopeCard("com.miui.home", "com.miui.voiceassist")
+    AppScrollPage(
+        title = stringResource(R.string.settings_launcher_section),
+        onBack = onBack,
+        backContentDescription = stringResource(R.string.icon_back),
+    ) {
+        MissingScopeCard("com.miui.home", "com.miui.voiceassist")
 
-            SmallTitle(stringResource(R.string.settings_xiaoai_section))
-            Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+        AppSection(stringResource(R.string.settings_xiaoai_section)) {
+            SwitchPreference(
+                checked = xiaoaiOptions,
+                onCheckedChange = {
+                    xiaoaiOptions = it
+                    settingsStore.putBoolean(PlatformSettingsKeys.KEY_XIAOAI_GESTURE_OPTIONS, it)
+                    services.nativeRules.publish(context, hideRecentsClearButton, xiaoaiOptions = it)
+                },
+                title = stringResource(R.string.settings_xiaoai_gesture_options_title),
+                summary = stringResource(R.string.settings_xiaoai_gesture_options_summary)
+            )
+        }
+
+        // Preserve the launcher controls' original platform gates.
+        AppSection(stringResource(R.string.settings_launcher_section)) {
+            SwitchPreference(
+                checked = hideRecentsClearButton,
+                onCheckedChange = {
+                    hideRecentsClearButton = it
+                    // Preferences delivers the live snapshot to the launcher; keep the
+                    // legacy file as an inspectable diagnostic copy.
+                    services.nativeRules.publish(context, it)
+                },
+                title = stringResource(R.string.settings_recents_clear_button_title),
+                summary = stringResource(R.string.settings_recents_clear_button_summary)
+            )
+            if (PlatformLevel.isOs4) {
                 SwitchPreference(
-                    checked = xiaoaiOptions,
+                    checked = recentsHaptic,
                     onCheckedChange = {
-                        xiaoaiOptions = it
-                        settingsStore.putBoolean(PlatformSettingsKeys.KEY_XIAOAI_GESTURE_OPTIONS, it)
-                        services.nativeRules.publish(context, hideRecentsClearButton, xiaoaiOptions = it)
+                        recentsHaptic = it
+                        settingsStore.putBoolean(PlatformSettingsKeys.KEY_RECENTS_CARD_HAPTIC, it)
+                        services.nativeRules.publish(context, hideRecentsClearButton, recentsHaptic = it)
                     },
-                    title = stringResource(R.string.settings_xiaoai_gesture_options_title),
-                    summary = stringResource(R.string.settings_xiaoai_gesture_options_summary)
+                    title = stringResource(R.string.settings_recents_card_haptic_title),
+                    summary = stringResource(R.string.settings_recents_card_haptic_summary)
+                )
+                ArrowPreference(title = stringResource(R.string.desktop_icon_title),
+                    summary = stringResource(R.string.desktop_icon_entry_summary), onClick = onNavigateToDesktopIconSize)
+                ArrowPreference(title = stringResource(R.string.dock_title),
+                    summary = stringResource(R.string.dock_summary), onClick = onNavigateToDockBackground)
+                SwitchPreference(
+                    checked = assistantWidgets,
+                    onCheckedChange = {
+                        assistantWidgets = it
+                        settingsStore.putBoolean(PlatformSettingsKeys.KEY_ALLOW_ANDROID_WIDGETS_TO_ASSISTANT, it)
+                        services.nativeRules.publish(context, hideRecentsClearButton,
+                            assistantWidgets = it)
+                    },
+                    title = stringResource(R.string.settings_assistant_android_widgets_title),
+                    summary = stringResource(R.string.settings_assistant_android_widgets_summary)
+                )
+                SwitchPreference(
+                    checked = widgetStack,
+                    onCheckedChange = {
+                        widgetStack = it
+                        settingsStore.putBoolean(PlatformSettingsKeys.KEY_ANDROID_WIDGET_STACK, it)
+                        services.nativeRules.publish(context, hideRecentsClearButton, widgetStack = it)
+                    },
+                    title = stringResource(R.string.settings_android_widget_stack_title),
+                    summary = stringResource(R.string.settings_android_widget_stack_summary)
+                )
+                ArrowPreference(
+                    title = stringResource(R.string.settings_opened_folder_restart_title),
+                    summary = stringResource(R.string.settings_opened_folder_restart_summary),
+                    enabled = !restartInProgress(RestartScopeSelection(miuiHome = true)),
+                    onClick = {
+                        settingsStore.flush()
+                        services.restarts.restartScope(
+                            context = context,
+                            coroutineScope = coroutineScope,
+                            selection = RestartScopeSelection(miuiHome = true),
+                            onCompleted = { completed ->
+                                handleRestartedScopes(completed)
+                            },
+                        )
+                    }
                 )
             }
+        }
 
-            // Preserve the launcher controls' original platform gates.
-            SmallTitle(stringResource(R.string.settings_launcher_section))
-            Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-                Column(Modifier.fillMaxWidth()) {
-                    SwitchPreference(
-                        checked = hideRecentsClearButton,
-                        onCheckedChange = {
-                            hideRecentsClearButton = it
-                            settingsStore.putBoolean(PlatformSettingsKeys.KEY_HIDE_RECENTS_CLEAR_BUTTON, it)
-                            // Preferences delivers the live snapshot to the launcher; keep the
-                            // legacy file as an inspectable diagnostic copy.
-                            services.nativeRules.publish(context, it)
-                        },
-                        title = stringResource(R.string.settings_recents_clear_button_title),
-                        summary = stringResource(R.string.settings_recents_clear_button_summary)
-                    )
-                    if (PlatformLevel.isOs4) {
-                        SwitchPreference(
-                            checked = recentsHaptic,
-                            onCheckedChange = {
-                                recentsHaptic = it
-                                settingsStore.putBoolean(PlatformSettingsKeys.KEY_RECENTS_CARD_HAPTIC, it)
-                                services.nativeRules.publish(context, hideRecentsClearButton, recentsHaptic = it)
-                            },
-                            title = stringResource(R.string.settings_recents_card_haptic_title),
-                            summary = stringResource(R.string.settings_recents_card_haptic_summary)
-                        )
-                        ArrowPreference(title = stringResource(R.string.desktop_icon_title),
-                            summary = stringResource(R.string.desktop_icon_entry_summary), onClick = onNavigateToDesktopIconSize)
-                        ArrowPreference(title = stringResource(R.string.dock_title),
-                            summary = stringResource(R.string.dock_summary), onClick = onNavigateToDockBackground)
-                        SwitchPreference(
-                            checked = assistantWidgets,
-                            onCheckedChange = {
-                                assistantWidgets = it
-                                settingsStore.putBoolean(PlatformSettingsKeys.KEY_ALLOW_ANDROID_WIDGETS_TO_ASSISTANT, it)
-                                services.nativeRules.publish(context, hideRecentsClearButton,
-                                    assistantWidgets = it)
-                            },
-                            title = stringResource(R.string.settings_assistant_android_widgets_title),
-                            summary = stringResource(R.string.settings_assistant_android_widgets_summary)
-                        )
-                        SwitchPreference(
-                            checked = widgetStack,
-                            onCheckedChange = {
-                                widgetStack = it
-                                settingsStore.putBoolean(PlatformSettingsKeys.KEY_ANDROID_WIDGET_STACK, it)
-                                services.nativeRules.publish(context, hideRecentsClearButton, widgetStack = it)
-                            },
-                            title = stringResource(R.string.settings_android_widget_stack_title),
-                            summary = stringResource(R.string.settings_android_widget_stack_summary)
-                        )
-                        ArrowPreference(
-                            title = stringResource(R.string.settings_opened_folder_restart_title),
-                            summary = stringResource(R.string.settings_opened_folder_restart_summary),
-                            enabled = !restartInProgress(RestartScopeSelection(miuiHome = true)),
-                            onClick = {
-                                settingsStore.flush()
-                                services.restarts.restartScope(
-                                    context = context,
-                                    coroutineScope = coroutineScope,
-                                    selection = RestartScopeSelection(miuiHome = true),
-                                    onCompleted = { completed ->
-                                        handleRestartedScopes(completed)
-                                    },
-                                )
-                            }
-                        )
+        if (PlatformLevel.isOs4) {
+            AppSection(stringResource(R.string.back_gesture_section)) {
+                SwitchPreference(
+                    title = stringResource(R.string.back_gesture_enabled_title),
+                    summary = stringResource(if (upstreamInstalled == true)
+                        R.string.back_gesture_upstream_summary else R.string.back_gesture_enabled_summary),
+                    checked = backGestureEnabled,
+                    enabled = backOptionsAvailable,
+                    onCheckedChange = {
+                        backGestureEnabled = it
                     }
-                }
-            }
-
-            if (PlatformLevel.isOs4) {
-                SmallTitle(stringResource(R.string.back_gesture_section))
-                Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-                    Column(Modifier.fillMaxWidth()) {
-                        SwitchPreference(
-                            title = stringResource(R.string.back_gesture_enabled_title),
-                            summary = stringResource(if (upstreamInstalled == true)
-                                R.string.back_gesture_upstream_summary else R.string.back_gesture_enabled_summary),
-                            checked = backGestureEnabled,
-                            enabled = backOptionsAvailable,
-                            onCheckedChange = {
-                                backGestureEnabled = it
-                                settingsStore.putBoolean(BackGestureKeys.KEY_BACK_GESTURE_ENABLED, it)
+                )
+                if (upstreamInstalled == true) {
+                    ArrowPreference(
+                        title = stringResource(R.string.back_gesture_open_upstream),
+                        summary = stringResource(R.string.back_gesture_open_upstream_summary),
+                        onClick = {
+                            if (!com.takekazex.hypertweak.util.platform.UpstreamBackGesture.openSettings(context)) {
+                                android.widget.Toast.makeText(context, upstreamOpenFailed, android.widget.Toast.LENGTH_SHORT).show()
                             }
-                        )
-                        if (upstreamInstalled == true) {
-                            ArrowPreference(
-                                title = stringResource(R.string.back_gesture_open_upstream),
-                                summary = stringResource(R.string.back_gesture_open_upstream_summary),
-                                onClick = {
-                                    if (!com.takekazex.hypertweak.util.platform.UpstreamBackGesture.openSettings(context)) {
-                                        android.widget.Toast.makeText(context, upstreamOpenFailed, android.widget.Toast.LENGTH_SHORT).show()
-                                    }
-                                }
-                            )
                         }
-                        SwitchPreference(title = stringResource(R.string.back_status_bar_follow),
-                            summary = stringResource(R.string.back_status_bar_follow_summary),
-                            checked = statusBarFollow, enabled = backOptionsAvailable && backGestureEnabled,
-                            onCheckedChange = { statusBarFollow = it; settingsStore.putBoolean(BackGestureKeys.KEY_STATUS_BAR_FOLLOW, it) })
-                        SwitchPreference(title = stringResource(R.string.back_home_preview),
-                            summary = stringResource(R.string.back_home_preview_summary),
-                            checked = homePreview, enabled = backOptionsAvailable && backGestureEnabled,
-                            onCheckedChange = { homePreview = it; settingsStore.putBoolean(BackGestureKeys.KEY_RETURN_HOME_ICON_PREVIEW, it) })
-                        OverlayDropdownPreference(
-                            title = stringResource(R.string.fullscreen_back_behavior_title),
-                            summary = stringResource(
-                                if (fullscreenDirectBack) R.string.fullscreen_back_direct_summary
-                                else R.string.fullscreen_back_show_bars_summary
-                            ),
-                            items = listOf(
-                                stringResource(R.string.fullscreen_back_show_bars),
-                                stringResource(R.string.fullscreen_back_direct)
-                            ),
-                            selectedIndex = if (fullscreenDirectBack) 1 else 0,
-                            enabled = backOptionsAvailable && backGestureEnabled,
-                            onSelectedIndexChange = {
-                                fullscreenDirectBack = it == 1
-                                settingsStore.putBoolean(BackGestureKeys.KEY_FULLSCREEN_DIRECT_BACK, fullscreenDirectBack)
-                            }
-                        )
-                        OverlayDropdownPreference(
-                            title = stringResource(R.string.back_indicator_style_title),
-                            items = listOf("AOSP", "HyperOS", stringResource(R.string.back_indicator_material_title)),
-                            selectedIndex = if (!hyperosIndicator) 0 else if (indicatorBlur) 2 else 1,
-                            enabled = backOptionsAvailable && backGestureEnabled,
-                            onSelectedIndexChange = {
-                                hyperosIndicator = it != 0
-                                indicatorBlur = it == 2
-                                settingsStore.backGesture.putBackGestureAppearance(mapOf(
-                                    BackGestureKeys.KEY_BACK_GESTURE_HYPEROS_INDICATOR to hyperosIndicator,
-                                    BackGestureKeys.KEY_BACK_GESTURE_INDICATOR_BLUR to indicatorBlur
-                                ))
-                            }
-                        )
-                        OverlayDropdownPreference(
-                            title = stringResource(R.string.haptic_feedback_effect_title),
-                            items = listOf("AOSP", "HyperOS", stringResource(R.string.back_gesture_haptics_none)),
-                            selectedIndex = if (hapticsDisabled) 2 else if (hyperosHaptics) 1 else 0,
-                            enabled = backOptionsAvailable && backGestureEnabled,
-                            onSelectedIndexChange = {
-                                hapticsDisabled = it == 2
-                                if (!hapticsDisabled) hyperosHaptics = it == 1
-                                settingsStore.backGesture.putBackGestureAppearance(mapOf(
-                                    BackGestureKeys.KEY_BACK_GESTURE_HAPTICS_DISABLED to hapticsDisabled,
-                                    BackGestureKeys.KEY_BACK_GESTURE_HYPEROS_HAPTICS to hyperosHaptics
-                                ))
-                            }
-                        )
-                        SwitchPreference(
-                            title = stringResource(R.string.hyperos_haptics_enhanced_title),
-                            summary = stringResource(if (hyperosHaptics) R.string.hyperos_haptics_enhanced_summary else R.string.hyperos_haptics_enhanced_disabled_summary),
-                            checked = enhancedHaptics,
-                            enabled = backOptionsAvailable && backGestureEnabled && hyperosHaptics && !hapticsDisabled,
-                            onCheckedChange = {
-                                enhancedHaptics = it
-                                settingsStore.putBoolean(BackGestureKeys.KEY_BACK_GESTURE_ENHANCED_HAPTICS, it)
-                            }
-                        )
-                        SwitchPreference(
-                            title = stringResource(R.string.hyperos_slide_animation_title),
-                            summary = stringResource(R.string.hyperos_slide_animation_summary),
-                            checked = slideAnimation,
-                            enabled = backOptionsAvailable && backGestureEnabled,
-                            onCheckedChange = {
-                                slideAnimation = it
-                                settingsStore.putBoolean(BackGestureKeys.KEY_BACK_GESTURE_SLIDE_ANIMATION, it)
-                            }
-                        )
-                        SwitchPreference(
-                            title = stringResource(R.string.back_cross_activity_wallpaper_title),
-                            summary = stringResource(R.string.back_cross_activity_wallpaper_summary),
-                            checked = crossActivityWallpaper,
-                            enabled = backOptionsAvailable && backGestureEnabled,
-                            onCheckedChange = {
-                                crossActivityWallpaper = it
-                                settingsStore.putBoolean(BackGestureKeys.KEY_BACK_GESTURE_CROSS_ACTIVITY_WALLPAPER, it)
-                            }
-                        )
-                        SwitchPreference(
-                            title = stringResource(R.string.back_cross_task_wallpaper_title),
-                            summary = stringResource(R.string.back_cross_task_wallpaper_summary),
-                            checked = crossTaskWallpaper,
-                            enabled = backOptionsAvailable && backGestureEnabled,
-                            onCheckedChange = {
-                                crossTaskWallpaper = it
-                                settingsStore.putBoolean(BackGestureKeys.KEY_BACK_GESTURE_CROSS_TASK_WALLPAPER, it)
-                            }
-                        )
-                    }
+                    )
                 }
+                SwitchPreference(title = stringResource(R.string.back_status_bar_follow),
+                    summary = stringResource(R.string.back_status_bar_follow_summary),
+                    checked = statusBarFollow, enabled = backOptionsAvailable && backGestureEnabled,
+                    onCheckedChange = { statusBarFollow = it; settingsStore.putBoolean(BackGestureKeys.KEY_STATUS_BAR_FOLLOW, it) })
+                SwitchPreference(title = stringResource(R.string.back_home_preview),
+                    summary = stringResource(R.string.back_home_preview_summary),
+                    checked = homePreview, enabled = backOptionsAvailable && backGestureEnabled,
+                    onCheckedChange = { homePreview = it; settingsStore.putBoolean(BackGestureKeys.KEY_RETURN_HOME_ICON_PREVIEW, it) })
+                OverlayDropdownPreference(
+                    title = stringResource(R.string.fullscreen_back_behavior_title),
+                    summary = stringResource(
+                        if (fullscreenDirectBack) R.string.fullscreen_back_direct_summary
+                        else R.string.fullscreen_back_show_bars_summary
+                    ),
+                    items = listOf(
+                        stringResource(R.string.fullscreen_back_show_bars),
+                        stringResource(R.string.fullscreen_back_direct)
+                    ),
+                    selectedIndex = if (fullscreenDirectBack) 1 else 0,
+                    enabled = backOptionsAvailable && backGestureEnabled,
+                    onSelectedIndexChange = {
+                        fullscreenDirectBack = it == 1
+                    }
+                )
+                OverlayDropdownPreference(
+                    title = stringResource(R.string.back_indicator_style_title),
+                    items = listOf("AOSP", "HyperOS", stringResource(R.string.back_indicator_material_title)),
+                    selectedIndex = if (!hyperosIndicator) 0 else if (indicatorBlur) 2 else 1,
+                    enabled = backOptionsAvailable && backGestureEnabled,
+                    onSelectedIndexChange = {
+                        hyperosIndicator = it != 0
+                        indicatorBlur = it == 2
+                        settingsStore.backGesture.putBackGestureAppearance(mapOf(
+                            BackGestureKeys.KEY_BACK_GESTURE_HYPEROS_INDICATOR to hyperosIndicator,
+                            BackGestureKeys.KEY_BACK_GESTURE_INDICATOR_BLUR to indicatorBlur
+                        ))
+                    }
+                )
+                OverlayDropdownPreference(
+                    title = stringResource(R.string.haptic_feedback_effect_title),
+                    items = listOf("AOSP", "HyperOS", stringResource(R.string.back_gesture_haptics_none)),
+                    selectedIndex = if (hapticsDisabled) 2 else if (hyperosHaptics) 1 else 0,
+                    enabled = backOptionsAvailable && backGestureEnabled,
+                    onSelectedIndexChange = {
+                        hapticsDisabled = it == 2
+                        if (!hapticsDisabled) hyperosHaptics = it == 1
+                        settingsStore.backGesture.putBackGestureAppearance(mapOf(
+                            BackGestureKeys.KEY_BACK_GESTURE_HAPTICS_DISABLED to hapticsDisabled,
+                            BackGestureKeys.KEY_BACK_GESTURE_HYPEROS_HAPTICS to hyperosHaptics
+                        ))
+                    }
+                )
+                SwitchPreference(
+                    title = stringResource(R.string.hyperos_haptics_enhanced_title),
+                    summary = stringResource(if (hyperosHaptics) R.string.hyperos_haptics_enhanced_summary else R.string.hyperos_haptics_enhanced_disabled_summary),
+                    checked = enhancedHaptics,
+                    enabled = backOptionsAvailable && backGestureEnabled && hyperosHaptics && !hapticsDisabled,
+                    onCheckedChange = {
+                        enhancedHaptics = it
+                    }
+                )
+                SwitchPreference(
+                    title = stringResource(R.string.hyperos_slide_animation_title),
+                    summary = stringResource(R.string.hyperos_slide_animation_summary),
+                    checked = slideAnimation,
+                    enabled = backOptionsAvailable && backGestureEnabled,
+                    onCheckedChange = {
+                        slideAnimation = it
+                    }
+                )
+                SwitchPreference(
+                    title = stringResource(R.string.back_cross_activity_wallpaper_title),
+                    summary = stringResource(R.string.back_cross_activity_wallpaper_summary),
+                    checked = crossActivityWallpaper,
+                    enabled = backOptionsAvailable && backGestureEnabled,
+                    onCheckedChange = {
+                        crossActivityWallpaper = it
+                    }
+                )
+                SwitchPreference(
+                    title = stringResource(R.string.back_cross_task_wallpaper_title),
+                    summary = stringResource(R.string.back_cross_task_wallpaper_summary),
+                    checked = crossTaskWallpaper,
+                    enabled = backOptionsAvailable && backGestureEnabled,
+                    onCheckedChange = {
+                        crossTaskWallpaper = it
+                    }
+                )
             }
-
-            Spacer(Modifier.height(padding.calculateBottomPadding() + 16.dp))
         }
     }
 }

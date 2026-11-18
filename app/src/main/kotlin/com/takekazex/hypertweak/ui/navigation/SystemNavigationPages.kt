@@ -5,15 +5,15 @@ import androidx.compose.runtime.*
 import com.takekazex.hypertweak.ui.page.Route
 import com.takekazex.hypertweak.ui.page.systemui.AodIconsPage
 import com.takekazex.hypertweak.ui.page.systemui.SliderPercentagePage
+import com.takekazex.hypertweak.ui.page.systemui.SuperIslandPage
 import com.takekazex.hypertweak.ui.page.systemui.SystemUIPage
-import com.takekazex.hypertweak.ui.page.systemui.notification.NotificationPage
+import com.takekazex.hypertweak.ui.page.systemui.controlcenter.ControlCenterIconRowsPage
+import com.takekazex.hypertweak.ui.page.systemui.controlcenter.PrivacyIndicatorPage
+import com.takekazex.hypertweak.ui.page.systemui.icon.IconOrderPage
+import com.takekazex.hypertweak.ui.page.systemui.icon.IconTunerPage
 import com.takekazex.hypertweak.ui.page.systemui.notification.MediaCardPage
 import com.takekazex.hypertweak.ui.page.systemui.notification.NotificationHeaderPage
-import com.takekazex.hypertweak.ui.page.systemui.controlcenter.PrivacyIndicatorPage
-import com.takekazex.hypertweak.ui.page.systemui.icon.IconTunerPage
-import com.takekazex.hypertweak.ui.page.systemui.icon.IconOrderPage
-import com.takekazex.hypertweak.ui.page.systemui.controlcenter.ControlCenterIconRowsPage
-import com.takekazex.hypertweak.ui.page.systemui.SuperIslandPage
+import com.takekazex.hypertweak.ui.page.systemui.notification.NotificationPage
 import top.yukonga.miuix.kmp.nav.core.*
 
 internal fun NavEntryBuilder.systemPages(settings: NavigationSettings, navController: NavController) {
@@ -38,50 +38,13 @@ internal fun NavEntryBuilder.systemPages(settings: NavigationSettings, navContro
         }
         entry<Route.SystemUi> {
             SystemUIPage(
-                statusBarClockSeconds = statusBarClockSeconds,
-                onStatusBarClockSecondsChange = onStatusBarClockSecondsChange,
                 onBack = { navController.pop() },
-                immediateMonetRefresh = immediateMonetRefresh,
-                onImmediateMonetRefreshChange = onImmediateMonetRefreshChange,
-                aodFullscreen = aodFullscreen,
-                onAodFullscreenChange = onAodFullscreenChange,
-                hideFingerprintAod = hideFingerprintAod,
-                onHideFingerprintAodChange = onHideFingerprintAodChange,
-                hideFingerprintLockscreen = hideFingerprintLockscreen,
-                onHideFingerprintLockscreenChange = onHideFingerprintLockscreenChange,
-                hideFingerprintAppAuth = hideFingerprintAppAuth,
-                onHideFingerprintAppAuthChange = onHideFingerprintAppAuthChange,
-                hideLockscreenStatusBar = hideLockscreenStatusBar,
-                onHideLockscreenStatusBarChange = onHideLockscreenStatusBarChange,
-                lockscreenFingerprintAvoid = lockscreenFingerprintAvoid,
-                onLockscreenFingerprintAvoidChange = onLockscreenFingerprintAvoidChange,
                 onNavigateToChargingDetail = {
                     navController.navigateTo(Route.ChargingDetail)
                 },
                 onNavigateToLockscreenBottomText = {
                     navController.navigateTo(Route.LockscreenBottomText)
                 },
-                lockscreenAllNotifications = lockscreenAllNotifications,
-                onLockscreenAllNotificationsChange = onLockscreenAllNotificationsChange,
-                lockscreenKeepNotifications = lockscreenKeepNotifications,
-                onLockscreenKeepNotificationsChange = onLockscreenKeepNotificationsChange,
-                sliderDisplayMode = sliderDisplayMode,
-                hideGestureBar = hideGestureBar,
-                onHideGestureBarChange = onHideGestureBarChange,
-                gestureBarRaiseLayout = gestureBarRaiseLayout,
-                onGestureBarRaiseLayoutChange = onGestureBarRaiseLayoutChange,
-                hideGestureBarRecents = hideGestureBarRecents,
-                onHideGestureBarRecentsChange = onHideGestureBarRecentsChange,
-                hideGestureBarLauncher = hideGestureBarLauncher,
-                onHideGestureBarLauncherChange = onHideGestureBarLauncherChange,
-                gestureBarAttachTransition = gestureBarAttachTransition,
-                onGestureBarAttachTransitionChange = onGestureBarAttachTransitionChange,
-                powerButtonAction = powerButtonAction,
-                onPowerButtonActionChange = onPowerButtonActionChange,
-                contextualSearchHaptics = contextualSearchHaptics,
-                onContextualSearchHapticsChange = onContextualSearchHapticsChange,
-                contextualSearchLongPress = contextualSearchLongPress,
-                onContextualSearchLongPressChange = onContextualSearchLongPressChange,
                 onNavigateToNotifications = { navController.navigateTo(Route.Notifications) },
                 onNavigateToMediaCard = { navController.navigateTo(Route.MediaCard) },
                 onNavigateToIconTuner = {
@@ -98,38 +61,16 @@ internal fun NavEntryBuilder.systemPages(settings: NavigationSettings, navContro
         entry<Route.SliderPercentage> {
             SliderPercentagePage(
                 onBack = { navController.pop() },
-                sliderDisplayMode = sliderDisplayMode,
-                onSliderDisplayModeChange = onSliderDisplayModeChange,
-                sliderValueMode = sliderValueMode,
-                onSliderValueModeChange = onSliderValueModeChange,
-                sliderPopupStyle = sliderPopupStyle,
-                onSliderPopupStyleChange = onSliderPopupStyleChange,
-                sliderPopupPosition = sliderPopupPosition,
-                onSliderPopupPositionChange = onSliderPopupPositionChange,
-                sliderSamePercentageStyle = sliderSamePercentageStyle,
-                onSliderSamePercentageChange = onSliderSamePercentageChange
             )
         }
         entry<Route.Notifications> {
             NotificationPage(
                 onBack = { navController.pop() },
-                notificationHeaderClockSeconds = notificationHeaderClockSeconds,
-                onNotificationHeaderClockSecondsChange = onNotificationHeaderClockSecondsChange,
-                notificationMonetTextColor = notificationMonetTextColor,
-                onNotificationMonetTextColorChange = onNotificationMonetTextColorChange,
-                notificationFontWeight = notificationFontWeight,
-                onNotificationFontWeightChange = onNotificationFontWeightChange,
-                notificationAbsoluteTime = notificationAbsoluteTime,
-                onNotificationAbsoluteTimeChange = onNotificationAbsoluteTimeChange,
                 onNavigateToNotificationHeader = { navController.navigateTo(Route.NotificationHeader) },
             )
         }
         entry<Route.MediaCard> {
             MediaCardPage(onBack = { navController.pop() },
-                mediaCardHideAppIcon = mediaCardHideAppIcon,
-                onMediaCardHideAppIconChange = onMediaCardHideAppIconChange,
-                mediaCardHideDeviceSwitch = mediaCardHideDeviceSwitch,
-                onMediaCardHideDeviceSwitchChange = onMediaCardHideDeviceSwitchChange,
             )
         }
         entry<Route.NotificationHeader> {
@@ -140,32 +81,6 @@ internal fun NavEntryBuilder.systemPages(settings: NavigationSettings, navContro
         entry<Route.SuperIsland> {
             SuperIslandPage(
                 onBack = { navController.pop() },
-                removeIslandPlaceholder = removeIslandPlaceholder,
-                onRemoveIslandPlaceholderChange = onRemoveIslandPlaceholderChange,
-                threeIslands = threeIslands,
-                landscapeFullIslands = landscapeFullIslands,
-                landscapeMoreIslands = landscapeMoreIslands,
-                ccHideSuperIsland = ccHideSuperIsland,
-                islandLiveUpdateIcon = islandLiveUpdateIcon,
-                islandNarrowTimeFont = islandNarrowTimeFont,
-                islandPullDownStretch = islandPullDownStretch,
-                islandLottieResume = islandLottieResume,
-                islandFlashlightControl = islandFlashlightControl,
-                onThreeIslandsChange = onThreeIslandsChange,
-                onLandscapeFullIslandsChange = onLandscapeFullIslandsChange,
-                onLandscapeMoreIslandsChange = onLandscapeMoreIslandsChange,
-                onCcHideSuperIslandChange = onCcHideSuperIslandChange,
-                onIslandLiveUpdateIconChange = onIslandLiveUpdateIconChange,
-                onIslandNarrowTimeFontChange = onIslandNarrowTimeFontChange,
-                onIslandPullDownStretchChange = onIslandPullDownStretchChange,
-                onIslandLottieResumeChange = onIslandLottieResumeChange,
-                onIslandFlashlightControlChange = onIslandFlashlightControlChange,
-                focusNotificationUnlockWhitelist = focusNotificationUnlockWhitelist,
-                onFocusNotificationUnlockWhitelistChange = onFocusNotificationUnlockWhitelistChange,
-                mediaSuperIslandUnlockWhitelist = mediaSuperIslandUnlockWhitelist,
-                onMediaSuperIslandUnlockWhitelistChange = onMediaSuperIslandUnlockWhitelistChange,
-                xmsfUnlockFocusAuth = xmsfUnlockFocusAuth,
-                onXmsfUnlockFocusAuthChange = onXmsfUnlockFocusAuthChange,
             )
         }
 

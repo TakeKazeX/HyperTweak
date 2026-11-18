@@ -1,52 +1,52 @@
 package com.takekazex.hypertweak.ui.page.home
 
-import com.takekazex.hypertweak.ui.components.dialog.HotReloadDialog
-import com.takekazex.hypertweak.ui.components.dialog.RestartScopeDialog
-import com.takekazex.hypertweak.ui.app.LocalAppServices
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.vector.addPathNodes
+import androidx.compose.ui.graphics.vector.ImageVector
 import android.os.Build
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.takekazex.hypertweak.BuildConfig
+import com.takekazex.hypertweak.R
+import com.takekazex.hypertweak.settings.contract.HotReloadReport
+import com.takekazex.hypertweak.ui.app.LocalAppServices
+import com.takekazex.hypertweak.ui.chrome.AppScrollPage
+import com.takekazex.hypertweak.ui.chrome.AppSection
+import com.takekazex.hypertweak.ui.components.dialog.HotReloadDialog
+import com.takekazex.hypertweak.ui.components.dialog.RestartScopeDialog
+import com.takekazex.hypertweak.ui.theme.StatusTone
+import com.takekazex.hypertweak.ui.theme.statusColors
+import com.takekazex.hypertweak.util.device.deviceModel
+import com.takekazex.hypertweak.util.restart.RestartScopeSelection
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
-import com.takekazex.hypertweak.ui.effect.AppScaffold as Scaffold
-import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
-import com.takekazex.hypertweak.ui.effect.AppTopAppBar as TopAppBar
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.glass.Battery90Charging
+import top.yukonga.miuix.kmp.icon.glass.Error
+import top.yukonga.miuix.kmp.icon.glass.Refresh
+import top.yukonga.miuix.kmp.icon.glass.Update
+import top.yukonga.miuix.kmp.icon.glass.Widget
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
-import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.sp
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.BatteryChargingFull
-import androidx.compose.material.icons.rounded.CheckCircleOutline
-import androidx.compose.material.icons.rounded.ErrorOutline
-import androidx.compose.material.icons.rounded.Extension
-import androidx.compose.material.icons.rounded.Refresh
-import androidx.compose.material.icons.rounded.WarningAmber
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.stringResource
-import com.takekazex.hypertweak.R
-import com.takekazex.hypertweak.BuildConfig
-import com.takekazex.hypertweak.settings.contract.HotReloadReport
-import com.takekazex.hypertweak.util.restart.RestartScopeSelection
-import com.takekazex.hypertweak.util.device.deviceModel
-import top.yukonga.miuix.kmp.blur.LayerBackdrop
 
 @Composable
 fun HomeScreenContent(
@@ -56,7 +56,6 @@ fun HomeScreenContent(
     hotReloading: Boolean,
     hotReloadTargets: List<String>,
     hotReloadReport: HotReloadReport?,
-    backdrop: LayerBackdrop,
     pendingRestartScopes: RestartScopeSelection,
     onNavigateToHiddenFeatures: () -> Unit,
     onNavigateToDeviceInfo: () -> Unit,
@@ -66,23 +65,21 @@ fun HomeScreenContent(
     onRestartScope: (RestartScopeSelection) -> Unit
 ) {
     val services = LocalAppServices.current
-    val service = services.module.connection.collectAsState().value
-    val isDark = isSystemInDarkTheme()
-    val containerColor = when {
-        hotReloadAvailable -> if (isDark) Color(0xFF3D300F) else Color(0xFFFFF3C4)
-        moduleActive -> if (isDark) Color(0xFF1A3825) else Color(0xFFDFFAE4)
-        else -> if (isDark) Color(0xFF381A1A) else Color(0xFFFAEEEE)
-    }
+    val service = services.module.connection.collectAsStateWithLifecycle().value
+    val status = statusColors(
+        when {
+            hotReloadAvailable -> StatusTone.Warning
+            moduleActive -> StatusTone.Success
+            else -> StatusTone.Error
+        }
+    )
+    val containerColor = status.container
     val statusIcon = when {
-        hotReloadAvailable -> Icons.Rounded.WarningAmber
-        moduleActive -> Icons.Rounded.CheckCircleOutline
-        else -> Icons.Rounded.ErrorOutline
+        hotReloadAvailable -> MiuixIcons.Glass.Update
+        moduleActive -> CheckCircleOutline
+        else -> MiuixIcons.Glass.Error
     }
-    val statusTint = when {
-        hotReloadAvailable -> Color(0xFFFFB300)
-        moduleActive -> Color(0xFF36D167)
-        else -> Color(0xFFD13636)
-    }
+    val statusTint = status.accent
     val titleText = when {
         hotReloadAvailable -> stringResource(R.string.home_status_hot_reload_required)
         moduleActive -> stringResource(R.string.home_status_active)
@@ -97,192 +94,135 @@ fun HomeScreenContent(
     val textContentColor = MiuixTheme.colorScheme.onSurface
     val descTextColor = textContentColor.copy(alpha = 0.8f)
 
-    val topAppBarScrollBehavior = MiuixScrollBehavior()
 
     var showRestartDialog by rememberSaveable { mutableStateOf(false) }
     var showHotReloadDialog by rememberSaveable { mutableStateOf(false) }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = "HyperTweak",
-                color = Color.Transparent,
-                scrollBehavior = topAppBarScrollBehavior
-            )
-        }
-    ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
-                .overScrollVertical()
-                .nestedScroll(topAppBarScrollBehavior.nestedScrollConnection)
-                .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(0.dp)
+    AppScrollPage(
+        title = "HyperTweak",
+        onBack = null,
+        bottomInset = padding.calculateBottomPadding(),
+    ) {
+        Spacer(Modifier.height(8.dp))
+
+        // KernelSU-style status card: always pressable with Tilt feedback, the oversized status
+        // glyph cropped by the card's own corner. No outer clip: the press transform has to run on
+        // the card itself, otherwise its rotation is cut against a static frame.
+        Card(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+            colors = CardDefaults.defaultColors(color = containerColor, contentColor = textContentColor),
+            pressFeedbackType = PressFeedbackType.Tilt,
+            showIndication = true,
+            onClick = { if (hotReloadAvailable && !hotReloading) showHotReloadDialog = true },
         ) {
-            Spacer(modifier = Modifier.height(innerPadding.calculateTopPadding()))
-            Spacer(modifier = Modifier.height(24.dp))
-
-            // Large Status Card
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp)
-                    .clip(RoundedCornerShape(24.dp)),
-                colors = CardDefaults.defaultColors(
-                    color = containerColor,
-                    contentColor = textContentColor
-                ),
-                pressFeedbackType = PressFeedbackType.Tilt,
-                showIndication = hotReloadAvailable,
-                onClick = if (hotReloadAvailable && !hotReloading) {
-                    { showHotReloadDialog = true }
-                } else {
-                    null
-                }
-            ) {
+            Box(Modifier.fillMaxWidth()) {
                 Box(
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.matchParentSize().offset(x = 38.dp, y = 45.dp),
+                    contentAlignment = Alignment.BottomEnd,
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .matchParentSize()
-                            .offset(x = 50.dp, y = 38.dp),
-                        contentAlignment = Alignment.BottomEnd
-                    ) {
-                        Icon(
-                            imageVector = statusIcon,
-                            tint = statusTint,
-                            modifier = Modifier.size(170.dp),
-                            contentDescription = null
-                        )
-                    }
-
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(20.dp)
-                    ) {
+                    Icon(
+                        imageVector = statusIcon,
+                        tint = statusTint,
+                        modifier = Modifier.size(170.dp),
+                        contentDescription = null,
+                    )
+                }
+                Column(Modifier.fillMaxWidth().padding(20.dp)) {
+                    Text(
+                        text = titleText,
+                        color = textContentColor,
+                        fontWeight = FontWeight.Bold,
+                        style = MiuixTheme.textStyles.title3,
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Text(text = summaryText, color = descTextColor, style = MiuixTheme.textStyles.body2)
+                    if (moduleActive) {
+                        Spacer(Modifier.height(36.dp))
                         Text(
-                            text = titleText,
-                            color = textContentColor,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 20.sp
-                        )
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Text(
-                            text = summaryText,
-                            color = descTextColor,
-                            fontSize = 13.sp
-                        )
-                        if (moduleActive) {
-                            Spacer(modifier = Modifier.height(36.dp))
-                            val frameworkDetail = if (service != null) {
+                            text = if (service != null) {
                                 stringResource(R.string.home_framework_detail, service.frameworkName, service.frameworkVersion, service.apiVersion)
                             } else {
                                 stringResource(R.string.home_framework_fallback)
-                            }
-                            Text(
-                                text = frameworkDetail,
-                                color = descTextColor,
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Medium
-                            )
-                        }
+                            },
+                            color = descTextColor,
+                            style = MiuixTheme.textStyles.body2,
+                            fontWeight = FontWeight.Medium,
+                        )
                     }
                 }
             }
-
-
-            // SmallTitle - proper 28dp left indent like miuix
-            SmallTitle(text = stringResource(R.string.home_diagnostics_title))
-
-            // Diagnostics Card using BasicComponent
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp)
-            ) {
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    BasicComponent(
-                        title = stringResource(R.string.home_build_version_title),
-                        summary = "v${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})"
-                    )
-                    BasicComponent(
-                        title = stringResource(R.string.home_device_model_title),
-                        summary = deviceModel
-                    )
-                    BasicComponent(
-                        title = stringResource(R.string.home_device_system_title),
-                        summary = stringResource(R.string.home_device_system_summary, Build.VERSION.RELEASE, Build.VERSION.SDK_INT)
-                    )
-                    BasicComponent(
-                        title = stringResource(R.string.home_system_version_title),
-                        summary = Build.VERSION.INCREMENTAL.takeUnless { it.isBlank() || it == Build.UNKNOWN }
-                            ?: Build.DISPLAY.takeUnless { it.isBlank() || it == Build.UNKNOWN }
-                            ?: stringResource(R.string.battery_unavailable)
-                    )
-                }
-            }
-
-            // Quick Actions
-            SmallTitle(text = stringResource(R.string.home_quick_actions))
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp)
-            ) {
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    ArrowPreference(
-                        title = stringResource(R.string.device_info_title),
-                        summary = stringResource(R.string.device_info_menu_summary),
-                        onClick = onNavigateToDeviceInfo
-                    )
-                    ArrowPreference(
-                        title = stringResource(R.string.battery_info_menu_title),
-                        summary = stringResource(R.string.battery_info_menu_summary),
-                        startAction = {
-                            Icon(
-                                imageVector = Icons.Rounded.BatteryChargingFull,
-                                modifier = Modifier.padding(end = 6.dp),
-                                contentDescription = stringResource(R.string.battery_info_menu_title),
-                                tint = MiuixTheme.colorScheme.onSurface
-                            )
-                        },
-                        onClick = onNavigateToBatteryInfo
-                    )
-
-                    ArrowPreference(
-                        title = stringResource(R.string.home_hidden_features),
-                        summary = stringResource(R.string.home_hidden_features_summary),
-                        startAction = {
-                            Icon(
-                                imageVector = Icons.Rounded.Extension,
-                                modifier = Modifier.padding(end = 6.dp),
-                                contentDescription = stringResource(R.string.home_hidden_features),
-                                tint = MiuixTheme.colorScheme.onSurface
-                            )
-                        },
-                        onClick = onNavigateToHiddenFeatures
-                    )
-                    ArrowPreference(
-                        title = stringResource(R.string.home_restart_scoped_apps),
-                        summary = stringResource(R.string.home_restart_scoped_apps_summary),
-                        startAction = {
-                            Icon(
-                                imageVector = Icons.Rounded.Refresh,
-                                modifier = Modifier.padding(end = 6.dp),
-                                contentDescription = stringResource(R.string.home_restart_scope),
-                                tint = MiuixTheme.colorScheme.onSurface
-                            )
-                        },
-                        onClick = { showRestartDialog = true }
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(padding.calculateBottomPadding() + 16.dp))
         }
+
+        AppSection(stringResource(R.string.home_diagnostics_title)) {
+            BasicComponent(
+                title = stringResource(R.string.home_build_version_title),
+                summary = "v${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})"
+            )
+            BasicComponent(
+                title = stringResource(R.string.home_device_model_title),
+                summary = deviceModel
+            )
+            BasicComponent(
+                title = stringResource(R.string.home_device_system_title),
+                summary = stringResource(R.string.home_device_system_summary, Build.VERSION.RELEASE, Build.VERSION.SDK_INT)
+            )
+            BasicComponent(
+                title = stringResource(R.string.home_system_version_title),
+                summary = Build.VERSION.INCREMENTAL.takeUnless { it.isBlank() || it == Build.UNKNOWN }
+                    ?: Build.DISPLAY.takeUnless { it.isBlank() || it == Build.UNKNOWN }
+                    ?: stringResource(R.string.battery_unavailable)
+            )
+        }
+
+        // Quick Actions
+        AppSection(stringResource(R.string.home_quick_actions)) {
+            ArrowPreference(
+                title = stringResource(R.string.device_info_title),
+                summary = stringResource(R.string.device_info_menu_summary),
+                onClick = onNavigateToDeviceInfo
+            )
+            ArrowPreference(
+                title = stringResource(R.string.battery_info_menu_title),
+                summary = stringResource(R.string.battery_info_menu_summary),
+                startAction = {
+                    Icon(
+                        imageVector = MiuixIcons.Glass.Battery90Charging,
+                        modifier = Modifier.padding(end = 6.dp),
+                        contentDescription = stringResource(R.string.battery_info_menu_title),
+                        tint = MiuixTheme.colorScheme.onSurface
+                    )
+                },
+                onClick = onNavigateToBatteryInfo
+            )
+
+            ArrowPreference(
+                title = stringResource(R.string.home_hidden_features),
+                summary = stringResource(R.string.home_hidden_features_summary),
+                startAction = {
+                    Icon(
+                        imageVector = MiuixIcons.Glass.Widget,
+                        modifier = Modifier.padding(end = 6.dp),
+                        contentDescription = stringResource(R.string.home_hidden_features),
+                        tint = MiuixTheme.colorScheme.onSurface
+                    )
+                },
+                onClick = onNavigateToHiddenFeatures
+            )
+            ArrowPreference(
+                title = stringResource(R.string.home_restart_scoped_apps),
+                summary = stringResource(R.string.home_restart_scoped_apps_summary),
+                startAction = {
+                    Icon(
+                        imageVector = MiuixIcons.Glass.Refresh,
+                        modifier = Modifier.padding(end = 6.dp),
+                        contentDescription = stringResource(R.string.home_restart_scope),
+                        tint = MiuixTheme.colorScheme.onSurface
+                    )
+                },
+                onClick = { showRestartDialog = true }
+            )
+        }
+
 
         RestartScopeDialog(
             show = showRestartDialog,
@@ -323,4 +263,17 @@ internal fun friendlyProcessName(context: android.content.Context, processName: 
         "com.takekazex.hypertweak" -> "HyperTweak"
         else -> processName
     }
+}
+
+/** Material Rounded CheckCircleOutline (Apache-2.0), as on KernelSU's status card; Miuix has no circled check. */
+private val CheckCircleOutline: ImageVector by lazy {
+    ImageVector.Builder("CheckCircleOutline", 24.dp, 24.dp, 24f, 24f).addPath(
+        pathData = addPathNodes(
+            "M12,2C6.48,2 2,6.48 2,12s4.48,10 10,10 10,-4.48 10,-10S17.52,2 12,2zM12,20c-4.41,0 -8,-3.59 -8,-8" +
+                "s3.59,-8 8,-8 8,3.59 8,8 -3.59,8 -8,8zM15.88,8.29L10,14.17l-1.88,-1.88c-0.39,-0.39 -1.02,-0.39" +
+                " -1.41,0 -0.39,0.39 -0.39,1.02 0,1.41l2.59,2.59c0.39,0.39 1.02,0.39 1.41,0L17.3,9.7c0.39,-0.39" +
+                " 0.39,-1.02 0,-1.41 -0.39,-0.39 -1.03,-0.39 -1.42,0z"
+        ),
+        fill = SolidColor(Color.Black),
+    ).build()
 }

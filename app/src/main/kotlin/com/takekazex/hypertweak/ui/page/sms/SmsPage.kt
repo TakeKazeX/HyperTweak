@@ -1,13 +1,14 @@
 package com.takekazex.hypertweak.ui.page.sms
 
-import androidx.compose.ui.Modifier
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.compose.currentStateAsState
 import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.settings.contract.SmsSettingsKeys
@@ -22,7 +23,7 @@ internal fun SmsPage(onBack: () -> Unit) {
     val store = LocalAppSettingsStore.current
     var enabled by remember { mutableStateOf(store.getBoolean(SmsSettingsKeys.KEY_SMS_AUTO_COPY_CODE, false)) }
     val lifecycle = LocalLifecycleOwner.current.lifecycle.currentStateAsState().value
-    val revision by com.takekazex.hypertweak.util.diagnostics.DebugSettingsEvents.revision.collectAsState()
+    val revision by com.takekazex.hypertweak.util.diagnostics.DebugSettingsEvents.revision.collectAsStateWithLifecycle()
     LaunchedEffect(lifecycle, revision) {
         if (lifecycle == Lifecycle.State.RESUMED) enabled = store.getBoolean(SmsSettingsKeys.KEY_SMS_AUTO_COPY_CODE, false)
     }

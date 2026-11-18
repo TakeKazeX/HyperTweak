@@ -11,10 +11,11 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.settings.contract.LauncherDesktopKeys
 import com.takekazex.hypertweak.ui.app.LocalAppSettingsStore
+import com.takekazex.hypertweak.ui.chrome.AppDropdownPreference as OverlayDropdownPreference
+import com.takekazex.hypertweak.ui.chrome.AppOverlayDialog as OverlayDialog
+import com.takekazex.hypertweak.ui.chrome.AppSection
 import top.yukonga.miuix.kmp.basic.*
-import com.takekazex.hypertweak.ui.effect.AppOverlayDialog as OverlayDialog
 import top.yukonga.miuix.kmp.preference.ArrowPreference
-import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
 
 @Composable
 internal fun LauncherIconThemePreferences() {
@@ -27,8 +28,7 @@ internal fun LauncherIconThemePreferences() {
         mode = store.getInt(LauncherDesktopKeys.KEY_ICON_THEME_MODE, 0).coerceIn(0, 4)
         color = store.getInt(LauncherDesktopKeys.KEY_ICON_THEME_COLOR, LauncherDesktopKeys.DEFAULT_ICON_COLOR)
     }
-    SmallTitle(stringResource(R.string.desktop_icon_theme_title))
-    Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+    AppSection(stringResource(R.string.desktop_icon_theme_title)) {
         OverlayDropdownPreference(title = stringResource(R.string.desktop_icon_theme_mode),
             summary = stringResource(R.string.desktop_icon_theme_summary),
             items = listOf(stringResource(R.string.desktop_icon_theme_stock),
@@ -42,7 +42,6 @@ internal fun LauncherIconThemePreferences() {
             summary = "#%06X".format(color and 0xffffff), onClick = {
                 text = "%06X".format(color and 0xffffff); editing = true
             })
-
     }
     val rgb = text.takeIf { it.length == 6 }?.toIntOrNull(16)
     OverlayDialog(show = editing, title = stringResource(R.string.desktop_icon_theme_color),

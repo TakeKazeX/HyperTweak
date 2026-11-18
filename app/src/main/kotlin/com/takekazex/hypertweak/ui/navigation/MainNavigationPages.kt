@@ -11,8 +11,6 @@ internal fun NavEntryBuilder.mainPages(settings: NavigationSettings, navControll
         entry<Route.Main> {
             MainPagerScreen(
                 mainPagerState = mainPagerState,
-                useFloatingBottomBar = useFloatingBottomBar,
-                floatingBarStyle = floatingBarStyle,
                 backdrop = backdrop,
                 moduleActive = moduleActive,
                 hotReloadAvailable = hotReloadAvailable,
@@ -20,8 +18,6 @@ internal fun NavEntryBuilder.mainPages(settings: NavigationSettings, navControll
                 hotReloadTargets = hotReloadTargets,
                 hotReloadReport = hotReloadReport,
                 pendingRestartScopes = pendingRestartScopes,
-                paModelSpoofEnabled = paModelSpoofEnabled,
-                onPaModelSpoofEnabledChange = onPaModelSpoofEnabledChange,
                 onNavigateToSystemLauncher = { navController.navigateTo(Route.SystemLauncher) },
                 onNavigateToSms = { navController.navigateTo(Route.Sms) },
                 onNavigateToScreenshot = { navController.navigateTo(Route.Screenshot) },
@@ -36,30 +32,8 @@ internal fun NavEntryBuilder.mainPages(settings: NavigationSettings, navControll
                 onNavigateToSecurityCenter = {
                     navController.navigateTo(Route.SecurityCenter)
                 },
-                showInSettings = showInSettings,
-                onShowInSettingsChange = onShowInSettingsChange,
                 hideLauncherIcon = hideLauncherIcon,
                 onHideLauncherIconChange = onHideLauncherIconChange,
-                disableSpatialAudio = disableSpatialAudio,
-                onDisableSpatialAudioChange = onDisableSpatialAudioChange,
-                forceAdaptiveAnc = forceAdaptiveAnc,
-                onForceAdaptiveAncChange = onForceAdaptiveAncChange,
-                themeMode = themeMode,
-                onThemeModeChange = onThemeModeChange,
-                useMonet = useMonet,
-                onUseMonetChange = onUseMonetChange,
-                seedColorHex = seedColorHex,
-                onSeedColorChange = onSeedColorChange,
-                onUseFloatingBottomBarChange = onUseFloatingBottomBarChange,
-                onFloatingBarStyleChange = onFloatingBarStyleChange,
-                predictiveBackStyle = predictiveBackStyle,
-                onPredictiveBackStyleChange = onPredictiveBackStyleChange,
-                predictiveBackFollowGesture = predictiveBackFollowGesture,
-                onPredictiveBackFollowGestureChange = onPredictiveBackFollowGestureChange,
-                allowLandscape = allowLandscape,
-                onAllowLandscapeChange = onAllowLandscapeChange,
-                pageScale = pageScale,
-                onPageScaleChange = onPageScaleChange,
                 onNavigateToAbout = {
                     navController.navigateTo(Route.About)
                 },
@@ -113,8 +87,6 @@ internal fun NavEntryBuilder.mainPages(settings: NavigationSettings, navControll
                 onRestartAllScopes = onRestartAllScopes,
                 onRestartScope = onRestartScope,
                 snackbarHostState = snackbarHostState,
-                appLanguage = appLanguage,
-                onAppLanguageChange = onAppLanguageChange
             )
         }
 

@@ -6,6 +6,9 @@ object AppSettingsKeys {
     const val DEFAULT_SEED_COLOR = 0
     const val KEY_HIDE_LAUNCHER_ICON = "hide_launcher_icon"
     const val KEY_APP_BLUR_MODE = "app_blur_mode"
+    /** 0 = HyperOS 3 chrome, 1 = HyperOS 4 glass chrome. */
+    const val KEY_APP_UI_STYLE = "app_ui_style"
+    const val DEFAULT_APP_UI_STYLE = 1
     const val KEY_THEME_MODE = "theme_mode"
     const val KEY_USE_MONET = "theme_use_monet"
     const val KEY_SEED_COLOR = "theme_seed_color"
