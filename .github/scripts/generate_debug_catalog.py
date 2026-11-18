@@ -79,6 +79,11 @@ for name in retired_icon_keys:
 # Reviewed defaults for settings read through shared helper loops/migration readers.
 # Missing display mode inherits the legacy boolean; the fresh-install default is off.
 reads['SystemUiSettingsKeys.KEY_SLIDER_DISPLAY_MODE'] = ('Int', '0', 0)
+# SliderPercentageTypography.read() reads through boolean/integer lambdas.
+_slider_typography = 'com.takekazex.hypertweak.settings.contract.SliderPercentageTypography'
+reads['SystemUiSettingsKeys.KEY_SLIDER_TYPOGRAPHY'] = ('Boolean', 'false', 0)
+reads['SystemUiSettingsKeys.KEY_SLIDER_SIZE_PERCENT'] = ('Int', _slider_typography + '.DEFAULT_SIZE_PERCENT', 0)
+reads['SystemUiSettingsKeys.KEY_SLIDER_WEIGHT'] = ('Int', _slider_typography + '.DEFAULT_WEIGHT', 0)
 # Legacy switches still have executing readers through IconSettingsPreferencePolicy.
 for key in keys:
     if key.startswith('MarketSettingsKeys.KEY_MARKET_'): reads[key] = ('Boolean','false',0)
