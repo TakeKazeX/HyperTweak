@@ -79,7 +79,7 @@ fun PrivacyIndicatorPage(onBack: () -> Unit) {
         backContentDescription = stringResource(R.string.icon_back),
         scrollState = scrollState,
     ) {
-        AppSection(stringResource(R.string.settings_system_ui_section_status_bar)) {
+        AppSection(title = stringResource(R.string.settings_system_ui_section_status_bar)) {
             TunerSwitch(
                 pref(IconSettingsKeys.KEY_ICON_HIDE_PRIVACY, false),
                 stringResource(R.string.icon_hide_privacy_indicator),
@@ -141,7 +141,7 @@ private fun PrivacyHeaderSection(
     names: Boolean, allApps: Boolean, arrow: Boolean, dot: Boolean,
     iconSize: Int, textSize: Int, offset: Int, onChange: (String, Any) -> Unit
 ) {
-    AppSection(stringResource(R.string.icon_cc_privacy_title)) {
+    AppSection(title = stringResource(R.string.icon_cc_privacy_title)) {
         TunerSwitch(enabled, stringResource(R.string.icon_cc_privacy_enabled),
             stringResource(R.string.icon_cc_privacy_enabled_summary)) {
             onChange(SystemUiSettingsKeys.KEY_CC_PRIVACY_ENABLED, it)

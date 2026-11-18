@@ -44,7 +44,7 @@ class DuoSignalBars private constructor(val left: Float, val top: Float, val wid
                     val index = id?.removePrefix("signal_")?.toIntOrNull()
                     if (index in 1..4) {
                         val nodes = PathParser.createNodesFromPathData(parser.getAttributeValue(null, "d"))
-                        require(nodes != null && nodes.size == TYPES.length) { "Signal bar topology changed: $id" }
+                        require(nodes.size == TYPES.length) { "Signal bar topology changed: $id" }
                         nodes.forEachIndexed { i, node ->
                             require(node.type == TYPES[i] && node.params.size == circle[i].size && node.params.all { it.isFinite() }) {
                                 "Signal bar commands changed: $id"

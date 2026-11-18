@@ -28,7 +28,7 @@ internal fun LauncherIconThemePreferences() {
         mode = store.getInt(LauncherDesktopKeys.KEY_ICON_THEME_MODE, 0).coerceIn(0, 4)
         color = store.getInt(LauncherDesktopKeys.KEY_ICON_THEME_COLOR, LauncherDesktopKeys.DEFAULT_ICON_COLOR)
     }
-    AppSection(stringResource(R.string.desktop_icon_theme_title)) {
+    AppSection(title = stringResource(R.string.desktop_icon_theme_title)) {
         OverlayDropdownPreference(title = stringResource(R.string.desktop_icon_theme_mode),
             summary = stringResource(R.string.desktop_icon_theme_summary),
             items = listOf(stringResource(R.string.desktop_icon_theme_stock),

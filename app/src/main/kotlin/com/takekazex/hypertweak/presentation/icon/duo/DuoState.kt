@@ -87,11 +87,8 @@ object DuoPolicy {
         DuoSurface.UNSUPPORTED -> false
     }
 
-    @Suppress("UNUSED_PARAMETER")
-    internal fun networkDestination(
-        expandedStyle: DuoExpandedStyle,
-        carrierOwnsNetwork: Boolean
-    ): DuoNetworkDestination = if (carrierOwnsNetwork) DuoNetworkDestination.CARRIER
+    /** Expanded network state returns to its owner whichever expanded style is selected. */
+    internal fun networkDestination(carrierOwnsNetwork: Boolean): DuoNetworkDestination = if (carrierOwnsNetwork) DuoNetworkDestination.CARRIER
         else DuoNetworkDestination.NATIVE
 
     /**

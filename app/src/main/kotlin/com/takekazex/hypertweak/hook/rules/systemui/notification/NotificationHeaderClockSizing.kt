@@ -30,7 +30,6 @@ internal class NotificationHeaderClockSizing(
 
     private var verticalModeMethod: Method? = null
     private var landscapeModeMethod: Method? = null
-    @Suppress("DiscouragedApi")
     fun applyClockSize(controller: Any) {
         knownControllers[controller] = true
         if (timeScale() == NotificationHeaderModel.DEFAULT_TIME_SCALE) {

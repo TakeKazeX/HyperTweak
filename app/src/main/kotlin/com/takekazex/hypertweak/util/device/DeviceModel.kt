@@ -1,6 +1,5 @@
 package com.takekazex.hypertweak.util.device
 
-import android.annotation.SuppressLint
 import android.os.Build
 
 /** Prefer Xiaomi's commercial model name, as KernelSU's device information does. */
@@ -13,7 +12,6 @@ internal val deviceModel: String by lazy {
         .ifEmpty { Build.MODEL }
 }
 
-@SuppressLint("PrivateApi")
 private fun readMarketModel(): String? = try {
     val properties = Class.forName("android.os.SystemProperties")
     (properties.getMethod("get", String::class.java)

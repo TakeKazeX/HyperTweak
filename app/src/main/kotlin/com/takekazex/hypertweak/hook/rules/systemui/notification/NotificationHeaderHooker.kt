@@ -24,6 +24,7 @@ import java.util.IdentityHashMap
 import java.util.WeakHashMap
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import androidx.core.view.isVisible
 
 /**
  * Customizes only OS4's new-control-center notification header
@@ -589,7 +590,7 @@ object NotificationHeaderHooker : StaticHooker() {
         val scrollOffset = if (isCustomPortrait) layoutController.scrollY(root) else 0
         val targetHeight = NotificationHeaderMotionModel.clipHeight(
             headerHeight.toFloat(), extraHeight, scrollOffset,
-            if (isCustomPortrait && !restoring && root.visibility == View.VISIBLE) root.alpha else 0f
+            if (isCustomPortrait && !restoring && root.isVisible) root.alpha else 0f
         )
         val previous = appliedClipHeights[heightAnimator]
         val nativeHeight = headerHeight.toFloat()

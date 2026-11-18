@@ -99,7 +99,7 @@ class IslandFlashlightHooker : DynamicHooker() {
         listOf(add, update).forEach { method ->
             method.hook {
                 before { param ->
-                    val owner = param.thisObject ?: return@before
+                    val owner = param.thisObjectOrNull ?: return@before
                     controller = WeakReference(owner)
                     if (retiring || !enabled) return@before
                     val data = param.args[0] ?: return@before
@@ -246,7 +246,7 @@ class IslandFlashlightHooker : DynamicHooker() {
                 val key = param.args[0] as? String ?: return@after
                 if (!key.contains("|${FlashlightNativeAssets.PLUGIN_PACKAGE}|")) return@after
                 HookFailurePolicy.open(TAG, "track flashlight island controller", Unit) {
-                    track(param.thisObject ?: return@open, safeguardsWindow)
+                    track(param.thisObjectOrNull ?: return@open, safeguardsWindow)
                 }
             }
         }
@@ -256,7 +256,7 @@ class IslandFlashlightHooker : DynamicHooker() {
         exitApp.hook {
             before { param ->
                 if (retiring || !enabled || param.args[0] != FlashlightNativeAssets.PLUGIN_PACKAGE) return@before
-                val owner = param.thisObject ?: return@before
+                val owner = param.thisObjectOrNull ?: return@before
                 HookFailurePolicy.open(TAG, "restore flashlight island after its page", Unit) {
                     track(owner, safeguardsWindow)
                     if (SystemClock.uptimeMillis() - restoredEarlyAt < EARLY_RESTORE_WINDOW_MS) {
@@ -269,7 +269,7 @@ class IslandFlashlightHooker : DynamicHooker() {
             after { param ->
                 if (retiring || !enabled || param.args[0] != FlashlightNativeAssets.PLUGIN_PACKAGE) return@after
                 HookFailurePolicy.open(TAG, "restore flashlight island after its page", Unit) {
-                    restoreParked(param.thisObject ?: return@open, "page closed")
+                    restoreParked(param.thisObjectOrNull ?: return@open, "page closed")
                 }
             }
         }

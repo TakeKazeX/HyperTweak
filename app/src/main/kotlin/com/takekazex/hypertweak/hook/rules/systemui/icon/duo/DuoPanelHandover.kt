@@ -335,10 +335,7 @@ internal class DuoPanelHandover(private val host: Host) {
         if (content == null) { clearPanelMotion(binding); return }
         val root = proxyRoot.rootView as? ViewGroup
         val wifi = content.wifiLevel != null
-        val destination = DuoPolicy.networkDestination(
-            host.expandedStyle,
-            HandoverCoordinator.ownsNetwork(expanded.icons, wifi)
-        )
+        val destination = DuoPolicy.networkDestination(HandoverCoordinator.ownsNetwork(expanded.icons, wifi))
         val sourceVisible = if (wifi) content.wifiLevelToDraw != null
             else content.hasCellularSignal && content.networkLabel != null
         val networkTarget = if (!sourceVisible || content.airplaneMode && !wifi) null else when (destination) {

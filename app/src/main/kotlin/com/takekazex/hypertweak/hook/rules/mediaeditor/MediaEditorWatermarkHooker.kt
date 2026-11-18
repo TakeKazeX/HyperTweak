@@ -209,7 +209,6 @@ object MediaEditorWatermarkHooker : StaticHooker() {
                     val supportRegions = args[supportRegionsIdx] as? MutableList<String>
                     @Suppress("UNCHECKED_CAST")
                     val unSupportRegions = args[unSupportRegionsIdx] as? MutableList<String>
-                    @Suppress("UNCHECKED_CAST")
                     val nameLength = args[nameLengthIdx] as? MutableList<*>
                     @Suppress("UNCHECKED_CAST")
                     val displayApps = args[displayAppIdx] as? MutableList<String>

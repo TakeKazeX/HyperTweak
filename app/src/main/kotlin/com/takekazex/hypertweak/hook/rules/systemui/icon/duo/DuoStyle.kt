@@ -1,4 +1,3 @@
-@file:Suppress("StaticFieldLeak")
 package com.takekazex.hypertweak.hook.rules.systemui.icon.duo
 
 import com.takekazex.hypertweak.hook.base.orSkip

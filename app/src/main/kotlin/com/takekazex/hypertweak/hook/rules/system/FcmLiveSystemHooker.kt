@@ -323,7 +323,6 @@ object FcmLiveSystemHooker : StaticHooker() {
                     if (retired || !settingFcmLiveEnabled) return@after
                     val flags = param.args[0] as? Int
                     if (flags != null && (flags and 1) != 0) {
-                        @Suppress("UNCHECKED_CAST")
                         val current = param.result as? Collection<*>
                         param.result = CollectionOverrides.stringList(
                             current, GMS_PACKAGE_NAME, GMS_PERSISTENT_PROCESS_NAME

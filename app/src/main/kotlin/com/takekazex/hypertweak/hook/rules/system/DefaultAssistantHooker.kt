@@ -268,11 +268,10 @@ object DefaultAssistantHooker : StaticHooker() {
     /** `RoleManager.getRoleHoldersAsUser` is @hide, so this is reflective. */
     private fun roleAssistantHolder(context: Context): String? = runCatching {
         val roleManager = context.getSystemService("role") ?: return null
-        @Suppress("UNCHECKED_CAST")
         val holders = roleManager.javaClass
             .cachedPublicMethod("getRoleHoldersAsUser", String::class.java, Class.forName("android.os.UserHandle"), accessible = false)
-            .invoke(roleManager, ROLE_ASSISTANT, Process.myUserHandle()) as? List<String>
-        holders?.firstOrNull()
+            .invoke(roleManager, ROLE_ASSISTANT, Process.myUserHandle()) as? List<*>
+        holders?.firstOrNull() as? String
     }.onFailure {
         DebugLog.w(SCOPE, "could not read the ASSISTANT role holder", it)
     }.getOrNull()

@@ -35,7 +35,7 @@ fun ChargingDetailPage(onBack: () -> Unit) {
         backContentDescription = stringResource(R.string.charging_back),
     ) {
 
-        AppSection(stringResource(R.string.charging_section_main)) {
+        AppSection(title = stringResource(R.string.charging_section_main)) {
             SwitchPreference(
                 checked = enabled,
                 onCheckedChange = { checked ->
@@ -46,7 +46,7 @@ fun ChargingDetailPage(onBack: () -> Unit) {
             )
         }
 
-        AppSection(stringResource(R.string.charging_section_layout)) {
+        AppSection(title = stringResource(R.string.charging_section_layout)) {
             SwitchPreference(
                 checked = twoRows,
                 onCheckedChange = { checked ->
@@ -57,7 +57,7 @@ fun ChargingDetailPage(onBack: () -> Unit) {
             )
         }
 
-        AppSection(stringResource(R.string.charging_section_refresh)) {
+        AppSection(title = stringResource(R.string.charging_section_refresh)) {
             OverlayDropdownPreference(
                 title = stringResource(R.string.charging_interval_title),
                 summary = stringResource(R.string.charging_interval_summary),
@@ -81,7 +81,7 @@ fun ChargingDetailPage(onBack: () -> Unit) {
             )
         }
 
-        AppSection(stringResource(R.string.charging_section_fields)) {
+        AppSection(title = stringResource(R.string.charging_section_fields)) {
             ChargingFieldSwitch(
                 checked = (fields and LockscreenChargingOptions.FIELD_WATTAGE) != 0,
                 title = stringResource(R.string.charging_field_wattage_title),

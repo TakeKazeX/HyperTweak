@@ -107,9 +107,11 @@
             android:name="xposedscope"
             android:resource="@array/xposed_scope"/>
 
-        <!-- Main Activity -->
+        <!-- Hooked host apps share no permission to require. Each request is authenticated in
+             onReceive by the framework-reported sender package/uid against the settings targets. -->
         <receiver android:name="com.takekazex.hypertweak.hook.RuntimeSettingsSyncReceiver"
-            android:exported="true">
+            android:exported="true"
+            tools:ignore="ExportedReceiver">
             <intent-filter>
                 <action android:name="com.takekazex.hypertweak.action.RUNTIME_SETTINGS_REQUEST" />
             </intent-filter>

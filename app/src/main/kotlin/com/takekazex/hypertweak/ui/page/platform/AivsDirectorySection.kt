@@ -35,7 +35,6 @@ internal fun AivsDirectorySection() {
     var error by rememberSaveable { mutableStateOf<String?>(null) }
     var checkedEmpty by rememberSaveable { mutableStateOf(false) }
     var moved by rememberSaveable { mutableStateOf(false) }
-    @Suppress("DEPRECATION")
     val root = remember { Environment.getExternalStorageDirectory().path }
     val resumed = LocalLifecycleOwner.current.lifecycle.currentStateAsState().value == Lifecycle.State.RESUMED
     LaunchedEffect(resumed) {
@@ -56,7 +55,7 @@ internal fun AivsDirectorySection() {
         pending = folders.isNotEmpty()
         checkedEmpty = folders.isEmpty()
     }
-    AppSection(stringResource(R.string.aivs_section)) {
+    AppSection(title = stringResource(R.string.aivs_section)) {
         Column {
             SwitchPreference(
                 checked = enabled,

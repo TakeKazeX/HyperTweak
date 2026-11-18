@@ -1,6 +1,5 @@
 package com.takekazex.hypertweak.ui.page.diagnostics
 
-import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.ClipboardManager
 import android.content.Context
@@ -38,7 +37,6 @@ import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 
 @Composable
-@SuppressLint("LocalContextGetResourceValueCall")
 fun DebugPage(
     onBack: () -> Unit,
     onNavigateToLogs: () -> Unit,
@@ -63,7 +61,7 @@ fun DebugPage(
         onBack = onBack,
         backContentDescription = stringResource(R.string.debug_back),
     ) {
-        AppSection(stringResource(R.string.debug_diagnostics_title)) {
+        AppSection(title = stringResource(R.string.debug_diagnostics_title)) {
             SwitchPreference(
                 checked = recordLogs,
                 onCheckedChange = { enabled ->
@@ -87,7 +85,7 @@ fun DebugPage(
             )
         }
         DebugAccessSection()
-        AppSection(stringResource(R.string.debug_actions_title)) {
+        AppSection(title = stringResource(R.string.debug_actions_title)) {
             ArrowPreference(
                 title = stringResource(R.string.debug_adb_tcp_title),
                 summary = stringResource(R.string.debug_adb_tcp_summary),
@@ -127,7 +125,7 @@ fun DebugPage(
                 )
             }
         }
-        AppSection(stringResource(R.string.debug_notification_test_title)) {
+        AppSection(title = stringResource(R.string.debug_notification_test_title)) {
             Button(
                 onClick = { postTestNotifications(1) },
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),

@@ -1,6 +1,5 @@
 package com.takekazex.hypertweak.ui.page.platform
 
-import android.annotation.SuppressLint
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
 import com.takekazex.hypertweak.R
@@ -17,7 +16,6 @@ import top.yukonga.miuix.kmp.preference.SwitchPreference
  * belongs to a Google component (GMS, the Google app, or the Settings Google-services entry), so the
  * page carries the `com.google.android.gms` icon in the entry row and stays scoped to Google state.
  */
-@SuppressLint("LocalContextGetResourceValueCall")
 @Composable
 fun GoogleServicesPage(
     onBack: () -> Unit,
@@ -34,7 +32,7 @@ fun GoogleServicesPage(
             "system", "com.miui.securitycenter", "com.xiaomi.scanner", "com.miui.powerkeeper"
         )
 
-        AppSection(stringResource(R.string.google_services_title)) {
+        AppSection(title = stringResource(R.string.google_services_title)) {
             SwitchPreference(
                 checked = appSettings.showGoogleServicesInSettings,
                 onCheckedChange = { appSettings.showGoogleServicesInSettings = it },

@@ -8,6 +8,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.UUID
+import com.takekazex.hypertweak.util.storage.commitEdit
 
 /** Owns the legacy adbd TCP listener. Android's paired wireless debugging is separate. */
 internal object AdbTcpPort {
@@ -107,7 +108,7 @@ internal object AdbTcpPort {
             // Revoking the local marker also disarms an existing watchdog if su is unavailable.
             val owner = ownerFile(context)
             if (owner.exists() && !owner.delete()) return@execute false
-            val cleared = options(context).edit().clear().commit()
+            val cleared = options(context).commitEdit { clear() }
             installGuard(context)
             command("reset")
             cleared
@@ -117,7 +118,7 @@ internal object AdbTcpPort {
     private fun ownerFile(context: Context) = File(context.noBackupFilesDir, "wireless_adb_owner")
 
     private fun markManaged(context: Context) =
-        options(context).edit().putBoolean(MANAGED, true).commit()
+        options(context).commitEdit { putBoolean(MANAGED, true) }
 
     private fun installGuard(context: Context) {
         val source = context.assets.open("diagnostics/wireless-adb.sh").bufferedReader().use { it.readText() }

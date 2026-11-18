@@ -50,7 +50,7 @@ fun AospRestorePage(
     ) {
         MissingScopeCard("com.android.settings", "system", "com.android.systemui", "com.miui.securitycenter", "com.miui.securitycore", "com.android.photopicker")
 
-        AppSection(stringResource(R.string.aosp_section_system)) {
+        AppSection(title = stringResource(R.string.aosp_section_system)) {
             NativePickerPreferences()
             SwitchPreference(
                 checked = packageInstaller,
@@ -62,7 +62,7 @@ fun AospRestorePage(
             )
         }
 
-        AppSection(stringResource(R.string.aosp_section_international)) {
+        AppSection(title = stringResource(R.string.aosp_section_international)) {
             SwitchPreference(
                 checked = appSettings.settingsGlobalInterface,
                 onCheckedChange = { appSettings.settingsGlobalInterface = it },
@@ -87,7 +87,7 @@ fun AospRestorePage(
             )
         }
 
-        AppSection(stringResource(R.string.aosp_section_system_ui)) {
+        AppSection(title = stringResource(R.string.aosp_section_system_ui)) {
             SwitchPreference(
                 checked = powerMenu,
                 onCheckedChange = { enabled ->
@@ -137,7 +137,7 @@ fun AospRestorePage(
             )
         }
 
-        AppSection(stringResource(R.string.aosp_section_security_center)) {
+        AppSection(title = stringResource(R.string.aosp_section_security_center)) {
             SwitchPreference(
                 checked = appInfoEntry,
                 onCheckedChange = { enabled ->
@@ -156,7 +156,7 @@ fun AospRestorePage(
             )
         }
 
-        AppSection(stringResource(R.string.aosp_section_input_method)) {
+        AppSection(title = stringResource(R.string.aosp_section_input_method)) {
             ArrowPreference(
                 title = stringResource(R.string.aosp_keyboard_bar),
                 summary = stringResource(R.string.aosp_keyboard_bar_summary),

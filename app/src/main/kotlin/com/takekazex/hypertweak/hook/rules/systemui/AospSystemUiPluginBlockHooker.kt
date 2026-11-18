@@ -103,7 +103,7 @@ object AospSystemUiPluginBlockHooker : StaticHooker() {
             loadPluginComponent.hook {
                 before { param ->
                     HookFailurePolicy.open(TAG, "loadPluginComponent", Unit) {
-                        param.thisObject?.let { synchronized(seenManagers) { seenManagers.add(it) } }
+                        param.thisObjectOrNull?.let { synchronized(seenManagers) { seenManagers.add(it) } }
                         val component = param.args.getOrNull(0) as? ComponentName ?: return@open
                         if (component.className in blockedClasses) {
                             param.result = null

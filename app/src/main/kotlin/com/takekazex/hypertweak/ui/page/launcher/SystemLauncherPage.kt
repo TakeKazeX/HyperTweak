@@ -1,6 +1,5 @@
 package com.takekazex.hypertweak.ui.page.launcher
 
-import android.annotation.SuppressLint
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -27,7 +26,6 @@ import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 
 /** Launcher controls and predictive back gestures (Features → System Launcher). */
-@SuppressLint("LocalContextGetResourceValueCall")
 @Composable
 fun SystemLauncherPage(onBack: () -> Unit, onNavigateToDockBackground: () -> Unit, onNavigateToDesktopIconSize: () -> Unit) {
     val services = LocalAppServices.current
@@ -62,7 +60,7 @@ fun SystemLauncherPage(onBack: () -> Unit, onNavigateToDockBackground: () -> Uni
     ) {
         MissingScopeCard("com.miui.home", "com.miui.voiceassist")
 
-        AppSection(stringResource(R.string.settings_xiaoai_section)) {
+        AppSection(title = stringResource(R.string.settings_xiaoai_section)) {
             SwitchPreference(
                 checked = xiaoaiOptions,
                 onCheckedChange = {
@@ -76,7 +74,7 @@ fun SystemLauncherPage(onBack: () -> Unit, onNavigateToDockBackground: () -> Uni
         }
 
         // Preserve the launcher controls' original platform gates.
-        AppSection(stringResource(R.string.settings_launcher_section)) {
+        AppSection(title = stringResource(R.string.settings_launcher_section)) {
             SwitchPreference(
                 checked = hideRecentsClearButton,
                 onCheckedChange = {
@@ -144,7 +142,7 @@ fun SystemLauncherPage(onBack: () -> Unit, onNavigateToDockBackground: () -> Uni
         }
 
         if (PlatformLevel.isOs4) {
-            AppSection(stringResource(R.string.back_gesture_section)) {
+            AppSection(title = stringResource(R.string.back_gesture_section)) {
                 SwitchPreference(
                     title = stringResource(R.string.back_gesture_enabled_title),
                     summary = stringResource(if (upstreamInstalled == true)

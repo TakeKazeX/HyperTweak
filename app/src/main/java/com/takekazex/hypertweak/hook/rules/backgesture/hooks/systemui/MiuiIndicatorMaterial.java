@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.takekazex.hypertweak.hook.rules.backgesture.hooks.systemui;
 
-import android.annotation.SuppressLint;
 import android.graphics.Path;
 import android.view.View;
 
@@ -11,7 +10,6 @@ import java.lang.reflect.Modifier;
 /**
  * Boot-framework Xiaomi material APIs, resolved once for an owned background View.
  */
-@SuppressLint("PrivateApi")
 final class MiuiIndicatorMaterial {
     private MiuiIndicatorMaterial() {
     }

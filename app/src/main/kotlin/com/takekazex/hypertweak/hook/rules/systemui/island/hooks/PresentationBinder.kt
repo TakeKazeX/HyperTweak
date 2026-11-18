@@ -133,7 +133,7 @@ internal object PresentationBinder {
             registrar.before(writer, "three_islands_template_side_width_${if (leftSide) "left" else "right"}") { param ->
                 runCatching {
                     val width = param.args[1] as? Int ?: return@runCatching
-                    val padding = runtime.templates.releasedPadding(param.thisObject ?: return@runCatching, leftSide)
+                    val padding = runtime.templates.releasedPadding(param.thisObject, leftSide)
                     if (padding > 0) param.args[1] = width + padding
                 }.onFailure { DebugLog.e("ThreeIslands", "restore released template padding budget", it) }
             }

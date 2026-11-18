@@ -307,8 +307,8 @@ internal class LeftKeyguardAirplane(private val host: Host) {
             // Not measurable this frame: the departing side stays the visible copy.
             airplane.travel?.clear()
             airplane.travel = null
-            glyph?.value = if (airplane.fallbackAtIcons && other != null) 0f else 1f
-            other?.value = if (airplane.fallbackAtIcons) 1f else 0f
+            glyph.value = if (airplane.fallbackAtIcons) 0f else 1f
+            other.value = if (airplane.fallbackAtIcons) 1f else 0f
             return
         }
         val motion = airplane.travel ?: LeftPanelMotion {

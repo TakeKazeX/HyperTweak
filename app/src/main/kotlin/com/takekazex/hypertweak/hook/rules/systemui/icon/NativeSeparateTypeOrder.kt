@@ -12,6 +12,7 @@ import java.lang.ref.WeakReference
 import java.util.IdentityHashMap
 import java.util.WeakHashMap
 import kotlin.math.abs
+import androidx.core.view.isVisible
 
 /** Positions the host labels while leaving their original binder and measured widths intact. */
 internal class NativeSeparateTypeOrder {
@@ -119,7 +120,7 @@ internal class NativeSeparateTypeOrder {
                     continue
                 }
                 row.edge = (row.root.x + if (rtl) row.content.left else row.content.right) * direction
-                row.typeWidth = if (row.text.visibility == View.VISIBLE) row.text.width else 0
+                row.typeWidth = if (row.text.isVisible) row.text.width else 0
                 totalTypeWidth += row.typeWidth
                 visible += row
             }

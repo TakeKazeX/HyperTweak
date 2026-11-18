@@ -20,6 +20,8 @@ import com.takekazex.hypertweak.util.platform.ResourceLookup
 import java.lang.reflect.Field
 import java.util.ArrayDeque
 import java.util.WeakHashMap
+import androidx.core.view.isGone
+import androidx.core.view.isVisible
 
 /**
  * The host's carrier "airplane mode" label on the control-center, notification and lockscreen
@@ -126,7 +128,7 @@ internal object AirplaneLabelHooker : IconRenderer() {
                 runCatching { AirplaneLabelText.nativeText(view.text)?.let { if (AirplaneLabelText.hasGlyph(view.text)) view.text = it } }
             }
             decorated.clear()
-            hidden.forEach { (view, visibility) -> if (view.visibility == View.GONE) view.visibility = visibility }
+            hidden.forEach { (view, visibility) -> if (view.isGone) view.visibility = visibility }
             hidden.clear()
             masked.keys.toList().forEach { runCatching { SlotMaskApplier.setAirplaneLabelMask(it, false) } }
             masked.clear()
@@ -154,7 +156,7 @@ internal object AirplaneLabelHooker : IconRenderer() {
                 if (!hidden.containsKey(text)) hidden[text] = if (hostWrote) View.VISIBLE else text.visibility
                 text.visibility = View.GONE
             } else hidden.remove(text)?.let { saved ->
-                if (!hostWrote && text.visibility == View.GONE) text.visibility = saved
+                if (!hostWrote && text.isGone) text.visibility = saved
             }
 
             val glyphMode = if (airplane && mode.drawsGlyph) mode else AirplaneLabelMode.SYSTEM
@@ -192,7 +194,7 @@ internal object AirplaneLabelHooker : IconRenderer() {
         val active = listOf(leftRowField, rightRowField).any { field ->
             val row = runCatching { field?.get(layout) }.getOrNull() as? View ?: return@any false
             val text = runCatching { carrierTextField?.get(row) }.getOrNull() as? TextView ?: return@any false
-            decorated.containsKey(text) && text.visibility == View.VISIBLE && row.visibility == View.VISIBLE
+            decorated.containsKey(text) && text.isVisible && row.isVisible
         }
         val container = statusContainer(layout) ?: return
         if (!active && !masked.containsKey(container)) return

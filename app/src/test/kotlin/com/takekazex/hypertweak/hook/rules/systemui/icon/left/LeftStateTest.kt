@@ -35,7 +35,7 @@ class LeftStateTest {
         val params = ViewGroup.LayoutParams(23, 45)
         val entry = AnchorEntry(row.anchor!!, row.leftHost, 3, params)
         row.anchorEntries.add(entry)
-        assertSame(row.anchor!!, row.anchorEntries.single().view)
+        assertSame(row.anchor, row.anchorEntries.single().view)
         assertSame(row.leftHost, row.anchorEntries.single().parent)
         assertSame(params, row.anchorEntries.single().layoutParams)
         assertEquals(3, row.anchorEntries.single().index)

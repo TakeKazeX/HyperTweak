@@ -42,7 +42,6 @@ import com.takekazex.hypertweak.hook.rules.backgesture.PredictiveBackPreferences
 import com.takekazex.hypertweak.hook.rules.backgesture.hooks.core.HookRuntimeCore;
 
 /** Shared input settings, haptics and contextual-search input policy. */
-@SuppressLint({"PrivateApi", "DiscouragedApi"})
 public abstract class SystemUiInputPolicyRuntime extends HookRuntimeCore {
     protected abstract void publishSystemUiReturnHomeFinish(
             Object controller, long shellSessionId,

@@ -1,6 +1,5 @@
 package com.takekazex.hypertweak.hook.rules.backgesture.hooks.systemui;
 
-import android.annotation.SuppressLint;
 import android.content.Context;
 import android.graphics.Point;
 import android.graphics.Rect;
@@ -38,7 +37,6 @@ import org.luckypray.dexkit.query.matchers.MethodMatcher;
 import org.luckypray.dexkit.result.MethodData;
 
 /** Owns Shell predictive animation preparation, rendering and commit receipts. */
-@SuppressLint({"PrivateApi", "DiscouragedPrivateApi"})
 public abstract class SystemUiAnimationRuntime extends SystemUiPreparedTransitionRuntime {
     protected volatile PredictiveBackWallpaper predictiveBackWallpaper;
     protected void hookFreeformCrossActivityScrimCreation() {

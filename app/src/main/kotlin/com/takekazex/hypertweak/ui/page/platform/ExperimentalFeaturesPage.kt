@@ -1,6 +1,5 @@
 package com.takekazex.hypertweak.ui.page.platform
 
-import android.annotation.SuppressLint
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
@@ -30,7 +29,6 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
  * still under development, which the header note states outright; the OS4-only entries keep the
  * same platform gates they had when they lived on the settings page.
  */
-@SuppressLint("LocalContextGetResourceValueCall")
 @Composable
 fun ExperimentalFeaturesPage(
     onBack: () -> Unit,
@@ -63,7 +61,7 @@ fun ExperimentalFeaturesPage(
         // The material style (材质风格) with its two modes only exists on OS4; OS3 SystemUI has
         // neither the bionics resources nor the material_style key.
         if (PlatformLevel.isOs4) {
-            AppSection(stringResource(R.string.experimental_features_section)) {
+            AppSection(title = stringResource(R.string.experimental_features_section)) {
                 ArrowPreference(
                     title = stringResource(R.string.settings_glass_material_tuner),
                     summary = stringResource(R.string.settings_glass_material_tuner_summary),
@@ -100,7 +98,7 @@ fun ExperimentalFeaturesPage(
         // hides behind `config_aon_*` resource gates (see VisualPerceptionSettingsHooker).
         // Shared snapshots update system-server controllers and rebuild cached Settings
         // preference trees with saved state on the next resume.
-        AppSection(stringResource(R.string.settings_unlock_visual_perception_title)) {
+        AppSection(title = stringResource(R.string.settings_unlock_visual_perception_title)) {
             SwitchPreference(
                 checked = unlockVisual,
                 onCheckedChange = {

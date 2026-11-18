@@ -3,7 +3,6 @@ package com.takekazex.hypertweak.hook.rules.milink
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import android.content.Context
-import android.preference.PreferenceManager
 import androidx.core.content.edit
 import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
@@ -60,8 +59,8 @@ object MiLinkHpplayHooker : StaticHooker() {
                     before { param ->
                         HookFailurePolicy.open(TAG, "initDirs.before", Unit) {
                             val context = param.args.getOrNull(0) as? Context ?: return@open
-                            @Suppress("DEPRECATION")
-                            PreferenceManager.getDefaultSharedPreferences(context).edit {
+                            // The host's default preferences file, as PreferenceManager names it.
+                            context.getSharedPreferences("${context.packageName}_preferences", Context.MODE_PRIVATE).edit {
                                 putBoolean(SD_CARD_PREF, false)
                             }
                         }

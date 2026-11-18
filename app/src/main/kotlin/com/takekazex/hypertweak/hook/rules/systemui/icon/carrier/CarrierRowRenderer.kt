@@ -24,6 +24,7 @@ import java.lang.ref.WeakReference
 import java.util.WeakHashMap
 import kotlin.math.roundToInt
 import com.takekazex.hypertweak.util.platform.ResourceLookup
+import androidx.core.view.isVisible
 
 /** Immutable inputs for one carrier render pass. */
 internal data class CarrierRenderInput(
@@ -69,7 +70,7 @@ internal class CarrierRowRenderer {
         parts.airplaneText.visibility = if (model?.airplane == true && input.airplaneLabel != AirplaneLabelMode.HIDE)
             View.VISIBLE else View.GONE
         AirplaneLabelText.apply(parts.airplaneText, parts.airplaneLabel, input.airplaneLabel, input.mirrorAirplane)
-        if (parts.airplaneText.visibility == View.VISIBLE && AirplaneLabelText.hasGlyph(parts.airplaneText.text)) {
+        if (parts.airplaneText.isVisible && AirplaneLabelText.hasGlyph(parts.airplaneText.text)) {
             AirplaneGlyphTargets.register(parts.airplaneText, AirplaneGlyphTargets.Surface.CONTROL_CENTER,
                 AirplaneGlyphTargets.Owner.COMPACT_CARRIER)
         } else AirplaneGlyphTargets.unregister(parts.airplaneText, AirplaneGlyphTargets.Owner.COMPACT_CARRIER)

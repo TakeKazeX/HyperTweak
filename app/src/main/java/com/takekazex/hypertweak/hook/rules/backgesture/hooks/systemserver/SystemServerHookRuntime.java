@@ -2,7 +2,6 @@ package com.takekazex.hypertweak.hook.rules.backgesture.hooks.systemserver;
 
 import android.os.Handler;
 
-import android.annotation.SuppressLint;
 import android.app.ActivityThread;
 import android.content.Context;
 import android.content.SharedPreferences;
@@ -38,7 +37,6 @@ import com.takekazex.hypertweak.hook.rules.backgesture.PredictiveBackPreferences
 import com.takekazex.hypertweak.hook.rules.backgesture.hooks.systemui.NativeLauncherBridgeRuntime;
 import io.github.libxposed.api.XposedInterface;
 
-@SuppressLint({"PrivateApi", "DiscouragedPrivateApi"})
 public abstract class SystemServerHookRuntime extends NativeLauncherBridgeRuntime {
 
     protected static final int SERVER_CHANGE_INFO_BACK_TOP = 128;

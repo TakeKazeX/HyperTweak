@@ -95,6 +95,8 @@ internal object RetiredDexFiles {
         pending.forEach { generation ->
             if (generation.loader.get() != null) return@forEach
             generation.files.forEach { file ->
+                // No replacement API releases an already loaded DexFile; see the class comment.
+                @Suppress("DEPRECATION")
                 runCatching { file.close() }.onFailure { DebugLog.w(TAG, "retired dex close failed", it) }
             }
             generation.files = generation.files.filter(::isOpen)

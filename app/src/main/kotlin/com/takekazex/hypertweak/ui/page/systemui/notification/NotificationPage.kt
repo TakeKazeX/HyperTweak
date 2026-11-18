@@ -35,7 +35,7 @@ fun NotificationPage(
     var iconFilterMode by rememberStoredSetting(SystemUiSettingsKeys.KEY_NOTIFICATION_ICON_FILTER_MODE, settingsStore::putInt) { com.takekazex.hypertweak.settings.contract.NotificationIconPolicy.normalize(settingsStore.getInt(SystemUiSettingsKeys.KEY_NOTIFICATION_ICON_FILTER_MODE, 0)) }
     NotificationMenuLayout(stringResource(R.string.settings_system_ui_section_notifications), onBack) {
         MissingScopeCard("com.xiaomi.barrage")
-        AppSection(stringResource(R.string.settings_system_ui_section_notifications)) {
+        AppSection(title = stringResource(R.string.settings_system_ui_section_notifications)) {
             SwitchPreference(
                 checked = notifMoreSettings,
                 onCheckedChange = { value ->
@@ -82,7 +82,7 @@ fun NotificationPage(
 
         NotificationBannerBatchSection()
 
-        AppSection(stringResource(R.string.home_scope_barrage)) {
+        AppSection(title = stringResource(R.string.home_scope_barrage)) {
             SwitchPreference(
                 checked = barrageAnyApp,
                 onCheckedChange = { enabled ->
@@ -94,7 +94,7 @@ fun NotificationPage(
         }
 
         if (PlatformLevel.isOs4) {
-            AppSection(stringResource(R.string.settings_system_ui_section_notification_shade)) {
+            AppSection(title = stringResource(R.string.settings_system_ui_section_notification_shade)) {
                 SwitchPreference(
                     checked = appSettings.notificationHeaderClockSeconds,
                     onCheckedChange = { appSettings.notificationHeaderClockSeconds = it },
@@ -137,7 +137,7 @@ fun MediaCardPage(
     val appSettings = LocalAppSettings.current
     NotificationMenuLayout(stringResource(R.string.settings_system_ui_section_media), onBack) {
         if (PlatformLevel.isOs4) {
-            AppSection(stringResource(R.string.settings_system_ui_section_media)) {
+            AppSection(title = stringResource(R.string.settings_system_ui_section_media)) {
                 // Media cards: remove the source app icon overlaid on the cover corner, in
                 // both the notification shade and the island. The render chains are OS4.
                 SwitchPreference(

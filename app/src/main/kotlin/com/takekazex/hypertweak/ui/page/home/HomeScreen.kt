@@ -153,7 +153,7 @@ fun HomeScreenContent(
             }
         }
 
-        AppSection(stringResource(R.string.home_diagnostics_title)) {
+        AppSection(title = stringResource(R.string.home_diagnostics_title)) {
             BasicComponent(
                 title = stringResource(R.string.home_build_version_title),
                 summary = "v${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})"
@@ -175,7 +175,7 @@ fun HomeScreenContent(
         }
 
         // Quick Actions
-        AppSection(stringResource(R.string.home_quick_actions)) {
+        AppSection(title = stringResource(R.string.home_quick_actions)) {
             ArrowPreference(
                 title = stringResource(R.string.device_info_title),
                 summary = stringResource(R.string.device_info_menu_summary),

@@ -15,6 +15,7 @@ import android.view.animation.PathInterpolator
 import android.widget.TextView
 import com.takekazex.hypertweak.settings.contract.IconTunerContract
 import com.takekazex.hypertweak.util.logging.DebugLog
+import androidx.core.view.isVisible
 
 /** Which sibling of the host's `keyguard_left_frame` is drawn; pure so the rules stay testable. */
 internal object LeftCarrierSwapPolicy {
@@ -156,7 +157,7 @@ internal class LeftKeyguardCarrierSwap(private val host: Host) {
         introPhase = LeftCarrierSwapPolicy.settle(introPhase, state.presentation.visible)
         val intro = LeftCarrierSwapPolicy.introActive(host.mode, introPhase, SystemClock.uptimeMillis(), introUntil)
         // A carrier whose labels are all hidden or blank shows nothing; do not wait on it.
-        val carrierShown = carrier.visibility == View.VISIBLE && hasVisibleText(carrier)
+        val carrierShown = carrier.isVisible && hasVisibleText(carrier)
         val iconsShown = state.leftContainer != null && host.iconsShown(state)
         val target = LeftCarrierSwapPolicy.resolve(carrierShown, iconsShown, intro, manualIcons)
         crossfade(state, swap, carrier, target, carrierShown, iconsShown, intro, animate)
@@ -173,7 +174,7 @@ internal class LeftKeyguardCarrierSwap(private val host: Host) {
             return
         }
         ensureReceiver(carrier.context)
-        val carrierShown = carrier.visibility == View.VISIBLE && hasVisibleText(carrier)
+        val carrierShown = carrier.isVisible && hasVisibleText(carrier)
         val iconsShown = state.leftContainer != null && host.iconsShown(state)
         val target = state.carrierSwap?.target ?: LeftCarrierSwapPolicy.resolve(carrierShown, iconsShown, false)
         val intro = airplaneIntro.active(carrier.isShown)

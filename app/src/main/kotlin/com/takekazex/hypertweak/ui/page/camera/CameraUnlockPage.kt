@@ -85,7 +85,7 @@ fun CameraUnlockContent(
     Column(modifier = modifier) {
         Spacer(Modifier.height(topPadding + 8.dp))
 
-        AppSection(stringResource(R.string.camera_unlock_features)) {
+        AppSection(title = stringResource(R.string.camera_unlock_features)) {
             SwitchPreference(
                 checked = ignoreDeviceMismatch,
                 onCheckedChange = { enabled ->
@@ -266,7 +266,7 @@ fun CameraUnlockContent(
             }
         }
         Spacer(Modifier.height(12.dp))
-        AppSection(stringResource(R.string.camera_unlock_notes)) {
+        AppSection(title = stringResource(R.string.camera_unlock_notes)) {
             Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
                 Text(
                     text = stringResource(R.string.camera_unlock_note_scope),

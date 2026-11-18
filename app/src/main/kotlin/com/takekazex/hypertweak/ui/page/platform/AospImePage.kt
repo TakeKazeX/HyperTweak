@@ -1,6 +1,5 @@
 package com.takekazex.hypertweak.ui.page.platform
 
-import android.annotation.SuppressLint
 import android.content.ComponentName
 import android.content.Context
 import android.provider.Settings
@@ -21,6 +20,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import com.takekazex.hypertweak.R
@@ -127,12 +127,12 @@ private fun loadInstalledImes(context: Context, saved: Set<String>): List<Instal
  * The selection is applied on demand rather than per toggle, because applying it requests Xposed
  * scope for the newly selected packages and that prompts the user.
  */
-@SuppressLint("LocalContextGetResourceValueCall")
 @Composable
 fun AospImePage(onBack: () -> Unit) {
     val services = LocalAppServices.current
     val settingsStore = LocalAppSettingsStore.current
     val context = LocalContext.current
+    val resources = LocalResources.current
     val coroutineScope = rememberCoroutineScope()
 
     var enabled by rememberSaveable { mutableStateOf(settingsStore.getBoolean(PlatformSettingsKeys.KEY_AOSP_IME_ENABLED, false)) }
@@ -181,34 +181,34 @@ fun AospImePage(onBack: () -> Unit) {
                             coroutineScope = coroutineScope,
                             packages = result.added
                         )
-                        Toast.makeText(context, context.getString(R.string.ime_applied_restarted),
+                        Toast.makeText(context, resources.getString(R.string.ime_applied_restarted),
                             Toast.LENGTH_SHORT).show()
                     } else {
-                        Toast.makeText(context, context.getString(R.string.ime_applied), Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, resources.getString(R.string.ime_applied), Toast.LENGTH_SHORT).show()
                     }
                 }
                 ScopeManager.Result.NoChange -> {
                     settingsStore.putStringSet(PlatformSettingsKeys.KEY_AOSP_IME_PACKAGES, requested)
                     applied = requested
                     missingScope = emptySet()
-                    Toast.makeText(context, context.getString(R.string.ime_applied), Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, resources.getString(R.string.ime_applied), Toast.LENGTH_SHORT).show()
                 }
                 is ScopeManager.Result.Rejected -> {
                     missingScope = result.missing
                     Toast.makeText(
                         context,
-                        context.getString(R.string.ime_scope_not_granted, result.missing.joinToString()),
+                        resources.getString(R.string.ime_scope_not_granted, result.missing.joinToString()),
                         Toast.LENGTH_LONG
                     ).show()
                 }
                 is ScopeManager.Result.Failed -> Toast.makeText(
                     context,
-                    context.getString(R.string.ime_scope_update_failed, result.message),
+                    resources.getString(R.string.ime_scope_update_failed, result.message),
                     Toast.LENGTH_LONG
                 ).show()
                 ScopeManager.Result.ServiceUnavailable -> Toast.makeText(
                     context,
-                    context.getString(R.string.ime_service_unavailable),
+                    resources.getString(R.string.ime_service_unavailable),
                     Toast.LENGTH_SHORT
                 ).show()
             }
@@ -245,7 +245,7 @@ fun AospImePage(onBack: () -> Unit) {
         backContentDescription = stringResource(R.string.ime_back),
     ) {
 
-        AppSection(stringResource(R.string.ime_section_behavior)) {
+        AppSection(title = stringResource(R.string.ime_section_behavior)) {
             SwitchPreference(
                 checked = enabled,
                 onCheckedChange = {
@@ -301,7 +301,7 @@ fun AospImePage(onBack: () -> Unit) {
             )
         }
 
-        AppSection(stringResource(R.string.ime_section_keyboards)) {
+        AppSection(title = stringResource(R.string.ime_section_keyboards)) {
             when {
                 loading -> BasicComponent(
                     title = stringResource(R.string.ime_loading),
@@ -348,7 +348,7 @@ fun AospImePage(onBack: () -> Unit) {
             }
         }
 
-        AppSection(stringResource(R.string.ime_section_scope)) {
+        AppSection(title = stringResource(R.string.ime_section_scope)) {
             BasicComponent(
                 title = stringResource(R.string.ime_applying_changes),
                 summary = stringResource(R.string.ime_applying_changes_summary)
@@ -392,7 +392,7 @@ fun AospImePage(onBack: () -> Unit) {
             )
         }
 
-        AppSection(stringResource(R.string.ime_section_other)) {
+        AppSection(title = stringResource(R.string.ime_section_other)) {
             SwitchPreference(
                 checked = miuiImeList,
                 onCheckedChange = {

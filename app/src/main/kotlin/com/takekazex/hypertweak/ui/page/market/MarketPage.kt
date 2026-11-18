@@ -38,7 +38,7 @@ internal fun MarketPage(onBack: () -> Unit) {
         LaunchedEffect(lifecycle, debugRevision) {
             if (lifecycle == Lifecycle.State.RESUMED) values = Keys.keys.associateWith { store.getBoolean(it, false) }
         }
-        AppSection(stringResource(R.string.market_options)) {
+        AppSection(title = stringResource(R.string.market_options)) {
             Column {
                 SwitchPreference(checked = values[Keys.KEY_MARKET_SPLASH] == true,
                     onCheckedChange = { store.putBoolean(Keys.KEY_MARKET_SPLASH, it); values = values + (Keys.KEY_MARKET_SPLASH to it) },
@@ -69,7 +69,7 @@ internal fun MarketPage(onBack: () -> Unit) {
                     title = stringResource(R.string.market_marketing_icon), summary = stringResource(R.string.market_marketing_icon_summary))
             }
         }
-        AppSection(stringResource(R.string.market_tabs)) {
+        AppSection(title = stringResource(R.string.market_tabs)) {
             Column {
                 tabSwitches.forEach { (key, title, summary) ->
                     SwitchPreference(

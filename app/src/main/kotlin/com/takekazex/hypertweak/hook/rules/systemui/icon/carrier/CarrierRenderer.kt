@@ -1,8 +1,5 @@
-@file:Suppress("StaticFieldLeak")
-
 package com.takekazex.hypertweak.hook.rules.systemui.icon.carrier
 
-import android.annotation.SuppressLint
 import android.content.Context
 import android.content.res.Resources
 import android.os.Handler
@@ -60,7 +57,6 @@ import org.luckypray.dexkit.query.enums.StringMatchType
  * Compact control-center rows. Settings custom carrier names precede SIM subscription names,
  * with native text as the final fallback. The shared mobile reducer owns connectivity and masks.
  */
-@SuppressLint("StaticFieldLeak")
 internal object CarrierRenderer : IconRenderer() {
     override val hostCallbackOrder = 40
     // Published on settings acceptance; hook callbacks perform no storage reads.

@@ -1,6 +1,5 @@
 package com.takekazex.hypertweak.ui.page.diagnostics
 
-import android.annotation.SuppressLint
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -29,6 +28,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
@@ -96,7 +96,6 @@ private fun logLevelFromPriority(priority: Int): LogLevelOption {
 
 private typealias DebugLogEntry = LogRecord
 
-@SuppressLint("LocalContextGetResourceValueCall")
 @Composable
 fun LogsPage(
     onBack: () -> Unit
@@ -104,6 +103,7 @@ fun LogsPage(
     val services = LocalAppServices.current
     val settingsStore = LocalAppSettingsStore.current
     val context = LocalContext.current
+    val resources = LocalResources.current
     // Reading (up to ~0.5MB of prefs) and parsing (regex per line + sort) are too heavy for
     // composition on the main thread, so run them once off-thread and show a loading placeholder.
     var entries by remember { mutableStateOf<List<DebugLogEntry>>(emptyList()) }
@@ -159,14 +159,14 @@ fun LogsPage(
                 }.onFailure { DebugLog.e("LogPage", "log export failed", it) }
             }
             exportStatus = saved.fold(
-                { context.getString(R.string.logs_export_status, it) },
-                { context.getString(R.string.logs_export_failed) }
+                { resources.getString(R.string.logs_export_status, it) },
+                { resources.getString(R.string.logs_export_failed) }
             )
             saved.getOrNull()?.let { path ->
-                runCatching { shareLogFile(context, context.getString(R.string.logs_share_title), File(path)) }
+                runCatching { shareLogFile(context, resources.getString(R.string.logs_share_title), File(path)) }
                     .onFailure {
                         DebugLog.e("LogPage", "log sharing failed", it)
-                        exportStatus = context.getString(R.string.logs_share_failed)
+                        exportStatus = resources.getString(R.string.logs_share_failed)
                     }
             }
         }
@@ -224,7 +224,7 @@ fun LogsPage(
                 LogEntryCard(
                     entry = entry,
                     onCopy = {
-                        copyText(context, context.getString(R.string.logs_copy_label), formatSingleEntry(entry))
+                        copyText(context, resources.getString(R.string.logs_copy_label), formatSingleEntry(entry))
                     }
                 )
             }

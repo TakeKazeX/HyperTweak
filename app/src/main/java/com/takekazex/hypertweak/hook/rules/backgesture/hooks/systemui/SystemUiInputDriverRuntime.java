@@ -4,8 +4,8 @@ import com.takekazex.hypertweak.hook.rules.backgesture.hooks.systemui.MiuiHaptic
 import com.takekazex.hypertweak.hook.rules.backgesture.hooks.systemui.MiuiStyleBackArrowOverlay;
 
 import com.takekazex.hypertweak.hook.Preferences;
+import com.takekazex.hypertweak.hook.rules.shared.PrivilegedRunningTasks;
 
-import android.annotation.SuppressLint;
 import android.app.ActivityManager;
 import android.content.Context;
 import android.os.Build;
@@ -25,7 +25,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 /** Drives an accepted native input stream through the Shell owner session. */
-@SuppressLint({"PrivateApi", "DiscouragedApi"})
 public abstract class SystemUiInputDriverRuntime extends SystemUiInputPolicyRuntime {
     protected abstract boolean isRecentsRetryInputAllowed(Object handler);
     protected abstract void sendAuthenticatedMiuiHomeOpenBreakCommand(
@@ -1312,17 +1311,11 @@ public abstract class SystemUiInputDriverRuntime extends SystemUiInputPolicyRunt
             return true;
         }
 
-        /**
-         * Read on the input owner; both task and activity must survive the idle wait.
-         * HyperTweak: {@code getRunningTasks} is deprecated for third-party apps, but this runs in
-         * privileged SystemUI, which is the only component that can observe the live focus task.
-         * UsageStats is not an equivalent source of current RunningTaskInfo/topActivity.
-         */
-        @SuppressWarnings("deprecation")
+        /** Read on the input owner; both task and activity must survive the idle wait. */
         protected android.app.ActivityManager.RunningTaskInfo focusedAppTask() {
             try {
                 android.app.ActivityManager manager = context.getSystemService(android.app.ActivityManager.class);
-                List<android.app.ActivityManager.RunningTaskInfo> tasks = manager.getRunningTasks(20);
+                List<android.app.ActivityManager.RunningTaskInfo> tasks = PrivilegedRunningTasks.query(manager, 20);
                 for (android.app.ActivityManager.RunningTaskInfo task : tasks) {
                     Object taskDisplay = readField(task, "displayId");
                     if (!(taskDisplay instanceof Number)
@@ -3076,7 +3069,7 @@ public abstract class SystemUiInputDriverRuntime extends SystemUiInputPolicyRunt
             if (!isRecentsOpenCompletionCurrentOnOwner(opening)) return null;
             ActivityManager manager = context.getSystemService(ActivityManager.class);
             List<ActivityManager.RunningTaskInfo> tasks = manager == null
-                    ? null : manager.getRunningTasks(20);
+                    ? null : PrivilegedRunningTasks.query(manager, 20);
             if (tasks == null) return null;
             for (ActivityManager.RunningTaskInfo task : tasks) {
                 if (!Integer.valueOf(displayId).equals(readField(task, "displayId"))) continue;

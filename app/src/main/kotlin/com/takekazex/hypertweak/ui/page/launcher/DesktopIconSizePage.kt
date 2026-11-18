@@ -132,7 +132,7 @@ internal fun DesktopIconSizePage(onBack: () -> Unit) {
         onBack = onBack,
         backContentDescription = stringResource(R.string.icon_back),
     ) {
-        AppSection(stringResource(R.string.desktop_icon_preview_title)) {
+        AppSection(title = stringResource(R.string.desktop_icon_preview_title)) {
             Column(Modifier.padding(16.dp)) {
                 Text(stringResource(R.string.desktop_icon_preview_note), color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
                 Spacer(Modifier.height(12.dp))
@@ -148,7 +148,7 @@ internal fun DesktopIconSizePage(onBack: () -> Unit) {
                 }
             }
         }
-        AppSection(stringResource(R.string.desktop_icon_size)) {
+        AppSection(title = stringResource(R.string.desktop_icon_size)) {
             SwitchPreference(title = stringResource(R.string.desktop_icon_override),
                 summary = stringResource(R.string.desktop_icon_override_summary), checked = enabled,
                 onCheckedChange = { enabled = it; submit(if (it) percent else -1) })
@@ -163,7 +163,7 @@ internal fun DesktopIconSizePage(onBack: () -> Unit) {
                         modifier = Modifier.semantics { contentDescription = description })
                 })
         }
-        AppSection(stringResource(R.string.desktop_grid_title)) {
+        AppSection(title = stringResource(R.string.desktop_grid_title)) {
             OverlayDropdownPreference(title = stringResource(R.string.desktop_icon_preview_columns),
                 items = (4..6).map { it.toString() }, selectedIndex = columns - 4,
                 onSelectedIndexChange = { columns = it + 4; gridDraftDirty = true })
@@ -186,7 +186,7 @@ internal fun DesktopIconSizePage(onBack: () -> Unit) {
         }
         if (PlatformLevel.isOs4) {
             LauncherIconThemePreferences()
-            AppSection(stringResource(R.string.desktop_folders_title)) {
+            AppSection(title = stringResource(R.string.desktop_folders_title)) {
                 OverlayDropdownPreference(
                     title = stringResource(R.string.settings_opened_folder_columns_title),
                     summary = stringResource(R.string.settings_opened_folder_columns_summary),

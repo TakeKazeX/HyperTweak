@@ -7,6 +7,7 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
+import java.lang.ref.WeakReference;
 import java.util.function.Consumer;
 
 import static com.takekazex.hypertweak.hook.rules.backgesture.hooks.systemui.barfollow.AppBarContentPreparation.call;
@@ -14,7 +15,9 @@ import static com.takekazex.hypertweak.hook.rules.backgesture.hooks.systemui.bar
 
 /** A16 index-1 appearance repository and light controller, using native A17 implementations. */
 final class AppBarModeBinding implements AutoCloseable {
-    private static volatile AppBarModeBinding activeAppearance;
+    // Weak: AppBarContentPreparation owns the binding until close(); this slot only names the
+    // single active owner and must never keep its View alive on its own.
+    private static volatile WeakReference<AppBarModeBinding> activeAppearance;
     static final int RAW_DISPLAY_ID = 1 << 24;
     private final ClassLoader loader;
     private final Object component;
@@ -121,8 +124,8 @@ final class AppBarModeBinding implements AutoCloseable {
         Object injectorFactory = AppBarNativeContracts.provider(component, constructor.getParameterTypes()[8]);
         light = constructor.newInstance(RAW_DISPLAY_ID, scope, dark, battery, navigation,
                 repository, dump, mainContext, injectorFactory, biometric);
-        if (activeAppearance != null) throw new IllegalStateException("App appearance owner already exists");
-        activeAppearance = this;
+        if (active() != null) throw new IllegalStateException("App appearance owner already exists");
+        activeAppearance = new WeakReference<>(this);
         lightStarted = true;
         call(light, "start");
 
@@ -200,15 +203,21 @@ final class AppBarModeBinding implements AutoCloseable {
 
     Object repository() { return repository; }
 
+    private static AppBarModeBinding active() {
+        WeakReference<AppBarModeBinding> owner = activeAppearance;
+        return owner == null ? null : owner.get();
+    }
+
     static boolean ownsLightController(Object controller) {
-        AppBarModeBinding owner = activeAppearance;
+        AppBarModeBinding owner = active();
         return owner != null && !owner.closing && owner.light == controller
                 && Looper.myLooper() == Looper.getMainLooper();
     }
 
     static void settlePendingTintBeforeUpdate(Object controller) throws ReflectiveOperationException {
-        if (!ownsLightController(controller)) return;
-        Object tint = read(activeAppearance.dark, "mTransitionsController");
+        AppBarModeBinding owner = active();
+        if (owner == null || !ownsLightController(controller)) return;
+        Object tint = read(owner.dark, "mTransitionsController");
         if (Boolean.TRUE.equals(read(tint, "mTintChangePending"))) {
             // Enabling the preference can leave a color queued by the native
             // mode. Let native code drain it before updateStatus computes and
@@ -218,7 +227,7 @@ final class AppBarModeBinding implements AutoCloseable {
     }
 
     static String nativeAppearanceDiagnostic(Object controller) throws ReflectiveOperationException {
-        AppBarModeBinding owner = activeAppearance;
+        AppBarModeBinding owner = active();
         if (owner == null || owner.closing || owner.light != controller) return null;
         requireMain();
         Object injector = read(controller, "mInjector");
@@ -307,7 +316,7 @@ final class AppBarModeBinding implements AutoCloseable {
             if (failure == null) failure = cause; else failure.addSuppressed(cause);
         }
         session.close();
-        if (activeAppearance == this) activeAppearance = null;
+        if (active() == this) activeAppearance = null;
         for (int i = bindings.size() - 1; i >= 0; i--) {
             try {
                 type("kotlinx.coroutines.DisposableHandle").getMethod("dispose").invoke(bindings.get(i));

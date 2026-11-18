@@ -8,6 +8,7 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class NotificationHeaderClockSizingTest {
+    @Suppress("DEPRECATION") // The only public Resources constructor; a host-shaped fake needs one.
     class HostResources : Resources(null, null, null) {
         private val config = Configuration().apply { orientation = Configuration.ORIENTATION_PORTRAIT }
         override fun getConfiguration() = config

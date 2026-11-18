@@ -97,7 +97,7 @@ fun AppTopBar(
     }
     Box(modifier) {
         if (blurred) {
-            Box(Modifier.matchParentSize().barBlur(backdrop!!))
+            Box(Modifier.matchParentSize().barBlur(backdrop))
         }
         TopAppBar(
             title = title,

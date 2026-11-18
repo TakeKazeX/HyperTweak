@@ -196,7 +196,7 @@ internal fun PackageManagerPage(onBack: () -> Unit) {
 
 @Composable
 private fun PackageManagerSection(@StringRes title: Int, content: @Composable () -> Unit) {
-    AppSection(stringResource(title)) { content()
+    AppSection(title = stringResource(title)) { content()
     }
 }
 

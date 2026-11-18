@@ -1,8 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="wifi_details_title">WLAN 詳情增強</string>
-    <string name="wifi_details_summary">IP 位址分行顯示與分享密碼彈窗</string>
-    <string name="wifi_details_back">返回</string>
     <string name="wifi_details_section_title">WLAN 設定</string>
     <string name="wifi_detail_ip_multiline_title">IP 位址分行顯示</string>
     <string name="wifi_detail_ip_multiline_summary">網路詳情中每個 IPv4 與 IPv6 位址獨立成行，點選可選擇複製</string>
@@ -17,7 +14,6 @@
     <string name="wifi_saved_networks_position_advanced">「進階設定」上方</string>
     <string name="wifi_saved_network_custom_actions_title">已儲存網絡快捷操作按鈕</string>
     <string name="wifi_saved_network_custom_actions_summary">將清單右側的刪除按鈕替換為圓形分享按鈕及藍色檢視密碼按鈕</string>
-    <string name="wifi_view_password_title">檢視密碼</string>
     <string name="wifi_view_password_btn">檢視密碼</string>
     <string name="wifi_view_password_copy">複製密碼</string>
     <string name="wifi_view_password_copied">密碼已複製</string>

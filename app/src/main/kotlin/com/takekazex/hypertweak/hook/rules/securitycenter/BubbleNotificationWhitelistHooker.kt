@@ -1,5 +1,3 @@
-@file:Suppress("QueryPermissionsNeeded")
-
 package com.takekazex.hypertweak.hook.rules.securitycenter
 
 import com.takekazex.hypertweak.hook.base.HostAccess
@@ -23,6 +21,7 @@ import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.reflect.Constructor
 import java.lang.reflect.Field
 import java.lang.reflect.Method
+import com.takekazex.hypertweak.hook.rules.shared.HostInstalledApplications
 
 /**
  * Expands Security Center's bubble-app management list to installed applications and removes its
@@ -266,7 +265,7 @@ object BubbleNotificationWhitelistHooker : StaticHooker() {
         setChecked: Method
     ) {
         val existingPackages = result.keys.filterIsInstance<String>().toHashSet()
-        val packages = context.packageManager.getInstalledApplications(0)
+        val packages = HostInstalledApplications.list(context.packageManager)
             .asSequence()
             .filter(::isEligibleApplication)
             .map { it.packageName }
@@ -294,7 +293,7 @@ object BubbleNotificationWhitelistHooker : StaticHooker() {
         context: Context,
         getPackageName: Method
     ) {
-        val systemPackages = context.packageManager.getInstalledApplications(0)
+        val systemPackages = HostInstalledApplications.list(context.packageManager)
             .asSequence()
             .filter { (it.flags and ApplicationInfo.FLAG_SYSTEM) != 0 }
             .map { it.packageName }

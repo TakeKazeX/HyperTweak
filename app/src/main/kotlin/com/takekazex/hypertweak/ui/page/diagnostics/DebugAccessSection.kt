@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -30,11 +31,13 @@ internal fun DebugAccessSection() {
             delay(1000)
         }
     }
-    AppSection(stringResource(R.string.debug_root_title)) {
+    AppSection(title = stringResource(R.string.debug_root_title)) {
         Column {
             SwitchPreference(
                 title = stringResource(R.string.debug_root_enable),
-                summary = if (remaining > 0) stringResource(R.string.debug_root_remaining, (remaining / 60000 + 1).toInt())
+                summary = if (remaining > 0) (remaining / 60000 + 1).toInt().let { minutes ->
+                        pluralStringResource(R.plurals.debug_root_remaining, minutes, minutes)
+                    }
                     else stringResource(R.string.debug_root_summary),
                 checked = remaining > 0,
                 onCheckedChange = {
@@ -44,10 +47,10 @@ internal fun DebugAccessSection() {
                 }
             )
             accessError?.let { Text(it, Modifier.padding(16.dp)) }
-            Text(stringResource(R.string.debug_root_command), Modifier.padding(16.dp))
+            Text(stringResource(R.string.debug_root_command, DebugAccessSession.STATUS_COMMAND), Modifier.padding(16.dp))
         }
     }
-    AppSection(stringResource(R.string.debug_bundle_title)) {
+    AppSection(title = stringResource(R.string.debug_bundle_title)) {
         SwitchPreference(
             title = stringResource(R.string.debug_bundle_system),
             summary = stringResource(R.string.debug_bundle_privacy),

@@ -10,7 +10,6 @@ internal object PanelSourceGlyph {
         try {
             canvas.scale(width / source.width, height / source.height)
             if (alpha < 255) {
-                @Suppress("DEPRECATION")
                 canvas.saveLayerAlpha(0f, 0f, source.width.toFloat(), source.height.toFloat(), alpha)
             }
             // View alpha belongs to the parent draw pass. The motion owns its own opacity while

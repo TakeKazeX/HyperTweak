@@ -1,6 +1,5 @@
 package com.takekazex.hypertweak.ui.page.platform
 
-import android.annotation.SuppressLint
 import android.content.ComponentName
 import android.content.Intent
 import android.provider.Settings
@@ -10,6 +9,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.takekazex.hypertweak.R
@@ -35,13 +35,13 @@ import top.yukonga.miuix.kmp.icon.glass.Widget
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
-@SuppressLint("LocalContextGetResourceValueCall")
 @Composable
 fun HiddenFeaturesPage(
     onBack: () -> Unit,
     onNavigateToDeveloperSettings: () -> Unit
 ) {
     val context = LocalContext.current
+    val resources = LocalResources.current
     val scope = rememberCoroutineScope()
 
     val launchSafe = { intent: Intent, fallbacks: List<Intent> ->
@@ -60,7 +60,7 @@ fun HiddenFeaturesPage(
                 }
             }
             if (!launched) {
-                Toast.makeText(context, context.getString(R.string.hidden__unable_to_open_settings), Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, resources.getString(R.string.hidden__unable_to_open_settings), Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -71,7 +71,7 @@ fun HiddenFeaturesPage(
         backContentDescription = stringResource(R.string.hidden__back),
     ) {
 
-        AppSection(stringResource(R.string.hidden__quick_shortcuts)) {
+        AppSection(title = stringResource(R.string.hidden__quick_shortcuts)) {
             ArrowPreference(
                 title = stringResource(R.string.hidden__developer_settings),
                 summary = stringResource(R.string.hidden__developer_settings_summary),
@@ -131,7 +131,7 @@ fun HiddenFeaturesPage(
             )
         }
 
-        AppSection(stringResource(R.string.hidden__app_shortcuts)) {
+        AppSection(title = stringResource(R.string.hidden__app_shortcuts)) {
             ArrowPreference(
                 title = stringResource(R.string.hidden__lsposed_manager),
                 summary = stringResource(R.string.hidden__lsposed_manager_summary),
@@ -154,7 +154,7 @@ fun HiddenFeaturesPage(
                             }.exceptionOrNull()
                         }
                         if (failure != null) {
-                            Toast.makeText(context, context.getString(R.string.hidden__run_shell_failed, failure.message), Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, resources.getString(R.string.hidden__run_shell_failed, failure.message), Toast.LENGTH_SHORT).show()
                         }
                     }
                 }
@@ -179,7 +179,7 @@ fun HiddenFeaturesPage(
             )
         }
 
-        AppSection(stringResource(R.string.hidden__page_title)) {
+        AppSection(title = stringResource(R.string.hidden__page_title)) {
             ArrowPreference(
                 title = stringResource(R.string.hidden__extra_dim),
                 summary = stringResource(R.string.hidden__extra_dim_summary),

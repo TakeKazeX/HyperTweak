@@ -41,7 +41,6 @@ import androidx.annotation.NonNull;
  * appearance stays pixel-identical to the stock HyperOS indicator. All entry points must
  * run on the main Looper except {@link #detach()}, which reposts itself.
  */
-@SuppressLint("DiscouragedApi")
 final class MiuiStyleBackArrowOverlay {
 
     interface Logger {

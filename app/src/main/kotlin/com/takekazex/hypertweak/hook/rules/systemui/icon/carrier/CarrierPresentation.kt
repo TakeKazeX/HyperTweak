@@ -1,5 +1,3 @@
-@file:Suppress("StaticFieldLeak")
-
 package com.takekazex.hypertweak.hook.rules.systemui.icon.carrier
 
 import com.takekazex.hypertweak.hook.rules.systemui.icon.AirplaneLabelText

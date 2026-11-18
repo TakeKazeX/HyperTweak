@@ -84,7 +84,7 @@ class SystemHelperControlTest {
         val result = d.engine.query()
         assertNull(result.failure)
         assertFalse(result.state!!.installed)
-        assertFalse(result.state!!.enabled)
+        assertFalse(result.state.enabled)
     }
 
     @Test

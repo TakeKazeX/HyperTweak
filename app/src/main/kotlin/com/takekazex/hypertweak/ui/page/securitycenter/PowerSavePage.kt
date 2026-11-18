@@ -49,7 +49,7 @@ fun PowerSavePage(onBack: () -> Unit) {
     ) {
         MissingScopeCard("com.miui.securitycenter", "com.android.systemui")
 
-        AppSection(stringResource(R.string.power_save_override_section_features)) {
+        AppSection(title = stringResource(R.string.power_save_override_section_features)) {
             SwitchPreference(
                 checked = refreshRate,
                 onCheckedChange = { checked ->
@@ -104,7 +104,7 @@ fun PowerSavePage(onBack: () -> Unit) {
             )
         }
 
-        AppSection(stringResource(R.string.power_save_override_section_auto)) {
+        AppSection(title = stringResource(R.string.power_save_override_section_auto)) {
             SwitchPreference(
                 checked = autoPowerSave,
                 onCheckedChange = { checked ->

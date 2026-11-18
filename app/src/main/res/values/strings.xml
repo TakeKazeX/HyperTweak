@@ -28,10 +28,6 @@
     <string name="aosp_page_title">AOSP / International Restore</string>
     <string name="aosp_power_menu">AOSP Power Menu</string>
     <string name="aosp_power_menu_summary">Use the AOSP power menu</string>
-    <string name="aosp_restart_security_center">Restart Security Center</string>
-    <string name="aosp_restart_security_center_summary">Apply the changes made in this section</string>
-    <string name="aosp_restart_system_ui">Restart SystemUI</string>
-    <string name="aosp_restart_system_ui_summary">Apply the changes made on this page</string>
     <string name="aosp_section_input_method">Input Method</string>
     <string name="aosp_section_international">International Settings</string>
     <string name="aosp_section_security_center">Security Center</string>
@@ -59,7 +55,6 @@
     <string name="security_center_more_battery_info_summary">Show battery capacity information in battery protection</string>
     <string name="security_bubble_notification_unlock">Remove Bubble Notification App Limit</string>
     <string name="security_bubble_notification_unlock_summary">Let more apps show bubble notifications; reopen the app management list</string>
-    <string name="aosp_restart_security_center_and_system_ui">Restart Security Center and SystemUI</string>
     <string name="security_center_page_title">Security Center</string>
     <string name="security_center_privacy_entries_section">Privacy and camera entries</string>
     <string name="security_center_checks_section">Security checks and USB install</string>
@@ -92,7 +87,6 @@
     <string name="security_center_call_privacy_camera_entry_summary">Show privacy-camera settings for calls in games</string>
     <string name="security_center_clipboard_section">Clipboard</string>
     <string name="security_center_notifications_section">Bubble notifications</string>
-    <string name="security_center_apply_section">Apply changes</string>
     <string name="aosp_volume_panel">AOSP Volume Panel</string>
     <string name="aosp_volume_panel_summary">Use the AOSP volume panel</string>
     <string name="aosp_volume_haptic_miui">HyperOS Volume Haptic</string>
@@ -165,8 +159,6 @@
     <string name="charging_interval_5s">5 seconds</string>
     <string name="charging_interval_summary">How often the telemetry values update</string>
     <string name="charging_interval_title">Refresh Interval</string>
-    <string name="charging_restart_summary">Only needed after updating the module; the master switch applies immediately</string>
-    <string name="charging_restart_title">Restart SystemUI</string>
     <string name="charging_section_fields">Fields</string>
     <string name="charging_section_main">Charging Detail on Lockscreen</string>
     <string name="charging_section_layout">Layout</string>
@@ -210,8 +202,6 @@
     <string name="bottom_text_owner_info_title">Owner Information</string>
     <string name="bottom_text_persistent_unlock_summary">Persistent unlock message</string>
     <string name="bottom_text_persistent_unlock_title">Persistent Unlock Message</string>
-    <string name="bottom_text_restart_summary">Apply the bottom-text filter in SystemUI</string>
-    <string name="bottom_text_restart_title">Restart SystemUI</string>
     <string name="bottom_text_secure_lock_device_summary">Secure-lock-device prompt</string>
     <string name="bottom_text_secure_lock_device_title">Secure Lock Device</string>
     <string name="bottom_text_section_main">Filter</string>
@@ -418,7 +408,6 @@
     <string name="battery_num_single_fmt">%1$s (Single Battery)</string>
     <string name="battery_export_header">HyperTweak Battery Info</string>
     <string name="battery_export_time">Exported: %1$s</string>
-    <string name="glass_apply">Apply</string>
     <string name="glass_back">Back</string>
     <string name="glass_blend_lightness">Blend Lightness</string>
     <string name="glass_blend_lightness_summary" formatted="false">Below 100% darkens the blend; above 100% lightens it.</string>
@@ -483,8 +472,6 @@
     <string name="glass_reset">Reset Sliders to Original Values</string>
     <string name="glass_reset_summary">Return all five controls to their default values.</string>
     <string name="glass_reset_done">Sliders reset to original values.</string>
-    <string name="glass_restart_systemui">Restart SystemUI</string>
-    <string name="glass_restart_systemui_summary">Apply the changes made on this page</string>
     <string name="glass_title">Glass Material Tuner</string>
     <string name="hidden__app_shortcuts">App Shortcuts</string>
     <string name="hidden__back">Back</string>
@@ -550,18 +537,13 @@
     <string name="home_scope_launcher">System Launcher</string>
     <string name="home_scope_milink">MiLink Service</string>
     <string name="home_scope_mitrust">MiTrustService</string>
-    <string name="home_scope_missing">Missing scope</string>
     <string name="home_scope_powerkeeper">PowerKeeper</string>
-    <string name="home_scope_ignore">Ignore permanently</string>
-    <string name="home_scope_restore">Restore Scope</string>
-    <string name="home_scope_restore_summary">Request the missing scope to restore these features</string>
     <string name="home_scope_scanner">Scanner</string>
     <string name="home_scope_security">Security</string>
     <string name="home_scope_service_unavailable">The Xposed service is unavailable</string>
     <string name="home_scope_settings">Settings</string>
     <string name="home_scope_system_server">System Server</string>
     <string name="home_scope_system_ui">System UI</string>
-    <string name="home_scope_title">Scope</string>
     <string name="home_stale_target_line">- %1$s</string>
     <string name="home_stale_targets_title">Stale targets</string>
     <string name="home_status_active">Module is ACTIVE</string>
@@ -779,8 +761,6 @@
     <string name="ime_left_key">Left key</string>
     <string name="ime_list_all_keyboards">List All Keyboards in the Switcher</string>
     <string name="ime_list_all_keyboards_summary">Show every enabled input method in the keyboard switcher</string>
-    <string name="ime_force_aosp_title">Force AOSP navigation bar</string>
-    <string name="ime_force_aosp_summary">Use the AOSP bar on HyperOS-customized keyboards too</string>
     <string name="ime_raise_style_title">Keyboard Raise Style</string>
     <string name="ime_raise_style_summary">Use the AOSP raised bar or HyperOS full-screen optimization bar for every selected keyboard</string>
     <string name="ime_raise_style_aosp">AOSP style</string>
@@ -963,8 +943,6 @@
     <string name="settings_notification_badge_summary">Restore the notification badge switch</string>
     <string name="settings_notification_block_fold_title">Block Notification Folding</string>
     <string name="settings_notification_block_fold_summary">Never move notifications into the \"history\" section (the same behavior as the international build)</string>
-    <string name="settings_notification_restart_settings_title">Restart Settings</string>
-    <string name="settings_notification_restart_settings_summary">Apply the notification channel page changes now</string>
     <string name="settings_system_ui_section_multitasking">Multitasking transitions</string>
     <string name="settings_freeform_blur_title">Blur Transition</string>
     <string name="settings_freeform_blur_summary">Blur the background when switching between floating, split-screen and fullscreen windows</string>
@@ -1008,8 +986,6 @@
     <string name="notification_header_section_scope">Applies To</string>
     <string name="notification_header_scope_title">New Control Center</string>
     <string name="notification_header_scope_summary">Customize the date, time and weather at the top of the notification shade</string>
-    <string name="notification_header_restart_title">Restart System UI</string>
-    <string name="notification_header_restart_summary">Apply the pending notification header changes</string>
     <string name="notification_header_section_visibility">Visibility</string>
     <string name="notification_header_hide_carrier">Hide carrier label</string>
     <string name="notification_header_hide_carrier_summary">Hide only the carrier block in the notification center</string>
@@ -1093,7 +1069,6 @@
     <string name="tweaks_milink_title">MiLink Service</string>
     <string name="tweaks_block_milink_hpplay_files_title">Block LeBo Cast Files</string>
     <string name="tweaks_block_milink_hpplay_files_summary">Stop the cast service from creating external storage folders</string>
-    <string name="tweaks_theme_manager_title">Themes</string>
     <string name="tweaks_allow_third_party_theme_title">Allow third-party themes</string>
     <string name="tweaks_allow_third_party_theme_summary">Apply imported themes without automatic reversion</string>
     <string name="download_manager_title">Download Manager</string>
@@ -1124,7 +1099,6 @@
     <string name="tweaks_aicr_default_browser_title">Use the default browser for Copy Direct</string>
     <string name="tweaks_aicr_default_browser_summary">Open Copy Direct web links in the default browser</string>
     <string name="tweaks_personal_assistant_title">Smart Assistant</string>
-    <string name="tweaks_display_title">Display</string>
     <string name="tweaks_phone_title">Phone</string>
     <string name="tweaks_focus_notification_title">Super Island</string>
     <string name="tweaks_security_center_title">Security Center</string>
@@ -1171,7 +1145,6 @@
     <string name="tweaks_hide_gesture_bar_launcher_summary">Hide the gesture bar on the launcher Home screen and restore it in apps</string>
     <string name="tweaks_gesture_bar_attach_transition_title">Gesture Bar Follows Swipe-up</string>
     <string name="tweaks_gesture_bar_attach_transition_summary">Move the gesture bar with the finger during the swipe-up to recents animation</string>
-    <string name="tweaks_slider_show_percentage_summary">Show percentages on the brightness and volume sliders</string>
     <string name="tweaks_slider_show_percentage_title">Slider Show Percentage Value</string>
     <string name="tweaks_cc_corner_enabled_summary">Customize the corner radius of control-center elements</string>
     <string name="tweaks_cc_corner_enabled_title">Custom Corner Radius</string>
@@ -1250,8 +1223,6 @@
     <string name="tweaks_system_core_title">Google-related services</string>
     <string name="tweaks_system_core_summary">GMS, Circle to Search, passkey and Google push</string>
     <string name="tweaks_camera_watermark_summary">Hidden camera modes and media-editor watermark categories</string>
-    <string name="tweaks_unify_percentage_style_summary">Always keep the volume slider percentage visible</string>
-    <string name="tweaks_unify_percentage_style_title">Unify Percentage Style</string>
     <string name="tweaks_xmsf_unlock_focus_auth_summary">Allow more apps to use Super Island</string>
     <string name="tweaks_xmsf_unlock_focus_auth_title">Unlock Super Island Whitelist Signature Verification</string>
     <string name="watermark_advanced">Advanced</string>
@@ -1361,8 +1332,6 @@
     <string name="power_save_auto_threshold_suffix">%</string>
     <string name="power_save_exit_charging_title">Turn off power save on charging connection</string>
     <string name="power_save_exit_charging_summary">Turn off when plugged in and switch by battery level when unplugged; manual control remains available</string>
-    <string name="power_save_override_section_apply">Apply</string>
-    <string name="power_save_override_restart_title">Restart affected apps</string>
     <string name="settings_launcher_section">System Launcher</string>
     <string name="settings_launcher_summary">Launcher layout and back gestures</string>
     <string name="settings_recents_clear_button_title">Hide recent-apps cleanup button</string>
@@ -1694,8 +1663,8 @@
     <string name="notification_batch_confirm_title">Confirm floating notification permissions</string>
     <string name="notification_batch_confirm">Enable floating notifications for these apps and channels without changing importance. You can adjust each item later in system settings; resetting the module will not undo this batch. Apply?</string>
     <string name="notification_batch_apply">Apply</string>
-    <string name="notification_batch_preview">Found %1$d apps and %2$d eligible channels; %3$d skipped, %4$d failed</string>
-    <string name="notification_batch_result">Finished: %1$d apps and %2$d channels; %3$d skipped, %4$d failed</string>
+    <string name="notification_batch_preview">Scan result · apps: %1$d · eligible channels: %2$d · skipped: %3$d · failed: %4$d</string>
+    <string name="notification_batch_result">Finished · apps: %1$d · channels: %2$d · skipped: %3$d · failed: %4$d</string>
     <string name="notification_batch_error">Some settings may already have changed. Check root access and system compatibility, then scan again.</string>
     <string name="notification_icon_hyperos">HyperOS (hide Default and below)</string>
     <string name="notification_icon_aosp">AOSP (hide Low and below)</string>
@@ -1808,8 +1777,11 @@
     <string name="debug_root_title">Root settings interface</string>
     <string name="debug_root_enable">Allow root settings debugging</string>
     <string name="debug_root_summary">Off by default. Authorizes UID 0 for 30 minutes. Expires after reboot or app update. Ordinary shell and apps are denied.</string>
-    <string name="debug_root_remaining">Authorized · about %1$d minutes remaining</string>
-    <string name="debug_root_command">ADB: su -c content call --uri content://com.takekazex.hypertweak.debug --method status. See docs/DEBUG_DIAGNOSTICS.md for JSON commands.</string>
+    <plurals name="debug_root_remaining">
+        <item quantity="one">Authorized · about %1$d minute remaining</item>
+        <item quantity="other">Authorized · about %1$d minutes remaining</item>
+    </plurals>
+    <string name="debug_root_command">ADB: %1$s. See docs/DEBUG_DIAGNOSTICS.md for JSON commands.</string>
     <string name="debug_bundle_title">Diagnostic bundle</string>
     <string name="debug_bundle_system">Include system crash evidence (root)</string>
     <string name="debug_bundle_privacy">Adds system/LSPosed logs, DropBox, ANRs, tombstones and kernel evidence. May contain private data and other modules’ logs.</string>
@@ -1819,35 +1791,27 @@
     <string name="debug_bundle_cancel">Cancel collection</string>
     <string name="debug_bundle_ready">Bundle ready · %1$d KiB</string>
     <string name="debug_bundle_share">Share diagnostic bundle</string>
-    <string name="debug_bundle_sources">Module sources: %1$d collected, %2$d unavailable. Detailed system-source status is inside the archive.</string>
+    <string name="debug_bundle_sources">Module sources · collected: %1$d · unavailable: %2$d. Detailed system-source status is inside the archive.</string>
     <string name="desktop_icon_title">Desktop icons and layout</string>
     <string name="desktop_icon_entry_summary">Icon size saves automatically; grid changes require confirmation</string>
     <string name="desktop_icon_preview_title">Local preview</string>
     <string name="desktop_icon_preview_note">Approximate preview. Select rows and columns, then confirm to apply the desktop layout.</string>
-    <string name="desktop_icon_preview_description">%1$d columns, %2$d rows, preview icon size %3$d percent</string>
+    <string name="desktop_icon_preview_description">Grid %1$d × %2$d, preview icon size %3$d%%</string>
     <string name="desktop_icon_loading">Loading sample app icons…</string>
     <string name="desktop_icon_sample_app">App</string>
     <string name="desktop_icon_size">Icon size</string>
     <string name="desktop_icon_preview_percent">Preview size · %1$d%%</string>
-    <string name="desktop_icon_size_summary">50–150% of the original desktop size. Larger icons may overlap labels or nearby icons. Tap to enter a value.</string>
+    <string name="desktop_icon_size_summary" formatted="false">50–150% of the original desktop size. Larger icons may overlap labels or nearby icons. Tap to enter a value.</string>
     <string name="desktop_icon_preview_columns">Desktop columns</string>
     <string name="desktop_icon_preview_rows">Desktop rows</string>
     <string name="desktop_icon_override">Custom icon size</string>
     <string name="desktop_icon_override_summary">Adjustments are saved continuously. Turning this off restores the original desktop size.</string>
-    <string name="desktop_icon_saving">Saving…</string>
     <string name="desktop_icon_save_failed">Save failed. Your draft is retained; check the module connection and retry.</string>
-    <string name="desktop_icon_saved">Configuration saved. Desktop icon sizes follow the latest setting, within available cell space.</string>
-    <string name="desktop_icon_discard_title">Discard unsaved changes?</string>
-    <string name="desktop_icon_discard_summary">Changes have not been sent to the desktop.</string>
     <string name="desktop_folders_title">Folders</string>
     <string name="desktop_grid_title">Desktop grid</string>
     <string name="desktop_grid_confirm">Confirm changes</string>
     <string name="desktop_grid_cancel">Cancel changes</string>
-    <string name="desktop_grid_applied">Desktop layout applied and host persistence confirmed.</string>
-    <string name="desktop_grid_pending">Waiting for the launcher. Return to the desktop, then check the result.</string>
     <string name="desktop_grid_failed">Could not apply the grid. Confirm your selection to retry.</string>
-    <string name="desktop_grid_unavailable">No desktop status received. Check module scope and native payload activation.</string>
-    <string name="desktop_grid_dirty">Selection has not been submitted. Confirm to apply.</string>
     <string name="desktop_icon_theme_title">图标配色</string>
     <string name="desktop_icon_theme_mode">单色图标</string>
     <string name="desktop_icon_theme_summary">使用桌面原生单色渲染。壁纸模式取系统浅色调色板作为背景，前景沿用桌面，并非完整 Monet 双层配色。跟随桌面会还原先前设置。</string>
@@ -1981,9 +1945,6 @@
     <string name="smartdns_summary_smartdns">Actual: %1$s · cloud: %2$s</string>
     <string name="smartdns_summary_ipv4">Actual: %1$s · field: %2$s</string>
     <string name="smartdns_summary_happy">Actual: %1$s · cloud: %2$s</string>
-    <string name="wifi_details_title">Wi-Fi details enhancement</string>
-    <string name="wifi_details_summary">Multi-line IP addresses and password sharing sheet</string>
-    <string name="wifi_details_back">Back</string>
     <string name="wifi_details_section_title">Wi-Fi details</string>
     <string name="wifi_detail_ip_multiline_title">Multi-line IP address</string>
     <string name="wifi_detail_ip_multiline_summary">Display each IPv4 and IPv6 address on a separate line in network details, and tap to copy</string>
@@ -1998,7 +1959,6 @@
     <string name="wifi_saved_networks_position_advanced">Above \"Advanced settings\"</string>
     <string name="wifi_saved_network_custom_actions_title">Saved network quick action buttons</string>
     <string name="wifi_saved_network_custom_actions_summary">Replace the delete button on the right with a circular share button and a blue view password button</string>
-    <string name="wifi_view_password_title">View password</string>
     <string name="wifi_view_password_btn">View password</string>
     <string name="wifi_view_password_copy">Copy password</string>
     <string name="wifi_view_password_copied">Password copied</string>

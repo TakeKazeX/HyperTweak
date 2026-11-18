@@ -1,6 +1,5 @@
 package com.takekazex.hypertweak.ui.page.app
 
-import android.annotation.SuppressLint
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -19,6 +18,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.takekazex.hypertweak.R
@@ -39,7 +39,6 @@ import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 
-@SuppressLint("LocalContextResourcesRead")
 @Composable
 fun BackupRestorePage(
     onBack: () -> Unit,
@@ -48,6 +47,7 @@ fun BackupRestorePage(
 ) {
     val settingsStore = LocalAppSettingsStore.current
     val context = LocalContext.current
+    val resources = LocalResources.current
     val resolver = context.contentResolver
     val scope = rememberCoroutineScope()
     var busy by remember { mutableStateOf(false) }
@@ -105,7 +105,7 @@ fun BackupRestorePage(
             result.onSuccess { restoredCount ->
                 Toast.makeText(
                     context,
-                    context.resources.getQuantityString(
+                    resources.getQuantityString(
                         R.plurals.settings_restore_success,
                         restoredCount,
                         restoredCount
@@ -129,7 +129,7 @@ fun BackupRestorePage(
         onBack = onBack,
         backContentDescription = stringResource(R.string.debug_back),
     ) {
-        AppSection(stringResource(R.string.settings_backup_restore_title)) {
+        AppSection(title = stringResource(R.string.settings_backup_restore_title)) {
             ArrowPreference(
                 title = stringResource(R.string.settings_backup),
                 summary = stringResource(R.string.settings_backup_summary),
@@ -150,7 +150,7 @@ fun BackupRestorePage(
             )
         }
 
-        AppSection(stringResource(R.string.settings_danger_zone)) {
+        AppSection(title = stringResource(R.string.settings_danger_zone)) {
             ArrowPreference(
                 title = stringResource(R.string.settings_clear_all_settings),
                 summary = stringResource(R.string.settings_clear_all_settings_summary),

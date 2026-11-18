@@ -11,6 +11,7 @@ import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.reflect.Field
 import java.lang.reflect.Method
 import java.util.WeakHashMap
+import androidx.core.view.isVisible
 
 /**
  * 图标左置 — shows selected status-bar slots (勿扰 zen, 静音/振动 volume+mute, 热点 hotspot,
@@ -74,7 +75,7 @@ internal class LeftIconCloner(owner: BaseHooker) : HookComponent(owner) {
     private var themeChangedMethod: Method? = null
     fun isAnimating(view: View): Boolean = cloneFades[view]?.animator != null
     /** The settled visibility a clone is fading towards, not its current frame. */
-    fun shows(view: View): Boolean = cloneFades[view]?.visible ?: (view.visibility == View.VISIBLE)
+    fun shows(view: View): Boolean = cloneFades[view]?.visible ?: (view.isVisible)
     fun cancel(view: View) { cloneFades[view]?.animator?.cancel() }
     fun forget(view: View) { cloneFades.remove(view)?.animator?.cancel() }
     fun reset() {

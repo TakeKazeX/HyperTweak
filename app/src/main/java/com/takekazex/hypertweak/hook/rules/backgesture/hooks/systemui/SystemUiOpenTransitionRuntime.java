@@ -25,7 +25,6 @@ import org.luckypray.dexkit.query.matchers.MethodMatcher;
 import org.luckypray.dexkit.result.MethodData;
 
 /** Tracks native open transitions and guards duplicate back delivery. */
-@SuppressLint({"PrivateApi", "DiscouragedPrivateApi"})
 public abstract class SystemUiOpenTransitionRuntime extends SystemUiInputRuntime {
     protected volatile SystemUiPlatformImpl systemUiPlatformImpl;
     protected SystemUiPlatformImpl requireSystemUiPlatformImpl() {

@@ -1,5 +1,3 @@
-@file:Suppress("UseKtx", "ApplySharedPref")
-
 package com.takekazex.hypertweak.hook.preferences
 
 import com.takekazex.hypertweak.settings.contract.LauncherDesktopKeys
@@ -16,6 +14,7 @@ import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 import com.takekazex.hypertweak.util.logging.SettingsDiagnostics
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.TimeUnit
+import com.takekazex.hypertweak.util.storage.commitEdit
 
 /** Owns serialized write transactions; reads and compatibility projections stay outside. */
 internal class SettingsMutationWriter(private val storage: Storage) {
@@ -90,34 +89,35 @@ internal class SettingsMutationWriter(private val storage: Storage) {
             authorize()
             check(!isLocalOnly && backend === remotePrefs) { "BACKEND_CHANGED" }
             try {
-                val editor = backend.edit()
-                remove.forEach(editor::remove)
-                changes.forEach { (key, value) -> editor.putPreferenceValue(key, value) }
-                next[PlatformSettingsKeys.KEY_NATIVE_RULE_REVISION]?.let {
-                    editor.putPreferenceValue(PlatformSettingsKeys.KEY_NATIVE_RULE_REVISION, it)
-                }
-                RuntimeSettingsSignal.write(editor, runtime)
-                check(editor.commit()) { "COMMIT_REJECTED" }
+                check(backend.commitEdit {
+                    remove.forEach { this.remove(it) }
+                    changes.forEach { (key, value) -> putPreferenceValue(key, value) }
+                    next[PlatformSettingsKeys.KEY_NATIVE_RULE_REVISION]?.let {
+                        putPreferenceValue(PlatformSettingsKeys.KEY_NATIVE_RULE_REVISION, it)
+                    }
+                    RuntimeSettingsSignal.write(this, runtime)
+                }) { "COMMIT_REJECTED" }
             } catch (error: Exception) {
                 // RemotePreferences may expose a rejected editor's shadow values.
                 runCatching {
-                    val rollback = backend.edit().clear()
-                    old.forEach { (key, value) -> if (value != null) rollback.putPreferenceValue(key, value) }
-                    RuntimeSettingsSignal.write(rollback, before, complete = true)
-                    check(rollback.commit()) { "ROLLBACK_REJECTED" }
+                    check(backend.commitEdit {
+                        clear()
+                        old.forEach { (key, value) -> if (value != null) putPreferenceValue(key, value) }
+                        RuntimeSettingsSignal.write(this, before, complete = true)
+                    }) { "ROLLBACK_REJECTED" }
                 }.onFailure { SettingsDiagnostics.e("DebugSettings", "rollback failed", it) }
                 throw error
             }
             RuntimeSettingsSignal.acknowledge(runtime)
             val mirrored = runCatching {
                 localSourcePrefs?.takeIf { it !== remotePrefs }?.let { local ->
-                    val editor = local.edit()
-                    remove.forEach(editor::remove)
-                    changes.forEach { (key, value) -> editor.putPreferenceValue(key, value) }
-                    next[PlatformSettingsKeys.KEY_NATIVE_RULE_REVISION]?.let {
-                        editor.putPreferenceValue(PlatformSettingsKeys.KEY_NATIVE_RULE_REVISION, it)
-                    }
-                    check(editor.commit()) { "LOCAL_MIRROR_REJECTED" }
+                    check(local.commitEdit {
+                        remove.forEach { this.remove(it) }
+                        changes.forEach { (key, value) -> putPreferenceValue(key, value) }
+                        next[PlatformSettingsKeys.KEY_NATIVE_RULE_REVISION]?.let {
+                            putPreferenceValue(PlatformSettingsKeys.KEY_NATIVE_RULE_REVISION, it)
+                        }
+                    }) { "LOCAL_MIRROR_REJECTED" }
                 }
                 true
             }.onFailure { SettingsDiagnostics.e("DebugSettings", "local mirror failed after remote commit", it) }.getOrDefault(false)
@@ -130,7 +130,7 @@ internal class SettingsMutationWriter(private val storage: Storage) {
         synchronized(settingsMutationLock) {
             if (localKey != null && AppLogStore.isRuntimeKey(localKey)) {
                 val local = appLocalStore() ?: return
-                runCatching { check(local.edit().apply(block).commit()) { "Local runtime-state commit rejected" } }
+                runCatching { check(local.commitEdit(block)) { "Local runtime-state commit rejected" } }
                     .onFailure { SettingsDiagnostics.e("Preferences", "local runtime-state write failed", it) }
                 return
             }
@@ -162,14 +162,14 @@ internal class SettingsMutationWriter(private val storage: Storage) {
                     val changes = runtimeMutation?.let { mapOf(it) }.orEmpty() + runtimeChanges + snapshot?.settingsValues().orEmpty()
                     val runtime = if (changes.isNotEmpty()) RuntimeSettingsSignal.prepare(changes)
                         else RuntimeSettingsSignal.lastAcknowledged()
-                    val editor = remotePrefs.edit()
-                    block(editor)
-                    if (runtime != null) RuntimeSettingsSignal.write(editor, runtime)
                     // The native subset travels inside the acknowledged snapshot above
                     // (NativeRuleStateSnapshot.settingsValues is merged into `changes`), so the
                     // delta plan already repairs a rejected editor's shadow values. Rewriting the
                     // subset here as well only inflated every callback by the full native payload.
-                    val committed = editor.commit()
+                    val committed = remotePrefs.commitEdit {
+                        block()
+                        if (runtime != null) RuntimeSettingsSignal.write(this, runtime)
+                    }
                     if (committed && changes.isNotEmpty() && runtime != null) RuntimeSettingsSignal.acknowledge(runtime)
                     if (!committed) {
                         SettingsDiagnostics.w("Preferences", "remote pref commit rejected by daemon (settings not synced)")
@@ -209,7 +209,6 @@ internal class SettingsMutationWriter(private val storage: Storage) {
 
     /** Applies one remote mutation after all previously queued writes and waits for its result.
      * Blocking commit on the writer is required before an acknowledged snapshot is published. */
-    @Suppress("UseKtx", "ApplySharedPref")
     fun commitRemoteMutation(nativeSnapshot: NativeRuleStateSnapshot,
         replacement: Map<String, *>, block: SharedPreferences.Editor.() -> Unit): Boolean {
         if (!isInitialized) return false
@@ -217,18 +216,19 @@ internal class SettingsMutationWriter(private val storage: Storage) {
             val previous = HashMap(remotePrefs.all.filterKeys { isLocalOnly || !AppLogStore.isRuntimeKey(it) })
             val previousRuntime = if (isLocalOnly) null else RuntimeSettingsSignal.lastAcknowledged()
             fun rollback() = runCatching {
-                val editor = remotePrefs.edit().clear()
-                previous.forEach { (key, value) -> if (value != null) editor.putPreferenceValue(key, value) }
-                previousRuntime?.let { RuntimeSettingsSignal.write(editor, it, complete = true) }
-                check(editor.commit()) { "settings mutation rollback rejected" }
+                check(remotePrefs.commitEdit {
+                    clear()
+                    previous.forEach { (key, value) -> if (value != null) putPreferenceValue(key, value) }
+                    previousRuntime?.let { RuntimeSettingsSignal.write(this, it, complete = true) }
+                }) { "settings mutation rollback rejected" }
             }.onFailure { SettingsDiagnostics.w("Preferences", "settings mutation rollback failed", it) }
             return try {
                 val runtime = if (isLocalOnly) null else RuntimeSettingsSignal.prepareReplacement(replacement + nativeSnapshot.settingsValues())
-                val editor = remotePrefs.edit()
-                block(editor)
-                if (!isLocalOnly) remotePrefs.all.keys.filter(AppLogStore::isRuntimeKey).forEach(editor::remove)
-                runtime?.let { RuntimeSettingsSignal.write(editor, it, complete = true) }
-                editor.commit().also { committed ->
+                remotePrefs.commitEdit {
+                    block()
+                    if (!isLocalOnly) remotePrefs.all.keys.filter(AppLogStore::isRuntimeKey).forEach { remove(it) }
+                    runtime?.let { RuntimeSettingsSignal.write(this, it, complete = true) }
+                }.also { committed ->
                     if (!committed) { SettingsDiagnostics.w("Preferences", "settings mutation commit rejected"); rollback() }
                     else if (runtime != null) RuntimeSettingsSignal.acknowledge(runtime)
                 }
@@ -262,9 +262,10 @@ internal class SettingsMutationWriter(private val storage: Storage) {
             runCatching {
                 val runtime = if (RuntimeSettingsSnapshot.owns(key)) RuntimeSettingsSignal.prepare(key, value)
                     else RuntimeSettingsSignal.lastAcknowledged()
-                val editor = remotePrefs.edit().putString(key, value)
-                if (runtime != null) RuntimeSettingsSignal.write(editor, runtime)
-                val committed = editor.commit()
+                val committed = remotePrefs.commitEdit {
+                    putString(key, value)
+                    if (runtime != null) RuntimeSettingsSignal.write(this, runtime)
+                }
                 if (committed && runtime != null && RuntimeSettingsSnapshot.owns(key)) RuntimeSettingsSignal.acknowledge(runtime)
             }.onFailure { t ->
                 SettingsDiagnostics.w("Preferences", "synchronous remote pref write failed", t)

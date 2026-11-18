@@ -366,7 +366,7 @@ final class RecentsBarFollowController {
     }
 
     // Executed in LSPosed-injected SystemUI with framework hidden-API access.
-    @SuppressLint({"BlockedPrivateApi", "DiscouragedPrivateApi"})
+    @SuppressLint("BlockedPrivateApi")
     private static SurfaceControl createBufferSurface(Bar bar, SurfaceControl parent) throws Exception {
         SurfaceControl.Builder builder = new SurfaceControl.Builder()
                 .setName("MiuiBackGestureHook-RecentsBar-" + bar.type)

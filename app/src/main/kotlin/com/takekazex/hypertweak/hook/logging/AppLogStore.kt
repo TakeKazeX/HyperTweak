@@ -1,10 +1,7 @@
-// Commit acknowledgement is inspected; KTX edit returns Unit and would lose rejection failures.
-@file:Suppress("UseKtx")
-
 package com.takekazex.hypertweak.hook.logging
 
 import android.content.SharedPreferences
-import androidx.core.content.edit
+import com.takekazex.hypertweak.util.storage.commitEdit
 
 /** Local app records only; injected processes continue to use the framework logger. */
 internal class AppLogStore(private val source: () -> SharedPreferences?, private val recording: () -> Boolean) {
@@ -25,7 +22,7 @@ internal class AppLogStore(private val source: () -> SharedPreferences?, private
             pendingRemoteCleanupKeys.addAll(remote.all.keys.filter(::isRuntimeKey))
             if (pendingRemoteCleanupKeys.isEmpty()) return
             val keys = pendingRemoteCleanupKeys.toSet()
-            check(remote.edit().apply { keys.forEach(::remove) }.commit()) {
+            check(remote.commitEdit { keys.forEach(::remove) }) {
                 "Remote legacy log cleanup rejected"
             }
             pendingRemoteCleanupKeys.removeAll(keys)
@@ -45,7 +42,7 @@ internal class AppLogStore(private val source: () -> SharedPreferences?, private
             val next = com.takekazex.hypertweak.util.logging.LogCodec.boundedTail(
                 if (old.isBlank()) appended else "$old\n$appended", MAX_DEBUG_LOG_LENGTH
             )
-            check(local.edit().putString(key, next).commit()) {
+            check(local.commitEdit { putString(key, next) }) {
                 "App log storage rejected commit"
             }
         }
@@ -62,7 +59,7 @@ internal class AppLogStore(private val source: () -> SharedPreferences?, private
         synchronized(lock) {
             val local = source() ?: return
             val keys = local.all.keys.filter { it.startsWith(KEY_DEBUG_LOG_PREFIX) || it == LEGACY_KEY_DEBUG_LOG }
-            check(local.edit().apply { keys.forEach(::remove); remove("debug_log_processes") }.commit()) {
+            check(local.commitEdit { keys.forEach(::remove); remove("debug_log_processes") }) {
                 "App log clearing rejected commit"
             }
         }
@@ -77,11 +74,11 @@ internal class AppLogStore(private val source: () -> SharedPreferences?, private
             val local = source() ?: return
             if (local.getString(KEY_LOG_SESSION, null) == token) return
             val keys = local.all.keys.filter { it.startsWith(KEY_DEBUG_LOG_PREFIX) || it == LEGACY_KEY_DEBUG_LOG }
-            check(local.edit().apply {
+            check(local.commitEdit {
                 keys.forEach(::remove)
                 remove("debug_log_processes")
                 putString(KEY_LOG_SESSION, token)
-            }.commit()) { "App log session rotation rejected commit" }
+            }) { "App log session rotation rejected commit" }
         }
     }
 

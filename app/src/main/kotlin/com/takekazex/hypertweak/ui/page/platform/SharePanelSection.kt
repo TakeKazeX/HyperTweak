@@ -21,7 +21,7 @@ internal fun SharePanelSection() {
             enabled = settingsStore.getBoolean(PlatformSettingsKeys.KEY_SHARE_PANEL_SHOW_ALL, false)
         }
     }
-    AppSection(stringResource(R.string.share_panel_title)) {
+    AppSection(title = stringResource(R.string.share_panel_title)) {
         SwitchPreference(
             checked = enabled,
             onCheckedChange = {

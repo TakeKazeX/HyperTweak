@@ -152,7 +152,7 @@ fun BatteryInfoPage(onBack: () -> Unit) {
             Spacer(Modifier.height(8.dp))
         }
         sections.forEach { section ->
-            AppSection(section.title) {
+            AppSection(title = section.title) {
                 section.rows.forEachIndexed { index, row ->
                     if (index > 0) {
                         HorizontalDivider(Modifier.padding(start = 16.dp))

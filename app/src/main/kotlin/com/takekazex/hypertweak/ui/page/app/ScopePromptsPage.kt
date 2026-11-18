@@ -49,7 +49,7 @@ fun ScopePromptsPage(onBack: () -> Unit) {
                 )
             }
         } else {
-            AppSection(stringResource(R.string.scope_prompts_title)) {
+            AppSection(title = stringResource(R.string.scope_prompts_title)) {
                 prompts.forEach { prompt ->
                     IgnoredScopePromptRow(
                         prompt = prompt,

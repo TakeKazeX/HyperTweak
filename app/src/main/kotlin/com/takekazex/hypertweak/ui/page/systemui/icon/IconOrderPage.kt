@@ -158,7 +158,7 @@ fun IconOrderPage(onBack: () -> Unit) {
             ) {
                 Spacer(Modifier.height(padding.calculateTopPadding() + 8.dp))
 
-                AppSection(stringResource(R.string.icon_order_mode_title)) {
+                AppSection(title = stringResource(R.string.icon_order_mode_title)) {
                     OverlayDropdownPreference(
                         title = stringResource(R.string.icon_order_mode_title),
                         summary = stringResource(R.string.icon_position_summary),
@@ -182,7 +182,7 @@ fun IconOrderPage(onBack: () -> Unit) {
                 }
 
                 MiuixExpandableContent(visible = custom) {
-                    AppSection(stringResource(R.string.icon_position_custom)) {
+                    AppSection(title = stringResource(R.string.icon_position_custom)) {
                         OrderHint(stringResource(R.string.icon_order_custom_hint))
                         SlotOrderList(
                             slots = order,

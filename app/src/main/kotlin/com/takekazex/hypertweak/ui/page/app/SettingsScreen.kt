@@ -36,7 +36,7 @@ fun SettingsScreenContent(
         bottomInset = padding.calculateBottomPadding(),
     ) {
 
-        AppSection(stringResource(R.string.settings_appearance)) {
+        AppSection(title = stringResource(R.string.settings_appearance)) {
             ArrowPreference(
                 title = stringResource(R.string.settings_appearance),
                 summary = themeSummary,
@@ -45,7 +45,7 @@ fun SettingsScreenContent(
         }
 
         // Module Preferences
-        AppSection(stringResource(R.string.settings_module_preferences)) {
+        AppSection(title = stringResource(R.string.settings_module_preferences)) {
             SwitchPreference(
                 checked = appSettings.showInSettings,
                 onCheckedChange = { appSettings.showInSettings = it },
@@ -89,7 +89,7 @@ fun SettingsScreenContent(
 
         // Other: the less frequent destinations. Debug lives inside About; the experimental
         // switches moved to their own second-level page so this tab stays short.
-        AppSection(stringResource(R.string.settings_other)) {
+        AppSection(title = stringResource(R.string.settings_other)) {
             ArrowPreference(
                 title = stringResource(R.string.settings_experimental),
                 summary = stringResource(R.string.settings_experimental_subtitle),

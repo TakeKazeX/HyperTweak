@@ -145,7 +145,7 @@ internal class NativeIslandDiscovery private constructor(
             check(entries.getValue("nativeAdmit").parameterTypes.first() == content)
             val animation = getter(coordinator, "getAnimationController")
             check(entries.getValue("animation").declaringClass == animation)
-            val delegate = NativeIslandMembers.named(animation, "getAnimator", listOf(content.superclass)).returnType
+            val delegate = NativeIslandMembers.named(animation, "getAnimator", listOf(checkNotNull(content.superclass))).returnType
             val gesture = getter(delegate, "getGestureAnimator")
             val fakeAnimator = getter(delegate, "getFakeViewAnimator")
             val fakeHelper = fakeAnimator.declaredMethods.single { it.name.startsWith("getHelper") && it.parameterCount == 0 }.returnType

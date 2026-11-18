@@ -52,7 +52,7 @@ fun ControlCenterResizePage(onBack: () -> Unit) {
         backContentDescription = stringResource(R.string.charging_back),
     ) {
 
-        AppSection(stringResource(R.string.cc_resize_title)) {
+        AppSection(title = stringResource(R.string.cc_resize_title)) {
             SwitchPreference(
                 checked = enabled,
                 onCheckedChange = { checked ->
@@ -66,7 +66,7 @@ fun ControlCenterResizePage(onBack: () -> Unit) {
         }
 
         // ─── Big cards (WiFi / cellular / BT / VoWiFi) ───
-        AppSection(stringResource(R.string.cc_size_section_cards)) {
+        AppSection(title = stringResource(R.string.cc_size_section_cards)) {
             CardSpecRow.entries.forEach { entry ->
                 CardSizeRow(
                     title = stringResource(entry.titleRes),
@@ -81,7 +81,7 @@ fun ControlCenterResizePage(onBack: () -> Unit) {
         }
 
         // ─── Sliders ───
-        AppSection(stringResource(R.string.cc_size_section_sliders)) {
+        AppSection(title = stringResource(R.string.cc_size_section_sliders)) {
             TokenSizeRow(
                 title = stringResource(R.string.cc_size_brightness),
                 summary = stringResource(R.string.cc_size_brightness_summary),
@@ -101,7 +101,7 @@ fun ControlCenterResizePage(onBack: () -> Unit) {
         }
 
         // ─── Media player / device center ───
-        AppSection(stringResource(R.string.cc_size_section_other)) {
+        AppSection(title = stringResource(R.string.cc_size_section_other)) {
             TokenSizeRow(
                 title = stringResource(R.string.cc_size_media),
                 summary = stringResource(R.string.cc_size_media_summary),
@@ -121,7 +121,7 @@ fun ControlCenterResizePage(onBack: () -> Unit) {
         }
 
         // ─── Quick switches rendered as big cards ───
-        AppSection(stringResource(R.string.cc_tile_specs_section)) {
+        AppSection(title = stringResource(R.string.cc_tile_specs_section)) {
             Text(
                 text = stringResource(R.string.cc_tile_specs_section_summary),
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),

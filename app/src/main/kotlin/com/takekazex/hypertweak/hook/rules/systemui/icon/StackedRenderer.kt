@@ -1,8 +1,5 @@
-@file:Suppress("StaticFieldLeak")
-
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
-import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Picture
 import android.os.Handler
@@ -59,7 +56,6 @@ import org.luckypray.dexkit.result.MethodData
  * [NativeTypeOnlyMask] reduces to that label, so typography, 5GA, custom names and the keep-on-Wi-Fi
  * rule are the native ones.
  */
-@SuppressLint("StaticFieldLeak")
 internal object StackedRenderer : IconRenderer() {
     // Published on settings acceptance; hook callbacks perform no storage reads.
     private val settingIconMobileRowStyle by hookSetting(0) { Preferences.iconConfig().stacked.mobileRowStyle }

@@ -5,6 +5,7 @@ import android.util.Base64
 import org.json.JSONArray
 import org.json.JSONObject
 import java.nio.charset.StandardCharsets
+import com.takekazex.hypertweak.util.storage.commitEdit
 
 internal data class GlassTunerValues(
     val enabled: Boolean,
@@ -58,9 +59,7 @@ internal object GlassTunerPresetStore {
                     .putValues(preset.values)
             )
         }
-        // KTX edit() returns Unit; the boolean commit result is the save-failure signal.
-        @Suppress("UseKtx")
-        return preferences.edit().putString(KEY_PRESETS, array.toString()).commit()
+        return preferences.commitEdit { putString(KEY_PRESETS, array.toString()) }
     }
 
     fun createShareCode(values: GlassTunerValues): String {

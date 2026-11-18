@@ -242,8 +242,7 @@ object WifiDetailsHooker : StaticHooker() {
                     before { param ->
                         val activity = param.thisObject as? Activity ?: return@before
                         val intent = activity.intent ?: return@before
-                        @Suppress("DEPRECATION")
-                        val wifiConfig = intent.getParcelableExtra<WifiConfiguration>("extra_wifi_config")
+                        val wifiConfig = intent.getParcelableExtra("extra_wifi_config", WifiConfiguration::class.java)
                         if (wifiConfig != null) {
                             val unmasked = getUnmaskedWifiConfiguration(activity, wifiConfig)
                             intent.putExtra("extra_wifi_config", unmasked)
@@ -618,8 +617,7 @@ object WifiDetailsHooker : StaticHooker() {
         if (wifiManager == null) return null
         return runCatching {
             val method = wifiManager.javaClass.getMethod("getPrivilegedConfiguredNetworks")
-            @Suppress("UNCHECKED_CAST")
-            method.invoke(wifiManager) as? List<WifiConfiguration>
+            (method.invoke(wifiManager) as? List<*>)?.filterIsInstance<WifiConfiguration>()
         }.getOrNull()
     }
 

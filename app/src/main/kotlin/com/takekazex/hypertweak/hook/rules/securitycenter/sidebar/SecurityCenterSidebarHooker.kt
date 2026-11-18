@@ -19,6 +19,7 @@ import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.ref.WeakReference
 import java.lang.reflect.Proxy
 import java.util.WeakHashMap
+import androidx.core.view.isVisible
 
 private object SidebarFeature : DexFeature {
     override val id = "securitycenter.sidebar_handle"
@@ -120,7 +121,7 @@ object SecurityCenterSidebarHooker : DynamicHooker() {
                             // An open panel/shortcut menu keeps the host's complete input region.
                             val panelVisible = (0 until container.childCount).any {
                                 val child = container.getChildAt(it)
-                                child !== handle && child.visibility == View.VISIBLE && child.alpha > 0f && child.width > 0 && child.height > 0
+                                child !== handle && child.isVisible && child.alpha > 0f && child.width > 0 && child.height > 0
                             }
                             if (!panelVisible) args?.firstOrNull()?.let(contract::empty)
                         }

@@ -102,13 +102,19 @@ public final class NotificationBannerBatch implements AutoCloseable {
 
     @Override public void close() throws Exception { provider.close(); }
 
+    /** app_process does not prepare the main looper that the framework normally sets up for a process. */
+    @SuppressWarnings("deprecation")
+    private static void prepareMainLooper() {
+        if (Looper.getMainLooper() == null) Looper.prepareMainLooper();
+    }
+
     public static void main(String[] args) {
         try {
             if (Process.myUid() != 0) throw new SecurityException("Root invocation required");
             if (args.length != 2) throw new IllegalArgumentException("Expected user and scan|apply");
             int user = Integer.parseInt(args[0]);
             if (user < 0 || !("scan".equals(args[1]) || "apply".equals(args[1]))) throw new IllegalArgumentException("Invalid scope");
-            if (Looper.getMainLooper() == null) Looper.prepareMainLooper();
+            prepareMainLooper();
             JSONObject result;
             try (NotificationBannerBatch batch = new NotificationBannerBatch(user)) {
                 result = batch.run(user, "apply".equals(args[1]));

@@ -99,7 +99,7 @@ fun DockBackgroundPage(onBack: () -> Unit) {
                 },
             )
         }
-        AppSection(stringResource(R.string.glass_preview_title)) {
+        AppSection(title = stringResource(R.string.glass_preview_title)) {
             Column {
                 if (loading) Text(stringResource(R.string.glass_preview_loading_image), Modifier.padding(16.dp))
                 AndroidView(factory = { DockPreviewView(it) }, update = { view ->
@@ -112,7 +112,7 @@ fun DockBackgroundPage(onBack: () -> Unit) {
                 }, modifier = Modifier.padding(horizontal = 12.dp))
             }
         }
-        AppSection(stringResource(R.string.dock_native_geometry)) {
+        AppSection(title = stringResource(R.string.dock_native_geometry)) {
             Column {
                 SwitchPreference(
                     title = stringResource(R.string.dock_adaptive_width),

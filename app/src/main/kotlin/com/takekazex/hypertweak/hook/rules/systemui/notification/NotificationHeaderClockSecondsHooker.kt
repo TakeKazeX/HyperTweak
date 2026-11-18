@@ -361,7 +361,6 @@ object NotificationHeaderClockSecondsHooker : StaticHooker() {
         return if (id != 0 && view.id == id) ClockTarget.STATUS_BAR else null
     }
 
-    @Suppress("DiscouragedApi")
     private fun resolveStatusBarClockId(view: View): Int {
         statusBarClockId.takeIf { it != 0 }?.let { return it }
         synchronized(callbacksLock) {

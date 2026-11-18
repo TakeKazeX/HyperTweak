@@ -425,7 +425,6 @@ object NotificationHeaderWeatherHooker : StaticHooker() {
             ?.invoke(owner)
     }.getOrNull()
 
-    @Suppress("DiscouragedApi")
     private fun id(view: View, name: String): Int =
         ResourceLookup.identifier(view.resources, name, "id", "com.android.systemui")
 

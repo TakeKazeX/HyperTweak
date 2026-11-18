@@ -59,7 +59,7 @@ internal fun SystemHelperSection() {
     }
 
     val state = result?.state
-    AppSection(stringResource(R.string.system_helper_title)) {
+    AppSection(title = stringResource(R.string.system_helper_title)) {
         Column {
             SwitchPreference(
                 checked = state?.installed == true && !state.enabled,

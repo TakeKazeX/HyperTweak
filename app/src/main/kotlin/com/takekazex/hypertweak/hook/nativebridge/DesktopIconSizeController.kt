@@ -2,12 +2,13 @@ package com.takekazex.hypertweak.hook.nativebridge
 
 import com.takekazex.hypertweak.hook.base.HookDispatchers
 import android.content.Context
-import android.net.Uri
 import android.os.Bundle
 import com.takekazex.hypertweak.util.logging.DebugLog
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlin.math.abs
+import com.takekazex.hypertweak.util.storage.commitEdit
+import androidx.core.net.toUri
 
 /** The stock provider drives tempIconScale and reconstructs the active immutable grid. */
 internal class DesktopIconSizeController(private val context: Context) {
@@ -15,7 +16,7 @@ internal class DesktopIconSizeController(private val context: Context) {
     private val queue = Channel<Int>(Channel.CONFLATED)
     @Volatile private var closed = false
     @Volatile private var refreshAfterAttach = true
-    private val uri = Uri.parse("content://com.miui.home.launcher.settings")
+    private val uri = "content://com.miui.home.launcher.settings".toUri()
     private val journal by lazy {
         context.createDeviceProtectedStorageContext().getSharedPreferences("hypertweak_desktop_icon_scale", Context.MODE_PRIVATE)
     }
@@ -53,8 +54,10 @@ internal class DesktopIconSizeController(private val context: Context) {
         val originalMax = if (active) journal.getFloat("maximum", before.getFloat("iconMaxScale")) else before.getFloat("iconMaxScale")
         require(originalMin.isFinite() && originalMax.isFinite() && originalMin > 0 && originalMin <= originalMax)
         val desired = if (percent == -1) original.coerceIn(originalMin, originalMax) else original * percent / 100f
-        check(journal.edit().putBoolean("active", true).putFloat("original", original)
-            .putFloat("minimum", originalMin).putFloat("maximum", originalMax).commit())
+        check(journal.commitEdit {
+            putBoolean("active", true).putFloat("original", original)
+                .putFloat("minimum", originalMin).putFloat("maximum", originalMax)
+        })
         // An older module may have updated the native cache while its Dart
         // initializer still clamped the rendered size. Rebuild once on adoption.
         if (refreshAfterAttach && active && percent != -1) {
@@ -75,7 +78,7 @@ internal class DesktopIconSizeController(private val context: Context) {
             for (attempt in 0 until 5) {
                 val after = info()
                 if (abs(after.getFloat("iconCurrentScale") - desired)<0.0001f) {
-                    check(journal.edit().putBoolean("active", false).commit()); break
+                    check(journal.commitEdit { putBoolean("active", false) }); break
                 }
                 Thread.sleep(40)
             }

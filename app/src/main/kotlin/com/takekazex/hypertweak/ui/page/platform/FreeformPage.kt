@@ -28,12 +28,12 @@ internal fun FreeformPage(onBack: () -> Unit) {
         backContentDescription = stringResource(R.string.aosp_back),
     ) {
         MissingScopeCard("system", "com.android.systemui")
-        AppSection(stringResource(R.string.system_freeform_window_section)) {
+        AppSection(title = stringResource(R.string.system_freeform_window_section)) {
             FreeformSwitch(Keys.KEY_COUNT, R.string.system_freeform_count_title, R.string.system_freeform_count_summary)
             FreeformSwitch(Keys.KEY_FORCE_ALLOW, R.string.system_freeform_force_title, R.string.system_freeform_force_summary)
             FreeformSwitch(Keys.KEY_FOREGROUND_PIN, R.string.system_freeform_pin_title, R.string.system_freeform_pin_summary)
         }
-        AppSection(stringResource(R.string.system_freeform_jump_section)) {
+        AppSection(title = stringResource(R.string.system_freeform_jump_section)) {
             FreeformSwitch(
                 Keys.KEY_JUMP, R.string.system_freeform_jump_title, R.string.system_freeform_jump_summary,
                 state = jump,

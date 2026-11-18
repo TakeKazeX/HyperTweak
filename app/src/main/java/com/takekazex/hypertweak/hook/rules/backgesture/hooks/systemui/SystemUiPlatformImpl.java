@@ -1,13 +1,11 @@
 package com.takekazex.hypertweak.hook.rules.backgesture.hooks.systemui;
 
 import android.animation.Animator;
-import android.annotation.SuppressLint;
 import android.content.Context;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 
-@SuppressLint("PrivateApi")
 abstract class SystemUiPlatformImpl {
     abstract String name();
 

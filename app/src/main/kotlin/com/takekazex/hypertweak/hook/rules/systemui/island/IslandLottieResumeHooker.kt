@@ -64,7 +64,7 @@ class IslandLottieResumeHooker : DynamicHooker() {
             after { param ->
                 if (retiring || !settingIslandLottieResume) return@after
                 HookFailurePolicy.open(TAG, "keep island Lottie resume pending", Unit) {
-                    val owner = param.thisObject ?: return@open
+                    val owner = param.thisObjectOrNull ?: return@open
                     if (paused.getBoolean(owner)) return@open
                     val outstanding = (keys.get(owner) as? Set<*>)?.size ?: 0
                     if (outstanding == 0) return@open

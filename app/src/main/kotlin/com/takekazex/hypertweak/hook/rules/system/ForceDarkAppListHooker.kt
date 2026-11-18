@@ -1,5 +1,3 @@
-@file:Suppress("QueryPermissionsNeeded")
-
 package com.takekazex.hypertweak.hook.rules.system
 
 import com.takekazex.hypertweak.hook.base.HostAccess
@@ -11,6 +9,7 @@ import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.InstallPolicy
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
+import com.takekazex.hypertweak.hook.rules.shared.HostInstalledApplications
 
 /** Exposes third-party applications in HyperOS's per-app force-dark list. */
 object ForceDarkAppListHooker : StaticHooker() {
@@ -88,11 +87,10 @@ object ForceDarkAppListHooker : StaticHooker() {
                         .get(param.thisObject) as android.content.pm.PackageManager
                     val getter = data.javaClass.methods.first { it.name == "getDarkModeAppDetailInfoList" && it.parameterTypes.isEmpty() }
                     val setter = data.javaClass.methods.first { it.name == "setDarkModeAppDetailInfoList" && it.parameterTypes.size == 1 }
-                    @Suppress("UNCHECKED_CAST") // Host list; elements are read reflectively below.
-                    val list = (getter.invoke(data) as? MutableList<Any?>)?.toMutableList() ?: return@runCatching
+                    val list = (getter.invoke(data) as? List<*>)?.toMutableList() ?: return@runCatching
                     val names = list.mapNotNull { it?.javaClass?.methods?.firstOrNull { m -> m.name == "getPkgName" }?.invoke(it) as? String }.toHashSet()
                     val detailClass = Class.forName("com.miui.darkmode.DarkModeAppDetailInfo", false, managerClass.classLoader)
-                    pm.getInstalledApplications(0).filter(::isThirdParty).forEach { app ->
+                    HostInstalledApplications.list(pm).filter(::isThirdParty).forEach { app ->
                         if (!names.add(app.packageName)) return@forEach
                         val detail = detailClass.getDeclaredConstructor().apply { isAccessible = true }.newInstance()
                         HostAccess.requirePublicMethod(detailClass, "setLabel", String::class.java, accessible = false).invoke(detail, app.loadLabel(pm).toString())

@@ -248,7 +248,6 @@ object FlashlightPageExitHooker : StaticHooker() {
         val res = view.resources
         val density = res.displayMetrics.density
         // The page runs in the island's own package, so its island dimens are the live ones.
-        @SuppressLint("DiscouragedApi")
         fun dimen(name: String, fallbackDp: Float): Float {
             val id = res.getIdentifier(name, "dimen", view.context.packageName)
             return if (id != 0) runCatching { res.getDimension(id) }.getOrNull() ?: (fallbackDp * density) else fallbackDp * density

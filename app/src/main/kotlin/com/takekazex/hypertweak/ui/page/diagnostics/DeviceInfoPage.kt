@@ -78,7 +78,7 @@ fun DeviceInfoPage(onBack: () -> Unit, onBatteryInfo: () -> Unit) {
             }
         }
         sections.forEach { section ->
-            AppSection(section.title) {
+            AppSection(title = section.title) {
                 Column {
                     section.rows.forEach { row ->
                         // Stacked text retains long values and remains readable with large fonts.

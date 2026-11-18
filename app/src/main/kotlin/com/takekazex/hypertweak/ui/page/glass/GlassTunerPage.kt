@@ -1,6 +1,5 @@
 package com.takekazex.hypertweak.ui.page.glass
 
-import android.annotation.SuppressLint
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -37,6 +36,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -80,11 +80,11 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
  * `MainActivity`, so every change reports SystemUI to the shared Home restart dialog; the page
  * also keeps its local restart affordance.
  */
-@SuppressLint("LocalContextGetResourceValueCall")
 @Composable
 fun GlassTunerPage(onBack: () -> Unit) {
     val settingsStore = LocalAppSettingsStore.current
     val context = LocalContext.current
+    val resources = LocalResources.current
     val coroutineScope = rememberCoroutineScope()
 
     // Local remember-backed state so toggles update instantly; the remote preference write is
@@ -212,7 +212,7 @@ fun GlassTunerPage(onBack: () -> Unit) {
         if (announce) {
             Toast.makeText(
                 context,
-                context.getString(R.string.glass_preset_saved_named, normalizedName),
+                resources.getString(R.string.glass_preset_saved_named, normalizedName),
                 Toast.LENGTH_SHORT,
             ).show()
         }
@@ -222,11 +222,11 @@ fun GlassTunerPage(onBack: () -> Unit) {
     fun suggestPresetName(): String {
         var index = 1
         while (index <= GlassTunerPresetStore.MAX_PRESETS) {
-            val candidate = context.getString(R.string.glass_preset_default_name, index)
+            val candidate = resources.getString(R.string.glass_preset_default_name, index)
             if (presets.none { it.name.equals(candidate, ignoreCase = true) }) return candidate
             index++
         }
-        return context.getString(R.string.glass_preset_default_name, System.currentTimeMillis())
+        return resources.getString(R.string.glass_preset_default_name, System.currentTimeMillis())
     }
 
     fun renamePreset(target: GlassTunerPreset, rawName: String): Boolean {
@@ -253,7 +253,7 @@ fun GlassTunerPage(onBack: () -> Unit) {
         DebugLog.i("GlassTuner", "preset renamed; count=${presets.size}")
         Toast.makeText(
             context,
-            context.getString(R.string.glass_preset_renamed, newName),
+            resources.getString(R.string.glass_preset_renamed, newName),
             Toast.LENGTH_SHORT,
         ).show()
         return true
@@ -308,12 +308,12 @@ fun GlassTunerPage(onBack: () -> Unit) {
         val code = GlassTunerPresetStore.createShareCode(values)
         runCatching {
             context.getSystemService(ClipboardManager::class.java)
-                ?.setPrimaryClip(ClipData.newPlainText(context.getString(R.string.glass_preset_share), code))
+                ?.setPrimaryClip(ClipData.newPlainText(resources.getString(R.string.glass_preset_share), code))
             val sendIntent = Intent(Intent.ACTION_SEND).apply {
                 type = "text/plain"
                 putExtra(Intent.EXTRA_TEXT, code)
             }
-            context.startActivity(Intent.createChooser(sendIntent, context.getString(R.string.glass_preset_share)))
+            context.startActivity(Intent.createChooser(sendIntent, resources.getString(R.string.glass_preset_share)))
             DebugLog.i("GlassTuner", "preset share chooser opened")
         }.onFailure { error ->
             DebugLog.e("GlassTuner", "preset share failed", error)
@@ -428,7 +428,7 @@ fun GlassTunerPage(onBack: () -> Unit) {
             }
         }
 
-        AppSection(stringResource(R.string.glass_parameters)) {
+        AppSection(title = stringResource(R.string.glass_parameters)) {
             SwitchPreference(
                 checked = enabled,
                 onCheckedChange = { changed(SystemUiSettingsKeys.KEY_GLASS_TUNER_ENABLED, it) },

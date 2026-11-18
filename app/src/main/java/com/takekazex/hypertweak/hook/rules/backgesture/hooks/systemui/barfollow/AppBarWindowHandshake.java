@@ -43,7 +43,8 @@ final class AppBarWindowHandshake implements AutoCloseable {
                 data.enforceInterface(ACTION + ".Reply");
                 String received = data.readString();
                 IBinder client = data.readStrongBinder();
-                Bundle proof = data.readBundle();
+                // system_server sends only primitives and binders: framework classes suffice.
+                Bundle proof = data.readBundle(Bundle.class.getClassLoader());
                 data.enforceNoDataAvail();
                 if (!generation.equals(received) || !window.equals(client) || proof == null) return false;
                 main.post(() -> receive(proof));

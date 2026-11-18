@@ -267,7 +267,6 @@ internal object IconManagerHooker : IconRenderer() {
         registerHostList(utilsClass, "CONTROL_CENTER_BLOCK_LIST", IconSurface.CONTROL_CENTER)
     }
 
-    @Suppress("UNCHECKED_CAST")
     private fun registerHostList(clazz: Class<*>, fieldName: String, surface: IconSurface) {
         runCatching {
             val field = HostAccess.requireDeclaredField(clazz, fieldName, accessible = true)

@@ -1,6 +1,5 @@
 package com.takekazex.hypertweak.ui.page.downloads
 
-import android.annotation.SuppressLint
 import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
@@ -12,6 +11,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -27,19 +27,19 @@ import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 
 /** Download Manager UI and provider tweaks kept together on a dedicated second-level page. */
-@SuppressLint("LocalContextGetResourceValueCall")
 @Composable
 fun DownloadManagerPage(
     onBack: () -> Unit,
 ) {
     val appSettings = LocalAppSettings.current
     val context = LocalContext.current
+    val resources = LocalResources.current
     val cleanup = LocalDownloadXlCleanup.current
     val cleanupState by cleanup.state.collectAsStateWithLifecycle()
 
     fun checkDirectory() {
         cleanup.checkAndEnable({ appSettings.blockDownloadXlLogDir = it }) {
-            Toast.makeText(context, context.getString(R.string.download_manager_xl_check_failed), Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, resources.getString(R.string.download_manager_xl_check_failed), Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -59,7 +59,7 @@ fun DownloadManagerPage(
     ) {
         MissingScopeCard("com.android.providers.downloads", "com.android.providers.downloads.ui")
 
-        AppSection(stringResource(R.string.download_manager_section_general)) {
+        AppSection(title = stringResource(R.string.download_manager_section_general)) {
             SwitchPreference(
                 checked = appSettings.downloadAlwaysShowFullLink,
                 onCheckedChange = { appSettings.downloadAlwaysShowFullLink = it },
@@ -116,7 +116,7 @@ fun DownloadManagerPage(
                             cleanup.confirm { deleted ->
                                 val message = if (deleted) R.string.download_manager_xl_delete_success
                                     else R.string.download_manager_xl_delete_failed
-                                Toast.makeText(context, context.getString(message), Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, resources.getString(message), Toast.LENGTH_SHORT).show()
                             }
                         },
                         modifier = Modifier.weight(1f),

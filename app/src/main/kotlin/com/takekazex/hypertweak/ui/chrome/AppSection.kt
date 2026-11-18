@@ -16,8 +16,8 @@ import top.yukonga.miuix.kmp.basic.SmallTitle
  */
 @Composable
 fun AppSection(
-    title: String? = null,
     modifier: Modifier = Modifier,
+    title: String? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     if (title != null) SmallTitle(title)

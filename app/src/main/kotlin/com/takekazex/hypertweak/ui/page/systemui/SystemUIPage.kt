@@ -1,6 +1,5 @@
 package com.takekazex.hypertweak.ui.page.systemui
 
-import android.annotation.SuppressLint
 import androidx.compose.foundation.layout.Column
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -10,6 +9,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
@@ -40,7 +40,6 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
  * control-center sliders, and navigation-bar settings. Existing tracked switches stay hoisted in
  * [MainActivity]; self-contained groups read their saved preferences here and offer local restarts.
  */
-@SuppressLint("LocalContextGetResourceValueCall")
 @Composable
 fun SystemUIPage(
     onBack: () -> Unit,
@@ -57,6 +56,7 @@ fun SystemUIPage(
     val services = LocalAppServices.current
     val settingsStore = LocalAppSettingsStore.current
     val context = LocalContext.current
+    val resources = LocalResources.current
     val upstreamBackGesture = com.takekazex.hypertweak.ui.effect.rememberUpstreamBackGestureInstalled()
     var deviceCenterSingleRow by rememberStoredSetting(SystemUiSettingsKeys.KEY_CC_DEVICE_CENTER_SINGLE_ROW, settingsStore::putBoolean) { settingsStore.getBoolean(SystemUiSettingsKeys.KEY_CC_DEVICE_CENTER_SINGLE_ROW, false) }
     var hideLockscreenDate by rememberStoredSetting(SystemUiSettingsKeys.KEY_HIDE_LOCKSCREEN_DATE, settingsStore::putBoolean) { settingsStore.getBoolean(SystemUiSettingsKeys.KEY_HIDE_LOCKSCREEN_DATE, false) }
@@ -76,10 +76,10 @@ fun SystemUIPage(
 
     val powerButtonActionOptions = remember {
         listOf(
-            PlatformSettingsKeys.POWER_BUTTON_ACTION_DISABLED to context.getString(R.string.tweaks_power_button_action_follow_system),
-            PlatformSettingsKeys.POWER_BUTTON_ACTION_CIRCLE_TO_SEARCH to context.getString(R.string.tweaks_action_circle_to_search),
-            PlatformSettingsKeys.POWER_BUTTON_ACTION_GOOGLE_LENS to context.getString(R.string.tweaks_action_google_lens),
-            PlatformSettingsKeys.POWER_BUTTON_ACTION_DEFAULT_ASSISTANT to context.getString(R.string.tweaks_action_default_assistant)
+            PlatformSettingsKeys.POWER_BUTTON_ACTION_DISABLED to resources.getString(R.string.tweaks_power_button_action_follow_system),
+            PlatformSettingsKeys.POWER_BUTTON_ACTION_CIRCLE_TO_SEARCH to resources.getString(R.string.tweaks_action_circle_to_search),
+            PlatformSettingsKeys.POWER_BUTTON_ACTION_GOOGLE_LENS to resources.getString(R.string.tweaks_action_google_lens),
+            PlatformSettingsKeys.POWER_BUTTON_ACTION_DEFAULT_ASSISTANT to resources.getString(R.string.tweaks_action_default_assistant)
         )
     }
 
@@ -90,7 +90,7 @@ fun SystemUIPage(
     ) {
         MissingScopeCard("com.android.systemui", "system", "com.miui.aod", "com.android.settings", "com.lbe.security.miui")
 
-        AppSection(stringResource(R.string.settings_system_ui_section_general)) {
+        AppSection(title = stringResource(R.string.settings_system_ui_section_general)) {
             SwitchPreference(
                 checked = appSettings.immediateMonetRefresh,
                 onCheckedChange = { appSettings.immediateMonetRefresh = it },
@@ -99,7 +99,7 @@ fun SystemUIPage(
             )
         }
 
-        AppSection(stringResource(R.string.notification_media_section)) {
+        AppSection(title = stringResource(R.string.notification_media_section)) {
             Column {
                 ArrowPreference(
                     title = stringResource(R.string.settings_system_ui_section_notifications),
@@ -114,7 +114,7 @@ fun SystemUIPage(
             }
         }
 
-        AppSection(stringResource(R.string.settings_system_ui_section_multitasking)) {
+        AppSection(title = stringResource(R.string.settings_system_ui_section_multitasking)) {
             SwitchPreference(
                 checked = freeformBlur,
                 onCheckedChange = { value ->
@@ -125,7 +125,7 @@ fun SystemUIPage(
             )
         }
 
-        AppSection(stringResource(R.string.settings_system_ui_section_status_bar)) {
+        AppSection(title = stringResource(R.string.settings_system_ui_section_status_bar)) {
             if (PlatformLevel.isOs4) {
                 SwitchPreference(
                     checked = appSettings.statusBarClockSeconds,
@@ -146,7 +146,7 @@ fun SystemUIPage(
             )
         }
 
-        AppSection(stringResource(R.string.settings_system_ui_section_lockscreen)) {
+        AppSection(title = stringResource(R.string.settings_system_ui_section_lockscreen)) {
             SwitchPreference(
                 checked = appSettings.aodFullscreen,
                 onCheckedChange = { appSettings.aodFullscreen = it },
@@ -236,7 +236,7 @@ fun SystemUIPage(
             }
         }
 
-        AppSection(stringResource(R.string.tweaks_control_center_title)) {
+        AppSection(title = stringResource(R.string.tweaks_control_center_title)) {
             ArrowPreference(
                 title = stringResource(R.string.cc_tile_message_duration_title),
                 summary = stringResource(R.string.cc_tile_message_duration_summary),
@@ -282,7 +282,7 @@ fun SystemUIPage(
             onDismiss = { tileMessageDialog = false }
         )
 
-        AppSection(stringResource(R.string.tweaks_navigation_bar_title)) {
+        AppSection(title = stringResource(R.string.tweaks_navigation_bar_title)) {
             SwitchPreference(
                 checked = appSettings.hideGestureBar,
                 onCheckedChange = { appSettings.hideGestureBar = it },

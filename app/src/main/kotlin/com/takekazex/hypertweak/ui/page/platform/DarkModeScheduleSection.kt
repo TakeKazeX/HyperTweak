@@ -21,7 +21,7 @@ internal fun DarkModeScheduleSection() {
             enabled = settingsStore.getBoolean(PlatformSettingsKeys.KEY_DARK_MODE_IMMEDIATE_SCHEDULE, false)
         }
     }
-    AppSection(stringResource(R.string.dark_mode_schedule_section)) {
+    AppSection(title = stringResource(R.string.dark_mode_schedule_section)) {
         SwitchPreference(
             checked = enabled,
             onCheckedChange = {

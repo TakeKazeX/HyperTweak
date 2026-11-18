@@ -40,6 +40,10 @@ object SecurityCenterPopupHooker : DynamicHooker() {
     }
 
     private const val TAG = "SecurityCenterPopups"
+
+    /** The window type the host itself gives its bubbles; matching it needs the deprecated constant. */
+    @Suppress("DEPRECATION")
+    private const val HOST_BUBBLE_WINDOW_TYPE = WindowManager.LayoutParams.TYPE_SYSTEM_ALERT
     private val main = Handler(Looper.getMainLooper())
     @Volatile
     private var retired = false
@@ -137,7 +141,7 @@ object SecurityCenterPopupHooker : DynamicHooker() {
         val roots = HostAccess.requireDeclaredField(global, "mViews", accessible = true).get(instance) as? List<*> ?: return
         for (root in roots.toList().filterIsInstance<View>()) {
             if (root.context.packageName != SecurityCenterDockHost.PACKAGE ||
-                (root.layoutParams as? WindowManager.LayoutParams)?.type != WindowManager.LayoutParams.TYPE_SYSTEM_ALERT) continue
+                (root.layoutParams as? WindowManager.LayoutParams)?.type != HOST_BUBBLE_WINDOW_TYPE) continue
             val resources = root.resources
             if (resources.getResourceEntryName(t.dolbyText) != "vb_video_effects_dolby_open") continue
             val text = resources.getText(t.dolbyText)

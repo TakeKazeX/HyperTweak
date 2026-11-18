@@ -36,7 +36,7 @@ internal object MeasurementBinder {
         )
         // Read-only: the battery reservation the host just stored is budgeted by what it included.
         registrar.after(access.statusWidths, "three_islands_status_widths") { param ->
-            val view = param.thisObject ?: return@after
+            val view = param.thisObject
             runCatching { context.host.statusWidthsPublished(view) }
                 .onFailure { DebugLog.e("ThreeIslands", "snapshot published status widths", it) }
         }

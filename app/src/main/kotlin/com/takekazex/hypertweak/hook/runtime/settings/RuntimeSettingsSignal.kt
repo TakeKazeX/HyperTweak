@@ -12,11 +12,12 @@ import com.takekazex.hypertweak.hook.runtime.settings.RuntimeSettingsGroups
 /** Publish only the last acknowledged snapshot; rejected editor shadows never become live state. */
 internal object RuntimeSettingsSignal {
     private val main by lazy { Handler(Looper.getMainLooper()) }
-    @Volatile private var context: Context? = null
+    /** Always the application context, so the process-wide object retains no Activity or View. */
+    @Volatile private var appContext: Context? = null
     private var source: SharedPreferences? = null
     private var acknowledged: RuntimeSettingsSnapshot? = null
     fun attach(context: Context) {
-        this.context = context.applicationContext ?: context
+        appContext = context.applicationContext ?: context
         // Include deselected keyboards too, so disable/reset reaches an already running host.
         val packages = runCatching {
             context.getSystemService(android.view.inputmethod.InputMethodManager::class.java)
@@ -69,7 +70,7 @@ internal object RuntimeSettingsSignal {
             SystemClock.elapsedRealtimeNanos()), values)) { "invalid runtime settings replacement" }
     fun publishCommitted(targetPackage: String? = null) {
         main.post {
-            val target = context ?: return@post
+            val target = appContext ?: return@post
             val snapshot = synchronized(this) { acknowledged } ?: return@post
             RuntimeSettingsGroups.registerImeTargets(
                 (snapshot.values[com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys.KEY_AOSP_IME_PACKAGES]

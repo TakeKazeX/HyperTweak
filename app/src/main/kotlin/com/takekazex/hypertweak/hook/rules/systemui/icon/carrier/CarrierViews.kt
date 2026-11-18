@@ -1,5 +1,3 @@
-@file:Suppress("StaticFieldLeak")
-
 package com.takekazex.hypertweak.hook.rules.systemui.icon.carrier
 
 import com.takekazex.hypertweak.hook.rules.systemui.icon.AirplaneGlyphTargets
@@ -17,7 +15,6 @@ import com.takekazex.hypertweak.hook.rules.systemui.icon.TwoRowIconLayout
 import com.takekazex.hypertweak.presentation.icon.MobileSignalState
 import com.takekazex.hypertweak.hook.rules.systemui.icon.MobileSignalHub
 
-import android.annotation.SuppressLint
 import android.content.Context
 import android.content.res.Resources
 import android.os.Handler

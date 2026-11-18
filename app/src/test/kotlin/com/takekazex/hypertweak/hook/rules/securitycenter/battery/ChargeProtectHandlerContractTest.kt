@@ -1,14 +1,15 @@
 package com.takekazex.hypertweak.hook.rules.securitycenter.battery
 
 import android.os.Handler
+import android.os.Looper
 import android.os.Message
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 
 class ChargeProtectHandlerContractTest {
-    @Suppress("unused") class RefreshHandler : Handler() { override fun handleMessage(msg: Message) = Unit }
-    @Suppress("unused") class OtherHandler : Handler() { override fun handleMessage(msg: Message) = Unit }
+    @Suppress("unused") class RefreshHandler : Handler(Looper.getMainLooper()) { override fun handleMessage(msg: Message) = Unit }
+    @Suppress("unused") class OtherHandler : Handler(Looper.getMainLooper()) { override fun handleMessage(msg: Message) = Unit }
     @Suppress("unused") class Task : Runnable { override fun run() = Unit }
 
     @Suppress("unused") class Current {

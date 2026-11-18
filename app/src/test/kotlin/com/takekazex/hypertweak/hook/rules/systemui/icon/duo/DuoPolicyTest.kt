@@ -37,15 +37,9 @@ class DuoPolicyTest {
         assertFalse(DuoPolicy.leadingPercent(DuoSurface.COLLAPSED_PROXY, DuoExpandedStyle.RESTORE_NATIVE, false))
     }
 
-    @Test fun keepDuoReturnsExpandedNetworkToItsOwner() {
-        assertEquals(DuoNetworkDestination.CARRIER,
-            DuoPolicy.networkDestination(DuoExpandedStyle.KEEP_DUO, true))
-        assertEquals(DuoNetworkDestination.NATIVE,
-            DuoPolicy.networkDestination(DuoExpandedStyle.KEEP_DUO, false))
-        assertEquals(DuoNetworkDestination.CARRIER,
-            DuoPolicy.networkDestination(DuoExpandedStyle.RESTORE_NATIVE, true))
-        assertEquals(DuoNetworkDestination.NATIVE,
-            DuoPolicy.networkDestination(DuoExpandedStyle.RESTORE_NATIVE, false))
+    @Test fun expandedNetworkReturnsToItsOwner() {
+        assertEquals(DuoNetworkDestination.CARRIER, DuoPolicy.networkDestination(true))
+        assertEquals(DuoNetworkDestination.NATIVE, DuoPolicy.networkDestination(false))
     }
 
     private val battery = DuoBattery(60, false, false)

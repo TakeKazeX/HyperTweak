@@ -24,7 +24,7 @@ fun WifiDetailsControls() {
         stringResource(R.string.wifi_saved_networks_position_advanced)
     )
 
-    AppSection(stringResource(R.string.wifi_details_section_title)) {
+    AppSection(title = stringResource(R.string.wifi_details_section_title)) {
         SwitchPreference(
             checked = ipMultiline,
             onCheckedChange = { enabled ->

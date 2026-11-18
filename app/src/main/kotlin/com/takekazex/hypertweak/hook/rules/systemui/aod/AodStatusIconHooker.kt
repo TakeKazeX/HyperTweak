@@ -1,5 +1,3 @@
-@file:Suppress("StaticFieldLeak")
-
 package com.takekazex.hypertweak.hook.rules.systemui.aod
 
 import com.takekazex.hypertweak.hook.base.HostAccess

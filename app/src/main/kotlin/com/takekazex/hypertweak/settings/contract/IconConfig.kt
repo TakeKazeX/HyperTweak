@@ -2,9 +2,14 @@ package com.takekazex.hypertweak.settings.contract
 
 import java.util.Collections
 
+/** Copies a stored string set with every element type-checked, so a malformed value fails here. */
+private fun checkedStringSet(value: Any): Set<String> =
+    Collections.unmodifiableSet((value as Set<*>).mapTo(LinkedHashSet()) { it as String })
+
 /** The selected replacement for the host signal icons. */
 enum class SignalStyle { NORMAL, STACKED, DUO }
 
+@ConsistentCopyVisibility
 data class SlotsIconConfig internal constructor(val values: Map<String, Any>, val explicitSlotKeys: Set<String>) {
     fun value(key: String): Any? = values[key]
     fun boolean(key: String): Boolean = values[key] as Boolean
@@ -26,7 +31,9 @@ data class SlotsIconConfig internal constructor(val values: Map<String, Any>, va
     val ignoreSysHide: Boolean get() = values.getValue(IconSettingsKeys.KEY_ICON_IGNORE_SYS_HIDE) as Boolean
     val hidePrivacy: Boolean get() = values.getValue(IconSettingsKeys.KEY_ICON_HIDE_PRIVACY) as Boolean
     val position: Int get() = values.getValue(IconTunerContract.KEY_POSITION) as Int
-    val positionValues: Set<String> get() = values.getValue(IconTunerContract.KEY_POSITION_VALUES) as Set<String>
+    val positionValues: Set<String> by lazy(LazyThreadSafetyMode.PUBLICATION) {
+        checkedStringSet(values.getValue(IconTunerContract.KEY_POSITION_VALUES))
+    }
     val positionReorder: Boolean get() = values.getValue(IconTunerContract.KEY_POSITION_REORDER) as Boolean
 
     /** Explicit per-slot modes with the extra-hidden list folded in; unset slots keep their default. */
@@ -42,6 +49,7 @@ data class SlotsIconConfig internal constructor(val values: Map<String, Any>, va
     val leftKeyguardCarrier: Int get() = values.getValue(IconTunerContract.KEY_LEFT_KEYGUARD_CARRIER) as Int
 }
 
+@ConsistentCopyVisibility
 data class CellularIconConfig internal constructor(val values: Map<String, Any>) {
     fun value(key: String): Any? = values[key]
     fun boolean(key: String): Boolean = values[key] as Boolean
@@ -67,6 +75,7 @@ data class CellularIconConfig internal constructor(val values: Map<String, Any>)
     val cellularTypeKeepOnWifi: Boolean get() = values.getValue(IconSettingsKeys.KEY_ICON_CELLULAR_TYPE_KEEP_ON_WIFI) as Boolean
 }
 
+@ConsistentCopyVisibility
 data class WifiIconConfig internal constructor(val values: Map<String, Any>) {
     fun value(key: String): Any? = values[key]
     fun boolean(key: String): Boolean = values[key] as Boolean
@@ -83,6 +92,7 @@ data class WifiIconConfig internal constructor(val values: Map<String, Any>) {
     val wifiPaddingEndVal: Float get() = values.getValue(IconSettingsKeys.KEY_ICON_WIFI_PADDING_END_VAL) as Float
 }
 
+@ConsistentCopyVisibility
 data class NetworkIconConfig internal constructor(val values: Map<String, Any>) {
     fun value(key: String): Any? = values[key]
     fun boolean(key: String): Boolean = values[key] as Boolean
@@ -98,6 +108,7 @@ data class NetworkIconConfig internal constructor(val values: Map<String, Any>) 
     val hideMobileOnWifi: Boolean get() = values.getValue(IconSettingsKeys.KEY_ICON_HIDE_MOBILE_ON_WIFI) as Boolean
 }
 
+@ConsistentCopyVisibility
 data class StackedIconConfig internal constructor(val values: Map<String, Any>) {
     fun value(key: String): Any? = values[key]
     fun boolean(key: String): Boolean = values[key] as Boolean
@@ -109,6 +120,7 @@ data class StackedIconConfig internal constructor(val values: Map<String, Any>) 
     val stackedWeight: Float get() = values.getValue(IconSettingsKeys.KEY_ICON_STACKED_WEIGHT) as Float
 }
 
+@ConsistentCopyVisibility
 data class DuoIconConfig internal constructor(val values: Map<String, Any>) {
     fun value(key: String): Any? = values[key]
     fun boolean(key: String): Boolean = values[key] as Boolean
@@ -132,6 +144,7 @@ data class DuoIconConfig internal constructor(val values: Map<String, Any>) {
     val duoPercentScale: Int get() = values.getValue(IconSettingsKeys.KEY_ICON_DUO_PERCENT_SCALE) as Int
 }
 
+@ConsistentCopyVisibility
 data class ControlCenterIconConfig internal constructor(val values: Map<String, Any>) {
     fun value(key: String): Any? = values[key]
     fun boolean(key: String): Boolean = values[key] as Boolean
@@ -150,7 +163,9 @@ data class ControlCenterIconConfig internal constructor(val values: Map<String, 
     val hideDate: Boolean get() = values.getValue(SystemUiSettingsKeys.KEY_CC_HIDE_DATE) as Boolean
     val networkFirstRow: Boolean get() = values.getValue(SystemUiSettingsKeys.KEY_CC_NETWORK_FIRST_ROW) as Boolean
     val carrierTwoLine: Boolean get() = values.getValue(SystemUiSettingsKeys.KEY_CC_CARRIER_TWO_LINE) as Boolean
-    val iconRowOverrides: Set<String> get() = values.getValue(SystemUiSettingsKeys.KEY_CC_ICON_ROW_OVERRIDES) as Set<String>
+    val iconRowOverrides: Set<String> by lazy(LazyThreadSafetyMode.PUBLICATION) {
+        checkedStringSet(values.getValue(SystemUiSettingsKeys.KEY_CC_ICON_ROW_OVERRIDES))
+    }
     val carrierShowNonDataType: Boolean get() = values.getValue(SystemUiSettingsKeys.KEY_CC_CARRIER_SHOW_NON_DATA_TYPE) as Boolean
     val carrierShowBadge: Boolean get() = values.getValue(SystemUiSettingsKeys.KEY_CC_CARRIER_SHOW_BADGE) as Boolean
     val carrierBadgeOne: String get() = values.getValue(SystemUiSettingsKeys.KEY_CC_CARRIER_BADGE_ONE) as String
@@ -170,6 +185,7 @@ data class ControlCenterIconConfig internal constructor(val values: Map<String, 
     val rotationLockIcon: Boolean get() = values.getValue(SystemUiSettingsKeys.KEY_CC_ROTATION_LOCK_ICON) as Boolean
 }
 
+@ConsistentCopyVisibility
 data class MiscIconConfig internal constructor(val values: Map<String, Any>) {
     fun value(key: String): Any? = values[key]
     fun boolean(key: String): Boolean = values[key] as Boolean
@@ -186,6 +202,7 @@ data class MiscIconConfig internal constructor(val values: Map<String, Any>) {
     val notificationMax: Boolean get() = values.getValue(PlatformSettingsKeys.KEY_STATUSBAR_NOTIFICATION_MAX) as Boolean
     val notificationIconMax: Int get() = values.getValue(PlatformSettingsKeys.KEY_STATUSBAR_NOTIFICATION_ICON_MAX) as Int
 }
+@ConsistentCopyVisibility
 data class IconConfig internal constructor(
     val signalStyle: SignalStyle,
     val slots: SlotsIconConfig,

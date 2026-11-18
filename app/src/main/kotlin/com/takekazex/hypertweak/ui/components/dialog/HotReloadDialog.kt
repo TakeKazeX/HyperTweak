@@ -1,6 +1,5 @@
 package com.takekazex.hypertweak.ui.components.dialog
 
-import android.annotation.SuppressLint
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -13,6 +12,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -165,10 +165,10 @@ internal fun HotReloadDialog(
     )
 }
 
-@SuppressLint("LocalContextGetResourceValueCall")
 @Composable
 private fun HotReloadTargetsCard(targets: List<String>) {
     val context = LocalContext.current
+    val resources = LocalResources.current
     val listedTargets = remember(targets) { targets.distinct() }
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -189,7 +189,7 @@ private fun HotReloadTargetsCard(targets: List<String>) {
             ) {
                 items(listedTargets, key = { it }) { processName ->
                     Text(
-                        text = context.getString(
+                        text = resources.getString(
                             R.string.home_stale_target_line,
                             friendlyProcessName(context, processName)
                         ),

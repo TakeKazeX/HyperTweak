@@ -1,6 +1,5 @@
 package com.takekazex.hypertweak.ui.page.app
 
-import android.annotation.SuppressLint
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
@@ -9,7 +8,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.takekazex.hypertweak.R
@@ -31,22 +30,21 @@ import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
-@SuppressLint("LocalContextGetResourceValueCall")
 @Composable
 fun AppearancePage(
     onBack: () -> Unit,
 ) {
     val appSettings = LocalAppSettings.current
-    val context = LocalContext.current
+    val resources = LocalResources.current
     val systemAccent = rememberDeviceAccentColor()
     val resolvedSeed = if (appSettings.seedColorHex == 0) systemAccent else appSettings.seedColorHex
     val darkPreview = isEffectivelyDark(appSettings.themeMode, isSystemInDarkTheme())
     val customSeed = appSettings.seedColorHex !in presetAccentColors
-    val accentLabels = remember(context, appSettings.seedColorHex, customSeed) {
+    val accentLabels = remember(resources, appSettings.seedColorHex, customSeed) {
         buildList {
-            addAll(presetAccentLabels.map { context.getString(it) })
+            addAll(presetAccentLabels.map { resources.getString(it) })
             if (customSeed) {
-                add(context.getString(R.string.appearance_custom_accent, formatSeedColor(appSettings.seedColorHex)))
+                add(resources.getString(R.string.appearance_custom_accent, formatSeedColor(appSettings.seedColorHex)))
             }
         }
     }
@@ -109,7 +107,7 @@ fun AppearancePage(
         onBack = onBack,
         backContentDescription = stringResource(R.string.appearance_back),
     ) {
-        AppSection(stringResource(R.string.appearance_theme)) {
+        AppSection(title = stringResource(R.string.appearance_theme)) {
             OverlayDropdownPreference(
                 title = stringResource(R.string.appearance_ui_style),
                 summary = stringResource(R.string.appearance_ui_style_summary),
@@ -150,7 +148,7 @@ fun AppearancePage(
             )
         }
 
-        AppSection(stringResource(R.string.appearance_navigation)) {
+        AppSection(title = stringResource(R.string.appearance_navigation)) {
             val uiStyle = appUiStyleFromStored(appSettings.appUiStyle)
             val barStyles = bottomBarStyles(uiStyle)
             val barStyle = bottomBarStyle(uiStyle, appSettings.useFloatingBottomBar, appSettings.floatingBarStyle)
@@ -184,7 +182,7 @@ fun AppearancePage(
             }
         }
 
-        AppSection(stringResource(R.string.appearance_display)) {
+        AppSection(title = stringResource(R.string.appearance_display)) {
             OverlayDropdownPreference(
                 title = stringResource(R.string.appearance_global_blur),
                 items = listOf(

@@ -1,8 +1,8 @@
 package com.takekazex.hypertweak.hook.rules.backgesture.hooks.systemui;
 
 import com.takekazex.hypertweak.hook.Preferences;
+import com.takekazex.hypertweak.hook.rules.shared.PrivilegedRunningTasks;
 
-import android.annotation.SuppressLint;
 import android.app.ActivityManager;
 import android.content.ComponentName;
 import android.content.Context;
@@ -37,7 +37,6 @@ import java.util.WeakHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /** Owns per-display input monitors and admission on the input thread. */
-@SuppressLint({"PrivateApi", "DiscouragedApi"})
 public abstract class SystemUiInputRuntime extends SystemUiInputDriverRuntime {
     protected final Map<Object, NativeBackInputMonitor> nativeInputMonitors =
             Collections.synchronizedMap(new WeakHashMap<>());
@@ -905,13 +904,10 @@ public abstract class SystemUiInputRuntime extends SystemUiInputDriverRuntime {
             return true;
         }
 
-        // HyperTweak: this runs in privileged SystemUI and queries tasks on the owning display.
-        // UsageStats is not an equivalent source of current RunningTaskInfo/topActivity.
-        @SuppressWarnings("deprecation")
         protected ComponentName findTopActivity() {
             try {
                 ActivityManager activityManager = context.getSystemService(ActivityManager.class);
-                List<ActivityManager.RunningTaskInfo> tasks = activityManager.getRunningTasks(20);
+                List<ActivityManager.RunningTaskInfo> tasks = PrivilegedRunningTasks.query(activityManager, 20);
                 if (tasks == null || tasks.isEmpty()) {
                     return null;
                 }

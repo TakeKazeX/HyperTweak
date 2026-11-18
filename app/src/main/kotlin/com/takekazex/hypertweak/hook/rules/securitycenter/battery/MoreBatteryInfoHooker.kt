@@ -1,5 +1,3 @@
-@file:Suppress("StaticFieldLeak")
-
 package com.takekazex.hypertweak.hook.rules.securitycenter.battery
 
 import com.takekazex.hypertweak.hook.base.HostAccess
@@ -7,7 +5,6 @@ import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 
-import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
@@ -40,7 +37,6 @@ import java.util.Locale
  * battery readers are resolved only from their stable DEX string keys. Cycle count uses the
  * sysfs and IMiCharge interfaces instead of version-specific obfuscated reader names.
  */
-@SuppressLint("StaticFieldLeak")
 object MoreBatteryInfoHooker : StaticHooker() {
     // Published on settings acceptance; hook callbacks perform no storage reads.
     private val settingSecurityCenterMoreBatteryInfo by hookSetting(false) {

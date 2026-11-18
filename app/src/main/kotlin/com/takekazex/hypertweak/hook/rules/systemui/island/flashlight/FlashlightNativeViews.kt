@@ -4,7 +4,6 @@ import android.content.Context
 import android.content.ContextWrapper
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
-import android.graphics.drawable.BitmapDrawable
 import android.util.AttributeSet
 import android.view.LayoutInflater
 import android.view.View
@@ -14,6 +13,7 @@ import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.SeekBar
 import com.takekazex.hypertweak.util.logging.DebugLog
+import androidx.core.graphics.drawable.toDrawable
 
 /**
  * The plugin's own flashlight page, inflated from its resources with its class loader:
@@ -46,9 +46,9 @@ internal class FlashlightNativeAssets private constructor(
         val effect = inflater.inflate(id("mi_flashlight_static_effect", "layout"), stage, false)
         stage.addView(effect)
         fun image(name: String) = effect.findViewById<ImageView>(id(name, "id")) ?: error("missing id/$name")
-        image("mi_flash_layer0").setImageDrawable(BitmapDrawable(resources, base))
-        val longView = image("mi_flash_layer1").apply { setImageDrawable(BitmapDrawable(resources, longLight)) }
-        val composeView = image("mi_flash_layer2").apply { setImageDrawable(BitmapDrawable(resources, composeLight)) }
+        image("mi_flash_layer0").setImageDrawable(base.toDrawable(resources))
+        val longView = image("mi_flash_layer1").apply { setImageDrawable(longLight.toDrawable(resources)) }
+        val composeView = image("mi_flash_layer2").apply { setImageDrawable(composeLight.toDrawable(resources)) }
         val container = root.findViewById<View>(id("mi_seekbar_container", "id")) ?: error("missing id/mi_seekbar_container")
         val track = root.findViewById<View>(id("mi_seekbar_bg", "id")) ?: error("missing id/mi_seekbar_bg")
         val seekbar = root.findViewById<SeekBar>(id("mi_fl_seekbar", "id")) ?: error("missing id/mi_fl_seekbar")

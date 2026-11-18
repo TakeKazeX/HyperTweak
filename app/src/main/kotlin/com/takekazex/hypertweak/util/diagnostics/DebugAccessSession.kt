@@ -5,15 +5,18 @@ import android.os.SystemClock
 import android.provider.Settings
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import com.takekazex.hypertweak.util.storage.commitEdit
 
 /** Separate local file: never backed up, restored, or remotely writable through Preferences. */
 internal object DebugAccessSession {
     private const val DURATION_MS = 30 * 60 * 1000L
+
+    /** The status call against the debug provider declared in the manifest; shown verbatim, never translated. */
+    const val STATUS_COMMAND = "su -c content call --uri content://com.takekazex.hypertweak.debug --method status"
     private val changed = MutableStateFlow(0L)
     val changes = changed.asStateFlow()
     private fun prefs(context: Context) = context.getSharedPreferences("debug_access_session", Context.MODE_PRIVATE)
     private fun boot(context: Context) = Settings.Global.getInt(context.contentResolver, Settings.Global.BOOT_COUNT, -1)
-    @Suppress("DEPRECATION")
     private fun install(context: Context) = context.packageManager.getPackageInfo(context.packageName, 0).lastUpdateTime
 
     @Synchronized fun remaining(context: Context): Long {
@@ -22,13 +25,14 @@ internal object DebugAccessSession {
             p.getInt("boot", -2), boot(context), p.getLong("install", -1), install(context))
     }
     @Synchronized fun setEnabled(context: Context, enabled: Boolean) {
-        check(prefs(context).edit().clear().apply {
+        check(prefs(context).commitEdit {
+            clear()
             if (enabled) {
                 check(boot(context) >= 0) { "Boot identity unavailable" }
                 putInt("boot", boot(context)).putLong("install", install(context))
                 putLong("until", SystemClock.elapsedRealtime() + DURATION_MS)
             }
-        }.commit()) { "Unable to save debug authorization" }
+        }) { "Unable to save debug authorization" }
         changed.value += 1
     }
     internal fun remainingFor(until: Long, now: Long, grantedBoot: Int, currentBoot: Int,

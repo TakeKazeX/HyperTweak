@@ -1,6 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.securitycenter.sidebar
 
 import android.app.ActivityOptions
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.LauncherApps
 import android.content.pm.ShortcutInfo
@@ -35,6 +36,7 @@ import java.lang.reflect.Field
 import java.lang.reflect.Method
 import java.util.WeakHashMap
 import java.util.concurrent.ConcurrentHashMap
+import androidx.core.view.isVisible
 
 private object SecurityCenterDockShortcutsFeature : DexFeature {
     override val id = "securitycenter.dock_shortcuts"
@@ -249,10 +251,16 @@ object SecurityCenterDockShortcutsHooker : DynamicHooker() {
             card.tag = CARD_TAG
             card.visibility = View.GONE
             card.addView(scroller, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
-            parent.addView(card, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
-                .apply { gravity = Gravity.TOP or Gravity.LEFT })
+            parent.addView(card, absoluteCardParams())
             observer = parent.viewTreeObserver.also { it.addOnPreDrawListener(sync) }
         }
+
+        // follow() places the card from absolute window coordinates through leftMargin, so the
+        // gravity must stay absolute too; START would read rightMargin in RTL locales.
+        @SuppressLint("RtlHardcoded")
+        private fun absoluteCardParams() =
+            FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+                .apply { gravity = Gravity.TOP or Gravity.LEFT }
 
         private fun createCard(): FrameLayout {
             var type: Class<*>? = menu.javaClass
@@ -380,7 +388,7 @@ object SecurityCenterDockShortcutsHooker : DynamicHooker() {
         }
 
         private fun follow() {
-            val visible = hasContent && menu.visibility == View.VISIBLE && card.parent === parent
+            val visible = hasContent && menu.isVisible && card.parent === parent
             val target = if (visible) View.VISIBLE else View.GONE
             if (card.visibility != target) card.visibility = target
             if (visible) {

@@ -10,7 +10,6 @@ import com.takekazex.hypertweak.hook.rules.backgesture.hooks.systemui.SystemUiPl
 import com.takekazex.hypertweak.settings.contract.BackGestureKeys;
 import com.takekazex.hypertweak.hook.base.HostApplicationContext;
 
-import android.annotation.SuppressLint;
 import android.app.ActivityThread;
 import android.app.BroadcastOptions;
 import android.content.BroadcastReceiver;
@@ -40,7 +39,6 @@ import org.luckypray.dexkit.query.FindMethod;
 import org.luckypray.dexkit.query.matchers.MethodMatcher;
 import org.luckypray.dexkit.result.MethodData;
 
-@SuppressLint({"PrivateApi", "DiscouragedPrivateApi"})
 public abstract class SystemUiHookRuntime extends com.takekazex.hypertweak.hook.rules.backgesture.hooks.systemui.barfollow.SystemUiBarFollowRuntime {
 
     private final SystemUiBridgeLease launcherBridgeLease = new SystemUiBridgeLease();

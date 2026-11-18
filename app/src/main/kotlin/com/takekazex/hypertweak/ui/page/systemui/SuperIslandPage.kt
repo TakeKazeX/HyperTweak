@@ -54,7 +54,7 @@ fun SuperIslandPage(
         if (appSettings.islandFlashlightControl) MissingScopeCard("com.android.systemui", "com.xiaomi.xmsf", FLASHLIGHT_PAGE_PACKAGE)
         else MissingScopeCard("com.android.systemui", "com.xiaomi.xmsf")
 
-        AppSection(stringResource(R.string.tweaks_focus_notification_title)) {
+        AppSection(title = stringResource(R.string.tweaks_focus_notification_title)) {
             SwitchPreference(
                 checked = appSettings.threeIslands,
                 onCheckedChange = { appSettings.threeIslands = it },

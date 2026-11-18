@@ -11,6 +11,7 @@ import java.lang.reflect.Constructor
 import java.lang.reflect.Field
 import java.lang.reflect.Method
 import java.lang.reflect.Proxy
+import androidx.core.graphics.createBitmap
 
 /**
  * The plugin's OpenGL flashlight (`MiFlashlightUiOpenGl`): `FlashlightRender`, an `MglRenderer`
@@ -167,7 +168,7 @@ internal class FlashlightGl(
         val h = (texture.height / 2).coerceAtLeast(1)
         return runCatching {
             val target = reuse?.takeIf { !it.isRecycled && it.isMutable && it.width == w && it.height == h }
-                ?: Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+                ?: createBitmap(w, h)
             texture.getBitmap(target)
         }.onFailure { DebugLog.w(TAG, "flashlight frame capture failed", it) }.getOrNull()
     }

@@ -77,7 +77,7 @@ fun SecurityCenterPage(
     ) {
 
         MissingScopeCard("com.miui.securitycenter", "com.miui.securitycore", "com.android.contacts")
-        AppSection(stringResource(R.string.security_center_app_details_section)) {
+        AppSection(title = stringResource(R.string.security_center_app_details_section)) {
             SwitchPreference(
                 checked = iconLaunch,
                 onCheckedChange = { enabled ->
@@ -119,7 +119,7 @@ fun SecurityCenterPage(
                 summary = stringResource(R.string.security_center_allow_app_disable_summary)
             )
         }
-        AppSection(stringResource(R.string.security_center_privacy_entries_section)) {
+        AppSection(title = stringResource(R.string.security_center_privacy_entries_section)) {
             SwitchPreference(
                 checked = privacyCallEntry,
                 onCheckedChange = { enabled ->
@@ -166,7 +166,7 @@ fun SecurityCenterPage(
             )
         }
 
-        AppSection(stringResource(R.string.security_center_dock_section)) {
+        AppSection(title = stringResource(R.string.security_center_dock_section)) {
             OverlayDropdownPreference(
                 items = listOf(
                     stringResource(R.string.security_center_sidebar_native),
@@ -257,7 +257,7 @@ fun SecurityCenterPage(
             )
         }
 
-        AppSection(stringResource(R.string.security_center_checks_section)) {
+        AppSection(title = stringResource(R.string.security_center_checks_section)) {
             SwitchPreference(
                 checked = skipLocalSuCheck,
                 onCheckedChange = { enabled ->
@@ -300,7 +300,7 @@ fun SecurityCenterPage(
             )
         }
 
-        AppSection(stringResource(R.string.security_center_carrier_offline_section)) {
+        AppSection(title = stringResource(R.string.security_center_carrier_offline_section)) {
             SwitchPreference(
                 checked = networkAssistantIgnoreOffline,
                 onCheckedChange = { enabled ->
@@ -327,7 +327,7 @@ fun SecurityCenterPage(
             )
         }
 
-        AppSection(stringResource(R.string.security_center_clipboard_section)) {
+        AppSection(title = stringResource(R.string.security_center_clipboard_section)) {
             SwitchPreference(
                 checked = appSettings.lbeClipboardToast,
                 onCheckedChange = { appSettings.lbeClipboardToast = it },
@@ -336,7 +336,7 @@ fun SecurityCenterPage(
             )
         }
 
-        AppSection(stringResource(R.string.security_center_notifications_section)) {
+        AppSection(title = stringResource(R.string.security_center_notifications_section)) {
             SwitchPreference(
                 checked = bubbleNotificationUnlock,
                 onCheckedChange = { enabled ->
@@ -347,7 +347,7 @@ fun SecurityCenterPage(
             )
         }
 
-        AppSection(stringResource(R.string.security_center_warning_section)) {
+        AppSection(title = stringResource(R.string.security_center_warning_section)) {
             OverlayDropdownPreference(
                 items = listOf(
                     stringResource(R.string.security_center_warning_follow_system),
@@ -363,7 +363,7 @@ fun SecurityCenterPage(
             )
         }
 
-        AppSection(stringResource(R.string.security_center_battery_section)) {
+        AppSection(title = stringResource(R.string.security_center_battery_section)) {
             ArrowPreference(
                 title = stringResource(R.string.power_save_override_title),
                 summary = stringResource(R.string.power_save_override_entry_summary),

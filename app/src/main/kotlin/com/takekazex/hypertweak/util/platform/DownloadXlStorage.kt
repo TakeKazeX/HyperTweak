@@ -7,7 +7,10 @@ import java.io.File
 /** Exact shared-storage paths accepted by the provider hook; never delete without confirmation. */
 object DownloadXlStorage {
     const val ROOT_PATH = "/storage/emulated/0/.xlDownload"
-    private val paths = listOf(ROOT_PATH, "/sdcard/.xlDownload")
+
+    /** Both spellings the provider uses; the hook and the cleanup must agree on them. */
+    @Suppress("SdCardPath") // The host's literal path, matched as a string, never resolved here.
+    val paths: List<String> = listOf(ROOT_PATH, "/sdcard/.xlDownload")
 
     /** Direct access can prove presence, but scoped-storage denial cannot prove absence. */
     suspend fun directoryExists(): Boolean? = withContext(Dispatchers.IO) {

@@ -1,5 +1,3 @@
-@file:Suppress("SdCardPath")
-
 package com.takekazex.hypertweak.hook.rules.downloads
 
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
@@ -10,6 +8,7 @@ import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.InstallPolicy
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
+import com.takekazex.hypertweak.util.platform.DownloadXlStorage
 import java.lang.reflect.Method
 import java.lang.reflect.Modifier
 
@@ -32,10 +31,7 @@ object DownloadXlLogDirectoryHooker : StaticHooker() {
     private const val XL_CONFIG = "com.android.providers.downloads.config.XLConfig"
     private const val FILE_UTIL = "com.android.providers.downloads.util.FileUtil"
 
-    private val targetDirectories = setOf(
-        "/storage/emulated/0/.xlDownload",
-        "/sdcard/.xlDownload"
-    )
+    private val targetDirectories = DownloadXlStorage.paths.toSet()
 
     override val installPolicy = InstallPolicy.WHEN_ENABLED
     override fun isFeatureEnabled() = settingBlockDownloadXlLogDir

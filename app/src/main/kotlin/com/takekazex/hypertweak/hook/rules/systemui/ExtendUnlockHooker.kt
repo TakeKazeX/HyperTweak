@@ -105,10 +105,9 @@ object ExtendUnlockHooker : StaticHooker() {
                 android.os.UserHandle::class.java.cachedPublicMethod("myUserId", accessible = false).invoke(null) as? Int
             }.getOrNull() ?: 0
 
-            @Suppress("UNCHECKED_CAST")
-            val enabled = lockPatternUtils
+            val enabled = (lockPatternUtils
                 .cachedPublicMethod("getEnabledTrustAgents", Int::class.javaPrimitiveType, accessible = false)
-                .invoke(instance, userId) as? List<ComponentName> ?: emptyList()
+                .invoke(instance, userId) as? List<*>)?.filterIsInstance<ComponentName>().orEmpty()
 
             val agent = ComponentName(GMS_PACKAGE, GMS_TRUST_AGENT)
             val present = enabled.any { it == agent }

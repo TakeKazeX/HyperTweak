@@ -94,7 +94,7 @@ internal fun AirplaneSection(
         stringResource(R.string.icon_airplane_label_icon_start),
         stringResource(R.string.icon_airplane_label_icon_end)
     )
-    AppSection(stringResource(R.string.icon_airplane_title)) {
+    AppSection(title = stringResource(R.string.icon_airplane_title)) {
         OverlayDropdownPreference(
             title = stringResource(R.string.icon_rotation_lock_visibility),
             items = slotModes,
@@ -154,7 +154,7 @@ internal fun RotationLockSection(
     onChange: (String, Any) -> Unit
 ) {
     val settingsStore = LocalAppSettingsStore.current
-    AppSection(stringResource(R.string.icon_cc_rotation_lock_title)) {
+    AppSection(title = stringResource(R.string.icon_cc_rotation_lock_title)) {
         TunerSwitch(
             enabled,
             stringResource(R.string.icon_cc_rotation_lock),
@@ -202,7 +202,7 @@ internal fun LeftContainerSection(
         stringResource(R.string.icon_left_mode_home),
         stringResource(R.string.icon_left_mode_both)
     )
-    AppSection(stringResource(R.string.icon_left_container_title)) {
+    AppSection(title = stringResource(R.string.icon_left_container_title)) {
         OverlayDropdownPreference(
             title = stringResource(R.string.icon_left_container_mode),
             summary = stringResource(R.string.icon_left_container_mode_summary),
@@ -266,7 +266,7 @@ internal fun PositionSection(position: Int, onNavigateToIconOrder: () -> Unit) {
         stringResource(R.string.icon_position_wifi_before_mobile),
         stringResource(R.string.icon_position_custom)
     )
-    AppSection(stringResource(R.string.icon_position_title)) {
+    AppSection(title = stringResource(R.string.icon_position_title)) {
         ArrowPreference(
             title = stringResource(R.string.icon_position_title),
             summary = positions[position.coerceIn(0, positions.lastIndex)],
@@ -278,7 +278,7 @@ internal fun PositionSection(position: Int, onNavigateToIconOrder: () -> Unit) {
 /** The status-bar options outside every icon group. */
 @Composable
 internal fun StatusBarMiscSection(regionSampling: Boolean, onChange: (String, Any) -> Unit) {
-    AppSection(stringResource(R.string.icon_section_status_bar)) {
+    AppSection(title = stringResource(R.string.icon_section_status_bar)) {
         TunerSwitch(
             regionSampling,
             stringResource(R.string.icon_region_sampling),
@@ -293,7 +293,7 @@ internal fun NotificationSection(
     maximum: Int,
     onChange: (String, Any) -> Unit
 ) {
-    AppSection(stringResource(R.string.icon_notification_title)) {
+    AppSection(title = stringResource(R.string.icon_notification_title)) {
         TunerSwitch(
             enabled,
             stringResource(R.string.icon_notification_max),
@@ -368,7 +368,7 @@ private fun NotificationMaxIconsRow(maximum: Int, onValueChange: (Int) -> Unit) 
 
 @Composable
 internal fun BatteryStyleSection(style: Int, onChange: (Int) -> Unit) {
-    AppSection(stringResource(R.string.icon_battery_style_title)) {
+    AppSection(title = stringResource(R.string.icon_battery_style_title)) {
         OverlayDropdownPreference(
             title = stringResource(R.string.icon_battery_style_percent),
             items = listOf(
@@ -390,7 +390,7 @@ internal fun SlotsSection(
     onChange: (String, Any) -> Unit
 ) {
     val settingsStore = LocalAppSettingsStore.current
-    AppSection(stringResource(R.string.icon_slots_title)) {
+    AppSection(title = stringResource(R.string.icon_slots_title)) {
         IconSlotCatalog.slots.filterNot { it in OWN_CARD_SLOTS }.forEach { slot ->
             val mode = slotModeOf(slot)
             val info = IconSlotCatalog.of(slot)

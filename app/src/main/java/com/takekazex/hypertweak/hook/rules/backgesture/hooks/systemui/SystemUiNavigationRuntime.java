@@ -1,6 +1,5 @@
 package com.takekazex.hypertweak.hook.rules.backgesture.hooks.systemui;
 
-import android.annotation.SuppressLint;
 import android.content.Context;
 import android.graphics.Insets;
 import android.os.Handler;
@@ -23,7 +22,6 @@ import org.luckypray.dexkit.query.matchers.MethodMatcher;
 import org.luckypray.dexkit.result.MethodData;
 
 /** Owns navigation bars, gesture insets and headless host leases. */
-@SuppressLint({"PrivateApi", "DiscouragedPrivateApi"})
 public abstract class SystemUiNavigationRuntime extends SystemUiOpenTransitionRuntime {
     protected abstract void ensureBackInputInstalledFromHandler(Object handler, String source);
     protected abstract Context resolveCurrentApplicationContext(ClassLoader loader);

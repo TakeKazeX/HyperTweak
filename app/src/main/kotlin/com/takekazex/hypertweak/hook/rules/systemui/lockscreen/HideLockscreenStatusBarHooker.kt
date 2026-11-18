@@ -1,5 +1,3 @@
-@file:Suppress("StaticFieldLeak")
-
 package com.takekazex.hypertweak.hook.rules.systemui.lockscreen
 
 import com.takekazex.hypertweak.hook.base.orSkip

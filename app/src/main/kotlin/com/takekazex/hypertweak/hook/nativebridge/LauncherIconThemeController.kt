@@ -6,6 +6,7 @@ import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
 import com.takekazex.hypertweak.util.logging.DebugLog
+import com.takekazex.hypertweak.util.storage.commitEdit
 
 /** Applies acknowledged module settings through the launcher's verified System Settings observers. */
 internal class LauncherIconThemeController(private val context: Context) {
@@ -19,10 +20,10 @@ internal class LauncherIconThemeController(private val context: Context) {
             if (journal.getBoolean("${key}_owned", false)) LauncherIconThemeJournal.Record(
                 journal.getString("${key}_before", null), journal.getString("${key}_last", null)) else null
         override fun save(key: String, record: LauncherIconThemeJournal.Record?): Boolean {
-            val editor = journal.edit()
-            if (record == null) editor.remove("${key}_owned").remove("${key}_before").remove("${key}_last")
-            else editor.putBoolean("${key}_owned", true).putString("${key}_before", record.before).putString("${key}_last", record.last)
-            return editor.commit()
+            return journal.commitEdit {
+                if (record == null) remove("${key}_owned").remove("${key}_before").remove("${key}_last")
+                else putBoolean("${key}_owned", true).putString("${key}_before", record.before).putString("${key}_last", record.last)
+            }
         }
     })
     private var latest: NativeRuleStateSnapshot? = null

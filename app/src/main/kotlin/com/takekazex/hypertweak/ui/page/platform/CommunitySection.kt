@@ -37,7 +37,7 @@ internal fun CommunitySection() {
             model = store.getString(CommunitySettingsKeys.KEY_COMMUNITY_MODEL, "")
         }
     }
-    AppSection(stringResource(R.string.community_title)) {
+    AppSection(title = stringResource(R.string.community_title)) {
         Column {
             SwitchPreference(checked = block, onCheckedChange = {
                 store.putBoolean(CommunitySettingsKeys.KEY_COMMUNITY_BLOCK_DETECTION, it); block = it

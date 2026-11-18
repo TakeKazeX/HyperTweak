@@ -1,6 +1,5 @@
 package com.takekazex.hypertweak.ui.page.home
 
-import android.annotation.SuppressLint
 import androidx.compose.animation.*
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
@@ -34,7 +33,6 @@ import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 
-@SuppressLint("LocalContextGetResourceValueCall")
 @Composable
 fun TweaksScreenContent(
     padding: PaddingValues,
@@ -60,7 +58,7 @@ fun TweaksScreenContent(
 
         // Keep the pages that operate on a complete system component together, with a visual
         // cue for the app each entry opens.
-        AppSection(stringResource(R.string.tweaks_system_components_title)) {
+        AppSection(title = stringResource(R.string.tweaks_system_components_title)) {
             ArrowPreference(
                 title = stringResource(R.string.settings_aosp_restore),
                 summary = stringResource(R.string.settings_aosp_restore_summary),
@@ -189,7 +187,7 @@ fun TweaksScreenContent(
 
         com.takekazex.hypertweak.ui.page.wifi.WifiDetailsControls()
 
-        AppSection(stringResource(R.string.purification_title)) {
+        AppSection(title = stringResource(R.string.purification_title)) {
             ArrowPreference(
                 title = stringResource(R.string.purification_title),
                 summary = stringResource(R.string.purification_summary),
@@ -197,7 +195,7 @@ fun TweaksScreenContent(
             )
         }
 
-        AppSection(stringResource(R.string.tweaks_personal_assistant_title)) {
+        AppSection(title = stringResource(R.string.tweaks_personal_assistant_title)) {
             SwitchPreference(
                 checked = appSettings.paModelSpoofEnabled,
                 onCheckedChange = { appSettings.paModelSpoofEnabled = it },
@@ -210,7 +208,7 @@ fun TweaksScreenContent(
         }
 
         // Scope 5: Bluetooth
-        AppSection(stringResource(R.string.tweaks_bluetooth_title)) {
+        AppSection(title = stringResource(R.string.tweaks_bluetooth_title)) {
             SwitchPreference(
                 checked = appSettings.disableSpatialAudio,
                 onCheckedChange = { appSettings.disableSpatialAudio = it },
@@ -225,7 +223,7 @@ fun TweaksScreenContent(
             )
         }
 
-        AppSection(stringResource(R.string.tweaks_focus_notification_title)) {
+        AppSection(title = stringResource(R.string.tweaks_focus_notification_title)) {
             ArrowPreference(
                 title = stringResource(R.string.tweaks_focus_notification_title),
                 summary = stringResource(R.string.tweaks_super_island_summary),

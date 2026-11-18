@@ -62,7 +62,7 @@ internal fun NotificationBannerBatchSection() {
         if (confirmation == 2 && (state.result == null || state.applied || state.busy)) confirmation = 0
     }
 
-    AppSection(stringResource(R.string.notification_batch_title)) {
+    AppSection(title = stringResource(R.string.notification_batch_title)) {
         ArrowPreference(
             title = stringResource(R.string.notification_batch_enable),
             summary = stringResource(if (state.busy) R.string.notification_batch_busy else R.string.notification_batch_summary),

@@ -1,7 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.backgesture.hooks.systemui;
 
 import android.animation.Animator;
-import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.res.Configuration;
 import android.content.res.Resources;
@@ -21,7 +20,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.WeakHashMap;
 
-@SuppressLint({"PrivateApi", "DiscouragedPrivateApi", "DiscouragedApi"})
 final class SystemUiAndroid17Impl extends SystemUiPlatformImpl {
     private final java.util.concurrent.ConcurrentHashMap<Class<?>, Field> transitionAnimatorFields =
             new java.util.concurrent.ConcurrentHashMap<>();

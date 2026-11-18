@@ -521,7 +521,6 @@ object CameraImpersonationHooker : StaticHooker() {
 
         val names = synchronized(disabledWidgetReceiverNamesLock) {
             disabledWidgetReceiverNames.get() ?: runCatching {
-                @Suppress("DEPRECATION")
                 packageManager.getPackageInfo(
                     PACKAGE,
                     PackageManager.GET_RECEIVERS or

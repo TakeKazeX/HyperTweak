@@ -1,5 +1,3 @@
-@file:Suppress("QueryPermissionsNeeded")
-
 package com.takekazex.hypertweak.hook.rules.securitycenter
 
 import com.takekazex.hypertweak.hook.base.HostAccess
@@ -19,6 +17,7 @@ import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.reflect.Constructor
 import java.lang.reflect.Method
+import com.takekazex.hypertweak.hook.rules.shared.HostInstalledApplications
 
 /**
  * Expands the bubble-app list used by the newer SecurityCoreAdd settings activity.
@@ -156,7 +155,7 @@ object SecurityCoreBubbleAppListHooker : StaticHooker() {
         val existingPackages = result.mapNotNull { item ->
             runCatching { getPackageName.invoke(item) as? String }.getOrNull()
         }.toHashSet()
-        val packages = context.packageManager.getInstalledApplications(0)
+        val packages = HostInstalledApplications.list(context.packageManager)
             .asSequence()
             .filter(::isEligibleApplication)
             .map { it.packageName }
@@ -189,7 +188,7 @@ object SecurityCoreBubbleAppListHooker : StaticHooker() {
         context: Context,
         getPackageName: Method
     ) {
-        val systemPackages = context.packageManager.getInstalledApplications(0)
+        val systemPackages = HostInstalledApplications.list(context.packageManager)
             .asSequence()
             .filter { (it.flags and ApplicationInfo.FLAG_SYSTEM) != 0 }
             .map { it.packageName }

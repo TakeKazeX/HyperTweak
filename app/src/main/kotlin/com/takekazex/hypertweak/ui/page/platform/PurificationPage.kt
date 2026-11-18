@@ -65,7 +65,7 @@ fun PurificationPage(
         AivsDirectorySection()
         DarkModeScheduleSection()
         SharePanelSection()
-        AppSection(stringResource(R.string.tweaks_aicr_section)) {
+        AppSection(title = stringResource(R.string.tweaks_aicr_section)) {
             SwitchPreference(
                 checked = aicrCopyDirectDefaultBrowser,
                 onCheckedChange = { enabled ->
@@ -75,7 +75,7 @@ fun PurificationPage(
                 summary = stringResource(R.string.tweaks_aicr_default_browser_summary)
             )
         }
-        AppSection(stringResource(R.string.tweaks_mitrust_title)) {
+        AppSection(title = stringResource(R.string.tweaks_mitrust_title)) {
             SwitchPreference(
                 checked = appSettings.disableMiTrustRiskMonitoring,
                 onCheckedChange = { appSettings.disableMiTrustRiskMonitoring = it },
@@ -85,7 +85,7 @@ fun PurificationPage(
         }
 
 
-        AppSection(stringResource(R.string.tweaks_guard_provider_title)) {
+        AppSection(title = stringResource(R.string.tweaks_guard_provider_title)) {
             SwitchPreference(
                 checked = appSettings.disableGuardEnvironmentCheck,
                 onCheckedChange = { appSettings.disableGuardEnvironmentCheck = it },
@@ -101,7 +101,7 @@ fun PurificationPage(
         }
 
 
-        AppSection(stringResource(R.string.tweaks_milink_title)) {
+        AppSection(title = stringResource(R.string.tweaks_milink_title)) {
             SwitchPreference(
                 checked = appSettings.blockMiLinkHpplayFiles,
                 onCheckedChange = { appSettings.blockMiLinkHpplayFiles = it },
@@ -111,7 +111,7 @@ fun PurificationPage(
         }
 
 
-        AppSection(stringResource(R.string.tweaks_phone_title)) {
+        AppSection(title = stringResource(R.string.tweaks_phone_title)) {
             SwitchPreference(
                 checked = appSettings.disableVideoRingback,
                 onCheckedChange = { appSettings.disableVideoRingback = it },

@@ -63,7 +63,7 @@ fun ControlCenterCornerPage(onBack: () -> Unit) {
         backContentDescription = stringResource(R.string.charging_back),
     ) {
 
-        AppSection(stringResource(R.string.tweaks_cc_corner_enabled_title)) {
+        AppSection(title = stringResource(R.string.tweaks_cc_corner_enabled_title)) {
             SwitchPreference(
                 checked = enabled,
                 onCheckedChange = { checked ->

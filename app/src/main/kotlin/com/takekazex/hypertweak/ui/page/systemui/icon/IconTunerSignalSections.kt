@@ -57,7 +57,7 @@ internal fun SignalStyleSection(
     mobileRowStyle: Int,
     onChange: (String, Any) -> Unit
 ) {
-    AppSection(stringResource(R.string.icon_signal_style)) {
+    AppSection(title = stringResource(R.string.icon_signal_style)) {
         OverlayDropdownPreference(
             title = stringResource(R.string.icon_signal_style),
             summary = stringResource(
@@ -119,7 +119,7 @@ internal fun CellularIndicatorsSection(
     speechHd: Boolean,
     onChange: (String, Any) -> Unit
 ) {
-    AppSection(stringResource(R.string.icon_cellular_title)) {
+    AppSection(title = stringResource(R.string.icon_cellular_title)) {
         TunerSwitch(
             activity,
             stringResource(R.string.icon_hide_data_activity),
@@ -180,7 +180,7 @@ internal fun SimVisibilitySection(
         stringResource(R.string.icon_sim_visibility_status_bar),
         stringResource(R.string.icon_sim_visibility_all)
     )
-    AppSection(stringResource(R.string.icon_sim_visibility_title)) {
+    AppSection(title = stringResource(R.string.icon_sim_visibility_title)) {
         listOf(
             Triple(IconSettingsKeys.KEY_ICON_SIM_ONE_VISIBILITY, R.string.icon_sim_visibility_one, simOneMode),
             Triple(IconSettingsKeys.KEY_ICON_SIM_TWO_VISIBILITY, R.string.icon_sim_visibility_two, simTwoMode),
@@ -205,7 +205,7 @@ internal fun SimVisibilitySection(
             stringResource(R.string.icon_hide_ls_carrier_two_summary)
         ) { onChange(IconSettingsKeys.KEY_ICON_HIDE_LS_CARRIER_TWO, it) }
     }
-    AppSection(stringResource(R.string.icon_section_network)) {
+    AppSection(title = stringResource(R.string.icon_section_network)) {
         TunerSwitch(
             hideOnWifi,
             stringResource(R.string.icon_hide_mobile_on_wifi),
@@ -232,7 +232,7 @@ internal fun WifiSection(
         stringResource(R.string.icon_wifi_standard_native),
         stringResource(R.string.icon_wifi_standard_custom)
     )
-    AppSection(stringResource(R.string.icon_wifi_title)) {
+    AppSection(title = stringResource(R.string.icon_wifi_title)) {
         TunerSwitch(
             activity,
             stringResource(R.string.icon_hide_wifi_activity),
@@ -295,7 +295,7 @@ internal fun CellularTypeSection(
 ) {
     // Stacked bars always pair with the native standalone label, so it is forced on there.
     val separate = forceSingle || stacked
-    AppSection(stringResource(R.string.icon_cellular_type_title)) {
+    AppSection(title = stringResource(R.string.icon_cellular_type_title)) {
         TunerSwitch(
             separate,
             stringResource(R.string.icon_cellular_type_single),
@@ -382,7 +382,7 @@ internal fun CarrierSection(
     onChange: (String, Any) -> Unit
 ) {
     val nativeCarrierOptionsEnabled = CarrierRowVisibility.nativeControlsEnabled(ccHideDate, ccTwoLine)
-    AppSection(stringResource(R.string.icon_carrier_title)) {
+    AppSection(title = stringResource(R.string.icon_carrier_title)) {
         OverlayDropdownPreference(
             title = stringResource(R.string.icon_cc_hide_carrier_name),
             summary = stringResource(if (nativeCarrierOptionsEnabled) R.string.icon_cc_hide_carrier_name_summary

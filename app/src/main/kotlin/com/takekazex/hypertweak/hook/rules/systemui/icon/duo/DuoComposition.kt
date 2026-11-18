@@ -1,4 +1,3 @@
-@file:Suppress("StaticFieldLeak")
 package com.takekazex.hypertweak.hook.rules.systemui.icon.duo
 
 import android.content.Context

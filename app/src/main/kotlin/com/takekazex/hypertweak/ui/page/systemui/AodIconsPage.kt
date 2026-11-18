@@ -60,7 +60,7 @@ fun AodIconsPage(onBack: () -> Unit) {
         backContentDescription = stringResource(R.string.settings_aod_icons_back),
     ) {
 
-        AppSection(stringResource(R.string.aod_icons_section_display)) {
+        AppSection(title = stringResource(R.string.aod_icons_section_display)) {
             SwitchPreference(
                 checked = batteryVisible,
                 onCheckedChange = { checked ->
@@ -104,7 +104,7 @@ fun AodIconsPage(onBack: () -> Unit) {
             }
         }
 
-        AppSection(stringResource(R.string.aod_icons_section_percent)) {
+        AppSection(title = stringResource(R.string.aod_icons_section_percent)) {
             SwitchPreference(
                 checked = percentVisible,
                 onCheckedChange = { checked ->

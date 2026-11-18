@@ -1,6 +1,5 @@
 package com.takekazex.hypertweak.hook.rules.backgesture.hooks.systemserver;
 
-import android.annotation.SuppressLint;
 import android.graphics.Point;
 import android.graphics.Rect;
 import android.util.Log;
@@ -14,7 +13,6 @@ import java.util.List;
 
 import io.github.libxposed.api.XposedInterface;
 
-@SuppressLint("PrivateApi")
 final class SystemServerAndroid17Impl extends SystemServerPlatformImpl {
     private static final String TRANSITION_STUB =
             "com.android.server.wm.TransitionStub";

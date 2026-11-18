@@ -7,6 +7,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Handler
 import com.takekazex.hypertweak.hook.base.HostAccess
+import com.takekazex.hypertweak.hook.rules.shared.PrivilegedRunningTasks
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -117,7 +118,7 @@ internal class GestureBarHomeProbe(
         // Same query shape as the shipped back-gesture runtime: most recent first, and the first
         // task that belongs to this display is the one on screen. Visibility is deliberately not
         // filtered on - skipping a task would fall through to the launcher sitting behind it.
-        val tasks = manager.getRunningTasks(MAX_TASKS_FOR_PROBE) ?: return null
+        val tasks = PrivilegedRunningTasks.query(manager, MAX_TASKS_FOR_PROBE) ?: return null
         for (task in tasks) {
             if (taskDisplayId(task)?.let { it != PRIMARY_DISPLAY } == true) continue
             val top = task.topActivity ?: continue

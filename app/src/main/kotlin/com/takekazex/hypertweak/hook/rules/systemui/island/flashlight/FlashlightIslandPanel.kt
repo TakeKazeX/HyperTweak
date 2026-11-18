@@ -436,7 +436,6 @@ internal class FlashlightIslandPanel(
     /** The page's own views never see touches; the panel plays the page's touch strip. */
     override fun onInterceptTouchEvent(ev: MotionEvent) = interactive
 
-    @SuppressLint("ClickableViewAccessibility")
     override fun onTouchEvent(event: MotionEvent): Boolean {
         if (!interactive) return false
         when (event.actionMasked) {

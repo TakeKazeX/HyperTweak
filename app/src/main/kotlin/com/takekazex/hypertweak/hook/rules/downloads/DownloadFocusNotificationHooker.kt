@@ -6,12 +6,10 @@ import android.app.PendingIntent
 import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
-import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.drawable.Icon
-import android.net.Uri
 import android.os.Bundle
 import android.widget.RemoteViews
 import com.takekazex.hypertweak.hook.Preferences
@@ -32,6 +30,8 @@ import java.lang.reflect.Field
 import java.lang.reflect.Method
 import java.lang.reflect.Modifier
 import java.util.concurrent.ConcurrentHashMap
+import androidx.core.graphics.createBitmap
+import androidx.core.net.toUri
 
 /**
  * Gives each download task its own notification and the host's native `file_download` focus
@@ -225,7 +225,7 @@ object DownloadFocusNotificationHooker : StaticHooker() {
                             put("status", if (pause) STATUS_PAUSED_BY_APP else STATUS_RUNNING)
                             put("control", if (pause) 1 else 0)
                         }
-                        context.contentResolver.update(Uri.parse("content://downloads/my_downloads"),
+                        context.contentResolver.update("content://downloads/my_downloads".toUri(),
                             values, "_id=?", arrayOf(id.toString()))
                         DebugLog.i(TAG, (if (pause) "paused" else "resumed") + " download id=" + id)
                     }
@@ -336,7 +336,7 @@ object DownloadFocusNotificationHooker : StaticHooker() {
         val drawable = (if (id != 0) context.getDrawable(id) else null) ?: return@getOrPut fileIcon(context, key)
         val size = (context.resources.displayMetrics.density * 56f).toInt().coerceAtLeast(32)
         val inset = (size * 0.15f).toInt()
-        val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val bitmap = createBitmap(size, size)
         drawable.setBounds(inset, inset, size - inset, size - inset)
         drawable.draw(Canvas(bitmap))
         Icon.createWithBitmap(bitmap)
@@ -345,7 +345,7 @@ object DownloadFocusNotificationHooker : StaticHooker() {
     /** The native recorder's 22dp finish vector: a #1DCD3A 2dp ring with a round-capped check. */
     private fun doneIcon(context: Context): Icon = islandIcons.getOrPut("done") {
         val scale = context.resources.displayMetrics.density
-        val bitmap = Bitmap.createBitmap((22 * scale).toInt(), (22 * scale).toInt(), Bitmap.Config.ARGB_8888)
+        val bitmap = createBitmap((22 * scale).toInt(), (22 * scale).toInt())
         val canvas = Canvas(bitmap).apply { scale(scale, scale) }
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.STROKE
@@ -460,7 +460,7 @@ object DownloadFocusNotificationHooker : StaticHooker() {
     private fun computeTargets(bridge: DexKitBridge): Targets? {
         // NotificationItem: five fields (RemoteViews, Builder, tag, two ints), nested in the helper
         // whose notify(item, String, String) posts it.
-        val itemClass = bridge.findClass {
+        val (itemClass, helperClass) = bridge.findClass {
             matcher {
                 fieldCount(5)
                 addFieldForType(RemoteViews::class.java)
@@ -470,8 +470,8 @@ object DownloadFocusNotificationHooker : StaticHooker() {
                 addFieldForType(Int::class.javaPrimitiveType!!)
             }
         }.mapNotNull { runCatching { classLoader.loadClass(it.name) }.getOrNull() }
-            .singleOrNull { it.declaringClass != null } ?: return failed("notification item")
-        val helperClass = itemClass.declaringClass
+            .mapNotNull { item -> item.declaringClass?.let { item to it } }
+            .singleOrNull() ?: return failed("notification item")
         val notify = helperClass.declaredMethods.singleOrNull {
             !Modifier.isStatic(it.modifiers) && it.returnType == Void.TYPE &&
                 it.parameterTypes.contentEquals(arrayOf(itemClass, String::class.java, String::class.java))

@@ -77,7 +77,7 @@ internal fun SystemFrameworkPage(
             )
         }
 
-        AppSection(stringResource(R.string.system_framework_appearance)) {
+        AppSection(title = stringResource(R.string.system_framework_appearance)) {
             SwitchPreference(
                 checked = appSettings.allowThirdPartyTheme,
                 onCheckedChange = { appSettings.allowThirdPartyTheme = it },
@@ -120,7 +120,7 @@ private fun VolumeKeyStepSection() {
         volumeKeyStepScope = resolved
     }
 
-    AppSection(stringResource(R.string.volume_key_section)) {
+    AppSection(title = stringResource(R.string.volume_key_section)) {
         SwitchPreference(
             checked = volumeKeyStepEnabled,
             onCheckedChange = {

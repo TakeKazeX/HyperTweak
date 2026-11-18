@@ -1,8 +1,5 @@
-@file:Suppress("StaticFieldLeak")
-
 package com.takekazex.hypertweak.hook.rules.systemui.icon.carrier
 
-import android.annotation.SuppressLint
 import android.content.Context
 import android.content.res.Resources
 import android.os.Handler
@@ -142,7 +139,7 @@ internal fun CarrierRenderer.syncNativeWifi(block: CarrierBlock) {
         val next = if (source != null && wifiDefault == true && wifiLevel != null && !hidesWifi()) {
             val existing = previous?.takeIf { it.source === source }
             val ready = existing ?: CarrierNativeGlyph(source).takeIf {
-                source.visibility == View.VISIBLE &&
+                source.isVisible &&
                     source.findViewById<ImageView>(wifiSignalId)?.drawable != null
             }
             ready?.takeIf { it.update() }

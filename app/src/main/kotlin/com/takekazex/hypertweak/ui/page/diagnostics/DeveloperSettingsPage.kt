@@ -81,7 +81,7 @@ fun DeveloperSettingsPage(onBack: () -> Unit) {
                 onClick = { openSystemDeveloperOptions(context) }
             )
         }
-        AppSection(stringResource(R.string.developer_settings_display_title)) {
+        AppSection(title = stringResource(R.string.developer_settings_display_title)) {
             SwitchPreference(
                 checked = showRefreshRate,
                 onCheckedChange = { value ->
@@ -114,7 +114,7 @@ fun DeveloperSettingsPage(onBack: () -> Unit) {
             )
         }
 
-        AppSection(stringResource(R.string.developer_settings_input_title)) {
+        AppSection(title = stringResource(R.string.developer_settings_input_title)) {
             SwitchPreference(
                 checked = showTouches,
                 onCheckedChange = { value ->
@@ -137,7 +137,7 @@ fun DeveloperSettingsPage(onBack: () -> Unit) {
             )
         }
 
-        AppSection(stringResource(R.string.developer_settings_networking_title)) {
+        AppSection(title = stringResource(R.string.developer_settings_networking_title)) {
             ArrowPreference(
                 title = stringResource(R.string.developer_settings_mobile_data_title),
                 summary = stringResource(R.string.developer_settings_mobile_data_summary),

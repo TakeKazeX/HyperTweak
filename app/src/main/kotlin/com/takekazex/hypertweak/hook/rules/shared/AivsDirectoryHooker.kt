@@ -49,7 +49,6 @@ object AivsDirectoryHooker : StaticHooker() {
             DebugLog.hookSkipped("AivsDirectory", "SDK paths", "caller deoptimization failed")
             return
         }
-        @Suppress("DEPRECATION")
         val storageRoot = Environment.getExternalStorageDirectory().path
         fun map(path: String?) = AivsPathPolicy.audioPath(path, storageRoot, pkg, enabled)
         splice.hook("aivs_directory") {

@@ -34,7 +34,7 @@ fun LockscreenBottomTextPage(onBack: () -> Unit) {
         backContentDescription = stringResource(R.string.bottom_text_back),
     ) {
 
-        AppSection(stringResource(R.string.bottom_text_section_main)) {
+        AppSection(title = stringResource(R.string.bottom_text_section_main)) {
             SwitchPreference(
                 checked = enabled,
                 onCheckedChange = { checked ->
@@ -63,7 +63,7 @@ fun LockscreenBottomTextPage(onBack: () -> Unit) {
             )
         }
 
-        AppSection(stringResource(R.string.bottom_text_items_section)) {
+        AppSection(title = stringResource(R.string.bottom_text_items_section)) {
             BottomTextSwitch(
                 checked = mask and LockscreenBottomTextOptions.CATEGORY_CHARGING != 0,
                 title = stringResource(R.string.bottom_text_charging_title),

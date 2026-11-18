@@ -60,7 +60,7 @@ fun WatermarkUnlockContent(
     Column(modifier = modifier) {
         Spacer(Modifier.height(topPadding + 8.dp))
 
-        AppSection(stringResource(R.string.watermark_master)) {
+        AppSection(title = stringResource(R.string.watermark_master)) {
             SwitchPreference(
                 checked = master,
                 onCheckedChange = { enabled ->
@@ -81,7 +81,7 @@ fun WatermarkUnlockContent(
             )
         }
 
-        AppSection(stringResource(R.string.watermark_brand)) {
+        AppSection(title = stringResource(R.string.watermark_brand)) {
             SwitchPreference(
                 checked = leica,
                 onCheckedChange = { enabled ->
@@ -124,7 +124,7 @@ fun WatermarkUnlockContent(
             )
         }
 
-        AppSection(stringResource(R.string.watermark_theme)) {
+        AppSection(title = stringResource(R.string.watermark_theme)) {
             SwitchPreference(
                 checked = disney1,
                 onCheckedChange = { enabled ->
@@ -177,7 +177,7 @@ fun WatermarkUnlockContent(
             )
         }
 
-        AppSection(stringResource(R.string.watermark_advanced)) {
+        AppSection(title = stringResource(R.string.watermark_advanced)) {
             SwitchPreference(
                 checked = downloadAll,
                 onCheckedChange = { enabled ->

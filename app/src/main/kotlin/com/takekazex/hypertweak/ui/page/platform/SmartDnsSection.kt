@@ -124,7 +124,7 @@ internal fun SmartDnsSection() {
         stringResource(R.string.smartdns_mode_off),
     )
 
-    AppSection(stringResource(R.string.smartdns_section_title)) {
+    AppSection(title = stringResource(R.string.smartdns_section_title)) {
         OverlayDropdownPreference(
             title = stringResource(R.string.smartdns_enable_title),
             summary = smartDnsSummary(state),

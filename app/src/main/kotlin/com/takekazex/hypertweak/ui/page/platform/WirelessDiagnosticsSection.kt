@@ -64,7 +64,7 @@ internal fun WirelessDiagnosticsSection() {
     }
     val snapshot = result?.snapshot
     val supported = snapshot?.cnss?.supported == true
-    AppSection(stringResource(R.string.wireless_title)) {
+    AppSection(title = stringResource(R.string.wireless_title)) {
         Column {
             if (supported) {
                 WirelessLogger.entries.forEach { logger ->

@@ -25,7 +25,7 @@ internal data class NativeScreenshotClipboardAccess(val gate: Method, val copy: 
                         Boolean::class.javaPrimitiveType) || copy !in callers || commitWriter !in callers ||
                 saveWriter !in callers || saveWriter.returnType != Void.TYPE ||
                 notify.declaringClass != saveWriter.declaringClass || success.declaringClass != notify.type ||
-                success.type != java.lang.Boolean::class.java ||
+                success.type != Boolean::class.javaObjectType ||
                 commitWriter.returnType != Boolean::class.javaPrimitiveType ||
                 commitWriter.parameterTypes.take(3) != listOf(Context::class.java, android.graphics.Bitmap::class.java,
                     android.net.Uri::class.java)) return null

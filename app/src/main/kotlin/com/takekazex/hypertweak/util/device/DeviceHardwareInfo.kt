@@ -82,8 +82,7 @@ object DeviceHardwareInfo {
                 row(R.string.device_lbl_modes) { display?.supportedModes?.map { it.refreshRate }?.distinct()?.sorted()
                     ?.takeIf { it.isNotEmpty() }?.joinToString(" / ") { String.format(Locale.US, "%.1f Hz", it) } },
                 row(R.string.device_lbl_hdr) {
-                    @Suppress("DEPRECATION")
-                    val types = display?.hdrCapabilities?.supportedHdrTypes
+                    val types = display?.mode?.supportedHdrTypes
                     if (types != null && types.isEmpty()) context.getString(R.string.device_hdr_none)
                     else types?.joinToString(" / ") { when (it) {
                         1 -> "Dolby Vision"; 2 -> "HDR10"; 3 -> "HLG"; 4 -> "HDR10+"; else -> it.toString()

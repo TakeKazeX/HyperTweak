@@ -1,5 +1,3 @@
-@file:Suppress("InternalInsetResource")
-
 package com.takekazex.hypertweak.hook.rules.systemui.gesturebar
 
 import com.takekazex.hypertweak.hook.base.cachedDeclaredMethod
@@ -16,6 +14,7 @@ import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import android.util.SparseArray
+import androidx.core.util.forEach
 import android.view.View
 import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
@@ -135,10 +134,10 @@ object HideBottomBarHooker : StaticHooker() {
         home.launcherHomeVisible
     )
 
-    override fun restoreHotReloadState(saved: Any?) {
-        val values = saved as? Array<*> ?: return
+    override fun restoreHotReloadState(state: Any?) {
+        val values = state as? Array<*> ?: return
         (values.getOrNull(0) as? List<*>)?.filterIsInstance<View>()?.forEach(handleViews::add)
-        state.restore(values.getOrNull(1), SystemClock.uptimeMillis())
+        this.state.restore(values.getOrNull(1), SystemClock.uptimeMillis())
         (values.getOrNull(2) as? List<*>)?.filterNotNull()?.forEach(navigationBars::add)
         (values.getOrNull(3) as? Array<*>)?.forEach { row ->
             val pair = row as? Array<*> ?: return@forEach
@@ -211,6 +210,8 @@ object HideBottomBarHooker : StaticHooker() {
         // current values; a switch toggled later applies without a SystemUI restart.
         try {
             runCatching {
+                // Hiding the gesture bar zeroes this framework inset dimension on purpose.
+                @Suppress("InternalInsetResource")
                 navBarHeightAndroidResId = Resources.getSystem()
                     .getIdentifier("navigation_bar_height", "dimen", "android")
             }
@@ -446,8 +447,6 @@ object HideBottomBarHooker : StaticHooker() {
         return HostAccess.read(shell, "this\$0")
     }
 
-    // androidx.core's KTX extensions are not resolved from a hook's class loader.
-    @Suppress("UseKtx")
     private fun recoverNavigationBars(component: Any?) {
         if (component == null) return
         runCatching {
@@ -455,11 +454,7 @@ object HideBottomBarHooker : StaticHooker() {
                 ?: error("Missing native navigation bar controller")
             val bars = HostAccess.read(controller, "mNavigationBars") as? SparseArray<*>
                 ?: error("Missing native navigation bar map")
-            var index = 0
-            while (index < bars.size()) {
-                bars.valueAt(index)?.let(navigationBars::add)
-                index++
-            }
+            bars.forEach { _, bar -> bar?.let(navigationBars::add) }
         }.onFailure { DebugLog.w(TAG, "failed to recover navigation layouts", it) }
     }
 
@@ -574,7 +569,7 @@ object HideBottomBarHooker : StaticHooker() {
             deoptimize(setAlpha)
             deoptimize(HostAccess.requireDeclaredMethod(handleClass, "onAttachedToWindow", accessible = false))
             deoptimize(cl.loadClass("com.android.systemui.navigationbar.gestural.NavigationHandlePressAnimator\$2")
-                .cachedDeclaredMethod("onUpdate", Any::class.java, java.util.Collection::class.java, accessible = false))
+                .cachedDeclaredMethod("onUpdate", Any::class.java, Collection::class.java, accessible = false))
             setAlpha.hook {
                 before { param ->
                     if (!followGenerationActive || presentation.ownAlphaWrite.get() == true) return@before

@@ -14,6 +14,7 @@ import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.util.IdentityHashMap
 import com.takekazex.hypertweak.util.platform.ResourceLookup
+import androidx.core.view.isVisible
 
 internal class CarrierHandoverController(private val host: Host) {
     interface Host {
@@ -124,7 +125,7 @@ internal class CarrierHandoverController(private val host: Host) {
                         clamped, used, sources)
                 }
                 if (parts.cellularReady && !parts.typeSuppressed && parts.typeBitmap != null &&
-                    parts.type !in duoTargets && parts.type.visibility == View.VISIBLE && isUsable(parts.type)) {
+                    parts.type !in duoTargets && parts.type.isVisible && isUsable(parts.type)) {
                     move(parts, parts.type, typeGlyph(fakeRow, model?.networkSubId), clamped, used, sources)
                 }
             }
@@ -192,7 +193,7 @@ internal class CarrierHandoverController(private val host: Host) {
     }
 
     private fun glyph(parent: ViewGroup, id: Int): View? = if (id == 0 || !parent.isShown) null else
-        parent.findViewById<View>(id)?.takeIf { it.visibility == View.VISIBLE && isUsable(it) }
+        parent.findViewById<View>(id)?.takeIf { it.isVisible && isUsable(it) }
 
     // A masked holder can still supply the bars. Its network-type badge has a separate view.
     private fun motionSignal(root: ViewGroup, subId: Int?): View? =
@@ -204,7 +205,7 @@ internal class CarrierHandoverController(private val host: Host) {
         val holder = subId?.let { mobileGroup(root, it) } ?: return null
         val signal = holder.findViewById<View>(host.mobileSignalId) as? ImageView ?: return null
         return signal.takeIf {
-            it.drawable != null && it.visibility == View.VISIBLE && isUsable(it)
+            it.drawable != null && it.isVisible && isUsable(it)
         }
     }
 
@@ -214,7 +215,7 @@ internal class CarrierHandoverController(private val host: Host) {
         if (parent.visibility != View.VISIBLE || !isUsable(parent)) return null
         val badge = parent.findViewById<View>(host.mobileTypeId) as? ImageView ?: return null
         return badge.takeIf {
-            it.parent === parent && it.visibility == View.VISIBLE && it.drawable != null &&
+            it.parent === parent && it.isVisible && it.drawable != null &&
                 isUsable(it) && endpointAlphas.originalAlpha(it) > 0f
         }
     }

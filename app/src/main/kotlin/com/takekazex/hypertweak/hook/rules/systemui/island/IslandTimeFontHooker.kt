@@ -286,7 +286,7 @@ class IslandTimeFontHooker : DynamicHooker() {
         val lease = leases.remove(view)
         val restored = lease?.applied?.matches(view) == true
         if (restored) {
-            lease!!.original.restore(view)
+            lease.original.restore(view)
             IslandLayoutInvalidation.request(view)
         }
         if (resetGlyphs && narrowGlyphs.remove(view) == true) refreshGlyphs(view)

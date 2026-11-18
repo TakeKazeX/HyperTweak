@@ -3,7 +3,6 @@ package com.takekazex.hypertweak.hook.rules.backgesture.hooks.systemui;
 import android.content.Context;
 import android.view.RemoteAnimationTarget;
 
-import android.annotation.SuppressLint;
 import android.graphics.Point;
 import android.graphics.Rect;
 import android.os.Build;
@@ -34,7 +33,6 @@ import org.luckypray.dexkit.query.matchers.MethodMatcher;
 import org.luckypray.dexkit.result.MethodData;
 
 /** Holds prepared transitions until their exact native targets arrive. */
-@SuppressLint({"PrivateApi", "DiscouragedPrivateApi"})
 public abstract class SystemUiPreparedTransitionRuntime extends SystemUiNavigationRuntime {
     protected final java.util.Map<Class<?>, String> loadedDexContainers = new java.util.concurrent.ConcurrentHashMap<>();
     protected abstract String describeRemoteAnimationTargets(Object targets);

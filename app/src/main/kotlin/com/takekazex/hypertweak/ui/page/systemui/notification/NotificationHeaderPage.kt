@@ -54,14 +54,14 @@ fun NotificationHeaderPage(onBack: () -> Unit) {
         backContentDescription = stringResource(R.string.notification_header_back),
     ) {
 
-        AppSection(stringResource(R.string.notification_header_section_scope)) {
+        AppSection(title = stringResource(R.string.notification_header_section_scope)) {
             Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
                 Text(stringResource(R.string.notification_header_scope_title))
                 Text(stringResource(R.string.notification_header_scope_summary))
             }
         }
 
-        AppSection(stringResource(R.string.notification_header_section_visibility)) {
+        AppSection(title = stringResource(R.string.notification_header_section_visibility)) {
             SwitchPreference(
                 checked = hideCarrier,
                 onCheckedChange = {
@@ -91,7 +91,7 @@ fun NotificationHeaderPage(onBack: () -> Unit) {
             )
         }
 
-        AppSection(stringResource(R.string.notification_header_section_layout)) {
+        AppSection(title = stringResource(R.string.notification_header_section_layout)) {
             SwitchPreference(
                 checked = dateAboveTime,
                 onCheckedChange = {
@@ -144,7 +144,7 @@ fun NotificationHeaderPage(onBack: () -> Unit) {
             }
         }
 
-        AppSection(stringResource(R.string.notification_header_section_weather)) {
+        AppSection(title = stringResource(R.string.notification_header_section_weather)) {
             SwitchPreference(
                 checked = weatherEnabled,
                 onCheckedChange = {
