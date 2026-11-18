@@ -1,6 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.backgesture.hooks.systemserver;
 
 import android.content.BroadcastReceiver;
+import com.takekazex.hypertweak.hook.base.ModuleBroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
@@ -158,8 +159,8 @@ final class ServerBarWindowBridge implements AutoCloseable {
         // Surface identity only. The compositor graph, not this cache, proves ancestry.
         return surface + "/valid=" + surface.isValid();
     }
-    private final BroadcastReceiver receiver = new BroadcastReceiver() {
-        @Override public void onReceive(Context ignored, Intent intent) {
+    private final BroadcastReceiver receiver = new ModuleBroadcastReceiver() {
+        @Override protected void receive(Context ignored, Intent intent) {
             if (closed || !ACTION.equals(intent.getAction()) || !"android".equals(intent.getPackage())) return;
             int uid = getSentFromUid();
             if (!"com.android.systemui".equals(getSentFromPackage())) return;

@@ -3,7 +3,7 @@ package com.takekazex.hypertweak.hook
 import com.takekazex.hypertweak.hook.runtime.settings.RuntimeSettingsProtocol
 import com.takekazex.hypertweak.hook.runtime.settings.RuntimeSettingsStore
 import com.takekazex.hypertweak.hook.runtime.settings.SettingsTransport
-import android.content.BroadcastReceiver
+import com.takekazex.hypertweak.hook.base.ModuleBroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
@@ -20,8 +20,8 @@ internal class RuntimeSettingsReceiver(
     private var context: Context? = null
     @Volatile private var retired = false
     private var packageReceiverRegistered = false
-    private val packageReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context, intent: Intent) {
+    private val packageReceiver = object : ModuleBroadcastReceiver() {
+        override fun receive(context: Context, intent: Intent) {
             if (retired || intent.data?.schemeSpecificPart !=
                 com.takekazex.hypertweak.util.platform.UpstreamBackGesture.PACKAGE) return
             // Replacement sends REMOVED before ADDED; never briefly reclaim during an upgrade.
@@ -30,8 +30,8 @@ internal class RuntimeSettingsReceiver(
             refreshUpstream(context)
         }
     }
-    private val receiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context, intent: Intent) {
+    private val receiver = object : ModuleBroadcastReceiver() {
+        override fun receive(context: Context, intent: Intent) {
             if (retired) return
             if (intent.action == Intent.ACTION_BOOT_COMPLETED || intent.action == Intent.ACTION_USER_UNLOCKED) {
                 refreshUpstream(context)

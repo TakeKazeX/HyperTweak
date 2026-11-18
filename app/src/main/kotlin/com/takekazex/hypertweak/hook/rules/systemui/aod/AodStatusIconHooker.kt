@@ -502,7 +502,8 @@ class AodStatusIconHooker : DynamicHooker() {
             binding.root.isAttachedToWindow &&
                 binding.root.isVisible
         }
-        if (!needsSignal) {
+        // A retiring generation's late refresh must not restart the observer retirement stopped.
+        if (!needsSignal || retiring) {
             signalObserver?.stop()
             signalObserver = null
             return

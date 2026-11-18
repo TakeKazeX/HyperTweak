@@ -152,6 +152,8 @@ object DebugLog {
         }
         repeatLimiter.drain(SystemClock.elapsedRealtime(), force = true).forEach(::enqueue)
         synchronized(this) {
+            // Final: a recreated worker thread would keep this retired generation's loader alive.
+            workerRetired = true
             pendingFlush?.cancel(false)
             pendingFlush = null
             pendingDrain?.cancel(false)
@@ -222,7 +224,7 @@ object DebugLog {
      */
     @Synchronized
     private fun scheduleRepeatDrain() {
-        if (pendingDrain?.isDone == false) return
+        if (workerRetired || pendingDrain?.isDone == false) return
         val deadline = repeatLimiter.nextDeadline() ?: return
         val delay = (deadline - SystemClock.elapsedRealtime()).coerceAtLeast(0L)
         pendingDrain = runCatching {
@@ -242,11 +244,13 @@ object DebugLog {
         } else record
         val expedite = records.offer(record.level, Pending(timedRecord, throwable, xposed),
             timedRecord.message.length + timedRecord.stack.length + timedRecord.scope.length + 128)
-        scheduleFlush(expedite || priority >= Log.WARN)
+        // Late lines from a retired generation are written by their caller, outside the monitor.
+        if (workerRetired) flushPendingLines() else scheduleFlush(expedite || priority >= Log.WARN)
     }
 
     @Synchronized
     private fun scheduleFlush(immediate: Boolean) {
+        if (workerRetired) return
         val current = pendingFlush
         if (current?.isDone == false) {
             if (!immediate || current.getDelay(TimeUnit.MILLISECONDS) <= 0L) return
@@ -263,6 +267,8 @@ object DebugLog {
             null
         }
     }
+
+    @Volatile private var workerRetired = false
 
     @Synchronized
     private fun getFlushExecutor(): ScheduledExecutorService {

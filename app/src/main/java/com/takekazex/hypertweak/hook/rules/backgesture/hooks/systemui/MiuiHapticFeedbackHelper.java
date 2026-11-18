@@ -5,9 +5,10 @@ import android.os.SystemProperties;
 import android.os.SystemClock;
 import android.util.Log;
 
+import com.takekazex.hypertweak.hook.base.HookExecutors;
 import java.lang.reflect.Method;
 import java.util.concurrent.Executor;
-import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ExecutorService;
 
 /**
@@ -40,7 +41,7 @@ final class MiuiHapticFeedbackHelper {
     }
 
     private final Logger logger;
-    private final Executor executor = Executors.newSingleThreadExecutor();
+    private final Executor executor = HookExecutors.serial("HyperTweak-BackHaptic");
     private final Object hapticFeedbackUtil;
     private final Method performExtHapticFeedback;
     private final boolean defaultBackSupported;
@@ -185,7 +186,9 @@ final class MiuiHapticFeedbackHelper {
     }
 
     private void play(int effectId) {
-        executor.execute(() -> {
+        // A closed helper may still be reached by a late gesture callback; skip the effect.
+        try {
+            executor.execute(() -> {
             try {
                 performExtHapticFeedback.invoke(hapticFeedbackUtil,
                         Integer.valueOf(effectId));
@@ -193,6 +196,9 @@ final class MiuiHapticFeedbackHelper {
                 logger.log(Log.WARN, "Failed to play MIUI ext haptic effect "
                         + effectId, throwable);
             }
-        });
+            });
+        } catch (RejectedExecutionException ignored) {
+            logger.log(Log.DEBUG, "MIUI haptic helper closed; effect " + effectId + " skipped", null);
+        }
     }
 }

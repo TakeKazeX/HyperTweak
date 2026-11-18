@@ -288,7 +288,7 @@ class IslandFlashlightHooker : DynamicHooker() {
     }
 
     private fun listenForPageExit(context: Context) {
-        if (pageExitReceiver != null) return
+        if (pageExitReceiver != null || retiring) return
         val app = context.applicationContext ?: context
         val receiver = object : BroadcastReceiver() {
             override fun onReceive(c: Context, intent: Intent) {

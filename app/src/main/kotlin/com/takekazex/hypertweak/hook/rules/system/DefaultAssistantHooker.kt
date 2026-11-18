@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.system
 
+import com.takekazex.hypertweak.hook.base.GenerationInputs
 import com.takekazex.hypertweak.hook.base.cachedPublicMethod
 import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
@@ -118,9 +119,9 @@ object DefaultAssistantHooker : StaticHooker() {
         val voiceService: ComponentName?
     )
 
-    private var observerInstalled by generationState { false }
-
-    private var settingObserver: android.database.ContentObserver? by generationState { null }
+    // Also installed from hook callbacks (alignment requests), which reach a retiring generation
+    // until its handles are replaced; the generation registration refuses those.
+    @Volatile private var settingObserver: GenerationInputs.Registration? = null
 
     private val startupRetry = SystemServerStartupRetry(
         scope = SCOPE,
@@ -134,16 +135,8 @@ object DefaultAssistantHooker : StaticHooker() {
     }
 
     override fun onPrepareHotReload() {
+        // The settings observer is a generation registration, released before this runs.
         startupRetry.cancel()
-        // The alignment is a setting write, not a hook. Unregister the old observer before the
-        // replacement generation installs its own one; otherwise every hot reload leaves a live
-        // callback behind and each assistant-setting update is processed multiple times.
-        val observer = settingObserver
-        if (observer != null) {
-            runCatching { systemContext()?.contentResolver?.unregisterContentObserver(observer) }
-                .onFailure { DebugLog.w(SCOPE, "could not unregister the assistant observer", it) }
-            settingObserver = null
-        }
     }
 
     /**
@@ -151,6 +144,7 @@ object DefaultAssistantHooker : StaticHooker() {
      * action is the default assistant, restored otherwise. Safe to call repeatedly.
      */
     fun applyAlignment() {
+        if (generationRetired) return
         if (!initializeSettings(logFailure = true)) startupRetry.schedule()
     }
 
@@ -424,8 +418,8 @@ object DefaultAssistantHooker : StaticHooker() {
     }
 
     private fun installSettingObserver(logFailure: Boolean): Boolean {
-        if (observerInstalled) return true
-        if (!SystemServiceReadiness.contentReady()) return false
+        if (settingObserver?.isClosed == false) return true
+        if (generationRetired || !SystemServiceReadiness.contentReady()) return false
         val context = systemContext() ?: return false
         val observer = object : android.database.ContentObserver(
             android.os.Handler(android.os.Looper.getMainLooper())
@@ -435,18 +429,26 @@ object DefaultAssistantHooker : StaticHooker() {
             }
         }
         return runCatching {
-            context.contentResolver.registerContentObserver(
-                Settings.Secure.getUriFor(SETTING_ASSISTANT),
-                false,
-                observer
-            )
-            context.contentResolver.registerContentObserver(
-                Settings.Secure.getUriFor(SETTING_VOICE_SERVICE),
-                false,
-                observer
-            )
-            settingObserver = observer
-            observerInstalled = true
+            val registration = generationRegistration({
+                try {
+                    context.contentResolver.registerContentObserver(
+                        Settings.Secure.getUriFor(SETTING_ASSISTANT),
+                        false,
+                        observer
+                    )
+                    context.contentResolver.registerContentObserver(
+                        Settings.Secure.getUriFor(SETTING_VOICE_SERVICE),
+                        false,
+                        observer
+                    )
+                } catch (t: Throwable) {
+                    // One observer serves both URIs; unregistering it drops a partial registration.
+                    runCatching { context.contentResolver.unregisterContentObserver(observer) }
+                    throw t
+                }
+            }) { context.contentResolver.unregisterContentObserver(observer) }
+            settingObserver = registration
+            if (registration.isClosed) return@runCatching false
             DebugLog.i(SCOPE, "secure setting observers ready")
             true
         }.onFailure {

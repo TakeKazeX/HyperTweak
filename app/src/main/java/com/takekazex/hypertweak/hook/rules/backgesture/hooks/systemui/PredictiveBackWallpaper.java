@@ -5,8 +5,8 @@ import android.content.BroadcastReceiver;
 import android.content.Intent;
 import android.content.IntentFilter;
 import com.takekazex.hypertweak.util.logging.DebugLog;
+import com.takekazex.hypertweak.hook.base.HookExecutors;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import android.annotation.SuppressLint;
 import android.content.Context;
 import android.graphics.Bitmap;
@@ -32,11 +32,7 @@ final class PredictiveBackWallpaper implements AutoCloseable {
      */
     private static final String WALLPAPER_CHANGED = "android.intent.action.WALLPAPER_CHANGED";
     private final Context context;
-    private final ExecutorService worker = Executors.newSingleThreadExecutor(task -> {
-        Thread thread = new Thread(task, "HT-BackWallpaper");
-        thread.setDaemon(true);
-        return thread;
-    });
+    private final ExecutorService worker = HookExecutors.serial("HT-BackWallpaper");
     private final PreparedWallpaperCache<Bitmap> cache = new PreparedWallpaperCache<>(worker,
             Bitmap::recycle, failure -> DebugLog.INSTANCE.w("BackGesture", "Wallpaper preparation unavailable; preserving native background", failure));
     private final BroadcastReceiver changes = new BroadcastReceiver() {

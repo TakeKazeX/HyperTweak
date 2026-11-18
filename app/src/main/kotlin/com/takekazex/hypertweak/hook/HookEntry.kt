@@ -7,6 +7,7 @@ import com.takekazex.hypertweak.hook.preferences.RuntimeSettingsPreferences
 import com.takekazex.hypertweak.hook.runtime.reload.HotReloadPackageState
 import com.takekazex.hypertweak.hook.runtime.reload.HotReloadPluginState
 import com.takekazex.hypertweak.hook.runtime.reload.HotReloadState
+import com.takekazex.hypertweak.hook.runtime.reload.GenerationRetirement
 import com.takekazex.hypertweak.hook.runtime.reload.HotReloadTargetState
 import com.takekazex.hypertweak.hook.runtime.settings.RuntimeSettingsStore
 import android.content.Context
@@ -295,7 +296,10 @@ class HookEntry : XposedModule() {
     }
 
     override fun onHotReloading(param: XposedModuleInterface.HotReloadingParam): Boolean {
-        if (skipGoogleProcess) return true
+        if (skipGoogleProcess) {
+            param.setSavedInstanceState(GenerationRetirement.retireSkipped())
+            return true
+        }
         DebugLog.d(
             "HookEntry",
             "hot reloading old generation process=$processName packages=${packageStates.size} roots=${rootHookers.size}"
@@ -322,7 +326,8 @@ class HookEntry : XposedModule() {
                     packages = packageStates.values,
                     hookerStates = roots.associate { it.hookerName to it.saveHotReloadState() } +
                         mapOf("HyperTweak.NativeSettings" to nativeRuleStatePublisher?.saveSnapshot(),
-                            "HyperTweak.RuntimeSettings" to RuntimeSettingsStore.save())
+                            "HyperTweak.RuntimeSettings" to RuntimeSettingsStore.save(),
+                            GenerationRetirement.savedState())
                 )
                 // The framework must accept the recovery payload before any host is retired.
                 param.setSavedInstanceState(state)
@@ -344,7 +349,8 @@ class HookEntry : XposedModule() {
                     add { RuntimeSettingsPreferences.clearObservers() }
                     add { runtimeContextRetry.cancel() }
                     add { try { nativeRuleStatePublisher?.close() } finally { nativeRuleStatePublisher = null } }
-                    add { DebugLog.prepareForHotReload() }
+                    // Last: process-wide steps that need every owner above already retired.
+                    addAll(GenerationRetirement.finalSteps())
                 }
             },
             rejected = { error ->
@@ -381,6 +387,7 @@ class HookEntry : XposedModule() {
                 unhookRemainingOldHandles(HotReloadHandleStore(param.oldHookHandles))
                 DebugLog.prepareForHotReload()
             }
+            GenerationRetirement.adoptSkipped(param.savedInstanceState)
             return
         }
         RuntimeSettingsStore.configure(processName, isSystemServer)
@@ -399,6 +406,7 @@ class HookEntry : XposedModule() {
         initPreferences()
         publishNativeRuleSwitches()
         DebugLog.ensureSession()
+        GenerationRetirement.adopt(restoredState?.hookerStates)
         val oldHandles = HotReloadHandleStore(param.oldHookHandles)
         val oldHandleIds = oldHandles.ids
         DebugLog.d(

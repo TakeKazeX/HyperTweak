@@ -11,8 +11,6 @@ import android.graphics.Typeface
 import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.RippleDrawable
-import android.os.Handler
-import android.os.Looper
 import android.os.UserHandle
 import android.text.TextUtils
 import android.util.TypedValue
@@ -37,7 +35,6 @@ import java.lang.reflect.Field
 import java.lang.reflect.Method
 import java.util.WeakHashMap
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.Executors
 
 private object SecurityCenterDockShortcutsFeature : DexFeature {
     override val id = "securitycenter.dock_shortcuts"
@@ -72,7 +69,7 @@ object SecurityCenterDockShortcutsHooker : DynamicHooker() {
     private const val TAG = "SecurityCenterDockShortcuts"
     private const val CARD_TAG = "hypertweak:dock_app_shortcuts"
     private const val CARD_CLASS = "androidx.cardview.widget.CardView"
-    private val main = Handler(Looper.getMainLooper())
+    private val main = generationMainHandler()
 
     @Volatile private var retired = false
     init { generationCleanup { retired = true } }
@@ -82,17 +79,13 @@ object SecurityCenterDockShortcutsHooker : DynamicHooker() {
     private class Entry(val info: ShortcutInfo, val label: CharSequence, val icon: Drawable?)
 
     private val cache = generationResource(ConcurrentHashMap<String, List<Entry>>()) { it.clear() }
-    private val worker = generationResource(Executors.newSingleThreadExecutor { task ->
-        Thread(task, "HyperTweak-DockShortcuts").apply { isDaemon = true }
-    }) { it.shutdownNow() }
+    // Reusable: a settings reload retires and reinstalls this same object.
+    private val worker = generationWorker("HyperTweak-DockShortcuts")
     private val cards = generationMainResource(WeakHashMap<ViewGroup, ShortcutCard>()) { map ->
         map.values.toList().forEach { runCatching { it.detach() } }
         map.clear()
     }
-    private val callbacks = generationResource(ArrayList<Pair<LauncherApps, LauncherApps.Callback>>()) { list ->
-        list.forEach { (apps, callback) -> runCatching { apps.unregisterCallback(callback) } }
-        list.clear()
-    }
+    private var appsCallback: AutoCloseable? by generationState { null }
 
     override fun onHook() {
         if (hookParam.packageName != SecurityCenterDockHost.PACKAGE || hookParam.processName != SecurityCenterDockHost.PROCESS) return
@@ -172,8 +165,9 @@ object SecurityCenterDockShortcutsHooker : DynamicHooker() {
             }.also { DebugLog.d(TAG) { "shortcuts pkg=$pkg user=$user found=${found.size} shown=${it.size}" } }
     }
 
-    private fun watch(apps: LauncherApps): Unit = synchronized(callbacks) {
-        if (callbacks.isNotEmpty() || retired) return
+    @Synchronized
+    private fun watch(apps: LauncherApps) {
+        if (appsCallback != null || retired) return
         val callback = object : LauncherApps.Callback() {
             private fun drop(pkg: String?, user: UserHandle?) { if (pkg != null) cache.remove("$user/$pkg") }
             override fun onPackageRemoved(pkg: String?, user: UserHandle?) = drop(pkg, user)
@@ -183,8 +177,7 @@ object SecurityCenterDockShortcutsHooker : DynamicHooker() {
             override fun onPackagesUnavailable(pkgs: Array<out String>?, user: UserHandle?, replacing: Boolean) { pkgs?.forEach { drop(it, user) } }
             override fun onShortcutsChanged(pkg: String, shortcuts: MutableList<ShortcutInfo>, user: UserHandle) = drop(pkg, user)
         }
-        apps.registerCallback(callback, main)
-        callbacks += apps to callback
+        appsCallback = generationRegistration({ apps.registerCallback(callback, main) }) { apps.unregisterCallback(callback) }
     }
 
     private fun launch(t: Targets, host: Any, row: View, entry: Entry) {
@@ -226,7 +219,6 @@ object SecurityCenterDockShortcutsHooker : DynamicHooker() {
     override fun recoverHotReloadHosts() { refreshSettings() }
     override fun onPrepareHotReload() {
         retired = true
-        main.removeCallbacksAndMessages(null)
     }
 
     /** Host CardView sibling of the native card inside the sidebar panel container. */

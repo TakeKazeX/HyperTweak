@@ -253,7 +253,8 @@ object AODHooker : StaticHooker() {
         managers[owner] = true
         primaryManager = owner
         val context = HostAccess.read(owner, "mContext") as? Context ?: return
-        if (observer == null) {
+        // A manager constructed while this generation retires must not get a fresh observer.
+        if (observer == null && !generationRetired) {
             // A manager constructed on an unsupported ROM has no native full-AOD observers.
             // Observe the same settings without writing them or replacing its native policy.
             val next = object : ContentObserver(main) {

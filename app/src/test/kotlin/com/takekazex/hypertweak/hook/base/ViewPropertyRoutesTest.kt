@@ -40,6 +40,18 @@ class ViewPropertyRoutesTest {
         routes.clear()
         assertEquals(0, routes.before("target", 0))
     }
+    /** A subscription closed after retirement, and a later reinstall, both keep routing correct. */
+    @Test fun lateCloseAfterClearAndReinstallKeepRoutingCorrect() {
+        val routes = ViewPropertyRoutes<String, Int> { _, error -> throw error }
+        val late = routes.register("late", { _, _ -> 4 }, null)
+        routes.clear()
+        late.close()
+        assertEquals(0, routes.before("target", 0))
+        routes.register("next", { _, _ -> 8 }, null)
+        assertEquals(8, routes.before("target", 0))
+        assertEquals(8, routes.before("target", 0))
+    }
+
     @Test fun unrelatedRuntimeClassesAreNotDispatchedAndRetirementInvalidatesClassification() {
         val routes = ViewPropertyRoutes<Any, Int> { _, error -> throw error }
         var calls = 0

@@ -3,6 +3,7 @@ package com.takekazex.hypertweak.hook.rules.ime
 import com.takekazex.hypertweak.hook.base.HostAccess
 import android.content.Context
 import android.database.ContentObserver
+import com.takekazex.hypertweak.hook.base.GenerationInputs
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
@@ -59,21 +60,16 @@ object AospImeSystemHooker : StaticHooker() {
     private var cachedCurrentIme: String? by generationState { null }
     private var cachedEnabledImePackages: Set<String> by generationState { emptySet() }
 
-    private val imeSettingsLock = Any()
-    private var imeSettingsAttached by generationState { false }
-    private var imeSettingsObserver: ContentObserver? by generationState { null }
-    private var imeSettingsResolver: android.content.ContentResolver? by generationState { null }
-
-    override fun onPrepareHotReload() {
-        synchronized(imeSettingsLock) {
-            val observer = imeSettingsObserver ?: return@synchronized
-            imeSettingsObserver = null
-            imeSettingsAttached = false
-            // `unregisterSelf()` is @hide; unregister through the resolver instead.
-            runCatching { imeSettingsResolver?.unregisterContentObserver(observer) }
-            imeSettingsResolver = null
-        }
+    private val IME_SETTINGS by lazy {
+        listOf("navigation_mode", Settings.Secure.DEFAULT_INPUT_METHOD, Settings.Secure.ENABLED_INPUT_METHODS)
+            .map(Settings.Secure::getUriFor)
     }
+    private val imeSettingsLock = Any()
+    // Attached lazily from system_server binder callbacks, which keep reaching a retiring
+    // generation until its handles are replaced; the generation registration refuses those.
+    @Volatile private var imeSettings: GenerationInputs.Registration? = null
+    // A failed registration is not retried from the hot path within one installation.
+    private var imeSettingsFailed by generationState { false }
 
     override fun onHook() {
         hookNavButtonFlags()
@@ -199,32 +195,32 @@ object AospImeSystemHooker : StaticHooker() {
     }
 
     private fun attachImeSettingsObserver(context: Context) {
-        if (imeSettingsAttached) return
+        // Retiring: the cached values stay valid until the replacement takes over.
+        if (imeSettings?.isClosed == false || imeSettingsFailed || generationRetired) return
         synchronized(imeSettingsLock) {
-            if (imeSettingsAttached) return
-            imeSettingsAttached = true
-            refreshImeSettings(context)
+            if (imeSettings?.isClosed == false || imeSettingsFailed) return
             val resolver = context.contentResolver
-            imeSettingsResolver = resolver
             val observer = object : ContentObserver(Handler(Looper.getMainLooper())) {
                 override fun onChange(selfChange: Boolean) {
                     refreshImeSettings(context)
                 }
             }
-            imeSettingsObserver = observer
-            runCatching {
-                resolver.registerContentObserver(
-                    Settings.Secure.getUriFor("navigation_mode"), false, observer
-                )
-                resolver.registerContentObserver(
-                    Settings.Secure.getUriFor(Settings.Secure.DEFAULT_INPUT_METHOD), false, observer
-                )
-                resolver.registerContentObserver(
-                    Settings.Secure.getUriFor(Settings.Secure.ENABLED_INPUT_METHODS), false, observer
-                )
+            imeSettings = runCatching {
+                generationRegistration({
+                    try {
+                        IME_SETTINGS.forEach { resolver.registerContentObserver(it, false, observer) }
+                    } catch (t: Throwable) {
+                        // One observer serves every URI; unregistering it drops any partial registration.
+                        runCatching { resolver.unregisterContentObserver(observer) }
+                        throw t
+                    }
+                }) { resolver.unregisterContentObserver(observer) }
             }.onFailure {
+                imeSettingsFailed = true
                 DebugLog.w(TAG, "failed to register IME settings observer", it)
-            }
+            }.getOrNull()
+            // Read after registering so a change in between is not lost.
+            refreshImeSettings(context)
         }
     }
 

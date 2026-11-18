@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.securitycenter.battery
 
+import com.takekazex.hypertweak.hook.base.HookExecutors
 import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.AppSettingsKeys
 
@@ -22,7 +23,6 @@ import java.nio.file.Files
 import java.nio.file.NoSuchFileException
 import java.nio.file.Paths
 import java.util.Locale
-import java.util.concurrent.Executors
 import java.util.concurrent.TimeoutException
 
 /** Privileged, on-demand battery reads in Security Center's main application process. */
@@ -46,7 +46,7 @@ object BatteryInfoHooker : StaticHooker() {
 
     @Synchronized
     fun onPackageReady(context: Context) {
-        if (publisher != null) return
+        if (publisher != null || generationRetired) return
         // PackageReady can hand us a base Context during Application.attach, before its
         // applicationContext is available. This hook only needs process-scoped Context APIs, so
         // keep the app context when present and otherwise retain the supplied base Context.
@@ -74,9 +74,7 @@ object BatteryInfoHooker : StaticHooker() {
 
     private class Publisher(private val context: Context) {
         // The executor creates its one thread lazily, on the first real foreground request.
-        private val worker = Executors.newSingleThreadExecutor { task ->
-            Thread(task, "HyperTweak-BatteryInfo").apply { isDaemon = true }
-        }
+        private val worker = HookExecutors.serial("HyperTweak-BatteryInfo")
         private val source = AndroidSource(context)
         private val sampler = BatteryInfoSampler(source, SystemClock::elapsedRealtime)
         private var failureLogged = false

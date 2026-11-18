@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.securitycenter
 
+import com.takekazex.hypertweak.hook.base.HookDispatchers
 import android.app.Activity
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -21,7 +22,6 @@ import com.takekazex.hypertweak.hook.base.HostActivityRefresh
 import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.settings.contract.AppSettingsKeys
 import com.takekazex.hypertweak.util.logging.DebugLog
-import kotlinx.coroutines.Dispatchers
 import java.io.File
 import java.lang.ref.WeakReference
 import java.lang.reflect.Constructor
@@ -374,7 +374,7 @@ object MoreAppInfoHooker : DynamicHooker() {
         val main = activity.mainExecutor
         val uid = application.uid
         val packageName = info.packageName
-        Dispatchers.IO.dispatch(EmptyCoroutineContext) {
+        HookDispatchers.IO.dispatch(EmptyCoroutineContext) {
             val rows = HookFailurePolicy.open(TAG, "read app information subpage", emptyList<Row>()) {
                 if (page == SIGNATURES) signingRows(packageName, uid) else splitRows(context, apkPaths)
             }

@@ -7,8 +7,8 @@ import android.os.Looper;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
+import com.takekazex.hypertweak.hook.base.HookExecutors;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 /** A16 CommandQueue event source and task selection, independent of gesture progress. */
 final class XiaomiShadeBarEvents implements AutoCloseable {
@@ -19,7 +19,7 @@ final class XiaomiShadeBarEvents implements AutoCloseable {
     private final Method roots;
     private final Sink sink;
     private final Handler main = new Handler(Looper.getMainLooper());
-    private final ExecutorService worker = Executors.newSingleThreadExecutor(r -> new Thread(r, "AppBarTaskSelection"));
+    private final ExecutorService worker = HookExecutors.serial("AppBarTaskSelection");
     private final XiaomiShadeBarSelection selection = new XiaomiShadeBarSelection();
     private final Object lock = new Object();
     private boolean dirty;

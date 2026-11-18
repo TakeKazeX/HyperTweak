@@ -121,7 +121,18 @@ final class AppBarWindowHandshake implements AutoCloseable {
     private void finish(Bundle result, Throwable failure) {
         if (!finished.compareAndSet(false, true)) return;
         main.removeCallbacks(timeout);
+        releaseLease();
         completion.accept(result, failure);
+    }
+
+    /**
+     * system_server's lease closure holds our reply binder, and the reply reaches this handshake.
+     * Keeping the lease proxy closes a cross-process cycle of binder global references that neither
+     * GC can collect, pinning both processes' module generations for the life of the processes.
+     */
+    private void releaseLease() {
+        lease = null;
+        prepared = null;
     }
     @Override public void close() {
         if (lease != null && !finished.get()) {
@@ -130,5 +141,6 @@ final class AppBarWindowHandshake implements AutoCloseable {
         }
         finished.set(true);
         main.removeCallbacks(timeout);
+        releaseLease();
     }
 }

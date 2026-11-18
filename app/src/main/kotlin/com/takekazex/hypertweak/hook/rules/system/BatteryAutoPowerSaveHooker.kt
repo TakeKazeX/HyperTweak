@@ -54,7 +54,7 @@ object BatteryAutoPowerSaveHooker : StaticHooker() {
 
     @Synchronized
     fun onPackageReady(context: Context) {
-        if (hookParam.packageName != PACKAGE || monitor != null || monitorPending) return
+        if (hookParam.packageName != PACKAGE || monitor != null || monitorPending || generationRetired) return
         monitorPending = true
         // The attach-time context would key the receiver on a ContextImpl that hot reload cannot unregister.
         HostApplicationContext.whenPublished(context) { startMonitor(it) }
@@ -64,7 +64,7 @@ object BatteryAutoPowerSaveHooker : StaticHooker() {
     private fun startMonitor(appContext: Context) {
         if (!monitorPending) return
         monitorPending = false
-        if (monitor != null || appContext.packageName != PACKAGE) return
+        if (monitor != null || appContext.packageName != PACKAGE || generationRetired) return
         // Accepted settings re-enter onPackageReady, so first enable needs no restart.
         // No receiver/provider observer or worker is needed while both features are off.
         if (!settingBatteryAutoPowerSaveEnabled && !settingExitPowerSaveWhenCharging) return

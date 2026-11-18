@@ -1,12 +1,10 @@
 package com.takekazex.hypertweak.hook.rules.systemui
 
-import android.content.BroadcastReceiver
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import androidx.core.content.ContextCompat
-import com.takekazex.hypertweak.hook.base.HostApplicationContext
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 import com.takekazex.hypertweak.util.platform.ProxyLaunchProtocol
@@ -34,82 +32,35 @@ object ProxyLaunchHooker : StaticHooker() {
         )
     )
 
-    private var registration: Pair<Context, BroadcastReceiver>? by generationState { null }
-    private var registrationPending by generationState { false }
+    private var registration: AutoCloseable? by generationState { null }
 
     override fun onHook() {
         // Registered from HookEntry.onPackageReady once an application Context exists.
     }
 
     @Synchronized
-    override fun onPrepareHotReload() {
-        registrationPending = false
-        unregister()
-    }
-
-    @Synchronized
     fun register(context: Context) {
-        if (registration != null || registrationPending) return
-        registrationPending = true
-        // The attach-time context would key the receiver on a ContextImpl that hot reload cannot unregister.
-        HostApplicationContext.whenPublished(context) { registerPublished(it) }
-    }
-
-    @Synchronized
-    private fun registerPublished(appContext: Context) {
-        if (!registrationPending) return
-        registrationPending = false
         if (registration != null) return
-        try {
-            val receiver = object : BroadcastReceiver() {
-                override fun onReceive(ctx: Context, intent: Intent) {
-                    if (intent.action != ProxyLaunchProtocol.ACTION) return
-                    val key = intent.getStringExtra(ProxyLaunchProtocol.EXTRA_TARGET)
-                    val component = TARGETS[key] ?: run {
-                        DebugLog.w(TAG, "refused proxy launch for unknown target=$key")
-                        return
-                    }
-                    runCatching {
-                        ctx.startActivity(
-                            Intent().apply {
-                                setComponent(component)
-                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                            }
-                        )
-                        DebugLog.i(TAG, "proxied launch target=$key component=$component")
-                    }.onFailure { t ->
-                        DebugLog.e(TAG, "failed to proxy launch target=$key component=$component", t)
-                    }
-                }
-            }
-            ContextCompat.registerReceiver(
-                appContext,
-                receiver,
-                IntentFilter(ProxyLaunchProtocol.ACTION),
-                ProxyLaunchProtocol.PERMISSION,
-                null,
-                ContextCompat.RECEIVER_EXPORTED
-            )
-            registration = appContext to receiver
-            DebugLog.d(TAG, "registered proxy launch receiver")
-        } catch (t: Throwable) {
-            DebugLog.e(TAG, "failed to register proxy launch receiver", t)
-        }
+        registration = generationReceiver(
+            context, IntentFilter(ProxyLaunchProtocol.ACTION), ContextCompat.RECEIVER_EXPORTED,
+            permission = ProxyLaunchProtocol.PERMISSION,
+        ) { ctx, intent -> launch(ctx, intent) }
+        DebugLog.d(TAG, "registered proxy launch receiver")
     }
 
-    private fun unregister() {
-        registration?.let { (context, receiver) ->
-            runCatching { context.unregisterReceiver(receiver) }
-                .onFailure { t ->
-                    if (t is IllegalArgumentException &&
-                        t.message?.contains("Receiver not registered") == true
-                    ) {
-                        DebugLog.d(TAG, "proxy launch receiver already unregistered")
-                    } else {
-                        DebugLog.w(TAG, "failed to unregister proxy launch receiver", t)
-                    }
-                }
+    private fun launch(ctx: Context, intent: Intent) {
+        if (intent.action != ProxyLaunchProtocol.ACTION) return
+        val key = intent.getStringExtra(ProxyLaunchProtocol.EXTRA_TARGET)
+        val component = TARGETS[key] ?: run {
+            DebugLog.w(TAG, "refused proxy launch for unknown target=$key")
+            return
         }
-        registration = null
+        runCatching {
+            ctx.startActivity(Intent().apply {
+                setComponent(component)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            })
+            DebugLog.i(TAG, "proxied launch target=$key component=$component")
+        }.onFailure { t -> DebugLog.e(TAG, "failed to proxy launch target=$key component=$component", t) }
     }
 }

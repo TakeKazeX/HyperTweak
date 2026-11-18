@@ -1,5 +1,6 @@
 import unittest
-from check_architecture import hook_unit, hook_violations, renderer_violations, violations
+from check_architecture import (dispatcher_violations, executor_violations, hook_unit, hook_violations,
+                                renderer_violations, violations)
 
 
 class ArchitectureGuardTest(unittest.TestCase):
@@ -73,3 +74,14 @@ class IconRendererBoundaryTest(unittest.TestCase):
         self.assertEqual([], renderer_violations(("rules", "systemui", "aod", "AodStatusIconHooker.kt"), "DuoRenderer.createAodDuoView(c)"))
         self.assertEqual([(1, "LeftRenderer")], renderer_violations(
             ("rules", "systemui", "aod", "AodStatusIconHooker.kt"), "LeftRenderer.x"))
+
+
+class HotReloadGuardTest(unittest.TestCase):
+    def test_executor_factories_are_rejected(self):
+        source = 'val a = 1\nprivate val w = Executors.newSingleThreadExecutor()\n// Executors.newFixedThreadPool(2)\n'
+        self.assertEqual([2], executor_violations(source))
+        self.assertEqual([], executor_violations("val w = HookExecutors.serial(\"x\")\n"))
+
+    def test_global_kotlinx_dispatchers_are_rejected_but_main_is_allowed(self):
+        source = 'scope(Dispatchers.IO)\n/* Dispatchers.Default */\nwithContext(Dispatchers.Main)\nDispatchers . Default\n'
+        self.assertEqual([1, 4], dispatcher_violations(source))

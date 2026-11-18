@@ -280,7 +280,7 @@ internal class LeftKeyguardCarrierSwap(private val host: Host) {
     }
 
     private fun ensureReceiver(context: Context) {
-        if (receiverContext != null) return
+        if (receiverContext != null || host.retiring) return
         val app = context.applicationContext ?: context
         runCatching {
             val filter = IntentFilter().apply {

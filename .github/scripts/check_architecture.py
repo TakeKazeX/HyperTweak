@@ -115,6 +115,29 @@ def hook_violations(unit, source):
     return found
 
 
+# `Executors.new*` wrappers register a JDK Cleaner action that references the executor and its
+# ThreadFactory, and their default core threads never time out. One that is never shut down (for
+# example created in an object initializer whose hooker never installs, or recreated by a late
+# callback of a retiring generation) pins the whole module generation. Hook code uses
+# HookExecutors / generationWorker, which register no Cleaner and whose threads exit when idle.
+EXECUTOR_FACTORY = re.compile(r'\bExecutors\s*\.\s*new\w+')
+
+
+# A generation's own kotlinx scheduler never retires its workers, which pin the generation, and
+# terminating it makes every late resume throw on the host thread. Hook code uses HookDispatchers.IO.
+GLOBAL_DISPATCHER = re.compile(r'\bDispatchers\s*\.\s*(?:IO|Default)\b')
+
+
+def dispatcher_violations(source):
+    code = strip_non_code(source)
+    return [code.count("\n", 0, match.start()) + 1 for match in GLOBAL_DISPATCHER.finditer(code)]
+
+
+def executor_violations(source):
+    code = strip_non_code(source)
+    return [code.count("\n", 0, match.start()) + 1 for match in EXECUTOR_FACTORY.finditer(code)]
+
+
 def main():
     failures = []
     for language in ("kotlin", "java"):
@@ -131,6 +154,12 @@ def main():
                 failures.extend(f"{path.relative_to(ROOT)}:{line}: forbidden hook.{unit} -> hook.{target}"
                                 for line, target in hook_violations(unit, source))
                 hook_parts = path.relative_to(base / "hook").parts
+                failures.extend(f"{path.relative_to(ROOT)}:{line}: Executors factory in hook code; "
+                                "use HookExecutors or generationWorker"
+                                for line in executor_violations(source))
+                failures.extend(f"{path.relative_to(ROOT)}:{line}: kotlinx global dispatcher in hook code; "
+                                "use HookDispatchers.IO"
+                                for line in dispatcher_violations(source))
                 failures.extend(f"{path.relative_to(ROOT)}:{line}: icon renderer {name} used outside its owner; "
                                 "go through IconHostPorts"
                                 for line, name in renderer_violations(hook_parts, source))

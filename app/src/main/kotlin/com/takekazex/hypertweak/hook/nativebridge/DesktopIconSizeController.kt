@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.nativebridge
 
+import com.takekazex.hypertweak.hook.base.HookDispatchers
 import android.content.Context
 import android.net.Uri
 import android.os.Bundle
@@ -10,7 +11,7 @@ import kotlin.math.abs
 
 /** The stock provider drives tempIconScale and reconstructs the active immutable grid. */
 internal class DesktopIconSizeController(private val context: Context) {
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val scope = CoroutineScope(SupervisorJob() + HookDispatchers.IO)
     private val queue = Channel<Int>(Channel.CONFLATED)
     @Volatile private var closed = false
     @Volatile private var refreshAfterAttach = true

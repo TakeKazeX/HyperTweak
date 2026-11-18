@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.personalassistant
 
+import com.takekazex.hypertweak.hook.base.HookDispatchers
 import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.hook.base.dex.DexContractMembers
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
@@ -45,7 +46,7 @@ object AndroidWidgetPickerHooker : StaticHooker() {
     private val settingAllowAndroidWidgetsToAssistant by hookSetting(false) { Preferences.allowAndroidWidgetsToAssistant() }
 
     private const val TAG = "PAAndroidWidgets"
-    private var worker = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private var worker = CoroutineScope(SupervisorJob() + HookDispatchers.IO)
     @Volatile
     private var retired = false
     init { generationCleanup { retired = true } }
@@ -74,7 +75,7 @@ object AndroidWidgetPickerHooker : StaticHooker() {
         retired = false
         contract = null
         loading.set(false)
-        worker = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        worker = CoroutineScope(SupervisorJob() + HookDispatchers.IO)
     }
 
     override fun onHook() {

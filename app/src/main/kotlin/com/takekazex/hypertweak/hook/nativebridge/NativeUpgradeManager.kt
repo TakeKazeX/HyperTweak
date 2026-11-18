@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.nativebridge
 
+import com.takekazex.hypertweak.hook.base.HookDispatchers
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.XposedServiceManager
 import com.takekazex.hypertweak.hook.runtime.settings.RuntimeSettingsSignal
@@ -21,7 +22,7 @@ import java.util.zip.ZipFile
 
 /** User-triggered native activation follows upstream's exact-spawner replacement, not dlclose. */
 internal object NativeUpgradeManager : NativeUpgradePort {
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val scope = CoroutineScope(SupervisorJob() + HookDispatchers.IO)
     private val _busy = MutableStateFlow(false)
     override val busy = _busy.asStateFlow()
     private val _report = MutableStateFlow<Report?>(null)

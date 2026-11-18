@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.system
 
+import com.takekazex.hypertweak.hook.base.GenerationInputs
 import com.takekazex.hypertweak.hook.base.HostAccess
 import android.content.Context
 import android.net.Uri
@@ -80,9 +81,9 @@ object CircleToSearchGestureHooker : StaticHooker() {
     // system_server, where Preferences writes do not reliably persist. See SecureSettingStore.
     private const val BACKUP_NAV_LONG_PRESS = SecureSettingStore.NAV_LONG_PRESS
 
-    private var observerInstalled by generationState { false }
-
-    private var settingObserver: ContentObserver? by generationState { null }
+    // Also installed from hook callbacks (alignment requests), which reach a retiring generation
+    // until its handles are replaced; the generation registration refuses those.
+    @Volatile private var settingObserver: GenerationInputs.Registration? = null
 
     private val startupRetry = SystemServerStartupRetry(
         scope = SCOPE,
@@ -96,17 +97,13 @@ object CircleToSearchGestureHooker : StaticHooker() {
     }
 
     override fun onPrepareHotReload() {
+        // The settings observer is a generation registration, released before this runs.
         startupRetry.cancel()
-        val observer = settingObserver
-        if (observer != null) {
-            runCatching { systemContext()?.contentResolver?.unregisterContentObserver(observer) }
-                .onFailure { DebugLog.w(SCOPE, "could not unregister the gesture observer", it) }
-            settingObserver = null
-        }
     }
 
     /** Aligns the gesture-line action with the switch: applied while on, restored while off. */
     fun applyAlignment() {
+        if (generationRetired) return
         if (!initializeSettings(logFailure = true)) startupRetry.schedule()
     }
 
@@ -181,8 +178,8 @@ object CircleToSearchGestureHooker : StaticHooker() {
     }
 
     private fun installSettingObserver(logFailure: Boolean): Boolean {
-        if (observerInstalled) return true
-        if (!SystemServiceReadiness.contentReady()) return false
+        if (settingObserver?.isClosed == false) return true
+        if (generationRetired || !SystemServiceReadiness.contentReady()) return false
         val context = systemContext() ?: return false
         val observer = object : ContentObserver(Handler(Looper.getMainLooper())) {
             override fun onChange(selfChange: Boolean, uri: Uri?) {
@@ -190,13 +187,15 @@ object CircleToSearchGestureHooker : StaticHooker() {
             }
         }
         return runCatching {
-            context.contentResolver.registerContentObserver(
-                Settings.Secure.getUriFor(SETTING_NAV_LONG_PRESS),
-                false,
-                observer
-            )
-            settingObserver = observer
-            observerInstalled = true
+            val registration = generationRegistration({
+                context.contentResolver.registerContentObserver(
+                    Settings.Secure.getUriFor(SETTING_NAV_LONG_PRESS),
+                    false,
+                    observer
+                )
+            }) { context.contentResolver.unregisterContentObserver(observer) }
+            settingObserver = registration
+            if (registration.isClosed) return@runCatching false
             DebugLog.i(SCOPE, "secure setting observers ready")
             true
         }.onFailure {

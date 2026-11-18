@@ -16,8 +16,17 @@ import java.lang.reflect.Method
 import java.util.concurrent.CopyOnWriteArraySet
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 import com.takekazex.hypertweak.hook.base.dex.DexPreparationOwner
+import android.content.ContentResolver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.database.ContentObserver
+import android.net.Uri
 import android.os.Handler
 import android.os.Looper
+import androidx.core.content.ContextCompat
+import kotlin.coroutines.CoroutineContext
+import kotlinx.coroutines.CoroutineScope
 
 sealed class BaseHooker {
     companion object {
@@ -54,6 +63,78 @@ sealed class BaseHooker {
         val failures = subscriptions.mapNotNull { runCatching { it.close() }.exceptionOrNull() }
         subscriptions.clear()
         if (failures.isNotEmpty()) throw failures.first().apply { failures.drop(1).forEach(::addSuppressed) }
+    }
+
+    private val inputs = GenerationInputs()
+
+    /**
+     * True from retirement until this hooker is installed again. A retiring generation's hooks and
+     * callbacks keep running until the replacement swaps the handles; any path that lazily creates a
+     * host registration, thread or worker outside the `generation*` helpers must check this under
+     * the same monitor as its `onPrepareHotReload`, or the late resource outlives the generation.
+     */
+    internal val generationRetired: Boolean get() = inputs.isRetired
+
+    /** Main-looper handler whose pending work retirement drops. Use instead of a bare main Handler. */
+    internal fun generationMainHandler(): Handler =
+        Handler(Looper.getMainLooper()).also { handler -> inputs.reusable(GenerationInputs.Reusable { handler.removeCallbacksAndMessages(null) }) }
+
+    /** Single-thread worker shut down on retirement and recreated on next use. */
+    internal fun generationWorker(name: String, idleSeconds: Long = 30): GenerationWorker =
+        inputs.reusable(GenerationWorker(name, idleSeconds))
+
+    /** Coroutine scope cancelled on retirement; later launches use a fresh job. */
+    internal fun generationScope(context: CoroutineContext = HookDispatchers.IO): CoroutineScope =
+        inputs.reusable(GenerationScope(context))
+
+    /**
+     * Registers now and unregisters on retirement or [AutoCloseable.close], at most once. After
+     * retirement and before reinstall nothing is registered: a late callback of a retiring
+     * generation cannot leave a host registration behind.
+     */
+    internal fun generationRegistration(register: () -> Unit, unregister: () -> Unit): GenerationInputs.Registration {
+        val registration = inputs.open()
+        try { registration.attach(register) { unregister() } } catch (t: Throwable) { registration.close(); throw t }
+        return registration
+    }
+
+    internal fun generationObserver(
+        resolver: ContentResolver, uri: Uri, descendants: Boolean = false, handler: Handler? = null,
+        onChange: (selfChange: Boolean, uri: Uri?) -> Unit,
+    ): AutoCloseable {
+        val observer = object : ContentObserver(handler) {
+            override fun onChange(selfChange: Boolean, changed: Uri?) = onChange(selfChange, changed)
+        }
+        return generationRegistration({ resolver.registerContentObserver(uri, descendants, observer) }) {
+            resolver.unregisterContentObserver(observer)
+        }
+    }
+
+    /**
+     * Registers on the published Application ([HostApplicationContext.whenPublished]): an attach-time
+     * registration is keyed on a ContextImpl that retirement cannot unregister. A registration still
+     * waiting for publication is skipped once closed, and no broadcast is delivered after closing.
+     * [flags] must state exportedness (`ContextCompat.RECEIVER_EXPORTED` / `RECEIVER_NOT_EXPORTED`).
+     */
+    internal fun generationReceiver(
+        context: Context, filter: IntentFilter, flags: Int, permission: String? = null, handler: Handler? = null,
+        onReceive: (Context, Intent) -> Unit,
+    ): AutoCloseable {
+        val registration = inputs.open()
+        val receiver = object : ModuleBroadcastReceiver() {
+            override fun receive(context: Context, intent: Intent) {
+                if (!registration.isClosed) onReceive(context, intent)
+            }
+        }
+        HostApplicationContext.whenPublished(context) { application ->
+            runCatching {
+                registration.attach({ ContextCompat.registerReceiver(application, receiver, filter, permission, handler, flags) }) {
+                    try { application.unregisterReceiver(receiver) }
+                    catch (e: IllegalArgumentException) { if (e.message?.contains("not registered") != true) throw e }
+                }
+            }.onFailure { DebugLog.e(hookerName, "receiver registration failed actions=${filter.actionsIterator().asSequence().toList()}", it) }
+        }
+        return registration
     }
 
     private val childHookers = CopyOnWriteArraySet<BaseHooker>()
@@ -167,7 +248,7 @@ sealed class BaseHooker {
         val newState = isEffectiveEnabled
         if (oldState != newState) {
             if (newState) {
-                dexPreparations.activate()
+                activateGeneration()
                 installIfNeeded()
             } else {
                 // A switch-gated hooker must restore the host's own behavior, so it is removed even
@@ -326,6 +407,11 @@ sealed class BaseHooker {
         }
     }
 
+    private fun activateGeneration() {
+        dexPreparations.activate()
+        inputs.activate()
+    }
+
     private fun cancelDexPreparations() {
         dexPreparations.cancel()
     }
@@ -346,7 +432,7 @@ sealed class BaseHooker {
     }
 
     internal fun performInit() {
-        dexPreparations.activate()
+        activateGeneration()
         onInit()
     }
 
@@ -360,6 +446,8 @@ sealed class BaseHooker {
                     runCatching { DebugLog.w("BaseHooker", "failed to prepare child ${child.hookerName} for hot reload", t) }
                 }
         }
+        // Inputs stop before the feature restores its host.
+        runCatching { inputs.releaseAll() }.onFailure(failures::add)
         runCatching { onPrepareHotReload() }
             .onFailure { t ->
                 failures += t

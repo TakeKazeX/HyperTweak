@@ -39,7 +39,7 @@ object RestartBroadcastHooker : StaticHooker() {
 
     private fun register(appContext: Context, pkgName: String) {
         // unregisterAll() clears the claim when hot reload retires this generation first.
-        if (!registeredPackages.contains(pkgName) || receivers.containsKey(pkgName)) return
+        if (generationRetired || !registeredPackages.contains(pkgName) || receivers.containsKey(pkgName)) return
         try {
             val filter = IntentFilter(RestartProtocol.ACTION)
             val receiver = object : BroadcastReceiver() {

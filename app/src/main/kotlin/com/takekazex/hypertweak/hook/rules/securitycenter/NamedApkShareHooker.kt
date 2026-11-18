@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.securitycenter
 
+import com.takekazex.hypertweak.hook.base.HookDispatchers
 import android.app.Activity
 import android.content.Context
 import android.content.pm.ApplicationInfo
@@ -17,7 +18,6 @@ import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.settings.contract.AppSettingsKeys
 import com.takekazex.hypertweak.util.logging.DebugLog
 import io.github.libxposed.api.XposedInterface
-import kotlinx.coroutines.Dispatchers
 import org.luckypray.dexkit.query.enums.StringMatchType
 import java.io.File
 import java.lang.ref.WeakReference
@@ -156,7 +156,7 @@ object NamedApkShareHooker : DynamicHooker() {
         val main = activity.mainExecutor
         pending = request
         try {
-            Dispatchers.IO.dispatch(EmptyCoroutineContext) {
+            HookDispatchers.IO.dispatch(EmptyCoroutineContext) {
                 val copy = HookFailurePolicy.open<File?>(TAG, "copy APK to share cache", null) {
                     stageCopy(context, source, name, targets.uriForFile)
                 }

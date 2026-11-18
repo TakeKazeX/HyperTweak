@@ -29,7 +29,6 @@ import java.lang.reflect.Field
 import java.lang.reflect.Method
 import java.util.Locale
 import java.util.WeakHashMap
-import java.util.concurrent.Executors
 
 /**
  * Appends live charging telemetry to the lockscreen's bottom charging indication, OS4 SystemUI.
@@ -59,7 +58,6 @@ import java.util.concurrent.Executors
  * BottomIndicationLayout owns reversible layout and overflow independently of telemetry.
  */
 object LockscreenChargingDetailHooker : StaticHooker() {
-    init { generationCleanup { worker.shutdownNow() } }
     // Published on settings acceptance; hook callbacks perform no storage reads.
     private val settingLockscreenChargingDetail by hookSetting(false) {
         Preferences.getBoolean(SystemUiSettingsKeys.KEY_LOCKSCREEN_CHARGING_DETAIL, false)
@@ -134,9 +132,10 @@ object LockscreenChargingDetailHooker : StaticHooker() {
 
     private var interactive by generationState { false }
     private var receiverContext: Context? by generationState { null }
-    private var worker = Executors.newSingleThreadExecutor { task ->
-        Thread(task, "HT-ChargeSample").apply { isDaemon = true }
-    }
+    // Created lazily and retired with the generation. An eager `Executors` worker in this object
+    // registered a JDK Cleaner action even while the feature was off and the hooker never installed,
+    // so nothing shut it down and the Cleaner pinned every retired SystemUI generation.
+    private val worker = generationWorker("HT-ChargeSample")
     private var sampleGate by generationState { ChargingSampleGate() }
     private var activeView by generationState { WeakReference<TextView>(null) }
     private var observedView by generationState { WeakReference<TextView>(null) }
@@ -223,7 +222,6 @@ object LockscreenChargingDetailHooker : StaticHooker() {
                 boundary { context.unregisterReceiver(batteryReceiver) }
             }
             receiverContext = null
-            worker.shutdownNow()
             currIndicationTypeField = null
             viewField = null
             messageField = null
@@ -240,12 +238,6 @@ object LockscreenChargingDetailHooker : StaticHooker() {
 
     override fun onHook() {
         refreshGeneration++
-        if (worker.isShutdown) {
-            sampleGate = ChargingSampleGate()
-            worker = Executors.newSingleThreadExecutor { task ->
-                Thread(task, "HT-ChargeSample").apply { isDaemon = true }
-            }
-        }
 
         val clazz = runCatching { classLoader.loadClass(ROTATE_VC) }.getOrElse {
             DebugLog.hookSkipped(TAG, ROTATE_VC, "class not found")
@@ -397,7 +389,8 @@ object LockscreenChargingDetailHooker : StaticHooker() {
     }
 
     private fun bindBatteryEvents(context: Context) {
-        if (receiverContext != null) return
+        // Late view callbacks of a retiring generation must not re-register after retirement ran.
+        if (receiverContext != null || generationRetired) return
         val app = context.applicationContext ?: context
         interactive = (app.getSystemService(Context.POWER_SERVICE) as? PowerManager)?.isInteractive == true
         val filter = IntentFilter(Intent.ACTION_BATTERY_CHANGED).apply {
@@ -504,7 +497,7 @@ object LockscreenChargingDetailHooker : StaticHooker() {
         val target = WeakReference(view)
         val context = view.context.applicationContext ?: view.context
         val method = getIntProperty
-        worker.execute {
+        val queued = worker.execute {
             val current = runCatching {
                 readCurrentUa(context.getSystemService(Context.BATTERY_SERVICE) as? BatteryManager, method)
             }.onFailure { DebugLog.w(TAG, "charging sample failed", it) }.getOrDefault(0L)
@@ -518,6 +511,8 @@ object LockscreenChargingDetailHooker : StaticHooker() {
                 } else if (detailEnabled()) boundary { reconcile() }
             }
         }
+        // A full queue rejects the sample; release its ticket so the next request is not blocked.
+        if (!queued) gate.complete(ticket)
     }
 
     internal fun needsCurrent(flags: Int): Boolean = flags and (LockscreenChargingOptions.FIELD_WATTAGE or LockscreenChargingOptions.FIELD_CURRENT) != 0

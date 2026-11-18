@@ -41,7 +41,7 @@ object StatusBarHideSilentHooker : StaticHooker() {
     private const val TAG = "HideSilent"
     private const val BUILDER =
         "com.android.systemui.statusbar.notification.domain.interactor.ActiveNotificationsStoreBuilder"
-    private val main by lazy { android.os.Handler(android.os.Looper.getMainLooper()) }
+    private val main = generationMainHandler()
     private val pipelines = instanceTracker()
     private var threshold by generationState { -1 }
     private var ready by generationState { false }
@@ -61,7 +61,6 @@ object StatusBarHideSilentHooker : StaticHooker() {
 
     override fun onPrepareHotReload() {
         retired = true
-        main.removeCallbacksAndMessages(null)
         calls.remove()
     }
 

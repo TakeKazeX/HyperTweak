@@ -1,8 +1,9 @@
 package com.takekazex.hypertweak.hook.nativebridge
 
+import com.takekazex.hypertweak.hook.base.ModuleBroadcastReceiver
+
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.runtime.settings.SettingsTransport
-import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
@@ -37,8 +38,8 @@ internal class NativeRuleStatePublisher {
             Preferences.restoreBackGestureSettings(values[1])
         } else ledger.restore(state)
     }
-    private val receiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context, intent: Intent) {
+    private val receiver = object : ModuleBroadcastReceiver() {
+        override fun receive(context: Context, intent: Intent) {
             if (closed) return
 
             if (intent.action == "com.takekazex.hypertweak.action.DESKTOP_GRID_QUERY") {

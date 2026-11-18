@@ -58,10 +58,12 @@ internal object HostMembers {
         val contracts = ConcurrentHashMap<String, ContractValue>()
     }
     private fun policy(lookup: Lookup, accessible: Boolean): Int = lookup.ordinal * 2 + if (accessible) 1 else 0
-    // ClassValue follows the actual defining loader and cannot pin it through a global Class map.
-    private val members = object : ClassValue<Members>() {
-        override fun computeValue(type: Class<*>): Members = Members()
-    }
+    // Keyed by the defining Class, so no global map pins plugin loaders. The entries live in host
+    // classes and would retain this module generation, so HookEntry retires them on hot reload.
+    private val members = RetiringClassValue { Members() }
+
+    /** Removes this generation's entries from host classes; later lookups resolve uncached. */
+    fun retire() = members.retire()
     /** Cache both present and absent members by their defining Class/loader. */
     fun field(type: Class<*>, name: String): java.lang.reflect.Field? {
         val fields = members.get(type).fields
