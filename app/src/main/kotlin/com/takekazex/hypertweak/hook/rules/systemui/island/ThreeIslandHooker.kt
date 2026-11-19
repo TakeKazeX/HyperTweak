@@ -4,6 +4,7 @@ import android.os.Handler
 import android.os.Looper
 import android.view.View
 import com.takekazex.hypertweak.hook.base.DynamicHooker
+import com.takekazex.hypertweak.hook.rules.systemui.island.hooks.AppCloseWidthBinder
 import com.takekazex.hypertweak.hook.rules.systemui.island.hooks.IslandHookContext
 import com.takekazex.hypertweak.hook.rules.systemui.island.hooks.IslandHookPlan
 import com.takekazex.hypertweak.hook.rules.systemui.island.hooks.IslandHookRegistrar
@@ -97,6 +98,8 @@ class ThreeIslandHooker(
         plan.validate()
         plan.deoptimizeTargets()
         plan.install()
+        runCatching { AppCloseWidthBinder.install(hookContext) }
+            .onFailure { DebugLog.w(ISLAND_TAG, "app-close width pin unavailable; native close measurement kept", it) }
         runCatching { NativeMediaCoverContract(classLoader, systemUiClassLoader) }
             .onFailure { DebugLog.w(ISLAND_TAG, "native media cover animation unavailable", it) }
             .getOrNull()?.let { contract ->

@@ -48,6 +48,13 @@ internal object MeasurementBinder {
             val view = runtime.context.measuringView ?: return@after
             val input = param.args[0] ?: return@after
             val result = param.result ?: return@after
+            // An app close already handed WM this view's rect: keep it until the close ends.
+            runCatching { AppCloseWidthBinder.hold(context, view, result) }
+                .onFailure { DebugLog.e(ISLAND_TAG, "hold app-close BIG width", it) }
+                .getOrNull()?.let { held ->
+                    param.result = held
+                    return@after
+                }
             val claimed = runtime.measurement.afterMeasure(view, input, result, param.thisObject)
             // The scheduling session claims only row and three-seat geometry. Every other view
             // takes the stateless camera-seated rewrite, whatever its current handler.

@@ -311,6 +311,23 @@ internal class NativeIslandHost(
         marginWidth = access.number(result, "getBigIslandMarginWidth"),
     )
 
+    /**
+     * The helper result the view stored last, rebuilt from its nine geometry fields. The host
+     * copies each helper result into these fields and derives its app-close rect from them, so
+     * this is the geometry WM received even when another module rewrote the fields.
+     */
+    fun storedResult(view: Any): Any = createResult(IslandResultGeometry(
+        width = access.number(view, "getBigIslandViewWidth"),
+        left = access.number(view, "getBigIslandLeftWidth"),
+        right = access.number(view, "getBigIslandRightWidth"),
+        x = access.number(view, "getBigIslandX"),
+        margin = access.number(view, "getBigIslandMarginWidth"),
+        viewWidth = access.number(view, "getBigIslandViewWidthHasSmallIsland"),
+        viewLeft = access.number(view, "getBigIslandLeftWidthHasSmallIsland"),
+        viewRight = access.number(view, "getBigIslandRightWidthHasSmallIsland"),
+        viewX = access.number(view, "getBigIslandXHasSmallIsland"),
+    ))
+
     override fun createResult(geometry: IslandResultGeometry): Any = access.resultConstructor.newInstance(
         geometry.width, geometry.left, geometry.right, geometry.x, geometry.margin,
         geometry.viewWidth, geometry.viewLeft, geometry.viewRight, geometry.viewX,

@@ -14,4 +14,5 @@ internal class IslandHookContext(
     val spectrum: NativeMusicSpectrum?,
     val media: NativeMediaRenderContract?,
     val refreshSettings: () -> Unit,
+    val closePin: AppCloseWidthPin = AppCloseWidthPin(),
 )
