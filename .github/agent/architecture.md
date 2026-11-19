@@ -139,7 +139,11 @@ zero for "no override" (corner radius) and keeps the host request separate from 
 module suppression (lockscreen status bar).
 `Preferences` commits complete acknowledged subsets through
 `RuntimeSettingsSignal`; `RuntimeSettingsReceiver` delivers per-destination scoped snapshots
-to `SettingsReloadDispatcher`. Legacy saved scopes cannot invent defaults for newly migrated
+to `SettingsReloadDispatcher`. On attach a host requests its snapshot once and retries
+(250/1000 ms) only until the module answers; each request can cold-start the module process,
+which HyperOS records as an auto-start. Boot/package receivers that only recover a feature
+(`SystemHelperStateReceiver`, `WirelessAdbStateReceiver`) stay manifest-enabled but are
+switched off through `WakeReceiverGate` while their feature is unused. Legacy saved scopes cannot invent defaults for newly migrated
 features. Bulk reset/restore uses the same acknowledgement and rollback path.
 
 `ManagedHookReload` / `BaseHooker.replaceChildren` own hook recreation and host state recovery;

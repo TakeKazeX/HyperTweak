@@ -48,11 +48,16 @@ internal object AdbTcpPort {
         }.getOrDefault(false)
     }
 
+    /** Boot/update restoration is only needed once this module owns the listener. */
+    fun syncWakeReceiver(context: Context) =
+        WakeReceiverGate.set(context, WakeReceiverGate.WIRELESS_ADB, shouldRestore(context))
+
     suspend fun restore(context: Context, afterBoot: Boolean = false): Boolean = execute {
         installGuard(context)
         val owner = ownerFile(context)
         if (!owner.isFile) owner.writeText(UUID.randomUUID().toString())
         if (!markManaged(context)) return@execute false
+        syncWakeReceiver(context)
         val operation = if (afterBoot) "restore" else "prepare"
         val savedOptions = options(context)
         val port = if (savedOptions.getBoolean("custom", false)) {
@@ -111,6 +116,7 @@ internal object AdbTcpPort {
             val cleared = options(context).commitEdit { clear() }
             installGuard(context)
             command("reset")
+            syncWakeReceiver(context)
             cleared
         } ?: false
     }

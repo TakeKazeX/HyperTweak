@@ -20,6 +20,9 @@ internal class RuntimeSettingsReceiver(
     private var context: Context? = null
     @Volatile private var retired = false
     private var packageReceiverRegistered = false
+    // Main thread only. Retries exist for a lost first request; once the module has answered,
+    // they would only wake (or be denied against) a cached module process again.
+    private var answered = false
     private val packageReceiver = object : ModuleBroadcastReceiver() {
         override fun receive(context: Context, intent: Intent) {
             if (retired || intent.data?.schemeSpecificPart !=
@@ -41,6 +44,7 @@ internal class RuntimeSettingsReceiver(
             if (intent.action != RuntimeSettingsProtocol.CHANGED ||
                 !SettingsTransport.trusted(context, sentFromPackage, sentFromUid, SettingsTransport.MODULE)) return
             val snapshot = RuntimeSettingsProtocol.decode(intent) ?: return
+            answered = true
             // The selected IMEs may have changed after this keyboard process started; register
             // the new targets before the IME participant is asked to refresh.
             RuntimeSettingsStore.registerImeTargets(snapshot)
@@ -71,7 +75,11 @@ internal class RuntimeSettingsReceiver(
                 }, Context.RECEIVER_EXPORTED)
                 context = application
                 attachPackageReceiver(application)
-                listOf(0L, 250L, 1000L).forEach { delay -> main.postDelayed({ if (!retired) request(application) }, delay) }
+                answered = false
+                request(application)
+                listOf(250L, 1000L).forEach { delay ->
+                    main.postDelayed({ if (!retired && !answered) request(application) }, delay)
+                }
             }.onFailure { DebugLog.w("RuntimeSettings", "receiver registration failed", it) }
         }
     }

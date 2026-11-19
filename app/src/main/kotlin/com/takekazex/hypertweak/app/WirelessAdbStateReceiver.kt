@@ -13,7 +13,10 @@ class WirelessAdbStateReceiver : BroadcastReceiver() {
         if (intent.action != Intent.ACTION_BOOT_COMPLETED &&
             intent.action != Intent.ACTION_MY_PACKAGE_REPLACED
         ) return
-        if (!AdbTcpPort.shouldRestore(context)) return
+        if (!AdbTcpPort.shouldRestore(context)) {
+            AdbTcpPort.syncWakeReceiver(context)
+            return
+        }
         val pending = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
             try {

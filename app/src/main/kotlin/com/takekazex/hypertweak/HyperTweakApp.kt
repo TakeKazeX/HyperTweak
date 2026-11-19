@@ -42,5 +42,10 @@ class HyperTweakApp : Application() {
                 com.takekazex.hypertweak.app.DefaultAppServices.systemHelper.reconcileBlocking(this)
             }, "HyperTweak-SystemHelper").start()
         }
+        // Boot/update receivers stay enabled only for features that recover state there.
+        Thread({
+            com.takekazex.hypertweak.app.SystemHelperStateReceiver.syncWakeReceiver(this)
+            com.takekazex.hypertweak.util.platform.AdbTcpPort.syncWakeReceiver(this)
+        }, "HyperTweak-WakeReceivers").start()
     }
 }

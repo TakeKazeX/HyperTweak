@@ -7,6 +7,7 @@ import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 import com.takekazex.hypertweak.util.logging.DebugLog
 import com.takekazex.hypertweak.util.platform.SystemHelperPackage
+import com.takekazex.hypertweak.util.platform.WakeReceiverGate
 
 /**
  * Re-applies the persisted SystemHelper choice after a reboot, this module's own update, or a
@@ -26,9 +27,11 @@ class SystemHelperStateReceiver : BroadcastReceiver() {
             else -> false
         }
         if (!relevant) return
-        if (!runCatching {
-                Preferences.getBoolean(PlatformSettingsKeys.KEY_SYSTEM_HELPER_MANAGED, false)
-            }.getOrDefault(false)) return
+        val managed = readManaged() ?: return
+        if (!managed) {
+            WakeReceiverGate.set(context, WakeReceiverGate.SYSTEM_HELPER, false)
+            return
+        }
 
         val pending = goAsync()
         Thread({
@@ -43,5 +46,16 @@ class SystemHelperStateReceiver : BroadcastReceiver() {
                 pending.finish()
             }
         }, "HyperTweak-SystemHelper").start()
+    }
+
+    companion object {
+        // A failed read keeps the receiver as it is, so OTA recovery is never lost to a transient error.
+        private fun readManaged(): Boolean? = runCatching {
+            Preferences.getBoolean(PlatformSettingsKeys.KEY_SYSTEM_HELPER_MANAGED, false)
+        }.getOrNull()
+
+        fun syncWakeReceiver(context: Context) {
+            WakeReceiverGate.set(context, WakeReceiverGate.SYSTEM_HELPER, readManaged() ?: return)
+        }
     }
 }

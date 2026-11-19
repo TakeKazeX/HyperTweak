@@ -139,7 +139,11 @@ internal class SystemHelperControl(
 ) {
     private val lock = ReentrantLock()
 
-    private fun engine(context: Context) = SystemHelperEngine({ readState(context) }, run, rememberDisabled)
+    // A remembered choice makes OTA/boot recovery necessary, so its receiver must be enabled.
+    private fun engine(context: Context) = SystemHelperEngine({ readState(context) }, run) { disabled ->
+        rememberDisabled(disabled)
+        WakeReceiverGate.set(context, WakeReceiverGate.SYSTEM_HELPER, true)
+    }
 
     suspend fun query(context: Context): SystemHelperResult =
         withContext(Dispatchers.IO) { lock.withLock { engine(context).query() } }
