@@ -34,6 +34,9 @@ object AospAppInfoEntryHooker : StaticHooker() {
     private val settingAospAppInfoEntry by hookSetting(false) { Preferences.getBoolean(PlatformSettingsKeys.KEY_AOSP_APP_INFO_ENTRY, false) }
 
     private const val TAG = "AospAppInfoEntry"
+    private const val SETTINGS_PACKAGE = "com.android.settings"
+    /** UserHandle.PER_USER_RANGE; UserHandle.of(int) is @SystemApi and not in the public SDK. */
+    private const val PER_USER_RANGE = 100_000
 
     private const val DETAILS_FRAGMENT = "com.miui.appmanager.fragment.ApplicationsDetailsFragment"
 
@@ -112,11 +115,10 @@ object AospAppInfoEntryHooker : StaticHooker() {
         if (fragment == null) return
         fragments[fragment] = true
         fragment.callMethodOrNull("findPreference", KEY_AOSP_APP_INFO)?.let {
-            it.callMethodOrNull("setVisible", settingAospAppInfoEntry)
             val activity = fragment.callMethodOrNull("requireActivity") as? Activity
-            if (activity != null) createAppInfoIntent(activity)?.let { intent ->
-                setSafeClickListener(it, activity, intent)
-            }
+            val intent = activity?.let(::createAppInfoIntent)
+            it.callMethodOrNull("setVisible", settingAospAppInfoEntry && intent != null)
+            if (activity != null && intent != null) setSafeClickListener(it, activity, intent)
             return
         }
         if (!settingAospAppInfoEntry) return
@@ -201,11 +203,37 @@ object AospAppInfoEntryHooker : StaticHooker() {
             HostAccess.requirePublicMethod(UserHandle::class.java, "myUserId", accessible = false).invoke(null) as? Int
         }.getOrNull() ?: 0
         val userId = activity.intent.getIntExtra("miui.intent.extra.USER_ID", myUserId)
+        // Settings' SPA app info builds its per-user context with createContextAsUser(target user),
+        // which throws in the Settings process when Settings itself is not installed for that user.
+        // HyperOS XSpace (999) never installs Settings, so the route would crash Settings: offer no
+        // entry there instead of silently falling back to another user's copy of the app.
+        if (!isSettingsInstalledForUser(activity, userId)) {
+            DebugLog.d(TAG, "Settings not installed for user $userId; hiding entry for $packageName")
+            return null
+        }
 
         return Intent(Intent.ACTION_MAIN).apply {
-            setClassName("com.android.settings", "com.android.settings.spa.SpaActivity")
+            setClassName(SETTINGS_PACKAGE, "com.android.settings.spa.SpaActivity")
             putExtra("spaActivityDestination", "AppInfoSettings/$packageName/$userId")
             putExtra("sessionSource", "browse")
         }
+    }
+
+    /** Same check Settings' own createContextAsUser performs; a missing user copy throws there. */
+    private fun isSettingsInstalledForUser(context: Context, userId: Int): Boolean = runCatching {
+        HostAccess.requirePublicMethod(
+            Context::class.java,
+            "createPackageContextAsUser",
+            String::class.java,
+            Int::class.javaPrimitiveType,
+            UserHandle::class.java,
+            accessible = false
+        ).invoke(context, SETTINGS_PACKAGE, 0, UserHandle.getUserHandleForUid(userId * PER_USER_RANGE))
+        true
+    }.getOrElse {
+        if (it.cause !is android.content.pm.PackageManager.NameNotFoundException) {
+            DebugLog.w(TAG, "cannot check Settings for user $userId", it)
+        }
+        false
     }
 }
