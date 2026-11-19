@@ -21,7 +21,7 @@ internal object AdbTcpPort {
     data class State(
         val systemTls: Boolean,
         val restartMode: RestartMode,
-        val bound: Wifi?,
+        val bound: List<Wifi>,
         val current: Wifi?,
         val endpoint: String?,
         val failure: Int?,
@@ -29,6 +29,8 @@ internal object AdbTcpPort {
 
     private const val DIRECTORY = "/data/adb/hypertweak-wireless-adb"
     private const val MANAGED = "wifi_guard_managed"
+    const val MAX_BOUND = 3
+    private const val RESTART_MODE = "restart_mode"
     private val lock = Mutex()
 
     fun options(context: Context) =
@@ -36,7 +38,12 @@ internal object AdbTcpPort {
 
     fun shouldRestore(context: Context): Boolean {
         val options = options(context)
-        if (options.getBoolean(MANAGED, false)) return true
+        // Visiting the page marks the guard managed; only an automatic restart mode needs the
+        // boot/update receiver. A one-time manual listener never survives a reboot. Managed
+        // installs that have not reported a mode yet keep the receiver until the page reads one.
+        if (options.getBoolean(MANAGED, false)) {
+            return options.getInt(RESTART_MODE, RestartMode.ALWAYS_RANDOM.ordinal) != RestartMode.OFF.ordinal
+        }
         // Older versions stored only the optional custom port, and wrote boot persistence to
         // a system property. Probe it when readable so untouched installations never request root.
         if (options.contains("custom") || options.contains("port")) return true
@@ -67,24 +74,39 @@ internal object AdbTcpPort {
         true
     } ?: false
 
-    suspend fun read(): State? = execute {
+    suspend fun read(context: Context): State? = execute {
         val fields = command("status").decodeToString().trimEnd('\n').split('\n')
-        check(fields.size == 10 && fields[0] == "state" && fields[9] == "end")
+        // state, mode, binding count, ssid/bssid pairs, current ssid/bssid, endpoint, error,
+        // transport, end.
+        check(fields.size >= 9 && fields[0] == "state" && fields.last() == "end")
+        val count = fields[2].toInt()
+        check(count in 0..MAX_BOUND && fields.size == 9 + count * 2)
         fun wifi(index: Int): Wifi? = fields[index + 1].takeIf(String::isNotEmpty)?.let {
             Wifi(fields[index], it)
         }
+        val rest = 3 + count * 2
         State(
-            systemTls = fields[8] == "system",
+            systemTls = fields[rest + 4] == "system",
             restartMode = RestartMode.entries[fields[1].toInt()],
-            bound = wifi(2),
-            current = wifi(4),
-            endpoint = fields[6].takeIf(String::isNotEmpty),
-            failure = fields[7].toIntOrNull(),
-        )
+            bound = (0 until count).mapNotNull { wifi(3 + it * 2) },
+            current = wifi(rest),
+            endpoint = fields[rest + 2].takeIf(String::isNotEmpty),
+            failure = fields[rest + 3].toIntOrNull(),
+        ).also { rememberMode(context, it.restartMode) }
     }
 
-    suspend fun bind(wifi: Wifi?, port: Int): Boolean =
-        change("bind $port ${wifi.arguments()}")
+    /** The guard owns the mode; the app keeps a copy so it can gate its boot receiver. */
+    private fun rememberMode(context: Context, mode: RestartMode) {
+        val options = options(context)
+        if (options.getInt(RESTART_MODE, -1) == mode.ordinal) return
+        options.commitEdit { putInt(RESTART_MODE, mode.ordinal) }
+        syncWakeReceiver(context)
+    }
+
+    /** Binds the access point in use; the guard rejects any other one and a fourth binding. */
+    suspend fun addBinding(wifi: Wifi): Boolean = change("bind add ${wifi.arguments()}")
+
+    suspend fun removeBinding(wifi: Wifi): Boolean = change("bind remove ${wifi.arguments()}")
 
     suspend fun setEnabled(enabled: Boolean, wifi: Wifi?, port: Int): Boolean =
         if (enabled && wifi != null) change("manual-on $port ${wifi.arguments()}")

@@ -9,11 +9,14 @@ import android.os.CancellationSignal
 import android.provider.Settings
 import android.widget.Toast
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -37,11 +40,16 @@ import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.ui.chrome.AppDropdownPreference as OverlayDropdownPreference
 import com.takekazex.hypertweak.ui.chrome.AppScrollPage
 import com.takekazex.hypertweak.ui.chrome.AppSection
+import com.takekazex.hypertweak.ui.chrome.AppTextButton as TextButton
+import com.takekazex.hypertweak.ui.components.dialog.AppWindowDialog
 import com.takekazex.hypertweak.ui.components.MiuixExpandableContent
 import com.takekazex.hypertweak.util.platform.AdbTcpPort
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import top.yukonga.miuix.kmp.basic.BasicComponent
+import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
@@ -62,7 +70,8 @@ internal fun WirelessAdbPage(onBack: () -> Unit) {
     var initialized by remember { mutableStateOf(false) }
     val customPort = input.toIntOrNull()?.takeIf { it in 1..65535 }
     val port = if (custom) customPort ?: -1 else 0
-    val bound = state?.bound
+    val bound = state?.bound.orEmpty()
+    var removing by remember { mutableStateOf<AdbTcpPort.Wifi?>(null) }
     val current = state?.current
     val endpoint = state?.endpoint
     val listening = endpoint != null
@@ -78,7 +87,7 @@ internal fun WirelessAdbPage(onBack: () -> Unit) {
         working = true
         try {
             initialized = AdbTcpPort.restore(appContext)
-            state = if (initialized) AdbTcpPort.read() else null
+            state = if (initialized) AdbTcpPort.read(appContext) else null
         } finally {
             working = false
         }
@@ -89,7 +98,7 @@ internal fun WirelessAdbPage(onBack: () -> Unit) {
             if (!initialized) initialize()
             while (true) {
                 delay(if (state?.endpoint != null) 1500 else 3500)
-                if (initialized && !working) state = AdbTcpPort.read()
+                if (initialized && !working) state = AdbTcpPort.read(appContext)
             }
         }
     }
@@ -108,7 +117,7 @@ internal fun WirelessAdbPage(onBack: () -> Unit) {
         working = true
         scope.launch {
             val success = action()
-            state = AdbTcpPort.read()
+            state = AdbTcpPort.read(appContext)
             working = false
             if (!success) Toast.makeText(context, R.string.debug_adb_tcp_failed, Toast.LENGTH_SHORT).show()
         }
@@ -135,7 +144,7 @@ internal fun WirelessAdbPage(onBack: () -> Unit) {
                 .authenticate(signal, executor, object : BiometricPrompt.AuthenticationCallback() {
                     override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
                         authentication = null
-                        if (!signal.isCanceled) change { AdbTcpPort.bind(network, port) }
+                        if (!signal.isCanceled) change { AdbTcpPort.addBinding(network) }
                     }
 
                     override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
@@ -148,12 +157,7 @@ internal fun WirelessAdbPage(onBack: () -> Unit) {
         }
     }
 
-    val addCurrent = current?.takeIf { it != bound }
-    val wifiChoices = listOfNotNull(
-        stringResource(R.string.debug_adb_tcp_unbound),
-        bound?.let { "${it.name} · ${it.bssid}" },
-        addCurrent?.let { stringResource(R.string.debug_adb_tcp_bind_current, it.name) },
-    )
+    val currentBound = current != null && current in bound
     AppScrollPage(
         title = stringResource(R.string.debug_adb_tcp_title),
         onBack = onBack,
@@ -202,7 +206,7 @@ internal fun WirelessAdbPage(onBack: () -> Unit) {
                     onLongClickLabel = stringResource(R.string.debug_adb_tcp_copy),
                     onLongClick = {
                         scope.launch {
-                            val verified = AdbTcpPort.read()?.endpoint
+                            val verified = AdbTcpPort.read(appContext)?.endpoint
                             if (verified == endpoint) {
                                 context.getSystemService(ClipboardManager::class.java)?.setPrimaryClip(
                                     ClipData.newPlainText(endpointLabel, verified)
@@ -239,6 +243,39 @@ internal fun WirelessAdbPage(onBack: () -> Unit) {
         }
         if (!usingSystem) {
             Spacer(Modifier.height(8.dp))
+            AppSection(title = stringResource(R.string.debug_adb_tcp_bound_title, bound.size, AdbTcpPort.MAX_BOUND)) {
+                if (bound.isEmpty()) {
+                    BasicComponent(summary = stringResource(R.string.debug_adb_tcp_bound_empty))
+                }
+                bound.forEach { network ->
+                    ArrowPreference(
+                        title = network.name,
+                        summary = if (network == current) {
+                            stringResource(R.string.debug_adb_tcp_bound_current, network.bssid)
+                        } else network.bssid,
+                        enabled = canEdit,
+                        onClick = { removing = network },
+                    )
+                }
+                when {
+                    current == null -> BasicComponent(
+                        summary = stringResource(R.string.debug_adb_tcp_wifi_unavailable),
+                    )
+                    currentBound -> Unit
+                    bound.size >= AdbTcpPort.MAX_BOUND -> BasicComponent(
+                        title = stringResource(R.string.debug_adb_tcp_bind_current, current.name),
+                        summary = stringResource(R.string.debug_adb_tcp_bind_full, AdbTcpPort.MAX_BOUND),
+                        enabled = false,
+                    )
+                    else -> ArrowPreference(
+                        title = stringResource(R.string.debug_adb_tcp_bind_current, current.name),
+                        summary = current.bssid,
+                        enabled = canEdit,
+                        onClick = { authenticate(current) },
+                    )
+                }
+            }
+            Spacer(Modifier.height(8.dp))
             AppSection {
                 OverlayDropdownPreference(
                     title = stringResource(R.string.debug_adb_tcp_restart_mode),
@@ -252,25 +289,10 @@ internal fun WirelessAdbPage(onBack: () -> Unit) {
                     enabled = canEdit,
                     onSelectedIndexChange = { index ->
                         val selected = AdbTcpPort.RestartMode.entries[index]
-                        if (selected == AdbTcpPort.RestartMode.BOUND_WIFI && bound == null) {
+                        if (selected == AdbTcpPort.RestartMode.BOUND_WIFI && bound.isEmpty()) {
                             Toast.makeText(context, R.string.debug_adb_tcp_bind_first, Toast.LENGTH_SHORT).show()
                         } else {
                             change { AdbTcpPort.setRestartMode(selected) }
-                        }
-                    },
-                )
-                OverlayDropdownPreference(
-                    title = stringResource(R.string.debug_adb_tcp_auto),
-                    summary = current?.let {
-                        stringResource(R.string.debug_adb_tcp_current, it.name, it.bssid)
-                    } ?: stringResource(R.string.debug_adb_tcp_wifi_unavailable),
-                    items = wifiChoices,
-                    selectedIndex = if (bound == null) 0 else 1,
-                    enabled = canEdit && wifiChoices.size > 1,
-                    onSelectedIndexChange = { index ->
-                        if (index == 0 && bound != null) change { AdbTcpPort.bind(null, port) }
-                        if (index == wifiChoices.lastIndex && index > 0 && addCurrent != null) {
-                            authenticate(addCurrent)
                         }
                     },
                 )
@@ -299,6 +321,33 @@ internal fun WirelessAdbPage(onBack: () -> Unit) {
                     )
                 }
             }
+        }
+    }
+    val pendingRemoval = removing
+    AppWindowDialog(
+        show = pendingRemoval != null,
+        title = stringResource(R.string.debug_adb_tcp_remove_title),
+        summary = pendingRemoval?.let {
+            stringResource(R.string.debug_adb_tcp_remove_summary, it.name, it.bssid)
+        },
+        onDismissRequest = { removing = null },
+    ) {
+        Row(horizontalArrangement = Arrangement.SpaceBetween) {
+            TextButton(
+                text = stringResource(R.string.settings_cancel),
+                onClick = { removing = null },
+                modifier = Modifier.weight(1f),
+            )
+            Spacer(Modifier.width(20.dp))
+            TextButton(
+                text = stringResource(R.string.debug_adb_tcp_remove),
+                onClick = {
+                    removing = null
+                    if (pendingRemoval != null) change { AdbTcpPort.removeBinding(pendingRemoval) }
+                },
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.textButtonColorsPrimary(),
+            )
         }
     }
 }

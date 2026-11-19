@@ -17,6 +17,9 @@ is_port() {
     [ "$1" -ge 1 ] && [ "$1" -le 65535 ]
 }
 
+# Every external command costs a fork and exec (about 12-15 ms of CPU here), so the periodic
+# path parses with shell builtins and spawns only `cmd`. Pass `verify` to also confirm, with
+# `ip`, that the interface holds a single matching IPv4 address; done before opening a listener.
 read_wifi() {
     wifi_ssid=
     wifi_bssid=
@@ -25,63 +28,103 @@ read_wifi() {
     wifi_disconnected=0
     status=$(timeout 1 cmd wifi status) || return 1
     # Root can see multiple STA connections. Accept only one completed, unredacted pair.
-    pair=$(printf '%s\n' "$status" | awk '
-        /^Wifi is disabled$|^Wifi is not connected$/ { disconnected = 1; next }
-        /^Wifi is connected to / { connected++; ssid = substr($0, 22); next }
-        /^WifiInfo: SSID: / {
-            infos++
-            prefix = "WifiInfo: SSID: " ssid ", BSSID: "
-            if (index($0, prefix) == 1) {
-                rest = substr($0, length(prefix) + 1)
-                mac = substr(rest, 1, 17)
-                if (substr(rest, 18, 2) != ", " ||
-                    rest !~ /, Supplicant state: COMPLETED, /) mac = ""
-                if (match(rest, /, IP: \/[0-9.]+, /))
-                    ip = substr(rest, RSTART + 7, RLENGTH - 9)
-            }
-        }
-        END {
-            if (disconnected && !connected) exit 2
-            if (connected != 1 || infos != 1 || length(ssid) > 66 ||
-                ssid !~ /^(".+"|0x[0-9a-fA-F]+)$/ ||
-                tolower(mac) !~ /^[0-9a-f][0-9a-f](:[0-9a-f][0-9a-f]){5}$/ ||
-                mac == "02:00:00:00:00:00" || mac == "00:00:00:00:00:00") exit 1
-            print ssid "\n" tolower(mac) "\n" (ip == "" ? "-" : ip)
-        }')
-    wifi_result=$?
-    if [ "$wifi_result" = 2 ]; then wifi_disconnected=1; fi
-    [ "$wifi_result" = 0 ] || return 1
-    {
-        IFS= read -r wifi_ssid && IFS= read -r wifi_bssid && IFS= read -r reported_ip
-    } <<PAIR
-$pair
-PAIR
-    iface=$(getprop wifi.interface)
-    iface=${iface:-wlan0}
+    connected=0
+    infos=0
+    disconnected=0
+    ssid=
+    mac=
+    ip=
+    saved_ifs=$IFS
+    IFS='
+'
+    for line in $status; do
+        case "$line" in
+            'Wifi is disabled'|'Wifi is not connected') disconnected=1;;
+            'Wifi is connected to '*) connected=$((connected + 1)); ssid=${line#Wifi is connected to };;
+            'WifiInfo: SSID: '*)
+                infos=$((infos + 1))
+                prefix="WifiInfo: SSID: $ssid, BSSID: "
+                case "$line" in
+                    "$prefix"*)
+                        rest=${line#"$prefix"}
+                        mac=${rest%%, *}
+                        case "$rest" in *', Supplicant state: COMPLETED, '*) ;; *) mac=;; esac
+                        case "$rest" in *', IP: /'*) ip=${rest#*, IP: /}; ip=${ip%%,*};; esac
+                        ;;
+                esac
+                ;;
+        esac
+    done
+    IFS=$saved_ifs
+    if [ "$disconnected" = 1 ] && [ "$connected" = 0 ]; then wifi_disconnected=1; return 1; fi
+    [ "$connected" = 1 ] && [ "$infos" = 1 ] && [ "${#ssid}" -le 66 ] || return 1
+    case "$ssid" in
+        '"'?*'"') ;;
+        0x?*) case "${ssid#0x}" in *[!0-9a-fA-F]*) return 1;; esac;;
+        *) return 1;;
+    esac
+    typeset -l lower=$mac
+    case "$lower" in
+        [0-9a-f][0-9a-f]:[0-9a-f][0-9a-f]:[0-9a-f][0-9a-f]:[0-9a-f][0-9a-f]:[0-9a-f][0-9a-f]:[0-9a-f][0-9a-f]) ;;
+        *) return 1;;
+    esac
+    case "$lower" in 02:00:00:00:00:00|00:00:00:00:00:00) return 1;; esac
+    wifi_ssid=$ssid
+    wifi_bssid=$lower
+    case "$ip" in ''|*[!0-9.]*) return 0;; esac
+    [ -n "$wifi_interface" ] || wifi_interface=$(getprop wifi.interface)
+    iface=${wifi_interface:-wlan0}
     case "${iface#wlan}" in ''|*[!0-9]*) return 0;; esac
     [ "$iface" != "${iface#wlan}" ] || return 0
-    # Avoid exposing the listener without a unique Wi-Fi IPv4 address.
-    address=$(ip -4 -o addr show dev "$iface" scope global up 2>/dev/null |
-        awk 'NR == 1 {split($4, cidr, "/"); print cidr[1]} END {if (NR != 1) exit 1}') || return 0
-    case "$address" in ''|*[!0-9.]*) return 0;; esac
-    [ "$address" = "$reported_ip" ] || return 0
+    if [ "$1" = verify ]; then
+        # Avoid exposing the listener without a unique Wi-Fi IPv4 address.
+        address=$(ip -4 -o addr show dev "$iface" scope global up 2>/dev/null |
+            awk 'NR == 1 {split($4, cidr, "/"); print cidr[1]} END {if (NR != 1) exit 1}') || return 0
+        [ "$address" = "$ip" ] || return 0
+    fi
+    # Unverified addresses are only compared with a running relay, which itself exits as soon
+    # as its address leaves the interface.
     wifi_iface=$iface
-    wifi_ip=$address
+    wifi_ip=$ip
 }
+
+# policy: mode, requested port, then up to $max_bound "ssid" / "bssid" line pairs. The previous
+# single-binding format (one pair, possibly empty) reads unchanged.
+max_bound=3
 
 read_policy() {
     mode=0
     requested=0
-    bound_ssid=
-    bound_bssid=
+    bound_count=0
+    unset bound_ssids bound_bssids
     [ -f policy ] || return 0
     {
-        IFS= read -r mode &&
-        IFS= read -r requested &&
-        IFS= read -r bound_ssid &&
-        IFS= read -r bound_bssid
-    } < policy || mode=0
+        if IFS= read -r mode && IFS= read -r requested; then
+            while [ "$bound_count" -lt "$max_bound" ] && IFS= read -r pair_ssid && IFS= read -r pair_bssid; do
+                [ -n "$pair_bssid" ] || continue
+                bound_ssids[bound_count]=$pair_ssid
+                bound_bssids[bound_count]=$pair_bssid
+                bound_count=$((bound_count + 1))
+            done
+        else
+            mode=0
+        fi
+    } < policy
     case "$mode" in 0|1|2) ;; *) mode=0;; esac
+    if [ "$mode" = 1 ] && [ "$bound_count" = 0 ]; then mode=0; fi
+}
+
+# Sets bound_index to the binding that equals the given SSID and BSSID.
+find_bound() {
+    bound_index=0
+    while [ "$bound_index" -lt "$bound_count" ]; do
+        if [ -n "$2" ] && [ "${bound_ssids[bound_index]}" = "$1" ] &&
+            [ "${bound_bssids[bound_index]}" = "$2" ]; then
+            return 0
+        fi
+        bound_index=$((bound_index + 1))
+    done
+    return 1
 }
 
 owner_valid() {
@@ -89,7 +132,11 @@ owner_valid() {
     {
         IFS= read -r owner_path && IFS= read -r owner_token
     } < owner || return 1
-    [ -n "$owner_token" ] && [ "$(cat "$owner_path" 2>/dev/null)" = "$owner_token" ]
+    [ -n "$owner_token" ] && [ -f "$owner_path" ] || return 1
+    # The token file has no trailing newline: `read` then reports EOF but still fills the variable.
+    owner_check=
+    IFS= read -r owner_check < "$owner_path"
+    [ "$owner_check" = "$owner_token" ]
 }
 
 same_wifi() {
@@ -97,8 +144,8 @@ same_wifi() {
 }
 
 select_target() {
-    target_ssid=$bound_ssid
-    target_bssid=$bound_bssid
+    target_ssid=
+    target_bssid=
     target_port=$requested
     if [ -f manual ]; then
         {
@@ -108,6 +155,12 @@ select_target() {
         } < manual
     elif [ "$mode" = 0 ] || [ -f paused ]; then
         target_bssid=
+    elif [ "$mode" = 1 ]; then
+        # The access point in use is the target when it is any of the bound ones.
+        if find_bound "$wifi_ssid" "$wifi_bssid"; then
+            target_ssid=$wifi_ssid
+            target_bssid=$wifi_bssid
+        fi
     elif [ "$mode" = 2 ]; then
         target_ssid=$wifi_ssid
         target_bssid=$wifi_bssid
@@ -197,13 +250,28 @@ revoke_relay() {
         case "$lease_id" in
             ''|*[!0-9a-f]*) return 1;;
         esac
-        rm -f "$runtime/$lease_id.lease" || return 1
-        for attempt in 1 2 3 4 5; do
+        # Any invocation may revoke. Only the worker holds the liveness pipe, so stop the relay
+        # by pid; it also exits on its own when the worker goes away.
+        if relay_running; then kill "$relay_pid" 2>/dev/null; fi
+        for attempt in 1 2 3 4 5 6 7 8 9 10; do
             relay_running || break
-            sleep 0.15
+            sleep 0.1
         done
+        if relay_running; then kill -9 "$relay_pid" 2>/dev/null; sleep 0.1; fi
         relay_running && return 1
-        rm -f "$runtime/$lease_id.ready" "$endpoint_file"
+        # .lease is left by builds that renewed a timed lease.
+        rm -f "$runtime/$lease_id.lease" "$runtime/$lease_id.alive" "$runtime/$lease_id.ready" "$endpoint_file"
+        log_event "closed ${close_reason:-revoked} port=$relay_port"
+    fi
+}
+
+# Bounded event log on tmpfs; status reports the newest entry.
+log_event() {
+    read -r uptime remainder < /proc/uptime 2>/dev/null || uptime=0
+    printf '%s %s\n' "${uptime%%.*}" "$*" >> "$runtime/events" 2>/dev/null || return 0
+    lines=$(wc -l < "$runtime/events" 2>/dev/null) || return 0
+    if [ "$lines" -gt 64 ]; then
+        tail -n 32 "$runtime/events" > "$runtime/events.new" && mv -f "$runtime/events.new" "$runtime/events"
     fi
 }
 
@@ -224,49 +292,69 @@ close_listener() {
     fi
 }
 
+port_free() {
+    is_port "$1" || return 1
+    sockets=$(ss -H -ltn "sport = :$1") || return 1
+    [ -z "$sockets" ]
+}
+
+# An automatic port is chosen once per access point and reused while it stays free, so a
+# reopened listener keeps the address the host already uses.
+remembered_port() {
+    [ -f ports ] || return 1
+    remembered=$(awk -v bssid="$target_bssid" '$1 == bssid { port = $2 } END { if (port == "") exit 1; print port }' ports) || return 1
+    is_port "$remembered"
+}
+
+remember_port() {
+    [ "$target_port" = 0 ] && [ -n "$target_bssid" ] || return 0
+    { [ -f ports ] && awk -v bssid="$target_bssid" '$1 != bssid' ports | tail -n 15; printf '%s %s\n' "$target_bssid" "$port"; } > ports.new &&
+        mv -f ports.new ports
+}
+
 pick_port() {
+    if [ "$target_port" = 0 ] && remembered_port && port_free "$remembered"; then
+        port=$remembered
+        return 0
+    fi
     for attempt in 1 2 3 4 5 6 7 8; do
         port=$target_port
         if [ "$port" = 0 ]; then
             number=$(od -An -N2 -tu2 /dev/urandom) || return 1
             port=$((49152 + number % 16384))
         fi
-        is_port "$port" || return 1
-        sockets=$(ss -H -ltn "sport = :$port") || return 1
-        [ -z "$sockets" ] && return 0
+        port_free "$port" && return 0
         [ "$target_port" = 0 ] || break
     done
     return 1
 }
 
-renew_access() {
-    read -r uptime remainder < /proc/uptime || return 1
-    # /proc/uptime and Android elapsedRealtime both use boot time, including suspend.
-    whole=${uptime%%.*}
-    fraction=${uptime#*.}
-    case "$whole:$fraction" in *[!0-9:]*) return 1;; esac
-    [ -n "$whole" ] && [ "${#fraction}" = 2 ] || return 1
-    millis=$((whole * 1000 + (1$fraction - 100) * 10))
-    printf '%s\n' "$((millis + 4000))" > "$runtime/$lease_id.new" &&
-        mv -f "$runtime/$lease_id.new" "$runtime/$lease_id.lease"
-}
-
 relay_ready() {
     case "$lease_id" in ''|*[!0-9a-f]*) return 1;; esac
-    [ -f "$runtime/$lease_id.lease" ] && relay_running
+    relay_running
+}
+
+# Periodic liveness without spawning: the relay removes its ready file on a clean exit, and a
+# killed relay leaves a pid that `kill -0` (a builtin) rejects. Revocation keeps the strict check.
+relay_alive() {
+    case "$lease_id" in ''|*[!0-9a-f]*) return 1;; esac
+    read -r relay_pid 2>/dev/null < "$runtime/$lease_id.ready" || return 1
+    case "$relay_pid" in ''|*[!0-9]*) return 1;; esac
+    kill -0 "$relay_pid" 2>/dev/null
 }
 
 relay_running() {
-    read -r relay_pid < "$runtime/$lease_id.ready" || return 1
+    read -r relay_pid 2>/dev/null < "$runtime/$lease_id.ready" || return 1
     case "$relay_pid" in ''|*[!0-9]*) return 1;; esac
-    kill -0 "$relay_pid" 2>/dev/null
+    # A recycled pid must never be treated as, or killed as, the relay.
+    tr '\0' ' ' < "/proc/$relay_pid/cmdline" 2>/dev/null | grep -q ' com.takekazex.hypertweak.root.WirelessAdbRelay '
 }
 
 open_listener() {
     expected_iface=$wifi_iface
     expected_ip=$wifi_ip
     ensure_private_backend || return 1
-    read_wifi && matches && [ "$wifi_iface" = "$expected_iface" ] &&
+    read_wifi verify && matches && [ "$wifi_iface" = "$expected_iface" ] &&
         [ "$wifi_ip" = "$expected_ip" ] || return 1
     IFS= read -r apk < apk || return 1
     [ -r "$apk" ] || return 1
@@ -276,12 +364,20 @@ open_listener() {
         printf '%s %s %s\n' "$wifi_ip" "$port" "$lease_id"
         printf '%s\n' "$target_ssid" "$target_bssid"
     } > "$endpoint_file.new" && mv -f "$endpoint_file.new" "$endpoint_file" || return 1
-    renew_access || return 1
+    # The worker keeps the only writer of this pipe on fd 5. mksh opens persistent descriptors
+    # close-on-exec, so no child inherits it; the relay sees hang-up as soon as the worker exits,
+    # is killed or re-executes itself. Unlike a timed lease this does not expire during suspend.
+    alive=$runtime/$lease_id.alive
+    rm -f "$alive" && mkfifo -m 600 "$alive" && exec 5<>"$alive" || return 1
     CLASSPATH="$apk" nohup setsid app_process /system/bin \
         com.takekazex.hypertweak.root.WirelessAdbRelay "$wifi_iface" "$wifi_ip" "$port" "$backend" \
-        "$runtime/$lease_id.lease" "$runtime/$lease_id.ready" </dev/null >/dev/null 2>&1 9>&- &
+        "$alive" "$runtime/$lease_id.ready" "$PWD/wake" </dev/null >/dev/null 2>&1 9>&- &
     for attempt in 1 2 3 4 5 6 7 8 9 10; do
-        relay_ready && return 0
+        if relay_ready; then
+            remember_port
+            log_event "opened $wifi_ip:$port"
+            return 0
+        fi
         sleep 0.2
     done
     return 1
@@ -297,10 +393,22 @@ read_endpoint() {
 
 tick() {
     read_wifi
+    # Unknown Wi-Fi (query timeout, reassociation, IP not yet confirmed right after resume) keeps
+    # the current state for a bounded number of awake ticks. A disconnect or another access point
+    # is acted on at once.
+    if [ "$wifi_disconnected" != 1 ] && { [ -z "$wifi_bssid" ] || [ -z "$wifi_ip" ]; } &&
+        { [ -f "$endpoint_file" ] || [ -f manual ]; }; then
+        unsure=$((unsure + 1))
+        if [ "$unsure" -lt "$unsure_limit" ]; then return 0; fi
+        close_reason=wifi-unknown
+    else
+        unsure=0
+        close_reason=
+    fi
     if [ -f paused ]; then
         {
             IFS= read -r paused_ssid && IFS= read -r paused_bssid
-        } < paused || { paused_ssid=$bound_ssid; paused_bssid=$bound_bssid; }
+        } < paused || { paused_ssid=; paused_bssid=; }
         if [ "$wifi_disconnected" = 1 ] ||
             { [ -n "$wifi_bssid" ] && ! same_wifi "$paused_ssid" "$paused_bssid"; }; then
             rm -f paused
@@ -313,14 +421,22 @@ tick() {
     fi
     if ! matches || [ "$target_port" = -1 ]; then
         if [ -f "$endpoint_file" ] || [ -f guarded ] || is_port "$(getprop "$property")" || is_port "$(getprop "$persistent")"; then
+            if [ -z "$close_reason" ]; then
+                if [ "$wifi_disconnected" = 1 ]; then close_reason=wifi-disconnected
+                elif [ -n "$wifi_bssid" ] && ! same_wifi "$target_ssid" "$target_bssid"; then close_reason=other-wifi
+                else close_reason=policy; fi
+            fi
             close_listener || return 1
         fi
         return 0
     fi
     if [ -f "$endpoint_file" ] && read_endpoint; then
-        if [ "$live_ip" = "$wifi_ip" ] && is_port "$live_port" && relay_ready && renew_access; then
+        if [ "$live_ip" = "$wifi_ip" ] && is_port "$live_port" && relay_alive; then
             return 0
         fi
+        # Same access point but the relay stopped (address change or crash). The remembered
+        # automatic port brings it back on the same port.
+        close_reason=relay-restart
     fi
     # Preserve the address of an already verified session when replacing the old wildcard backend.
     migration_port=
@@ -357,8 +473,14 @@ wake_worker() {
 }
 
 write_policy() {
-    printf '%s\n' "$mode" "$requested" "$bound_ssid" "$bound_bssid" > policy.new &&
-        mv -f policy.new policy
+    {
+        printf '%s\n' "$mode" "$requested"
+        index=0
+        while [ "$index" -lt "$bound_count" ]; do
+            printf '%s\n' "${bound_ssids[index]}" "${bound_bssids[index]}"
+            index=$((index + 1))
+        done
+    } > policy.new && mv -f policy.new policy
 }
 
 valid_requested() {
@@ -372,13 +494,18 @@ case "$1" in
     watch)
         exec 8>worker.lock || exit 1
         flock -n 7 7>&8 || exit 0
-        image=$(stat -c %i ./guard) || exit 1
+        # fd 4 pins the script this worker runs; -ef against it detects a replaced file without
+        # spawning stat on every tick.
+        exec 4< ./guard || exit 1
         [ -p wake ] || exit 1
         exec 6<>wake || exit 1
-        trap 'flock 7 7>&9 && close_listener; exit' INT TERM
+        trap 'flock 7 7>&9 && { close_reason=worker-stopped; close_listener; }; exit' INT TERM
+        unsure=0
+        # Awake ticks of unknown Wi-Fi tolerated (1 s apart): about 20 s of real awake time.
+        unsure_limit=20
         while :; do
             flock 7 7>&9 || exit 1
-            if [ "$(stat -c %i ./guard)" != "$image" ]; then
+            if ! [ ./guard -ef "/proc/$$/fd/4" ]; then
                 # An APK update atomically replaced the worker. Hand off the locks and reload it.
                 flock -u 7 7>&8 && flock -u 7 7>&9 || exit 1
                 exec sh ./guard watch
@@ -401,8 +528,13 @@ case "$1" in
                 result=$?
             fi
             if [ "$result" = 0 ]; then rm -f failure; else printf '%s\n' "$result" > failure; fi
+            # An open relay exits by itself when its address leaves the interface or the worker
+            # goes away, and wakes the worker when it does, so a steady listener only needs a
+            # slow access point check.
             interval=10
-            if [ -f "$endpoint_file" ] || [ -f guarded ] || [ -f manual ] || [ "$mode" = 0 ]; then interval=1; fi
+            if [ -f "$endpoint_file" ]; then interval=15; fi
+            if [ "$unsure" -gt 0 ] || [ "$result" != 0 ] || [ -f guarded ] ||
+                { [ -f manual ] && [ ! -f "$endpoint_file" ]; }; then interval=1; fi
             flock -u 7 7>&9
             read -r -t "$interval" wake_signal <&6
         done
@@ -457,27 +589,39 @@ case "$1" in
         read_policy
         case "$1" in
             bind)
-                previous_mode=$mode
-                valid_requested "$2" || exit 1
-                if [ -n "$3$4" ]; then
-                    read_wifi && same_wifi "$3" "$4" || exit 3
-                elif [ "$mode" = 1 ]; then
-                    mode=0
-                fi
-                requested=$2
-                bound_ssid=$3
-                bound_bssid=$4
+                [ -n "$3" ] && [ -n "$4" ] || exit 1
+                case "$2" in
+                    add)
+                        # Only the access point in use can be bound, so the user proves presence.
+                        read_wifi && same_wifi "$3" "$4" || exit 3
+                        if ! find_bound "$3" "$4"; then
+                            [ "$bound_count" -lt "$max_bound" ] || exit 5
+                            bound_ssids[bound_count]=$3
+                            bound_bssids[bound_count]=$4
+                            bound_count=$((bound_count + 1))
+                        fi
+                        ;;
+                    remove)
+                        find_bound "$3" "$4" || exit 0
+                        while [ $((bound_index + 1)) -lt "$bound_count" ]; do
+                            bound_ssids[bound_index]=${bound_ssids[bound_index + 1]}
+                            bound_bssids[bound_index]=${bound_bssids[bound_index + 1]}
+                            bound_index=$((bound_index + 1))
+                        done
+                        bound_count=$((bound_count - 1))
+                        unset bound_ssids[bound_count] bound_bssids[bound_count]
+                        # The worker closes a listener that this binding was keeping open.
+                        if [ "$mode" = 1 ] && [ "$bound_count" = 0 ]; then mode=0; fi
+                        ;;
+                    *) exit 1;;
+                esac
                 write_policy || exit 1
                 rm -f paused failure
-                if [ "$previous_mode" = 1 ] && [ ! -f manual ] && ! close_listener; then
-                    start_worker
-                    exit 1
-                fi
                 ;;
             mode)
                 case "$2" in
                     0|2) ;;
-                    1) [ -n "$bound_bssid" ] || exit 1 ;;
+                    1) [ "$bound_count" -gt 0 ] || exit 1 ;;
                     *) exit 1 ;;
                 esac
                 [ "$mode" != "$2" ] || exit 0
@@ -493,29 +637,41 @@ case "$1" in
                 { [ "$manual_port" = 0 ] || is_port "$manual_port"; } || exit 1
                 read_wifi && same_wifi "$3" "$4" && [ -n "$wifi_ip" ] || exit 3
                 [ -p wake ] || mkfifo wake || exit 1
-                close_listener || exit 1
+                close_reason=manual-restart; close_listener || exit 1
                 printf '%s\n' "$3" "$4" "$manual_port" > manual || exit 1
-                tick
-                result=$?
-                if [ "$result" != 0 ] || [ ! -f manual ] || [ ! -f "$endpoint_file" ]; then
-                    rm -f manual
-                    [ "$result" != 0 ] || result=1
-                    printf '%s\n' "$result" > failure
-                    if [ "$mode" != 0 ] || [ -f guarded ]; then start_worker; fi
-                    exit 1
-                fi
                 rm -f paused failure
+                # Only the long-lived worker may own the relay: it holds the liveness pipe.
+                flock -u 7 7>&9 || exit 1
+                start_worker
+                for attempt in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30; do
+                    sleep 0.2
+                    [ -f manual ] || break
+                    [ -f failure ] && break
+                    if [ -f "$endpoint_file" ] && read -r live_ip live_port lease_id < "$endpoint_file" && relay_ready; then
+                        exit 0
+                    fi
+                done
+                flock 7 7>&9 || exit 1
+                if [ -f "$endpoint_file" ] && read -r live_ip live_port lease_id < "$endpoint_file" && relay_ready; then
+                    exit 0
+                fi
+                rm -f manual
+                [ -f failure ] || printf '%s\n' 1 > failure
+                close_reason=manual-failed; close_listener
+                wake_worker
+                exit 1
                 ;;
             manual-off)
                 # Suspend auto-start on this association. A different observed Wi-Fi clears it.
                 if [ "$mode" != 0 ]; then
                     if [ -f "$endpoint_file" ] && { read_wifi; read_endpoint; } && [ -n "$wifi_bssid" ]; then
                         printf '%s\n' "$wifi_ssid" "$wifi_bssid" > paused
-                    elif [ "$mode" = 1 ]; then
-                        printf '%s\n' "$bound_ssid" "$bound_bssid" > paused
+                    elif [ "$mode" = 1 ] && read_wifi && find_bound "$wifi_ssid" "$wifi_bssid"; then
+                        printf '%s\n' "$wifi_ssid" "$wifi_bssid" > paused
                     fi
                 fi
                 rm -f manual failure
+                close_reason=manual-off
                 if ! close_listener; then start_worker; exit 1; fi
                 ;;
             port)
@@ -529,7 +685,8 @@ case "$1" in
         ;;
     reset)
         flock 7 7>&9 || exit 1
-        rm -f policy owner manual paused transport
+        rm -f policy owner manual paused transport ports
+        close_reason=reset
         close_listener || exit 1
         rm -f failure
         wake_worker
@@ -554,7 +711,15 @@ case "$1" in
             fi
         fi
         error=$(cat failure 2>/dev/null)
-        printf '%s\n' state "$mode" "$bound_ssid" "$bound_bssid" "$wifi_ssid" "$wifi_bssid" "$endpoint" "$error" "$transport" end
+        {
+            printf '%s\n' state "$mode" "$bound_count"
+            index=0
+            while [ "$index" -lt "$bound_count" ]; do
+                printf '%s\n' "${bound_ssids[index]}" "${bound_bssids[index]}"
+                index=$((index + 1))
+            done
+            printf '%s\n' "$wifi_ssid" "$wifi_bssid" "$endpoint" "$error" "$transport" end
+        }
         ;;
     *) exit 1;;
 esac

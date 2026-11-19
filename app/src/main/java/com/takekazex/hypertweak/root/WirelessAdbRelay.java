@@ -3,7 +3,6 @@ package com.takekazex.hypertweak.root;
 import android.net.LocalSocket;
 import android.net.LocalSocketAddress;
 import android.os.Process;
-import android.os.SystemClock;
 import android.system.ErrnoException;
 import android.system.Os;
 import android.system.OsConstants;
@@ -19,22 +18,35 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.Inet4Address;
 import java.net.InetAddress;
+import java.net.NetworkInterface;
+import java.net.SocketException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Collections;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicInteger;
 
-/** Root-only app_process entry point. The LAN socket exists only while its lease is valid. */
+/**
+ * Root-only app_process entry point. The LAN socket exists only while the guard worker that
+ * started it is alive: the worker holds the only writer of the liveness pipe, so its exit (or
+ * re-exec) hangs the pipe up and the relay closes every session. Pipe hang-up does not depend on
+ * clocks, so a long suspend never revokes a session that is still allowed.
+ */
 @Keep
 public final class WirelessAdbRelay {
-    private static final int LEASE_MS = 4_000;
     private static final int MAX_SESSIONS = 4;
+    /** How often the bound interface address is rechecked while idle (monotonic, awake time). */
+    private static final int ADDRESS_CHECK_MS = 2_000;
+    // Linux values; android.system.OsConstants does not expose the keepalive tuning options.
+    private static final int TCP_KEEPIDLE = 4;
+    private static final int TCP_KEEPINTVL = 5;
+    private static final int TCP_KEEPCNT = 6;
 
     private WirelessAdbRelay() {}
 
     public static void main(String[] args) throws Exception {
-        if (Process.myUid() != 0 || args.length != 6) System.exit(1);
+        if (Process.myUid() != 0 || args.length != 7) System.exit(1);
         String iface = args[0];
         InetAddress address = InetAddress.getByName(args[1]);
         int port = Integer.parseInt(args[2]);
@@ -42,9 +54,9 @@ public final class WirelessAdbRelay {
                 port < 1 || port > 65535 || !args[3].matches("hypertweak-adbd-[0-9a-f]{16}")) {
             System.exit(1);
         }
-        Path lease = Path.of(args[4]);
         Path ready = Path.of(args[5]);
-        if (remaining(lease) <= 0) System.exit(1);
+        // The worker opened the writer before starting us, so a later hang-up is meaningful.
+        FileDescriptor alive = Os.open(args[4], OsConstants.O_RDONLY | OsConstants.O_NONBLOCK, 0);
         FileDescriptor server = Os.socket(
             OsConstants.AF_INET, OsConstants.SOCK_STREAM | OsConstants.SOCK_NONBLOCK, 0
         );
@@ -56,14 +68,29 @@ public final class WirelessAdbRelay {
             Os.listen(server, MAX_SESSIONS);
             Files.write(ready, (Process.myPid() + "\n").getBytes(StandardCharsets.US_ASCII));
             Semaphore slots = new Semaphore(MAX_SESSIONS);
-            StructPollfd poll = new StructPollfd();
-            poll.fd = server;
-            poll.events = (short) OsConstants.POLLIN;
-            StructPollfd[] descriptors = {poll};
-            int wait;
-            while ((wait = remaining(lease)) > 0) {
-                if (Os.poll(descriptors, wait) == 0) continue;
-                if (remaining(lease) <= 0 || (poll.revents & OsConstants.POLLIN) == 0) break;
+            StructPollfd listen = new StructPollfd();
+            listen.fd = server;
+            listen.events = (short) OsConstants.POLLIN;
+            StructPollfd owner = new StructPollfd();
+            owner.fd = alive;
+            owner.events = (short) OsConstants.POLLIN;
+            StructPollfd[] descriptors = {listen, owner};
+            while (true) {
+                int events;
+                try {
+                    events = Os.poll(descriptors, ADDRESS_CHECK_MS);
+                } catch (ErrnoException e) {
+                    if (e.errno == OsConstants.EINTR) continue;
+                    throw e;
+                }
+                // Any event on the pipe means the worker is gone or revoked us; it never writes.
+                if (owner.revents != 0) break;
+                if (!bound(iface, address)) {
+                    // The worker polls slowly while a listener is steady; tell it to reopen now.
+                    wake(args[6]);
+                    break;
+                }
+                if (events == 0 || (listen.revents & OsConstants.POLLIN) == 0) continue;
                 FileDescriptor client;
                 try {
                     client = Os.accept(server, null);
@@ -72,6 +99,7 @@ public final class WirelessAdbRelay {
                     throw e;
                 }
                 if (slots.tryAcquire()) {
+                    keepAlive(client);
                     daemon(() -> forward(client, args[3], slots));
                 } else {
                     Os.close(client);
@@ -85,12 +113,42 @@ public final class WirelessAdbRelay {
         System.exit(0);
     }
 
-    private static int remaining(Path lease) {
+    /** Never blocks: without a reader the open fails and the worker's next tick takes over. */
+    private static void wake(String fifo) {
         try {
-            long remaining = Long.parseLong(new String(Files.readAllBytes(lease), StandardCharsets.US_ASCII).trim()) - SystemClock.elapsedRealtime();
-            return remaining > 0 && remaining <= LEASE_MS ? (int) Math.min(remaining, 500) : 0;
-        } catch (IOException | NumberFormatException e) {
-            return 0;
+            FileDescriptor fd = Os.open(fifo, OsConstants.O_WRONLY | OsConstants.O_NONBLOCK, 0);
+            try {
+                Os.write(fd, new byte[] {'\n'}, 0, 1);
+            } finally {
+                Os.close(fd);
+            }
+        } catch (ErrnoException | java.io.InterruptedIOException ignored) {
+        }
+    }
+
+    /** The relay's address must still belong to its interface; DHCP changes retire it. */
+    private static boolean bound(String iface, InetAddress address) {
+        try {
+            NetworkInterface network = NetworkInterface.getByName(iface);
+            if (network == null || !network.isUp()) return false;
+            for (InetAddress candidate : Collections.list(network.getInetAddresses())) {
+                if (candidate.equals(address)) return true;
+            }
+            return false;
+        } catch (SocketException e) {
+            return false;
+        }
+    }
+
+    /** Keeps idle sessions in AP/NAT tables and reaps peers that vanished without a FIN. */
+    private static void keepAlive(FileDescriptor client) {
+        try {
+            Os.setsockoptInt(client, OsConstants.SOL_SOCKET, OsConstants.SO_KEEPALIVE, 1);
+            Os.setsockoptInt(client, OsConstants.IPPROTO_TCP, TCP_KEEPIDLE, 120);
+            Os.setsockoptInt(client, OsConstants.IPPROTO_TCP, TCP_KEEPINTVL, 15);
+            Os.setsockoptInt(client, OsConstants.IPPROTO_TCP, TCP_KEEPCNT, 4);
+        } catch (ErrnoException ignored) {
+            // Keepalive is an optimisation; the session works without it.
         }
     }
 
