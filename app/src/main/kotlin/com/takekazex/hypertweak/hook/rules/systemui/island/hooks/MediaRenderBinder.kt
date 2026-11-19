@@ -1,6 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui.island.hooks
 
 import android.graphics.Rect
+import com.takekazex.hypertweak.hook.rules.systemui.island.ISLAND_TAG
 import com.takekazex.hypertweak.hook.rules.systemui.island.host.HostRect
 import com.takekazex.hypertweak.hook.rules.systemui.island.model.IslandFeature
 import com.takekazex.hypertweak.util.logging.DebugLog
@@ -24,7 +25,7 @@ internal object MediaRenderBinder {
                     val view = entry.viewIndex?.let { chain.args[it] }
                         ?: if (access.fake.isInstance(chain.thisObject)) {
                             runCatching { access.call(chain.thisObject!!, "getRealView") }
-                                .onFailure { DebugLog.e(TAG, "resolve native media owner", it) }
+                                .onFailure { DebugLog.e(ISLAND_TAG, "resolve native media owner", it) }
                                 .getOrNull()
                         } else {
                             chain.thisObject
@@ -105,5 +106,4 @@ internal object MediaRenderBinder {
         }
     }
 
-    private const val TAG = "ThreeIslands"
 }

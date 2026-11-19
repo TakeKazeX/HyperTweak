@@ -48,7 +48,8 @@ internal class NativeIslandAccess(private val discovery: NativeIslandDiscovery) 
         listOf(android.view.ViewGroup::class.java, Boolean::class.javaPrimitiveType!!)).also {
         check(it.returnType == Boolean::class.javaPrimitiveType)
     }
-    private val members = HashMap<Pair<Class<*>, String>, Method>()
+    /** Owner type -> name -> member. Filled once during construction and read-only afterwards. */
+    private val members = HashMap<Class<*>, HashMap<String, Method>>()
     private fun resolve(owner: Class<*>, name: String): Method {
         val semantic = when {
             owner == coordinator && name == "handleEvent" -> "transaction"
@@ -104,7 +105,9 @@ internal class NativeIslandAccess(private val discovery: NativeIslandDiscovery) 
         }
         return NativeIslandMembers.named(owner, name, parameters)
     }
-    fun method(owner: Class<*>, name: String): Method = members.getValue(owner to name)
+    // Hot path: a nested lookup allocates no key pair per reflective call.
+    fun method(owner: Class<*>, name: String): Method =
+        members[owner]?.get(name) ?: throw NoSuchElementException("Unresolved island member ${owner.name}.$name")
 
     /**
      * Concrete host classes are disjoint; resolve each class once instead of re-running the
@@ -134,6 +137,8 @@ internal class NativeIslandAccess(private val discovery: NativeIslandDiscovery) 
         ownerTypes[owner.javaClass] = type
         return type
     }
+    /** Getter fast path: most host reads take no arguments, so skip the vararg array copy. */
+    fun call(owner: Any, name: String): Any? = method(typeOf(owner, name), name).invoke(owner)
     fun call(owner: Any, name: String, vararg args: Any?): Any? =
         method(typeOf(owner, name), name).invoke(owner, *args)
     fun number(owner: Any, name: String): Int = (call(owner, name) as Number).toInt()
@@ -178,7 +183,8 @@ internal class NativeIslandAccess(private val discovery: NativeIslandDiscovery) 
 
     init {
         fun add(type: Class<*>, vararg names: String) {
-            names.forEach { members[type to it] = resolve(type, it) }
+            val byName = members.getOrPut(type) { HashMap() }
+            names.forEach { byName[it] = resolve(type, it) }
         }
         NativeIslandContract.methods.forEach { (name, names) ->
             add(load(name), *names.toTypedArray())

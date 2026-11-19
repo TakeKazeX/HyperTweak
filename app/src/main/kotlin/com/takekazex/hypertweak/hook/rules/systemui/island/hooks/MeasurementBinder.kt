@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.island.hooks
 
+import com.takekazex.hypertweak.hook.rules.systemui.island.ISLAND_TAG
 import com.takekazex.hypertweak.hook.rules.systemui.island.model.IslandFeature
 import com.takekazex.hypertweak.util.logging.DebugLog
 import io.github.libxposed.api.XposedInterface
@@ -38,7 +39,7 @@ internal object MeasurementBinder {
         registrar.after(access.statusWidths, "three_islands_status_widths") { param ->
             val view = param.thisObject
             runCatching { context.host.statusWidthsPublished(view) }
-                .onFailure { DebugLog.e("ThreeIslands", "snapshot published status widths", it) }
+                .onFailure { DebugLog.e(ISLAND_TAG, "snapshot published status widths", it) }
         }
         registrar.after(
             access.method(access.helper, "calculateBigIslandWidth"),
@@ -53,7 +54,7 @@ internal object MeasurementBinder {
             val geometry = try {
                 runtime.compact.afterMeasure(view, input, result, claimed)
             } catch (error: Throwable) {
-                DebugLog.e("ThreeIslands", "publish camera-seated island geometry", error)
+                DebugLog.e(ISLAND_TAG, "publish camera-seated island geometry", error)
                 claimed
             } ?: return@after
             param.result = context.host.createResult(geometry)

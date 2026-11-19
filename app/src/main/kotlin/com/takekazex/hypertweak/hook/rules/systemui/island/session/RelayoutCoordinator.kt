@@ -1,6 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui.island.session
 
 import android.view.View
+import com.takekazex.hypertweak.hook.rules.systemui.island.ISLAND_TAG
 import com.takekazex.hypertweak.hook.rules.systemui.island.host.IslandSlot
 import com.takekazex.hypertweak.hook.rules.systemui.island.model.IslandFeature
 import com.takekazex.hypertweak.hook.rules.systemui.island.model.IslandSession
@@ -68,7 +69,7 @@ internal class RelayoutCoordinator(private val runtime: IslandSessionState) : Re
             host.setConfigChange(windowState, previous)
         }
         host.updateTouchRegion(session.owner)
-        DebugLog.i(TAG, "frame relayout published summaries=${visible.size}")
+        DebugLog.i(ISLAND_TAG, "frame relayout published summaries=${visible.size}")
     }
 
     override fun request(session: IslandSession) {
@@ -87,14 +88,13 @@ internal class RelayoutCoordinator(private val runtime: IslandSessionState) : Re
                 publish = { publish(session) },
                 failure = { error ->
                     session.health.fail(IslandFeature.TEMPLATE)
-                    DebugLog.e(TAG, "frame relayout failed; restore native geometry", error)
+                    DebugLog.e(ISLAND_TAG, "frame relayout failed; restore native geometry", error)
                     runCatching { runtime.settlement.restore(session) }
-                        .onFailure { DebugLog.e(TAG, "frame restoration failed", it) }
+                        .onFailure { DebugLog.e(ISLAND_TAG, "frame restoration failed", it) }
                 },
             )
         }
         session.template.relayout?.request()
     }
 
-    private companion object { const val TAG = "ThreeIslands" }
 }

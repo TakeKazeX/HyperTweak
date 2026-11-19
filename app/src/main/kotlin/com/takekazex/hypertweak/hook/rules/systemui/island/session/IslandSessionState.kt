@@ -2,18 +2,22 @@ package com.takekazex.hypertweak.hook.rules.systemui.island.session
 
 import android.os.Handler
 import android.os.Looper
+import com.takekazex.hypertweak.hook.rules.systemui.island.ISLAND_TAG
 import com.takekazex.hypertweak.hook.rules.systemui.island.IslandSettings
 import com.takekazex.hypertweak.hook.rules.systemui.island.host.IslandHostPorts
 import com.takekazex.hypertweak.hook.rules.systemui.island.host.IslandSlot
+import com.takekazex.hypertweak.hook.rules.systemui.island.host.IslandStateKind
 import com.takekazex.hypertweak.hook.rules.systemui.island.host.NativeMediaRenderContract
 import com.takekazex.hypertweak.hook.rules.systemui.island.host.NativeMusicSpectrum
+import com.takekazex.hypertweak.hook.rules.systemui.island.model.IslandOrientation
 import com.takekazex.hypertweak.hook.rules.systemui.island.model.IslandSession
 import com.takekazex.hypertweak.hook.rules.systemui.island.model.LayoutFlags
 import com.takekazex.hypertweak.hook.rules.systemui.island.policy.IslandModePolicy
 import com.takekazex.hypertweak.hook.rules.systemui.island.policy.IslandPresentation
 import com.takekazex.hypertweak.hook.rules.systemui.island.policy.IslandRenderScope
-import com.takekazex.hypertweak.hook.rules.systemui.island.policy.IslandTemplatePublication
+import com.takekazex.hypertweak.hook.rules.systemui.island.policy.ReentrantScope
 import com.takekazex.hypertweak.util.logging.DebugLog
+import java.util.IdentityHashMap
 
 /**
  * One generation of shared session state and projections. Coordinators consume capability
@@ -30,16 +34,16 @@ internal abstract class IslandSessionState(
     val context = CallbackContext()
     val boundary = FeatureBoundary(context)
     val renderingState = IslandRenderScope()
-    val templatePublication = IslandTemplatePublication()
-    val relayoutPublication = IslandTemplatePublication()
-    val layoutMeasurement = IslandTemplatePublication()
+    val templatePublication = ReentrantScope()
+    val relayoutPublication = ReentrantScope()
+    val layoutMeasurement = ReentrantScope()
     // Restoration needs the host camera width even while an area lease is still held.
-    val nativeCutoutRead = IslandTemplatePublication()
+    val nativeCutoutRead = ReentrantScope()
     // Only policy budgets read the unprojected cover width. Native rendering and
     // app-return callbacks must retain the paired width, even inside measurement.
-    val nativeSmallWidthRead = IslandTemplatePublication()
+    val nativeSmallWidthRead = ReentrantScope()
 
-    val mediaReturnPublication = IslandTemplatePublication()
+    val mediaReturnPublication = ReentrantScope()
     val main: Handler by lazy { Handler(Looper.getMainLooper()) }
 
     abstract val compact: CompactActions
@@ -63,23 +67,45 @@ internal abstract class IslandSessionState(
         return true
     }
 
-    fun enabled(session: IslandSession): Boolean = IslandModePolicy.enabled(
-        retiring = retiring(),
-        failed = session.health.failed,
-        suspended = session.lifecycle.suspended,
-        threeIslands = preferences.threeIslands,
-        landscapeFull = preferences.landscapeFull,
-        landscapeMore = preferences.landscapeMore,
-    ) && IslandModePolicy.requested(
-        host.orientationOf(session.owner), preferences.threeIslands, preferences.landscapeFull, preferences.landscapeMore,
-    ) && nativeSlotsReady(session)
+    /**
+     * Host structure behind the mode gate: orientation, slot readiness and the phone eligibility
+     * facts. Every read goes through reflection, and read-only coordinate and region callbacks
+     * evaluate the gate several times per frame. Inside [readOnlyGate] each fact is read at most
+     * once per owner; elsewhere every call reads the host afresh without allocating. Preferences,
+     * retirement and session health are never snapshotted, so a failure inside the callback
+     * disables the session at once.
+     */
+    private class HostGate {
+        var orientation: IslandOrientation? = null
+        var slotsReady: Boolean? = null
+        var phoneFacts: Boolean? = null
+    }
 
-    fun phoneEligible(session: IslandSession): Boolean {
+    /**
+     * Owner -> [HostGate] while a [readOnlyGate] scope is open on this thread. The entry is
+     * removed when the scope closes: a value left on a long-lived host thread would pin this
+     * generation's class loader after hot reload.
+     */
+    @PublishedApi internal val gateSnapshots = ThreadLocal<IdentityHashMap<Any, Any>?>()
+
+    private fun snapshot(session: IslandSession): HostGate? =
+        gateSnapshots.get()?.getOrPut(session.owner) { HostGate() } as? HostGate
+
+    private fun gateOrientation(session: IslandSession): IslandOrientation {
+        val gate = snapshot(session) ?: return host.orientationOf(session.owner)
+        return gate.orientation ?: host.orientationOf(session.owner).also { gate.orientation = it }
+    }
+
+    private fun readSlotsReady(owner: Any): Boolean =
+        host.current(owner, IslandSlot.BIG).let { it == null || key(it) != null } &&
+            host.current(owner, IslandSlot.SMALL).let { it == null || key(it) != null }
+
+    private fun readPhoneFacts(session: IslandSession): Boolean {
         val owner = session.owner
         val bigHandler = host.handler(owner, IslandSlot.BIG) ?: return false
         return IslandModePolicy.phoneEligible(
-            enabled = enabled(session),
-            orientation = host.orientationOf(owner),
+            enabled = true,
+            orientation = gateOrientation(session),
             smallestScreenWidthDp = host.smallestScreenWidthDp(owner),
             tinyScreen = host.isTinyScreen(owner),
             inConfigRebuild = host.inConfigRebuild(owner),
@@ -88,9 +114,38 @@ internal abstract class IslandSessionState(
         )
     }
 
+    /**
+     * Runs a host query that does not change island slots, handlers or windows, reusing one
+     * [HostGate] per owner. Nested scopes share the outermost snapshot.
+     */
+    inline fun <T> readOnlyGate(block: () -> T): T {
+        if (gateSnapshots.get() != null) return block()
+        gateSnapshots.set(IdentityHashMap(4))
+        try {
+            return block()
+        } finally {
+            gateSnapshots.remove()
+        }
+    }
+
+    fun enabled(session: IslandSession): Boolean = IslandModePolicy.enabled(
+        retiring = retiring(),
+        failed = session.health.failed,
+        suspended = session.lifecycle.suspended,
+        threeIslands = preferences.threeIslands,
+        landscapeFull = preferences.landscapeFull,
+        landscapeMore = preferences.landscapeMore,
+    ) && IslandModePolicy.requested(
+        gateOrientation(session), preferences.threeIslands, preferences.landscapeFull, preferences.landscapeMore,
+    ) && nativeSlotsReady(session)
+
+    fun phoneEligible(session: IslandSession): Boolean = enabled(session) && snapshot(session).let { gate ->
+        gate?.phoneFacts ?: readPhoneFacts(session).also { gate?.phoneFacts = it }
+    }
+
     fun flags(session: IslandSession): LayoutFlags = IslandModePolicy.flags(
         phoneEligible = phoneEligible(session),
-        orientation = host.orientationOf(session.owner),
+        orientation = gateOrientation(session),
         threeIslands = preferences.threeIslands,
         landscapeFull = preferences.landscapeFull,
         landscapeMore = preferences.landscapeMore,
@@ -111,9 +166,9 @@ internal abstract class IslandSessionState(
     fun schedulingEnabled(session: IslandSession): Boolean = flags(session).let { it.summarySwipe || it.rowMode }
 
     /** Native Empty/sentinel views have no task data and must never enter our task scheduler. */
-    fun nativeSlotsReady(session: IslandSession): Boolean = listOfNotNull(
-        host.current(session.owner, IslandSlot.BIG), host.current(session.owner, IslandSlot.SMALL),
-    ).all { key(it) != null }
+    fun nativeSlotsReady(session: IslandSession): Boolean = snapshot(session).let { gate ->
+        gate?.slotsReady ?: readSlotsReady(session.owner).also { gate?.slotsReady = it }
+    }
 
     fun summaries(session: IslandSession): List<Any> = listOfNotNull(
         host.current(session.owner, IslandSlot.BIG),
@@ -121,7 +176,7 @@ internal abstract class IslandSessionState(
     ).plus(session.slot.extras).distinct().filter { key(it) != null }
 
     fun queuedSummaries(session: IslandSession): List<Any> = host.queue(session.owner).filter {
-        key(it) != null && host.stateKind(it) == com.takekazex.hypertweak.hook.rules.systemui.island.host.IslandStateKind.HIDDEN
+        key(it) != null && host.stateKind(it) == IslandStateKind.HIDDEN
     }
 
     fun key(view: Any): String? = host.key(view)
@@ -175,7 +230,7 @@ internal abstract class IslandSessionState(
     fun sessionForSwipe(coordinator: Any): IslandSession? = try {
         host.swipeCoordinator(coordinator)?.let(sessions::get)
     } catch (error: Throwable) {
-        DebugLog.e(TAG, "resolve swipe owner", error)
+        DebugLog.e(ISLAND_TAG, "resolve swipe owner", error)
         null
     }
 
@@ -189,5 +244,4 @@ internal abstract class IslandSessionState(
 
     fun isMainThread(): Boolean = Looper.myLooper() == main.looper
 
-    private companion object { const val TAG = "ThreeIslands" }
 }

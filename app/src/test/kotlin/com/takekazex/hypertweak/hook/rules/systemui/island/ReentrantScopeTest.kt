@@ -1,16 +1,16 @@
 package com.takekazex.hypertweak.hook.rules.systemui.island
 
 import com.takekazex.hypertweak.hook.rules.systemui.island.policy.IslandExpansionOwnership
-import com.takekazex.hypertweak.hook.rules.systemui.island.policy.IslandTemplatePublication
+import com.takekazex.hypertweak.hook.rules.systemui.island.policy.ReentrantScope
 import com.takekazex.hypertweak.hook.rules.systemui.island.policy.IslandTemplateRebinds
 
 import org.junit.Assert.*
 import org.junit.Test
 
-class IslandTemplatePublicationTest {
+class ReentrantScopeTest {
     @Test fun `relayout scope alone does not snap native state or gesture tweens`() {
-        val relayout = IslandTemplatePublication()
-        val width = IslandTemplatePublication()
+        val relayout = ReentrantScope()
+        val width = ReentrantScope()
         relayout.run {
             assertFalse(width.active)
             width.run { assertTrue(width.active) }
@@ -34,7 +34,7 @@ class IslandTemplatePublicationTest {
     }
 
     @Test fun `nested template transactions release scope even on failure`() {
-        val scope = IslandTemplatePublication()
+        val scope = ReentrantScope()
         assertFalse(scope.active)
         scope.run {
             assertTrue(scope.active)
@@ -45,7 +45,7 @@ class IslandTemplatePublicationTest {
     }
 
     @Test fun `template transaction cannot change animations on another thread`() {
-        val scope = IslandTemplatePublication()
+        val scope = ReentrantScope()
         var otherThread = true
         scope.run {
             val thread = Thread { otherThread = scope.active }

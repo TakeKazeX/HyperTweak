@@ -174,7 +174,7 @@ class IslandMediaReturnTest {
         }
         assertNull(runtime.spectrum.rewriteReturnRect(session, media, HostRect(832, 30, 934, 132)))
         rebuilding = true
-        assertFalse(runtime.landscapeFullEnabled(session))
+        assertFalse(runtime.flags(session).landscapeFull)
         assertNull(runtime.spectrum.nativeReturnTarget(session, media))
         assertFalse(runtime.spectrum.hasReturnTarget(session, media))
         rebuilding = false

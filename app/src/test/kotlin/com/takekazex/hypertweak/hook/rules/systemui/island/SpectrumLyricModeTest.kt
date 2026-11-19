@@ -40,7 +40,7 @@ class SpectrumLyricModeTest {
         host.orientation = IslandOrientation.LANDSCAPE
         assertFalse(guarded())
         rebuilding = true
-        assertFalse(runtime.landscapeFullEnabled(session)) // Geometry is temporarily ineligible.
+        assertFalse(runtime.flags(session).landscapeFull) // Geometry is temporarily ineligible.
         assertFalse(guarded()) // The requested lyric mode must survive the rebuild.
         rebuilding = false
         temporary = true

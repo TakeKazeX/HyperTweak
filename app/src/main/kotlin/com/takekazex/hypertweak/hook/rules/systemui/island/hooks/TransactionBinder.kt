@@ -1,6 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui.island.hooks
 
 import android.os.Looper
+import com.takekazex.hypertweak.hook.rules.systemui.island.ISLAND_TAG
 import com.takekazex.hypertweak.hook.rules.systemui.island.host.IslandSlot
 import com.takekazex.hypertweak.hook.rules.systemui.island.model.IslandFeature
 import com.takekazex.hypertweak.hook.rules.systemui.island.model.SchedulingTransaction
@@ -66,7 +67,7 @@ internal object TransactionBinder {
                                     wasUserExpanded, previousExpanded, currentExpanded,
                                 )) {
                                 host.setUserExpanded(owner, false)
-                                DebugLog.i(TAG, "automatic expansion replaced manual owner; native collapse timer released")
+                                DebugLog.i(ISLAND_TAG, "automatic expansion replaced manual owner; native collapse timer released")
                             }
                             host.updateTouchRegion(owner)
                         }
@@ -75,7 +76,7 @@ internal object TransactionBinder {
                         session.health.fail(IslandFeature.SCHEDULING)
                         tx.settled = true
                         runCatching { runtime.settlement.restore(session) }
-                            .onFailure { DebugLog.e(TAG, "restore after host failure", it) }
+                            .onFailure { DebugLog.e(ISLAND_TAG, "restore after host failure", it) }
                         throw failure
                     }
                 }
@@ -110,5 +111,4 @@ internal object TransactionBinder {
         }
     }
 
-    private const val TAG = "ThreeIslands"
 }

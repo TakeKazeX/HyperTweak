@@ -1,8 +1,9 @@
 package com.takekazex.hypertweak.hook.rules.systemui.island.hooks
 
+import com.takekazex.hypertweak.hook.rules.systemui.island.ISLAND_TAG
+import com.takekazex.hypertweak.hook.rules.systemui.island.host.NativeIslandMembers
 import com.takekazex.hypertweak.hook.rules.systemui.island.model.IslandFeature
 import com.takekazex.hypertweak.hook.rules.systemui.island.session.TemplateAnimation
-import com.takekazex.hypertweak.hook.rules.systemui.island.host.NativeIslandMembers
 import com.takekazex.hypertweak.util.logging.DebugLog
 import io.github.libxposed.api.XposedInterface
 
@@ -31,7 +32,7 @@ internal object PresentationBinder {
                 val decision = try {
                     runtime.presentation.bigIslandAnimation(view, chain.args.toTypedArray())
                 } catch (error: Throwable) {
-                    DebugLog.e("ThreeIslands", "align native template animation", error)
+                    DebugLog.e(ISLAND_TAG, "align native template animation", error)
                     TemplateAnimation.Passthrough
                 }
                 if (runtime.diagnostics.tracing) runtime.sessionForView(view)?.let { session ->
@@ -123,7 +124,7 @@ internal object PresentationBinder {
                 val tag = param.args[1] as? String ?: return@runCatching
                 val type = (param.args[2] as? Enum<*>)?.name ?: return@runCatching
                 runtime.templates.animationEvent(session, view, tag, type)
-            }.onFailure { DebugLog.e("ThreeIslands", "track full template departure", it) }
+            }.onFailure { DebugLog.e(ISLAND_TAG, "track full template departure", it) }
         }
 
         // A full or side-media template releases its camera-facing padding, but the host still
@@ -135,7 +136,7 @@ internal object PresentationBinder {
                     val width = param.args[1] as? Int ?: return@runCatching
                     val padding = runtime.templates.releasedPadding(param.thisObject, leftSide)
                     if (padding > 0) param.args[1] = width + padding
-                }.onFailure { DebugLog.e("ThreeIslands", "restore released template padding budget", it) }
+                }.onFailure { DebugLog.e(ISLAND_TAG, "restore released template padding budget", it) }
             }
         }
 

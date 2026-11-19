@@ -1,14 +1,15 @@
 package com.takekazex.hypertweak.hook.rules.systemui.island.session
 
 import android.view.View
+import com.takekazex.hypertweak.hook.rules.systemui.island.ISLAND_TAG
 import com.takekazex.hypertweak.hook.rules.systemui.island.host.IslandSlot
 import com.takekazex.hypertweak.hook.rules.systemui.island.model.IslandFeature
-import com.takekazex.hypertweak.util.logging.DebugLog
 import com.takekazex.hypertweak.hook.rules.systemui.island.model.IslandSession
 import com.takekazex.hypertweak.hook.rules.systemui.island.model.TemplateWidthRequest
-import com.takekazex.hypertweak.hook.rules.systemui.island.policy.layout.TemplateSeatMode
 import com.takekazex.hypertweak.hook.rules.systemui.island.policy.IslandPresentation
+import com.takekazex.hypertweak.hook.rules.systemui.island.policy.layout.TemplateSeatMode
 import com.takekazex.hypertweak.hook.rules.systemui.island.template.IslandCameraSeat
+import com.takekazex.hypertweak.util.logging.DebugLog
 
 /** Render-only SmallIsland -> BigIsland projection and template animation alignment. */
 internal class PresentationCoordinator(private val runtime: IslandSessionState) : PresentationActions {
@@ -24,7 +25,7 @@ internal class PresentationCoordinator(private val runtime: IslandSessionState) 
                 (pair.left as? View)?.parent?.let(IslandCameraSeat::holds) == true
             }
         } catch (error: Throwable) {
-            DebugLog.w("ThreeIslands", "inspect camera seat", error)
+            DebugLog.w(ISLAND_TAG, "inspect camera seat", error)
             false
         }
         return if (leased) 0 else null
@@ -75,7 +76,7 @@ internal class PresentationCoordinator(private val runtime: IslandSessionState) 
         // Module-driven measurements publish once afterwards through the host's own update path.
         if (runtime.layoutMeasurement.active) return TemplateAnimation.Suppress
         val session = runtime.sessionForView(view)
-        if (session == null || !runtime.alignedTemplate(session, view)) {
+        if (session == null || !runtime.fullTemplate(session, view)) {
             return runtime.compact.translation(view, args)?.let { TemplateAnimation.Redirect(it, view) }
                 ?: TemplateAnimation.Passthrough
         }

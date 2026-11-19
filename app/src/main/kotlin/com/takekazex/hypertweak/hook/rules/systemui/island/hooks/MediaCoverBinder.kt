@@ -5,6 +5,7 @@ import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
 import android.view.View
 import android.widget.ImageView
+import com.takekazex.hypertweak.hook.rules.systemui.island.ISLAND_TAG
 import com.takekazex.hypertweak.hook.rules.systemui.island.host.IslandSlot
 import com.takekazex.hypertweak.hook.rules.systemui.island.host.NativeMediaCoverContract
 import com.takekazex.hypertweak.util.logging.DebugLog
@@ -46,14 +47,14 @@ internal class MediaCoverBinder(private val context: IslandHookContext, private 
                         clear(image, restoreLatest = false)
                         if (target != null) image.setImageDrawable(published)
                     }
-                    DebugLog.w(TAG, "native cover flip failed; retain native artwork", it)
+                    DebugLog.w(ISLAND_TAG, "native cover flip failed; retain native artwork", it)
                 }
                 result
             })
         listOf(native.hidden, native.detach).forEach { method ->
             registrar.before(method.also(registrar::deoptimize), "three_islands_cover_${method.name}") { param ->
                 runCatching { native.image(param.thisObject)?.let { clear(it) } }
-                    .onFailure { DebugLog.w(TAG, "release native cover flip", it) }
+                    .onFailure { DebugLog.w(ISLAND_TAG, "release native cover flip", it) }
             }
         }
         registrar.before(context.access.method(context.access.window, "onConfigChanged"),
@@ -98,7 +99,7 @@ internal class MediaCoverBinder(private val context: IslandHookContext, private 
                     image.setImageDrawable(entry.displayed)
                 }.onFailure {
                     clear(image)
-                    DebugLog.w(TAG, "publish native cover flip", it)
+                    DebugLog.w(ISLAND_TAG, "publish native cover flip", it)
                 }
             }
         }
@@ -112,11 +113,10 @@ internal class MediaCoverBinder(private val context: IslandHookContext, private 
         val entry = entries.remove(image) ?: return
         entry.detach?.let(image::removeOnAttachStateChangeListener)
         runCatching { native.reset(image) }
-            .onFailure { DebugLog.w(TAG, "reset native cover transform", it) }
+            .onFailure { DebugLog.w(ISLAND_TAG, "reset native cover transform", it) }
         if (restoreLatest) image.setImageDrawable(entry.latest)
     }
 
     fun retire() = entries.keys.toList().forEach { clear(it) }
 
-    private companion object { const val TAG = "ThreeIslands" }
 }

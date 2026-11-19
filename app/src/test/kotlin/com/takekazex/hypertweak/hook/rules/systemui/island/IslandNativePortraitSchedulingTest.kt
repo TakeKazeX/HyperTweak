@@ -26,7 +26,7 @@ class IslandNativePortraitSchedulingTest {
 
     @Test fun landscapeOptionsDoNotTakeOverNativePortraitScheduling() {
         assertFalse(runtime.enabled(session))
-        assertFalse(runtime.portraitCompactEnabled(session))
+        assertFalse(runtime.flags(session).portraitCompact)
         assertFalse(runtime.schedulingEnabled(session))
         host.orientation = IslandOrientation.LANDSCAPE
         assertTrue(runtime.schedulingEnabled(session))

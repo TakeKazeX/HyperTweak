@@ -14,25 +14,27 @@ internal object RegionBinder {
 
         listOf("getSmallBigIslandRegion", "computeIslandRegion").forEach { name ->
             registrar.after(access.method(access.coordinator, name), "three_islands_region_$name") { param ->
-                val session = runtime.sessions[param.thisObject] ?: return@after
-                runtime.boundary.core(session, IslandFeature.TOUCH, "window region") {
-                    val region = param.result as? Region ?: return@core
-                    if (name == "getSmallBigIslandRegion" && runtime.coordinates.needsRevealTarget(session)) {
-                        (access.call(session.owner, "getDefaultIslandTouchRegion") as? Region)?.let {
-                            region.op(it, Region.Op.UNION)
+                runtime.readOnlyGate {
+                    val session = runtime.sessions[param.thisObject] ?: return@after
+                    runtime.boundary.core(session, IslandFeature.TOUCH, "window region") {
+                        val region = param.result as? Region ?: return@core
+                        if (name == "getSmallBigIslandRegion" && runtime.coordinates.needsRevealTarget(session)) {
+                            (access.call(session.owner, "getDefaultIslandTouchRegion") as? Region)?.let {
+                                region.op(it, Region.Op.UNION)
+                            }
                         }
-                    }
-                    runtime.coordinates.smallRegionViews(session).forEach { small ->
-                        val x = runtime.coordinates.smallX(session, small) ?: return@forEach
-                        val top = host.number(small, "getIslandViewMarginTop")
-                        region.op(
-                            Rect(
-                                x, top,
-                                x + runtime.sideWidth(session, small),
-                                top + host.number(small, "getIslandViewHeight"),
-                            ),
-                            Region.Op.UNION,
-                        )
+                        runtime.coordinates.smallRegionViews(session).forEach { small ->
+                            val x = runtime.coordinates.smallX(session, small) ?: return@forEach
+                            val top = host.number(small, "getIslandViewMarginTop")
+                            region.op(
+                                Rect(
+                                    x, top,
+                                    x + runtime.sideWidth(session, small),
+                                    top + host.number(small, "getIslandViewHeight"),
+                                ),
+                                Region.Op.UNION,
+                            )
+                        }
                     }
                 }
             }
@@ -40,13 +42,15 @@ internal object RegionBinder {
 
         listOf("hasIsland", "getBigIsLandAndSmallIsLandList").forEach { name ->
             registrar.after(access.method(access.coordinator, name), "three_islands_lookup_$name") { param ->
-                val session = runtime.sessions[param.thisObject] ?: return@after
-                runtime.boundary.core(session, IslandFeature.TOUCH, "include third task") {
-                    val matching = runtime.coordinates.extrasForLookup(
-                        session, name, param.args.firstOrNull() as? String,
-                    )
-                    val list = param.result as? List<*> ?: return@core
-                    if (matching.any { it !in list }) param.result = (list + matching).distinct()
+                runtime.readOnlyGate {
+                    val session = runtime.sessions[param.thisObject] ?: return@after
+                    runtime.boundary.core(session, IslandFeature.TOUCH, "include third task") {
+                        val matching = runtime.coordinates.extrasForLookup(
+                            session, name, param.args.firstOrNull() as? String,
+                        )
+                        val list = param.result as? List<*> ?: return@core
+                        if (matching.any { it !in list }) param.result = (list + matching).distinct()
+                    }
                 }
             }
         }

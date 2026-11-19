@@ -8,17 +8,17 @@ import com.takekazex.hypertweak.hook.rules.systemui.island.hooks.IslandHookConte
 import com.takekazex.hypertweak.hook.rules.systemui.island.hooks.IslandHookPlan
 import com.takekazex.hypertweak.hook.rules.systemui.island.hooks.IslandHookRegistrar
 import com.takekazex.hypertweak.hook.rules.systemui.island.hooks.MediaCoverBinder
-import com.takekazex.hypertweak.hook.rules.systemui.island.host.NativeMediaCoverContract
 import com.takekazex.hypertweak.hook.rules.systemui.island.host.NativeIslandAccess
 import com.takekazex.hypertweak.hook.rules.systemui.island.host.NativeIslandDiscovery
 import com.takekazex.hypertweak.hook.rules.systemui.island.host.NativeIslandHost
+import com.takekazex.hypertweak.hook.rules.systemui.island.host.NativeMediaCoverContract
 import com.takekazex.hypertweak.hook.rules.systemui.island.host.NativeMediaRenderContract
 import com.takekazex.hypertweak.hook.rules.systemui.island.host.NativeMusicSpectrum
 import com.takekazex.hypertweak.hook.rules.systemui.island.model.IslandFeature
 import com.takekazex.hypertweak.hook.rules.systemui.island.policy.IslandModePolicy
 import com.takekazex.hypertweak.hook.rules.systemui.island.session.IslandRuntime
-import com.takekazex.hypertweak.hook.rules.systemui.island.template.IslandTemplateCutout
 import com.takekazex.hypertweak.hook.rules.systemui.island.template.IslandCameraSeat
+import com.takekazex.hypertweak.hook.rules.systemui.island.template.IslandTemplateCutout
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -57,7 +57,7 @@ class ThreeIslandHooker(
                         restoreOwners(snapshotOwners())
                     } else {
                         deferred = prepared
-                        DebugLog.d(TAG, "island hooks deferred until an island style switch is enabled")
+                        DebugLog.d(ISLAND_TAG, "island hooks deferred until an island style switch is enabled")
                     }
                 }
             },
@@ -67,11 +67,11 @@ class ThreeIslandHooker(
     private fun installPrepared(prepared: NativeIslandAccess) {
         access = prepared
         musicSpectrum = runCatching { NativeMusicSpectrum(access.content) }
-            .onFailure { DebugLog.w(TAG, "native small-island spectrum contract unavailable", it) }
+            .onFailure { DebugLog.w(ISLAND_TAG, "native small-island spectrum contract unavailable", it) }
             .getOrNull()
         mediaRender = musicSpectrum?.let {
             runCatching { NativeMediaRenderContract(access) }
-                .onFailure { DebugLog.w(TAG, "native media rendering contract unavailable", it) }
+                .onFailure { DebugLog.w(ISLAND_TAG, "native media rendering contract unavailable", it) }
                 .getOrNull()
         }
         val nativeHost = NativeIslandHost(access, preferences)
@@ -98,11 +98,11 @@ class ThreeIslandHooker(
         plan.deoptimizeTargets()
         plan.install()
         runCatching { NativeMediaCoverContract(classLoader, systemUiClassLoader) }
-            .onFailure { DebugLog.w(TAG, "native media cover animation unavailable", it) }
+            .onFailure { DebugLog.w(ISLAND_TAG, "native media cover animation unavailable", it) }
             .getOrNull()?.let { contract ->
                 mediaCover = MediaCoverBinder(hookContext, contract).also { it.install() }
             }
-        DebugLog.hookRegistered(TAG, "DexKit native third task, adaptive full templates and touch routing")
+        DebugLog.hookRegistered(ISLAND_TAG, "DexKit native third task, adaptive full templates and touch routing")
     }
 
     fun snapshotOwners(): List<Any> =
@@ -147,9 +147,9 @@ class ThreeIslandHooker(
                 session, IslandFeature.SCHEDULING, "release inactive layout ownership",
             ) { runtime.settlement.restore(session) }
         }
-        runCatching { runtime.compact.refresh() }.onFailure { DebugLog.e(TAG, "refresh compact islands", it) }
+        runCatching { runtime.compact.refresh() }.onFailure { DebugLog.e(ISLAND_TAG, "refresh compact islands", it) }
         runtime.sessions.snapshot().forEach { session ->
-            if (session.health.reset()) DebugLog.i(TAG, "island session retried after a settings refresh")
+            if (session.health.reset()) DebugLog.i(ISLAND_TAG, "island session retried after a settings refresh")
             runtime.boundary.core(session, IslandFeature.TEMPLATE, "request frame relayout") {
                 runtime.relayout.request(session)
             }
@@ -173,15 +173,15 @@ class ThreeIslandHooker(
         val cleanup = Runnable {
             mediaCover?.retire()
             mediaCover = null
-            runCatching { runtime.compact.retire() }.onFailure { DebugLog.e(TAG, "retire compact islands", it) }
+            runCatching { runtime.compact.retire() }.onFailure { DebugLog.e(ISLAND_TAG, "retire compact islands", it) }
             owners.forEach { session ->
                 session.template.relayout?.retire()
                 session.template.relayout = null
                 runCatching { runtime.settlement.restore(session) }
-                    .onFailure { DebugLog.e(TAG, "retire third slot", it) }
+                    .onFailure { DebugLog.e(ISLAND_TAG, "retire third slot", it) }
                 session.presentation.fullOrigins.keys.toList().forEach { view ->
                     runCatching { (access.call(view, "getBigIslandView") as? View)?.translationX = 0f }
-                        .onFailure { DebugLog.e(TAG, "retire full template position", it) }
+                        .onFailure { DebugLog.e(ISLAND_TAG, "retire full template position", it) }
                 }
             }
             runtime.sessions.clear()
@@ -203,5 +203,4 @@ class ThreeIslandHooker(
         }
     }
 
-    private companion object { const val TAG = "ThreeIslands" }
 }

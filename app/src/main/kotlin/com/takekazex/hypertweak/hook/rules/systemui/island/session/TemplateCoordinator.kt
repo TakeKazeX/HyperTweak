@@ -1,6 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui.island.session
 
 import android.view.View
+import com.takekazex.hypertweak.hook.rules.systemui.island.ISLAND_TAG
 import com.takekazex.hypertweak.hook.rules.systemui.island.host.IslandSlot
 import com.takekazex.hypertweak.hook.rules.systemui.island.host.IslandStateKind
 import com.takekazex.hypertweak.hook.rules.systemui.island.model.IslandFeature
@@ -38,7 +39,7 @@ internal class TemplateCoordinator(private val runtime: IslandSessionState) : Te
     }
 
     override fun releaseFullPosition(session: IslandSession, view: Any) {
-        if (runtime.alignedTemplate(session, view)) return
+        if (runtime.fullTemplate(session, view)) return
         session.presentation.departures.remove(view)
         runtime.spectrum.syncLyricGuard(session)
         // A compact main template is a different owner. Generic row cleanup must not
@@ -64,7 +65,7 @@ internal class TemplateCoordinator(private val runtime: IslandSessionState) : Te
      * released at once so that it never animates into the camera seat with a zero cutout.
      */
     override fun departFullPosition(session: IslandSession, view: Any) {
-        if (runtime.alignedTemplate(session, view)) {
+        if (runtime.fullTemplate(session, view)) {
             session.presentation.departures.remove(view)
             return
         }
@@ -95,7 +96,7 @@ internal class TemplateCoordinator(private val runtime: IslandSessionState) : Te
         if (session.presentation.departures[view] !== departure) return
         runtime.boundary.core(session, IslandFeature.TEMPLATE, "release departed full template") {
             session.presentation.departures.remove(view)
-            DebugLog.d(TAG, "full template departure released reason=$reason tag=${departure.tag}")
+            DebugLog.d(ISLAND_TAG, "full template departure released reason=$reason tag=${departure.tag}")
             releaseFullPosition(session, view)
         }
     }
@@ -133,7 +134,7 @@ internal class TemplateCoordinator(private val runtime: IslandSessionState) : Te
             session.scene.contentSizes.remove(view)
             releaseFullPosition(session, view)
             if (configurationBound) {
-                DebugLog.d(TAG, "configuration template bound; frame generation invalidated")
+                DebugLog.d(ISLAND_TAG, "configuration template bound; frame generation invalidated")
                 runtime.relayout.request(session)
             } else if (sideMusic && session.scene.musicSmall === view) {
                 acquire(session, TemplateWidthRequest(view, 0, TemplateSeatMode.CAMERA_RELEASING))
@@ -142,7 +143,6 @@ internal class TemplateCoordinator(private val runtime: IslandSessionState) : Te
     }
 
     private companion object {
-        const val TAG = "ThreeIslands"
         // Native island transitions finish well within this; it only covers a lost callback.
         const val DEPARTURE_TIMEOUT_MS = 1200L
     }

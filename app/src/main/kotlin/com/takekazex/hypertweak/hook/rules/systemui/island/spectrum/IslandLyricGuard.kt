@@ -3,10 +3,11 @@ package com.takekazex.hypertweak.hook.rules.systemui.island.spectrum
 import android.view.View
 import android.view.ViewGroup
 import android.view.ViewTreeObserver
+import androidx.core.view.isGone
+import androidx.core.view.isVisible
+import com.takekazex.hypertweak.hook.rules.systemui.island.ISLAND_TAG
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.util.LinkedHashMap
-import androidx.core.view.isVisible
-import androidx.core.view.isGone
 
 /**
  * Keeps a side music spectrum visible when another island module injects lyric text into the
@@ -17,7 +18,7 @@ import androidx.core.view.isGone
 internal class IslandLyricGuard(
     val roots: List<View>,
     private val active: () -> Boolean,
-    private val onSuppressed: () -> Unit = { DebugLog.i("ThreeIslands", "small spectrum hid third-party lyric overlay") },
+    private val onSuppressed: () -> Unit = { DebugLog.i(ISLAND_TAG, "small spectrum hid third-party lyric overlay") },
 ) {
     private class Snapshot(val visibility: Int)
 
@@ -29,7 +30,7 @@ internal class IslandLyricGuard(
     private var failureLogged = false
     private val attachListener = object : View.OnAttachStateChangeListener {
         override fun onViewAttachedToWindow(view: View) {
-            runCatching { register(view) }.onFailure { DebugLog.w(TAG, "lyric guard reattach failed", it) }
+            runCatching { register(view) }.onFailure { DebugLog.w(ISLAND_TAG, "lyric guard reattach failed", it) }
         }
         override fun onViewDetachedFromWindow(view: View) = Unit
     }
@@ -55,7 +56,7 @@ internal class IslandLyricGuard(
             runCatching { registration.observer.removeOnPreDrawListener(registration.listener) }
         }
         registrations.clear()
-        runCatching { restore() }.onFailure { DebugLog.w(TAG, "lyric guard restore failed", it) }
+        runCatching { restore() }.onFailure { DebugLog.w(ISLAND_TAG, "lyric guard restore failed", it) }
     }
 
     private fun register(root: View) {
@@ -67,7 +68,7 @@ internal class IslandLyricGuard(
                 .onFailure {
                     if (!failureLogged) {
                         failureLogged = true
-                        DebugLog.w(TAG, "lyric guard failed", it)
+                        DebugLog.w(ISLAND_TAG, "lyric guard failed", it)
                     }
                 }
             true
@@ -185,7 +186,6 @@ internal class IslandLyricGuard(
         reported = false
     }
 
-    private companion object { const val TAG = "ThreeIslands" }
 }
 
 /** Tags published by HyperLyrics Enhanced for its injected island lyric slots. */

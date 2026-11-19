@@ -4,11 +4,13 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
-import android.os.BatteryManager
 import android.content.res.Configuration
 import android.graphics.Rect
+import android.os.BatteryManager
 import android.os.Bundle
+import android.os.SystemClock
 import android.view.View
+import com.takekazex.hypertweak.hook.rules.systemui.island.ISLAND_TAG
 import com.takekazex.hypertweak.hook.rules.systemui.island.IslandSettings
 import com.takekazex.hypertweak.hook.rules.systemui.island.model.IslandOrientation
 import com.takekazex.hypertweak.hook.rules.systemui.island.model.IslandResultGeometry
@@ -18,15 +20,17 @@ import com.takekazex.hypertweak.hook.rules.systemui.island.model.NativeMeasureRe
 import com.takekazex.hypertweak.hook.rules.systemui.island.model.SafeInsets
 import com.takekazex.hypertweak.hook.rules.systemui.island.policy.layout.IslandContentSize
 import com.takekazex.hypertweak.util.logging.DebugLog
-import java.lang.reflect.InvocationTargetException
 import com.takekazex.hypertweak.util.platform.ResourceLookup
+import java.lang.reflect.InvocationTargetException
 
 /** Adapter from the narrow coordinator ports to the pre-resolved native registry. */
 internal class NativeIslandHost(
     val access: NativeIslandAccess,
     private val settings: IslandSettings,
 ) : IslandHostPorts {
-    @Volatile private var lyricModulePresent: Boolean? = null
+    /** Last HyperLyrics Enhanced lookup; rechecked after [LYRIC_MODULE_RECHECK_MS]. */
+    private class LyricModuleLookup(val present: Boolean, val at: Long)
+    @Volatile private var lyricModule: LyricModuleLookup? = null
     /**
      * Whether the battery width the host last published included its charging allowance.
      * SystemUI adds `hollow_battery_meter_charge_width` (8dp) to the battery reservation while
@@ -39,7 +43,7 @@ internal class NativeIslandHost(
     override fun ownerOf(content: Any): Any? = try {
         access.call(content, "getDynamicIslandEventCoordinator")
     } catch (error: Throwable) {
-        DebugLog.e(TAG, "resolve content owner", error)
+        DebugLog.e(ISLAND_TAG, "resolve content owner", error)
         null
     }
 
@@ -127,7 +131,7 @@ internal class NativeIslandHost(
             else -> null
         }
     } catch (error: Throwable) {
-        DebugLog.e(TAG, "resolve native template owner", error)
+        DebugLog.e(ISLAND_TAG, "resolve native template owner", error)
         null
     }
 
@@ -293,7 +297,7 @@ internal class NativeIslandHost(
         battery != null && battery.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0) != 0 &&
             (status == BatteryManager.BATTERY_STATUS_CHARGING || status == BatteryManager.BATTERY_STATUS_FULL)
     } catch (error: Throwable) {
-        DebugLog.w(TAG, "read charging state for the island battery budget", error)
+        DebugLog.w(ISLAND_TAG, "read charging state for the island battery budget", error)
         false
     }
 
@@ -326,28 +330,35 @@ internal class NativeIslandHost(
             dimension("island_area_padding_cutout"),
         )
     } catch (error: Throwable) {
-        DebugLog.w(TAG, "native music dimensions unavailable", error)
+        DebugLog.w(ISLAND_TAG, "native music dimensions unavailable", error)
         null
     }
 
     override fun mediaAreasAvailable(view: Any): Boolean = try {
         access.call(view, "getBigIslandAreaLeft") is View && access.call(view, "getBigIslandAreaRight") is View
     } catch (error: Throwable) {
-        DebugLog.w(TAG, "native media areas unavailable", error)
+        DebugLog.w(ISLAND_TAG, "native media areas unavailable", error)
         false
     }
 
     override fun lyricModuleInstalled(view: Any): Boolean {
-        lyricModulePresent?.let { return it }
-        val present = runCatching {
-            val context = (view as View).context
-            context.packageManager.getPackageInfo(
-                "com.juren233.hyperlyricsenhanced",
+        // Measurement asks on every pass, so the Binder lookup is cached. A bounded age lets an
+        // install or removal during this SystemUI generation take effect without a hot reload.
+        val now = SystemClock.uptimeMillis()
+        lyricModule?.takeIf { now - it.at < LYRIC_MODULE_RECHECK_MS }?.let { return it.present }
+        val present = try {
+            (view as View).context.packageManager.getPackageInfo(
+                LYRIC_MODULE_PACKAGE,
                 PackageManager.PackageInfoFlags.of(0),
             )
             true
-        }.getOrDefault(false)
-        lyricModulePresent = present
+        } catch (_: PackageManager.NameNotFoundException) {
+            false
+        } catch (error: Throwable) {
+            DebugLog.w(ISLAND_TAG, "lyric module lookup failed", error)
+            false
+        }
+        lyricModule = LyricModuleLookup(present, now)
         return present
     }
 
@@ -366,7 +377,7 @@ internal class NativeIslandHost(
     override fun animationView(animator: Any): Any? = try {
         access.gestureView.get(animator)
     } catch (error: Throwable) {
-        DebugLog.e(TAG, "resolve gesture animator view", error)
+        DebugLog.e(ISLAND_TAG, "resolve gesture animator view", error)
         null
     }
 
@@ -381,8 +392,9 @@ internal class NativeIslandHost(
     private fun Rect.toHost() = HostRect(left, top, right, bottom)
 
     private companion object {
-        const val TAG = "ThreeIslands"
         /** SystemUI `hollow_battery_meter_charge_width`; the plugin cannot read SystemUI dimens. */
         const val CHARGE_ALLOWANCE_DP = 8f
+        const val LYRIC_MODULE_PACKAGE = "com.juren233.hyperlyricsenhanced"
+        const val LYRIC_MODULE_RECHECK_MS = 30_000L
     }
 }

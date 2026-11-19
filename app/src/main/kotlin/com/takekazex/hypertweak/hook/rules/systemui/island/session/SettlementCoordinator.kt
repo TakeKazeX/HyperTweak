@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.island.session
 
+import com.takekazex.hypertweak.hook.rules.systemui.island.ISLAND_TAG
 import com.takekazex.hypertweak.hook.rules.systemui.island.host.IslandSlot
 import com.takekazex.hypertweak.hook.rules.systemui.island.host.IslandStateKind
 import com.takekazex.hypertweak.hook.rules.systemui.island.model.IslandSession
@@ -51,7 +52,7 @@ internal class SettlementCoordinator(private val runtime: IslandSessionState) : 
             if (refill) host.fillNative(owner,
                 if (big != null && !broken(big)) IslandSlot.SMALL else IslandSlot.BIG)
             orphaned.forEach { host.admitNative(owner, it) }
-            DebugLog.i(TAG, "native ownership reconciled tasks=${pool.size} orphaned=${orphaned.size} refill=$refill")
+            DebugLog.i(ISLAND_TAG, "native ownership reconciled tasks=${pool.size} orphaned=${orphaned.size} refill=$refill")
             return true
         } finally {
             session.lifecycle.reconciling = false
@@ -96,7 +97,7 @@ internal class SettlementCoordinator(private val runtime: IslandSessionState) : 
     }
 
     private fun discardSwipe(change: SummaryIslandScheduler.Change, missing: String) {
-        DebugLog.w(TAG, "summary swipe discarded; $missing is no longer available change=$change")
+        DebugLog.w(ISLAND_TAG, "summary swipe discarded; $missing is no longer available change=$change")
     }
 
     override fun selectSummaries(session: IslandSession): List<Any> {
@@ -238,13 +239,13 @@ internal class SettlementCoordinator(private val runtime: IslandSessionState) : 
             "excluded=${runtime.queuedSummaries(session).count { session.scheduler.isHidden(runtime.key(it)) }} " +
             "available=${session.scene.rowAvailable} used=${session.scene.fullFrames.values.sumOf { it.width }}"
         if (session.schedulerState.admissionLog != admission) {
-            DebugLog.i(TAG, "admission $admission")
+            DebugLog.i(ISLAND_TAG, "admission $admission")
             session.schedulerState.admissionLog = admission
         }
         }
         val extraKey = session.slot.extra?.let { host.key(it) }
         if (extraKey != session.schedulerState.loggedKey) {
-            DebugLog.i(TAG, "third native slot key=$extraKey active=${session.slot.extra != null}")
+            DebugLog.i(ISLAND_TAG, "third native slot key=$extraKey active=${session.slot.extra != null}")
             session.schedulerState.loggedKey = extraKey
         }
         val oldSurvivors = tx.oldStates.keys.filter {
@@ -347,5 +348,4 @@ internal class SettlementCoordinator(private val runtime: IslandSessionState) : 
         else -> IslandStateKind.OTHER
     }
 
-    private companion object { const val TAG = "ThreeIslands" }
 }

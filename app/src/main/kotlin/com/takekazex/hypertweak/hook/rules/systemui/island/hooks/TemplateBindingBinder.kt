@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.island.hooks
 
+import com.takekazex.hypertweak.hook.rules.systemui.island.ISLAND_TAG
 import com.takekazex.hypertweak.util.logging.DebugLog
 
 /** Native template ownership: rebinding invalidates our frames and must not be animated over. */
@@ -23,9 +24,8 @@ internal object TemplateBindingBinder {
         ) { param ->
             runCatching { access.call(param.thisObject, "getRealView") }
                 .onSuccess { view -> view?.let { runtime.templates.templateBound(it, param.thisObject) } }
-                .onFailure { DebugLog.e(TAG, "resolve rebound fake template", it) }
+                .onFailure { DebugLog.e(ISLAND_TAG, "resolve rebound fake template", it) }
         }
     }
 
-    private const val TAG = "ThreeIslands"
 }

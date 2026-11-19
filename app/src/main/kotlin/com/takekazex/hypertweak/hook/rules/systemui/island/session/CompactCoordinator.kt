@@ -1,6 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui.island.session
 
 import android.view.View
+import com.takekazex.hypertweak.hook.rules.systemui.island.ISLAND_TAG
 import com.takekazex.hypertweak.hook.rules.systemui.island.host.IslandSlot
 import com.takekazex.hypertweak.hook.rules.systemui.island.model.IslandOrientation
 import com.takekazex.hypertweak.hook.rules.systemui.island.model.IslandResultGeometry
@@ -41,7 +42,7 @@ internal class CompactCoordinator(private val runtime: IslandSessionState) : Com
         val geometry = try {
             compact(owner, view, input, result)
         } catch (error: Throwable) {
-            DebugLog.w(TAG, "compact island measurement failed; native width kept", error)
+            DebugLog.w(ISLAND_TAG, "compact island measurement failed; native width kept", error)
             null
         }
         if (geometry == null) {
@@ -134,7 +135,7 @@ internal class CompactCoordinator(private val runtime: IslandSessionState) : Com
                 runCatching {
                     runtime.layoutMeasurement.run { runtime.measure(view) }
                     if (presented[view] == null) (host.bigIslandView(view) as? View)?.translationX = 0f
-                }.onFailure { DebugLog.w(TAG, "refresh compact island fields", it) }
+                }.onFailure { DebugLog.w(ISLAND_TAG, "refresh compact island fields", it) }
             }
         }
     }
@@ -143,11 +144,10 @@ internal class CompactCoordinator(private val runtime: IslandSessionState) : Com
         retired = true
         presented.keys.toList().forEach { view ->
             runCatching { (host.bigIslandView(view) as? View)?.translationX = 0f }
-                .onFailure { DebugLog.w(TAG, "retire compact island position", it) }
+                .onFailure { DebugLog.w(ISLAND_TAG, "retire compact island position", it) }
         }
         presented.clear()
-        runCatching { leases.releaseAll() }.onFailure { DebugLog.w(TAG, "retire compact island areas", it) }
+        runCatching { leases.releaseAll() }.onFailure { DebugLog.w(ISLAND_TAG, "retire compact island areas", it) }
     }
 
-    private companion object { const val TAG = "ThreeIslands" }
 }

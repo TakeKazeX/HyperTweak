@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.island.session
 
+import com.takekazex.hypertweak.hook.rules.systemui.island.ISLAND_TAG
 import com.takekazex.hypertweak.hook.rules.systemui.island.host.IslandSlot
 import com.takekazex.hypertweak.hook.rules.systemui.island.host.TouchInput
 import com.takekazex.hypertweak.hook.rules.systemui.island.model.IslandSession
@@ -84,7 +85,7 @@ internal class GestureCoordinator(private val runtime: IslandSessionState) : Ges
         if (!session.interaction.gesture.cancelled && session.interaction.gesture.expandedKey == null) {
             val plan = swipePlan(session, visible, reveal)
             DebugLog.i(
-                TAG,
+                ISLAND_TAG,
                 "summary swipe reveal=$reveal down=${session.interaction.gesture.clickKey} " +
                     "visible=${visible.map(runtime::key)} " +
                     "queued=${runtime.queuedSummaries(session).map(runtime::key)} plan=$plan",
@@ -153,5 +154,4 @@ internal class GestureCoordinator(private val runtime: IslandSessionState) : Ges
         runtime.settlement.swipeCapacity(session, visible),
     )
 
-    private companion object { const val TAG = "ThreeIslands" }
 }

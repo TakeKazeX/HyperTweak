@@ -1,19 +1,20 @@
 package com.takekazex.hypertweak.hook.rules.systemui.island.session
 
 import android.view.View
+import com.takekazex.hypertweak.hook.rules.systemui.island.ISLAND_TAG
 import com.takekazex.hypertweak.hook.rules.systemui.island.host.HostRect
 import com.takekazex.hypertweak.hook.rules.systemui.island.host.IslandSlot
 import com.takekazex.hypertweak.hook.rules.systemui.island.model.IslandFeature
-import com.takekazex.hypertweak.hook.rules.systemui.island.model.IslandScene
 import com.takekazex.hypertweak.hook.rules.systemui.island.model.IslandOrientation
+import com.takekazex.hypertweak.hook.rules.systemui.island.model.IslandScene
 import com.takekazex.hypertweak.hook.rules.systemui.island.model.IslandSession
-import com.takekazex.hypertweak.hook.rules.systemui.island.model.MediaReturnTarget
 import com.takekazex.hypertweak.hook.rules.systemui.island.model.MeasurementOutcome
+import com.takekazex.hypertweak.hook.rules.systemui.island.model.MediaReturnTarget
 import com.takekazex.hypertweak.hook.rules.systemui.island.model.SpectrumAdmissionInput
 import com.takekazex.hypertweak.hook.rules.systemui.island.model.SpectrumDecision
 import com.takekazex.hypertweak.hook.rules.systemui.island.policy.layout.FullIslandFrame
-import com.takekazex.hypertweak.hook.rules.systemui.island.policy.layout.PortraitIslandLayout
 import com.takekazex.hypertweak.hook.rules.systemui.island.policy.layout.IslandContentSize
+import com.takekazex.hypertweak.hook.rules.systemui.island.policy.layout.PortraitIslandLayout
 import com.takekazex.hypertweak.hook.rules.systemui.island.policy.spectrum.SmallIslandSpectrum
 import com.takekazex.hypertweak.hook.rules.systemui.island.policy.spectrum.SpectrumAdmissionPolicy
 import com.takekazex.hypertweak.hook.rules.systemui.island.spectrum.IslandLyricGuard
@@ -257,8 +258,7 @@ internal class SpectrumCoordinator(private val runtime: IslandSessionState) : Sp
     private fun record(session: IslandSession, message: String) {
         if (session.spectrum.lastLog == message) return
         session.spectrum.lastLog = message
-        DebugLog.i(TAG, "small spectrum $message")
+        DebugLog.i(ISLAND_TAG, "small spectrum $message")
     }
 
-    private companion object { const val TAG = "ThreeIslands" }
 }

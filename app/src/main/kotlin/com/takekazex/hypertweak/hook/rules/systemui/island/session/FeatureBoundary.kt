@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.island.session
 
+import com.takekazex.hypertweak.hook.rules.systemui.island.ISLAND_TAG
 import com.takekazex.hypertweak.hook.rules.systemui.island.model.IslandFeature
 import com.takekazex.hypertweak.hook.rules.systemui.island.model.IslandSession
 import com.takekazex.hypertweak.util.logging.DebugLog
@@ -38,15 +39,14 @@ internal class FeatureBoundary(
         if (restore) {
             session.health.fail(feature)
             context.transaction?.settled = true
-            logger(TAG, "$operation failed; restoring native scheduling", error, false)
+            logger(ISLAND_TAG, "$operation failed; restoring native scheduling", error, false)
             runCatching { restorer?.invoke(session) }
-                .onFailure { logger(TAG, "native restoration failed", it, false) }
+                .onFailure { logger(ISLAND_TAG, "native restoration failed", it, false) }
         } else {
             session.health.degrade(feature)
-            logger(TAG, "$operation degraded; native presentation retained", error, true)
+            logger(ISLAND_TAG, "$operation degraded; native presentation retained", error, true)
         }
         null
     }
 
-    private companion object { const val TAG = "ThreeIslands" }
 }

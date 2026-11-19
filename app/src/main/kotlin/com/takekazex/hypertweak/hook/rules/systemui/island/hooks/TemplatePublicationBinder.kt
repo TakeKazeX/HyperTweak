@@ -1,6 +1,7 @@
 package com.takekazex.hypertweak.hook.rules.systemui.island.hooks
 
 import android.view.View
+import com.takekazex.hypertweak.hook.rules.systemui.island.ISLAND_TAG
 import com.takekazex.hypertweak.hook.rules.systemui.island.template.IslandTemplateCutout
 import com.takekazex.hypertweak.util.logging.DebugLog
 import io.github.libxposed.api.XposedInterface
@@ -18,7 +19,7 @@ internal object TemplatePublicationBinder {
             runCatching {
                 val cutout = write.cutout.get(param.thisObject) as? View ?: return@runCatching
                 cutout.parent?.let(IslandTemplateCutout::width)?.let { param.args[0] = it }
-            }.onFailure { DebugLog.w("ThreeIslands", "native template cutout write", it) }
+            }.onFailure { DebugLog.w(ISLAND_TAG, "native template cutout write", it) }
         }
         context.registrar.deoptimize(access.widthTween)
         context.registrar.runtime(access.widthTween, "three_islands_native_width_set_to",
