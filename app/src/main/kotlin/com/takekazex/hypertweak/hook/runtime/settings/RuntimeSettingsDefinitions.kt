@@ -109,6 +109,7 @@ internal object RuntimeSettingsDefinitions {
         PlatformSettingsKeys.KEY_AIVS_REDIRECT,
         PlatformSettingsKeys.KEY_DISABLE_SPATIAL_AUDIO,
         PlatformSettingsKeys.KEY_FORCE_ADAPTIVE_ANC,
+        PlatformSettingsKeys.KEY_POWERKEEPER_BLOCK_WHITELIST_RESTORE,
     )
     private val experimentalKeys = setOf(
         PlatformSettingsKeys.KEY_UNLOCK_MORE_VISUAL_PERCEPTION,
@@ -145,6 +146,7 @@ internal object RuntimeSettingsDefinitions {
         RuntimeSettingsGroups.PASSIVE_POLICIES to Group(setOf(
             "com.android.providers.downloads.ui", "com.android.settings",
             "com.milink.service", "com.xiaomi.bluetooth", "com.miui.voiceassist", "com.xiaomi.finddevice",
+            "com.miui.powerkeeper",
         ), strict = passivePolicyKeys),
         RuntimeSettingsGroups.DOWNLOAD_FOCUS to Group(setOf("com.android.providers.downloads", "com.android.systemui"), strict = setOf(PlatformSettingsKeys.KEY_DOWNLOAD_FOCUS_NOTIFICATION)),
         RuntimeSettingsGroups.FLASHLIGHT_PAGE to Group(setOf("miui.systemui.plugin"), keys = setOf(PlatformSettingsKeys.KEY_ISLAND_FLASHLIGHT_CONTROL)),

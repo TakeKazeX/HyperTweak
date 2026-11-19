@@ -84,6 +84,7 @@ internal class AppSettingsState(val storage: AppSettingsStore) {
     var unlockThirdPartyDarkMode by persisted(PlatformSettingsKeys.KEY_UNLOCK_THIRD_PARTY_DARK_MODE, storage::putBoolean) { storage.getBoolean(PlatformSettingsKeys.KEY_UNLOCK_THIRD_PARTY_DARK_MODE, false) }
     var disableSpatialAudio by persisted(PlatformSettingsKeys.KEY_DISABLE_SPATIAL_AUDIO, storage::putBoolean) { storage.getBoolean(PlatformSettingsKeys.KEY_DISABLE_SPATIAL_AUDIO, false) }
     var forceAdaptiveAnc by persisted(PlatformSettingsKeys.KEY_FORCE_ADAPTIVE_ANC, storage::putBoolean) { storage.getBoolean(PlatformSettingsKeys.KEY_FORCE_ADAPTIVE_ANC, false) }
+    var powerKeeperBlockWhitelistRestore by persisted(PlatformSettingsKeys.KEY_POWERKEEPER_BLOCK_WHITELIST_RESTORE, storage::putBoolean) { storage.getBoolean(PlatformSettingsKeys.KEY_POWERKEEPER_BLOCK_WHITELIST_RESTORE, false) }
     var fcmLiveEnabled by persisted(PlatformSettingsKeys.KEY_FCM_LIVE_ENABLED, storage::putBoolean) { storage.getBoolean(PlatformSettingsKeys.KEY_FCM_LIVE_ENABLED, false) }
     var lbeClipboardToast by persisted(PlatformSettingsKeys.KEY_LBE_CLIPBOARD_TOAST, storage::putBoolean) { storage.getBoolean(PlatformSettingsKeys.KEY_LBE_CLIPBOARD_TOAST, false) }
     var disableMiTrustRiskMonitoring by persisted(PlatformSettingsKeys.KEY_MITRUST_DISABLE_RISK_MONITORING, storage::putBoolean) { storage.getBoolean(PlatformSettingsKeys.KEY_MITRUST_DISABLE_RISK_MONITORING, false) }
@@ -159,6 +160,7 @@ internal class AppSettingsState(val storage: AppSettingsStore) {
             PlatformSettingsKeys.KEY_DISABLE_SPATIAL_AUDIO -> disableSpatialAudio
             PlatformSettingsKeys.KEY_FORCE_ADAPTIVE_ANC -> forceAdaptiveAnc
             PlatformSettingsKeys.KEY_FCM_LIVE_ENABLED -> fcmLiveEnabled
+            PlatformSettingsKeys.KEY_POWERKEEPER_BLOCK_WHITELIST_RESTORE -> powerKeeperBlockWhitelistRestore
             PlatformSettingsKeys.KEY_LBE_CLIPBOARD_TOAST -> lbeClipboardToast
             PlatformSettingsKeys.KEY_MITRUST_DISABLE_RISK_MONITORING -> disableMiTrustRiskMonitoring
             PlatformSettingsKeys.KEY_GUARD_PROVIDER_DISABLE_ENVIRONMENT_CHECK -> disableGuardEnvironmentCheck

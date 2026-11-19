@@ -129,6 +129,7 @@ object PlatformSettingsKeys {
     const val KEY_DISABLE_SPATIAL_AUDIO = "disable_spatial_audio"
     const val KEY_FORCE_ADAPTIVE_ANC = "force_adaptive_anc"
     const val KEY_FCM_LIVE_ENABLED = "fcm_live_enabled"
+    const val KEY_POWERKEEPER_BLOCK_WHITELIST_RESTORE = "powerkeeper_block_whitelist_restore"
     const val KEY_FREEFORM_BLUR_TRANSITION = "freeform_blur_transition"
     const val KEY_REMOVE_ISLAND_PLACEHOLDER = "systemui_remove_island_placeholder"
     const val KEY_THREE_ISLANDS = "systemui_three_islands"

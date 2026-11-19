@@ -417,6 +417,30 @@ window scrolls. `securitycenter_dock_app_shortcuts_freeform` passes the framewor
 without small-window support) opens normally. Validation: `SecurityCenterDockShortcutsContractTest`
 (set `SECURITY_CENTER_APK`); the user checks placement, tapping, dark mode and hot reload on device.
 
+## PowerKeeper allowlist restore block
+
+`PowerKeeperWhitelistRestoreHooker` runs in every `com.miui.powerkeeper` process. Its switch is on the Features tab, key `powerkeeper_block_whitelist_restore`, group `PASSIVE_POLICIES`. Verified on PowerKeeper 4.2.00 / OS4.0.6.0.XPMCNXM (APK SHA-256 `164f2b62…5448c6`).
+
+**Where PowerKeeper adds apps.** `DeviceIdlePolicyHelper.c(String[]) → CommonAdapter.addPowerSaveWhitelistApps → IDeviceIdleController.addPowerSaveWhitelistApps(List)` is its only allowlist add. Three sources feed it:
+- `DeviceIdleController.onHandleMessage(what=1)` re-adds `sAlwaysWhiteApps` on every rule pass. On CN builds that set is `array/doze_always_white_apps` (WeChat, QQ, QQ Lite) plus `pkg_deskclock`.
+- Apps whose rule allows them, such as those in the cloud `dozeWhiteListApps` list or set to user `noRestrict`, are added through `setUidState`.
+- The force-idle and power-save restores.
+
+PowerKeeper removes apps only through `IDeviceIdleController.removePowerSaveWhitelistApp(String)`. Rule flips also remove apps that the user allowlisted in Settings. Natively, PowerKeeper adds them back later.
+
+**What the hook does.** It sits on the framework `IDeviceIdleController$Stub$Proxy`, so it is independent of PowerKeeper obfuscation:
+- **Remove:** before each removal, it queries `getUserPowerWhitelist()`. If the package is on the list, it records the package in `AllowlistRestoreLedger`, whether or not the switch is on.
+- **Add, switch on:** it passes only recorded packages, each once, plus GMS while FCM Live is on, because FCM Live feeds GMS through `getDozeWhiteListApps`. It drops everything else. When the switch is off, adds pass unchanged but still consume their records.
+- **Settings:** writes from its own process and is unaffected.
+- **Hot reload:** the ledger crosses as a `HashSet<String>`.
+- **Limitations:**
+  - A PowerKeeper process restart, or an upgrade from a build that saved no state, forgets pending restores.
+  - If the user restricts an app in Settings while PowerKeeper has it removed, PowerKeeper's later restore overrides that change.
+
+**Compared with upstream.** HyperCeiler's `PreventBatteryWitelist` hooks `DeviceIdlePolicyHelper.c` and blocks only arrays longer than 1. It misses single-package adds, and it blocks PowerKeeper's legitimate restores whenever they are batched.
+
+**Inlining.** `CommonAdapter.addPowerSaveWhitelistApps` has no AOT code in `PowerKeeper.odex`, so nothing inlines the proxy.
+
 ## Personal Assistant widget picker
 
 The PA main-process `AndroidWidgetPickerHooker` resolves the existing native classic-widget footer lifecycle, navigator and source. Catalog gates resolve independently, including Kotlin accessors; chooser reflection is resolved lazily and cannot prevent entry registration. Assistant

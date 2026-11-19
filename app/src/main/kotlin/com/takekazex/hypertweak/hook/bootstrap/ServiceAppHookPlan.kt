@@ -12,6 +12,7 @@ import com.takekazex.hypertweak.hook.rules.milink.MiLinkHpplayHooker
 import com.takekazex.hypertweak.hook.rules.module.ModuleStatusHooker
 import com.takekazex.hypertweak.hook.rules.module.RestartBroadcastHooker
 import com.takekazex.hypertweak.hook.rules.powerkeeper.FcmLivePowerKeeperHooker
+import com.takekazex.hypertweak.hook.rules.powerkeeper.PowerKeeperWhitelistRestoreHooker
 import com.takekazex.hypertweak.hook.rules.screenshot.ScreenshotAutoFrameHooker
 import com.takekazex.hypertweak.hook.rules.screenshot.ScreenshotClipboardHooker
 import com.takekazex.hypertweak.hook.rules.screenshot.ScreenshotSaveDirectoryHooker
@@ -53,6 +54,7 @@ internal object ServiceAppHookPlan {
             "com.miui.powerkeeper" -> {
                 hook { RestartBroadcastHooker }
                 hook { FcmLivePowerKeeperHooker }
+                hook { PowerKeeperWhitelistRestoreHooker }
             }
             "com.google.android.googlequicksearchbox" -> {
                 // Keep the package scope for Lens/OMNI features, but dispatch only in their UI process.

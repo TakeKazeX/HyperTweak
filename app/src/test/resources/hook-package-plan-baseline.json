@@ -387,7 +387,8 @@
     "package": "com.miui.powerkeeper",
     "targets": [
       "RestartBroadcastHooker",
-      "FcmLivePowerKeeperHooker"
+      "FcmLivePowerKeeperHooker",
+      "PowerKeeperWhitelistRestoreHooker"
     ]
   },
   {
@@ -395,7 +396,8 @@
     "package": "com.miui.powerkeeper",
     "targets": [
       "RestartBroadcastHooker",
-      "FcmLivePowerKeeperHooker"
+      "FcmLivePowerKeeperHooker",
+      "PowerKeeperWhitelistRestoreHooker"
     ]
   },
   {

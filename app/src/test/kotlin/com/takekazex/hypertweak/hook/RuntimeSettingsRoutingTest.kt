@@ -111,6 +111,7 @@ class RuntimeSettingsRoutingTest {
         assertTrue(Groups.owns("com.android.settings", SystemUiSettingsKeys.KEY_NOTIFICATION_MORE_SETTINGS))
         assertTrue(Groups.PASSIVE_POLICIES in Groups.forProcess("com.android.providers.downloads.ui"))
         assertTrue(Groups.PASSIVE_POLICIES in Groups.forProcess("com.xiaomi.bluetooth:application"))
+        assertTrue(Groups.owns("com.miui.powerkeeper", PlatformSettingsKeys.KEY_POWERKEEPER_BLOCK_WHITELIST_RESTORE))
     }
 
     @Test fun systemSharedUidOptionCanBeAddedToAnOldSnapshotAndRemovedAfterReload() {

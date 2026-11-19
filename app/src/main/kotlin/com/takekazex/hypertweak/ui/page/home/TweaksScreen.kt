@@ -223,6 +223,15 @@ fun TweaksScreenContent(
             )
         }
 
+        AppSection(title = stringResource(R.string.tweaks_powerkeeper_title)) {
+            SwitchPreference(
+                checked = appSettings.powerKeeperBlockWhitelistRestore,
+                onCheckedChange = { appSettings.powerKeeperBlockWhitelistRestore = it },
+                title = stringResource(R.string.powerkeeper_block_whitelist_restore_title),
+                summary = stringResource(R.string.powerkeeper_block_whitelist_restore_summary)
+            )
+        }
+
         AppSection(title = stringResource(R.string.tweaks_focus_notification_title)) {
             ArrowPreference(
                 title = stringResource(R.string.tweaks_focus_notification_title),
