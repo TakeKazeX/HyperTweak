@@ -84,6 +84,7 @@ internal class MemoryAppSettings : AppSettingsStore {
     override val platform = object : PlatformAppSettings {
         override fun nativePickerEnabled(key: String): Boolean = error("Unused page operation: nativePickerEnabled")
         override fun freeformBlurTransition(): Boolean = error("Unused page operation: freeformBlurTransition")
+        override fun motionCuesFreeformFix(): Boolean = error("Unused page operation: motionCuesFreeformFix")
         override fun unlockAdaptiveRefreshPro(): Boolean = error("Unused page operation: unlockAdaptiveRefreshPro")
         override fun unlockMoreAonGestures(): Boolean = error("Unused page operation: unlockMoreAonGestures")
         override fun unlockMoreVisualPerception(): Boolean = error("Unused page operation: unlockMoreVisualPerception")

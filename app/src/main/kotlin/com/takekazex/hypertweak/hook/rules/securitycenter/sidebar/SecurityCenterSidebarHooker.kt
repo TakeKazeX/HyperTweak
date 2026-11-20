@@ -1,6 +1,5 @@
 package com.takekazex.hypertweak.hook.rules.securitycenter.sidebar
 
-import android.graphics.Region
 import android.os.Handler
 import android.os.Looper
 import android.view.View
@@ -9,6 +8,7 @@ import android.view.ViewTreeObserver
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.DynamicHooker
 import com.takekazex.hypertweak.hook.base.HostAccess
+import com.takekazex.hypertweak.hook.base.WindowTouchableInsets
 import com.takekazex.hypertweak.hook.base.dex.DexFeature
 import com.takekazex.hypertweak.hook.base.dex.DexOperandIndex
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
@@ -17,7 +17,6 @@ import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.ref.WeakReference
-import java.lang.reflect.Proxy
 import java.util.WeakHashMap
 import androidx.core.view.isVisible
 
@@ -35,23 +34,9 @@ object SecurityCenterSidebarHooker : DynamicHooker() {
     private val main = Handler(Looper.getMainLooper())
     @Volatile private var retired = true
     private var viewType: Class<*>? by generationState { null }
-    private var insets: InsetsContract? by generationState { null }
+    private var insets: WindowTouchableInsets? by generationState { null }
     private val hosts = WeakHashMap<View, Registration>()
     private data class Registration(val attach: View.OnAttachStateChangeListener, var observer: ViewTreeObserver? = null, var proxy: Any? = null)
-
-    private class InsetsContract {
-        val listener = Class.forName("android.view.ViewTreeObserver\$OnComputeInternalInsetsListener")
-        private val info = Class.forName("android.view.ViewTreeObserver\$InternalInsetsInfo")
-        val add = HostAccess.requirePublicMethod(ViewTreeObserver::class.java, "addOnComputeInternalInsetsListener", listener, accessible = true)
-        val remove = HostAccess.requirePublicMethod(ViewTreeObserver::class.java, "removeOnComputeInternalInsetsListener", listener, accessible = true)
-        private val setMode = HostAccess.requirePublicMethod(info, "setTouchableInsets", Int::class.javaPrimitiveType, accessible = true)
-        private val region = HostAccess.requirePublicField(info, "touchableRegion", accessible = true)
-        fun empty(value: Any) {
-            val touchable = region.get(value) as? Region ?: return
-            setMode.invoke(value, 3) // TOUCHABLE_INSETS_REGION, local to this traversal.
-            touchable.setEmpty()
-        }
-    }
 
     override fun onHook() {
         if (hookParam.processName != SecurityCenterDockHost.PROCESS) return
@@ -67,7 +52,7 @@ object SecurityCenterSidebarHooker : DynamicHooker() {
                 })
         }, install = { (type, touch, draw) ->
             // Validate the platform contract before installing either behavior.
-            insets = InsetsContract()
+            insets = WindowTouchableInsets()
             viewType = type
             deoptimize(touch)
             deoptimize(draw)
@@ -108,31 +93,22 @@ object SecurityCenterSidebarHooker : DynamicHooker() {
         if (view.parent !== root) return
         val contract = insets ?: return
         val weak = WeakReference(view)
-        val proxy = Proxy.newProxyInstance(contract.listener.classLoader, arrayOf(contract.listener)) { self, method, args ->
-            when (method.name) {
-                "hashCode" -> System.identityHashCode(self)
-                "equals" -> self === args?.firstOrNull()
-                "toString" -> TAG
-                "onComputeInternalInsets" -> {
-                    if (!retired && mode == 1) runCatching {
-                        val handle = weak.get()
-                        val container = handle?.rootView as? ViewGroup
-                        if (handle != null && container != null && handle.parent === container) {
-                            // An open panel/shortcut menu keeps the host's complete input region.
-                            val panelVisible = (0 until container.childCount).any {
-                                val child = container.getChildAt(it)
-                                child !== handle && child.isVisible && child.alpha > 0f && child.width > 0 && child.height > 0
-                            }
-                            if (!panelVisible) args?.firstOrNull()?.let(contract::empty)
-                        }
-                    }.onFailure { DebugLog.w(TAG, "input region update failed", it) }
-                    null
+        val proxy = contract.listener(TAG) { info ->
+            if (!retired && mode == 1) runCatching {
+                val handle = weak.get()
+                val container = handle?.rootView as? ViewGroup
+                if (handle != null && container != null && handle.parent === container) {
+                    // An open panel/shortcut menu keeps the host's complete input region.
+                    val panelVisible = (0 until container.childCount).any {
+                        val child = container.getChildAt(it)
+                        child !== handle && child.isVisible && child.alpha > 0f && child.width > 0 && child.height > 0
+                    }
+                    if (!panelVisible) contract.empty(info)
                 }
-                else -> null
-            }
+            }.onFailure { DebugLog.w(TAG, "input region update failed", it) }
         }
         val observer = root.viewTreeObserver
-        contract.add.invoke(observer, proxy)
+        contract.add(observer, proxy)
         registration.observer = observer
         registration.proxy = proxy
         root.requestLayout()
@@ -143,7 +119,7 @@ object SecurityCenterSidebarHooker : DynamicHooker() {
         val registration = hosts[view] ?: return
         val observer = registration.observer
         val proxy = registration.proxy
-        if (observer?.isAlive == true && proxy != null) insets?.remove?.invoke(observer, proxy)
+        if (observer?.isAlive == true && proxy != null) insets?.remove(observer, proxy)
         registration.observer = null
         registration.proxy = null
         view.rootView.requestLayout()

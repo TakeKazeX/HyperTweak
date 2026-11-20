@@ -79,6 +79,7 @@ internal object RuntimeSettingsGroups {
     /** Live floating-notification whitelist switch. */
     const val NOTIFICATION_WHITELIST = "systemui.notification_whitelist"
     const val FREEFORM_BLUR = "systemui.freeform_blur"
+    const val MOTION_CUES_FREEFORM = "systemui.motion_cues_freeform"
     const val GOOGLE_APP = "google.omni"
     const val GOOGLE_SETTINGS = "settings.google_services"
     const val GMS_RESTRICTIONS = "system.gms_restrictions"

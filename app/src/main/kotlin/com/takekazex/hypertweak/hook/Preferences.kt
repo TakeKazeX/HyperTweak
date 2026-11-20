@@ -343,6 +343,7 @@ object Preferences {
     fun notificationBlockFold(): Boolean = getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_BLOCK_FOLD, false)
 
     fun freeformBlurTransition(): Boolean = getBoolean(PlatformSettingsKeys.KEY_FREEFORM_BLUR_TRANSITION, false)
+    fun motionCuesFreeformFix(): Boolean = getBoolean(PlatformSettingsKeys.KEY_MOTION_CUES_FREEFORM_FIX, false)
 
     private lateinit var remotePrefs: SharedPreferences
     // Only the module Application may supply this store via useLocalOnly; never a host cache.

@@ -275,6 +275,23 @@ upstream's identity-options GOT chain. The separate upstream Overview observer s
 only authenticated visibility with gesture-bar hiding. See `docs/PR10_BACKGESTURE_IPC_20261021.md`
 for the reproduced conflict, actual-image contracts and delivery evidence.
 
+## Motion Cues and floating window gestures
+
+On OS4, the Google Services switch `motion_cues_freeform_fix` is off by default.
+Xiaomi puts the Motion Cues `TYPE_VOLUME_OVERLAY` in both tap-excluded window lists and
+merges its window frame into both gesture regions. Resolve the SystemUI creation method
+and the stored overlay by following the same view allocation into `addView` and the
+host field. Deoptimize the verified session and configuration callers before hooking
+creation. The overlay alone reports an empty touchable region through internal insets,
+so WMS still computes both regions from all other sources.
+
+`MotionCuesFreeformHooker` tracks overlay attachment on the main thread and scans the
+actual WindowManager roots when targets are published or settings are refreshed. This
+recovers an overlay created before a hot reload. Disable and retirement remove the
+listener and request another traversal to send the platform's default insets mode.
+For host verification, check both regions received by `MiuiFreeformModeController`,
+then manually test top and bottom captions, resize, and rotation with dots visible.
+
 ## Gesture bar hiding
 
 The gesture bar (`HideBottomBarHooker`) has one decision owner, `GestureBarState`: a per-display phase machine (idle, leaving, hidden, returning). Three moments are strictly separated, because mixing them produced three device-reported regressions. The fade plays *inside the application* about 260 ms into the gesture (`FADE_OUT`, and the draw gate keeps painting via `fadingDisplays` so the animation has something to act on). The platform's `sampling=true` display-level restore then stops drawing immediately with no animation of our own (`HIDE_NOW`), because the platform fades its own copy in at that point and animating there flashes at the bottom of the screen. The reveal on `appTransitionFinished` writes the host alpha back only for a display that is genuinely not suppressed, and `selfDrivenAlpha` keeps the animation's intermediate values out of that record. Authority is explicit: the launcher's authenticated Overview broadcast is the only source of truth, because HYOS runs Recents in the Dart launcher and `ShellController.isOverviewVisible` keeps answering `false` while it is genuinely on screen. `overviewReported` records that a session heard the launcher and survives hot reload; while it is set, the platform query is never consulted - trusting it discarded live sessions and drew the bar over Recents (reported defect). The platform query is only a fallback for sessions the launcher never described, which is exactly the cancelled-swipe case: the fade already played, no Overview was ever reported, and the finished transition restores the bar instead of waiting out the stuck-report deadline. The leaving transition's own finish, which arrives with Recents still visible, is ignored. Every phase has a bounded deadline that fails safe. The launcher Overview bridge needs an application context, so it registers from `onSystemUiContextReady` - the path SystemUI actually takes; package ready alone left zero registrations and degraded the feature to timer guessing. `AospBackSystemUiHooker.onApplicationContextReady` is idempotent and also called from package ready and hot-reload restore.

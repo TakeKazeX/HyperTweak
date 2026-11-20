@@ -96,6 +96,7 @@ internal object PreferencesAppSettings : AppSettingsStore {
     override val platform = object : PlatformAppSettings {
         override fun nativePickerEnabled(key: String): Boolean = Preferences.nativePickerEnabled(key)
         override fun freeformBlurTransition(): Boolean = Preferences.freeformBlurTransition()
+        override fun motionCuesFreeformFix(): Boolean = Preferences.motionCuesFreeformFix()
         override fun unlockAdaptiveRefreshPro(): Boolean = Preferences.unlockAdaptiveRefreshPro()
         override fun unlockMoreAonGestures(): Boolean = Preferences.unlockMoreAonGestures()
         override fun unlockMoreVisualPerception(): Boolean = Preferences.unlockMoreVisualPerception()

@@ -46,7 +46,8 @@
       "SystemUiBubbleNotificationWhitelistHooker",
       "NotificationBlockFoldHooker",
       "StatusBarHideSilentHooker",
-      "FreeformBlurTransitionHooker"
+      "FreeformBlurTransitionHooker",
+      "MotionCuesFreeformHooker"
     ]
   },
   {

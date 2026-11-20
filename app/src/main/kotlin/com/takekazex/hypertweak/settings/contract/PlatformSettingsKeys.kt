@@ -131,6 +131,7 @@ object PlatformSettingsKeys {
     const val KEY_FCM_LIVE_ENABLED = "fcm_live_enabled"
     const val KEY_POWERKEEPER_BLOCK_WHITELIST_RESTORE = "powerkeeper_block_whitelist_restore"
     const val KEY_FREEFORM_BLUR_TRANSITION = "freeform_blur_transition"
+    const val KEY_MOTION_CUES_FREEFORM_FIX = "motion_cues_freeform_fix"
     const val KEY_REMOVE_ISLAND_PLACEHOLDER = "systemui_remove_island_placeholder"
     const val KEY_THREE_ISLANDS = "systemui_three_islands"
     const val KEY_LANDSCAPE_FULL_ISLANDS = "systemui_landscape_full_islands"

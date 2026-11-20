@@ -166,6 +166,7 @@ internal object RuntimeSettingsDefinitions {
         RuntimeSettingsGroups.NOTIFICATION_MINI_WINDOW to Group(systemUi, keys = setOf(SystemUiSettingsKeys.KEY_NOTIFICATION_MINI_WINDOW)),
         RuntimeSettingsGroups.NOTIFICATION_WHITELIST to Group(systemUi, strict = setOf(SystemUiSettingsKeys.KEY_NOTIFICATION_WHITELIST_BYPASS)),
         RuntimeSettingsGroups.FREEFORM_BLUR to Group(systemUi, keys = setOf(PlatformSettingsKeys.KEY_FREEFORM_BLUR_TRANSITION)),
+        RuntimeSettingsGroups.MOTION_CUES_FREEFORM to Group(systemUi, keys = setOf(PlatformSettingsKeys.KEY_MOTION_CUES_FREEFORM_FIX)),
         RuntimeSettingsGroups.KEYGUARD to Group(systemUi, keys = keyguardKeys),
         RuntimeSettingsGroups.HEADER to Group(systemUi, keys = SystemUiLiveSettings.HEADER_KEYS),
         RuntimeSettingsGroups.NOTIFICATION_TEXT to Group(systemUi, keys = SystemUiLiveSettings.NOTIFICATION_TEXT_KEYS),

@@ -7,6 +7,7 @@ import org.jf.dexlib2.iface.instruction.*
 import org.jf.dexlib2.iface.reference.FieldReference
 import org.jf.dexlib2.iface.reference.MethodReference
 import org.jf.dexlib2.iface.reference.StringReference
+import org.jf.dexlib2.iface.reference.TypeReference
 import java.io.File
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 import java.util.concurrent.ConcurrentHashMap
@@ -76,6 +77,7 @@ internal class DexOperandIndex internal constructor(
         data class Field(val field: FieldReference) : Value
         data class Text(val text: String) : Value
         data class Number(val number: Long) : Value
+        data class Allocation(val type: String, val address: Int) : Value
     }
     data class Branch(val start: Int, val end: Int, val value: Value, val skipsWhenFalse: Boolean)
     data class CallSite(val address: Int, val method: MethodReference, val arguments: List<Value?>)
@@ -230,6 +232,8 @@ internal class DexOperandIndex internal constructor(
                 }
                 instruction is WideLiteralInstruction && op.startsWith("CONST") ->
                     registers[a!!] = Value.Number(instruction.wideLiteral)
+                reference is TypeReference && op == "NEW_INSTANCE" ->
+                    registers[a!!] = Value.Allocation(reference.type, address)
                 op.startsWith("MOVE_RESULT") -> pending?.let { registers[a!!] = it }
                 op.startsWith("MOVE") && b != null -> priorB?.let { registers[a!!] = it }
                 reference is MethodReference && op.startsWith("INVOKE") -> {

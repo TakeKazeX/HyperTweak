@@ -953,6 +953,8 @@
     <string name="settings_freeform_blur_summary">Blur the background when switching between floating, split-screen and fullscreen windows</string>
     <string name="google_services_title">Google Services</string>
     <string name="google_services_back">Back</string>
+    <string name="settings_motion_cues_freeform_title">Fix floating window gestures with Motion Cues</string>
+    <string name="settings_motion_cues_freeform_summary">Keep floating window dragging and resizing available while Motion Cues dots are visible</string>
     <string name="settings_fingerprint_avoid_always">Always Avoid</string>
     <string name="settings_fingerprint_avoid_default">System Default</string>
     <string name="settings_fingerprint_avoid_none">No Avoidance</string>

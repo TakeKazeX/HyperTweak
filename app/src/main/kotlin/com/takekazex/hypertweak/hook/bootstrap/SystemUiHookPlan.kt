@@ -13,6 +13,7 @@ import com.takekazex.hypertweak.hook.rules.systemui.ExtendUnlockHooker
 import com.takekazex.hypertweak.hook.rules.systemui.notification.DownloadFocusAuthPluginHooker
 import com.takekazex.hypertweak.hook.rules.systemui.notification.FocusNotificationWhitelistHooker
 import com.takekazex.hypertweak.hook.rules.systemui.freeform.FreeformBlurTransitionHooker
+import com.takekazex.hypertweak.hook.rules.systemui.freeform.MotionCuesFreeformHooker
 import com.takekazex.hypertweak.hook.rules.systemui.gesturebar.HideBottomBarHooker
 import com.takekazex.hypertweak.hook.rules.systemui.lockscreen.HideFingerprintIcon
 import com.takekazex.hypertweak.hook.rules.systemui.lockscreen.HideLockscreenStatusBarHooker
@@ -103,6 +104,7 @@ internal object SystemUiHookPlan {
                 // SystemUI class loader resolves them (same channel as HideBottomBarHooker's
                 // MiuiDecorationBottomView).
                 hook { FreeformBlurTransitionHooker }
+                if (processName == "com.android.systemui") hook { MotionCuesFreeformHooker }
                 // ControlCenterCardsEditHooker and ControlCenterCardResizeHooker attach only
                 // through SystemUIPluginHooker: their target classes live in
                 // the miui.systemui.plugin APK, whose PathClassLoader only exists after

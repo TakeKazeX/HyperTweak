@@ -12,6 +12,7 @@ import com.takekazex.hypertweak.hook.rules.systemui.notification.NotificationMin
 import com.takekazex.hypertweak.hook.rules.systemui.notification.NotificationWhitelistBypassHooker
 import com.takekazex.hypertweak.hook.rules.systemui.StatusBarHideSilentHooker
 import com.takekazex.hypertweak.hook.rules.systemui.freeform.FreeformBlurTransitionHooker
+import com.takekazex.hypertweak.hook.rules.systemui.freeform.MotionCuesFreeformHooker
 import com.takekazex.hypertweak.hook.rules.securitycenter.AppDetailsIconLaunchHooker
 import com.takekazex.hypertweak.hook.rules.securitycenter.AppDetailsActionsHooker
 import com.takekazex.hypertweak.hook.rules.securitycenter.MoreAppInfoHooker
@@ -310,6 +311,9 @@ internal object RuntimeSettingsParticipants {
         registerForProcess(RuntimeSettingsGroups.FREEFORM_BLUR) { _ ->
             FreeformBlurTransitionHooker.refreshSettings()
             true
+        }
+        registerForProcess(RuntimeSettingsGroups.MOTION_CUES_FREEFORM) { _ ->
+            MotionCuesFreeformHooker.refreshSettings()
         }
         registerForProcess(RuntimeSettingsGroups.KEYGUARD) { _ ->
             Preferences.invalidateRuntimeReadCache()
