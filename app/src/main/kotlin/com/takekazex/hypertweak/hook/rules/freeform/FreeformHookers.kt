@@ -27,6 +27,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 private const val WM = "com.android.server.wm."
 private const val UTILS = "android.util.MiuiMultiWindowUtils"
 private const val ADAPTER = "android.util.MiuiMultiWindowAdapter"
+private const val WINDOWING_MODE_FREEFORM = 5
 private val BOOL = Boolean::class.javaPrimitiveType!!
 private val INT = Int::class.javaPrimitiveType!!
 private val VOID = Void.TYPE
@@ -256,13 +257,24 @@ internal object SystemServerFreeformHooker : FreeformHooker() {
 
     private fun installForceAllow() {
         val displayArea = host(WM + "TaskDisplayArea")
-        val taskCheck = target(WM + "Task", "supportsMultiWindowInDisplayAreaForFreeForm", BOOL, displayArea)
+        val task = host(WM + "Task")
+        val activity = host(WM + "ActivityRecord")
+        val taskCheck = target(task.name, "supportsMultiWindowInDisplayAreaForFreeForm", BOOL, displayArea)
         val activityCheck = target(
             WM + "ActivityRecordImpl", "supportsMultiWindowInDisplayAreaForFreeForm", BOOL, displayArea,
         )
         val recentsCheck = target(WM + "ActivityTaskManagerServiceImpl", "getTaskResizeableForFreeform", BOOL, INT)
-        val normalResize = target(WM + "Task", "isResizeable", BOOL)
-        val recentsResize = target(WM + "Task", "isResizeable", BOOL, BOOL)
+        val normalResize = target(task.name, "isResizeable", BOOL)
+        val recentsResize = target(task.name, "isResizeable", BOOL, BOOL)
+        val moveTaskToFront = target(
+            WM + "ActivityTaskSupervisor", "findTaskToMoveToFront", VOID,
+            task, INT, ActivityOptions::class.java, String::class.java, BOOL,
+        )
+        val launchMode = target(ActivityOptions::class.java.name, "getLaunchWindowingMode", INT).accessible()
+        val validateMode = target(displayArea.name, "isValidWindowingMode", BOOL, INT, activity, task)
+        val applyMode = target(task.name, "setWindowingModeInner", VOID, INT, BOOL)
+        val resolveMode = target(displayArea.name, "validateWindowingMode", INT, INT, activity, task)
+        val genericTaskCheck = target(WM + "TaskFragment", "supportsMultiWindowInDisplayArea", BOOL, displayArea)
         val nonResizable = target(WM + "TaskDisplayArea", "supportsNonResizableMultiWindow", BOOL)
         val forceResize = target(UTILS, "isForceResizeable", BOOL, static = true)
         val packageCheck = packageEligibility()
@@ -289,18 +301,45 @@ internal object SystemServerFreeformHooker : FreeformHooker() {
         val displayReaders = listOf("Task", "ActivityRecord").map { name ->
             target(WM + name, "supportsFreeformInDisplayArea", BOOL, displayArea)
         }
-        (listOf(packageCheck, normalResize) + capabilityReaders + listReaders + displayReaders).forEach(::deoptimize)
+        (listOf(packageCheck, applyMode, resolveMode, genericTaskCheck) +
+            capabilityReaders + listReaders + displayReaders).forEach(::deoptimize)
 
         // Activation is atomic even if installation of a later callback fails. Enter/exit the
         // scope unconditionally so a settings update during the original call cannot leak it.
         val ready = AtomicBoolean(false)
         val displayDepth = ThreadLocal<Int>()
         val recentsDepth = ThreadLocal<Int>()
+        val launchTasks = ThreadLocal<MutableList<Any?>>()
+        val validationAreas = ThreadLocal<MutableList<Any?>>()
         taskCheck.trackCall("freeform_task_scope", displayDepth)
         activityCheck.trackCall("freeform_activity_scope", displayDepth)
         recentsCheck.trackCall("freeform_recents_scope", recentsDepth)
-        nonResizable.overrideWhen("freeform_display_resize", true) {
-            ready.get() && forceAllow && displayDepth.get() != null
+        // Moving a recent task to the front checks the no-argument overload before using launch bounds.
+        moveTaskToFront.trackFreeformRequest("freeform_move_task_scope", launchTasks) { _, args ->
+            val options = args[2] as? ActivityOptions
+            args[0].takeIf { options != null && launchMode.invoke(options) == WINDOWING_MODE_FREEFORM }
+        }
+        // Mode validation also checks generic multi-window support outside the freeform-specific call.
+        validateMode.trackFreeformRequest("freeform_validate_mode_scope", validationAreas) { area, args ->
+            area.takeIf { args[0] == WINDOWING_MODE_FREEFORM && args[2] != null }
+        }
+        deoptimize(normalResize)
+        normalResize.hook("freeform_move_task_resize") {
+            before { param ->
+                val taskInLaunch = launchTasks.get()?.lastOrNull()
+                if (taskInLaunch != null && taskInLaunch === param.thisObject && ready.get() && forceAllow) {
+                    param.result = true
+                }
+            }
+        }
+        deoptimize(nonResizable)
+        nonResizable.hook("freeform_display_resize") {
+            before { param ->
+                if (!ready.get() || !forceAllow) return@before
+                val areaInValidation = validationAreas.get()?.lastOrNull()
+                val validatingThisArea = areaInValidation != null && areaInValidation === param.thisObject
+                if (displayDepth.get() != null || validatingThisArea) param.result = true
+            }
         }
         recentsResize.overrideWhen("freeform_recents_resize", true) {
             ready.get() && forceAllow && recentsDepth.get() != null
@@ -313,6 +352,31 @@ internal object SystemServerFreeformHooker : FreeformHooker() {
             }
         }
         ready.set(true)
+    }
+
+    private fun Method.trackFreeformRequest(
+        id: String,
+        requests: ThreadLocal<MutableList<Any?>>,
+        receiverInScope: (Any?, Array<Any?>) -> Any?,
+    ) {
+        deoptimize(this)
+        hook(id) {
+            before { param ->
+                val receiver = if (forceAllow) {
+                    HookFailurePolicy.open(hookerName, id, null) { receiverInScope(param.thisObject, param.args) }
+                } else null
+                val stack = requests.get() ?: run {
+                    if (receiver == null) return@before
+                    ArrayList<Any?>(1).also(requests::set)
+                }
+                stack.add(receiver)
+            }
+            after {
+                val stack = requests.get() ?: return@after
+                stack.removeAt(stack.lastIndex)
+                if (stack.isEmpty()) requests.remove()
+            }
+        }
     }
 
     private fun Method.trackCall(id: String, depth: ThreadLocal<Int>) {

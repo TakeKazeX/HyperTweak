@@ -46,6 +46,25 @@ verifies the full artifact SHA-256 before resolving. Device acceptance must cove
 foreground/background SMS, lock/unlock, reset, hot replacement, duplicate/order
 handling, native recognition misses and preservation of unread state.
 
+## Force allow freeform
+
+On HyperOS 4.0.6.0, the freeform eligibility query for Recents and the actual
+window-mode change use separate checks. In system_server,
+`ActivityTaskSupervisor.findTaskToMoveToFront` calls `Task.isResizeable()`
+before applying launch bounds. The override applies to the requested task
+during an explicit freeform launch. `TaskDisplayArea.isValidWindowingMode`
+also performs a generic multi-window check when applying a freeform
+transaction, including entry into mini freeform. During validation of mode 5
+with a task, the display-area override lets this check accept non-resizable
+tasks while the framework still evaluates the requested mode, display support,
+and minimum sizes. The scopes unwind after the synchronous host calls and
+sample the live switch at the decision points, so no task metadata is retained
+or rewritten. Disabling or resetting the switch restores the native decision
+for subsequent requests. The framework owns tasks already in freeform.
+
+On device, verify both Recents freeform and mini freeform with a non-resizable
+task such as System Updater, then retry after disabling the setting.
+
 ## Force allow split screen
 
 The independent, default-off switch uses the shared `system.freeform` settings
