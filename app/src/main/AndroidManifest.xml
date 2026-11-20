@@ -95,17 +95,6 @@
         android:supportsRtl="true"
         android:theme="@android:style/Theme.DeviceDefault.NoActionBar"
         android:enableOnBackInvokedCallback="true">
-        
-        <!-- Xposed Module Configuration -->
-        <meta-data
-            android:name="xposedmodule"
-            android:value="true"/>
-        <meta-data
-            android:name="xposeddescription"
-            android:value="@string/module_description"/>
-        <meta-data
-            android:name="xposedscope"
-            android:resource="@array/xposed_scope"/>
 
         <!-- Hooked host apps share no permission to require. Each request is authenticated in
              onReceive by the framework-reported sender package/uid against the settings targets. -->
