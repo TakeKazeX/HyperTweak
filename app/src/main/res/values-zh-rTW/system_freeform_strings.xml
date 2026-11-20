@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="system_freeform_title">小窗</string>
+    <string name="system_freeform_title">小窗與分割畫面</string>
+    <string name="system_freeform_force_split_title">強制允許分割畫面</string>
+    <string name="system_freeform_force_split_summary">允許標記為無法調整大小的應用程式從最近使用的應用程式進入分割畫面。部分應用程式的介面可能顯示異常。</string>
     <string name="system_freeform_count_title">多小窗</string>
     <string name="system_freeform_count_summary">將系統替換舊小窗的數量門檻提高至 256。裝置仍可能有其他限制。</string>
     <string name="system_freeform_force_title">強制允許小窗</string>
@@ -8,7 +10,7 @@
     <string name="system_freeform_pin_title">貼邊小窗強制前景</string>
     <string name="system_freeform_pin_summary">下次將小窗貼邊時按前景視窗處理，可能增加耗電。</string>
     <string name="system_freeform_summary">調整小窗行為，並選擇應用程式在哪些情境以小窗開啟</string>
-    <string name="system_freeform_window_section">小窗行為</string>
+    <string name="system_freeform_window_section">視窗行為</string>
     <string name="system_freeform_jump_section">跳轉情境</string>
     <string name="system_freeform_jump_title">跳轉應用程式時以小窗開啟</string>
     <string name="system_freeform_jump_summary">只在下方已開啟的情境使用小窗，系統仍會檢查目標應用程式是否支援。</string>

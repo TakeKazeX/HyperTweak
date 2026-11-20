@@ -2,6 +2,8 @@ package com.takekazex.hypertweak.hook.bootstrap
 
 import com.takekazex.hypertweak.hook.rules.systemui.aod.AODHooker
 import com.takekazex.hypertweak.hook.rules.aicr.AicrDefaultBrowserHooker
+import com.takekazex.hypertweak.hook.rules.freeform.ForceSplitScreenHooker
+import com.takekazex.hypertweak.settings.contract.FreeformSettingsKeys
 import com.takekazex.hypertweak.hook.rules.systemui.lockscreen.HideFingerprintIcon
 import com.takekazex.hypertweak.hook.rules.systemui.gesturebar.HideBottomBarHooker
 import com.takekazex.hypertweak.hook.rules.systemui.lockscreen.HideLockscreenStatusBarHooker
@@ -174,7 +176,12 @@ internal object RuntimeSettingsParticipants {
         registerForProcess(RuntimeSettingsGroups.NATIVE) { _ -> actions.publishNative(); true }
         registerForProcess(RuntimeSettingsGroups.VOLUME) { _ -> if (isSystemServer) VolumeKeyStepsHooker.refreshConfiguration(); true }
         // The settings store publishes the hook snapshots before dispatch.
-        registerForProcess(RuntimeSettingsGroups.FREEFORM) { _ -> true }
+        registerForProcess(RuntimeSettingsGroups.FREEFORM) { keys ->
+            if (isSystemServer && (keys.isEmpty() || FreeformSettingsKeys.KEY_FORCE_SPLIT in keys)) {
+                ForceSplitScreenHooker.refreshSettings()
+            }
+            true
+        }
         registerForProcess(RuntimeSettingsGroups.AICR_FREEFORM) { _ -> true }
         // system_server: the hooker re-reads the attach switch per transition.
         registerForProcess(RuntimeSettingsGroups.GESTURE_BAR) { _ ->

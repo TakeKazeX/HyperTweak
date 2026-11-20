@@ -46,6 +46,29 @@ verifies the full artifact SHA-256 before resolving. Device acceptance must cove
 foreground/background SMS, lock/unlock, reset, hot replacement, duplicate/order
 handling, native recognition misses and preservation of unread state.
 
+## Force allow split screen
+
+The independent, default-off switch uses the shared `system.freeform` settings
+domain. `ForceSplitScreenHooker` runs in system_server. HyperOS 4.0.6.0 produces
+Recents and organizer eligibility through `Task.fillTaskInfo` and checks
+split capability again when selecting a launch root. The split-specific task
+and ActivityRecord checks get a call-scoped non-resizable allowance for the
+evaluated display area. Native split capability, the resize denylist, and
+minimum-size rules still apply. SoSc reads both split and generic multi-window
+fields, so standard tasks that pass the split check advertise both in the
+generated snapshot. Task and ActivityInfo resize modes are never rewritten.
+
+For a direct organizer reparent or a Recents launch that moves an existing
+task, the generic multi-window check gets the allowance only for a verified
+SoSc stage destination and a task that passes the native split check with the
+allowance. Full-screen, freeform and PiP reparent requests use their own rules.
+On live setting changes and hot replacement, the hook asks the existing task
+organizer to republish leaf task info and sends the native task-stack change
+notification. Disabling restores native eligibility and delegates any active
+split-session response to the host. On device, verify opening System Updater
+as the first and second app from Recents, exiting split, and disabling the
+setting. Layout compatibility is app-specific.
+
 ## Package manager core patches
 
 `PackageManagerHooker` runs only in `system_server`. The shared UID signature option

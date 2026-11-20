@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="system_freeform_title">Floating windows</string>
+    <string name="system_freeform_title">Floating windows and split screen</string>
+    <string name="system_freeform_force_split_title">Force allow split screen</string>
+    <string name="system_freeform_force_split_summary">Allow apps marked as non-resizable to enter split screen from Recents. Some apps may display incorrectly.</string>
     <string name="system_freeform_count_title">More floating windows</string>
     <string name="system_freeform_count_summary">Raise the window replacement threshold to 256. Other device limits may still apply.</string>
     <string name="system_freeform_force_title">Force allow floating windows</string>

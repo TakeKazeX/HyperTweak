@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="system_freeform_title">小窗</string>
+    <string name="system_freeform_title">小窗与分屏</string>
+    <string name="system_freeform_force_split_title">强制允许分屏</string>
+    <string name="system_freeform_force_split_summary">允许标记为不可调整大小的应用从最近任务进入分屏。部分应用的界面可能显示异常。</string>
     <string name="system_freeform_count_title">多小窗</string>
     <string name="system_freeform_count_summary">将系统替换旧小窗的数量阈值提高到 256。设备仍可能有其他限制。</string>
     <string name="system_freeform_force_title">强制允许小窗</string>
@@ -8,7 +10,7 @@
     <string name="system_freeform_pin_title">贴边小窗强制前台</string>
     <string name="system_freeform_pin_summary">下次将小窗贴边时按前台窗口处理，可能增加耗电。</string>
     <string name="system_freeform_summary">调整小窗行为，并选择应用在哪些场景以小窗打开</string>
-    <string name="system_freeform_window_section">小窗行为</string>
+    <string name="system_freeform_window_section">窗口行为</string>
     <string name="system_freeform_jump_section">跳转场景</string>
     <string name="system_freeform_jump_title">跳转应用使用小窗打开</string>
     <string name="system_freeform_jump_summary">仅在下方开启的场景中使用小窗，系统仍会检查目标应用是否支持。</string>

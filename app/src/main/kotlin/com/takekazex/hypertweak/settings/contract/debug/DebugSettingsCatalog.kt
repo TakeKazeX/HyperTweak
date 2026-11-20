@@ -344,6 +344,7 @@ internal object DebugSettingsCatalog {
         DebugSetting("system_freeform_copy_direct_tracking", "Boolean", false),
         DebugSetting("system_freeform_count", "Boolean", false),
         DebugSetting("system_freeform_force_allow", "Boolean", false),
+        DebugSetting("system_freeform_force_split", "Boolean", false),
         DebugSetting("system_freeform_foreground_pin", "Boolean", false),
         DebugSetting("system_freeform_jump", "Boolean", false),
         DebugSetting("system_freeform_jump_content_links", "Boolean", false),

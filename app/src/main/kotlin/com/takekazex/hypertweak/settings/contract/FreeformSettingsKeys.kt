@@ -3,6 +3,7 @@ package com.takekazex.hypertweak.settings.contract
 internal object FreeformSettingsKeys {
     const val KEY_COUNT = "system_freeform_count"
     const val KEY_FORCE_ALLOW = "system_freeform_force_allow"
+    const val KEY_FORCE_SPLIT = "system_freeform_force_split"
     const val KEY_JUMP = "system_freeform_jump"
     const val KEY_JUMP_NOTIFICATION = "system_freeform_jump_notification"
     const val KEY_JUMP_CONTENT_LINKS = "system_freeform_jump_content_links"
@@ -15,7 +16,7 @@ internal object FreeformSettingsKeys {
     val copyDirectKeys = setOf(KEY_COPY_DIRECT_COMMAND, KEY_COPY_DIRECT_LOCATION, KEY_COPY_DIRECT_TRACKING)
 
     val keys = copyDirectKeys + setOf(
-        KEY_COUNT, KEY_FORCE_ALLOW, KEY_FOREGROUND_PIN, KEY_JUMP,
+        KEY_COUNT, KEY_FORCE_ALLOW, KEY_FORCE_SPLIT, KEY_FOREGROUND_PIN, KEY_JUMP,
         KEY_JUMP_NOTIFICATION, KEY_JUMP_CONTENT_LINKS, KEY_JUMP_SHARE,
     )
 }

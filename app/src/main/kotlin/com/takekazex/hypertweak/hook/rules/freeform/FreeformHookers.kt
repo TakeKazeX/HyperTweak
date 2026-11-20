@@ -52,6 +52,14 @@ internal abstract class FreeformHooker : StaticHooker() {
 
     protected fun Method.accessible(): Method = apply { isAccessible = true }
 
+    protected fun Class<*>.instanceField(name: String, expectedType: Class<*>) =
+        getDeclaredField(name).apply {
+            check(type == expectedType && !Modifier.isStatic(modifiers)) {
+                "Unexpected window-management field contract: ${declaringClass.name}#$name"
+            }
+            isAccessible = true
+        }
+
     protected fun freeformOptionsFactory() = target(
         UTILS, "getActivityOptions", ActivityOptions::class.java,
         Context::class.java, String::class.java, BOOL, BOOL, static = true,
@@ -238,14 +246,6 @@ internal object SystemServerFreeformHooker : FreeformHooker() {
             }
         }
     }
-
-    private fun Class<*>.instanceField(name: String, expectedType: Class<*>) =
-        getDeclaredField(name).apply {
-            check(type == expectedType && !Modifier.isStatic(modifiers)) {
-                "Unexpected freeform field contract: ${declaringClass.name}#$name"
-            }
-            isAccessible = true
-        }
 
     private fun countContract() =
         target(STRATEGY, "getMaxMiuiFreeFormStackCount", INT, String::class.java, host(STACK)) to

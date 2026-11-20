@@ -31,6 +31,10 @@ internal fun FreeformPage(onBack: () -> Unit) {
         AppSection(title = stringResource(R.string.system_freeform_window_section)) {
             FreeformSwitch(Keys.KEY_COUNT, R.string.system_freeform_count_title, R.string.system_freeform_count_summary)
             FreeformSwitch(Keys.KEY_FORCE_ALLOW, R.string.system_freeform_force_title, R.string.system_freeform_force_summary)
+            FreeformSwitch(
+                Keys.KEY_FORCE_SPLIT, R.string.system_freeform_force_split_title,
+                R.string.system_freeform_force_split_summary,
+            )
             FreeformSwitch(Keys.KEY_FOREGROUND_PIN, R.string.system_freeform_pin_title, R.string.system_freeform_pin_summary)
         }
         AppSection(title = stringResource(R.string.system_freeform_jump_section)) {
