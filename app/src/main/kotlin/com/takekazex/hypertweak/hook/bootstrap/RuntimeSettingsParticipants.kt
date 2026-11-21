@@ -10,6 +10,7 @@ import com.takekazex.hypertweak.hook.rules.systemui.lockscreen.HideLockscreenSta
 import com.takekazex.hypertweak.hook.rules.systemui.lockscreen.KeyguardFingerprintAvoidHooker
 import com.takekazex.hypertweak.hook.rules.systemui.media.MediaCardHideAppIconHooker
 import com.takekazex.hypertweak.hook.rules.systemui.media.MediaCardHideDeviceSwitchHooker
+import com.takekazex.hypertweak.hook.rules.systemui.media.MediaCardSwipeHooker
 import com.takekazex.hypertweak.hook.rules.systemui.notification.NotificationMiniWindowHooker
 import com.takekazex.hypertweak.hook.rules.systemui.notification.NotificationWhitelistBypassHooker
 import com.takekazex.hypertweak.hook.rules.systemui.StatusBarHideSilentHooker
@@ -355,6 +356,7 @@ internal object RuntimeSettingsParticipants {
         registerForProcess(RuntimeSettingsGroups.MEDIA_CARD) { _ ->
             MediaCardHideAppIconHooker.refreshSettings()
             MediaCardHideDeviceSwitchHooker.refreshSettings()
+            MediaCardSwipeHooker.refreshSettings()
             SystemUIPluginHooker.reloadControlCenterSettings()
             true
         }

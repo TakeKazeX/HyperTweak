@@ -76,6 +76,7 @@ object SystemUiSettingsKeys {
     const val KEY_IMMEDIATE_MONET_REFRESH = "immediate_monet_refresh"
     const val KEY_MEDIA_CARD_HIDE_APP_ICON = "media_card_hide_app_icon"
     const val KEY_MEDIA_CARD_HIDE_DEVICE_SWITCH = "media_card_hide_device_switch"
+    const val KEY_MEDIA_CARD_SWIPE = "media_card_swipe"
     const val KEY_LOCKSCREEN_ALL_NOTIFICATIONS = "lockscreen_all_notifications"
     const val KEY_LOCKSCREEN_KEEP_NOTIFICATIONS = "lockscreen_keep_notifications"
     const val KEY_NOTIFICATION_MORE_SETTINGS = "notification_more_settings"

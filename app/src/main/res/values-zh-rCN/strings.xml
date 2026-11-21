@@ -1175,6 +1175,8 @@
     <string name="settings_pa_model_spoof_device_label">代号（phoneDevice）</string>
     <string name="settings_media_hide_app_icon_title">隐藏媒体卡片来源应用图标</string>
     <string name="settings_media_hide_app_icon_summary">隐藏媒体卡片上的来源应用图标</string>
+    <string name="settings_media_card_swipe_title">AOSP 媒体卡片轮播</string>
+    <string name="settings_media_card_swipe_summary">在通知栏为各媒体会话显示独立卡片，左右滑动翻页</string>
     <string name="settings_media_hide_device_switch_title">隐藏媒体卡片设备切换按钮</string>
     <string name="settings_media_hide_device_switch_summary">隐藏媒体卡片上的设备切换按钮</string>
     <string name="settings_lockscreen_all_notifications_title">锁屏显示所有通知</string>

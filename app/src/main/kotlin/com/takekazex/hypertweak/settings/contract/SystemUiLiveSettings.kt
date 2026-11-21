@@ -41,6 +41,7 @@ internal object SystemUiLiveSettings {
     /** Media-card renderer switches cached by the host hooks and the control-center plugin. */
     val MEDIA_CARD_KEYS = setOf(
         SystemUiSettingsKeys.KEY_MEDIA_CARD_HIDE_APP_ICON,
+        SystemUiSettingsKeys.KEY_MEDIA_CARD_SWIPE,
         SystemUiSettingsKeys.KEY_MEDIA_CARD_HIDE_DEVICE_SWITCH
     )
 

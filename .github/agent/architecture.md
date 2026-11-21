@@ -102,6 +102,10 @@ App records are stored by the existing AppLogStore; LogRepository receives its r
 - `DebugLog` exposes lifecycle-owned control listeners for accepted settings and Android log-tag changes. App-bar functional flows remain bound; its three diagnostic flows exist only while both the module threshold and tag permit them. Retirement removes control callbacks and disposes optional/functional resources independently. Audit/problem counts retain eager semantics.
 - The battery power-save monitor creates its receiver/provider observer/worker only when either feature is enabled. Accepted settings create the first owner without restart; disabling both closes it. A later enable reads the latest sticky battery state with a fresh reconciler.
 
+## Notification-shade media switching
+
+The OS4 `media_card_swipe` preference is off by default and uses the media-card live-settings group. The notification header hosts SystemUI's Compose `Media` carousel, using the host factory and its media repository. When the legacy manager is active, its already-filtered user entries feed the Compose repository. The bridge releases only entries it published. The MIUI player stays available until the Compose view measures a nonzero area. The notification dismissal recognizer yields to the pager for touches that start in it, and stack scrolling uses the native vertical handler. Only the unlocked notification shade mounts this view. Disable and hot reload dispose the composition and restore the MIUI player. The control-center MiPlay card uses a separate plugin controller.
+
 ## Runtime settings reload and hot reload
 
 `RuntimeSettingsGroups` registers setting ownership, destinations and resync authorization.

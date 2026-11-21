@@ -138,6 +138,12 @@ fun MediaCardPage(
     NotificationMenuLayout(stringResource(R.string.settings_system_ui_section_media), onBack) {
         if (PlatformLevel.isOs4) {
             AppSection(title = stringResource(R.string.settings_system_ui_section_media)) {
+                SwitchPreference(
+                    checked = appSettings.mediaCardSwipe,
+                    onCheckedChange = { appSettings.mediaCardSwipe = it },
+                    title = stringResource(R.string.settings_media_card_swipe_title),
+                    summary = stringResource(R.string.settings_media_card_swipe_summary)
+                )
                 // Media cards: remove the source app icon overlaid on the cover corner, in
                 // both the notification shade and the island. The render chains are OS4.
                 SwitchPreference(
