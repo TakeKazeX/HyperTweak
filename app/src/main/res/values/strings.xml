@@ -2017,4 +2017,11 @@
     <string name="ota_banner_unavailable">No usable OTA guide assets are available.</string>
     <string name="ota_notification_blocked">Notifications for HTML Viewer or its OTA channel are blocked.</string>
     <string name="ota_notification_scope_unavailable">Check the Settings and HTML Viewer scopes, then try again.</string>
+    <string name="analytics_title">Analytics</string>
+    <string name="analytics_disable_title">Disable Analytics</string>
+    <string name="analytics_disable_summary">Disable Analytics for all users with root. Turning this off restores their previous states.</string>
+    <string name="analytics_package_applying">Updating Analytics for all users…</string>
+    <string name="analytics_package_failed">Could not finish the package change. Check root access and reopen this page to retry.</string>
+    <string name="analytics_block_title">Block telemetry collection</string>
+    <string name="analytics_block_summary">Block Analytics telemetry tasks and pause uploads. Add Analytics to the module scope.</string>
 </resources>

@@ -12,6 +12,7 @@ import com.takekazex.hypertweak.util.logging.DebugLog
  * that was never synchronized still receives the next broadcast and disables itself there.
  */
 internal object WakeReceiverGate {
+    const val ANALYTICS = "com.takekazex.hypertweak.app.AnalyticsPackageStateReceiver"
     const val SYSTEM_HELPER = "com.takekazex.hypertweak.app.SystemHelperStateReceiver"
     const val WIRELESS_ADB = "com.takekazex.hypertweak.app.WirelessAdbStateReceiver"
 

@@ -257,6 +257,9 @@ Root 设置调试、临时授权、AI 命令与 v2/v3 诊断包维护见 `docs/D
 
 ## Purification and optimization page
 
+Device and settings refreshes use the committed top route and Activity foreground state.
+An in-progress or cancelled predictive return leaves the refresh state intact.
+
 Features → Purification & optimization (`Route.Purification`, `ui/page/platform/PurificationPage.kt`)
 contains the Copy Direct default-browser switch plus the MiTrust / GuardProvider / MiLink /
 video-ringback switches with their original MainActivity callbacks. App-specific GetApps and
@@ -292,6 +295,23 @@ Its wireless diagnostics section uses app-side bounded root commands
 there is no injected-process destination or boot-time replay. The two Preferences values are
 verified device mirrors, excluded from portable backups. Module reset/restore does not alter
 these device-persistent properties; entering the page reads actual state, including after upgrades.
+
+The Analytics section has two default-off controls. Package disable is a main-user
+app-side root operation. It enumerates all installed user IDs, records original enabled
+states against Android user serial numbers before writing, and restores only states it
+owns. The durable journal survives upgrade and partial operations. Reconciliation runs
+on page entry/resume, boot and package replacement; Android may defer broadcasts for
+other profiles until the next reconciliation. Full settings reset restores the managed
+package states. The journal is device-local and excluded from portable backups.
+
+Telemetry blocking uses the `com.miui.analytics` scope and the shared live settings
+dispatcher. The feature resolves the OneTrack worker, replay, usage, installed-app,
+radio, network and event-store boundaries against the host DEX. It also uses the legacy
+pipeline's existing provisioning veto at event ingress and dispatch. Incomplete or ambiguous contracts skip the entire
+installation. Existing events stay on disk. A host may resume normal reporting, including
+its usual historical usage queries, when the block is cleared. Other apps' own telemetry
+and transfers already in flight are outside the gating points. The telemetry preference
+is retained while the package is disabled and its UI control is hidden after verification.
 
 ## Native photo/file pickers
 

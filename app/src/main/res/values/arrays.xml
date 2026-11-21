@@ -27,6 +27,7 @@
         <item>com.miui.guardprovider</item>
         <item>com.android.contacts</item>
         <item>com.android.mms</item>
+        <item>com.miui.analytics</item>
         <item>com.xiaomi.barrage</item>
         <item>com.android.intentresolver</item>
         <item>com.android.photopicker</item>

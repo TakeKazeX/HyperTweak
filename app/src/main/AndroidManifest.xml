@@ -47,6 +47,7 @@
         <package android:name="com.xiaomi.trustservice" />
         <package android:name="com.miui.guardprovider" />
         <package android:name="com.mobiletools.systemhelper" />
+        <package android:name="com.miui.analytics" />
         <package android:name="com.miui.powerkeeper" />
         <package android:name="com.milink.service" />
         <package android:name="com.xiaomi.scanner" />
@@ -120,6 +121,17 @@
                 <action android:name="android.intent.action.PACKAGE_CHANGED" />
                 <action android:name="android.intent.action.PACKAGE_REPLACED" />
                 <data android:scheme="package" android:path="com.mobiletools.systemhelper" />
+            </intent-filter>
+        </receiver>
+        <receiver android:name=".app.AnalyticsPackageStateReceiver" android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.PACKAGE_ADDED" />
+                <action android:name="android.intent.action.PACKAGE_REPLACED" />
+                <data android:scheme="package" android:path="com.miui.analytics" />
             </intent-filter>
         </receiver>
         <receiver android:name=".app.WirelessAdbStateReceiver" android:exported="false">

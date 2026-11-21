@@ -7,9 +7,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.compose.LocalLifecycleOwner
-import androidx.lifecycle.compose.currentStateAsState
 import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 import com.takekazex.hypertweak.ui.app.LocalAppSettingsStore
@@ -25,7 +22,7 @@ import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.LocalDismissState
 
 @Composable
-internal fun AivsDirectorySection() {
+internal fun AivsDirectorySection(refreshActive: Boolean) {
     val store = LocalAppSettingsStore.current
     val scope = rememberCoroutineScope()
     var enabled by remember { mutableStateOf(store.getBoolean(PlatformSettingsKeys.KEY_AIVS_REDIRECT, false)) }
@@ -36,9 +33,8 @@ internal fun AivsDirectorySection() {
     var checkedEmpty by rememberSaveable { mutableStateOf(false) }
     var moved by rememberSaveable { mutableStateOf(false) }
     val root = remember { Environment.getExternalStorageDirectory().path }
-    val resumed = LocalLifecycleOwner.current.lifecycle.currentStateAsState().value == Lifecycle.State.RESUMED
-    LaunchedEffect(resumed) {
-        if (resumed) enabled = store.getBoolean(PlatformSettingsKeys.KEY_AIVS_REDIRECT, false)
+    LaunchedEffect(refreshActive) {
+        if (refreshActive) enabled = store.getBoolean(PlatformSettingsKeys.KEY_AIVS_REDIRECT, false)
     }
     fun perform(operation: suspend () -> Unit) {
         if (busy) return

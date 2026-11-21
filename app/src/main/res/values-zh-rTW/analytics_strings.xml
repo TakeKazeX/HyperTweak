@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="analytics_title">Analytics</string>
+    <string name="analytics_disable_title">停用 Analytics</string>
+    <string name="analytics_disable_summary">透過 Root 停用所有使用者空間的 Analytics。關閉後會復原各空間先前的狀態。</string>
+    <string name="analytics_package_applying">正在更新各使用者空間的 Analytics…</string>
+    <string name="analytics_package_failed">無法完成套件狀態變更。請確認 Root 授權後重新開啟此頁重試。</string>
+    <string name="analytics_block_title">禁止收集遙測資料</string>
+    <string name="analytics_block_summary">攔截 Analytics 的遙測工作並暫停上傳。請先將 Analytics 加入模組作用域。</string>
+</resources>

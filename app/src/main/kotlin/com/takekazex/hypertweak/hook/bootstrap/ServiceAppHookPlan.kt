@@ -30,6 +30,9 @@ import com.takekazex.hypertweak.hook.rules.xmsf.UnlockFocusAuthHooker
 internal object ServiceAppHookPlan {
     fun steps(packageName: String, processName: String): List<HookStep> = buildList {
         when (packageName) {
+            com.takekazex.hypertweak.settings.contract.AnalyticsSettingsKeys.PACKAGE -> {
+                hook { com.takekazex.hypertweak.hook.rules.analytics.AnalyticsTelemetryHooker }
+            }
             com.takekazex.hypertweak.settings.contract.SmsSettingsKeys.PACKAGE -> {
                 if (processName == packageName) hook { com.takekazex.hypertweak.hook.rules.sms.SmsCodeHooker }
             }

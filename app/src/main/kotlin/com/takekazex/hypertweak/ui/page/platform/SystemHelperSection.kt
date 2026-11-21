@@ -15,9 +15,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.compose.LocalLifecycleOwner
-import androidx.lifecycle.compose.currentStateAsState
 import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.ui.app.LocalAppServices
 import com.takekazex.hypertweak.ui.chrome.AppSection
@@ -34,13 +31,12 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /** Live package state is queried on every entry/resume and after every write; no preference mirror. */
 @Composable
-internal fun SystemHelperSection() {
+internal fun SystemHelperSection(refreshActive: Boolean) {
     val context = LocalContext.current
     val services = LocalAppServices.current
     val scope = rememberCoroutineScope()
     var result by remember { mutableStateOf<SystemHelperResult?>(null) }
     var busy by remember { mutableStateOf(false) }
-    val resumed = LocalLifecycleOwner.current.lifecycle.currentStateAsState().value == Lifecycle.State.RESUMED
 
     fun perform(operation: suspend () -> SystemHelperResult) {
         if (busy) return
@@ -54,8 +50,8 @@ internal fun SystemHelperSection() {
         }
     }
 
-    LaunchedEffect(resumed) {
-        if (resumed) perform { services.systemHelper.query(context) }
+    LaunchedEffect(refreshActive) {
+        if (refreshActive) perform { services.systemHelper.query(context) }
     }
 
     val state = result?.state

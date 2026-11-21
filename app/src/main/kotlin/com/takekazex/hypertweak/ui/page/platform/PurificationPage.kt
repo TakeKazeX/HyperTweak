@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.ui.page.platform
 
+import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.Composable
@@ -9,6 +10,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.compose.currentStateAsState
 import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.settings.contract.OtaNotificationReplay
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
@@ -26,11 +30,17 @@ import top.yukonga.miuix.kmp.preference.SwitchPreference
 /** Existing hook settings keep their MainActivity state and restart callbacks. */
 @Composable
 fun PurificationPage(
+    isCurrent: Boolean,
     onBack: () -> Unit,
     onNavigateToMarket: () -> Unit,
     onNavigateToCommunity: () -> Unit,
     onNavigateToHtmlViewer: () -> Unit,
 ) {
+    // NavDisplay can lower the entry lifecycle while previewing a back gesture.
+    // Only a committed route change or the Activity leaving the foreground stops refresh.
+    val activity = LocalActivity.current as? LifecycleOwner
+    val activityState = activity?.lifecycle?.currentStateAsState()?.value
+    val refreshActive = isCurrent && activityState == Lifecycle.State.RESUMED
     val appSettings = LocalAppSettings.current
     val settingsStore = LocalAppSettingsStore.current
     var aicrCopyDirectDefaultBrowser by rememberStoredSetting(PlatformSettingsKeys.KEY_AICR_COPY_DIRECT_DEFAULT_BROWSER, settingsStore::putBoolean) { settingsStore.getBoolean(PlatformSettingsKeys.KEY_AICR_COPY_DIRECT_DEFAULT_BROWSER, false) }
@@ -80,10 +90,11 @@ fun PurificationPage(
             }
         }
 
-        SystemHelperSection()
-        AivsDirectorySection()
-        DarkModeScheduleSection()
-        SharePanelSection()
+        AnalyticsSection(refreshActive)
+        SystemHelperSection(refreshActive)
+        AivsDirectorySection(refreshActive)
+        DarkModeScheduleSection(refreshActive)
+        SharePanelSection(refreshActive)
         AppSection(title = stringResource(R.string.tweaks_aicr_section)) {
             SwitchPreference(
                 checked = aicrCopyDirectDefaultBrowser,
@@ -140,7 +151,7 @@ fun PurificationPage(
         }
 
 
-        SmartDnsSection()
-        WirelessDiagnosticsSection()
+        SmartDnsSection(refreshActive)
+        WirelessDiagnosticsSection(refreshActive)
     }
 }

@@ -15,9 +15,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.compose.LocalLifecycleOwner
-import androidx.lifecycle.compose.currentStateAsState
 import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.ui.app.LocalAppSettingsStore
 import com.takekazex.hypertweak.ui.chrome.AppDropdownPreference as OverlayDropdownPreference
@@ -37,20 +34,19 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
  * resolver properties.
  */
 @Composable
-internal fun SmartDnsSection() {
+internal fun SmartDnsSection(refreshActive: Boolean) {
     val context = LocalContext.current
     val settingsStore = LocalAppSettingsStore.current
     val scope = rememberCoroutineScope()
     var state by remember { mutableStateOf<CloudDnsSettings.State?>(null) }
     var busy by remember { mutableStateOf(false) }
-    val resumed = LocalLifecycleOwner.current.lifecycle.currentStateAsState().value == Lifecycle.State.RESUMED
 
     suspend fun readLiveState(): CloudDnsSettings.State? = withContext(Dispatchers.IO) {
         runCatching { CloudDnsSettings.read(context, settingsStore) }.getOrNull()
     }
 
-    LaunchedEffect(resumed) {
-        if (!resumed) return@LaunchedEffect
+    LaunchedEffect(refreshActive) {
+        if (!refreshActive) return@LaunchedEffect
         while (isActive) {
             val next = readLiveState()
             if (next != null) {

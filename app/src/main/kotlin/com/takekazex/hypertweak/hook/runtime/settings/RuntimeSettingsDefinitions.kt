@@ -205,6 +205,10 @@ internal object RuntimeSettingsDefinitions {
         RuntimeSettingsGroups.GESTURE_BAR_UI to Group(systemUi, keys = setOf(PlatformSettingsKeys.KEY_HIDE_GESTURE_BAR, SystemUiSettingsKeys.KEY_GESTURE_BAR_RAISE_LAYOUT, PlatformSettingsKeys.KEY_HIDE_GESTURE_BAR_RECENTS, SystemUiSettingsKeys.KEY_GESTURE_BAR_ATTACH_TRANSITION, PlatformSettingsKeys.KEY_HIDE_GESTURE_BAR_LAUNCHER)),
         RuntimeSettingsGroups.XIAOAI_GESTURES to Group(setOf("com.miui.voiceassist"), strict = setOf(PlatformSettingsKeys.KEY_XIAOAI_GESTURE_OPTIONS)),
         RuntimeSettingsGroups.SETTINGS_AI to Group(setOf("com.android.settings"), strict = setOf(PlatformSettingsKeys.KEY_SETTINGS_ONDEVICE_MODEL_ENTRY, PlatformSettingsKeys.KEY_SETTINGS_GEMINI_ENTRY)),
+        RuntimeSettingsGroups.ANALYTICS to Group(
+            setOf(com.takekazex.hypertweak.settings.contract.AnalyticsSettingsKeys.PACKAGE),
+            strict = setOf(com.takekazex.hypertweak.settings.contract.AnalyticsSettingsKeys.KEY_ANALYTICS_BLOCK_TELEMETRY),
+        ),
         RuntimeSettingsGroups.SMS to Group(setOf(com.takekazex.hypertweak.settings.contract.SmsSettingsKeys.PACKAGE), strict = setOf(com.takekazex.hypertweak.settings.contract.SmsSettingsKeys.KEY_SMS_AUTO_COPY_CODE)),
         RuntimeSettingsGroups.MARKET to Group(setOf(com.takekazex.hypertweak.settings.contract.MarketSettingsKeys.PACKAGE), strict = com.takekazex.hypertweak.settings.contract.MarketSettingsKeys.keys),
         RuntimeSettingsGroups.COMMUNITY to Group(setOf(com.takekazex.hypertweak.settings.contract.CommunitySettings.PACKAGE), keys = com.takekazex.hypertweak.settings.contract.CommunitySettings.keys, strict = setOf(com.takekazex.hypertweak.settings.contract.CommunitySettingsKeys.KEY_COMMUNITY_BLOCK_DETECTION, com.takekazex.hypertweak.settings.contract.CommunitySettingsKeys.KEY_COMMUNITY_DEVICE_MODIFY)),

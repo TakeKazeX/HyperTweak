@@ -82,6 +82,7 @@ internal fun NavEntryBuilder.featuresPages(settings: NavigationSettings, navCont
         entry<Route.HtmlViewer> { HtmlViewerPage(onBack = { navController.pop() }) }
         entry<Route.Purification> {
             PurificationPage(
+                isCurrent = navController.backStack.lastOrNull() == Route.Purification,
                 onBack = { navController.pop() },
                 onNavigateToMarket = { navController.navigateTo(Route.Market) },
                 onNavigateToCommunity = { navController.navigateTo(Route.Community) },

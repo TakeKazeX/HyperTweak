@@ -34,6 +34,12 @@ internal object PreferencesAppSettings : AppSettingsStore {
     override fun contains(key: String): Boolean = Preferences.contains(key)
     override val backup = object : BackupSettings {
         override fun clearAllSettings(): Boolean = runCatching {
+            val analytics = DefaultAppServices.analytics
+            if (analytics.canManage()) {
+                check(!analytics.reconcile(applicationContext, request = false).failed) {
+                    "Could not restore Analytics package states"
+                }
+            }
             replaceDeviceSettings { Preferences.clearAllSettings() }
         }.getOrElse {
             com.takekazex.hypertweak.util.logging.DebugLog.w("Settings", "device settings reset failed", it)

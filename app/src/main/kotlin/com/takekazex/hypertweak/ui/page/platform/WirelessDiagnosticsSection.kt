@@ -14,9 +14,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.compose.LocalLifecycleOwner
-import androidx.lifecycle.compose.currentStateAsState
 import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.ui.app.LocalAppServices
 import com.takekazex.hypertweak.ui.chrome.AppSection
@@ -41,14 +38,13 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /** Device properties are authoritative, including after app upgrades or module preference resets. */
 @Composable
-internal fun WirelessDiagnosticsSection() {
+internal fun WirelessDiagnosticsSection(refreshActive: Boolean) {
     val services = LocalAppServices.current
     val scope = rememberCoroutineScope()
     var result by remember { mutableStateOf<WirelessResult?>(null) }
     var busy by remember { mutableStateOf(false) }
     var confirmCleanup by remember { mutableStateOf(false) }
     var errorDetails by remember { mutableStateOf<WirelessResult?>(null) }
-    val resumed = LocalLifecycleOwner.current.lifecycle.currentStateAsState().value == Lifecycle.State.RESUMED
 
     fun perform(operation: suspend () -> WirelessResult) {
         if (busy) return
@@ -59,8 +55,8 @@ internal fun WirelessDiagnosticsSection() {
         }
     }
 
-    LaunchedEffect(resumed) {
-        if (resumed) perform { services.wireless.query() }
+    LaunchedEffect(refreshActive) {
+        if (refreshActive) perform { services.wireless.query() }
     }
     val snapshot = result?.snapshot
     val supported = snapshot?.cnss?.supported == true
