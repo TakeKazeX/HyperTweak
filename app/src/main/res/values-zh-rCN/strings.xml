@@ -1976,4 +1976,12 @@
     <string name="sms_auto_copy_title">自动复制验证码</string>
     <string name="sms_auto_copy_summary">自动复制短信应用识别出的新短信验证码。锁屏时保留最新验证码，两分钟内解锁后复制，不改变已读状态。</string>
     <string name="sms_live_summary">修改即时生效，仅处理新收到的短信，不复制历史短信。</string>
+    <string name="html_viewer_section">HTML 查看器</string>
+    <string name="html_viewer_millet_title">允许 Millet 冻结</string>
+    <string name="html_viewer_millet_summary">让 HTML 查看器参与 Millet 的常规后台冻结判断。</string>
+    <string name="ota_banner_replay_title">重放 OTA 超级岛</string>
+    <string name="ota_banner_replay_summary">使用本地 OTA 素材重新发布原生升级导览通知。</string>
+    <string name="ota_banner_unavailable">本机没有可用的 OTA 升级导览素材。</string>
+    <string name="ota_notification_blocked">HTML 查看器的通知或 OTA 通知渠道已关闭。</string>
+    <string name="ota_notification_scope_unavailable">请确认系统设置和 HTML 查看器的作用域已生效后重试。</string>
 </resources>

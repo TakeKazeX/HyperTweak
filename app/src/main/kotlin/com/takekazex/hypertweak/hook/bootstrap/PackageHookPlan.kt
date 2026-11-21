@@ -18,6 +18,9 @@ internal object PackageHookPlan {
             hook { com.takekazex.hypertweak.hook.rules.market.MarketHooker }
         }
         if (selectedIme) hook { AospImeHooker }
+        if (packageName == com.takekazex.hypertweak.settings.contract.OtaNotificationReplay.VIEWER && processName == packageName) {
+            hook { com.takekazex.hypertweak.hook.rules.htmlviewer.OtaNotificationReplayHooker }
+        }
         addAll(SystemUiHookPlan.steps(packageName, processName))
         addAll(SettingsAppHookPlan.steps(packageName, processName))
         addAll(SecurityCenterHookPlan.steps(packageName, processName))

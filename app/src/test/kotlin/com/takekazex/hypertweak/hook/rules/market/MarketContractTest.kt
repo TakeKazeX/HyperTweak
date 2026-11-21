@@ -63,7 +63,7 @@ class MarketContractTest {
     }
 
     @Test fun appPagesRestoreUnderPurification() {
-        for (page in listOf(Route.Market, Route.Community)) {
+        for (page in listOf(Route.Market, Route.Community, Route.HtmlViewer)) {
             val stack = listOf(Route.Main, Route.Purification, page)
             assertEquals(stack, stack.map { routeFromSaveKey(it.saveKey) })
         }

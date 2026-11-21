@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="html_viewer_section">HTML 檢視器</string>
+    <string name="html_viewer_millet_title">允許 Millet 凍結</string>
+    <string name="html_viewer_millet_summary">讓 HTML 檢視器參與 Millet 的一般背景凍結判斷。</string>
+    <string name="ota_banner_replay_title">重播 OTA 超級島</string>
+    <string name="ota_banner_replay_summary">使用本機 OTA 素材重新發布原生更新導覽通知。</string>
+    <string name="ota_banner_unavailable">本機沒有可用的 OTA 更新導覽素材。</string>
+    <string name="ota_notification_blocked">HTML 檢視器的通知或 OTA 通知管道已關閉。</string>
+    <string name="ota_notification_scope_unavailable">請確認系統設定和 HTML 檢視器的作用域已生效後重試。</string>
+</resources>

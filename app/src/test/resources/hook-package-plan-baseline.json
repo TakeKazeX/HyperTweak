@@ -1,5 +1,17 @@
 [
   {
+    "process": "com.android.htmlviewer",
+    "package": "com.android.htmlviewer",
+    "targets": [
+      "OtaNotificationReplayHooker"
+    ]
+  },
+  {
+    "process": "com.android.htmlviewer:remote",
+    "package": "com.android.htmlviewer",
+    "targets": []
+  },
+  {
     "process": "com.android.systemui",
     "package": "com.android.systemui",
     "targets": [
@@ -195,6 +207,7 @@
       "NotificationMoreSettingsHooker",
       "NotificationBadgeSettingsHooker",
       "GoogleServicesSettingsHooker",
+      "OtaNotificationRelayHooker",
       "HyperOsAiEntriesHooker",
       "WifiDetailsHooker"
     ]

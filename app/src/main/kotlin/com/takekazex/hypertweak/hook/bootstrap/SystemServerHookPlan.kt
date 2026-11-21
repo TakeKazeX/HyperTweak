@@ -50,6 +50,7 @@ internal object SystemServerHookPlan {
         hook { CircleToSearchGestureHooker }
         hook { PasskeyHooker }
         hook { FcmLiveSystemHooker }
+        hook { com.takekazex.hypertweak.hook.rules.system.HtmlViewerMilletHooker }
         hook { NativePhotoPickerHooker }
         hook { NativeFilePickerHooker }
         hook { AospPackageInstallerHooker }

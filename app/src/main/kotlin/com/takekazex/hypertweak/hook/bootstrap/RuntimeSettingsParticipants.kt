@@ -289,6 +289,10 @@ internal object RuntimeSettingsParticipants {
             com.takekazex.hypertweak.hook.rules.sms.SmsCodeHooker.refreshSettings()
             true
         }
+        registerForProcess(RuntimeSettingsGroups.HTML_VIEWER_MILLET) { _ ->
+            com.takekazex.hypertweak.hook.rules.system.HtmlViewerMilletHooker.refreshFeatureState()
+            true
+        }
         registerForProcess(RuntimeSettingsGroups.MARKET) { _ -> true }
         registerForProcess(RuntimeSettingsGroups.COMMUNITY) { _ -> true }
         registerForProcess(RuntimeSettingsGroups.SHARE_PANEL) { _ ->

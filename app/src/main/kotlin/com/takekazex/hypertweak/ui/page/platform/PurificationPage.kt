@@ -10,6 +10,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.takekazex.hypertweak.R
+import com.takekazex.hypertweak.settings.contract.OtaNotificationReplay
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 import com.takekazex.hypertweak.ui.app.LocalAppSettings
 import com.takekazex.hypertweak.ui.app.LocalAppSettingsStore
@@ -17,6 +18,9 @@ import com.takekazex.hypertweak.ui.app.rememberStoredSetting
 import com.takekazex.hypertweak.ui.chrome.AppScrollPage
 import com.takekazex.hypertweak.ui.chrome.AppSection
 import com.takekazex.hypertweak.ui.components.scope.MissingScopeCard
+import com.takekazex.hypertweak.ui.page.home.ApplicationIcon
+import com.takekazex.hypertweak.util.platform.PlatformLevel
+import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 
 /** Existing hook settings keep their MainActivity state and restart callbacks. */
@@ -25,6 +29,7 @@ fun PurificationPage(
     onBack: () -> Unit,
     onNavigateToMarket: () -> Unit,
     onNavigateToCommunity: () -> Unit,
+    onNavigateToHtmlViewer: () -> Unit,
 ) {
     val appSettings = LocalAppSettings.current
     val settingsStore = LocalAppSettingsStore.current
@@ -58,6 +63,20 @@ fun PurificationPage(
                             packageName = "com.xiaomi.vipaccount", modifier = Modifier.padding(end = 6.dp),
                             contentDescription = stringResource(R.string.community_title))
                     }, onClick = onNavigateToCommunity)
+                if (PlatformLevel.isOs4) {
+                    val title = stringResource(R.string.html_viewer_section)
+                    ArrowPreference(
+                        title = title,
+                        startAction = {
+                            ApplicationIcon(
+                                packageName = OtaNotificationReplay.VIEWER,
+                                modifier = Modifier.padding(end = 6.dp),
+                                contentDescription = title,
+                            )
+                        },
+                        onClick = onNavigateToHtmlViewer,
+                    )
+                }
             }
         }
 

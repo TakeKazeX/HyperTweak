@@ -16,7 +16,7 @@ class PackageHookPlanTest {
         val json = requireNotNull(javaClass.getResourceAsStream("/hook-package-plan-baseline.json"))
             .bufferedReader().use { it.readText() }
         val cases = JSONArray(json)
-        assertEquals(69, cases.length())
+        assertEquals(71, cases.length())
         for (i in 0 until cases.length()) {
             val case = cases.getJSONObject(i)
             val expected = case.getJSONArray("targets")
@@ -60,7 +60,7 @@ class PackageHookPlanTest {
             .bufferedReader().use { it.readText() }
         val baseline = JSONArray(json)
         val expected = (0 until baseline.length()).map { baseline.getString(it) }
-        assertEquals(23, expected.size)
+        assertEquals(25, expected.size)
         assertEquals(expected, names(SystemServerHookPlan.steps(false)))
         assertEquals(expected + "AospImeSystemHooker", names(SystemServerHookPlan.steps(true)))
         val observed = mutableListOf<String>()

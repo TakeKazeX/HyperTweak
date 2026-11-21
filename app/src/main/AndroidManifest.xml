@@ -38,6 +38,7 @@
         <package android:name="com.lbe.security.miui" />
         <package android:name="com.miui.screenshot" />
         <package android:name="com.android.settings" />
+        <package android:name="com.android.htmlviewer" />
         <!-- Restart target for the native launcher rules (recents clear button, folder columns). -->
         <package android:name="com.miui.home" />
         <package android:name="com.miui.aod" />

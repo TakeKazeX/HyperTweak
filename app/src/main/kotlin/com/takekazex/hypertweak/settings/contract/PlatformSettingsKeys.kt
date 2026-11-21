@@ -2,6 +2,7 @@ package com.takekazex.hypertweak.settings.contract
 
 /** Persisted contract; values remain independent of storage and host implementations. */
 object PlatformSettingsKeys {
+    const val KEY_HTML_VIEWER_MILLET = "html_viewer_millet"
     const val KEY_AIVS_REDIRECT = "aivs_redirect"
     const val KEY_NATIVE_PAD_DOCK = "launcher_native_pad_dock"
     /** Packed [NativeDockGlassGeometry]. */

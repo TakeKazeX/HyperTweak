@@ -1,6 +1,7 @@
 [
   "SystemServerReadinessHooker",
   "SystemServerFreeformHooker",
+  "ForceSplitScreenHooker",
   "AospBackSystemHooker",
   "ForceScreenshotHooker",
   "SystemConfigHooker",
@@ -11,6 +12,7 @@
   "CircleToSearchGestureHooker",
   "PasskeyHooker",
   "FcmLiveSystemHooker",
+  "HtmlViewerMilletHooker",
   "NativePhotoPickerHooker",
   "NativeFilePickerHooker",
   "AospPackageInstallerHooker",

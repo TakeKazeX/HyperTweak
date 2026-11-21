@@ -29,6 +29,7 @@ sealed interface Route : NavKey {
     data object DownloadManager : Route
     data object Market : Route
     data object Community : Route
+    data object HtmlViewer : Route
     data object Purification : Route
     data object SuperIsland : Route
     data object GoogleServices : Route
@@ -88,6 +89,7 @@ val Route.saveKey: String
         Route.DownloadManager -> "DownloadManager"
         Route.Market -> "Market"
         Route.Community -> "Community"
+        Route.HtmlViewer -> "HtmlViewer"
         Route.Purification -> "Purification"
         Route.SuperIsland -> "SuperIsland"
         Route.GoogleServices -> "GoogleServices"
@@ -142,6 +144,7 @@ fun routeFromSaveKey(key: String): Route? = when (key) {
     "DownloadManager" -> Route.DownloadManager
     "Market" -> Route.Market
     "Community" -> Route.Community
+    "HtmlViewer" -> Route.HtmlViewer
     "Purification" -> Route.Purification
     "SuperIsland" -> Route.SuperIsland
     "GoogleServices" -> Route.GoogleServices

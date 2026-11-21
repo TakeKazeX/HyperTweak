@@ -82,6 +82,7 @@ internal object RuntimeSettingsGroups {
     const val MOTION_CUES_FREEFORM = "systemui.motion_cues_freeform"
     const val GOOGLE_APP = "google.omni"
     const val GOOGLE_SETTINGS = "settings.google_services"
+    const val HTML_VIEWER_MILLET = "system.html_viewer_millet"
     const val GMS_RESTRICTIONS = "system.gms_restrictions"
     const val PASSKEY = "google.passkey"
     const val FCM = "google.fcm"

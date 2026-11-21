@@ -50,6 +50,7 @@ internal object SettingsAppHookPlan {
                 hook { NotificationBadgeSettingsHooker }
                 // Restore Settings' own Google services home-page header on domestic builds.
                 hook { GoogleServicesSettingsHooker }
+                if (processName == packageName) hook { com.takekazex.hypertweak.hook.rules.settings.OtaNotificationRelayHooker }
                 // Reveal the 小米澎湃AI page's 端侧大模型 / Gemini rows through the shared dispatcher.
                 hook { HyperOsAiEntriesHooker }
                 // Wi-Fi details, saved-network entry, and quick actions.

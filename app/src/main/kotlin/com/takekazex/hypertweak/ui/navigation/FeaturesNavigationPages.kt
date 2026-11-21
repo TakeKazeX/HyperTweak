@@ -11,6 +11,7 @@ import com.takekazex.hypertweak.ui.page.platform.AospRestorePage
 import com.takekazex.hypertweak.ui.page.platform.ExperimentalFeaturesPage
 import com.takekazex.hypertweak.ui.page.platform.FreeformPage
 import com.takekazex.hypertweak.ui.page.platform.GoogleServicesPage
+import com.takekazex.hypertweak.ui.page.platform.HtmlViewerPage
 import com.takekazex.hypertweak.ui.page.platform.PurificationPage
 import com.takekazex.hypertweak.ui.page.platform.SystemFrameworkPage
 import com.takekazex.hypertweak.ui.page.securitycenter.PowerSavePage
@@ -78,11 +79,13 @@ internal fun NavEntryBuilder.featuresPages(settings: NavigationSettings, navCont
         entry<Route.Community> {
             com.takekazex.hypertweak.ui.page.platform.CommunityPage(onBack = { navController.pop() })
         }
+        entry<Route.HtmlViewer> { HtmlViewerPage(onBack = { navController.pop() }) }
         entry<Route.Purification> {
             PurificationPage(
                 onBack = { navController.pop() },
                 onNavigateToMarket = { navController.navigateTo(Route.Market) },
                 onNavigateToCommunity = { navController.navigateTo(Route.Community) },
+                onNavigateToHtmlViewer = { navController.navigateTo(Route.HtmlViewer) },
             )
         }
 

@@ -15,6 +15,7 @@
         <item>com.miui.screenshot</item>
         <item>com.takekazex.hypertweak</item>
         <item>com.android.settings</item>
+        <item>com.android.htmlviewer</item>
         <item>com.miui.aod</item>
         <!-- AON service/attention process (com.xiaomi.aon). Reserved for AON-side hooks of the
              visual-perception/air-gesture unlocks; the Settings-side capability gates the hooks

@@ -2009,4 +2009,12 @@
     <string name="sms_auto_copy_title">Automatically copy verification codes</string>
     <string name="sms_auto_copy_summary">Copy verification codes recognized by Messaging in new SMS messages. While locked, copy only the latest code after unlocking, within two minutes. Messages stay unread.</string>
     <string name="sms_live_summary">Changes apply immediately. Only newly received SMS messages are processed; existing messages are not copied.</string>
+    <string name="html_viewer_section">HTML Viewer</string>
+    <string name="html_viewer_millet_title">Allow Millet to freeze</string>
+    <string name="html_viewer_millet_summary">Apply Millet’s normal background freeze policy to HTML Viewer.</string>
+    <string name="ota_banner_replay_title">Replay the OTA Super Island</string>
+    <string name="ota_banner_replay_summary">Post the native update guide notification from the local OTA cache.</string>
+    <string name="ota_banner_unavailable">No usable OTA guide assets are available.</string>
+    <string name="ota_notification_blocked">Notifications for HTML Viewer or its OTA channel are blocked.</string>
+    <string name="ota_notification_scope_unavailable">Check the Settings and HTML Viewer scopes, then try again.</string>
 </resources>

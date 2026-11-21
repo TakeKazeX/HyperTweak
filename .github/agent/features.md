@@ -577,3 +577,8 @@ root granted to HyperTweak. ShortcutUtils has no MainActivity dependency; MainAc
 retains the legacy pinned-shortcut extra for upgrades, delegating the same root broadcast
 to LsposedManagerLauncher. Permission behavior reference:
 https://github.com/tiann/KernelSU/blob/ac1007e29dcc56fd3b5853517b3d62515e51bfa8/manager/app/src/main/java/me/weishu/kernelsu/ui/util/module/Shortcut.kt
+
+### HTML Viewer freeze and OTA notification replay
+
+- **Purification & optimization → HTML Viewer** exposes a default-off Millet switch. The system-server hook resolves the final system-app decision from the `systemapp` reason, package operand and system-app control membership. It treats only HTML Viewer as eligible at that decision and leaves the surrounding Millet checks in place. The policy runs on the shared app UID. The dispatcher updates the hook slot without editing Millet lists or touching processes.
+- **Replay the OTA Super Island** uses an authenticated Settings provider relay to reach the signature-protected HTML Viewer provider. HTML Viewer reads its native cached OTA response and invokes the stock notification publisher as the originating app. The original focus metadata, assets, channel, and tap destination come from that publisher. The command checks the cached system version and notification settings, and requires the Settings and HTML Viewer scopes. Navigation uses the shared app-specific Purification page shell.
