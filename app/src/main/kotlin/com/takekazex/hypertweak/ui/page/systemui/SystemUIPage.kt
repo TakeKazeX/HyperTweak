@@ -12,6 +12,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import com.takekazex.hypertweak.R
+import com.takekazex.hypertweak.settings.contract.AppVolumePercentColor
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 import com.takekazex.hypertweak.settings.contract.TileStateMessageDuration
@@ -59,6 +60,14 @@ fun SystemUIPage(
     val resources = LocalResources.current
     val upstreamBackGesture = com.takekazex.hypertweak.ui.effect.rememberUpstreamBackGestureInstalled()
     var deviceCenterSingleRow by rememberStoredSetting(SystemUiSettingsKeys.KEY_CC_DEVICE_CENTER_SINGLE_ROW, settingsStore::putBoolean) { settingsStore.getBoolean(SystemUiSettingsKeys.KEY_CC_DEVICE_CENTER_SINGLE_ROW, false) }
+    var appVolume by rememberStoredSetting(SystemUiSettingsKeys.KEY_VOLUME_APP_VOLUME, settingsStore::putBoolean) { settingsStore.getBoolean(SystemUiSettingsKeys.KEY_VOLUME_APP_VOLUME, false) }
+    var appVolumePercent by rememberStoredSetting(SystemUiSettingsKeys.KEY_VOLUME_APP_VOLUME_PERCENT, settingsStore::putInt) { settingsStore.getInt(SystemUiSettingsKeys.KEY_VOLUME_APP_VOLUME_PERCENT, SystemUiSettingsKeys.APP_VOLUME_PERCENT_INSIDE).coerceIn(0, 2) }
+    val percentColorKey = SystemUiSettingsKeys.KEY_VOLUME_APP_VOLUME_PERCENT_COLOR
+    var appVolumePercentColor by rememberStoredSetting(percentColorKey, settingsStore::putInt) {
+        settingsStore.getInt(percentColorKey, 0)
+    }
+    var appVolumeAutoExpand by rememberStoredSetting(SystemUiSettingsKeys.KEY_VOLUME_APP_VOLUME_AUTO_EXPAND, settingsStore::putBoolean) { settingsStore.getBoolean(SystemUiSettingsKeys.KEY_VOLUME_APP_VOLUME_AUTO_EXPAND, false) }
+    val aospVolumePanel = remember { settingsStore.getBoolean(PlatformSettingsKeys.KEY_AOSP_VOLUME_PANEL, false) }
     var hideLockscreenDate by rememberStoredSetting(SystemUiSettingsKeys.KEY_HIDE_LOCKSCREEN_DATE, settingsStore::putBoolean) { settingsStore.getBoolean(SystemUiSettingsKeys.KEY_HIDE_LOCKSCREEN_DATE, false) }
 
     var tileMessageDialog by rememberSaveable { mutableStateOf(false) }
@@ -272,6 +281,54 @@ fun SystemUIPage(
                 onCheckedChange = { deviceCenterSingleRow = it },
                 title = stringResource(R.string.cc_device_center_single_row_title),
                 summary = stringResource(R.string.cc_device_center_single_row_summary)
+            )
+        }
+
+        if (PlatformLevel.isOs4) AppSection(title = stringResource(R.string.volume_panel_section)) {
+            SwitchPreference(
+                checked = appVolume && !aospVolumePanel,
+                onCheckedChange = { appVolume = it },
+                title = stringResource(R.string.app_volume_title),
+                summary = stringResource(if (aospVolumePanel) R.string.app_volume_summary_aosp else R.string.app_volume_summary),
+                enabled = !aospVolumePanel
+            )
+            SwitchPreference(
+                checked = appVolumeAutoExpand,
+                onCheckedChange = { appVolumeAutoExpand = it },
+                title = stringResource(R.string.app_volume_auto_expand_title),
+                summary = stringResource(R.string.app_volume_auto_expand_summary),
+                enabled = appVolume && !aospVolumePanel
+            )
+            OverlayDropdownPreference(
+                title = stringResource(R.string.app_volume_percent_title),
+                summary = stringResource(R.string.app_volume_percent_summary),
+                items = listOf(
+                    stringResource(R.string.app_volume_percent_inside),
+                    stringResource(R.string.app_volume_percent_outside),
+                    stringResource(R.string.app_volume_percent_hidden)
+                ),
+                selectedIndex = appVolumePercent.coerceIn(0, 2),
+                onSelectedIndexChange = { appVolumePercent = it },
+                enabled = appVolume && !aospVolumePanel
+            )
+            OverlayDropdownPreference(
+                title = stringResource(R.string.app_volume_percent_color_title),
+                summary = stringResource(R.string.app_volume_percent_color_summary),
+                items = AppVolumePercentColor.entries.map { mode ->
+                    stringResource(when (mode) {
+                        AppVolumePercentColor.INHERITED -> R.string.app_volume_percent_color_inherited
+                        AppVolumePercentColor.APP_ICON -> R.string.app_volume_percent_color_icon
+                        AppVolumePercentColor.BLUE -> R.string.theme_accent_blue
+                        AppVolumePercentColor.GREEN -> R.string.theme_accent_green
+                        AppVolumePercentColor.ORANGE -> R.string.theme_accent_orange
+                        AppVolumePercentColor.RED -> R.string.theme_accent_red
+                        AppVolumePercentColor.PURPLE -> R.string.theme_accent_purple
+                        AppVolumePercentColor.NEUTRAL -> R.string.app_volume_percent_color_off
+                    })
+                },
+                selectedIndex = AppVolumePercentColor.fromStored(appVolumePercentColor).ordinal,
+                onSelectedIndexChange = { appVolumePercentColor = it },
+                enabled = appVolume && !aospVolumePanel && appVolumePercent != SystemUiSettingsKeys.APP_VOLUME_PERCENT_HIDDEN
             )
         }
 

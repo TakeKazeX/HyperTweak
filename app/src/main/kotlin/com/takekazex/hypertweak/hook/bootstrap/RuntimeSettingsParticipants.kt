@@ -30,6 +30,7 @@ import com.takekazex.hypertweak.hook.rules.system.VolumeKeyStepsHooker
 import com.takekazex.hypertweak.hook.rules.system.BatteryAutoPowerSaveHooker
 import com.takekazex.hypertweak.hook.rules.settings.HyperOsAiEntriesHooker
 import com.takekazex.hypertweak.hook.rules.systemui.SystemUIPluginHooker
+import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 import com.takekazex.hypertweak.hook.rules.systemui.lockscreen.LockscreenChargingDetailHooker
 import com.takekazex.hypertweak.hook.rules.systemui.lockscreen.LockscreenBottomTextHooker
 import com.takekazex.hypertweak.hook.rules.systemui.lockscreen.LockscreenDateHooker
@@ -174,7 +175,16 @@ internal object RuntimeSettingsParticipants {
             true
         }
         registerForProcess(RuntimeSettingsGroups.NATIVE) { _ -> actions.publishNative(); true }
-        registerForProcess(RuntimeSettingsGroups.VOLUME) { _ -> if (isSystemServer) VolumeKeyStepsHooker.refreshConfiguration(); true }
+        registerForProcess(RuntimeSettingsGroups.VOLUME) { keys ->
+            if (isSystemServer) {
+                VolumeKeyStepsHooker.refreshConfiguration()
+                com.takekazex.hypertweak.hook.rules.system.MiSoundVolumeEntryHooker.refreshSettings()
+            } else if (processName == "com.android.systemui" &&
+                (keys.isEmpty() || SystemUiSettingsKeys.KEY_VOLUME_APP_VOLUME in keys)) {
+                SystemUIPluginHooker.reloadControlCenterSettings()
+            }
+            true
+        }
         // The settings store publishes the hook snapshots before dispatch.
         registerForProcess(RuntimeSettingsGroups.FREEFORM) { keys ->
             if (isSystemServer && (keys.isEmpty() || FreeformSettingsKeys.KEY_FORCE_SPLIT in keys)) {

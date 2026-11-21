@@ -64,6 +64,14 @@ object SystemUiSettingsKeys {
     const val KEY_CC_SIZE_VOLUME = "systemui_control_center_size_volume"
     const val KEY_CC_SIZE_DEVICE = "systemui_control_center_size_device"
     const val KEY_CC_DEVICE_CENTER_SINGLE_ROW = "systemui_cc_device_center_single_row"
+    const val KEY_VOLUME_APP_VOLUME = "systemui_volume_app_volume"
+    const val KEY_VOLUME_APP_VOLUME_AUTO_EXPAND = "systemui_volume_app_volume_auto_expand"
+    const val KEY_VOLUME_APP_VOLUME_PERCENT_COLOR = "systemui_volume_app_volume_percent_color"
+    /** App column percentage: [APP_VOLUME_PERCENT_INSIDE], [APP_VOLUME_PERCENT_OUTSIDE] or [APP_VOLUME_PERCENT_HIDDEN]. */
+    const val KEY_VOLUME_APP_VOLUME_PERCENT = "systemui_volume_app_volume_percent"
+    const val APP_VOLUME_PERCENT_INSIDE = 0
+    const val APP_VOLUME_PERCENT_OUTSIDE = 1
+    const val APP_VOLUME_PERCENT_HIDDEN = 2
     const val KEY_CC_TILE_CARD_SPECS = "systemui_control_center_tile_card_specs"
     const val KEY_IMMEDIATE_MONET_REFRESH = "immediate_monet_refresh"
     const val KEY_MEDIA_CARD_HIDE_APP_ICON = "media_card_hide_app_icon"
