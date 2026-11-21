@@ -19,18 +19,25 @@ import java.lang.reflect.Method
 import java.lang.reflect.Proxy
 import java.util.WeakHashMap
 
-/** Hosts SystemUI's own Compose media carousel in the unlocked notification shade. */
+/** Hosts AOSP and HyperOS media pagers in the unlocked notification shade. */
 internal object MediaCardSwipeHooker : StaticHooker() {
     private const val TAG = "MediaCardCarousel"
     private const val BASE = "com.android.systemui."
     private const val STACK = BASE + "statusbar.notification.stack.NotificationStackScrollLayout"
     private const val SHADE = 0
 
-    private val enabled by hookSetting(false) {
+    private val legacyAosp by hookSetting(false) {
         Preferences.getBoolean(SystemUiSettingsKeys.KEY_MEDIA_CARD_SWIPE, false)
     }
+    private val style by hookSetting(-1) {
+        Preferences.getInt(SystemUiSettingsKeys.KEY_MEDIA_CARD_CAROUSEL_STYLE, -1)
+    }
+    private val mode get() = style.takeIf { it in 0..2 } ?: if (legacyAosp) 1 else 0
+    private val enabled get() = mode == 1 || mode == 2
+
     private var host: CarouselHost? by generationState { null }
-    private val stacks = generationMainResource(WeakHashMap<ViewGroup, WeakReference<CarouselLayer>>()) { it.clear() }
+    private val stacks = generationMainResource(WeakHashMap<ViewGroup, WeakReference<ShadeMediaCarouselLayer>>()) { it.clear() }
+    private val savedPages = generationMainResource(WeakHashMap<ViewGroup, Array<*>>()) { it.clear() }
     private var carouselGesture: Long? by generationState { null }
     private var dispatchingCarousel by generationState { false }
 
@@ -70,7 +77,7 @@ internal object MediaCardSwipeHooker : StaticHooker() {
         contract.headerAttached.hook {
             after { param ->
                 val header = param.thisObject as? View ?: return@after
-                (HostAccess.ancestor(header, STACK) as? ViewGroup)?.let(::refresh)
+                (header.parent as? ViewGroup)?.takeIf(stack::isInstance)?.let(::refresh)
             }
         }
         contract.setStatusBarState.hook {
@@ -111,10 +118,33 @@ internal object MediaCardSwipeHooker : StaticHooker() {
         DebugLog.i(TAG, "AOSP carousel contract ready")
     }
 
-    fun refreshSettings() = HostAccess.onMain { stacks.keys.toList().forEach(::refresh) }
+    fun refreshSettings() = HostAccess.onMain {
+        if (mode != 2) savedPages.clear()
+        stacks.keys.toList().forEach(::refresh)
+    }
+
+    override fun saveHotReloadState(): Any = HostAccess.onMain {
+        stacks.mapNotNull { (stack, reference) ->
+
+            val state = (reference.get() as? HyperOsMediaCarousel)?.saveState() ?: savedPages[stack]
+            state?.let { arrayOf(stack, it) }
+        }
+    }
+
+    override fun restoreHotReloadState(state: Any?) {
+        HostAccess.onMain {
+            (state as? List<*>)?.forEach { item ->
+                val pair = item as? Array<*> ?: return@forEach
+                val stack = pair.getOrNull(0) as? ViewGroup ?: return@forEach
+                val saved = pair.getOrNull(1) as? Array<*> ?: return@forEach
+                val layer = stacks[stack]?.get() as? HyperOsMediaCarousel
+                if (layer == null) savedPages[stack] = saved else layer.restoreState(saved)
+            }
+        }
+    }
 
     override fun onPrepareHotReload() = HostAccess.onMain {
-        stacks.values.mapNotNull(WeakReference<CarouselLayer>::get).forEach(CarouselLayer::remove)
+        stacks.values.mapNotNull(WeakReference<ShadeMediaCarouselLayer>::get).forEach(ShadeMediaCarouselLayer::remove)
         stacks.clear()
         host?.releaseLegacySessions()
         carouselGesture = null
@@ -128,33 +158,50 @@ internal object MediaCardSwipeHooker : StaticHooker() {
             val old = stacks[stack]?.get()
             val hostCard = if (enabled) contract.card(stack) else null
             if (hostCard == null) {
+                if (mode == 2 && old is HyperOsMediaCarousel) savedPages[stack] = old.saveState()
                 old?.remove()
                 stacks[stack] = WeakReference(null)
                 if (stacks.values.none { it.get() != null }) contract.releaseLegacySessions()
                 return@open
             }
-            contract.syncLegacySessions(hostCard)
-            if (old?.parent === hostCard.header && old.player === hostCard.player) return@open
+            val hyperOs = mode == 2
+            if (hyperOs) {
+                contract.releaseLegacySessions()
+            } else {
+                contract.syncLegacySessions(hostCard)
+            }
+            if (old?.parent === hostCard.header && old.player === hostCard.player &&
+                (old is HyperOsMediaCarousel) == hyperOs
+            ) {
+                if (old is HyperOsMediaCarousel) old.refreshPages()
+                return@open
+            }
+            if (hyperOs && old is HyperOsMediaCarousel) savedPages[stack] = old.saveState()
             old?.remove()
-            val layer = CarouselLayer(hostCard, contract)
+            stacks[stack] = WeakReference(null)
+            val layer = if (hyperOs) {
+                val native = contract.hyperOs ?: return@open
+                HyperOsMediaCarousel(hostCard.player, hostCard.controller, hostCard.factory, native).also {
+                    savedPages.remove(stack)?.let(it::restoreState)
+                }
+            } else {
+                CarouselLayer(hostCard, contract)
+            }
             stacks[stack] = WeakReference(layer)
             hostCard.header.addView(layer, FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT,
             ))
-            DebugLog.i(TAG, "AOSP media carousel mounted")
+            if (!hyperOs) DebugLog.i(TAG, "AOSP media carousel mounted")
         }
     }
 
     private class CarouselLayer(card: CarouselHost.Card, private val host: CarouselHost) :
-        FrameLayout(card.player.context) {
-        val player = card.player
+        ShadeMediaCarouselLayer(card.player) {
         private val factory = card.factory
         private var compose: View? = null
         private var lifecycleRoot: FrameLayout? = null
         private var ownedLifecycle: Any? = null
-        private var restoreVisibility: Int? = null
         private var failed = false
-        val showing get() = restoreVisibility != null && isShown
 
         override fun onAttachedToWindow() {
             super.onAttachedToWindow()
@@ -183,11 +230,7 @@ internal object MediaCardSwipeHooker : StaticHooker() {
                 root.addView(view, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
                 view.addOnLayoutChangeListener { _, left, top, right, bottom, _, _, _, _ ->
                     if (!failed && right > left && bottom > top) {
-                        if (restoreVisibility == null) {
-                            restoreVisibility = player.visibility
-                            player.visibility = View.GONE
-                            DebugLog.i(TAG, "AOSP media carousel measured")
-                        }
+                        if (showCarousel()) DebugLog.i(TAG, "AOSP media carousel measured")
                     } else {
                         restorePlayer()
                     }
@@ -207,11 +250,6 @@ internal object MediaCardSwipeHooker : StaticHooker() {
                 visibility = View.GONE
                 HookFailurePolicy.open(TAG, "dispose failed carousel", Unit) { disposeContent() }
             }
-        }
-
-        private fun restorePlayer() {
-            restoreVisibility?.let { if (player.visibility == View.GONE) player.visibility = it }
-            restoreVisibility = null
         }
 
         private fun disposeContent() {
@@ -241,19 +279,6 @@ internal object MediaCardSwipeHooker : StaticHooker() {
             }
         }
 
-        fun remove() {
-            restorePlayer()
-            (parent as? ViewGroup)?.removeView(this)
-        }
-
-        fun contains(event: MotionEvent): Boolean {
-            if (!showing) return false
-            val rect = Rect()
-            if (!getLocalVisibleRect(rect)) return false
-            val location = IntArray(2)
-            getLocationOnScreen(location)
-            return rect.contains((event.rawX - location[0]).toInt(), (event.rawY - location[1]).toInt())
-        }
     }
 
     private class CarouselHost(val stack: Class<*>) {
@@ -312,6 +337,7 @@ internal object MediaCardSwipeHooker : StaticHooker() {
             factory.type, behavior, function0, modifier, function0, function0, function0, composer, int, int)
         private val wrapContent = method(type("androidx.compose.runtime.internal.ComposableLambdaKt"),
             "composableLambdaInstance", int, bool, Any::class.java)
+        val hyperOs = HyperOsMediaContract.resolve(owner, holder.type, top.type, factory.type)
         val reinflateViews = method(sectionsType, "reinflateViews")
         val headerAttached = method(header.type, "onAttachedToWindow")
         val setTopMedia = method(owner, "access\$setTopMediaData", owner, top.type)
@@ -431,5 +457,37 @@ internal object MediaCardSwipeHooker : StaticHooker() {
             fun resolve(stack: Class<*>): CarouselHost? =
                 HookFailurePolicy.open(TAG, "resolve AOSP carousel", null) { CarouselHost(stack) }
         }
+    }
+}
+
+
+internal abstract class ShadeMediaCarouselLayer(val player: View) : FrameLayout(player.context) {
+    private var restoreVisibility: Int? = null
+    val showing get() = restoreVisibility != null && isShown
+
+    protected fun showCarousel(): Boolean {
+        if (restoreVisibility != null) return false
+        restoreVisibility = player.visibility
+        player.visibility = View.GONE
+        return true
+    }
+
+    protected fun restorePlayer() {
+        restoreVisibility?.let { if (player.visibility == View.GONE) player.visibility = it }
+        restoreVisibility = null
+    }
+
+    fun remove() {
+        restorePlayer()
+        (parent as? ViewGroup)?.removeView(this)
+    }
+
+    fun contains(event: MotionEvent): Boolean {
+        if (!showing) return false
+        val rect = Rect()
+        if (!getLocalVisibleRect(rect)) return false
+        val location = IntArray(2)
+        getLocationOnScreen(location)
+        return rect.contains((event.rawX - location[0]).toInt(), (event.rawY - location[1]).toInt())
     }
 }

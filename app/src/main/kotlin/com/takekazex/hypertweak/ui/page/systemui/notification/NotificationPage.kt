@@ -138,11 +138,17 @@ fun MediaCardPage(
     NotificationMenuLayout(stringResource(R.string.settings_system_ui_section_media), onBack) {
         if (PlatformLevel.isOs4) {
             AppSection(title = stringResource(R.string.settings_system_ui_section_media)) {
-                SwitchPreference(
-                    checked = appSettings.mediaCardSwipe,
-                    onCheckedChange = { appSettings.mediaCardSwipe = it },
-                    title = stringResource(R.string.settings_media_card_swipe_title),
-                    summary = stringResource(R.string.settings_media_card_swipe_summary)
+                val carouselStyle = appSettings.mediaCardCarouselStyle
+                OverlayDropdownPreference(
+                    title = stringResource(R.string.settings_media_card_carousel_title),
+                    summary = stringResource(R.string.settings_media_card_carousel_summary),
+                    items = listOf(
+                        stringResource(R.string.settings_media_card_single),
+                        stringResource(R.string.settings_media_card_aosp),
+                        stringResource(R.string.settings_media_card_hyperos),
+                    ),
+                    selectedIndex = if (carouselStyle in 0..2) carouselStyle else if (appSettings.mediaCardSwipe) 1 else 0,
+                    onSelectedIndexChange = { appSettings.mediaCardCarouselStyle = it }
                 )
                 // Media cards: remove the source app icon overlaid on the cover corner, in
                 // both the notification shade and the island. The render chains are OS4.

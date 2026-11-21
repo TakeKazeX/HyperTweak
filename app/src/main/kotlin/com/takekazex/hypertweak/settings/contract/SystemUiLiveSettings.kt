@@ -42,6 +42,7 @@ internal object SystemUiLiveSettings {
     val MEDIA_CARD_KEYS = setOf(
         SystemUiSettingsKeys.KEY_MEDIA_CARD_HIDE_APP_ICON,
         SystemUiSettingsKeys.KEY_MEDIA_CARD_SWIPE,
+        SystemUiSettingsKeys.KEY_MEDIA_CARD_CAROUSEL_STYLE,
         SystemUiSettingsKeys.KEY_MEDIA_CARD_HIDE_DEVICE_SWITCH
     )
 

@@ -1180,8 +1180,15 @@
     <string name="settings_pa_model_spoof_device_label">Device (phoneDevice)</string>
     <string name="settings_media_hide_app_icon_title">Hide Media Card Source App Icon</string>
     <string name="settings_media_hide_app_icon_summary">Hide the source app icon on media cards</string>
-    <string name="settings_media_card_swipe_title">AOSP Media Carousel</string>
-    <string name="settings_media_card_swipe_summary">Show a separate card for each media session and swipe between cards in the notification shade</string>
+    <string name="settings_media_card_carousel_title">Media card style</string>
+    <string name="settings_media_card_carousel_summary">Swipe between carousel cards in the notification shade</string>
+    <string name="settings_media_card_single">System single card</string>
+    <string name="settings_media_card_aosp">AOSP carousel</string>
+    <string name="settings_media_card_hyperos">HyperOS carousel</string>
+    <string name="settings_media_card_close">Close media card</string>
+    <string name="settings_media_card_hide_app">Hide this app</string>
+    <string name="settings_media_card_restore_apps">Restore hidden apps</string>
+    <string name="settings_media_card_page_position">Media card %1$d of %2$d</string>
     <string name="settings_media_hide_device_switch_title">Hide Media Card Device Switch</string>
     <string name="settings_media_hide_device_switch_summary">Hide the device-switch button on media cards</string>
     <string name="settings_lockscreen_all_notifications_title">Show All Notifications On Lockscreen</string>

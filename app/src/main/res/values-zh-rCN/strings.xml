@@ -1175,8 +1175,15 @@
     <string name="settings_pa_model_spoof_device_label">代号（phoneDevice）</string>
     <string name="settings_media_hide_app_icon_title">隐藏媒体卡片来源应用图标</string>
     <string name="settings_media_hide_app_icon_summary">隐藏媒体卡片上的来源应用图标</string>
-    <string name="settings_media_card_swipe_title">AOSP 媒体卡片轮播</string>
-    <string name="settings_media_card_swipe_summary">在通知栏为各媒体会话显示独立卡片，左右滑动翻页</string>
+    <string name="settings_media_card_carousel_title">媒体卡片样式</string>
+    <string name="settings_media_card_carousel_summary">在通知栏左右滑动轮播卡片</string>
+    <string name="settings_media_card_single">系统单卡</string>
+    <string name="settings_media_card_aosp">AOSP 轮播</string>
+    <string name="settings_media_card_hyperos">HyperOS 轮播</string>
+    <string name="settings_media_card_close">关闭卡片</string>
+    <string name="settings_media_card_hide_app">隐藏此应用</string>
+    <string name="settings_media_card_restore_apps">恢复已隐藏的应用</string>
+    <string name="settings_media_card_page_position">第 %1$d 张媒体卡片，共 %2$d 张</string>
     <string name="settings_media_hide_device_switch_title">隐藏媒体卡片设备切换按钮</string>
     <string name="settings_media_hide_device_switch_summary">隐藏媒体卡片上的设备切换按钮</string>
     <string name="settings_lockscreen_all_notifications_title">锁屏显示所有通知</string>

@@ -79,6 +79,7 @@ internal class AppSettingsState(val storage: AppSettingsStore) {
     var mediaCardHideAppIcon by persisted(SystemUiSettingsKeys.KEY_MEDIA_CARD_HIDE_APP_ICON, storage::putBoolean) { storage.getBoolean(SystemUiSettingsKeys.KEY_MEDIA_CARD_HIDE_APP_ICON, false) }
     var mediaCardHideDeviceSwitch by persisted(SystemUiSettingsKeys.KEY_MEDIA_CARD_HIDE_DEVICE_SWITCH, storage::putBoolean) { storage.getBoolean(SystemUiSettingsKeys.KEY_MEDIA_CARD_HIDE_DEVICE_SWITCH, false) }
     var mediaCardSwipe by persisted(SystemUiSettingsKeys.KEY_MEDIA_CARD_SWIPE, storage::putBoolean) { storage.getBoolean(SystemUiSettingsKeys.KEY_MEDIA_CARD_SWIPE, false) }
+    var mediaCardCarouselStyle by persisted(SystemUiSettingsKeys.KEY_MEDIA_CARD_CAROUSEL_STYLE, storage::putInt) { storage.getInt(SystemUiSettingsKeys.KEY_MEDIA_CARD_CAROUSEL_STYLE, -1) }
     var lockscreenAllNotifications by persisted(SystemUiSettingsKeys.KEY_LOCKSCREEN_ALL_NOTIFICATIONS, storage::putBoolean) { storage.getBoolean(SystemUiSettingsKeys.KEY_LOCKSCREEN_ALL_NOTIFICATIONS, false) }
     var lockscreenKeepNotifications by persisted(SystemUiSettingsKeys.KEY_LOCKSCREEN_KEEP_NOTIFICATIONS, storage::putBoolean) { storage.getBoolean(SystemUiSettingsKeys.KEY_LOCKSCREEN_KEEP_NOTIFICATIONS, false) }
     var unlockPasskey by persisted(PlatformSettingsKeys.KEY_UNLOCK_PASSKEY, storage::putBoolean) { storage.getBoolean(PlatformSettingsKeys.KEY_UNLOCK_PASSKEY, false) }

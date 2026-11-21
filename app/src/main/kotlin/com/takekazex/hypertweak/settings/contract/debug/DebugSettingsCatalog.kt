@@ -236,6 +236,7 @@ internal object DebugSettingsCatalog {
         DebugSetting("market_splash", "Boolean", false),
         DebugSetting("market_update", "Boolean", false),
         DebugSetting("market_video", "Boolean", false),
+        DebugSetting("media_card_carousel_style", "Int", -1),
         DebugSetting("media_card_hide_app_icon", "Boolean", false),
         DebugSetting("media_card_hide_device_switch", "Boolean", false),
         DebugSetting("media_card_swipe", "Boolean", false),
