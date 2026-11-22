@@ -1,0 +1,8 @@
+<resources>
+    <string name="screen_recorder_title">屏幕录制</string>
+    <string name="screen_recorder_summary">保存位置、录制帧率</string>
+    <string name="screen_recorder_directory_title">规范保存位置</string>
+    <string name="screen_recorder_directory_summary">将新录制的视频保存到 Movies/ScreenRecorder</string>
+    <string name="screen_recorder_frame_rates_title">添加更多帧率</string>
+    <string name="screen_recorder_frame_rates_summary">按屏幕和编码器支持情况提供更高的录制帧率</string>
+</resources>

@@ -299,6 +299,8 @@ internal object DebugSettingsCatalog {
         DebugSetting("recents_card_haptic", "Boolean", false),
         DebugSetting("record_logs", "Boolean", true),
         DebugSetting("remove_gms_restriction", "Boolean", false),
+        DebugSetting("screen_recorder_more_frame_rates", "Boolean", false),
+        DebugSetting("screen_recorder_save_to_movies", "Boolean", false),
         DebugSetting("screenshot_auto_frame", "Boolean", false),
         DebugSetting("screenshot_copy_to_clipboard", "Boolean", false),
         DebugSetting("screenshot_frame_editor_mode", "Int", 0),

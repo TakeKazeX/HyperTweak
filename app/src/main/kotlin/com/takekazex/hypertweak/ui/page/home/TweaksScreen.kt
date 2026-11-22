@@ -44,6 +44,7 @@ fun TweaksScreenContent(
     onNavigateToSystemLauncher: () -> Unit,
     onNavigateToSystemUi: () -> Unit,
     onNavigateToSms: () -> Unit,
+    onNavigateToScreenRecorder: () -> Unit,
     onNavigateToScreenshot: () -> Unit,
     onNavigateToDownloadManager: () -> Unit,
     onNavigateToSecurityCenter: () -> Unit,
@@ -135,6 +136,18 @@ fun TweaksScreenContent(
                     )
                 },
                 onClick = onNavigateToScreenshot
+            )
+            ArrowPreference(
+                title = stringResource(R.string.screen_recorder_title),
+                summary = stringResource(R.string.screen_recorder_summary),
+                startAction = {
+                    ApplicationIcon(
+                        packageName = com.takekazex.hypertweak.settings.contract.ScreenRecorderSettingsKeys.PACKAGE,
+                        modifier = Modifier.padding(end = 6.dp),
+                        contentDescription = stringResource(R.string.screen_recorder_title)
+                    )
+                },
+                onClick = onNavigateToScreenRecorder
             )
             ArrowPreference(
                 title = stringResource(R.string.download_manager_title),

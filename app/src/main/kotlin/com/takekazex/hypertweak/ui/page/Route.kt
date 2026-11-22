@@ -20,6 +20,7 @@ sealed interface Route : NavKey {
     data object SystemLauncher : Route
     data object SystemUi : Route
     data object Sms : Route
+    data object ScreenRecorder : Route
     data object Screenshot : Route
     data object AodIcons : Route
     data object SliderPercentage : Route
@@ -80,6 +81,7 @@ val Route.saveKey: String
         Route.SystemLauncher -> "SystemLauncher"
         Route.SystemUi -> "SystemUi"
         Route.Sms -> "Sms"
+        Route.ScreenRecorder -> "ScreenRecorder"
         Route.Screenshot -> "Screenshot"
         Route.AodIcons -> "AodIcons"
         Route.SliderPercentage -> "SliderPercentage"
@@ -135,6 +137,7 @@ fun routeFromSaveKey(key: String): Route? = when (key) {
     "SystemLauncher" -> Route.SystemLauncher
     "SystemUi" -> Route.SystemUi
     "Sms" -> Route.Sms
+    "ScreenRecorder" -> Route.ScreenRecorder
     "Screenshot" -> Route.Screenshot
     "AodIcons" -> Route.AodIcons
     "SliderPercentage" -> Route.SliderPercentage

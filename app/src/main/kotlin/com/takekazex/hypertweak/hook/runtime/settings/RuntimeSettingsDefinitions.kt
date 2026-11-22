@@ -3,6 +3,7 @@ package com.takekazex.hypertweak.hook.runtime.settings
 import com.takekazex.hypertweak.settings.contract.FreeformSettingsKeys
 import com.takekazex.hypertweak.settings.contract.LauncherDesktopKeys
 
+import com.takekazex.hypertweak.settings.contract.ScreenRecorderSettingsKeys
 import com.takekazex.hypertweak.settings.contract.ScreenshotSettingsKeys
 
 import com.takekazex.hypertweak.settings.contract.AodSettingsKeys
@@ -191,6 +192,10 @@ internal object RuntimeSettingsDefinitions {
         RuntimeSettingsGroups.DARK_MODE to Group(setOf("android"), strict = setOf(PlatformSettingsKeys.KEY_DARK_MODE_IMMEDIATE_SCHEDULE)),
         RuntimeSettingsGroups.FORCE_SCREENSHOT to Group(setOf("android"), strict = setOf(PlatformSettingsKeys.KEY_FORCE_SCREENSHOT)),
         RuntimeSettingsGroups.HTML_VIEWER_MILLET to Group(setOf("android"), keys = setOf(PlatformSettingsKeys.KEY_HTML_VIEWER_MILLET)),
+        RuntimeSettingsGroups.SCREEN_RECORDER to Group(
+            setOf(ScreenRecorderSettingsKeys.PACKAGE),
+            strict = setOf(ScreenRecorderSettingsKeys.KEY_SAVE_TO_MOVIES, ScreenRecorderSettingsKeys.KEY_MORE_FRAME_RATES),
+        ),
         RuntimeSettingsGroups.SCREENSHOT to Group(setOf("com.miui.screenshot"), keys = setOf(ScreenshotSettingsKeys.KEY_SCREENSHOT_AUTO_FRAME, ScreenshotSettingsKeys.KEY_SCREENSHOT_FRAME_EDITOR_MODE, ScreenshotSettingsKeys.KEY_SCREENSHOT_COPY_TO_CLIPBOARD, ScreenshotSettingsKeys.KEY_SCREENSHOT_PICTURES_DIRECTORY)),
         RuntimeSettingsGroups.BACK to Group(systemUi + setOf("android", "com.miui.home"), keys = backKeys),
         RuntimeSettingsGroups.NATIVE to Group(systemUi + "com.miui.home", keys = nativeKeys, strict = setOf(PlatformSettingsKeys.KEY_XIAOAI_GESTURE_OPTIONS, PlatformSettingsKeys.KEY_NATIVE_PAD_DOCK)),

@@ -1,0 +1,8 @@
+<resources>
+    <string name="screen_recorder_title">螢幕錄影</string>
+    <string name="screen_recorder_summary">儲存位置、錄影影格率</string>
+    <string name="screen_recorder_directory_title">規範儲存位置</string>
+    <string name="screen_recorder_directory_summary">將新錄製的影片儲存至 Movies/ScreenRecorder</string>
+    <string name="screen_recorder_frame_rates_title">新增更多影格率</string>
+    <string name="screen_recorder_frame_rates_summary">依螢幕和編碼器的支援情況提供更高的錄影影格率</string>
+</resources>

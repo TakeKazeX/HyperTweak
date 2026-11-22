@@ -170,6 +170,9 @@ internal object RuntimeSettingsParticipants {
         registerForProcess(RuntimeSettingsGroups.DARK_MODE) { _ ->
             com.takekazex.hypertweak.hook.rules.system.DarkModeScheduleHooker.refreshSettings()
         }
+        registerForProcess(RuntimeSettingsGroups.SCREEN_RECORDER) { _ ->
+            com.takekazex.hypertweak.hook.rules.screenrecorder.ScreenRecorderHooker.refreshSettings()
+        }
         registerForProcess(RuntimeSettingsGroups.SCREENSHOT) { _ -> Preferences.invalidateRuntimeReadCache(); true }
         registerForProcess(RuntimeSettingsGroups.BACK) { _ ->
             RuntimeSettingsPreferences.dispatch(setOf(RuntimeSettingsGroups.BACK))

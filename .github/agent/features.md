@@ -582,6 +582,30 @@ must not participate in uniqueness. The shared selector is tested against JVM
 reflection fixtures and the real target DEX. A resolver/dialog exception shows a
 load failure; the host empty-provider message is reserved for an actual empty list.
 
+## Screen recorder
+
+The OS4 screen recorder page has independent, default-off destination and frame-rate switches.
+Its contracts resolve separately from the currently installed recorder APK. The settings fragment,
+controller, MediaStore insert and folder links run in `com.miui.screenrecorder`. The package also
+declares a separate core service. The hooks act where the main process prepares the destination
+and frame configuration.
+
+- The path hook redirects the public recording directory and the matching pending MediaStore
+  insert during preparation. It follows the directory choice for the whole preparation call.
+  Album, existence query and document URI consumers use `Movies/ScreenRecorder` when enabled.
+  Existing recordings stay in their original directories. A failed directory creation keeps the
+  native destination for that save. Existing notifications can retain previously built folder intents.
+- The frame hook extends only the host frame dropdown's label and value arrays using the
+  selected resolution, physical refresh modes and advertised surface-encoder capabilities for
+  both orientations. It keeps the host frame list and bitrate table intact. Unsupported saved
+  rates above the host list use the host default at recording start. The common runtime settings
+  dispatcher refreshes the living settings fragment, found via the host activity and its native
+  fragment tag, including after hot reload and upgrades from builds without this feature. A native
+  resolution change also refreshes the dropdown. Advertised support does not measure recorded
+  frame cadence under variable refresh, load or thermal limits.
+
+Set `SCREEN_RECORDER_APK` to run `ScreenRecorderHostContractTest` against the verified APK.
+
 ## Screenshot, Dock and IME
 
 Screenshot auto-framing resolves its full-screen request/save/worker/preview graph and mutable

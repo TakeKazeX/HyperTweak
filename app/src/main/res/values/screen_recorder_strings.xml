@@ -1,0 +1,8 @@
+<resources>
+    <string name="screen_recorder_title">Screen recorder</string>
+    <string name="screen_recorder_summary">Save location and frame rates</string>
+    <string name="screen_recorder_directory_title">Standardize save location</string>
+    <string name="screen_recorder_directory_summary">Save new recordings to Movies/ScreenRecorder</string>
+    <string name="screen_recorder_frame_rates_title">Add more frame rates</string>
+    <string name="screen_recorder_frame_rates_summary">Offer higher frame rates when supported by the display and encoder</string>
+</resources>

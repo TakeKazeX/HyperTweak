@@ -36,6 +36,9 @@ internal object ServiceAppHookPlan {
             com.takekazex.hypertweak.settings.contract.SmsSettingsKeys.PACKAGE -> {
                 if (processName == packageName) hook { com.takekazex.hypertweak.hook.rules.sms.SmsCodeHooker }
             }
+            com.takekazex.hypertweak.settings.contract.ScreenRecorderSettingsKeys.PACKAGE -> {
+                if (processName == packageName) hook { com.takekazex.hypertweak.hook.rules.screenrecorder.ScreenRecorderHooker }
+            }
             "com.miui.screenshot" -> {
                 // HyperOS delegates normal screenshots to this process. Its provider hard-codes
                 // screenshot.ogg, which is the short AOSP-style click on this CN build; redirect

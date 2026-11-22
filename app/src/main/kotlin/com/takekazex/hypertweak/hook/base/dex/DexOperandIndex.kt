@@ -234,6 +234,8 @@ internal class DexOperandIndex internal constructor(
                     registers[a!!] = Value.Number(instruction.wideLiteral)
                 reference is TypeReference && op == "NEW_INSTANCE" ->
                     registers[a!!] = Value.Allocation(reference.type, address)
+                // A successful cast refines the type without changing the producer.
+                op == "CHECK_CAST" -> priorA?.let { registers[a] = it }
                 op.startsWith("MOVE_RESULT") -> pending?.let { registers[a!!] = it }
                 op.startsWith("MOVE") && b != null -> priorB?.let { registers[a!!] = it }
                 reference is MethodReference && op.startsWith("INVOKE") -> {

@@ -21,6 +21,7 @@ internal object RuntimeSettingsGroups {
     const val AOSP_SECURITY = "securitycenter.aosp_restore"
     const val DARK_MODE = "system.dark_mode"
     const val FORCE_SCREENSHOT = "system.force_screenshot"
+    const val SCREEN_RECORDER = "screenrecorder.configuration"
     const val SCREENSHOT = "screenshot.frame"
     const val BACK = "gesture.back"
     const val NATIVE = "launcher.native"

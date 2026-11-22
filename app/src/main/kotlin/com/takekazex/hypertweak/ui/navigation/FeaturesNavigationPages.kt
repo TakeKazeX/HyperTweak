@@ -55,6 +55,9 @@ internal fun NavEntryBuilder.featuresPages(settings: NavigationSettings, navCont
         entry<Route.Sms> {
             com.takekazex.hypertweak.ui.page.sms.SmsPage(onBack = { navController.pop() })
         }
+        entry<Route.ScreenRecorder> {
+            com.takekazex.hypertweak.ui.page.screenrecorder.ScreenRecorderPage(onBack = { navController.pop() })
+        }
         entry<Route.Screenshot> {
             com.takekazex.hypertweak.ui.page.screenshot.ScreenshotPage(onBack = { navController.pop() })
         }

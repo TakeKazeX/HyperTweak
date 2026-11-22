@@ -20,6 +20,7 @@ internal fun NavEntryBuilder.mainPages(settings: NavigationSettings, navControll
                 pendingRestartScopes = pendingRestartScopes,
                 onNavigateToSystemLauncher = { navController.navigateTo(Route.SystemLauncher) },
                 onNavigateToSms = { navController.navigateTo(Route.Sms) },
+                onNavigateToScreenRecorder = { navController.navigateTo(Route.ScreenRecorder) },
                 onNavigateToScreenshot = { navController.navigateTo(Route.Screenshot) },
                 onNavigateToSystemUi = {
                     navController.navigateTo(Route.SystemUi)
