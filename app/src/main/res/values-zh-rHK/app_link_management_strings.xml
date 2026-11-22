@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="security_center_app_link_management">應用程式開啟連結管理</string>
+    <string name="security_center_app_link_management_summary">將應用程式詳情中的「清除預設值」替換為系統的連結管理入口。</string>
+    <string name="app_link_management_row_title">預設開啟</string>
+    <string name="app_link_management_allowed">允許應用程式開啟支援的連結</string>
+    <string name="app_link_management_disallowed">不允許應用程式開啟連結</string>
+</resources>

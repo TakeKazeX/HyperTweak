@@ -343,6 +343,7 @@ class RuntimeSettingsRoutingTest {
             AppSettingsKeys.KEY_APP_DETAILS_ALLOW_DISABLE,
             AppSettingsKeys.KEY_APP_DETAILS_MORE_INFO,
             AppSettingsKeys.KEY_APP_DETAILS_NAMED_SHARE,
+            AppSettingsKeys.KEY_APP_LINK_MANAGEMENT,
         )
         val values = keys.associateWith { true }
         keys.forEach { key ->

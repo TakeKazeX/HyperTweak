@@ -41,6 +41,9 @@ fun SecurityCenterPage(
     var hideReport by rememberStoredSetting(AppSettingsKeys.KEY_APP_DETAILS_HIDE_REPORT, settingsStore::putBoolean) { settingsStore.getBoolean(AppSettingsKeys.KEY_APP_DETAILS_HIDE_REPORT, false) }
     var allowDisable by rememberStoredSetting(AppSettingsKeys.KEY_APP_DETAILS_ALLOW_DISABLE, settingsStore::putBoolean) { settingsStore.getBoolean(AppSettingsKeys.KEY_APP_DETAILS_ALLOW_DISABLE, false) }
     var moreAppInfo by rememberStoredSetting(AppSettingsKeys.KEY_APP_DETAILS_MORE_INFO, settingsStore::putBoolean) { settingsStore.getBoolean(AppSettingsKeys.KEY_APP_DETAILS_MORE_INFO, false) }
+    var appLinkManagement by rememberStoredSetting(AppSettingsKeys.KEY_APP_LINK_MANAGEMENT, settingsStore::putBoolean) {
+        settingsStore.getBoolean(AppSettingsKeys.KEY_APP_LINK_MANAGEMENT, false)
+    }
     var namedApkShare by rememberStoredSetting(AppSettingsKeys.KEY_APP_DETAILS_NAMED_SHARE, settingsStore::putBoolean) { settingsStore.getBoolean(AppSettingsKeys.KEY_APP_DETAILS_NAMED_SHARE, false) }
     var bubbleNotificationUnlock by rememberStoredSetting(PlatformSettingsKeys.KEY_SECURITY_CENTER_BUBBLE_NOTIFICATION_UNLOCK, settingsStore::putBoolean) { settingsStore.getBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_BUBBLE_NOTIFICATION_UNLOCK, false) }
     var lowBatteryWarningMode by rememberStoredSetting(PlatformSettingsKeys.KEY_SECURITY_CENTER_LOW_BATTERY_MODE, settingsStore::putInt) {
@@ -93,6 +96,12 @@ fun SecurityCenterPage(
                 },
                 title = stringResource(R.string.security_center_more_app_info),
                 summary = stringResource(R.string.security_center_more_app_info_summary)
+            )
+            SwitchPreference(
+                checked = appLinkManagement,
+                onCheckedChange = { appLinkManagement = it },
+                title = stringResource(R.string.security_center_app_link_management),
+                summary = stringResource(R.string.security_center_app_link_management_summary),
             )
             SwitchPreference(
                 checked = namedApkShare,

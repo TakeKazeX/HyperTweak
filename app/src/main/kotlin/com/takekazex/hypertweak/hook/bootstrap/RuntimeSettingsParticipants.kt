@@ -19,6 +19,7 @@ import com.takekazex.hypertweak.hook.rules.systemui.freeform.FreeformBlurTransit
 import com.takekazex.hypertweak.hook.rules.systemui.freeform.MotionCuesFreeformHooker
 import com.takekazex.hypertweak.hook.rules.securitycenter.AppDetailsIconLaunchHooker
 import com.takekazex.hypertweak.hook.rules.securitycenter.AppDetailsActionsHooker
+import com.takekazex.hypertweak.hook.rules.securitycenter.AppLinkManagementHooker
 import com.takekazex.hypertweak.hook.rules.securitycenter.MoreAppInfoHooker
 import com.takekazex.hypertweak.hook.rules.securitycenter.sidebar.SecurityCenterSidebarHooker
 import com.takekazex.hypertweak.hook.rules.securitycenter.sidebar.SecurityCenterGameBoosterHooker
@@ -239,6 +240,7 @@ internal object RuntimeSettingsParticipants {
             if (processName == "com.miui.securitycenter") {
                 AppDetailsIconLaunchHooker.refreshSettings()
                 AppDetailsActionsHooker.refreshSettings()
+                AppLinkManagementHooker.refreshSettings()
                 MoreAppInfoHooker.refreshSettings()
             }
             true

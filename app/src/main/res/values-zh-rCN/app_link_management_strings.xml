@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="security_center_app_link_management">应用打开链接管理</string>
+    <string name="security_center_app_link_management_summary">将应用详情中的「消除默认操作」替换为系统的链接管理入口。</string>
+    <string name="app_link_management_row_title">默认打开</string>
+    <string name="app_link_management_allowed">允许应用打开支持的链接</string>
+    <string name="app_link_management_disallowed">不允许应用打开链接</string>
+</resources>

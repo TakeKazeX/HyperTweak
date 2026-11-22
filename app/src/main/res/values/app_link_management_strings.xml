@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="security_center_app_link_management">App link management</string>
+    <string name="security_center_app_link_management_summary">Replace “Clear defaults” in app details with a shortcut to system link settings.</string>
+    <string name="app_link_management_row_title">Open by default</string>
+    <string name="app_link_management_allowed">Allow the app to open supported links</string>
+    <string name="app_link_management_disallowed">Do not allow the app to open links</string>
+</resources>

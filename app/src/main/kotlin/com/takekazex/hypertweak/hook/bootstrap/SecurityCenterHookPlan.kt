@@ -6,6 +6,7 @@ import com.takekazex.hypertweak.hook.rules.securitycenter.AospAppInfoEntryHooker
 import com.takekazex.hypertweak.hook.rules.securitycenter.AospAppManagerEntryHooker
 import com.takekazex.hypertweak.hook.rules.securitycenter.AppDetailsIconLaunchHooker
 import com.takekazex.hypertweak.hook.rules.securitycenter.AppDetailsActionsHooker
+import com.takekazex.hypertweak.hook.rules.securitycenter.AppLinkManagementHooker
 import com.takekazex.hypertweak.hook.rules.securitycenter.MoreAppInfoHooker
 import com.takekazex.hypertweak.hook.rules.securitycenter.NamedApkShareHooker
 import com.takekazex.hypertweak.hook.rules.securitycenter.battery.BatteryInfoHooker
@@ -83,6 +84,7 @@ internal object SecurityCenterHookPlan {
                     if (processName == packageName) {
                         hook { AppDetailsIconLaunchHooker }
                         hook { AppDetailsActionsHooker }
+                        hook { AppLinkManagementHooker }
                         hook { MoreAppInfoHooker }
                         hook { NamedApkShareHooker }
                         hook { SecurityCenterUsbInstallNetworkVerifyHooker }

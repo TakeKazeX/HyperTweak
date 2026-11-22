@@ -18,6 +18,7 @@ object AppSettingsKeys {
     const val KEY_APP_DETAILS_HIDE_REPORT = "app_details_hide_report"
     const val KEY_APP_DETAILS_ALLOW_DISABLE = "app_details_allow_disable"
     const val KEY_APP_DETAILS_MORE_INFO = "app_details_more_info"
+    const val KEY_APP_LINK_MANAGEMENT = "app_link_management"
     const val KEY_APP_DETAILS_NAMED_SHARE = "app_details_named_share"
     const val KEY_LANGUAGE = "app_language"
     const val KEY_PAGE_SCALE = "page_scale"

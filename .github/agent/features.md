@@ -575,6 +575,23 @@ no SystemUI title, mount or row hooks: long file names follow native island trun
 Validation: `DownloadFocus*Test` and package-plan/runtime-settings tests; the user checks
 multiple downloads, pause/resume, completion, enable/disable/reset and hot reload on device.
 
+## Security Center app link management
+
+The default-off `app_link_management` switch lives under App details. On OS4, the
+Security Center main process reuses the host's `app_default_pref` row. The DEX contract
+checks the preference binding, click branch, loader bridge and package parsing, and
+resolves the viewed app from the host's `ApplicationInfo`. The title and link-permission
+summary refresh after native data loads and when returning from Android Settings.
+Clicking an owned row opens the system open-by-default page for that package. A failed
+launch restores the row and consumes that click to prevent an accidental clear.
+
+Removed rows (including the browser on the verified build), apps belonging to a different
+user, and unavailable Settings routes retain native behavior. Android's public domain
+state and Settings action address the calling user. Missing domain state displays the
+disallowed summary. The preference key and order stay available to the AOSP app info
+entry. Settings changes and new generations bind live fragments through the activity's
+typed fragment field. Disable, reset and retirement restore native text.
+
 ## Security Center privacy
 
 `SecurityCenterPrivacyResolver` reuses the operand/call-graph index to recover privacy gates, native function-card builders and the beauty initializer/support path. No obfuscated owner/member names or ROM-version branches are stored. Missing optional capabilities remain independent; selecting an absent anti-peeping variant preserves the native gates/visibility. Beauty support overrides are scoped to the native initializer with nested/exception-safe thread ownership.

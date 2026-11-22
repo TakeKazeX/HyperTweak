@@ -242,7 +242,11 @@ internal object RuntimeSettingsDefinitions {
                 "com.miui.securitycenter", "com.android.camera", "com.xiaomi.aicr",
                 "com.miui.personalassistant", "com.miui.mediaeditor",
             ), keys = setOf(PlatformSettingsKeys.KEY_AICR_COPY_DIRECT_DEFAULT_BROWSER, PlatformSettingsKeys.KEY_PA_MODEL_SPOOF, PlatformSettingsKeys.KEY_PA_MODEL_SPOOF_MODEL, PlatformSettingsKeys.KEY_PA_MODEL_SPOOF_DEVICE) + watermarkKeys, strict = powerSaveKeys + setOf(PlatformSettingsKeys.KEY_SECURITY_CENTER_SHOW_BERSERK_MODE, PlatformSettingsKeys.KEY_SECURITY_CENTER_SHOW_DETAILED_POWER_DATA, PlatformSettingsKeys.KEY_SECURITY_CENTER_RESTORE_POWER_RANKING, PlatformSettingsKeys.KEY_SECURITY_CENTER_MORE_BATTERY_INFO)),
-        RuntimeSettingsGroups.APP_DETAILS to Group(setOf("com.miui.securitycenter"), strict = setOf(AppSettingsKeys.KEY_APP_DETAILS_ICON_LAUNCH, AppSettingsKeys.KEY_APP_DETAILS_HIDE_REPORT, AppSettingsKeys.KEY_APP_DETAILS_ALLOW_DISABLE, AppSettingsKeys.KEY_APP_DETAILS_MORE_INFO, AppSettingsKeys.KEY_APP_DETAILS_NAMED_SHARE)),
+        RuntimeSettingsGroups.APP_DETAILS to Group(setOf("com.miui.securitycenter"), strict = setOf(
+            AppSettingsKeys.KEY_APP_DETAILS_ICON_LAUNCH, AppSettingsKeys.KEY_APP_DETAILS_HIDE_REPORT,
+            AppSettingsKeys.KEY_APP_DETAILS_ALLOW_DISABLE, AppSettingsKeys.KEY_APP_DETAILS_MORE_INFO,
+            AppSettingsKeys.KEY_APP_DETAILS_NAMED_SHARE, AppSettingsKeys.KEY_APP_LINK_MANAGEMENT,
+        )),
         RuntimeSettingsGroups.SECURITY_GAMEBOOSTER to Group(setOf("com.miui.securitycenter"), strict = setOf(PlatformSettingsKeys.KEY_SECURITY_CENTER_FORCE_UNLOCK_GUNSIGHT, PlatformSettingsKeys.KEY_SECURITY_CENTER_FORCE_UNLOCK_MACRO)),
         RuntimeSettingsGroups.SECURITY_POPUPS to Group(setOf("com.miui.securitycenter"), strict = setOf(PlatformSettingsKeys.KEY_SECURITY_CENTER_HIDE_DOLBY_POPUP, PlatformSettingsKeys.KEY_SECURITY_CENTER_HIDE_GAME_POPUP)),
         RuntimeSettingsGroups.SECURITY_SIDEBAR to Group(setOf("com.miui.securitycenter"), keys = setOf(PlatformSettingsKeys.KEY_SECURITY_CENTER_SIDEBAR_MODE)),
