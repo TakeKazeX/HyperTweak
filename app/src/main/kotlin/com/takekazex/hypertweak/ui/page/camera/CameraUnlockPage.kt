@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.text.input.TextFieldLineLimits
+import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -328,12 +330,11 @@ private fun CameraWatermarkTextDialog(
         summary = stringResource(R.string.camera_unlock_custom_dialog_summary),
         onDismissRequest = onDismissRequest,
         content = {
-            var text by remember(show) { mutableStateOf(initial) }
+            val input = remember(show) { TextFieldState(initial) }
             TextField(
                 modifier = Modifier.padding(bottom = 16.dp),
-                value = text,
-                maxLines = 1,
-                onValueChange = { text = it }
+                state = input,
+                lineLimits = TextFieldLineLimits.SingleLine,
             )
             Row {
                 TextButton(
@@ -344,7 +345,7 @@ private fun CameraWatermarkTextDialog(
                 Spacer(Modifier.width(20.dp))
                 TextButton(
                     text = stringResource(R.string.camera_unlock_custom_ok),
-                    onClick = { onConfirm(text.trim()) },
+                    onClick = { onConfirm(input.text.toString().trim()) },
                     modifier = Modifier.weight(1f),
                     colors = ButtonDefaults.textButtonColorsPrimary(),
                 )

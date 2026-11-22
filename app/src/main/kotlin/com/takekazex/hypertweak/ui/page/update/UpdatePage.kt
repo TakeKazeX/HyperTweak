@@ -10,12 +10,16 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.text.input.TextFieldLineLimits
+import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -75,8 +79,19 @@ fun UpdatePage(
     var channel by remember { mutableStateOf(manager.channel()) }
     var interval by remember { mutableStateOf(manager.interval()) }
     var proxyMode by remember { mutableStateOf(manager.proxyMode()) }
-    var proxyInput by remember { mutableStateOf(manager.proxyAddress()) }
-    var proxyInputValid by remember { mutableStateOf(true) }
+    val proxyInput = remember(manager) { TextFieldState(manager.proxyAddress()) }
+    val proxyText = proxyInput.text.toString()
+    val proxyInputValid = proxyText.isBlank() || UpdateNetworkPolicy.normalizeProxy(proxyText) != null
+    LaunchedEffect(manager, proxyInput) {
+        // Partial or invalid addresses stay in the field and never become the active proxy.
+        snapshotFlow { proxyInput.text.toString() }.collect { raw ->
+            if (raw.trim() != manager.proxyAddress() &&
+                (raw.isBlank() || UpdateNetworkPolicy.normalizeProxy(raw) != null)
+            ) {
+                manager.setProxyAddress(raw)
+            }
+        }
+    }
     var showAllChanges by remember { mutableStateOf(false) }
     var showOtherChanges by remember { mutableStateOf(false) }
     var showRawCommits by remember { mutableStateOf(false) }
@@ -227,18 +242,9 @@ fun UpdatePage(
                                 Spacer(Modifier.height(8.dp))
                                 TextField(
                                     modifier = Modifier.fillMaxWidth(),
-                                    value = proxyInput,
+                                    state = proxyInput,
                                     enabled = proxyMode == UpdateProxyMode.THIRD_PARTY,
-                                    maxLines = 1,
-                                    onValueChange = { raw ->
-                                        proxyInput = raw
-                                        // Only https is accepted (this flow never permits
-                                        // cleartext), so a half-typed address stays in the field
-                                        // but is never persisted as a usable proxy.
-                                        proxyInputValid = raw.isBlank() ||
-                                            UpdateNetworkPolicy.normalizeProxy(raw) != null
-                                        if (proxyInputValid) manager.setProxyAddress(raw)
-                                    }
+                                    lineLimits = TextFieldLineLimits.SingleLine,
                                 )
                                 if (!proxyInputValid) {
                                     Spacer(Modifier.height(6.dp))

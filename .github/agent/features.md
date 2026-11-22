@@ -174,6 +174,8 @@ otherwise OS4 shows `GlassNavigationBar` and OS3 the classic or floating Miuix b
 items. Landscape OS4 overlays a `GlassNavigationRail` whose progress pads the page and drives
 `LocalTopBarTitleAlpha`. `AppBlur.kt` applies the blur policy to card and navigation-bar blur;
 progressive mode uses Miuix's native `progressiveTextureBlur` pipeline.
+Page tab rows measure labels in selected and unselected Miuix typography. Glass tabs scroll
+when their full labels no longer fit, and classic tabs expand their native scrollable items.
 The shared `CenteredDialog` delegates to Miuix's centered `WindowDialog`. MainPager uses the
 cross-axis Pager gesture driver and spring tab navigation; the liquid indicator follows Pager
 selection without redispatching tab clicks. Liquid rendering and its six auxiliary files follow

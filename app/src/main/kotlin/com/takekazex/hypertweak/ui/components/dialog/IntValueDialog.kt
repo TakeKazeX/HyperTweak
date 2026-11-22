@@ -5,11 +5,12 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.text.input.InputTransformation
+import androidx.compose.foundation.text.input.TextFieldLineLimits
+import androidx.compose.foundation.text.input.TextFieldState
+import androidx.compose.foundation.text.input.byValue
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -51,11 +52,11 @@ fun IntValueDialog(
         summary = summary,
         onDismissRequest = onDismissRequest,
         content = {
-            var text by remember(show) { mutableStateOf(currentValue().toString()) }
+            val input = remember(show) { TextFieldState(currentValue().toString()) }
             TextField(
                 modifier = Modifier.padding(bottom = 16.dp),
-                value = text,
-                maxLines = 1,
+                state = input,
+                lineLimits = TextFieldLineLimits.SingleLine,
                 trailingIcon = if (suffix == null) {
                     null
                 } else {
@@ -67,13 +68,10 @@ fun IntValueDialog(
                         )
                     }
                 },
-                onValueChange = { newValue ->
-                    // Empty is allowed during editing; a leading minus is accepted only
-                    // for signed ranges such as vertical offsets.
-                    if (newValue.isEmpty() || newValue.all { it.isDigit() } ||
-                        (range.first < 0 && newValue.startsWith("-") && newValue.drop(1).all { it.isDigit() })) {
-                        text = newValue
-                    }
+                inputTransformation = InputTransformation.byValue { previous, proposed ->
+                    // A leading minus is accepted only for signed ranges.
+                    val digits = if (range.first < 0 && proposed.startsWith('-')) proposed.drop(1) else proposed
+                    if (digits.all(Char::isDigit)) proposed else previous
                 },
             )
             Row(horizontalArrangement = Arrangement.SpaceBetween) {
@@ -86,7 +84,7 @@ fun IntValueDialog(
                 TextButton(
                     text = stringResource(R.string.scale_ok),
                     onClick = {
-                        val resolved = (text.toIntOrNull() ?: emptyValue)
+                        val resolved = (input.text.toString().toIntOrNull() ?: emptyValue)
                             .coerceIn(range.first, range.last)
                         onValueConfirmed(resolved)
                         onDismissRequest()

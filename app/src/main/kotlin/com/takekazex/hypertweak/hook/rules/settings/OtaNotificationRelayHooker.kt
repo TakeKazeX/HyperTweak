@@ -1,9 +1,9 @@
 package com.takekazex.hypertweak.hook.rules.settings
 
 import android.content.ContentProvider
-import android.net.Uri
 import android.os.Binder
 import android.os.Bundle
+import androidx.core.net.toUri
 import com.takekazex.hypertweak.BuildConfig
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.StaticHooker
@@ -35,7 +35,7 @@ internal object OtaNotificationRelayHooker : StaticHooker() {
                             // is still preparing.
                             val extras = Bundle().apply { putString("id", "id_ota") }
                             context.contentResolver.call(
-                                Uri.parse("content://${OtaNotificationReplay.VIEWER_AUTHORITY}"),
+                                "content://${OtaNotificationReplay.VIEWER_AUTHORITY}".toUri(),
                                 OtaNotificationReplay.METHOD, null, extras,
                             )
                         } finally {

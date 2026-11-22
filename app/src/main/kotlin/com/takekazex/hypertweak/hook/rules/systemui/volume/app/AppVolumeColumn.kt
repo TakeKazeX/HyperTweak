@@ -236,7 +236,9 @@ internal class AppVolumeColumn(
 
     override fun onInitializeAccessibilityNodeInfo(info: AccessibilityNodeInfo) {
         super.onInitializeAccessibilityNodeInfo(info)
-        info.rangeInfo = AccessibilityNodeInfo.RangeInfo.obtain(AccessibilityNodeInfo.RangeInfo.RANGE_TYPE_PERCENT, 0f, 100f, gain * 100f)
+        info.rangeInfo = AccessibilityNodeInfo.RangeInfo(
+            AccessibilityNodeInfo.RangeInfo.RANGE_TYPE_PERCENT, 0f, 100f, gain * 100f,
+        )
         info.addAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_FORWARD)
         info.addAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_BACKWARD)
         info.addAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_SET_PROGRESS)

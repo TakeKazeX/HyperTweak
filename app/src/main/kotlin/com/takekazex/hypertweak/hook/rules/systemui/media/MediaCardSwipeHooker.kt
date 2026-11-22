@@ -6,6 +6,7 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
+import androidx.core.view.isGone
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.HostAccess
@@ -473,7 +474,7 @@ internal abstract class ShadeMediaCarouselLayer(val player: View) : FrameLayout(
     }
 
     protected fun restorePlayer() {
-        restoreVisibility?.let { if (player.visibility == View.GONE) player.visibility = it }
+        restoreVisibility?.let { if (player.isGone) player.visibility = it }
         restoreVisibility = null
     }
 

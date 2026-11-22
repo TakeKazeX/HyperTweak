@@ -125,6 +125,8 @@ internal class HyperOsMediaCarousel(
         if (!isVisible) closeMenu()
     }
 
+    // Touch feedback is visual only. The native player and its children handle clicks.
+    @SuppressLint("ClickableViewAccessibility")
     fun refreshPages() {
         if (!isAttachedToWindow || failed) return
         try {
@@ -425,6 +427,8 @@ private class MediaCardPager(context: Context) : HorizontalScrollView(context) {
         return bounds.contains((event.rawX - location[0]).toInt(), (event.rawY - location[1]).toInt())
     }
 
+    // This view handles scrolling; actionable children dispatch their own clicks.
+    @SuppressLint("ClickableViewAccessibility")
     override fun onTouchEvent(event: MotionEvent): Boolean {
         if (event.actionMasked == MotionEvent.ACTION_DOWN) cancelSnap()
         flingHandled = false

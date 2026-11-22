@@ -18,6 +18,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.input.InputTransformation
+import androidx.compose.foundation.text.input.TextFieldLineLimits
+import androidx.compose.foundation.text.input.byValue
+import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -27,8 +31,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -41,15 +47,14 @@ import com.takekazex.hypertweak.ui.chrome.AppDropdownPreference as OverlayDropdo
 import com.takekazex.hypertweak.ui.chrome.AppScrollPage
 import com.takekazex.hypertweak.ui.chrome.AppSection
 import com.takekazex.hypertweak.ui.chrome.AppTextButton as TextButton
-import com.takekazex.hypertweak.ui.components.dialog.AppWindowDialog
 import com.takekazex.hypertweak.ui.components.MiuixExpandableContent
+import com.takekazex.hypertweak.ui.components.dialog.AppWindowDialog
 import com.takekazex.hypertweak.util.platform.AdbTcpPort
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
@@ -63,12 +68,12 @@ internal fun WirelessAdbPage(onBack: () -> Unit) {
     val scope = rememberCoroutineScope()
     val options = remember(appContext) { AdbTcpPort.options(appContext) }
     var custom by rememberSaveable { mutableStateOf(options.getBoolean("custom", false)) }
-    var input by rememberSaveable { mutableStateOf(options.getString("port", "").orEmpty()) }
+    val input = rememberTextFieldState(options.getString("port", "").orEmpty())
     var state by remember { mutableStateOf<AdbTcpPort.State?>(null) }
     var working by remember { mutableStateOf(false) }
     var authentication by remember { mutableStateOf<CancellationSignal?>(null) }
     var initialized by remember { mutableStateOf(false) }
-    val customPort = input.toIntOrNull()?.takeIf { it in 1..65535 }
+    val customPort = input.text.toString().toIntOrNull()?.takeIf { it in 1..65535 }
     val port = if (custom) customPort ?: -1 else 0
     val bound = state?.bound.orEmpty()
     var removing by remember { mutableStateOf<AdbTcpPort.Wifi?>(null) }
@@ -82,6 +87,14 @@ internal fun WirelessAdbPage(onBack: () -> Unit) {
     val cancelLabel = stringResource(R.string.debug_biometric_cancel)
     val endpointLabel = stringResource(R.string.debug_adb_tcp_endpoint)
     val canEdit = initialized && state != null && !working && authentication == null
+
+    LaunchedEffect(input, options) {
+        snapshotFlow { input.text.toString() }.collect { portText ->
+            if (options.getString("port", "").orEmpty() != portText) {
+                options.edit { putString("port", portText) }
+            }
+        }
+    }
 
     suspend fun initialize() {
         working = true
@@ -264,7 +277,9 @@ internal fun WirelessAdbPage(onBack: () -> Unit) {
                     currentBound -> Unit
                     bound.size >= AdbTcpPort.MAX_BOUND -> BasicComponent(
                         title = stringResource(R.string.debug_adb_tcp_bind_current, current.name),
-                        summary = stringResource(R.string.debug_adb_tcp_bind_full, AdbTcpPort.MAX_BOUND),
+                        summary = pluralStringResource(
+                            R.plurals.debug_adb_tcp_bind_full, AdbTcpPort.MAX_BOUND, AdbTcpPort.MAX_BOUND,
+                        ),
                         enabled = false,
                     )
                     else -> ArrowPreference(
@@ -309,14 +324,13 @@ internal fun WirelessAdbPage(onBack: () -> Unit) {
                 MiuixExpandableContent(visible = custom && !randomOnly) {
                     TextField(
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                        value = input,
+                        state = input,
                         label = stringResource(R.string.debug_adb_tcp_port),
                         enabled = canEdit && !listening && !randomOnly,
-                        onValueChange = {
-                            input = it.filter { digit -> digit in '0'..'9' }.take(5)
-                            options.edit { putString("port", input) }
+                        inputTransformation = InputTransformation.byValue { _, proposed ->
+                            proposed.filter { it in '0'..'9' }.take(5)
                         },
-                        maxLines = 1,
+                        lineLimits = TextFieldLineLimits.SingleLine,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     )
                 }

@@ -1,17 +1,25 @@
 package com.takekazex.hypertweak.ui.chrome
 
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
@@ -22,10 +30,14 @@ import top.yukonga.miuix.kmp.basic.DropdownDefaults
 import top.yukonga.miuix.kmp.basic.DropdownEntry
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButtonDefaults
+import top.yukonga.miuix.kmp.basic.TabRowDefaults
+import top.yukonga.miuix.kmp.basic.TabRowWithContour
 import top.yukonga.miuix.kmp.glass.GlassDialog
 import top.yukonga.miuix.kmp.glass.GlassDropdownPreference
 import top.yukonga.miuix.kmp.glass.GlassIconButton
 import top.yukonga.miuix.kmp.glass.GlassPopupSizing
+import top.yukonga.miuix.kmp.glass.GlassTabRow
+import top.yukonga.miuix.kmp.glass.GlassTabRowDefaults
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.glass.ChevronBackward
@@ -232,26 +244,54 @@ fun AppTabRow(
     onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val index = selectedIndex.coerceIn(0, tabs.lastIndex)
+    if (tabs.isEmpty()) return
+    val index = selectedIndex.coerceIn(tabs.indices)
     val rowModifier = modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
-    if (LocalAppUiStyle.current == AppUiStyle.Os4) {
-        top.yukonga.miuix.kmp.glass.GlassTabRow(
-            tabs = tabs,
-            selectedIndex = index,
-            onSelect = onSelect,
-            backdrop = LocalPageBackdrop.current,
-            modifier = rowModifier,
-        )
+    val glass = LocalAppUiStyle.current == AppUiStyle.Os4
+    val textStyles = MiuixTheme.textStyles
+    val selectedStyle = if (glass) textStyles.subtitle else textStyles.body1.copy(fontWeight = FontWeight.Bold)
+    val idleStyle = if (glass) textStyles.body2 else textStyles.body1.copy(fontWeight = FontWeight.Normal)
+    val measurer = rememberTextMeasurer()
+    val (widthPx, heightPx) = remember(tabs, measurer, selectedStyle, idleStyle) {
+        val sizes = tabs.flatMap { label ->
+            listOf(
+                measurer.measure(label, style = selectedStyle, maxLines = 1).size,
+                measurer.measure(label, style = idleStyle, maxLines = 1).size,
+            )
+        }
+        sizes.maxOf { it.width } to sizes.maxOf { it.height }
+    }
+    val (labelWidth, labelHeight) = with(LocalDensity.current) { widthPx.toDp() to heightPx.toDp() }
+    if (glass) {
+        val horizontalPadding = GlassTabRowDefaults.TabPaddingHorizontal * 2
+        val verticalPadding = GlassTabRowDefaults.TabPaddingVertical * 2
+        val gap = GlassTabRowDefaults.TabGap
+        val minRowWidth = (labelWidth + horizontalPadding + 1.dp) * tabs.size + gap * tabs.lastIndex
+        val height = maxOf(GlassTabRowDefaults.Height, labelHeight + verticalPadding)
+        BoxWithConstraints(rowModifier) {
+            GlassTabRow(
+                tabs = tabs,
+                selectedIndex = index,
+                onSelect = onSelect,
+                backdrop = LocalPageBackdrop.current,
+                modifier = Modifier.horizontalScroll(rememberScrollState()).width(maxOf(maxWidth, minRowWidth)),
+                height = height,
+            )
+        }
     } else {
-        top.yukonga.miuix.kmp.basic.TabRowWithContour(
+        val minWidth = maxOf(TabRowDefaults.TabRowWithContourMinWidth, labelWidth + 24.dp)
+        TabRowWithContour(
             tabs = tabs,
             selectedTabIndex = index,
             onTabSelected = onSelect,
-            colors = top.yukonga.miuix.kmp.basic.TabRowDefaults.tabRowColors(
+            colors = TabRowDefaults.tabRowColors(
                 backgroundColor = MiuixTheme.colorScheme.surfaceContainer,
                 selectedBackgroundColor = MiuixTheme.colorScheme.surface,
             ),
             modifier = rowModifier,
+            minWidth = minWidth,
+            maxWidth = maxOf(minWidth, TabRowDefaults.TabRowWithContourMaxWidth),
+            height = maxOf(TabRowDefaults.TabRowWithContourHeight, labelHeight + 12.dp),
         )
     }
 }

@@ -85,7 +85,7 @@ internal object AppCloseWidthBinder {
             }.onFailure { DebugLog.w(ISLAND_TAG, "pin app-close BIG width", it) }
         }
         registrar.after(closeEnd.also(registrar::deoptimize), "three_islands_close_width_release") { param ->
-            val view = param.thisObject ?: return@after
+            val view = param.thisObject
             // Let the remaining synchronous close-end callbacks finish on the pinned geometry.
             runtime.main.post { finish(context, view) }
         }

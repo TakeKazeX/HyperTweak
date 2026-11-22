@@ -4,6 +4,10 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.text.input.InputTransformation
+import androidx.compose.foundation.text.input.TextFieldLineLimits
+import androidx.compose.foundation.text.input.TextFieldState
+import androidx.compose.foundation.text.input.byValue
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
@@ -311,16 +315,16 @@ private fun CustomTileSpecRow(onSelect: () -> Unit) {
         summary = stringResource(R.string.cc_tile_custom_dialog_summary),
         onDismissRequest = { expanded = false },
         content = {
-            var text by remember(expanded) {
-                mutableStateOf(
+            val input = remember(expanded) {
+                TextFieldState(
                     readTileCardSpecs(settingsStore).filterNot { it in knownSpecTokens }.joinToString(",")
                 )
             }
             TextField(
                 modifier = Modifier.padding(bottom = 16.dp),
-                value = text,
-                maxLines = 1,
-                onValueChange = { text = it.filter { c -> !c.isWhitespace() } }
+                state = input,
+                lineLimits = TextFieldLineLimits.SingleLine,
+                inputTransformation = InputTransformation.byValue { _, proposed -> proposed.filterNot(Char::isWhitespace) },
             )
             Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween) {
                 TextButton(
@@ -333,7 +337,7 @@ private fun CustomTileSpecRow(onSelect: () -> Unit) {
                     text = stringResource(R.string.scale_ok),
                     onClick = {
                         val known = readTileCardSpecs(settingsStore).filter { it in knownSpecTokens }.toSet()
-                        val customs = text.split(',').map { it.trim().lowercase() }
+                        val customs = input.text.split(',').map { it.trim().lowercase() }
                             .filter { it.isNotEmpty() }
                         settingsStore.putString(
                             SystemUiSettingsKeys.KEY_CC_TILE_CARD_SPECS, (known + customs).joinToString(",")

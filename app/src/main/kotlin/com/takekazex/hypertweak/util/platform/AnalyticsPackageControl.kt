@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.util.platform
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.os.UserHandle
 import com.takekazex.hypertweak.settings.contract.AnalyticsSettingsKeys
@@ -25,6 +26,8 @@ internal object AnalyticsPackageControl {
     suspend fun update(context: Context, disable: Boolean? = null): State =
         withContext(Dispatchers.IO) { reconcile(context, disable) }
 
+    // The journal must check the disk commit before changing state; KTX edit discards its result.
+    @SuppressLint("UseKtx")
     fun reconcile(context: Context, request: Boolean? = null): State = lock.withLock {
         val store = context.createDeviceProtectedStorageContext()
             .getSharedPreferences("analytics_package_state", Context.MODE_PRIVATE)

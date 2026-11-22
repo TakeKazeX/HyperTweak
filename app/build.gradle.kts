@@ -204,7 +204,10 @@ android {
             // The DexKit detector emits this diagnostic before source-level suppressions are
             // applied. Keep this explicit for the reviewed fallback resolvers; changing any of
             // those first-match queries still requires a target-Apk review.
-            "NonUniqueDexKitData"
+            "NonUniqueDexKitData",
+            // DexKit 2.3.0 can double-count the same source site across lint variants.
+            // DexKitManager already creates and reuses one bridge per APK dispatch scope.
+            "DuplicateCreateDexKit"
         )
     }
 }
@@ -270,26 +273,26 @@ tasks.register("printBaseVersion") {
 
 dependencies {
     testImplementation("junit:junit:4.13.2")
-    testImplementation("org.json:json:20240303")
+    testImplementation("org.json:json:20260814")
     testImplementation("io.github.libxposed:api:102.0.0")
     implementation("androidx.core:core-ktx:1.19.1")
     implementation("androidx.activity:activity-compose:1.13.0")
 
     // Compose Runtime & UI
-    implementation("androidx.compose.ui:ui:1.12.1")
-    implementation("androidx.compose.ui:ui-graphics:1.12.1")
-    implementation("androidx.compose.ui:ui-tooling-preview:1.12.1")
-    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.11.0")
+    implementation("androidx.compose.ui:ui:1.13.0")
+    implementation("androidx.compose.ui:ui-graphics:1.13.0")
+    implementation("androidx.compose.ui:ui-tooling-preview:1.13.0")
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.11.1")
 
     // Miuix UI & Preferences
-    implementation("top.yukonga.miuix.kmp:miuix-ui:0.9.5-beta01")
-    implementation("top.yukonga.miuix.kmp:miuix-preference:0.9.5-beta01")
-    implementation("top.yukonga.miuix.kmp:miuix-icons:0.9.5-beta01")
-    implementation("top.yukonga.miuix.kmp:miuix-blur:0.9.5-beta01")
-    implementation("top.yukonga.miuix.kmp:miuix-nav:0.9.5-beta01")
-    implementation("top.yukonga.miuix.kmp:miuix-material:0.9.5-beta01")
-    implementation("top.yukonga.miuix.kmp:miuix-glass:0.9.5-beta01")
-    implementation("top.yukonga.miuix.kmp:miuix-glass-icons:0.9.5-beta01")
+    implementation("top.yukonga.miuix.kmp:miuix-ui:0.9.5-beta03")
+    implementation("top.yukonga.miuix.kmp:miuix-preference:0.9.5-beta03")
+    implementation("top.yukonga.miuix.kmp:miuix-icons:0.9.5-beta03")
+    implementation("top.yukonga.miuix.kmp:miuix-blur:0.9.5-beta03")
+    implementation("top.yukonga.miuix.kmp:miuix-nav:0.9.5-beta03")
+    implementation("top.yukonga.miuix.kmp:miuix-material:0.9.5-beta03")
+    implementation("top.yukonga.miuix.kmp:miuix-glass:0.9.5-beta03")
+    implementation("top.yukonga.miuix.kmp:miuix-glass-icons:0.9.5-beta03")
     implementation("androidx.navigationevent:navigationevent-compose:1.2.0")
 
     // libxposed

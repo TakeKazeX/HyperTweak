@@ -14,6 +14,7 @@ import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.core.view.isVisible
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.AppVolumePercentColor
@@ -221,11 +222,11 @@ internal class AppVolumePanel(
         val stripVisible = active && (open || closing)
         if (stripVisible) {
             alignBadgeForShow = true
-        } else if (strip.visibility == View.VISIBLE) {
+        } else if (strip.isVisible) {
             columns.values.forEach(AppVolumeColumn::resetStretch)
         }
         setVisibility(strip, stripVisible)
-        capsules?.let { setVisibility(it, strip.visibility == View.VISIBLE && outerPercent()) }
+        capsules?.let { setVisibility(it, strip.isVisible && outerPercent()) }
         styleEntry()
     }
 
@@ -443,9 +444,9 @@ internal class AppVolumePanel(
             frame.scaleY = dnd.scaleY
         }
         frame.translationY = y
-        val stripVisible = strip?.visibility == View.VISIBLE
+        val stripVisible = strip?.isVisible == true
         if (alignBadgeForShow || stripVisible) {
-            val temp = tempColumn?.takeIf { it.visibility == View.VISIBLE }
+            val temp = tempColumn?.takeIf { it.isVisible }
             if (alignBadgeForShow) {
                 val aboveTemp = temp != null &&
                     (motion?.let { HostAccess.readDeclared(it, "mSuperVolumeShowAboveTemp") } as? Boolean == true)
@@ -460,7 +461,7 @@ internal class AppVolumePanel(
             }
         }
         // Footer visibility also changes on stream switches that no hooked method reports.
-        val footer = ringer.visibility == View.VISIBLE
+        val footer = ringer.isVisible
         if (footer != lastFooter) {
             lastFooter = footer
             sync()

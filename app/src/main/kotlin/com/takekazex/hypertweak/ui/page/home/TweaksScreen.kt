@@ -3,6 +3,11 @@ package com.takekazex.hypertweak.ui.page.home
 import androidx.compose.animation.*
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.text.input.InputTransformation
+import androidx.compose.foundation.text.input.TextFieldLineLimits
+import androidx.compose.foundation.text.input.TextFieldState
+import androidx.compose.foundation.text.input.byValue
+import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -288,15 +293,15 @@ private fun ModelSpoofValuesRow() {
     // edited model/device without leaving the screen.
     var displayModel by remember { mutableStateOf(settingsStore.getString(PlatformSettingsKeys.KEY_PA_MODEL_SPOOF_MODEL, PlatformSettingsKeys.DEFAULT_PA_MODEL_SPOOF_MODEL)) }
     var displayDevice by remember { mutableStateOf(settingsStore.getString(PlatformSettingsKeys.KEY_PA_MODEL_SPOOF_DEVICE, PlatformSettingsKeys.DEFAULT_PA_MODEL_SPOOF_DEVICE)) }
-    var modelInput by remember { mutableStateOf(displayModel) }
-    var deviceInput by remember { mutableStateOf(displayDevice) }
+    val modelInput = remember { TextFieldState(displayModel) }
+    val deviceInput = remember { TextFieldState(displayDevice) }
 
     ArrowPreference(
         title = stringResource(R.string.settings_pa_model_spoof_values_title),
         summary = stringResource(R.string.settings_pa_model_spoof_values_summary, displayModel, displayDevice),
         onClick = {
-            modelInput = displayModel
-            deviceInput = displayDevice
+            modelInput.setTextAndPlaceCursorAtEnd(displayModel)
+            deviceInput.setTextAndPlaceCursorAtEnd(displayDevice)
             editing = true
         }
     )
@@ -308,17 +313,17 @@ private fun ModelSpoofValuesRow() {
         content = {
             TextField(
                 modifier = Modifier.padding(bottom = 8.dp),
-                value = modelInput,
-                maxLines = 1,
+                state = modelInput,
+                lineLimits = TextFieldLineLimits.SingleLine,
                 label = stringResource(R.string.settings_pa_model_spoof_model_label),
-                onValueChange = { modelInput = it.trim() }
+                inputTransformation = InputTransformation.byValue { _, proposed -> proposed.trim() },
             )
             TextField(
                 modifier = Modifier.padding(bottom = 16.dp),
-                value = deviceInput,
-                maxLines = 1,
+                state = deviceInput,
+                lineLimits = TextFieldLineLimits.SingleLine,
                 label = stringResource(R.string.settings_pa_model_spoof_device_label),
-                onValueChange = { deviceInput = it.trim() }
+                inputTransformation = InputTransformation.byValue { _, proposed -> proposed.trim() },
             )
             Row(horizontalArrangement = Arrangement.SpaceBetween) {
                 TextButton(
@@ -330,10 +335,10 @@ private fun ModelSpoofValuesRow() {
                 TextButton(
                     text = stringResource(R.string.scale_ok),
                     onClick = {
-                        settingsStore.putString(PlatformSettingsKeys.KEY_PA_MODEL_SPOOF_MODEL, modelInput)
-                        settingsStore.putString(PlatformSettingsKeys.KEY_PA_MODEL_SPOOF_DEVICE, deviceInput)
-                        displayModel = modelInput
-                        displayDevice = deviceInput
+                        displayModel = modelInput.text.toString()
+                        displayDevice = deviceInput.text.toString()
+                        settingsStore.putString(PlatformSettingsKeys.KEY_PA_MODEL_SPOOF_MODEL, displayModel)
+                        settingsStore.putString(PlatformSettingsKeys.KEY_PA_MODEL_SPOOF_DEVICE, displayDevice)
                         editing = false
                     },
                     modifier = Modifier.weight(1f),

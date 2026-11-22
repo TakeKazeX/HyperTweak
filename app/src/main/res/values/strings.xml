@@ -255,12 +255,14 @@
     <string name="debug_adb_tcp_bind_current">Bind current Wi-Fi (%1$s)</string>
     <string name="debug_adb_tcp_bound_title">Bound Wi-Fi (%1$d/%2$d)</string>
     <string name="debug_adb_tcp_bound_current">%1$s · Connected</string>
-    <string name="debug_adb_tcp_bind_full">Up to %1$d access points. Remove one to bind another.</string>
+    <plurals name="debug_adb_tcp_bind_full">
+        <item quantity="one">Up to %1$d access point. Remove one to bind another.</item>
+        <item quantity="other">Up to %1$d access points. Remove one to bind another.</item>
+    </plurals>
     <string name="debug_adb_tcp_bound_empty">No Wi-Fi bound. Bound access points open wireless ADB automatically.</string>
     <string name="debug_adb_tcp_remove_title">Remove binding?</string>
     <string name="debug_adb_tcp_remove_summary">Wireless ADB will no longer open automatically on %1$s (%2$s).</string>
     <string name="debug_adb_tcp_remove">Remove</string>
-    <string name="debug_adb_tcp_current">Connected to %1$s · %2$s</string>
     <string name="debug_adb_tcp_wifi_unavailable">No Wi-Fi with a verifiable SSID and BSSID is connected.</string>
     <string name="debug_adb_tcp_endpoint">Listening status</string>
     <string name="debug_adb_tcp_offline">No active listener</string>

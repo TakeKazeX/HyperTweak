@@ -6,11 +6,12 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.input.InputTransformation
+import androidx.compose.foundation.text.input.TextFieldLineLimits
+import androidx.compose.foundation.text.input.TextFieldState
+import androidx.compose.foundation.text.input.byValue
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
@@ -36,20 +37,20 @@ internal fun TileStateMessageDurationDialog(
         summary = stringResource(R.string.cc_tile_message_duration_input_summary),
         onDismissRequest = onDismiss,
         content = {
-            var text by remember(show) { mutableStateOf(java.lang.String.format(java.util.Locale.ROOT, "%.1f", current)) }
+            val input = remember(show) { TextFieldState(String.format(java.util.Locale.ROOT, "%.1f", current)) }
             TextField(
                 modifier = Modifier.padding(bottom = 16.dp),
-                value = text,
-                maxLines = 1,
+                state = input,
+                lineLimits = TextFieldLineLimits.SingleLine,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 trailingIcon = {
                     Text(stringResource(R.string.cc_tile_message_duration_unit),
                         modifier = Modifier.padding(horizontal = 16.dp),
                         color = colorScheme.onSurfaceVariantActions)
                 },
-                onValueChange = { newValue ->
-                    val candidate = newValue.replace(',', '.')
-                    if (candidate.matches(Regex("[0-9]*(\\.[0-9]?)?"))) text = candidate
+                inputTransformation = InputTransformation.byValue { previous, proposed ->
+                    val candidate = proposed.toString().replace(',', '.')
+                    if (candidate.matches(Regex("[0-9]*(\\.[0-9]?)?"))) candidate else previous
                 },
             )
             Row(horizontalArrangement = Arrangement.SpaceBetween) {
@@ -62,7 +63,7 @@ internal fun TileStateMessageDurationDialog(
                 TextButton(
                     text = stringResource(R.string.scale_ok),
                     onClick = {
-                        val resolved = (text.toFloatOrNull() ?: current).coerceIn(0f, 5f)
+                        val resolved = (input.text.toString().toFloatOrNull() ?: current).coerceIn(0f, 5f)
                         onConfirm(resolved)
                         onDismiss()
                     },

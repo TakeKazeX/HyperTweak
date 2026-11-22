@@ -7,6 +7,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.text.input.TextFieldLineLimits
+import androidx.compose.foundation.text.input.rememberTextFieldState
+import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -43,7 +46,6 @@ import com.takekazex.hypertweak.ui.components.slider.rememberSliderEdit
 import kotlin.math.roundToInt
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Slider
-import top.yukonga.miuix.kmp.basic.TabRowWithContour
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.preference.ArrowPreference
@@ -61,7 +63,7 @@ private val iconPrefsSaver = Saver<SnapshotStateMap<String, Any>, ArrayList<Any>
  * (see the reverse-engineering workspace, cache/xiaomihelper-2bfd4873a4138764, and
  * OS4_ADAPTATION_PLAN.md). Local state updates immediately; SystemUI consumes remote settings
  * and refreshes the existing status-bar/control-center hosts. Controls are grouped behind a
- * Miuix [TabRowWithContour] (layout, mobile, Wi-Fi, other) so the list stays short.
+ * Miuix [AppTabRow] (layout, mobile, Wi-Fi, other) so the list stays short.
  */
 
 @Composable
@@ -108,9 +110,9 @@ internal fun IconTextPreference(
     val epoch = LocalAppSettingsStore.current.backup.settingsEpochForUi()
     key(epoch, value) {
         var editing by rememberSaveable { mutableStateOf(false) }
-        var draft by rememberSaveable { mutableStateOf(value) }
+        val draft = rememberTextFieldState(value)
         ArrowPreference(title = title, summary = value.ifEmpty { null }, enabled = enabled, onClick = {
-            draft = value
+            draft.setTextAndPlaceCursorAtEnd(value)
             editing = true
         })
         AppOverlayDialog(
@@ -120,9 +122,8 @@ internal fun IconTextPreference(
             content = {
                 hint?.let { Text(it, Modifier.padding(bottom = 12.dp)) }
                 TextField(
-                    value = draft,
-                    onValueChange = { draft = it },
-                    singleLine = true,
+                    state = draft,
+                    lineLimits = TextFieldLineLimits.SingleLine,
                     modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
                 )
                 Row(Modifier.fillMaxWidth()) {
@@ -136,7 +137,8 @@ internal fun IconTextPreference(
                         text = stringResource(R.string.scale_ok),
                         onClick = {
                             editing = false
-                            if (draft != value) onConfirm(draft)
+                            val edited = draft.text.toString()
+                            if (edited != value) onConfirm(edited)
                         },
                         modifier = Modifier.weight(1f),
                         colors = ButtonDefaults.textButtonColorsPrimary()

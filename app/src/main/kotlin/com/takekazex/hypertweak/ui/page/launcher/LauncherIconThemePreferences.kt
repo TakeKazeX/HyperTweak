@@ -1,6 +1,11 @@
 package com.takekazex.hypertweak.ui.page.launcher
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.text.input.InputTransformation
+import androidx.compose.foundation.text.input.TextFieldLineLimits
+import androidx.compose.foundation.text.input.byValue
+import androidx.compose.foundation.text.input.rememberTextFieldState
+import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
@@ -23,7 +28,7 @@ internal fun LauncherIconThemePreferences() {
     var mode by rememberSaveable { mutableIntStateOf(store.getInt(LauncherDesktopKeys.KEY_ICON_THEME_MODE, 0).coerceIn(0, 4)) }
     var color by rememberSaveable { mutableIntStateOf(store.getInt(LauncherDesktopKeys.KEY_ICON_THEME_COLOR, LauncherDesktopKeys.DEFAULT_ICON_COLOR)) }
     var editing by rememberSaveable { mutableStateOf(false) }
-    var text by rememberSaveable { mutableStateOf("") }
+    val input = rememberTextFieldState()
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
         mode = store.getInt(LauncherDesktopKeys.KEY_ICON_THEME_MODE, 0).coerceIn(0, 4)
         color = store.getInt(LauncherDesktopKeys.KEY_ICON_THEME_COLOR, LauncherDesktopKeys.DEFAULT_ICON_COLOR)
@@ -40,17 +45,27 @@ internal fun LauncherIconThemePreferences() {
             })
         if (mode == 4) ArrowPreference(title = stringResource(R.string.desktop_icon_theme_color),
             summary = "#%06X".format(color and 0xffffff), onClick = {
-                text = "%06X".format(color and 0xffffff); editing = true
+                input.setTextAndPlaceCursorAtEnd("%06X".format(color and 0xffffff))
+                editing = true
             })
     }
-    val rgb = text.takeIf { it.length == 6 }?.toIntOrNull(16)
+    val rgb = input.text.toString().takeIf { it.length == 6 }?.toIntOrNull(16)
     OverlayDialog(show = editing, title = stringResource(R.string.desktop_icon_theme_color),
         summary = stringResource(R.string.desktop_icon_theme_color_hint), onDismissRequest = { editing = false },
         content = {
-            TextField(value = text, onValueChange = { value ->
-                val normalized = value.removePrefix("#")
-                if (normalized.length <= 6 && normalized.all { it.digitToIntOrNull(16) != null }) text = normalized
-            }, maxLines = 1, modifier = Modifier.padding(bottom = 16.dp))
+            TextField(
+                state = input,
+                lineLimits = TextFieldLineLimits.SingleLine,
+                modifier = Modifier.padding(bottom = 16.dp),
+                inputTransformation = InputTransformation.byValue { previous, proposed ->
+                    val normalized = proposed.removePrefix("#")
+                    if (normalized.length <= 6 && normalized.all { it.digitToIntOrNull(16) != null }) {
+                        normalized
+                    } else {
+                        previous
+                    }
+                },
+            )
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 TextButton(text = stringResource(R.string.scale_cancel), modifier = Modifier.weight(1f), onClick = { editing = false })
                 TextButton(text = stringResource(R.string.scale_ok), modifier = Modifier.weight(1f), enabled = rgb != null,

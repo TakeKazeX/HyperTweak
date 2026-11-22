@@ -1,6 +1,5 @@
 package com.takekazex.hypertweak.ui.page.platform
 
-import android.net.Uri
 import android.widget.Toast
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -10,6 +9,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.core.net.toUri
 import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.settings.contract.OtaNotificationReplay
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
@@ -52,7 +52,7 @@ internal fun HtmlViewerPage(onBack: () -> Unit) {
                     scope.launch {
                         try {
                             val result = withContext(Dispatchers.IO) {
-                                val uri = Uri.parse("content://${OtaNotificationReplay.SETTINGS_AUTHORITY}")
+                                val uri = "content://${OtaNotificationReplay.SETTINGS_AUTHORITY}".toUri()
                                 fun request() = try {
                                     context.contentResolver.call(uri, OtaNotificationReplay.METHOD, null, null)
                                         ?.takeIf { it.containsKey(OtaNotificationReplay.RESULT) }

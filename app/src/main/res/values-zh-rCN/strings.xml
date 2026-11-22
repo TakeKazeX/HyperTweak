@@ -253,12 +253,13 @@
     <string name="debug_adb_tcp_bind_current">绑定当前 Wi-Fi（%1$s）</string>
     <string name="debug_adb_tcp_bound_title">已绑定 Wi-Fi（%1$d/%2$d）</string>
     <string name="debug_adb_tcp_bound_current">%1$s · 当前连接</string>
-    <string name="debug_adb_tcp_bind_full">最多绑定 %1$d 个接入点，删除一个后才能添加。</string>
+    <plurals name="debug_adb_tcp_bind_full">
+        <item quantity="other">最多绑定 %1$d 个接入点，删除一个后才能添加。</item>
+    </plurals>
     <string name="debug_adb_tcp_bound_empty">尚未绑定 Wi-Fi。连上已绑定的接入点时会自动开启无线 ADB。</string>
     <string name="debug_adb_tcp_remove_title">删除绑定？</string>
     <string name="debug_adb_tcp_remove_summary">连上 %1$s（%2$s）时将不再自动开启无线 ADB。</string>
     <string name="debug_adb_tcp_remove">删除</string>
-    <string name="debug_adb_tcp_current">已连接 %1$s · %2$s</string>
     <string name="debug_adb_tcp_wifi_unavailable">当前没有可验证 SSID 和 BSSID 的 Wi-Fi 连接。</string>
     <string name="debug_adb_tcp_endpoint">监听状态</string>
     <string name="debug_adb_tcp_offline">当前未监听</string>
@@ -663,9 +664,9 @@
     <string name="icon_order_drag_handle">拖动排序</string>
     <string name="icon_order_hide_pointer">隐藏图标请在「其他图标」页的槽位列表中逐个设置。</string>
     <string name="icon_tuner_tab_layout">布局</string>
-    <string name="icon_tuner_tab_mobile">移动网络</string>
+    <string name="icon_tuner_tab_mobile">蜂窝</string>
     <string name="icon_tuner_tab_wifi">WiFi</string>
-    <string name="icon_tuner_tab_other">其他图标</string>
+    <string name="icon_tuner_tab_other">其他</string>
     <string name="icon_position_reorder_hidden">隐藏槽位置前</string>
     <string name="icon_position_reorder_hidden_summary">让隐藏的槽位排在可见槽位之前</string>
     <string name="icon_ignore_system_hiding">忽略系统隐藏</string>

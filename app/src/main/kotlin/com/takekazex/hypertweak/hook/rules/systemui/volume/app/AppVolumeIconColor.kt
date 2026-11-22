@@ -5,6 +5,7 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Rect
 import android.graphics.drawable.Drawable
+import androidx.core.graphics.createBitmap
 
 /** Extracts a representative accent from the app icon on the playback worker. */
 internal object AppVolumeIconColor {
@@ -16,7 +17,7 @@ internal object AppVolumeIconColor {
     data class Sample(val accent: Int?, val tone: Int?)
 
     fun sample(icon: Drawable): Sample {
-        val bitmap = Bitmap.createBitmap(SIZE, SIZE, Bitmap.Config.ARGB_8888)
+        val bitmap = createBitmap(SIZE, SIZE, Bitmap.Config.ARGB_8888)
         val previousBounds = Rect(icon.bounds)
         try {
             icon.setBounds(0, 0, SIZE, SIZE)

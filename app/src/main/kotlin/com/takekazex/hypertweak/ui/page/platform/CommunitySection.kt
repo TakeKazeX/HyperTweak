@@ -1,6 +1,9 @@
 package com.takekazex.hypertweak.ui.page.platform
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.text.input.TextFieldLineLimits
+import androidx.compose.foundation.text.input.rememberTextFieldState
+import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
@@ -27,7 +30,7 @@ internal fun CommunitySection() {
     var modify by remember { mutableStateOf(store.getBoolean(CommunitySettingsKeys.KEY_COMMUNITY_DEVICE_MODIFY, false)) }
     var model by remember { mutableStateOf(store.getString(CommunitySettingsKeys.KEY_COMMUNITY_MODEL, "")) }
     var editing by rememberSaveable { mutableStateOf(false) }
-    var draft by rememberSaveable { mutableStateOf("") }
+    val draft = rememberTextFieldState()
     val lifecycle = LocalLifecycleOwner.current.lifecycle.currentStateAsState().value
     val debugRevision by com.takekazex.hypertweak.util.diagnostics.DebugSettingsEvents.revision.collectAsStateWithLifecycle()
     LaunchedEffect(lifecycle, debugRevision) {
@@ -50,20 +53,28 @@ internal fun CommunitySection() {
                     title = stringResource(R.string.community_model),
                     summary = model.ifBlank { stringResource(R.string.community_model_empty) },
                     enabled = modify,
-                    onClick = { draft = model; editing = true }
+                    onClick = {
+                        draft.setTextAndPlaceCursorAtEnd(model)
+                        editing = true
+                    }
                 )
             }
         }
     }
     CenteredDialog(show = editing, title = stringResource(R.string.community_model),
         summary = stringResource(R.string.community_model_empty), onDismissRequest = { editing = false }) {
-        TextField(value = draft, onValueChange = { draft = it }, maxLines = 1,
-            modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp))
+        TextField(
+            state = draft,
+            lineLimits = TextFieldLineLimits.SingleLine,
+            modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+        )
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             TextButton(text = stringResource(R.string.scale_cancel), modifier = Modifier.weight(1f), onClick = { editing = false })
             TextButton(text = stringResource(R.string.scale_ok), modifier = Modifier.weight(1f),
                 colors = ButtonDefaults.textButtonColorsPrimary(), onClick = {
-                    model = draft.trim(); store.putString(CommunitySettingsKeys.KEY_COMMUNITY_MODEL, model); editing = false
+                    model = draft.text.toString().trim()
+                    store.putString(CommunitySettingsKeys.KEY_COMMUNITY_MODEL, model)
+                    editing = false
                 })
         }
     }

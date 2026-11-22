@@ -21,6 +21,11 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.input.InputTransformation
+import androidx.compose.foundation.text.input.TextFieldLineLimits
+import androidx.compose.foundation.text.input.TextFieldState
+import androidx.compose.foundation.text.input.byValue
+import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -138,7 +143,7 @@ fun GlassTunerPage(onBack: () -> Unit) {
     }
     var presetToDelete by remember { mutableStateOf<GlassTunerPreset?>(null) }
     var presetToRename by remember { mutableStateOf<GlassTunerPreset?>(null) }
-    var renameText by remember { mutableStateOf("") }
+    val renameInput = remember { TextFieldState() }
     var pendingPresetImport by remember { mutableStateOf<GlassTunerValues?>(null) }
 
     val photoPickerLauncher = rememberLauncherForActivityResult(
@@ -564,7 +569,7 @@ fun GlassTunerPage(onBack: () -> Unit) {
                                 icon = MiuixIcons.Edit,
                                 onClick = {
                                     DebugLog.i("GlassTuner", "preset rename requested")
-                                    renameText = preset.name
+                                    renameInput.setTextAndPlaceCursorAtEnd(preset.name)
                                     presetToRename = preset
                                 },
                             )
@@ -705,10 +710,10 @@ fun GlassTunerPage(onBack: () -> Unit) {
                         color = MiuixTheme.colorScheme.onSurface,
                     )
                     TextField(
-                        value = renameText,
-                        maxLines = 1,
+                        state = renameInput,
+                        lineLimits = TextFieldLineLimits.SingleLine,
                         label = stringResource(R.string.glass_preset_name_label),
-                        onValueChange = { renameText = it.take(40) },
+                        inputTransformation = InputTransformation.byValue { _, proposed -> proposed.take(40) },
                     )
                     Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)) {
                         TextButton(
@@ -723,7 +728,7 @@ fun GlassTunerPage(onBack: () -> Unit) {
                             text = stringResource(R.string.glass_preset_rename_confirm),
                             onClick = {
                                 DebugLog.i("GlassTuner", "preset rename confirmed")
-                                if (renamePreset(renamingPreset, renameText)) presetToRename = null
+                                if (renamePreset(renamingPreset, renameInput.text.toString())) presetToRename = null
                             },
                             modifier = Modifier.weight(1f),
                             colors = ButtonDefaults.textButtonColorsPrimary(),

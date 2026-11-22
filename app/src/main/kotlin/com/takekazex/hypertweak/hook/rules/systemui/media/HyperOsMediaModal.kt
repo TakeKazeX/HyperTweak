@@ -200,7 +200,7 @@ internal class HyperOsMediaModal(
             card.addView(page.view, FrameLayout.LayoutParams(-1, -1))
 
             root.addView(blurLayer, FrameLayout.LayoutParams(-1, -1))
-            root.addView(motion, FrameLayout.LayoutParams(anchor.width, -2, Gravity.LEFT or Gravity.TOP))
+            root.addView(motion, FrameLayout.LayoutParams(anchor.width, -2, Gravity.START or Gravity.TOP))
             motion.addView(card, FrameLayout.LayoutParams(-1, anchor.height))
             motion.addView(actions, FrameLayout.LayoutParams(-1, -2).apply { topMargin = anchor.height + gap })
             motion.visibility = View.INVISIBLE
