@@ -399,7 +399,15 @@ class HookEntry : XposedModule() {
         ProcessLogging.bind()
         DebugLog.setProcessTag(processName)
         DebugLog.bindXposed(this)
-        val restoredState = HotReloadState.restore(param.savedInstanceState) ?: recoverAppHostState()
+        val savedState = HotReloadState.restore(param.savedInstanceState)
+        val restoredState = when {
+            savedState == null -> recoverAppHostState()
+            !savedState.isSystemServer && savedState.packages.isEmpty() -> {
+                val recovered = recoverAppHostState()
+                if (recovered == null) savedState else savedState.copy(packages = recovered.packages)
+            }
+            else -> savedState
+        }
         nativePublisher()?.restoreSnapshot(restoredState?.hookerStates?.get("HyperTweak.NativeSettings"))
         RuntimeSettingsStore.restore(restoredState?.hookerStates?.get("HyperTweak.RuntimeSettings")
             ?: (restoredState?.hookerStates?.get("HyperTweak.NativeSettings") as? Array<*>)?.getOrNull(2))

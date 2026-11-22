@@ -105,13 +105,18 @@ object GoogleAppRuntime : StaticHooker() {
                 actions.forEach { action -> runCatching(action)
                     .onFailure { DebugLog.e(TAG, "OMNI hook publication failed", it) } }
                 omniPublished = true
-                refreshSettings()
-                DebugLog.i(TAG, "OMNI preparation finished lensResolved=$lensResolved askScreenResolved=${GoogleAppAskAboutScreenHooker.hasResolvedTargets()}")
+                val askScreenResolved = GoogleAppAskAboutScreenHooker.hasResolvedTargets()
+                if (askScreenResolved && !refreshSettings()) {
+                    DebugLog.w(TAG, "Ask Screen settings refresh failed after hook publication")
+                }
+                DebugLog.i(TAG, "OMNI preparation finished lensResolved=$lensResolved askScreenResolved=$askScreenResolved")
             })
     }
 
     fun refreshSettings(): Boolean {
-        if (!installationStarted || !omniPublished) return false
+        // The snapshot is already accepted. Publication refreshes living models from the
+        // latest snapshot, so retrying while the DEX worker runs cannot help.
+        if (!omniPublished) return true
         return GoogleAppAskAboutScreenHooker.refreshSettings()
     }
 

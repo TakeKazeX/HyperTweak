@@ -185,9 +185,9 @@ public abstract class SystemUiHookRuntime extends com.takekazex.hypertweak.hook.
             moduleLog(Log.INFO, TAG, "Rejected native contextual-search request; ownerEligible=" + eligible);
             return;
         }
-        if (launcherBridgeLease.isActive() && invokeContextualSearchService()
-                && launcherBridgeLease.isActive() && acceptingBackInputInstalls) {
-            playContextualSearchHaptic(context);
+        if (launcherBridgeLease.isActive()) {
+            // The native launcher already plays its light-impact haptic for this long press.
+            invokeContextualSearchService();
         }
     }
 
@@ -643,8 +643,7 @@ public abstract class SystemUiHookRuntime extends com.takekazex.hypertweak.hook.
                     return;
                 }
                 if (MODULE_CONTEXTUAL_SEARCH_TRIGGERED.equals(action)) {
-                    // Old/upstream native payloads report Binder transport success before
-                    // SystemUI admission. Feedback now belongs to the admitted request.
+                    // On this platform, the launcher owns long-press feedback.
                     if (requireSystemUiPlatformImpl().nativeLauncherOwnsContextualSearchLongPress()) {
                         return;
                     }

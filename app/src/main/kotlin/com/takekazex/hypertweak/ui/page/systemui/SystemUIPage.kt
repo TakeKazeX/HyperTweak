@@ -393,15 +393,6 @@ fun SystemUIPage(
                     R.string.back_gesture_upstream_summary else R.string.tweaks_cts_long_press_summary),
                 enabled = upstreamBackGesture == false
             )
-            if (PlatformLevel.isOs4) {
-                SwitchPreference(
-                    checked = appSettings.contextualSearchHaptics,
-                    onCheckedChange = { appSettings.contextualSearchHaptics = it },
-                    title = stringResource(R.string.tweaks_cts_haptics_title),
-                    summary = stringResource(R.string.tweaks_cts_haptics_summary),
-                    enabled = upstreamBackGesture == false && appSettings.contextualSearchLongPress
-                )
-            }
             OverlayDropdownPreference(
                 title = stringResource(R.string.tweaks_power_button_action_title),
                 summary = stringResource(R.string.tweaks_power_button_action_summary),

@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.bootstrap
 
+import com.takekazex.hypertweak.hook.rules.googleapp.GoogleAppProcessPolicy
+
 /** Candidate owners are verified against the living Application, UID and loader by HookEntry. */
 internal object AppHostRecovery {
     fun owner(process: String, systemServer: Boolean): String? {
@@ -11,6 +13,7 @@ internal object AppHostRecovery {
                 com.takekazex.hypertweak.settings.contract.SmsSettingsKeys.PACKAGE) &&
             (process == base || process.startsWith("$base:") && process.length > base.length + 1)) return base
         return when (process) {
+            GoogleAppProcessPolicy.UI_PROCESS -> GoogleAppProcessPolicy.PACKAGE
             "com.miui.securitycenter.remote", "com.miui.securitycenter.cache",
             "com.miui.securitycenter.power", "com.miui.securitycenter.bootaware", "com.miui.securitycenter.uniauth" ->
                 "com.miui.securitycenter"

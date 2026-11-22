@@ -454,7 +454,27 @@ second gesture after hot reload/live enable. Add no Surface alpha/geometry write
 
 ## Downloads, credentials and Google AIM
 
-Download detail hooks select a semantically evidenced renderer, derive the download-model argument position and bind the original URL field from the host clipboard consumer. Same-prototype helper methods and other URL-like fields do not count as evidence. Credential row actions match the real Boolean-returning native launch call. Google AIM constructor overrides copy the immutable `Chain.args` and pass replacements to `proceed(array)` exactly once.
+Download detail hooks select a semantically evidenced renderer, derive the download-model argument position and bind the original URL field from the host clipboard consumer. Same-prototype helper methods and other URL-like fields do not count as evidence. Credential row actions match the real Boolean-returning native launch call.
+
+Google Ask Screen resolves the `vidcip` thumbnail owner, native OMNI eligibility and the search-box
+model from DEX. It follows the eligibility-dependent bitmap binding to prove the attachment flag.
+When the model's hint renderer branches between an empty hint and the supplied string resource,
+the resolver records that suppression flag separately. All overridden fields require direct,
+unique constructor assignments. Google App 17.77.19 adds the suppression flag among the
+booleans before `Executor`, so that parameter grouping cannot identify the fields to enable.
+Cache schema 5 stores the individual roles. In OMNI, the live override enables the contextual
+hint and attachment fields and clears the proven suppression flag. Disable and generation
+retirement restore the original values. Google renders them on its next native bind.
+With a missing or empty hot-reload package snapshot, HookEntry recovers the living
+`:googleapp` application after verifying its package, UID and source path. It keeps the
+saved hooker state and runs the same deferred resolver used on cold start.
+Committed settings received during DEX preparation are applied to living models at publication,
+using the latest snapshot. The settings dispatcher does not retry while the resolver is pending.
+
+On OS4, the Xiaomi Launcher plays the light-impact haptic when it recognizes a
+navigation-handle long press for Circle to Search. SystemUI admits the forwarded request
+and starts contextual search without playing another click. There is no OS4 setting for
+the retired extra click. The saved preference still decodes for legacy feedback paths.
 
 `DownloadFocusNotificationHooker` (provider process) gives each task its own notification
 and the host's native `file_download` focus payload; SystemUI renders it with its own

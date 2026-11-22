@@ -4,10 +4,10 @@ import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import com.takekazex.hypertweak.hook.base.dex.DexContractMembers
-import android.content.Context
 import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.BooleanFieldOverrides
+import com.takekazex.hypertweak.hook.base.dex.DexOperandIndex
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 import com.takekazex.hypertweak.hook.base.dex.MethodDescriptorCodec
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
@@ -22,7 +22,6 @@ import java.lang.reflect.Executable
 import java.lang.reflect.Field
 import java.lang.reflect.Method
 import java.lang.reflect.Modifier
-import java.util.concurrent.Executor
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
@@ -110,10 +109,10 @@ object GoogleAppAskAboutScreenHooker : StaticHooker() {
     private data class Prepared(val thumbnail: Method, val deoptimizations: List<Executable>, val full: Targets?)
     internal fun prepareInstall(apk: String, existingHookIds: Set<String>): () -> Unit {
         if (existingHookIds.containsAll(HOOK_IDS)) return {}
-        val prepared = resolveDexContract("googleapp.ask_screen", apk, schema = 4,
+        val prepared = resolveDexContract("googleapp.ask_screen", apk, schema = 5,
             compute = compute@ { bridge ->
                 val thumbnail = resolveThumbnail(bridge) ?: return@compute null
-                val full = resolveTargets(bridge, thumbnail)
+                val full = resolveTargets(bridge, apk, thumbnail)
                 Prepared(thumbnail.method, full?.deoptimizations ?: executablesWithCallers(thumbnail.data), full)
             },
             encode = { prepared ->
@@ -122,8 +121,7 @@ object GoogleAppAskAboutScreenHooker : StaticHooker() {
                     "eligibility" to full?.eligibility, "model" to full?.modelConstructor,
                     "hint" to full?.hint, "coordinator" to full?.modelCoordinator, "entryOwner" to full?.entryOwner,
                     "entry" to full?.entry, "capability" to full?.capability,
-                    "indices" to full?.aimBooleanParameterIndices?.joinToString(","),
-                    "aimFields" to full?.aimFields, "peer" to full?.peer,
+                    "attachment" to full?.attachment, "suppressHint" to full?.suppressHint, "peer" to full?.peer,
                     "cached" to full?.cached, "coordinatorConstructor" to full?.coordinatorConstructor,
                     "viewFragment" to full?.viewFragment)
             },
@@ -141,20 +139,21 @@ object GoogleAppAskAboutScreenHooker : StaticHooker() {
                     require(coordinator.declaringClass.isAssignableFrom(constructor.declaringClass) && entryOwner.declaringClass.isAssignableFrom(coordinator.type))
                     require(entry.declaringClass.isAssignableFrom(entryOwner.type) && entry.parameterCount == 0)
                     capability?.also { require(!Modifier.isStatic(it.modifiers) && it.parameterCount == 0 && it.returnType == Boolean::class.javaPrimitiveType) }
-                    val indices = findAimBooleanParameterIndices(constructor.parameterTypes)
-                    require(indices.joinToString(",") == members.text("indices"))
-                    val fields = members.text("aimFields").lineSequence().filter(String::isNotEmpty).map {
-                        requireNotNull(MethodDescriptorCodec.field(it, classLoader))
-                    }.toList()
-                    require(fields.size == indices.size && fields.all { it.declaringClass == constructor.declaringClass && it.type == Boolean::class.javaPrimitiveType })
+                    val attachment = members.field("attachment")
+                    val suppressHint = members.text("suppressHint").takeIf(String::isNotEmpty)?.let { members.field("suppressHint") }
+                    val modelFields = listOfNotNull(hint, attachment, suppressHint)
+                    require(modelFields.distinct().size == modelFields.size && modelFields.all {
+                        it.declaringClass == constructor.declaringClass && it.type == Boolean::class.javaPrimitiveType &&
+                            !Modifier.isStatic(it.modifiers)
+                    })
                     val peer = members.field("peer")
                     require(peer.type == constructor.declaringClass)
                     val cached = members.field("cached")
                     val coordinatorConstructor = members.constructor("coordinatorConstructor")
                     require(cached.type == Boolean::class.javaPrimitiveType && cached.declaringClass == coordinator.type)
                     require(coordinatorConstructor.declaringClass == coordinator.type)
-                    Targets(thumbnail, eligibility, constructor, hint, coordinator, entryOwner, entry, capability, indices, deoptimizations,
-                        fields, peer, cached, coordinatorConstructor, members.method("viewFragment"))
+                    Targets(thumbnail, eligibility, constructor, hint, coordinator, entryOwner, entry, capability, deoptimizations,
+                        attachment, suppressHint, peer, cached, coordinatorConstructor, members.method("viewFragment"))
                 }
                 Prepared(thumbnail, deoptimizations, full)
             },
@@ -164,7 +163,11 @@ object GoogleAppAskAboutScreenHooker : StaticHooker() {
             prepared.deoptimizations.forEach(::deoptimize)
             installThumbnail(prepared.thumbnail, existingHookIds)
             DebugLog.w(TAG, "Lensient AIM bridge unresolved; retained thumbnail only")
-        }) else ({ retired = false; targets = resolved; install(resolved, existingHookIds); refreshSettings() })
+        }) else ({
+            retired = false
+            targets = resolved
+            install(resolved, existingHookIds)
+        })
     }
 
     /** Replacement callbacks used before the new generation starts resolving DexKit. */
@@ -230,7 +233,7 @@ object GoogleAppAskAboutScreenHooker : StaticHooker() {
             "HOOK_OK Lensient bridge, eligibility=${t.eligibility}" +
                 ", hint=${t.modelConstructor}, thumbnail=${t.thumbnail}" +
                 ", capability=${t.capability ?: "unresolved"}" +
-                ", aimBooleanArgs=${t.aimBooleanParameterIndices.contentToString()}" +
+                ", modelOverrides=${t.modelOverrides}" +
                 ", reused=${existingHookIds.intersect(HOOK_IDS)}"
         )
     }
@@ -256,9 +259,6 @@ object GoogleAppAskAboutScreenHooker : StaticHooker() {
         return result
     }
 
-    private fun allowOmniEligibility(chain: XposedInterface.Chain): Any? =
-        allowOmniEligibility(chain, targets)
-
     private fun allowOmniEligibility(chain: XposedInterface.Chain, target: Targets?): Any? {
         val result = chain.proceed()
         if (target == null || target.eligibility != chain.executable ||
@@ -278,15 +278,12 @@ object GoogleAppAskAboutScreenHooker : StaticHooker() {
         }
     }
 
-    private fun enableNativeHint(chain: XposedInterface.Chain): Any? =
-        enableNativeHint(chain, targets)
-
     private fun enableNativeHint(chain: XposedInterface.Chain, target: Targets?): Any? {
         // Run native construction unchanged, then overlay only proven boolean assignments.
         val result = chain.proceed()
         if (target == null || target.modelConstructor != chain.executable) return result
         HookFailurePolicy.open(TAG, "capture AIM model", Unit) {
-            models.capture(chain.thisObject, target.aimFields)
+            models.capture(chain.thisObject, target.modelOverrides)
             target.modelCoordinator.get(chain.thisObject)?.let { coordinators.capture(it, listOf(target.cached)) }
             applyModels(target)
         }
@@ -318,7 +315,7 @@ object GoogleAppAskAboutScreenHooker : StaticHooker() {
                     val fragment = target.viewFragment.invoke(null, view)
                     if (fragment != null && target.peer.declaringClass.isInstance(fragment)) {
                         target.peer.get(fragment)?.let { model ->
-                            models.capture(model, target.aimFields)
+                            models.capture(model, target.modelOverrides)
                             target.modelCoordinator.get(model)?.let { coordinators.capture(it, listOf(target.cached)) }
                         }
                     }
@@ -395,12 +392,12 @@ object GoogleAppAskAboutScreenHooker : StaticHooker() {
     /** Recover the unique native ownership graph from the thumbnail host; diagnostics are not anchors. */
     private fun resolveTargets(
         bridge: DexKitBridge,
+        apk: String,
         thumbnailTarget: ThumbnailTarget
     ): Targets? {
         val thumbnail = thumbnailTarget.method
         val thumbnailData = thumbnailTarget.data
 
-        val apk = hookParam.appInfo?.sourceDir ?: return null
         val index = DexRuntime.operands(apk, hookParam.appInfo)
         fun method(descriptor: String) = index.definition(descriptor)
         val graphs = AskScreenGraphContract.resolve(index, thumbnailData.descriptor,
@@ -433,7 +430,13 @@ object GoogleAppAskAboutScreenHooker : StaticHooker() {
         val modelOwner = bridge.getFieldData(graph.modelCoordinator) ?: return null
         val entryOwner = bridge.getFieldData(graph.entryOwner) ?: return null
         val entry = bridge.getMethodData(graph.entry) ?: return null
-        val target = buildTargets(bridge, thumbnail, thumbnailData, gate, constructor, hint, cached, modelOwner, entryOwner, entry)
+        val modelFields = AskScreenGraphContract.modelFields(index, graph, hint.readers.mapNotNull { method(it.descriptor) })
+        if (modelFields == null) {
+            DebugLog.w(TAG, "Ask Screen model field roles unresolved")
+            return null
+        }
+        val target = buildTargets(bridge, index, modelFields, thumbnail, thumbnailData, gate, constructor, hint,
+            cached, modelOwner, entryOwner, entry)
         DebugLog.i(TAG, "Ask Screen ownership graph unique, materialized=${target != null}")
         return target
     }
@@ -465,6 +468,8 @@ object GoogleAppAskAboutScreenHooker : StaticHooker() {
     /** Materializes the resolved bridge, rejecting any static member (see upstream's guards). */
     private fun buildTargets(
         bridge: DexKitBridge,
+        index: DexOperandIndex,
+        modelFields: AskScreenGraphContract.ModelFields,
         thumbnail: Method,
         thumbnailData: MethodData,
         gate: MethodData,
@@ -501,19 +506,6 @@ object GoogleAppAskAboutScreenHooker : StaticHooker() {
         if (capabilityData != null && capability == null) {
             DebugLog.w(TAG, "capability source resolved in dex but could not be materialized")
         }
-        val aimBooleanParameterIndices =
-            findAimBooleanParameterIndices(modelConstructor.parameterTypes)
-        if (aimBooleanParameterIndices.isEmpty()) {
-            val exactExecutorCount = modelConstructor.parameterTypes.count {
-                it.name == Executor::class.java.name
-            }
-            DebugLog.w(
-                TAG,
-                "model constructor has no boolean AIM tail before unique Executor " +
-                    "exactExecutorCount=$exactExecutorCount " +
-                    "version=${googleAppVersion()} constructor=${modelConstructor.toGenericString()}"
-            )
-        }
         if (Modifier.isStatic(eligibility.modifiers) ||
             Modifier.isStatic(hintField.modifiers) ||
             Modifier.isStatic(modelCoordinator.modifiers) ||
@@ -526,69 +518,26 @@ object GoogleAppAskAboutScreenHooker : StaticHooker() {
         modelCoordinator.isAccessible = true
         entryOwnerField.isAccessible = true
         entryMethod.isAccessible = true
-        val apk = hookParam.appInfo?.sourceDir ?: return null
-        val descriptors = AskScreenModelContract.fields(DexRuntime.operands(apk, hookParam.appInfo),
-            MethodDescriptorCodec.descriptor(modelConstructor), aimBooleanParameterIndices.toSet()) ?: return null
-        val aimFields = descriptors.map { MethodDescriptorCodec.field(it, classLoader) ?: return null }
-        if (hintField !in aimFields) return null
+        val attachment = MethodDescriptorCodec.field(modelFields.attachment, classLoader) ?: return null
+        val suppressHint = modelFields.suppressHint?.let { MethodDescriptorCodec.field(it, classLoader) ?: return null }
         val peers = modelConstructor.parameterTypes.filterNot { it.isPrimitive }.flatMap { type ->
             type.declaredFields.filter { !Modifier.isStatic(it.modifiers) && it.type == modelConstructor.declaringClass }
         }.distinct()
         val peer = peers.singleOrNull()?.apply { isAccessible = true } ?: return null
         val childManager = HostAccess.requirePublicMethod(peer.declaringClass, "getChildFragmentManager", accessible = false)
-        val viewFragmentDescriptor = AskScreenGraphContract.fragmentLookup(DexRuntime.operands(apk, hookParam.appInfo),
+        val viewFragmentDescriptor = AskScreenGraphContract.fragmentLookup(index,
             MethodDescriptorCodec.typeDescriptor(childManager.returnType), MethodDescriptorCodec.typeDescriptor(childManager.declaringClass)) ?: return null
         val viewFragment = MethodDescriptorCodec.method(viewFragmentDescriptor, classLoader) ?: return null
         return Targets(
             thumbnail, eligibility, modelConstructor,
             hintField, modelCoordinator, entryOwnerField, entryMethod,
-            capability, aimBooleanParameterIndices,
+            capability,
             listOfNotNull(thumbnailData, gate, constructorData, coordinatorConstructorData, capabilityData)
-                .flatMap(::executablesWithCallers).plus(aimFields.flatMap { field ->
+                .flatMap(::executablesWithCallers).plus(listOfNotNull(hintField, attachment, suppressHint).flatMap { field ->
                     bridge.getFieldData(field)?.readers.orEmpty().flatMap(::executablesWithCallers)
-                }).plus(cached.readers.flatMap(::executablesWithCallers)).distinct(), aimFields, peer, cachedField, coordinatorConstructor, viewFragment
+                }).plus(cached.readers.flatMap(::executablesWithCallers)).distinct(), attachment, suppressHint, peer, cachedField, coordinatorConstructor, viewFragment
         )
     }
-
-    /**
-     * The AIM booleans are kept at the end of the generated constructor immediately before its
-     * exact `java.util.concurrent.Executor` parameter. Other dependencies may implement Executor;
-     * they are not boundary markers. The boolean count can change between host builds, so recover
-     * the contiguous tail instead of binding to fixed argument indices.
-     */
-    internal fun findAimBooleanParameterIndices(parameterTypes: Array<Class<*>>): IntArray {
-        val executorIndices = parameterTypes.mapIndexedNotNull { index, type ->
-            if (type.name == Executor::class.java.name) index else null
-        }
-        val executorIndex = executorIndices.singleOrNull() ?: return IntArray(0)
-        val booleanType = Boolean::class.javaPrimitiveType
-        if (booleanType == null) return IntArray(0)
-        val indices = ArrayList<Int>()
-        var index = executorIndex - 1
-        while (index >= 0 && parameterTypes[index] == booleanType) {
-            indices += index
-            index--
-        }
-        indices.reverse()
-        return indices.toIntArray()
-    }
-
-    /** Best-effort host version for diagnosing a resolver change after a Google App update. */
-    private fun googleAppVersion(): String = runCatching {
-        val context = hookParam.appContext
-            ?: runCatching {
-                val activityThread = Class.forName("android.app.ActivityThread")
-                HostAccess.requireDeclaredMethod(activityThread, "currentApplication", accessible = false).invoke(null) as? Context
-            }.getOrNull()
-            ?: runCatching {
-                val activityThread = Class.forName("android.app.ActivityThread")
-                val thread = HostAccess.requirePublicMethod(activityThread, "currentActivityThread", accessible = false).invoke(null)
-                HostAccess.requirePublicMethod(activityThread, "getSystemContext", accessible = false).invoke(thread) as? Context
-            }.getOrNull()
-            ?: return "unknown"
-        val info = context.packageManager.getPackageInfo(PACKAGE, 0)
-        "${info.versionName ?: "unknown"}(${info.longVersionCode})"
-    }.getOrDefault("unknown")
 
     private class ThumbnailTarget(
         val method: Method,
@@ -604,14 +553,20 @@ object GoogleAppAskAboutScreenHooker : StaticHooker() {
         val entryOwner: Field,
         val entry: Method,
         val capability: Method?,
-        val aimBooleanParameterIndices: IntArray,
         val deoptimizations: List<Executable>,
-        val aimFields: List<Field>,
+        val attachment: Field,
+        val suppressHint: Field?,
         val peer: Field,
         val cached: Field,
         val coordinatorConstructor: Constructor<*>,
         val viewFragment: Method,
     ) {
+        val modelOverrides = buildMap {
+            put(hint, true)
+            put(attachment, true)
+            suppressHint?.let { put(it, false) }
+        }
+
         /** True only when Google's own entrypoint check reports the OMNI overlay. */
         fun isOmni(coordinator: Any?): Boolean {
             if (coordinator == null) return false

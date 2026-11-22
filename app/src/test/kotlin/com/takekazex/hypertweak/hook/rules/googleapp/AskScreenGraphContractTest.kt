@@ -13,14 +13,15 @@ import java.io.File
 import java.security.MessageDigest
 
 class AskScreenGraphContractTest {
+    private fun Method.references(target: String, prefix: String): Boolean = implementation?.instructions?.any {
+        if (!it.opcode.name.uppercase().startsWith(prefix)) false else when (val ref = (it as? ReferenceInstruction)?.reference) {
+            is MethodReference -> Codec.descriptor(ref) == target
+            is FieldReference -> Codec.descriptor(ref) == target
+            else -> false
+        }
+    } == true
+
     private fun resolve(index: DexOperandIndex, root: String, entry: String): List<AskScreenGraphContract.Match> {
-        fun Method.references(target: String, prefix: String): Boolean = implementation?.instructions?.any {
-            if (!it.opcode.name.uppercase().startsWith(prefix)) false else when (val ref = (it as? ReferenceInstruction)?.reference) {
-                is MethodReference -> Codec.descriptor(ref) == target
-                is FieldReference -> Codec.descriptor(ref) == target
-                else -> false
-            }
-        } == true
         return AskScreenGraphContract.resolve(index, root,
             callers = { target -> index.methods.filter { it.references(Codec.descriptor(target), "INVOKE") } },
             uses = { target ->
@@ -66,6 +67,7 @@ class AskScreenGraphContractTest {
         assertEquals("Ldtbp;->d()Z", result.eligibility)
         assertEquals("Ldxue;->w:Z", result.hint)
         assertEquals("Ldxue;->g:Ldtbp;", result.modelCoordinator)
+        assertEquals(AskScreenGraphContract.ModelFields("Ldxue;->N:Z", null), modelFields(index, result))
     }
 
     @Test fun installedHostResolvesAfterRenamedDiagnosticAndExtractedRenderer() {
@@ -81,12 +83,25 @@ class AskScreenGraphContractTest {
         assertEquals("Ldunh;->f:Ldwyp;", result.entryOwner)
         val constructor = index.definition(result.constructor)!!
         val parameters = constructor.parameterTypes.map(CharSequence::toString)
-        val boundary = parameters.indexOf("Ljava/util/concurrent/Executor;")
-        val indices = (boundary - 1 downTo 0).takeWhile { parameters[it] == "Z" }.toSet()
-        val fields = AskScreenModelContract.fields(index, result.constructor, indices)!!
-        assertTrue(result.hint in fields)
-        assertEquals(5, fields.size)
+        assertEquals(AskScreenGraphContract.ModelFields("Ldzhs;->O:Z", null), modelFields(index, result))
         assertTrue(parameters.flatMap { index.classDefinition(it)?.fields?.toList().orEmpty() }
             .any { it.definingClass == "Ldzhg;" && it.type == "Ldzhs;" })
     }
+
+    @Test fun screenHintAndAttachmentAreKeptWhileTheBlankHintBranchIsDisabled() {
+        val apk = artifact("GOOGLE_APP_1777_APK", "111a60b58ddef6273406d1583d95f83de94552170d02e81e010c30b68063beaa")
+        val index = DexOperandIndex(listOf(apk))
+        val result = resolve(index,
+            "Lcom/google/android/libraries/lens/view/main/MainFragmentPeer;->cc(Lfcwt;)Z",
+            "Leaoq;->f()Z",
+        ).single()
+        assertEquals("Ldybs;->e()Z", result.eligibility)
+        assertEquals("Leczu;->v:Z", result.hint)
+        assertEquals(AskScreenGraphContract.ModelFields("Leczu;->P:Z", "Leczu;->x:Z"), modelFields(index, result))
+        assertEquals("Lec;->h(Landroid/view/View;)Landroid/support/v4/app/Fragment;",
+            AskScreenGraphContract.fragmentLookup(index, "Lec;", "Landroid/support/v4/app/Fragment;"))
+    }
+
+    private fun modelFields(index: DexOperandIndex, graph: AskScreenGraphContract.Match) =
+        AskScreenGraphContract.modelFields(index, graph, index.methods.filter { it.references(graph.hint, "IGET") })
 }

@@ -66,7 +66,6 @@ internal class AppSettingsState(val storage: AppSettingsStore) {
     var hideGestureBarLauncher by persisted(PlatformSettingsKeys.KEY_HIDE_GESTURE_BAR_LAUNCHER, storage::putBoolean) { storage.getBoolean(PlatformSettingsKeys.KEY_HIDE_GESTURE_BAR_LAUNCHER, false) }
     var gestureBarAttachTransition by persisted(SystemUiSettingsKeys.KEY_GESTURE_BAR_ATTACH_TRANSITION, storage::putBoolean) { storage.getBoolean(SystemUiSettingsKeys.KEY_GESTURE_BAR_ATTACH_TRANSITION, false) }
     var powerButtonAction by settings.preference(write = { storage.powerButton.setPowerButtonAction(it) }) { storage.powerButton.powerButtonAction() }
-    var contextualSearchHaptics by persisted(PlatformSettingsKeys.KEY_CONTEXTUAL_SEARCH_HAPTICS, storage::putBoolean) { storage.getBoolean(PlatformSettingsKeys.KEY_CONTEXTUAL_SEARCH_HAPTICS, false) }
     var contextualSearchLongPress by persisted(PlatformSettingsKeys.KEY_CONTEXTUAL_SEARCH_LONG_PRESS, storage::putBoolean) { storage.backGesture.contextualSearchLongPress() }
     var hideLauncherIcon by settings.preference { storage.getBoolean(AppSettingsKeys.KEY_HIDE_LAUNCHER_ICON, false) }
     var sliderDisplayMode by persisted(SystemUiSettingsKeys.KEY_SLIDER_DISPLAY_MODE, storage::putInt) { storage.getInt(SystemUiSettingsKeys.KEY_SLIDER_DISPLAY_MODE, (if (storage.getBoolean(SystemUiSettingsKeys.KEY_SLIDER_SHOW_PERCENTAGE, false)) 3 else 0)).coerceIn(0, 3) }

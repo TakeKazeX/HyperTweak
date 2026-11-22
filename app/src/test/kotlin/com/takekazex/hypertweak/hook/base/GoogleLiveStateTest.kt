@@ -11,12 +11,13 @@ class GoogleLiveStateTest {
         val second = Model(false, false)
         val state = BooleanFieldOverrides()
         val fields = listOf("enabled", "nativeOn").map { Model::class.java.getDeclaredField(it).apply { isAccessible = true } }
-        state.capture(first, fields)
+        state.capture(first, mapOf(fields[0] to true, fields[1] to false))
         state.apply { true }
-        state.capture(first, fields) // A refresh cannot replace native false with the forced true.
+        state.capture(first, mapOf(fields[0] to true, fields[1] to false)) // A refresh cannot replace native false with the forced true.
         state.capture(second, fields)
         state.apply { it === first }
         assertTrue(first.enabled)
+        assertFalse(first.nativeOn)
         assertFalse(second.enabled)
         state.restore()
         assertFalse(first.enabled)

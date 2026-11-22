@@ -45,4 +45,13 @@ class AppHostRecoveryTest {
             "com.miui.networkassistant", "system_server").forEach { assertNull(AppHostRecovery.owner(it, false)) }
         assertNull(AppHostRecovery.owner("com.miui.securitycenter", true))
     }
+
+    @Test fun googleRecoveryIsLimitedToTheLensientUiProcess() {
+        val owner = "com.google.android.googlequicksearchbox"
+        assertEquals(owner, AppHostRecovery.owner("$owner:googleapp", false))
+        assertNull(AppHostRecovery.owner("$owner:googleapp", true))
+        for (process in listOf(owner, "$owner:search", "$owner:interactor", "$owner:googleapp.other")) {
+            assertNull(AppHostRecovery.owner(process, false))
+        }
+    }
 }
