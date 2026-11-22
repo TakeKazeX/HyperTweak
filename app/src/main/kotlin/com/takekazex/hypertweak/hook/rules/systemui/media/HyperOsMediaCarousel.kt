@@ -2,6 +2,7 @@ package com.takekazex.hypertweak.hook.rules.systemui.media
 
 import android.animation.ObjectAnimator
 import android.animation.PropertyValuesHolder
+import android.animation.ValueAnimator
 import android.annotation.SuppressLint
 import android.content.Context
 import android.view.Gravity
@@ -17,6 +18,12 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 
 internal const val HYPER_OS_MEDIA_TAG = "HyperOsMediaCarousel"
+
+internal fun shouldUseNativeMediaCard(apps: Collection<Pair<Int, String>?>, hasSuppressedSessions: Boolean): Boolean {
+    if (hasSuppressedSessions || apps.isEmpty()) return false
+    val firstApp = apps.first()
+    return apps.size == 1 || (firstApp != null && apps.all { it == firstApp })
+}
 
 @SuppressLint("ViewConstructor")
 internal class HyperOsMediaCarousel(
@@ -41,12 +48,13 @@ internal class HyperOsMediaCarousel(
     private var announcedCount = 0
     private val pages = LinkedHashMap<Any, HyperOsMediaContract.Page>()
     private var failed = false
+    private var showingNativeSingle = false
     private var restoredSession: Any? = null
 
     private fun selectedSession(): Any? = pages.entries.firstOrNull { it.value.view === pager.selectedView }?.key
 
     fun saveState(): Array<Any?> = arrayOf(
-        selectedSession(),
+        selectedSession() ?: restoredSession,
         hiddenApps.map { (user, app) -> arrayOf<Any>(user, app) },
         HashMap(dismissedSessions),
     )
@@ -71,12 +79,14 @@ internal class HyperOsMediaCarousel(
     }
 
     init {
+        visibility = View.GONE
         column.addView(pager, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
         column.addView(indicator, LinearLayout.LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT).apply {
             gravity = Gravity.CENTER_HORIZONTAL
         })
         addView(column, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
         pager.onPagePosition = ::updateIndicator
+        pager.onScroll = ::closeMenu
     }
 
     private fun updateIndicator(position: Int, fraction: Float, total: Int) {
@@ -129,15 +139,25 @@ internal class HyperOsMediaCarousel(
                 }
             }
             if (sessions.isEmpty()) {
+                showingNativeSingle = false
                 clearPages()
                 return
             }
             val candidates = sessions.filter { (id, data) ->
                 id !in dismissedSessions && contract.app(data) !in hiddenApps
             }
-            val previousKeys = pages.keys.toList()
+            if (shouldUseNativeMediaCard(sessions.values.map(contract::app), candidates.size != sessions.size)) {
+                if (!showingNativeSingle) {
+                    clearPages()
+                    showingNativeSingle = true
+                    DebugLog.i(HYPER_OS_MEDIA_TAG, "Using native single media card")
+                }
+                return
+            }
+            showingNativeSingle = false
+            val previousKeys = pages.keys.toSet()
+            if (previousKeys != candidates.keys) closeMenu()
             val removedKeys = previousKeys.filterNot { it in candidates }
-            if (removedKeys.isNotEmpty()) closeMenu()
             val removed = removedKeys.mapNotNull(pages::remove)
             removed.forEach(contract::close)
             for ((id, media) in candidates) {
@@ -162,10 +182,12 @@ internal class HyperOsMediaCarousel(
                     }
                 }
             }
-            val orderedKeys = pages.keys.toList()
-            if (orderedKeys != previousKeys) {
-                contract.chrome.setPageCount(indicator, orderedKeys.size)
-                pager.setPages(orderedKeys.map(pages::getValue))
+            val pagesChanged = pages.keys != previousKeys
+            if (pagesChanged) {
+                contract.chrome.setPageCount(indicator, pages.size)
+            }
+            pager.setPages(pages.values.toList())
+            if (pagesChanged) {
                 restoredSession?.let { saved ->
                     pages[saved]?.let { pager.select(it.view) }
                     restoredSession = null
@@ -173,6 +195,7 @@ internal class HyperOsMediaCarousel(
                 DebugLog.i(HYPER_OS_MEDIA_TAG, "HyperOS media pages=${pages.size}")
             }
             updateRestoreAction(pages.isEmpty() && sessions.values.any { contract.app(it) in hiddenApps })
+            visibility = View.VISIBLE
             showCarousel()
         } catch (error: Throwable) {
             failed = true
@@ -275,11 +298,14 @@ internal class HyperOsMediaCarousel(
     private fun clearPages() {
         closeMenu()
         updateRestoreAction(false)
+        visibility = View.GONE
         restorePlayer()
-        contract.chrome.setPageCount(indicator, 0)
         pager.setPages(emptyList())
         pages.values.forEach(contract::close)
         pages.clear()
+        HookFailurePolicy.open(HYPER_OS_MEDIA_TAG, "clear media page indicator", Unit) {
+            contract.chrome.setPageCount(indicator, 0)
+        }
     }
 }
 
@@ -295,6 +321,8 @@ private class MediaCardPager(context: Context) : HorizontalScrollView(context) {
     var selectedView: View? = null
         private set
     var onPagePosition: ((Int, Float, Int) -> Unit)? = null
+    var onScroll: (() -> Unit)? = null
+    private var snapAnimator: ValueAnimator? = null
     private var stride = 0
     private var alignOnLayout = false
     private var flingHandled = false
@@ -305,6 +333,7 @@ private class MediaCardPager(context: Context) : HorizontalScrollView(context) {
     init {
         layoutDirection = View.LAYOUT_DIRECTION_LTR
         isHorizontalScrollBarEnabled = false
+        isSmoothScrollingEnabled = false
         overScrollMode = OVER_SCROLL_NEVER
         addView(row, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT))
     }
@@ -316,21 +345,28 @@ private class MediaCardPager(context: Context) : HorizontalScrollView(context) {
             value
         }
         if (pages == physicalOrder) return
+        cancelSnap()
+        alignOnLayout = true
+        pages.filterNot { it in physicalOrder }.forEach { row.removeView(it.view) }
         pages = physicalOrder
         if (pages.none { it.view === selectedView }) selectedView = value.firstOrNull()?.view
-        row.removeAllViews()
-        pages.forEach { page ->
-            row.addView(page.view, LinearLayout.LayoutParams(1, LayoutParams.WRAP_CONTENT))
+        // Retained pages keep their native attachment and material subscriptions.
+        pages.forEachIndexed { index, page ->
+            if (row.getChildAt(index) !== page.view) {
+                if (page.view.parent === row) row.removeView(page.view)
+                row.addView(page.view, index, LinearLayout.LayoutParams(1, LayoutParams.WRAP_CONTENT))
+            }
         }
-        alignOnLayout = true
-        reportPosition()
         requestLayout()
     }
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         val cardWidth = MeasureSpec.getSize(widthMeasureSpec) - paddingLeft - paddingRight
         if (cardWidth > 0) {
-            if (stride != cardWidth + gap) alignOnLayout = true
+            if (stride != cardWidth + gap) {
+                cancelSnap()
+                alignOnLayout = true
+            }
             stride = cardWidth + gap
             pages.forEachIndexed { index, page ->
                 val params = page.view.layoutParams as LinearLayout.LayoutParams
@@ -343,15 +379,17 @@ private class MediaCardPager(context: Context) : HorizontalScrollView(context) {
 
     override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
         super.onLayout(changed, l, t, r, b)
-        if (!alignOnLayout || pages.isEmpty()) return
+        if (!alignOnLayout) return
         alignOnLayout = false
-        snap(pages.indexOfFirst { it.view === selectedView }.coerceAtLeast(0), smooth = false)
+        val target = pages.indexOfFirst { it.view === selectedView }.coerceAtLeast(0)
+        scrollTo(target * stride, 0)
         reportPosition()
     }
 
     override fun onScrollChanged(l: Int, t: Int, oldl: Int, oldt: Int) {
         super.onScrollChanged(l, t, oldl, oldt)
-        if (stride > 0) reportPosition()
+        if (l != oldl) onScroll?.invoke()
+        if (!alignOnLayout) reportPosition()
     }
 
     private fun reportPosition() {
@@ -374,7 +412,9 @@ private class MediaCardPager(context: Context) : HorizontalScrollView(context) {
                 if (dy > slop && dy >= dx) skipIntercept = true
             }
         }
-        return !skipIntercept && super.onInterceptTouchEvent(event)
+        return (!skipIntercept && super.onInterceptTouchEvent(event)).also { intercepted ->
+            if (intercepted) cancelSnap()
+        }
     }
 
     private fun hit(view: View, event: MotionEvent): Boolean {
@@ -386,6 +426,7 @@ private class MediaCardPager(context: Context) : HorizontalScrollView(context) {
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
+        if (event.actionMasked == MotionEvent.ACTION_DOWN) cancelSnap()
         flingHandled = false
         val handled = super.onTouchEvent(event)
         if ((event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) &&
@@ -406,15 +447,28 @@ private class MediaCardPager(context: Context) : HorizontalScrollView(context) {
 
     fun select(view: View) {
         if (pages.none { it.view === view }) return
+        cancelSnap()
         selectedView = view
         alignOnLayout = true
         requestLayout()
     }
 
-    private fun snap(index: Int, smooth: Boolean = true) {
-        if (pages.isEmpty()) return
+    private fun snap(index: Int) {
+        if (pages.isEmpty() || alignOnLayout) return
+        cancelSnap()
         val target = index.coerceIn(pages.indices)
         selectedView = pages[target].view
-        if (smooth) smoothScrollTo(target * stride, 0) else scrollTo(target * stride, 0)
+        val destination = target * stride
+        if (destination == scrollX) return
+        snapAnimator = ValueAnimator.ofInt(scrollX, destination).apply {
+            duration = 220L
+            addUpdateListener { scrollTo(it.animatedValue as Int, 0) }
+            start()
+        }
+    }
+
+    private fun cancelSnap() {
+        snapAnimator?.cancel()
+        snapAnimator = null
     }
 }

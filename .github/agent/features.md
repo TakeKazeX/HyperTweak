@@ -255,6 +255,19 @@ Status-bar icon ownership and theme rules:
 
 Root 设置调试、临时授权、AI 命令与 v2/v3 诊断包维护见 `docs/DEBUG_DIAGNOSTICS.md`。
 
+## HyperOS media carousel
+
+In the unlocked notification shade, the HyperOS style yields to the stock media row when the
+host has sessions from a single app and profile and none are hidden or dismissed. Filtered
+sessions keep the carousel in charge so the stock row cannot resurface a suppressed session.
+The host owns its top session and the stock row remains bound throughout.
+
+The pager keeps surviving native card views attached through session changes, cancels stale
+page animations, and aligns the selected page after layout. The long-press modal temporarily
+sets its source page invisible without changing its size. Dismissal restores visibility before
+releasing modal resources. Pager movement, session membership changes and shade visibility
+loss dismiss the modal.
+
 ## Purification and optimization page
 
 Device and settings refreshes use the committed top route and Activity foreground state.

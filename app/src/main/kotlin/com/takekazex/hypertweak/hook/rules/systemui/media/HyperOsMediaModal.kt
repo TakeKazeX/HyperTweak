@@ -187,7 +187,7 @@ internal class HyperOsMediaModal(
     private var mask: ((Float, Boolean) -> Unit)? = null
     private var animator: ValueAnimator? = null
     private var blurAmount = 0f
-    private var originalAlpha: Float? = null
+    private var sourceVisibility: Int? = null
     private var exiting = false
     private var closed = false
 
@@ -250,8 +250,9 @@ internal class HyperOsMediaModal(
         mask = HookFailurePolicy.open(HYPER_OS_MEDIA_TAG, "create native notification backdrop", null) {
             effects.backdrop(modalManager, root, blurLayer)
         }
-        originalAlpha = anchor.transitionAlpha
-        anchor.transitionAlpha = 0f
+        sourceVisibility = anchor.visibility
+        // Keep the page in the pager layout while the modal owns its rendering.
+        anchor.visibility = View.INVISIBLE
         resetSourceScale()
         val source = inModal(boundsOnScreen(anchor))
         // Media is already expanded. Use the host's collapsed notification height to limit
@@ -267,16 +268,23 @@ internal class HyperOsMediaModal(
 
     fun exit(action: (() -> Unit)? = null) {
         if (closed || exiting) return
-        if (originalAlpha == null) {
+        if (sourceVisibility == null) {
             dismiss()
             action?.invoke()
             return
         }
         exiting = true
-        val source = inModal(boundsOnScreen(anchor))
-        animateContent(motion, source.left - motion.left, source.top - motion.top, 1f, 1f, false)
-        animateContent(actions, 0f, 0f, 0.8f, 0f, false)
-        animateBlur(0f, false) {
+        val started = HookFailurePolicy.open(HYPER_OS_MEDIA_TAG, "exit media focus", false) {
+            val source = inModal(boundsOnScreen(anchor))
+            animateContent(motion, source.left - motion.left, source.top - motion.top, 1f, 1f, false)
+            animateContent(actions, 0f, 0f, 0.8f, 0f, false)
+            animateBlur(0f, false) {
+                dismiss()
+                action?.invoke()
+            }
+            true
+        }
+        if (!started) {
             dismiss()
             action?.invoke()
         }
@@ -332,14 +340,14 @@ internal class HyperOsMediaModal(
     fun dismiss() {
         if (closed) return
         closed = true
+        resetSourceScale()
+        sourceVisibility?.let { anchor.visibility = it }
+        sourceVisibility = null
         removePreDraw()
         animator?.let { it.removeAllListeners(); it.cancel() }
         animator = null
         if (root.isAttachedToWindow) updateBlur(0f, false)
         mask = null
-        resetSourceScale()
-        originalAlpha?.let { anchor.transitionAlpha = it }
-        originalAlpha = null
         listOf(motion, card, actions).forEach { view ->
             view.animate().cancel()
             HookFailurePolicy.open(HYPER_OS_MEDIA_TAG, "release media animation", Unit) { effects.release(view) }
