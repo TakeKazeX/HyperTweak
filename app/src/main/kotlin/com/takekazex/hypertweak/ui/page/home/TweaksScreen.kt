@@ -43,6 +43,7 @@ fun TweaksScreenContent(
     padding: PaddingValues,
     onNavigateToSystemLauncher: () -> Unit,
     onNavigateToSystemUi: () -> Unit,
+    onNavigateToPhrase: () -> Unit,
     onNavigateToSms: () -> Unit,
     onNavigateToScreenRecorder: () -> Unit,
     onNavigateToScreenshot: () -> Unit,
@@ -112,6 +113,18 @@ fun TweaksScreenContent(
                     )
                 },
                 onClick = onNavigateToSystemUi
+            )
+            ArrowPreference(
+                title = stringResource(R.string.phrase_title),
+                summary = stringResource(R.string.phrase_page_summary),
+                startAction = {
+                    ApplicationIcon(
+                        packageName = com.takekazex.hypertweak.settings.contract.PhraseSettingsKeys.PACKAGE,
+                        modifier = Modifier.padding(end = 6.dp),
+                        contentDescription = stringResource(R.string.phrase_title),
+                    )
+                },
+                onClick = onNavigateToPhrase
             )
             ArrowPreference(
                 title = stringResource(R.string.sms_title),

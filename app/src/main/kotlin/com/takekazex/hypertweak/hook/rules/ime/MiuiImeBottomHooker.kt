@@ -12,6 +12,7 @@ import android.view.inputmethod.InputMethodManager
 import com.takekazex.hypertweak.hook.base.CompatibleMethodResolver
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.StaticHooker
+import com.takekazex.hypertweak.settings.contract.PhraseSettingsKeys
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.reflect.Field
 
@@ -57,6 +58,13 @@ class MiuiImeBottomHooker : StaticHooker() {
         hookAddMiuiBottomView(bottomManager)
         hookDeleteNotSupportIme(bottomManager)
         hookNativeStyle(bottomManager)
+        HookFailurePolicy.open(TAG, "attach clipboard retention", Unit) {
+            val context = hookParam.appContext
+                ?: io.github.lingqiqi5211.ezhooktool.xposed.EzXposed.appContextOrNull
+                ?: return@open
+            val apk = context.packageManager.getApplicationInfo(PhraseSettingsKeys.PACKAGE, 0).sourceDir
+            attach(ImeClipboardRetentionHooker(apk), classLoader)
+        }
     }
 
     /**

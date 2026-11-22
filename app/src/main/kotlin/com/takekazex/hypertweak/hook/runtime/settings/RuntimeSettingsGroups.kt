@@ -52,6 +52,7 @@ internal object RuntimeSettingsGroups {
     const val SETTINGS_AI = "settings.hyperos_ai"
     const val WIFI_DETAILS = "settings.wifi_details"
     const val ANALYTICS = "analytics.telemetry"
+    const val PHRASE = "phrase.unlock_limits"
     const val SMS = "sms.auto_copy_code"
     const val MARKET = "market.purification"
     const val COMMUNITY = "community.feedback"

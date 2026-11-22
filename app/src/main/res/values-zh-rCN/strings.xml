@@ -2000,6 +2000,22 @@
     <string name="back_home_preview">返回桌面图标预览（实验性）</string>
     <string name="back_home_preview_summary">Android 17 返回桌面图标动画预览，默认关闭，部分交接仍可能闪烁。</string>
 
+    <string name="phrase_title">剪贴板与常用语</string>
+    <string name="phrase_page_summary">输入法访问、常用语及历史保留</string>
+    <string name="phrase_ime_history_title">允许所有输入法读写历史</string>
+    <string name="phrase_ime_history_summary">授权当前默认输入法读写小米剪贴板历史。输入法需要使用小米剪贴板才能显示这些记录。</string>
+    <string name="phrase_unlock_title">常用语解除限制</string>
+    <string name="phrase_unlock_summary">可添加超过 20 条常用语，单条可输入超过 256 字。</string>
+    <string name="phrase_clipboard_limits_title">剪贴板解除限制</string>
+    <string name="phrase_clipboard_limits_summary">可自定义历史保留上限。保留条数过多会导致复制和打开剪贴板时卡顿。</string>
+    <string name="phrase_clipboard_count">保留条数</string>
+    <string name="phrase_clipboard_count_item">%1$d 条</string>
+    <string name="phrase_clipboard_retention">保留时间</string>
+    <string name="phrase_clipboard_retention_scope">要在小米剪贴板面板中显示超过三天的记录，请在输入法布局中选择该输入法，并授予其 LSPosed 作用域。</string>
+    <string name="phrase_clipboard_three_days">三天</string>
+    <string name="phrase_clipboard_week">七天</string>
+    <string name="phrase_clipboard_month">一个月</string>
+    <string name="phrase_clipboard_three_months">三个月</string>
     <string name="sms_title">短信</string>
     <string name="sms_auto_copy_title">自动复制验证码</string>
     <string name="sms_auto_copy_summary">自动复制短信应用识别出的新短信验证码。锁屏时保留最新验证码，两分钟内解锁后复制，不改变已读状态。</string>

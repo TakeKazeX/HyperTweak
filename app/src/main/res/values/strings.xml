@@ -2034,6 +2034,22 @@
     <string name="back_home_preview">Return to Home icon preview (experimental)</string>
     <string name="back_home_preview_summary">Preview the Home icon animation on Android 17. Off by default; some transitions may flicker.</string>
 
+    <string name="phrase_title">Clipboard &amp; phrases</string>
+    <string name="phrase_page_summary">Input method access, phrases and history retention</string>
+    <string name="phrase_ime_history_title">Allow all input methods to read and write history</string>
+    <string name="phrase_ime_history_summary">Grants access to the current default input method. Apps need to use the HyperOS clipboard to see its history.</string>
+    <string name="phrase_unlock_title">Remove phrase limits</string>
+    <string name="phrase_unlock_summary">Add more than 20 phrases and enter more than 256 characters per phrase.</string>
+    <string name="phrase_clipboard_limits_title">Remove default clipboard limits</string>
+    <string name="phrase_clipboard_limits_summary">Set custom history limits. Keeping too many items can make copying and opening the clipboard lag.</string>
+    <string name="phrase_clipboard_count">Maximum entries</string>
+    <string name="phrase_clipboard_count_item">%1$d entries</string>
+    <string name="phrase_clipboard_retention">Retention period</string>
+    <string name="phrase_clipboard_retention_scope">To show history older than three days in the HyperOS panel, select the keyboard in Input method layout and grant it LSPosed scope.</string>
+    <string name="phrase_clipboard_three_days">Three days</string>
+    <string name="phrase_clipboard_week">Seven days</string>
+    <string name="phrase_clipboard_month">One month</string>
+    <string name="phrase_clipboard_three_months">Three months</string>
     <string name="sms_title">Messaging</string>
     <string name="sms_auto_copy_title">Automatically copy verification codes</string>
     <string name="sms_auto_copy_summary">Copy verification codes recognized by Messaging in new SMS messages. While locked, copy only the latest code after unlocking, within two minutes. Messages stay unread.</string>

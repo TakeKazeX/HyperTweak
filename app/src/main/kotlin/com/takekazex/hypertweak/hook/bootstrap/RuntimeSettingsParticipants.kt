@@ -304,6 +304,10 @@ internal object RuntimeSettingsParticipants {
             true
         }
         registerForProcess(RuntimeSettingsGroups.ANALYTICS) { _ -> true }
+        registerForProcess(RuntimeSettingsGroups.PHRASE) { _ ->
+            processName != com.takekazex.hypertweak.settings.contract.PhraseSettingsKeys.PACKAGE ||
+                com.takekazex.hypertweak.hook.rules.phrase.PhraseLimitHooker.refreshEditors()
+        }
         registerForProcess(RuntimeSettingsGroups.SMS) { _ ->
             com.takekazex.hypertweak.hook.rules.sms.SmsCodeHooker.refreshSettings()
             true

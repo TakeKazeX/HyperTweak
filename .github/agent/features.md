@@ -2,6 +2,59 @@
 
 Per-feature mechanisms, host contracts and known limitations. Search by feature or class name and read only the matching section.
 
+## Clipboard and phrases
+
+The Clipboard & Phrases page has three default-off switches with independent
+effects. The former `phrase_unlock_limits` key now controls phrase count and
+editor length. The clipboard switch selects 10, 20, 50, 100, 250 or 500 stored
+entries and a fixed age of 3, 7, 30 or 90 days. Absent and unrecognized values
+normalize to the host defaults of 20 and 3.
+
+The provider scope is `com.miui.phrase` on OS4. The access switch checks that
+the Binder caller is the current user's default IME with an unshared UID.
+Additional access applies only to query and insert on the native local-history
+URI. The native signature-list decision is delegated only within that authorized
+insert. It uses the original transfer and storage path. Grants are thread-local,
+and incomplete chunk transfers are tied to the caller UID and the expected next
+index. Disabling or replacing the module restores authorization on subsequent
+calls and retires module-managed partial transfers.
+
+The provider applies age and count when merging a new item, committing the
+native history write-back and building a query snapshot. A result with no retained
+rows stays empty instead of exposing the provider's raw-JSON fallback. Single-item writes keep
+native model deduplication, parsing, encoding and eviction cleanup. The native
+clipboard storage path still rewrites the full retained JSON. Large count limits
+can increase latency. Lowering limits filters the next query and prunes storage
+on a subsequent write.
+
+With either clipboard switch active, write and query paths coalesce a local
+single-item plain-text variant and its HTML counterpart when the visible text and
+size match within two seconds. The formatted record wins. The device showed paired
+writes 904 ms and 1,063 ms apart with identical text and different raw payloads.
+Files, multi-item clips, separate copies outside that window and cloud items keep
+their native identities.
+
+The native panel separately filters for three-day expiry inside the side-loaded
+phrase APK. The configured keyboard's existing IME layout loader installs the
+matching retention adjustment and receives live changes in the same settings
+group. The keyboard must be selected for IME layout hooking and in LSPosed scope
+to display history older than three days. The existing panel's incremental
+local-copy and cloud-merge trims may still temporarily affect how many rows are
+visible while the panel stays open. Keyboards with private history require their
+own integration.
+
+The phrase hooks keep the native editor intent and restore its original
+256-character filter on disable, reset and hot replacement. Open drafts are
+preserved and replacement generations can find living editors in the activity
+registry.
+
+Run `PhraseLimitResolverApkTest` with `PHRASE_APK` pointing to the verified
+MIUIFrequentPhrase 5.7.4 baseline, SHA-256
+`5e15d459cfa71ec0515e8d59f155f84000d7e2be0ba7dc1ef825ca813c723f69`.
+Device acceptance covers default keyboard changes, native panel read/write,
+copy ordering and deduplication, count and age options, adding a 21st phrase,
+and editing more than 256 characters across enable, disable and reload.
+
 ## SMS verification-code copying
 
 `SmsCodeHooker` runs in the Xiaomi Messaging main process only (`com.android.mms`),

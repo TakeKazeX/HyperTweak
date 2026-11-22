@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.bootstrap
 
+import com.takekazex.hypertweak.hook.runtime.settings.RuntimeSettingsGroups
+import com.takekazex.hypertweak.settings.contract.PhraseSettingsKeys
 import org.json.JSONArray
 import org.junit.Assert.*
 import org.junit.Test
@@ -32,6 +34,14 @@ class PackageHookPlanTest {
             assertTrue(names(PackageHookPlan.steps(pkg, process)).contains("AicrCopyDirectFreeformHooker"))
         }
         assertFalse(names(PackageHookPlan.steps(pkg, pkg)).contains("AicrCopyDirectFreeformHooker"))
+    }
+
+    @Test fun phraseLimitsInstallInTheProviderAndActivityProcess() {
+        val pkg = PhraseSettingsKeys.PACKAGE
+        assertEquals(listOf("PhraseLimitHooker"), names(PackageHookPlan.steps(pkg, pkg)))
+        assertTrue(PackageHookPlan.steps(pkg, "$pkg:remote").isEmpty())
+        assertTrue(RuntimeSettingsGroups.owns(pkg, PhraseSettingsKeys.KEY_UNLOCK_LIMITS))
+        assertFalse(RuntimeSettingsGroups.owns("com.android.systemui", PhraseSettingsKeys.KEY_UNLOCK_LIMITS))
     }
 
     @Test fun aivsCoversEveryPackageProcessAndReceivesLiveSettings() {

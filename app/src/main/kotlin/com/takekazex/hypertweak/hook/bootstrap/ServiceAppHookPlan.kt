@@ -33,6 +33,9 @@ internal object ServiceAppHookPlan {
             com.takekazex.hypertweak.settings.contract.AnalyticsSettingsKeys.PACKAGE -> {
                 hook { com.takekazex.hypertweak.hook.rules.analytics.AnalyticsTelemetryHooker }
             }
+            com.takekazex.hypertweak.settings.contract.PhraseSettingsKeys.PACKAGE -> {
+                if (processName == packageName) hook { com.takekazex.hypertweak.hook.rules.phrase.PhraseLimitHooker }
+            }
             com.takekazex.hypertweak.settings.contract.SmsSettingsKeys.PACKAGE -> {
                 if (processName == packageName) hook { com.takekazex.hypertweak.hook.rules.sms.SmsCodeHooker }
             }

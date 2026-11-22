@@ -12,6 +12,7 @@ import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 
 import com.takekazex.hypertweak.settings.contract.PackageManagerSettingsKeys
+import com.takekazex.hypertweak.settings.contract.PhraseSettingsKeys
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import com.takekazex.hypertweak.settings.contract.AppSettingsKeys
@@ -23,8 +24,12 @@ import com.takekazex.hypertweak.settings.contract.IconSettingsPreferencePolicy
 
 /** Key sets and process ownership per group. Group IDs are declared once, in [RuntimeSettingsGroups]. */
 internal object RuntimeSettingsDefinitions {
+    private val phraseTargets = java.util.concurrent.CopyOnWriteArraySet<String>(setOf(PhraseSettingsKeys.PACKAGE))
     private val imeTargets = java.util.concurrent.CopyOnWriteArraySet<String>(setOf("android"))
-    fun registerImeTargets(packages: Set<String>) { imeTargets.addAll(packages) }
+    fun registerImeTargets(packages: Set<String>) {
+        imeTargets.addAll(packages)
+        phraseTargets.addAll(packages)
+    }
     private val islandKeys = setOf(
         PlatformSettingsKeys.KEY_REMOVE_ISLAND_PLACEHOLDER, PlatformSettingsKeys.KEY_THREE_ISLANDS, PlatformSettingsKeys.KEY_LANDSCAPE_FULL_ISLANDS,
         PlatformSettingsKeys.KEY_LANDSCAPE_MORE_ISLANDS, SystemUiSettingsKeys.KEY_CC_HIDE_SUPER_ISLAND,
@@ -216,6 +221,15 @@ internal object RuntimeSettingsDefinitions {
         RuntimeSettingsGroups.ANALYTICS to Group(
             setOf(com.takekazex.hypertweak.settings.contract.AnalyticsSettingsKeys.PACKAGE),
             strict = setOf(com.takekazex.hypertweak.settings.contract.AnalyticsSettingsKeys.KEY_ANALYTICS_BLOCK_TELEMETRY),
+        ),
+        RuntimeSettingsGroups.PHRASE to Group(
+            phraseTargets,
+            keys = setOf(PhraseSettingsKeys.KEY_CLIPBOARD_COUNT, PhraseSettingsKeys.KEY_CLIPBOARD_DAYS),
+            strict = setOf(
+                PhraseSettingsKeys.KEY_ALLOW_IME_HISTORY,
+                PhraseSettingsKeys.KEY_UNLOCK_LIMITS,
+                PhraseSettingsKeys.KEY_CLIPBOARD_LIMITS,
+            ),
         ),
         RuntimeSettingsGroups.SMS to Group(setOf(com.takekazex.hypertweak.settings.contract.SmsSettingsKeys.PACKAGE), strict = setOf(com.takekazex.hypertweak.settings.contract.SmsSettingsKeys.KEY_SMS_AUTO_COPY_CODE)),
         RuntimeSettingsGroups.MARKET to Group(setOf(com.takekazex.hypertweak.settings.contract.MarketSettingsKeys.PACKAGE), strict = com.takekazex.hypertweak.settings.contract.MarketSettingsKeys.keys),
