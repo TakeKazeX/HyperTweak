@@ -125,6 +125,7 @@ internal class AppSettingsState(val storage: AppSettingsStore) {
     }
     var settingsGlobalInterface by persisted(PlatformSettingsKeys.KEY_SETTINGS_GLOBAL_INTERFACE, storage::putBoolean) { storage.getBoolean(PlatformSettingsKeys.KEY_SETTINGS_GLOBAL_INTERFACE, false) }
     var disableVideoRingback by persisted(PlatformSettingsKeys.KEY_DISABLE_VIDEO_RINGBACK, storage::putBoolean) { storage.getBoolean(PlatformSettingsKeys.KEY_DISABLE_VIDEO_RINGBACK, false) }
+    var enableNetworkTypeMenu by persisted(PlatformSettingsKeys.KEY_ENABLE_NETWORK_TYPE_MENU, storage::putBoolean) { storage.getBoolean(PlatformSettingsKeys.KEY_ENABLE_NETWORK_TYPE_MENU, false) }
     var immediateMonetRefresh by persisted(SystemUiSettingsKeys.KEY_IMMEDIATE_MONET_REFRESH, storage::putBoolean) {
         storage.getBoolean(
             SystemUiSettingsKeys.KEY_IMMEDIATE_MONET_REFRESH,
@@ -158,6 +159,7 @@ internal class AppSettingsState(val storage: AppSettingsStore) {
             PlatformSettingsKeys.KEY_SHOW_GOOGLE_SERVICES_IN_SETTINGS -> showGoogleServicesInSettings
             PlatformSettingsKeys.KEY_SETTINGS_GLOBAL_INTERFACE -> settingsGlobalInterface
             PlatformSettingsKeys.KEY_DISABLE_VIDEO_RINGBACK -> disableVideoRingback
+            PlatformSettingsKeys.KEY_ENABLE_NETWORK_TYPE_MENU -> enableNetworkTypeMenu
             PlatformSettingsKeys.KEY_UNLOCK_PASSKEY -> unlockPasskey
             PlatformSettingsKeys.KEY_DISABLE_SPATIAL_AUDIO -> disableSpatialAudio
             PlatformSettingsKeys.KEY_FORCE_ADAPTIVE_ANC -> forceAdaptiveAnc

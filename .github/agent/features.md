@@ -313,6 +313,17 @@ there is no injected-process destination or boot-time replay. The two Preference
 verified device mirrors, excluded from portable backups. Module reset/restore does not alter
 these device-persistent properties; entering the page reads actual state, including after upgrades.
 
+The Phone section's default-off network type menu switch uses the TeleService
+process. The structural contract matches the removal branch for
+`button_preferred_network_type_key` and the search provider's network-type entry.
+Only those two consumers can override the `Phone` delegate's UI visibility result.
+Enterprise-managed devices retain the native result. The slot-ID policy still drives
+carrier option filtering and automatic network selection. Settings updates and hook
+publication queue existing SIM settings activities for native recreation on resume,
+including activities opened before the feature was installed. Already cached Settings
+search results depend on the host's next index refresh. Run
+`NetworkTypeMenuContractTest` with `TELESERVICE_APK` set to the verified host APK.
+
 The Analytics section has two default-off controls. Package disable is a main-user
 app-side root operation. It enumerates all installed user IDs, records original enabled
 states against Android user serial numbers before writing, and restores only states it

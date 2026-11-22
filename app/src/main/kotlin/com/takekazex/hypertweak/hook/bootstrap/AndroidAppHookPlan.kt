@@ -12,6 +12,7 @@ import com.takekazex.hypertweak.hook.rules.downloads.DownloadUiHooker
 import com.takekazex.hypertweak.hook.rules.downloads.DownloadXlLogDirectoryHooker
 import com.takekazex.hypertweak.hook.rules.intentresolver.SharePanelHooker
 import com.takekazex.hypertweak.hook.rules.module.RestartBroadcastHooker
+import com.takekazex.hypertweak.hook.rules.phone.NetworkTypeMenuHooker
 import com.takekazex.hypertweak.hook.rules.phone.VideoRingbackHooker
 import com.takekazex.hypertweak.hook.rules.securitycenter.CarrierOfflineConfigHooker
 import com.takekazex.hypertweak.hook.rules.settings.VisualPerceptionSettingsHooker
@@ -27,6 +28,7 @@ internal object AndroidAppHookPlan {
                 // The native HyperPhone page delegates the CRBT capability and setter to this
                 // telephony service; keep both the display gate and modem-setting boundary here.
                 hook { VideoRingbackHooker }
+                if (processName == packageName) hook { NetworkTypeMenuHooker }
             }
             "com.xiaomi.phone" -> {
                 // HyperPhone caches the CRBT capability it read from the telephony service above,

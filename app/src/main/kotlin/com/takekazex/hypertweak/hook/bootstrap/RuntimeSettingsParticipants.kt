@@ -89,6 +89,9 @@ internal object RuntimeSettingsParticipants {
         registerForProcess(RuntimeSettingsGroups.CAMERA) { _ ->
             com.takekazex.hypertweak.hook.rules.camera.CameraRuntimeSettingsHooker.refreshSettings()
         }
+        registerForProcess(RuntimeSettingsGroups.PHONE_NETWORK_TYPE) { _ ->
+            com.takekazex.hypertweak.hook.rules.phone.NetworkTypeMenuHooker.refreshSettings()
+        }
         registerForProcess(RuntimeSettingsGroups.MONET) { _ ->
             com.takekazex.hypertweak.hook.rules.systemui.ImmediateMonetRefreshHooker.refreshSettings()
         }

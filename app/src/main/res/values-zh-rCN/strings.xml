@@ -1360,6 +1360,8 @@
     <string name="settings_opened_folder_restart_summary">桌面设置未生效时，可尝试重启桌面</string>
     <string name="settings_disable_video_ringback_title">关闭视频彩铃</string>
     <string name="settings_disable_video_ringback_summary">关闭视频彩铃并显示系统原生开关</string>
+    <string name="settings_enable_network_type_menu_title">启用网络类型选择菜单</string>
+    <string name="settings_enable_network_type_menu_summary">在 SIM 卡设置中显示因运营商定制而隐藏的首选网络类型菜单</string>
 
     <!-- Update system -->
     <string name="update_title">检查更新</string>

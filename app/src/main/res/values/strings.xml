@@ -1366,6 +1366,8 @@
     <string name="settings_opened_folder_restart_summary">Restart the launcher if changes have not applied</string>
     <string name="settings_disable_video_ringback_title">Disable Video Ringback</string>
     <string name="settings_disable_video_ringback_summary">Disable video ringback and reveal its native switch</string>
+    <string name="settings_enable_network_type_menu_title">Enable network type menu</string>
+    <string name="settings_enable_network_type_menu_summary">Show the preferred network type menu in SIM settings when hidden by carrier customization</string>
 
     <!-- Update system -->
     <string name="update_title">Check for updates</string>

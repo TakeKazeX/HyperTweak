@@ -87,6 +87,7 @@ internal object DebugSettingsCatalog {
         DebugSetting("download_always_show_full_link", "Boolean", false),
         DebugSetting("download_focus_notification", "Boolean", false),
         DebugSetting("download_hide_xl", "Boolean", false),
+        DebugSetting("enable_network_type_menu", "Boolean", false),
         DebugSetting("exit_power_save_when_charging", "Boolean", false),
         DebugSetting("extend_unlock_fix", "Boolean", false),
         DebugSetting("fcm_live_enabled", "Boolean", false),

@@ -148,6 +148,14 @@ fun PurificationPage(
                 title = stringResource(R.string.settings_disable_video_ringback_title),
                 summary = stringResource(R.string.settings_disable_video_ringback_summary)
             )
+            if (PlatformLevel.isOs4) {
+                SwitchPreference(
+                    checked = appSettings.enableNetworkTypeMenu,
+                    onCheckedChange = { appSettings.enableNetworkTypeMenu = it },
+                    title = stringResource(R.string.settings_enable_network_type_menu_title),
+                    summary = stringResource(R.string.settings_enable_network_type_menu_summary),
+                )
+            }
         }
 
 

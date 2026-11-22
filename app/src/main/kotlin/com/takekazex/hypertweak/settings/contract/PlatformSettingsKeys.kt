@@ -46,6 +46,7 @@ object PlatformSettingsKeys {
     const val KEY_SYSTEM_HELPER_DISABLED = "system_helper_disabled"
     const val KEY_SYSTEM_HELPER_MANAGED = "system_helper_managed"
     const val KEY_DISABLE_VIDEO_RINGBACK = "disable_video_ringback"
+    const val KEY_ENABLE_NETWORK_TYPE_MENU = "enable_network_type_menu"
     const val KEY_LBE_CLIPBOARD_TOAST = "lbe_clipboard_toast"
     const val KEY_AICR_COPY_DIRECT_DEFAULT_BROWSER = "aicr_copy_direct_default_browser"
     const val KEY_MITRUST_DISABLE_RISK_MONITORING = "mitrust_disable_risk_monitoring"
