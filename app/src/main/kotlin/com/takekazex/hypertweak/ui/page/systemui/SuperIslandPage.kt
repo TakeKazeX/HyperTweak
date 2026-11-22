@@ -122,6 +122,12 @@ fun SuperIslandPage(
                 summary = stringResource(R.string.tweaks_focus_unlock_whitelist_summary)
             )
             SwitchPreference(
+                checked = appSettings.mediaSuperIslandMultiSession,
+                onCheckedChange = { appSettings.mediaSuperIslandMultiSession = it },
+                title = stringResource(R.string.tweaks_media_super_island_multi_session_title),
+                summary = stringResource(R.string.tweaks_media_super_island_multi_session_summary)
+            )
+            SwitchPreference(
                 checked = appSettings.mediaSuperIslandUnlockWhitelist,
                 onCheckedChange = { appSettings.mediaSuperIslandUnlockWhitelist = it },
                 title = stringResource(R.string.tweaks_media_super_island_unlock_whitelist_title),

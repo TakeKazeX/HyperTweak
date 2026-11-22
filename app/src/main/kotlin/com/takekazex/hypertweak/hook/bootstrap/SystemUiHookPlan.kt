@@ -26,6 +26,7 @@ import com.takekazex.hypertweak.hook.rules.systemui.lockscreen.LockscreenDateHoo
 import com.takekazex.hypertweak.hook.rules.systemui.lockscreen.LockscreenKeepNotificationsHooker
 import com.takekazex.hypertweak.hook.rules.systemui.media.MediaCardHideAppIconHooker
 import com.takekazex.hypertweak.hook.rules.systemui.media.MediaCardHideDeviceSwitchHooker
+import com.takekazex.hypertweak.hook.rules.systemui.media.MultiSessionMediaIslandHooker
 import com.takekazex.hypertweak.hook.rules.systemui.media.MediaCardSwipeHooker
 import com.takekazex.hypertweak.hook.rules.systemui.notification.NotificationAbsoluteTimeHooker
 import com.takekazex.hypertweak.hook.rules.systemui.notification.NotificationBlockFoldHooker
@@ -84,6 +85,7 @@ internal object SystemUiHookPlan {
                 hook { GlassMaterialHooker }
                 hook { MediaCardHideAppIconHooker }
                 hook { MediaCardHideDeviceSwitchHooker }
+                hook { MultiSessionMediaIslandHooker }
                 hook { MediaCardSwipeHooker }
                 hook { LockscreenAllNotificationsHooker }
                 hook { LockscreenKeepNotificationsHooker }

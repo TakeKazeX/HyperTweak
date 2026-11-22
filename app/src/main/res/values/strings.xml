@@ -1112,6 +1112,8 @@
     <string name="tweaks_security_center_summary">Security Center battery, bubble notification and clipboard features</string>
     <string name="tweaks_focus_unlock_whitelist_summary">Lift the Super Island notification whitelist</string>
     <string name="tweaks_focus_unlock_whitelist_title">Remove Super Island Notification Whitelist</string>
+    <string name="tweaks_media_super_island_multi_session_title">Separate Media Super Islands</string>
+    <string name="tweaks_media_super_island_multi_session_summary">Give each playing media card its own Super Island</string>
     <string name="tweaks_media_super_island_unlock_whitelist_summary">Lift the media Super Island dropdown whitelist</string>
     <string name="tweaks_media_super_island_unlock_whitelist_title">Remove Media Super Island Dropdown Whitelist</string>
     <string name="tweaks_force_adaptive_anc_summary">Replace the AirPods Off mode with Adaptive noise cancellation</string>

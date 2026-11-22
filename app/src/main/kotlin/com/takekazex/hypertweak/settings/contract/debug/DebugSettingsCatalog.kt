@@ -240,6 +240,7 @@ internal object DebugSettingsCatalog {
         DebugSetting("media_card_hide_app_icon", "Boolean", false),
         DebugSetting("media_card_hide_device_switch", "Boolean", false),
         DebugSetting("media_card_swipe", "Boolean", false),
+        DebugSetting("media_super_island_multi_session", "Boolean", false),
         DebugSetting("media_super_island_unlock_whitelist", "Boolean", false),
         DebugSetting("milink_block_hpplay_files", "Boolean", false),
         DebugSetting("mitrust_disable_risk_monitoring", "Boolean", false),

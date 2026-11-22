@@ -30,6 +30,7 @@ internal object RuntimeSettingsDefinitions {
         PlatformSettingsKeys.KEY_ISLAND_NARROW_TIME_FONT, PlatformSettingsKeys.KEY_ISLAND_LIVE_UPDATE_ICON,
         PlatformSettingsKeys.KEY_ISLAND_PULL_DOWN_STRETCH, PlatformSettingsKeys.KEY_ISLAND_LOTTIE_RESUME,
         PlatformSettingsKeys.KEY_ISLAND_FLASHLIGHT_CONTROL,
+        PlatformSettingsKeys.KEY_MEDIA_SUPER_ISLAND_MULTI_SESSION,
         PlatformSettingsKeys.KEY_MEDIA_SUPER_ISLAND_UNLOCK_WHITELIST,
         PlatformSettingsKeys.KEY_FOCUS_NOTIFICATION_UNLOCK_WHITELIST
     )

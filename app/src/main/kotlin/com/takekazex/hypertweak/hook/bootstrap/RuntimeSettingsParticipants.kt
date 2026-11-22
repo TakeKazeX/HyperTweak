@@ -10,6 +10,7 @@ import com.takekazex.hypertweak.hook.rules.systemui.lockscreen.HideLockscreenSta
 import com.takekazex.hypertweak.hook.rules.systemui.lockscreen.KeyguardFingerprintAvoidHooker
 import com.takekazex.hypertweak.hook.rules.systemui.media.MediaCardHideAppIconHooker
 import com.takekazex.hypertweak.hook.rules.systemui.media.MediaCardHideDeviceSwitchHooker
+import com.takekazex.hypertweak.hook.rules.systemui.media.MultiSessionMediaIslandHooker
 import com.takekazex.hypertweak.hook.rules.systemui.media.MediaCardSwipeHooker
 import com.takekazex.hypertweak.hook.rules.systemui.notification.NotificationMiniWindowHooker
 import com.takekazex.hypertweak.hook.rules.systemui.notification.NotificationWhitelistBypassHooker
@@ -385,6 +386,7 @@ internal object RuntimeSettingsParticipants {
         registerForProcess(RuntimeSettingsGroups.ISLANDS) { _ ->
             if (actions.retired()) true else {
                 Preferences.invalidateRuntimeReadCache()
+                MultiSessionMediaIslandHooker.refreshSettings()
                 SystemUIPluginHooker.reloadIslandSettings()
             }
         }

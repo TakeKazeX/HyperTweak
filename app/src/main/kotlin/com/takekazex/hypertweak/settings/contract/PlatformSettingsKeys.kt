@@ -143,6 +143,7 @@ object PlatformSettingsKeys {
     const val KEY_ISLAND_LOTTIE_RESUME = "systemui_island_lottie_resume"
     const val KEY_ISLAND_FLASHLIGHT_CONTROL = "systemui_island_flashlight_control"
     const val KEY_FOCUS_NOTIFICATION_UNLOCK_WHITELIST = "focus_notification_unlock_whitelist"
+    const val KEY_MEDIA_SUPER_ISLAND_MULTI_SESSION = "media_super_island_multi_session"
     const val KEY_MEDIA_SUPER_ISLAND_UNLOCK_WHITELIST = "media_super_island_unlock_whitelist"
     const val KEY_XMSF_UNLOCK_FOCUS_AUTH = "xmsf_unlock_focus_auth"
     const val KEY_IGNORED_SCOPE_PROMPTS = "ignored_scope_prompts"

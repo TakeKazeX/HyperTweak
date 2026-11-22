@@ -1107,6 +1107,8 @@
     <string name="tweaks_security_center_summary">安全中心的电池、气泡通知与剪贴板功能</string>
     <string name="tweaks_focus_unlock_whitelist_summary">解除超级岛的通知白名单</string>
     <string name="tweaks_focus_unlock_whitelist_title">移除超级岛通知白名单</string>
+    <string name="tweaks_media_super_island_multi_session_title">独立媒体超级岛</string>
+    <string name="tweaks_media_super_island_multi_session_summary">为每张正在播放的媒体卡片分别显示超级岛</string>
     <string name="tweaks_media_super_island_unlock_whitelist_summary">解除媒体超级岛的下拉白名单</string>
     <string name="tweaks_media_super_island_unlock_whitelist_title">移除媒体超级岛下拉白名单</string>
     <string name="tweaks_force_adaptive_anc_summary">将 AirPods 关闭模式替换为自适应降噪</string>

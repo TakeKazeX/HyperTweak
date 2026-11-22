@@ -115,6 +115,7 @@ internal class AppSettingsState(val storage: AppSettingsStore) {
     var islandLottieResume by persisted(PlatformSettingsKeys.KEY_ISLAND_LOTTIE_RESUME, storage::putBoolean) { storage.getBoolean(PlatformSettingsKeys.KEY_ISLAND_LOTTIE_RESUME, false) }
     var islandFlashlightControl by persisted(PlatformSettingsKeys.KEY_ISLAND_FLASHLIGHT_CONTROL, storage::putBoolean) { storage.getBoolean(PlatformSettingsKeys.KEY_ISLAND_FLASHLIGHT_CONTROL, false) }
     var focusNotificationUnlockWhitelist by persisted(PlatformSettingsKeys.KEY_FOCUS_NOTIFICATION_UNLOCK_WHITELIST, storage::putBoolean) { storage.getBoolean(PlatformSettingsKeys.KEY_FOCUS_NOTIFICATION_UNLOCK_WHITELIST, false) }
+    var mediaSuperIslandMultiSession by persisted(PlatformSettingsKeys.KEY_MEDIA_SUPER_ISLAND_MULTI_SESSION, storage::putBoolean) { storage.getBoolean(PlatformSettingsKeys.KEY_MEDIA_SUPER_ISLAND_MULTI_SESSION, false) }
     var mediaSuperIslandUnlockWhitelist by persisted(PlatformSettingsKeys.KEY_MEDIA_SUPER_ISLAND_UNLOCK_WHITELIST, storage::putBoolean) { storage.getBoolean(PlatformSettingsKeys.KEY_MEDIA_SUPER_ISLAND_UNLOCK_WHITELIST, false) }
     var xmsfUnlockFocusAuth by persisted(PlatformSettingsKeys.KEY_XMSF_UNLOCK_FOCUS_AUTH, storage::putBoolean) { storage.getBoolean(PlatformSettingsKeys.KEY_XMSF_UNLOCK_FOCUS_AUTH, false) }
     var showGoogleServicesInSettings by persisted(PlatformSettingsKeys.KEY_SHOW_GOOGLE_SERVICES_IN_SETTINGS, storage::putBoolean) {
@@ -180,6 +181,7 @@ internal class AppSettingsState(val storage: AppSettingsStore) {
             PlatformSettingsKeys.KEY_ISLAND_LOTTIE_RESUME -> islandLottieResume
             PlatformSettingsKeys.KEY_ISLAND_FLASHLIGHT_CONTROL -> islandFlashlightControl
             PlatformSettingsKeys.KEY_FOCUS_NOTIFICATION_UNLOCK_WHITELIST -> focusNotificationUnlockWhitelist
+            PlatformSettingsKeys.KEY_MEDIA_SUPER_ISLAND_MULTI_SESSION -> mediaSuperIslandMultiSession
             PlatformSettingsKeys.KEY_MEDIA_SUPER_ISLAND_UNLOCK_WHITELIST -> mediaSuperIslandUnlockWhitelist
             PlatformSettingsKeys.KEY_XMSF_UNLOCK_FOCUS_AUTH -> xmsfUnlockFocusAuth
             PlatformSettingsKeys.KEY_FULL_SCREEN_TRANSLATE -> fullScreenTranslate
