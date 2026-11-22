@@ -20,9 +20,12 @@ def main():
     parser.add_argument("apk", type=Path, help="assembleDebug output (reflection names required)")
     parser.add_argument("--sdk", type=Path, default=os.environ.get("ANDROID_HOME"))
     parser.add_argument("--output", type=Path, required=True, help="directory outside the repository")
-    parser.add_argument("--probe", choices=("PanelGlyphProbe", "WifiActivityReloadProbe", "StackedArtworkReloadProbe", "KeyguardAirplaneProbe", "AirplaneEndpointProbe"), default="PanelGlyphProbe")
+    parser.add_argument("--probe", choices=("PanelGlyphProbe", "WifiActivityReloadProbe", "StackedArtworkReloadProbe", "KeyguardAirplaneProbe", "AirplaneEndpointProbe", "VolteOs3FlowProbe"), default="PanelGlyphProbe")
     parser.add_argument("--large-font", action="store_true", help="Use a cropped 48px label in KeyguardAirplaneProbe")
+    parser.add_argument("--host-apk", type=Path, help="Extracted OS3 SystemUI for VolteOs3FlowProbe")
     args = parser.parse_args()
+    if (args.probe == "VolteOs3FlowProbe") != (args.host_apk is not None):
+        parser.error("--host-apk is required for VolteOs3FlowProbe and only applies to that probe")
     if args.large_font and args.probe != "KeyguardAirplaneProbe":
         parser.error("--large-font requires --probe KeyguardAirplaneProbe")
     sdk = args.sdk or Path.home() / "Library/Android/sdk"
@@ -40,18 +43,23 @@ def main():
         Path(__file__).with_name("WifiActivityReloadProbe.java"),
         Path(__file__).with_name("StackedArtworkReloadProbe.java"),
         Path(__file__).with_name("KeyguardAirplaneProbe.java"),
-        Path(__file__).with_name("AirplaneEndpointProbe.java"))
+        Path(__file__).with_name("AirplaneEndpointProbe.java"),
+        Path(__file__).with_name("VolteOs3FlowProbe.java"))
     run(d8, "--lib", android, "--output", dex, *classes.glob("*.class"))
     remote = f"/data/local/tmp/ht-panel-probe-{uuid.uuid4().hex}"
     try:
         run("adb", "push", args.apk.resolve(), remote + ".apk")
         run("adb", "push", dex / "classes.dex", remote + ".dex")
+        probe_args = ["large-font"] if args.large_font else []
+        if args.host_apk:
+            run("adb", "push", args.host_apk.resolve(), remote + "-host.apk")
+            probe_args.append(remote + "-host.apk")
         result = run("adb", "shell", "CLASSPATH=" + remote + ".dex", "app_process",
-                     "/system/bin", args.probe, remote + ".apk", *(["large-font"] if args.large_font else []))
+                     "/system/bin", args.probe, remote + ".apk", *probe_args)
         (output / "result.txt").write_text(result)
         print(result, end="")
     finally:
-        run("adb", "shell", "rm", "-f", remote + ".apk", remote + ".dex")
+        run("adb", "shell", "rm", "-f", remote + ".apk", remote + ".dex", remote + "-host.apk")
 
 
 if __name__ == "__main__":

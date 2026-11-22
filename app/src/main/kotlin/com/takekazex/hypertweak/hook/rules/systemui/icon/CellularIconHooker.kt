@@ -7,6 +7,7 @@ import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 
 import com.takekazex.hypertweak.util.logging.DebugLog
+import com.takekazex.hypertweak.util.platform.PlatformLevel
 
 /**
  * Status-bar cellular icon visibility, ported from Hyper Helper's `CellularIcon` hooker
@@ -63,7 +64,7 @@ internal object CellularIconHooker : IconRenderer() {
         val roam = LiveFlowGate("roaming", false)
         val smallRoam = LiveFlowGate("small roaming", false)
         val vowifi = LiveFlowGate("VoWiFi", false)
-        val volte = LiveFlowGate("VoLTE", false)
+        val volte = LiveFlowGate("VoLTE", false, allowOs3Combine = !PlatformLevel.isOs4)
         val volteNoService = LiveFlowGate("VoLTE no service", false)
         val speechHd = LiveFlowGate("HD voice", false)
     }

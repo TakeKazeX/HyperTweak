@@ -4,6 +4,7 @@ import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.ref.WeakReference
 import java.lang.reflect.InvocationTargetException
 import java.lang.reflect.Method
+import java.lang.reflect.Modifier
 import java.lang.reflect.Proxy
 import java.util.Collections
 import java.util.WeakHashMap
@@ -20,7 +21,11 @@ import java.util.WeakHashMap
  * Every host type is resolved from the host loader ([IconTunerFlows] explains why), and a missing
  * contract returns null so the caller keeps the native flow.
  */
-internal class LiveFlowGate(private val name: String, initial: Boolean) {
+internal class LiveFlowGate(
+    private val name: String,
+    initial: Boolean,
+    private val allowOs3Combine: Boolean = false
+) {
     private val state: Any? = IconTunerFlows.createMutableStateFlow(initial)
 
     @Volatile
@@ -43,7 +48,7 @@ internal class LiveFlowGate(private val name: String, initial: Boolean) {
     fun wrap(original: Any, returnType: Class<*>, hiddenValue: (Any?) -> Any?): Any? {
         wrapped[original]?.get()?.let { return it }
         val gate = state ?: return null
-        val host = HostFlows.resolve(original.javaClass.classLoader) ?: return null
+        val host = HostFlows.resolve(original.javaClass.classLoader, allowOs3Combine) ?: return null
         return runCatching {
             val transform = Proxy.newProxyInstance(host.loader, arrayOf(host.function3)) { proxy, method, args ->
                 when (method.name) {
@@ -54,7 +59,7 @@ internal class LiveFlowGate(private val name: String, initial: Boolean) {
                     else -> null
                 }
             }
-            val combined = host.distinct.invoke(null, host.combine.invoke(null, original, gate, transform))
+            val combined = host.distinct.invoke(null, host.combine(original, gate, transform))
                 ?: return null
             val result = if (host.stateFlow.isAssignableFrom(returnType)) {
                 stateFacade(host, original, combined, hiddenValue)
@@ -86,31 +91,54 @@ internal class LiveFlowGate(private val name: String, initial: Boolean) {
         val loader: ClassLoader,
         val function3: Class<*>,
         val stateFlow: Class<*>,
-        val combine: Method,
+        val combine: (Any, Any, Any) -> Any?,
         val distinct: Method,
         val collect: Method
     ) {
         companion object {
             @Volatile private var cached: HostFlows? = null
+            @Volatile private var cachedOs3: HostFlows? = null
 
-            fun resolve(loader: ClassLoader?): HostFlows? {
+            fun resolve(loader: ClassLoader?, allowOs3Combine: Boolean): HostFlows? {
                 loader ?: return null
-                cached?.takeIf { it.loader === loader }?.let { return it }
+                val previous = if (allowOs3Combine) cachedOs3 else cached
+                previous?.takeIf { it.loader === loader }?.let { return it }
                 return runCatching {
                     fun type(pkg: String, simple: String) =
                         Class.forName(IconTunerFlows.hostClassName(pkg, simple), false, loader)
                     val flow = type("kotlinx.coroutines.flow", "Flow")
                     val flowKt = type("kotlinx.coroutines.flow", "FlowKt")
                     val function3 = type("kotlin.jvm.functions", "Function3")
-                    HostFlows(
-                        loader, function3, type("kotlinx.coroutines.flow", "StateFlow"),
-                        flowKt.getMethod("flowCombine", flow, flow, function3),
-                        flowKt.getMethod("distinctUntilChanged", flow),
-                        flow.getMethod("collect", type("kotlinx.coroutines.flow", "FlowCollector"),
-                            type("kotlin.coroutines", "Continuation"))
-                    )
+                    val collect = flow.getMethod("collect", type("kotlinx.coroutines.flow", "FlowCollector"),
+                        type("kotlin.coroutines", "Continuation"))
+                    val distinct = flowKt.getMethod("distinctUntilChanged", flow)
+                    val combine = try {
+                        val method = flowKt.getMethod("flowCombine", flow, flow, function3)
+                        check(Modifier.isStatic(method.modifiers) && flow.isAssignableFrom(method.returnType))
+                        val call: (Any, Any, Any) -> Any? = { first, second, transform ->
+                            method.invoke(null, first, second, transform)
+                        }
+                        call
+                    } catch (missing: NoSuchMethodException) {
+                        if (!allowOs3Combine) throw missing
+                        // The two myron OS3 hosts inline combine at call sites. This Flow captures
+                        // the original, gate and transform and connects them to combineInternal.
+                        val implementation = type(
+                            "kotlinx.coroutines.flow", "FlowKt__ZipKt\$combine\$\$inlined\$unsafeFlow\$1"
+                        )
+                        check(flow.isAssignableFrom(implementation))
+                        check(implementation.getDeclaredMethod(collect.name, *collect.parameterTypes)
+                            .returnType == collect.returnType)
+                        val constructor = implementation.getConstructor(flow, flow, function3)
+                        val call: (Any, Any, Any) -> Any = { first, second, transform ->
+                            constructor.newInstance(first, second, transform)
+                        }
+                        DebugLog.d(TAG, "using verified OS3 VoLTE Flow combine constructor")
+                        call
+                    }
+                    HostFlows(loader, function3, type("kotlinx.coroutines.flow", "StateFlow"), combine, distinct, collect)
                 }.onFailure { DebugLog.w(TAG, "host flowCombine contract unavailable", it) }
-                    .getOrNull()?.also { cached = it }
+                    .getOrNull()?.also { if (allowOs3Combine) cachedOs3 = it else cached = it }
             }
         }
     }

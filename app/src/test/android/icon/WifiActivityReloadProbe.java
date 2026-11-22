@@ -17,7 +17,7 @@ public final class WifiActivityReloadProbe {
     private static void check(boolean value, String message) {
         if (!value) throw new AssertionError(message);
     }
-    private static void await(List<Object> events, Object expected) throws Exception {
+    static void await(List<Object> events, Object expected) throws Exception {
         long until = System.nanoTime() + 3_000_000_000L;
         do {
             if (!events.isEmpty() && Objects.equals(events.get(events.size() - 1), expected)) return;
@@ -40,7 +40,8 @@ public final class WifiActivityReloadProbe {
         Object original = flows.getMethod("createMutableStateFlow", Object.class).invoke(flowFactory, 1234);
         check(original != null, "actual host mutable flow");
         Class<?> gateType = module.loadClass(P + "LiveFlowGate");
-        Object gate = gateType.getConstructor(String.class, boolean.class).newInstance("Wi-Fi activity test", true);
+        Object gate = gateType.getConstructor(String.class, boolean.class, boolean.class)
+            .newInstance("Wi-Fi activity test", true, false);
         Class<?> function1 = module.loadClass("kotlin.jvm.functions.Function1");
         Object zero = Proxy.newProxyInstance(module, new Class<?>[]{function1}, (p, m, a) -> 0);
         Class<?> stateFlow = host.loadClass("kotlinx.coroutines.flow.StateFlow");

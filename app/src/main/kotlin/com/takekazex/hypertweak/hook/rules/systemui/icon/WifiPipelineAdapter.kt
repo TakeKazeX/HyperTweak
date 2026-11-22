@@ -175,49 +175,7 @@ object WifiPipelineAdapter : StaticHooker() {
         hookBinderLayout()
         hookWifiOverrides()
 
-        // The verified OS4 factory receives isWifiDefault as its third boolean.
-        // Keep the host flow intact so a route change immediately restores/hides the icon.
-        run {
-            val companionClass = "$WIFI_ICON_CLASS\$Companion".toClassOrNull()
-            val activeClass = ACTIVE_CLASS.toClassOrNull()
-            val hiddenInstance = runCatching {
-                HIDDEN_CLASS.toClass().cachedPublicField("INSTANCE", accessible = false).get(null)
-            }.getOrNull()
-            val fromModel = companionClass?.declaredMethods?.singleOrNull {
-                it.name == "fromModel" && it.returnType.name == WIFI_ICON_CLASS &&
-                    it.parameterTypes.map(Class<*>::getName) == listOf(
-                        "com.android.systemui.statusbar.pipeline.wifi.shared.model.WifiNetworkModel",
-                        "android.content.Context", "boolean", "boolean", "boolean", "int")
-            }
-            if (fromModel == null || activeClass == null || hiddenInstance == null) {
-                DebugLog.hookSkipped(
-                    TAG,
-                    "$WIFI_ICON_CLASS\$Companion#fromModel",
-                    "method/class/INSTANCE not found"
-                )
-            } else {
-                // ART may inline this static factory into its flow transform/default wrapper.
-                // Deoptimize the verified callers too, so an already-running VM uses the hook.
-                companionClass.declaredMethods.filter { it.name == "fromModel\$default" }
-                    .forEach { deoptimize(it) }
-                "com.android.systemui.statusbar.pipeline.wifi.ui.viewmodel.WifiViewModelInject\$wifiIcon\$2"
-                    .toClassOrNull()?.declaredMethods?.singleOrNull {
-                        it.name == "invokeSuspend" && it.returnType == Any::class.java &&
-                            it.parameterTypes.contentEquals(arrayOf(Any::class.java))
-                    }?.let { deoptimize(it) }
-                deoptimize(fromModel)
-                fromModel.hook {
-                    before { param ->
-                        val model = param.args.getOrNull(0)
-                        if (!retired && WifiRoutePolicy.hide(
-                                activeClass.isInstance(model), param.args.getOrNull(4) as? Boolean, hideConnected = false
-                            )) param.result = hiddenInstance
-                    }
-                }
-            }
-        }
-
-        // 2. These are stable getter boundaries used by MiuiWifiViewBinder. A field write would be
+        // These are stable getter boundaries used by MiuiWifiViewBinder. A field write would be
         // lost because the factory assigns the flows after construction.
         hookVisibilityGetters()
         DebugLog.hookRegistered(
