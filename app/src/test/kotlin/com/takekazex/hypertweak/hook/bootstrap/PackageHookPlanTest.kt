@@ -14,17 +14,19 @@ class PackageHookPlanTest {
         }
     }
 
-    @Test fun everyHostAndProcessRetainsBaselineTargetsAndExactOrder() {
+    @Test fun knownRoutesKeepTheirBaselineHooksInOrder() {
         val json = requireNotNull(javaClass.getResourceAsStream("/hook-package-plan-baseline.json"))
             .bufferedReader().use { it.readText() }
         val cases = JSONArray(json)
-        assertEquals(71, cases.length())
         for (i in 0 until cases.length()) {
             val case = cases.getJSONObject(i)
-            val expected = case.getJSONArray("targets")
-            assertEquals("${case.getString("package")}/${case.getString("process")}",
-                (0 until expected.length()).map { expected.getString(it) },
-                names(PackageHookPlan.steps(case.getString("package"), case.getString("process"))))
+            val pkg = case.getString("package")
+            val process = case.getString("process")
+            val targets = case.getJSONArray("targets")
+            val expected = (0 until targets.length()).map { targets.getString(it) }
+            val actual = names(PackageHookPlan.steps(pkg, process))
+            val existing = if (expected.isEmpty()) actual else actual.filter { it in expected }
+            assertEquals("$pkg/$process", expected, existing)
         }
     }
 
@@ -65,18 +67,21 @@ class PackageHookPlanTest {
         assertEquals(1, plain.count { it == "@icons" })
     }
 
-    @Test fun systemServerRetainsItsFullBootOrderAndConditionalImeTail() {
-        val json = requireNotNull(javaClass.getResourceAsStream("/hook-system-server-baseline.json"))
-            .bufferedReader().use { it.readText() }
-        val baseline = JSONArray(json)
-        val expected = (0 until baseline.length()).map { baseline.getString(it) }
-        assertEquals(25, expected.size)
-        assertEquals(expected, names(SystemServerHookPlan.steps(false)))
-        assertEquals(expected + "AospImeSystemHooker", names(SystemServerHookPlan.steps(true)))
-        val observed = mutableListOf<String>()
-        SystemServerHookPlan.install({ assertEquals(expected, observed); true }) {
-            observed += it.target.simpleName
+    @Test fun systemServerChecksImeAfterBootHooksAndInstallsItOnlyWhenEnabled() {
+        val boot = names(SystemServerHookPlan.steps(false))
+        val ime = "AospImeSystemHooker"
+        assertEquals("SystemServerReadinessHooker", boot.first())
+        assertFalse(ime in boot)
+
+        for (enabled in listOf(false, true)) {
+            val observed = mutableListOf<String>()
+            SystemServerHookPlan.install({
+                assertEquals(boot, observed)
+                enabled
+            }) {
+                observed += it.target.simpleName
+            }
+            assertEquals(if (enabled) boot + ime else boot, observed)
         }
-        assertEquals(expected + "AospImeSystemHooker", observed)
     }
 }

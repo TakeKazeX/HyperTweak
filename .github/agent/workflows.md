@@ -32,7 +32,7 @@ emits them. When changing the build toolchain, run the applicable checks with
 
 Architecture changes also run `python3 .github/scripts/check_architecture.py`,
 `python3 .github/scripts/check_hook_callbacks.py`, and
-`python3 -m unittest discover -s .github/scripts -p 'test_*.py'`. The guard covers
+`python3 -m unittest discover -s .github/scripts -p 'test_check_*.py'`. The guard covers
 Kotlin/Java imports and fully qualified source references, not reflection or runtime wiring.
 
 API-102 retirement has a commit boundary: state capture and framework saved-state publication
@@ -453,6 +453,13 @@ Trigger: the user asks for release readiness, a stable release, or a release aud
 - Report readiness, specific blockers, and pending manual acceptance separately. Do not require a connected device unless device verification is part of the request.
 
 ## Rolling CI publication
+
+Branch CI always runs the debug catalog and source guards, Gradle unit tests, lint,
+and release packaging. It runs the Python tool regressions for changes to CI scripts
+or diagnostic assets, and the native sanitizer suite for changes to native sources,
+native tests, or the Java back gesture sources exercised by the native harness.
+Workflow edits, manual dispatch, and runs without a usable comparison base run both
+suites. The wireless ADB harness requires `mksh` to match Android's shell syntax.
 
 All build jobs use `.github/actions/setup-android` before configuring Gradle.
 It accepts SDK licenses and installs the NDK and CMake versions pinned in

@@ -94,6 +94,8 @@ for key in keys:
     if key in ('SystemUiSettingsKeys.KEY_HIDE_FINGERPRINT_AOD','SystemUiSettingsKeys.KEY_HIDE_FINGERPRINT_LOCKSCREEN','SystemUiSettingsKeys.KEY_HIDE_FINGERPRINT_APP_AUTH'): reads[key]=('Boolean','false',0)
     if key=='BackGestureKeys.KEY_BACK_GESTURE_ENABLED': reads[key]=('Boolean','false',0)
 manual = {
+ # Read through the Java SystemUI input policy and the shared back gesture snapshot.
+ 'PlatformSettingsKeys.KEY_CONTEXTUAL_SEARCH_HAPTICS':('Boolean','false'),
  'AppSettingsKeys.KEY_APP_SHORTCUTS':('StringSet','setOf("lsposed", "installerx", "dev_settings")'),
  'AppSettingsKeys.KEY_UPDATE_CHANNEL':('String','"stable"'),
  'AppSettingsKeys.KEY_UPDATE_CHECK_INTERVAL':('Int','0'),

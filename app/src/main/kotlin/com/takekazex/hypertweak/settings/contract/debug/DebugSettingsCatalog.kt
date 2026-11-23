@@ -36,6 +36,7 @@ internal object DebugSettingsCatalog {
         DebugSetting("app_details_more_info", "Boolean", false),
         DebugSetting("app_details_named_share", "Boolean", false),
         DebugSetting("app_language", "Int", 0),
+        DebugSetting("app_link_management", "Boolean", false),
         DebugSetting("app_shortcuts", "StringSet", setOf("lsposed", "installerx", "dev_settings")),
         DebugSetting("app_shortcuts_order", "String", ""),
         DebugSetting("app_ui_style", "Int", com.takekazex.hypertweak.settings.contract.AppSettingsKeys.DEFAULT_APP_UI_STYLE),

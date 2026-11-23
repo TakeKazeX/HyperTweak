@@ -12,23 +12,31 @@ BSSID = "12:34:56:78:9a:bc"
 IP = "192.0.2.5"
 
 # Run the actual shell state machine with synthetic Wi-Fi, adbd and netfilter.
-# A fake timed read exits the worker after one tick and records the polling interval.
+# A fake timed read records that the worker waited and ends the run after one tick.
 BACKEND = r'''
 flock() {
     case "$*" in '7'|'-u 7'|'-n 7') return 0;; *) return 1;; esac
 }
-stat() { echo 1; }
-kill() { [ -f "runtime/0011223344556677.lease" ]; }
+kill() {
+    case "$*" in
+        '-0 101') [ -f test-proc/101/cmdline ];;
+        '101'|'-9 101') rm -f test-proc/101/cmdline;;
+        *) return 1;;
+    esac
+}
 sleep() { command sleep 0.01; }
 nohup() {
     if [ "$2" = app_process ] && [ "$HT_RELAY_SUPPORTED" = 1 ]; then
-        printf '%s\n' "$$" > "${10}"
+        printf '%s\n' 'app_process com.takekazex.hypertweak.root.WirelessAdbRelay test' > test-proc/101/cmdline
+        printf '%s\n' 101 > "${10}"
+    elif [ "$2" = sh ] && [ "$HT_AUTO_WATCH" = 1 ]; then
+        HT_AUTO_WATCH=0 mksh "$HT_TEST_BACKEND" watch
     fi
 }
 settings() { echo "$HT_SYSTEM_ADB"; }
 read() {
     if [ "${2:-}" = -t ]; then
-        printf '%s' "$3" > interval
+        : > worker-wait
         exit 0
     fi
     command read "$@"
@@ -87,6 +95,10 @@ ss() {
 }
 iptables() { return 1; }
 ip6tables() { return 1; }
+# Model the worker's pinned script and relay process in a private /proc fixture.
+cd "${HT_GUARD%/*}" || exit 1
+mkdir -p "test-proc/$$/fd" test-proc/101
+ln -s "$HT_GUARD" "test-proc/$$/fd/4"
 . "$HT_GUARD"
 '''
 
@@ -109,7 +121,10 @@ class WirelessAdbGuardTest(unittest.TestCase):
             "/data/adb/hypertweak-wireless-adb", shlex.quote(directory.name), 1
         ).replace("/dev/hypertweak-wireless-adb", shlex.quote(str(self.directory / "runtime")), 1)
         source = source.replace("/proc/uptime", shlex.quote(str(self.directory / "uptime")), 1)
+        source = source.replace("/proc/$$/fd/4", "test-proc/$$/fd/4")
+        source = source.replace("/proc/$relay_pid/cmdline", "test-proc/$relay_pid/cmdline")
         self.write("guard", source)
+        self.write("test-backend.sh", BACKEND)
         self.write("uptime", "100.00 90.00\n")
         self.write("apk", f"{self.directory / 'guard'}\n")
         os.mkfifo(self.directory / "wake")
@@ -125,6 +140,8 @@ class WirelessAdbGuardTest(unittest.TestCase):
         env = {
             **os.environ,
             "HT_GUARD": str(self.directory / "guard"),
+            "HT_TEST_BACKEND": str(self.directory / "test-backend.sh"),
+            "HT_AUTO_WATCH": "1" if operation == "manual-on" else "0",
             "HT_IFACE_IP": IP,
             "HT_RELAY_SUPPORTED": "1",
             "HT_SYSTEM_ADB": "0",
@@ -133,7 +150,7 @@ class WirelessAdbGuardTest(unittest.TestCase):
             **overrides,
         }
         return subprocess.run(
-            ["sh", "-c", BACKEND, "guard-test", operation, *args],
+            ["mksh", env["HT_TEST_BACKEND"], operation, *args],
             env=env, capture_output=True, text=True, timeout=5,
         )
 
@@ -149,7 +166,7 @@ class WirelessAdbGuardTest(unittest.TestCase):
         self.assertIn("service.adb.listen_addrs localabstract:hypertweak-adbd-", mutations)
         self.assertNotIn("service.adb.tcp.port 5037", mutations)
         self.assertLess(mutations.index("ctl.stop adbd"), mutations.index("ctl.start adbd"))
-        self.assertEqual(self.run_guard("status").stdout.splitlines()[6], f"{IP}:5037")
+        self.assertEqual(self.run_guard("status").stdout.splitlines()[-4], f"{IP}:5037")
 
     def test_disconnect_or_either_identity_mismatch_closes_listener(self):
         for observed in (wifi_status(bssid="12:34:56:78:9a:bd"),
@@ -166,10 +183,10 @@ class WirelessAdbGuardTest(unittest.TestCase):
         self.write("next_wifi", wifi_status(bssid="12:34:56:78:9a:bd"))
         self.assertEqual(self.run_guard().returncode, 0)
         self.assert_closed()
-        self.assertFalse(list((self.directory / "runtime").glob("*.lease")))
+        self.assertFalse(list((self.directory / "runtime").glob("*.ready")))
 
     def test_binding_fails_if_wifi_changed_during_authentication(self):
-        result = self.run_guard("bind", "5037", '"Guest"', BSSID)
+        result = self.run_guard("bind", "add", '"Guest"', BSSID)
         self.assertEqual(result.returncode, 3, result.stderr)
         self.assertEqual((self.directory / "policy").read_text(), f"1\n5037\n{SSID}\n{BSSID}\n")
         self.assert_closed()
@@ -178,7 +195,7 @@ class WirelessAdbGuardTest(unittest.TestCase):
         self.write("policy", "0\n0\n\n\n")
         result = self.run_guard("manual-on", "5037", SSID, BSSID)
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(self.run_guard("status").stdout.splitlines()[6], f"{IP}:5037")
+        self.assertEqual(self.run_guard("status").stdout.splitlines()[-4], f"{IP}:5037")
         self.write("wifi", wifi_status(bssid="12:34:56:78:9a:bd"))
         self.assertEqual(self.run_guard().returncode, 0)
         self.assert_closed()
@@ -189,11 +206,9 @@ class WirelessAdbGuardTest(unittest.TestCase):
 
     def test_manual_off_suspends_auto_until_a_new_connection_is_observed(self):
         self.assertEqual(self.run_guard().returncode, 0)
-        self.assertEqual((self.directory / "interval").read_text(), "1")
         self.assertEqual(self.run_guard("manual-off").returncode, 0)
         self.assertEqual(self.run_guard().returncode, 0)
         self.assert_closed()
-        self.assertEqual((self.directory / "interval").read_text(), "10")
         self.write("wifi", "Incomplete Wi-Fi status\n")
         self.assertEqual(self.run_guard().returncode, 0)
         self.assertTrue((self.directory / "paused").exists())
@@ -201,22 +216,22 @@ class WirelessAdbGuardTest(unittest.TestCase):
         self.assertEqual(self.run_guard().returncode, 0)
         self.write("wifi", wifi_status())
         self.assertEqual(self.run_guard().returncode, 0)
-        self.assertEqual(self.run_guard("status").stdout.splitlines()[6], f"{IP}:5037")
+        self.assertEqual(self.run_guard("status").stdout.splitlines()[-4], f"{IP}:5037")
 
     def test_unbound_idle_worker_exits_without_querying_wifi(self):
         self.write("policy", "0\n0\n\n\n")
         self.assertEqual(self.run_guard().returncode, 0)
-        self.assertFalse((self.directory / "interval").exists())
+        self.assertFalse((self.directory / "worker-wait").exists())
         self.assertFalse((self.directory / "queries").exists())
 
     def test_always_mode_uses_random_port_and_rechecks_after_roam(self):
         self.write("policy", "0\n5037\n\n\n")
         self.assertEqual(self.run_guard("mode", "2").returncode, 0)
         self.assertEqual(self.run_guard().returncode, 0)
-        self.assertEqual(self.run_guard("status").stdout.splitlines()[6], f"{IP}:49159")
+        self.assertEqual(self.run_guard("status").stdout.splitlines()[-4], f"{IP}:49159")
         new_bssid = "12:34:56:78:9a:bd"
         self.write("wifi", wifi_status(bssid=new_bssid))
-        self.assertEqual(self.run_guard("status").stdout.splitlines()[6], "")
+        self.assertEqual(self.run_guard("status").stdout.splitlines()[-4], "")
         self.assertEqual(self.run_guard().returncode, 0)
         self.assertEqual((self.directory / "runtime/endpoint").read_text().splitlines()[-1], new_bssid)
         self.assertIn("service.adb.tcp.port 0", (self.directory / "mutations").read_text())
@@ -227,12 +242,12 @@ class WirelessAdbGuardTest(unittest.TestCase):
     def test_bound_mode_requires_saved_wifi(self):
         self.write("policy", "0\n5037\n\n\n")
         self.assertNotEqual(self.run_guard("mode", "1").returncode, 0)
-        self.assertEqual(self.run_guard("bind", "5037", SSID, BSSID).returncode, 0)
+        self.assertEqual(self.run_guard("bind", "add", SSID, BSSID).returncode, 0)
         self.assertEqual(self.run_guard().returncode, 0)
         self.assert_closed()
         self.assertEqual(self.run_guard("mode", "1").returncode, 0)
         self.assertEqual(self.run_guard().returncode, 0)
-        self.assertEqual(self.run_guard("status").stdout.splitlines()[6], f"{IP}:5037")
+        self.assertEqual(self.run_guard("status").stdout.splitlines()[-4], f"{IP}:5037")
 
     def test_boot_restore_applies_saved_mode(self):
         owner = str(self.directory / "owner-token")
@@ -245,22 +260,22 @@ class WirelessAdbGuardTest(unittest.TestCase):
                 self.assertEqual(self.run_guard().returncode, 0)
                 fields = self.run_guard("status").stdout.splitlines()
                 self.assertEqual(fields[1], str(mode))
-                self.assertEqual(fields[6], f"{IP}:{expected_port}")
+                self.assertEqual(fields[-4], f"{IP}:{expected_port}")
 
     def test_package_update_preserves_manual_listener_but_boot_drops_it(self):
         self.write("policy", "0\n5037\n\n\n")
         self.assertEqual(self.run_guard("manual-on", "5037", SSID, BSSID).returncode, 0)
         owner = str(self.directory / "owner-token")
         self.assertEqual(self.run_guard("prepare", owner, "local-test-token", "5037").returncode, 0)
-        self.assertEqual(self.run_guard("status").stdout.splitlines()[6], f"{IP}:5037")
+        self.assertEqual(self.run_guard("status").stdout.splitlines()[-4], f"{IP}:5037")
         self.assertEqual(self.run_guard("restore", owner, "local-test-token", "5037").returncode, 0)
         self.assert_closed()
 
-    def test_expired_endpoint_is_not_reported(self):
+    def test_stopped_relay_is_not_reported(self):
         self.assertEqual(self.run_guard().returncode, 0)
-        for lease in (self.directory / "runtime").glob("*.lease"):
-            lease.unlink()
-        self.assertEqual(self.run_guard("status").stdout.splitlines()[6], "")
+        self.assertEqual(self.run_guard("status").stdout.splitlines()[-4], f"{IP}:5037")
+        (self.directory / "test-proc/101/cmdline").unlink()
+        self.assertEqual(self.run_guard("status").stdout.splitlines()[-4], "")
 
     def test_unavailable_relay_fails_closed(self):
         self.assertEqual(self.run_guard(HT_RELAY_SUPPORTED="0").returncode, 0)
@@ -295,22 +310,22 @@ class WirelessAdbGuardTest(unittest.TestCase):
         self.write("endpoint", f"{IP} 53221 1800000000\n{SSID}\n{BSSID}\n")
         self.write("service.adb.tcp.port", "53221")
         self.assertEqual(self.run_guard().returncode, 0)
-        self.assertEqual(self.run_guard("status").stdout.splitlines()[6], f"{IP}:53221")
+        self.assertEqual(self.run_guard("status").stdout.splitlines()[-4], f"{IP}:53221")
         self.assertEqual((self.directory / "service.adb.tcp.port").read_text(), "0")
 
     def test_system_transport_disables_legacy_and_preserves_policy(self):
         self.assertEqual(self.run_guard().returncode, 0)
         self.assertEqual(self.run_guard("transport", "system").returncode, 0)
         self.assert_closed()
-        self.assertEqual(self.run_guard("status").stdout.splitlines()[8], "system")
+        self.assertEqual(self.run_guard("status").stdout.splitlines()[-2], "system")
         native_status = self.run_guard("status", HT_SYSTEM_ADB="1").stdout.splitlines()
-        self.assertEqual(native_status[6], f"{IP}:39961")
+        self.assertEqual(native_status[-4], f"{IP}:39961")
         self.assertEqual(self.run_guard().returncode, 0)
         self.assert_closed()
         self.assertNotEqual(self.run_guard("transport", "legacy", HT_SYSTEM_ADB="1").returncode, 0)
         self.assertEqual(self.run_guard("transport", "legacy").returncode, 0)
         self.assertEqual(self.run_guard().returncode, 0)
-        self.assertEqual(self.run_guard("status").stdout.splitlines()[6], f"{IP}:5037")
+        self.assertEqual(self.run_guard("status").stdout.splitlines()[-4], f"{IP}:5037")
 
     def test_old_persistent_port_is_cleared_without_arming(self):
         (self.directory / "policy").unlink()
@@ -320,7 +335,7 @@ class WirelessAdbGuardTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assert_closed()
         self.assertEqual((self.directory / "persist.adb.tcp.port").read_text(), "")
-        self.assertEqual((self.directory / "policy").read_text(), "0\n0\n\n\n")
+        self.assertEqual((self.directory / "policy").read_text(), "0\n0\n")
 
 
 if __name__ == "__main__":
