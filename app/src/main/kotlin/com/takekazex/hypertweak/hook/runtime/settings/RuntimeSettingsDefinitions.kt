@@ -52,7 +52,8 @@ internal object RuntimeSettingsDefinitions {
     private val keyguardKeys = setOf(
         SystemUiSettingsKeys.KEY_HIDE_LOCKSCREEN_STATUS_BAR, SystemUiSettingsKeys.KEY_HIDE_LOCKSCREEN_DATE,
         SystemUiSettingsKeys.KEY_HIDE_FINGERPRINT, SystemUiSettingsKeys.KEY_HIDE_FINGERPRINT_AOD,
-        SystemUiSettingsKeys.KEY_HIDE_FINGERPRINT_LOCKSCREEN, SystemUiSettingsKeys.KEY_HIDE_FINGERPRINT_APP_AUTH
+        SystemUiSettingsKeys.KEY_HIDE_FINGERPRINT_LOCKSCREEN, SystemUiSettingsKeys.KEY_HIDE_FINGERPRINT_APP_AUTH,
+        SystemUiSettingsKeys.KEY_LOCKSCREEN_SCRAMBLE_PIN
     )
     /** Master and per-group power-save switches that decide whether the override hooker exists. */
     private val powerSaveKeys = setOf(

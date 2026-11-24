@@ -1133,6 +1133,8 @@
     <string name="tweaks_cts_long_press_summary">长按底部手势条启动圈定即搜</string>
     <string name="tweaks_hide_lockscreen_status_bar_summary">锁屏时隐藏时钟与状态图标</string>
     <string name="tweaks_hide_lockscreen_status_bar_title">隐藏锁屏状态栏</string>
+    <string name="settings_lockscreen_scramble_pin_title">锁屏乱序 PIN 键盘</string>
+    <string name="settings_lockscreen_scramble_pin_summary">每次显示锁屏数字密码键盘时随机打乱数字键位置。图案和混合密码不受影响</string>
     <string name="tweaks_hide_lockscreen_date_title">隐藏锁屏日期</string>
     <string name="tweaks_hide_lockscreen_date_summary">隐藏受支持锁屏钟面中的日期，包括全屏息屏显示</string>
     <string name="tweaks_navigation_bar_title">导航栏</string>

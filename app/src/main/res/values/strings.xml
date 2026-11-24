@@ -1139,6 +1139,8 @@
     <string name="tweaks_cts_long_press_summary">Hold the bottom gesture bar to search the screen</string>
     <string name="tweaks_hide_lockscreen_status_bar_summary">Hide the clock and status icons while locked</string>
     <string name="tweaks_hide_lockscreen_status_bar_title">Hide Lockscreen Status Bar</string>
+    <string name="settings_lockscreen_scramble_pin_title">Scramble Lockscreen PIN Keypad</string>
+    <string name="settings_lockscreen_scramble_pin_summary">Shuffle the digit keys each time the lockscreen PIN keypad appears. Pattern and password unlock are not affected</string>
     <string name="tweaks_hide_lockscreen_date_title">Hide Lockscreen Date</string>
     <string name="tweaks_hide_lockscreen_date_summary">Hide the date in supported lockscreen clocks, including full-screen AOD</string>
     <string name="tweaks_navigation_bar_title">Navigation Bar</string>

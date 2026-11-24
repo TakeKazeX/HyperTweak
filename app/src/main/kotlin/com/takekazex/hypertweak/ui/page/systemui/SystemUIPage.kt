@@ -69,6 +69,7 @@ fun SystemUIPage(
     }
     var appVolumeAutoExpand by rememberStoredSetting(SystemUiSettingsKeys.KEY_VOLUME_APP_VOLUME_AUTO_EXPAND, settingsStore::putBoolean) { settingsStore.getBoolean(SystemUiSettingsKeys.KEY_VOLUME_APP_VOLUME_AUTO_EXPAND, false) }
     val aospVolumePanel = remember { settingsStore.getBoolean(PlatformSettingsKeys.KEY_AOSP_VOLUME_PANEL, false) }
+    var lockscreenScramblePin by rememberStoredSetting(SystemUiSettingsKeys.KEY_LOCKSCREEN_SCRAMBLE_PIN, settingsStore::putBoolean) { settingsStore.getBoolean(SystemUiSettingsKeys.KEY_LOCKSCREEN_SCRAMBLE_PIN, false) }
     var hideLockscreenDate by rememberStoredSetting(SystemUiSettingsKeys.KEY_HIDE_LOCKSCREEN_DATE, settingsStore::putBoolean) { settingsStore.getBoolean(SystemUiSettingsKeys.KEY_HIDE_LOCKSCREEN_DATE, false) }
 
     var tileMessageDialog by rememberSaveable { mutableStateOf(false) }
@@ -199,6 +200,12 @@ fun SystemUIPage(
                 },
                 title = stringResource(R.string.tweaks_hide_lockscreen_date_title),
                 summary = stringResource(R.string.tweaks_hide_lockscreen_date_summary)
+            )
+            if (PlatformLevel.isOs4) SwitchPreference(
+                checked = lockscreenScramblePin,
+                onCheckedChange = { lockscreenScramblePin = it },
+                title = stringResource(R.string.settings_lockscreen_scramble_pin_title),
+                summary = stringResource(R.string.settings_lockscreen_scramble_pin_summary)
             )
             // The notification-stack fingerprint avoidance anchors on the OS4
             // `nsslLockYPosition` combine; OS3's keyguard uses a different container.

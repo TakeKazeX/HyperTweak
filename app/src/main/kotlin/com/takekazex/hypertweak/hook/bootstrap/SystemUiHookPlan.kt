@@ -57,6 +57,7 @@ internal object SystemUiHookPlan {
                 hook { AodWallpaperHandoffHooker }
                 hook { HideFingerprintIcon }
                 hook { HideLockscreenStatusBarHooker }
+                hook { com.takekazex.hypertweak.hook.rules.systemui.lockscreen.LockscreenPinScrambleHooker }
                 hook { NotificationHeaderClockSecondsHooker }
                 hook { NotificationHeaderHooker }
                 hook { NotificationHeaderWeatherHooker }
