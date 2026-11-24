@@ -122,6 +122,10 @@ internal object SlotMaskApplier : IconRenderer() {
         it.clear()
     }
     private val lastRestoredOverflow = generationMainResource(WeakHashMap<ViewGroup, Set<String>>()) { it.clear() }
+    private data class NativeChildWalk(val surface: PlanSurface?, val childCount: Int)
+    private val nativeChildWalks = generationMainResource(WeakHashMap<ViewGroup, NativeChildWalk>()) { it.clear() }
+    /** A status icon's slot is fixed when its holder is created; only non-null answers are kept. */
+    private val viewSlots = generationMainResource(WeakHashMap<View, String>()) { it.clear() }
     private val activeHostLayouts = ThreadLocal<ArrayDeque<ViewGroup>>()
     private var originalSlotOrder by generationState { emptyList<String>() }
     private var slotsField: Field? by generationState { null }
@@ -721,7 +725,10 @@ internal object SlotMaskApplier : IconRenderer() {
             )
             if (maskOwners.owned(container, owner) == slots &&
                 ignored == (base + maskSlotsFor(container)).distinct()) {
-                hideNativeNetworkChildren(container)
+                // Owners re-assert unchanged masks from per-frame pre-draw. Native children are
+                // already held by the setVisibleState/visibility hooks, onViewAdded and onLayout;
+                // re-walk them only when the surface or the child set moved since the last walk.
+                if (nativeChildrenStale(container)) hideNativeNetworkChildren(container)
                 return true
             }
             maskOwners.set(container, owner, slots)
@@ -743,8 +750,15 @@ internal object SlotMaskApplier : IconRenderer() {
     }
 
     /** Modern mobile/Wi-Fi binders own visibility independently from ignoredSlots. */
+    private fun nativeChildrenStale(container: Any): Boolean {
+        val group = container as? ViewGroup ?: return false
+        val walked = nativeChildWalks[group] ?: return true
+        return walked.surface != planSurfaceFor(group) || walked.childCount != group.childCount
+    }
+
     private fun hideNativeNetworkChildren(container: Any) {
         val group = container as? ViewGroup ?: return
+        nativeChildWalks[group] = NativeChildWalk(planSurfaceFor(group), group.childCount)
         typeOnly.adopt((0 until group.childCount).map(group::getChildAt))
         val slots = maskSlotsFor(container)
         val state = containerStates[container] ?: run {
@@ -1078,6 +1092,12 @@ internal object SlotMaskApplier : IconRenderer() {
     }
 
     private fun slotOf(view: View): String? {
+        val main = Looper.myLooper() == Looper.getMainLooper()
+        if (main) viewSlots[view]?.let { return it }
+        return resolveSlot(view)?.also { if (main) viewSlots[view] = it }
+    }
+
+    private fun resolveSlot(view: View): String? {
         val getter = HostAccess.cached(view.javaClass, "icon-position:slotGetters", Method::class.java) {
             var current: Class<*>? = view.javaClass
             var found: Method? = null

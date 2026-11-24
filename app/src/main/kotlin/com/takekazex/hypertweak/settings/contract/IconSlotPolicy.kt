@@ -121,6 +121,8 @@ object IconSlotPolicy {
     )
 
     fun controlCenterRow(slot: String, overrides: Set<String> = emptySet()): Int {
+        // Per-frame handover path: the common no-override case allocates no keys.
+        if (overrides.isEmpty()) return if (slot in CONTROL_CENTER_UPPER_ROW_SLOTS) 1 else 2
         val first = "1:$slot" in overrides
         val second = "2:$slot" in overrides
         return if (first != second) { if (first) 1 else 2 }

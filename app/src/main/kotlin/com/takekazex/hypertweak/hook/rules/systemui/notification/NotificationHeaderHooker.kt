@@ -502,9 +502,7 @@ object NotificationHeaderHooker : StaticHooker() {
                     val owner = readOuter(param.thisObject, COMBINED_EXPAND_CONTROLLER_CLASS)
                         ?: return@guarded
                     val lazy = read(owner, "headerController") ?: return@guarded
-                    val combined = lazy.javaClass.methods.firstOrNull {
-                        it.name == "get" && it.parameterCount == 0
-                    }?.invoke(lazy) ?: return@guarded
+                    val combined = invokeNoArgs(lazy, "get") ?: return@guarded
                     val root = read(combined, "notificationHeaderView") as? ViewGroup
                         ?: return@guarded
                     val translation = (param.args.firstOrNull() as? Number)?.toFloat() ?: 0f
@@ -792,15 +790,18 @@ object NotificationHeaderHooker : StaticHooker() {
 
     private fun read(owner: Any, name: String): Any? = field(owner.javaClass, name)?.get(owner)
 
+    // Expansion/stretch callbacks call this every frame; the outer-field shape is per class.
     private fun readOuter(callback: Any, ownerClassName: String): Any? = runCatching {
-        val ownerClass = classLoader.loadClass(ownerClassName)
-        val candidates = mutableListOf<Field>()
-        var current: Class<*>? = callback.javaClass
-        while (current != null) {
-            candidates += current.declaredFields.filter { ownerClass.isAssignableFrom(it.type) }
-            current = current.superclass
-        }
-        candidates.singleOrNull()?.apply { isAccessible = true }?.get(callback)
+        HostAccess.cached(callback.javaClass, "notification-header:outer:$ownerClassName", Field::class.java) {
+            val ownerClass = classLoader.loadClass(ownerClassName)
+            val candidates = mutableListOf<Field>()
+            var current: Class<*>? = callback.javaClass
+            while (current != null) {
+                candidates += current.declaredFields.filter { ownerClass.isAssignableFrom(it.type) }
+                current = current.superclass
+            }
+            candidates.singleOrNull()?.apply { isAccessible = true }
+        }?.get(callback)
     }.getOrNull()
 
     private fun invokeNoArgs(owner: Any, name: String): Any? = runCatching {

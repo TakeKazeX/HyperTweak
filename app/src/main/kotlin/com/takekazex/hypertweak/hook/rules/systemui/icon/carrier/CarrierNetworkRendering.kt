@@ -187,9 +187,10 @@ internal fun CarrierRenderer.syncMask(block: CarrierBlock) {
             parts.cellularReady = acquired && cellular && parts.model?.subId in allowed
             parts.wifiReady = acquired && !hideWifi && wifiReplacement && parts.nativeWifi != null && parts.nativeWifi === block.nativeWifi
             val signalReady = parts.cellularReady
+            // Runs on every pre-draw: write only changes through the hooked View#setAlpha.
             if (!signalReady || !handover.ownsTarget(parts.signal))
-                parts.signal.alpha = if (signalReady) 1f else 0f
-            parts.networkSlot.alpha = if (parts.cellularReady || parts.wifiReady) 1f else 0f
+                HandoverCoordinator.alpha(parts.signal, if (signalReady) 1f else 0f)
+            HandoverCoordinator.alpha(parts.networkSlot, if (parts.cellularReady || parts.wifiReady) 1f else 0f)
         }
     }
 

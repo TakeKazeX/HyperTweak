@@ -333,7 +333,8 @@ internal fun DuoRenderer.reconcile(binding: DuoBinding) {
             }
             // Charging animates the retained battery into the island (alpha/scale/translation).
             // Those transforms belong to the old battery, not this fixed connectivity cluster.
-            binding.view.alpha = if (binding.batteryAnimationToAod != null) battery.alpha else 1f
+            val duoAlpha = if (binding.batteryAnimationToAod != null) battery.alpha else 1f
+            if (binding.view.alpha != duoAlpha) binding.view.alpha = duoAlpha
             binding.view.translationX = privacyOffset(binding, privacyState)
             binding.view.translationY = 0f
             binding.view.scaleX = 1f
@@ -348,8 +349,10 @@ internal fun DuoRenderer.reconcile(binding: DuoBinding) {
                 battery.visibility = View.GONE
                 binding.parent.requestLayout()
             }
-            binding.view.visibility = View.VISIBLE
-            battery.visibility = View.GONE
+            // Runs on every pre-draw; View#setVisibility is routed through a framework hook, so
+            // skip the call when the host already holds the requested state.
+            if (binding.view.visibility != View.VISIBLE) binding.view.visibility = View.VISIBLE
+            if (battery.visibility != View.GONE) battery.visibility = View.GONE
             binding.aodNativeSuppressed = false
             // During the full capsule the host reserves its width instead of the battery width.
             // Reserve the extra Duo box too, so neighbouring native icons cannot occupy it.

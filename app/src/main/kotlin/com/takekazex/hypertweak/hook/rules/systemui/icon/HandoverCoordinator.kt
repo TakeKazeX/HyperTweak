@@ -118,7 +118,9 @@ internal object HandoverCoordinator {
 
     /** The single alpha writer for handover motion; out-of-range progress is clamped. */
     fun alpha(view: View, value: Float) {
-        view.alpha = value.coerceIn(0f, 1f)
+        // Handovers re-assert endpoint alpha every frame; View#setAlpha is framework-hooked.
+        val next = value.coerceIn(0f, 1f)
+        if (view.alpha != next) view.alpha = next
     }
 
     private fun target(container: Any, kind: EndpointKind, renderer: RendererId = RendererId.CARRIER): View? =
