@@ -370,6 +370,7 @@ internal object RuntimeSettingsParticipants {
             LockscreenDateHooker.refreshSettings()
             HideFingerprintIcon.refreshSettings()
             com.takekazex.hypertweak.hook.rules.systemui.lockscreen.LockscreenPinScrambleHooker.refreshSettings()
+            com.takekazex.hypertweak.hook.rules.systemui.lockscreen.LockscreenPinGlassKeysHooker.refreshSettings()
             true
         }
         registerForProcess(RuntimeSettingsGroups.HEADER) { keys ->

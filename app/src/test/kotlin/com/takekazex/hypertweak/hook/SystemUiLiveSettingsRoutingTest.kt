@@ -182,7 +182,7 @@ class SystemUiLiveSettingsRoutingTest {
             SystemUiSettingsKeys.KEY_HIDE_LOCKSCREEN_STATUS_BAR, SystemUiSettingsKeys.KEY_HIDE_LOCKSCREEN_DATE,
             SystemUiSettingsKeys.KEY_HIDE_FINGERPRINT, SystemUiSettingsKeys.KEY_HIDE_FINGERPRINT_AOD,
             SystemUiSettingsKeys.KEY_HIDE_FINGERPRINT_LOCKSCREEN, SystemUiSettingsKeys.KEY_HIDE_FINGERPRINT_APP_AUTH,
-            SystemUiSettingsKeys.KEY_LOCKSCREEN_SCRAMBLE_PIN
+            SystemUiSettingsKeys.KEY_LOCKSCREEN_SCRAMBLE_PIN, SystemUiSettingsKeys.KEY_LOCKSCREEN_PIN_GLASS_KEYS
         ).forEach { key ->
             assertEquals(key, setOf(Groups.KEYGUARD), Groups.affected(key))
             assertEquals(mapOf(key to true), Groups.subset(systemUi, mapOf(key to true)))

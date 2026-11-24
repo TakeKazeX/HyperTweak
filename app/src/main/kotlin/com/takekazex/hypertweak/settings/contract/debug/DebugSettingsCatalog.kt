@@ -425,6 +425,7 @@ internal object DebugSettingsCatalog {
         DebugSetting("systemui_island_pull_down_stretch", "Boolean", false),
         DebugSetting("systemui_landscape_full_islands", "Boolean", false),
         DebugSetting("systemui_landscape_more_islands", "Boolean", false),
+        DebugSetting("systemui_lockscreen_pin_glass_keys", "Boolean", false),
         DebugSetting("systemui_lockscreen_scramble_pin", "Boolean", false),
         DebugSetting("systemui_ls_hide_carrier_one", "Boolean", false),
         DebugSetting("systemui_ls_hide_carrier_two", "Boolean", false),

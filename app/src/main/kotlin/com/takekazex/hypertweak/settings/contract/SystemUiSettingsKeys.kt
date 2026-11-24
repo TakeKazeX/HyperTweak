@@ -9,6 +9,7 @@ object SystemUiSettingsKeys {
     const val KEY_HIDE_FINGERPRINT_APP_AUTH = "hide_fingerprint_app_auth"
     const val KEY_HIDE_LOCKSCREEN_STATUS_BAR = "hide_lockscreen_status_bar"
     const val KEY_LOCKSCREEN_SCRAMBLE_PIN = "systemui_lockscreen_scramble_pin"
+    const val KEY_LOCKSCREEN_PIN_GLASS_KEYS = "systemui_lockscreen_pin_glass_keys"
     const val KEY_HIDE_LOCKSCREEN_DATE = "hide_lockscreen_date"
     const val KEY_LOCKSCREEN_BOTTOM_TEXT = "lockscreen_bottom_text"
     const val KEY_LOCKSCREEN_BOTTOM_TEXT_MODE = "lockscreen_bottom_text_mode"
