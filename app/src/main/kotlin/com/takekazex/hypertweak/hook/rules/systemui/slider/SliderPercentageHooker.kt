@@ -87,7 +87,7 @@ class SliderPercentageHooker : DynamicHooker() {
                         ?.let { HostAccess.declaredField(listener.javaClass, it.name, accessible = true) }
                 } ?: return@runCatching
                 val owner = field.get(listener) ?: return@runCatching
-                if (owner.javaClass.name == VolumePanelPercentage.CONTROLLER) volumePanel?.captureController(owner)
+                if (owner.javaClass.name == VolumePanelPercentage.CONTROLLER) volumePanel?.captureController(owner, force = true)
                 else controlCenter?.recover(owner)
             }.onFailure { DebugLog.w(TAG, "Cannot recover slider percentage host", it) }
         }

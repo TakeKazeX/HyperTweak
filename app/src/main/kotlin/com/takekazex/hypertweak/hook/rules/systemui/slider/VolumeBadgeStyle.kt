@@ -48,9 +48,11 @@ internal class VolumeBadgeStyler(private val tag: String) {
         val drawable: android.graphics.drawable.Drawable?, val applied: VolumeBadgeSurface
     )
     private val appearances = java.util.WeakHashMap<View, Appearance>()
+    /** Labels already stripped; the material calls behind a detach are too costly for drag frames. */
+    private val detached = java.util.WeakHashMap<TextView, Boolean>()
     private var lastSurface: VolumeBadgeSurface? = null
     private var lastNight: Boolean? = null
-    fun clear() { lastSurface = null; lastNight = null; appearances.clear() }
+    fun clear() { lastSurface = null; lastNight = null; appearances.clear(); detached.clear() }
 
     /**
      * The super-volume label's native dimensions times [scale], so a larger percentage keeps its
@@ -110,7 +112,13 @@ internal class VolumeBadgeStyler(private val tag: String) {
 
     fun invalidateAppearance(view: View) { appearances.remove(view) }
 
-    fun detachTextBackground(text: TextView) {
+    /**
+     * Strips the host material from [text] once. Callers pass [force] right after a host path that
+     * writes material to the label again; a non-null background also means the host wrote it.
+     */
+    fun detachTextBackground(text: TextView, force: Boolean = false) {
+        if (!force && text.background == null && detached[text] == true) return
+        detached[text] = true
         val padding = intArrayOf(text.paddingLeft, text.paddingTop, text.paddingRight, text.paddingBottom)
         clearMaterial(text, handles(text.context.classLoader))
         text.background = null
@@ -120,6 +128,7 @@ internal class VolumeBadgeStyler(private val tag: String) {
 
     fun clearMaterial(view: View) {
         appearances.remove(view)
+        detached.remove(view)
         clearMaterial(view, handles(view.context.classLoader))
     }
 

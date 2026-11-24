@@ -33,6 +33,8 @@ internal class ControlCenterPercentage(private val session: SliderPercentageHook
             hookController(volume, LabelKind.VOLUME)
             volume.declaredMethods.singleOrNull { it.name == "syncSystemVolume" && it.parameterCount == 0 }?.hook {
                 after { param ->
+                    // Off: the bound label was restored by onBind/refresh; skip the per-change reads.
+                    if (!session.policy.controlCenter(brightness = false)) return@after
                     val controller = param.thisObject
                     val entry = entry(controller, LabelKind.VOLUME) ?: return@after
                     val label = entry.label.get() ?: return@after
@@ -47,6 +49,7 @@ internal class ControlCenterPercentage(private val session: SliderPercentageHook
                 after { param ->
                     // `true` is the system-volume echo, which syncSystemVolume already renders.
                     if (param.args[1] as Boolean) return@after
+                    if (!session.policy.controlCenter(brightness = false)) return@after
                     render(param.thisObject, force = false, percent = sliderVolumePercent(param.thisObject, param.args[0] as Int))
                 }
             }
