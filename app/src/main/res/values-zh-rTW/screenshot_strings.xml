@@ -12,4 +12,6 @@
     <string name="screenshot_copy_to_clipboard_summary">儲存截圖後同時複製到剪貼簿，標註與加框截圖同樣適用。</string>
     <string name="screenshot_pictures_directory_title">規範儲存目錄</string>
     <string name="screenshot_pictures_directory_summary">將新螢幕截圖儲存至 Pictures/Screenshots，不移動現有截圖</string>
+    <string name="screenshot_hide_status_bar_title">截圖時隱藏狀態列</string>
+    <string name="screenshot_hide_status_bar_summary">系統螢幕截圖中不包含狀態列，螢幕上的狀態列保持顯示。鎖定畫面狀態列不受影響。</string>
 </resources>

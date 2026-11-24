@@ -75,6 +75,14 @@ class PackageHookPlanTest {
         assertTrue(RuntimeSettingsGroups.owns(center, com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys.KEY_SECURITY_CENTER_APP_LOCK_SCRAMBLE_PIN))
     }
 
+    @Test fun screenshotStatusBarExclusionInstallsInTheScreenshotApp() {
+        val screenshot = "com.miui.screenshot"
+        val key = com.takekazex.hypertweak.settings.contract.ScreenshotSettingsKeys.KEY_SCREENSHOT_HIDE_STATUS_BAR
+        assertTrue(names(PackageHookPlan.steps(screenshot, screenshot)).contains("ScreenshotHideStatusBarHooker"))
+        assertTrue(RuntimeSettingsGroups.owns(screenshot, key))
+        assertFalse(RuntimeSettingsGroups.owns("com.android.systemui", key))
+    }
+
     @Test fun phraseLimitsInstallInTheProviderAndActivityProcess() {
         val pkg = PhraseSettingsKeys.PACKAGE
         assertEquals(listOf("PhraseLimitHooker"), names(PackageHookPlan.steps(pkg, pkg)))

@@ -7,4 +7,6 @@ object ScreenshotSettingsKeys {
     /** Copies each screenshot into the clipboard through the host's own write path. */
     const val KEY_SCREENSHOT_COPY_TO_CLIPBOARD = "screenshot_copy_to_clipboard"
     const val KEY_SCREENSHOT_PICTURES_DIRECTORY = "screenshot_pictures_directory"
+    /** Leaves the status bar layer out of system screenshots. */
+    const val KEY_SCREENSHOT_HIDE_STATUS_BAR = "screenshot_hide_status_bar"
 }

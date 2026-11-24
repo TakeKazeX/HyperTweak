@@ -212,7 +212,7 @@ internal object RuntimeSettingsDefinitions {
             setOf(ScreenRecorderSettingsKeys.PACKAGE),
             strict = setOf(ScreenRecorderSettingsKeys.KEY_SAVE_TO_MOVIES, ScreenRecorderSettingsKeys.KEY_MORE_FRAME_RATES),
         ),
-        RuntimeSettingsGroups.SCREENSHOT to Group(setOf("com.miui.screenshot"), keys = setOf(ScreenshotSettingsKeys.KEY_SCREENSHOT_AUTO_FRAME, ScreenshotSettingsKeys.KEY_SCREENSHOT_FRAME_EDITOR_MODE, ScreenshotSettingsKeys.KEY_SCREENSHOT_COPY_TO_CLIPBOARD, ScreenshotSettingsKeys.KEY_SCREENSHOT_PICTURES_DIRECTORY)),
+        RuntimeSettingsGroups.SCREENSHOT to Group(setOf("com.miui.screenshot"), keys = setOf(ScreenshotSettingsKeys.KEY_SCREENSHOT_AUTO_FRAME, ScreenshotSettingsKeys.KEY_SCREENSHOT_FRAME_EDITOR_MODE, ScreenshotSettingsKeys.KEY_SCREENSHOT_COPY_TO_CLIPBOARD, ScreenshotSettingsKeys.KEY_SCREENSHOT_PICTURES_DIRECTORY, ScreenshotSettingsKeys.KEY_SCREENSHOT_HIDE_STATUS_BAR)),
         RuntimeSettingsGroups.BACK to Group(systemUi + setOf("android", "com.miui.home"), keys = backKeys),
         RuntimeSettingsGroups.NATIVE to Group(systemUi + "com.miui.home", keys = nativeKeys, strict = setOf(PlatformSettingsKeys.KEY_XIAOAI_GESTURE_OPTIONS, PlatformSettingsKeys.KEY_NATIVE_PAD_DOCK)),
         // The app-volume switch reaches both the SystemUI dialog and system_server's MiSound entry gate.

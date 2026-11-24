@@ -12,4 +12,6 @@
     <string name="screenshot_copy_to_clipboard_summary">Copies each saved screenshot to the clipboard, including annotated and framed ones.</string>
     <string name="screenshot_pictures_directory_title">Standard Screenshot Folder</string>
     <string name="screenshot_pictures_directory_summary">Save new screenshots to Pictures/Screenshots. Existing files stay in place.</string>
+    <string name="screenshot_hide_status_bar_title">Hide Status Bar In Screenshots</string>
+    <string name="screenshot_hide_status_bar_summary">Leave the status bar out of system screenshots. It stays visible on screen; the lockscreen status bar is not affected.</string>
 </resources>

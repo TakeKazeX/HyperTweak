@@ -56,6 +56,7 @@ internal object ServiceAppHookPlan {
                 hook { ScreenshotAutoFrameHooker }
                 hook { ScreenshotSaveDirectoryHooker }
                 hook { ScreenshotClipboardHooker }
+                hook { com.takekazex.hypertweak.hook.rules.screenshot.ScreenshotHideStatusBarHooker }
             }
             "com.lbe.security.miui" -> {
                 hook { LbeClipboardToastHooker }

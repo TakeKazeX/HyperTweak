@@ -21,6 +21,7 @@ fun ScreenshotPage(onBack: () -> Unit) {
     var editorMode by rememberStoredSetting(ScreenshotSettingsKeys.KEY_SCREENSHOT_FRAME_EDITOR_MODE, settingsStore::putInt) { settingsStore.getInt(ScreenshotSettingsKeys.KEY_SCREENSHOT_FRAME_EDITOR_MODE, 0).let { if (it == 1) 1 else 0 } }
     var copyToClipboard by rememberStoredSetting(ScreenshotSettingsKeys.KEY_SCREENSHOT_COPY_TO_CLIPBOARD, settingsStore::putBoolean) { settingsStore.getBoolean(ScreenshotSettingsKeys.KEY_SCREENSHOT_COPY_TO_CLIPBOARD, false) }
     var picturesDirectory by rememberStoredSetting(ScreenshotSettingsKeys.KEY_SCREENSHOT_PICTURES_DIRECTORY, settingsStore::putBoolean) { settingsStore.getBoolean(ScreenshotSettingsKeys.KEY_SCREENSHOT_PICTURES_DIRECTORY, false) }
+    var hideStatusBar by rememberStoredSetting(ScreenshotSettingsKeys.KEY_SCREENSHOT_HIDE_STATUS_BAR, settingsStore::putBoolean) { settingsStore.getBoolean(ScreenshotSettingsKeys.KEY_SCREENSHOT_HIDE_STATUS_BAR, false) }
     AppScrollPage(
         title = stringResource(R.string.screenshot_section),
         onBack = onBack,
@@ -64,6 +65,14 @@ fun ScreenshotPage(onBack: () -> Unit) {
                     },
                     title = stringResource(R.string.screenshot_pictures_directory_title),
                     summary = stringResource(R.string.screenshot_pictures_directory_summary)
+                )
+                SwitchPreference(
+                    checked = hideStatusBar,
+                    onCheckedChange = {
+                        hideStatusBar = it
+                    },
+                    title = stringResource(R.string.screenshot_hide_status_bar_title),
+                    summary = stringResource(R.string.screenshot_hide_status_bar_summary)
                 )
             }
         }

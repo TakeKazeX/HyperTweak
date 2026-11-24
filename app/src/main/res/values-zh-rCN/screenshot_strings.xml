@@ -12,4 +12,6 @@
     <string name="screenshot_copy_to_clipboard_summary">保存截图后同时复制到剪贴板，标注与带壳截图同样适用。</string>
     <string name="screenshot_pictures_directory_title">规范保存目录</string>
     <string name="screenshot_pictures_directory_summary">将新截图保存至 Pictures/Screenshots，不移动已有截图</string>
+    <string name="screenshot_hide_status_bar_title">截屏时隐藏状态栏</string>
+    <string name="screenshot_hide_status_bar_summary">系统截图中不包含状态栏，屏幕上的状态栏保持显示。锁屏状态栏不受影响。</string>
 </resources>
