@@ -53,6 +53,7 @@ jobs:
       - name: Verify settings catalog and architecture boundaries
         run: |
           python3 .github/scripts/generate_debug_catalog.py --check
+          python3 .github/scripts/generate_search_index.py --check
           python3 .github/scripts/check_architecture.py
           python3 .github/scripts/check_hook_callbacks.py
 

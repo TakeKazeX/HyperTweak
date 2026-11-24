@@ -6,6 +6,8 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.ui.res.stringResource
+import com.takekazex.hypertweak.R
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.runtime.Composable
@@ -41,6 +43,8 @@ import top.yukonga.miuix.kmp.glass.GlassTabRowDefaults
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.glass.ChevronBackward
+import top.yukonga.miuix.kmp.icon.extended.Search as ClassicSearch
+import top.yukonga.miuix.kmp.icon.glass.Search as GlassSearch
 import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -87,6 +91,20 @@ fun AppIconButton(
             minHeight = minHeight,
             minWidth = minWidth,
             content = content,
+        )
+    }
+}
+
+/** Top-bar search entry: the glass search glyph in OS4 bars, the classic Miuix one otherwise. */
+@Composable
+fun AppSearchAction(onClick: () -> Unit) {
+    val glass = LocalGlassTopBarSlot.current
+    AppIconButton(onClick = onClick) {
+        Icon(
+            modifier = if (glass) Modifier.size(28.dp) else Modifier,
+            imageVector = if (glass) MiuixIcons.Glass.GlassSearch else MiuixIcons.ClassicSearch,
+            contentDescription = stringResource(R.string.search_title),
+            tint = if (glass) MiuixTheme.colorScheme.onSurface else MiuixTheme.colorScheme.onBackground,
         )
     }
 }

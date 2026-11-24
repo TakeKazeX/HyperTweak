@@ -27,6 +27,7 @@ import com.takekazex.hypertweak.ui.app.LocalAppSettings
 import com.takekazex.hypertweak.ui.app.LocalAppSettingsStore
 import com.takekazex.hypertweak.ui.chrome.AppOverlayDialog as OverlayDialog
 import com.takekazex.hypertweak.ui.chrome.AppScrollPage
+import com.takekazex.hypertweak.ui.chrome.AppSearchAction
 import com.takekazex.hypertweak.ui.chrome.AppSection
 import com.takekazex.hypertweak.ui.chrome.AppTextButton as TextButton
 import com.takekazex.hypertweak.ui.components.MiuixExpandableContent
@@ -41,6 +42,7 @@ import top.yukonga.miuix.kmp.preference.SwitchPreference
 @Composable
 fun TweaksScreenContent(
     padding: PaddingValues,
+    onNavigateToSearch: (() -> Unit)?,
     onNavigateToSystemLauncher: () -> Unit,
     onNavigateToSystemUi: () -> Unit,
     onNavigateToPhrase: () -> Unit,
@@ -61,6 +63,7 @@ fun TweaksScreenContent(
         title = stringResource(R.string.tweaks_features),
         onBack = null,
         bottomInset = padding.calculateBottomPadding(),
+        actions = { onNavigateToSearch?.let { AppSearchAction(onClick = it) } },
     ) {
 
         // Keep the pages that operate on a complete system component together, with a visual

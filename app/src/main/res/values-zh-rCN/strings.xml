@@ -2059,4 +2059,7 @@
     <string name="analytics_package_failed">未能完成包状态变更。请检查 Root 授权，再重新打开此页重试。</string>
     <string name="analytics_block_title">禁止收集遥测数据</string>
     <string name="analytics_block_summary">拦截 Analytics 的遥测任务并暂停上报。需要将 Analytics 加入模块作用域。</string>
+    <string name="search_title">搜索</string>
+    <string name="search_hint">搜索设置</string>
+    <string name="search_no_results">没有找到相关设置</string>
 </resources>

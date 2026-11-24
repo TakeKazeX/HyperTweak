@@ -12,8 +12,9 @@ import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import com.takekazex.hypertweak.ui.page.Route
+import com.takekazex.hypertweak.ui.search.rememberSearchLandingTab
 import androidx.compose.runtime.key
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -152,7 +153,8 @@ internal fun IconTextPreference(
 @Composable
 fun IconTunerPage(onBack: () -> Unit, onNavigateToIconOrder: () -> Unit, onNavigateToIconRows: () -> Unit) {
     val settingsStore = LocalAppSettingsStore.current
-    var selectedCategory by rememberSaveable { mutableIntStateOf(0) }
+    // Search results can ask for a tab; otherwise the saved tab is restored.
+    var selectedCategory by rememberSearchLandingTab(Route.IconTuner)
 
     // Local remember-backed state so toggles update instantly; the remote preference write is
     // async, so reading Preferences directly in composition made switches bounce back.

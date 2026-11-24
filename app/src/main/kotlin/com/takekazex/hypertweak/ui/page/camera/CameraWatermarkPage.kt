@@ -4,8 +4,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.only
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
+import com.takekazex.hypertweak.ui.page.Route
+import com.takekazex.hypertweak.ui.search.rememberSearchLandingTab
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -27,8 +27,8 @@ import top.yukonga.miuix.kmp.basic.TabRowWithContour
  */
 @Composable
 fun CameraWatermarkUnlockPage(onBack: () -> Unit) {
-    // Selected tab survives process death so the page reopens where the user left it.
-    var selectedTab by rememberSaveable { mutableIntStateOf(0) }
+    // Selected tab survives process death; a search result can ask for a specific tab.
+    var selectedTab by rememberSearchLandingTab(Route.CameraWatermark)
 
     val tabs = listOf(
         stringResource(R.string.camera_unlock_title),

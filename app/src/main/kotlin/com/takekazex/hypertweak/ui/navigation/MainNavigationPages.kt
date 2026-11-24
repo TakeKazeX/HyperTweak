@@ -4,6 +4,8 @@ import androidx.compose.animation.*
 import androidx.compose.runtime.*
 import com.takekazex.hypertweak.ui.page.Route
 import com.takekazex.hypertweak.ui.page.home.MainPagerScreen
+import com.takekazex.hypertweak.ui.page.search.SearchPage
+import com.takekazex.hypertweak.ui.search.SearchLanding
 import top.yukonga.miuix.kmp.nav.core.*
 
 internal fun NavEntryBuilder.mainPages(settings: NavigationSettings, navController: NavController, mainPagerState: com.takekazex.hypertweak.ui.liquid.MainPagerState) {
@@ -18,6 +20,7 @@ internal fun NavEntryBuilder.mainPages(settings: NavigationSettings, navControll
                 hotReloadTargets = hotReloadTargets,
                 hotReloadReport = hotReloadReport,
                 pendingRestartScopes = pendingRestartScopes,
+                onNavigateToSearch = { navController.navigateTo(Route.Search) },
                 onNavigateToSystemLauncher = { navController.navigateTo(Route.SystemLauncher) },
                 onNavigateToPhrase = { navController.navigateTo(Route.Phrase) },
                 onNavigateToSms = { navController.navigateTo(Route.Sms) },
@@ -91,6 +94,20 @@ internal fun NavEntryBuilder.mainPages(settings: NavigationSettings, navControll
                 snackbarHostState = snackbarHostState,
             )
         }
-
+        entry<Route.Search> {
+            SearchPage(
+                onBack = { navController.pop() },
+                onOpen = { entry ->
+                    if (entry.route == Route.Main) {
+                        // Main-pager rows: leave search and show the tab that holds the row.
+                        navController.navigateTo(Route.Main)
+                        if (entry.tab >= 0) mainPagerState.animateToPage(entry.tab)
+                    } else {
+                        SearchLanding.request(entry.route, entry.tab)
+                        navController.navigateTo(entry.route)
+                    }
+                },
+            )
+        }
     }
 }

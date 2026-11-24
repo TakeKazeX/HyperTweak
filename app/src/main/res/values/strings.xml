@@ -2093,4 +2093,7 @@
     <string name="analytics_package_failed">Could not finish the package change. Check root access and reopen this page to retry.</string>
     <string name="analytics_block_title">Block telemetry collection</string>
     <string name="analytics_block_summary">Block Analytics telemetry tasks and pause uploads. Add Analytics to the module scope.</string>
+    <string name="search_title">Search</string>
+    <string name="search_hint">Search settings</string>
+    <string name="search_no_results">No matching settings</string>
 </resources>

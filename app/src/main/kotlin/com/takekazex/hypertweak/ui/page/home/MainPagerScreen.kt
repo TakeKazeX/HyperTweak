@@ -57,6 +57,10 @@ import top.yukonga.miuix.kmp.blur.BlurDefaults
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.glass.GlassNavigationBar
+import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.icon.glass.Search
+import top.yukonga.miuix.kmp.glass.GlassNavigationBarDefaults
+import top.yukonga.miuix.kmp.glass.GlassIconButton
 import top.yukonga.miuix.kmp.glass.GlassNavigationItem
 import top.yukonga.miuix.kmp.glass.GlassNavigationRail
 import top.yukonga.miuix.kmp.glass.GlassNavigationRailDefaults
@@ -81,6 +85,7 @@ fun MainPagerScreen(
     hotReloadTargets: List<String>,
     hotReloadReport: HotReloadReport?,
     pendingRestartScopes: RestartScopeSelection,
+    onNavigateToSearch: () -> Unit,
     onNavigateToSystemLauncher: () -> Unit,
     onNavigateToSystemUi: () -> Unit,
     onNavigateToPhrase: () -> Unit,
@@ -126,6 +131,9 @@ fun MainPagerScreen(
     )
     val contentReady = rememberContentReady()
     val barStyle = bottomBarStyle(uiStyle, appSettings.useFloatingBottomBar, appSettings.floatingBarStyle)
+    // The glass bar carries search as its trailing action (upstream GlassNavigationBar); other bars
+    // and the landscape rails fall back to a top-bar button. Settings never offers search.
+    val topBarSearch = if (!showNavigationRail && barStyle == BottomBarStyle.Glass) null else onNavigateToSearch
 
     Scaffold(
         // Hosts the one-shot "updated successfully" snackbar. It lives on the root Scaffold because
@@ -133,7 +141,7 @@ fun MainPagerScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         bottomBar = {
             if (!showNavigationRail) {
-                MainBottomBar(barStyle, navigationItems, mainPagerState, backdrop)
+                MainBottomBar(barStyle, navigationItems, mainPagerState, backdrop, onNavigateToSearch)
             }
         },
     ) { padding ->
@@ -158,6 +166,7 @@ fun MainPagerScreen(
                         if (isCurrent || contentReady) {
                             HomeScreenContent(
                                 padding = padding,
+                                onNavigateToSearch = topBarSearch,
                                 moduleActive = moduleActive,
                                 hotReloadAvailable = hotReloadAvailable,
                                 hotReloading = hotReloading,
@@ -177,6 +186,7 @@ fun MainPagerScreen(
                         if (isCurrent || contentReady) {
                             TweaksScreenContent(
                                 padding = padding,
+                                onNavigateToSearch = topBarSearch,
                                 onNavigateToSystemLauncher = onNavigateToSystemLauncher,
                                 onNavigateToSystemUi = onNavigateToSystemUi,
                                 onNavigateToSuperIsland = onNavigateToSuperIsland,
@@ -221,6 +231,8 @@ fun MainPagerScreen(
 }
 
 
+private const val SETTINGS_PAGE = 2
+
 /** The main bottom bar in the style picked in Appearance (see [BottomBarStyle]). */
 @Composable
 private fun MainBottomBar(
@@ -228,6 +240,7 @@ private fun MainBottomBar(
     navigationItems: List<NavigationItem>,
     mainPagerState: MainPagerState,
     backdrop: LayerBackdrop,
+    onNavigateToSearch: () -> Unit,
 ) {
     val blurActive = LocalAppBlurMode.current != AppBlurMode.Off
     val selected = mainPagerState.selectedPage
@@ -244,6 +257,25 @@ private fun MainBottomBar(
                     onSelect = mainPagerState::animateToPage,
                     backdrop = if (blurActive) backdrop else null,
                     modifier = Modifier.widthIn(max = 340.dp).fillMaxWidth(0.8f),
+                    // Upstream's independent search action beside the capsule; the bar animates
+                    // it away on the Settings tab.
+                    trailingAction = if (selected != SETTINGS_PAGE) {
+                        {
+                            GlassIconButton(
+                                onClick = onNavigateToSearch,
+                                backdrop = if (blurActive) backdrop else null,
+                                size = GlassNavigationBarDefaults.Height,
+                            ) {
+                                Icon(
+                                    imageVector = MiuixIcons.Glass.Search,
+                                    contentDescription = stringResource(R.string.search_title),
+                                    tint = MiuixTheme.colorScheme.onBackground,
+                                )
+                            }
+                        }
+                    } else {
+                        null
+                    },
                 )
             }
         }

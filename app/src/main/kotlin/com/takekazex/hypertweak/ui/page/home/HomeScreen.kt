@@ -26,6 +26,7 @@ import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.settings.contract.HotReloadReport
 import com.takekazex.hypertweak.ui.app.LocalAppServices
 import com.takekazex.hypertweak.ui.chrome.AppScrollPage
+import com.takekazex.hypertweak.ui.chrome.AppSearchAction
 import com.takekazex.hypertweak.ui.chrome.AppSection
 import com.takekazex.hypertweak.ui.components.dialog.HotReloadDialog
 import com.takekazex.hypertweak.ui.components.dialog.RestartScopeDialog
@@ -51,6 +52,7 @@ import top.yukonga.miuix.kmp.utils.PressFeedbackType
 @Composable
 fun HomeScreenContent(
     padding: PaddingValues,
+    onNavigateToSearch: (() -> Unit)?,
     moduleActive: Boolean,
     hotReloadAvailable: Boolean,
     hotReloading: Boolean,
@@ -102,6 +104,7 @@ fun HomeScreenContent(
         title = "HyperTweak",
         onBack = null,
         bottomInset = padding.calculateBottomPadding(),
+        actions = { onNavigateToSearch?.let { AppSearchAction(onClick = it) } },
     ) {
         Spacer(Modifier.height(8.dp))
 
