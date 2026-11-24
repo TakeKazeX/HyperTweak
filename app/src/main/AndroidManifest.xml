@@ -64,6 +64,7 @@
         <package android:name="com.android.contacts" />
         <package android:name="com.xiaomi.barrage" />
         <package android:name="com.miui.phrase" />
+        <package android:name="com.xiaomi.misettings" />
         <package android:name="com.android.mms" />
         <package android:name="com.android.browser" />
         <package android:name="com.xiaomi.xmsf" />

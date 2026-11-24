@@ -393,6 +393,16 @@ native. Each preference's unfiltered entries are captured on first sight, so ena
 "Never" on a resumed page. A preference already filtered before the hook loaded needs the page
 reopened. Disabling lets the host rewrite a stored "Never" to its longest remaining entry.
 
+The Display section's default-off refresh-rate switch runs in MiSettings' main process
+(`com.xiaomi.misettings` scope). `RefreshRateListHooker` changes the reflective `fpsList`
+helper's result only while the page that sorts it into `customize_fps_ddp` is building. It adds
+default-display mode rates at the current resolution up to the native maximum, so the host's
+"maximum" label is unchanged; restore, search and AI-action readers keep the native list.
+Preparation is asynchronous, so a page opened immediately after a cold MiSettings start can
+still show the native list. Upstream's forced "custom high refresh apps" entry is not ported: it
+is native on the verified device and depends on PowerKeeper config. Run `RefreshRateListTest`
+with `MISETTINGS_APK` set to the verified host APK.
+
 The Analytics section has two default-off controls. Package disable is a main-user
 app-side root operation. It enumerates all installed user IDs, records original enabled
 states against Android user serial numbers before writing, and restores only states it

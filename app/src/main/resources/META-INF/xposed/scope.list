@@ -38,5 +38,6 @@ miui.systemui.plugin
 com.xiaomi.vipaccount
 com.xiaomi.market
 com.miui.phrase
+com.xiaomi.misettings
 com.android.mms
 com.miui.analytics

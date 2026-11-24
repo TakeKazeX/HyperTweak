@@ -52,6 +52,13 @@ class PackageHookPlanTest {
         assertTrue(RuntimeSettingsGroups.owns(settings, com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys.KEY_ALLOW_NEVER_SCREEN_TIMEOUT))
     }
 
+    @Test fun refreshRateListInstallsInTheMiSettingsMainProcess() {
+        val misettings = com.takekazex.hypertweak.settings.contract.MiSettingsSettingsKeys.PACKAGE
+        assertEquals(listOf("RefreshRateListHooker"), names(PackageHookPlan.steps(misettings, misettings)))
+        assertTrue(PackageHookPlan.steps(misettings, "$misettings:remote").isEmpty())
+        assertTrue(RuntimeSettingsGroups.owns(misettings, com.takekazex.hypertweak.settings.contract.MiSettingsSettingsKeys.KEY_MORE_REFRESH_RATES))
+    }
+
     @Test fun phraseLimitsInstallInTheProviderAndActivityProcess() {
         val pkg = PhraseSettingsKeys.PACKAGE
         assertEquals(listOf("PhraseLimitHooker"), names(PackageHookPlan.steps(pkg, pkg)))

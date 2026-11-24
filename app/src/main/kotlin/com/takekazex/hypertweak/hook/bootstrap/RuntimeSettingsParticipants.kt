@@ -96,6 +96,7 @@ internal object RuntimeSettingsParticipants {
         // These pages re-read their switches on the next open; the hookSetting slots are the
         // whole live state.
         registerForProcess(RuntimeSettingsGroups.SETTINGS_DISPLAY_NETWORK) { _ -> true }
+        registerForProcess(RuntimeSettingsGroups.MISETTINGS_REFRESH_RATE) { _ -> true }
         registerForProcess(RuntimeSettingsGroups.MONET) { _ ->
             com.takekazex.hypertweak.hook.rules.systemui.ImmediateMonetRefreshHooker.refreshSettings()
         }
