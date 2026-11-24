@@ -103,7 +103,14 @@ internal object ServiceAppHookPlan {
             "com.milink.service" -> {
                 hook { RestartBroadcastHooker }
                 hook { MiLinkHpplayHooker }
+                hook { com.takekazex.hypertweak.hook.rules.milink.MiLinkSubScreenAppsHooker }
+                if (processName == com.takekazex.hypertweak.hook.rules.milink.MiLinkClipboardRegionHooker.PROCESS) {
+                    hook { com.takekazex.hypertweak.hook.rules.milink.MiLinkClipboardRegionHooker }
+                }
                 hook { SpatialAudioBlockerHooker }
+            }
+            com.takekazex.hypertweak.hook.rules.mirror.MirrorAllAppsHooker.PACKAGE -> {
+                if (processName == packageName) hook { com.takekazex.hypertweak.hook.rules.mirror.MirrorAllAppsHooker }
             }
             "com.xiaomi.bluetooth" -> {
                 hook { RestartBroadcastHooker }

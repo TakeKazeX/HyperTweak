@@ -75,6 +75,9 @@ object PlatformSettingsKeys {
     const val KEY_SHARE_PANEL_SHOW_ALL = "share_panel_show_all"
     const val KEY_GUARD_PROVIDER_BLOCK_UPLOAD_APP_LIST = "guard_provider_block_upload_app_list"
     const val KEY_MILINK_BLOCK_HPPLAY_FILES = "milink_block_hpplay_files"
+    /** MiLink sub-screen allow list plus Mirror's relay allow list (needs the `com.xiaomi.mirror` scope). */
+    const val KEY_MILINK_UNLOCK_SEND_APP = "milink_unlock_send_app"
+    const val KEY_MILINK_IGNORE_CLIPBOARD_REGION = "milink_ignore_clipboard_region"
     const val KEY_ALLOW_THIRD_PARTY_THEME = "allow_third_party_theme"
     const val KEY_USE_FLOATING_BOTTOM_BAR = "use_floating_bottom_bar"
     const val KEY_FLOATING_BAR_STYLE = "floating_bar_style"

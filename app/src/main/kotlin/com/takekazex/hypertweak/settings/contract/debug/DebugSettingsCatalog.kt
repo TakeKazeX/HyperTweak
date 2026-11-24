@@ -247,6 +247,8 @@ internal object DebugSettingsCatalog {
         DebugSetting("media_super_island_multi_session", "Boolean", false),
         DebugSetting("media_super_island_unlock_whitelist", "Boolean", false),
         DebugSetting("milink_block_hpplay_files", "Boolean", false),
+        DebugSetting("milink_ignore_clipboard_region", "Boolean", false),
+        DebugSetting("milink_unlock_send_app", "Boolean", false),
         DebugSetting("misettings_more_refresh_rates", "Boolean", false),
         DebugSetting("misettings_per_app_refresh_rates", "Boolean", false),
         DebugSetting("mitrust_disable_risk_monitoring", "Boolean", false),

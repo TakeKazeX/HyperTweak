@@ -99,6 +99,8 @@ internal object RuntimeSettingsDefinitions {
         PlatformSettingsKeys.KEY_BLOCK_DOWNLOAD_XL_LOG_DIR,
         PlatformSettingsKeys.KEY_GUARD_PROVIDER_BLOCK_UPLOAD_APP_LIST,
         PlatformSettingsKeys.KEY_MILINK_BLOCK_HPPLAY_FILES,
+        PlatformSettingsKeys.KEY_MILINK_UNLOCK_SEND_APP,
+        PlatformSettingsKeys.KEY_MILINK_IGNORE_CLIPBOARD_REGION,
         PlatformSettingsKeys.KEY_DISABLE_VIDEO_RINGBACK,
         PlatformSettingsKeys.KEY_SETTINGS_GLOBAL_INTERFACE,
         PlatformSettingsKeys.KEY_UNLOCK_THIRD_PARTY_DARK_MODE,
@@ -154,6 +156,7 @@ internal object RuntimeSettingsDefinitions {
             com.takekazex.hypertweak.settings.contract.MiSettingsSettingsKeys.PACKAGE,
             com.takekazex.hypertweak.settings.contract.MiSettingsSettingsKeys.POWERKEEPER_PACKAGE,
         ), strict = setOf(com.takekazex.hypertweak.settings.contract.MiSettingsSettingsKeys.KEY_PER_APP_REFRESH_RATES)),
+        RuntimeSettingsGroups.MIRROR_SEND_APP to Group(setOf("com.xiaomi.mirror"), strict = setOf(PlatformSettingsKeys.KEY_MILINK_UNLOCK_SEND_APP)),
         RuntimeSettingsGroups.MODULE_ENTRY to Group(setOf("com.android.settings"), strict = setOf(PlatformSettingsKeys.KEY_SHOW_IN_SETTINGS)),
         RuntimeSettingsGroups.IME to Group(imeTargets, keys = setOf( PlatformSettingsKeys.KEY_AOSP_IME_ENABLED, PlatformSettingsKeys.KEY_AOSP_IME_PACKAGES, PlatformSettingsKeys.KEY_AOSP_IME_MIUI_IME_LIST, PlatformSettingsKeys.KEY_AOSP_IME_RAISE_STYLE, PlatformSettingsKeys.KEY_AOSP_IME_NAV_BAR_START, PlatformSettingsKeys.KEY_AOSP_IME_NAV_BAR_END, ), strict = setOf(PlatformSettingsKeys.KEY_AOSP_IME_ENABLED, PlatformSettingsKeys.KEY_AOSP_IME_MIUI_IME_LIST)),
         RuntimeSettingsGroups.POLICY_FEATURES to Group(setOf(

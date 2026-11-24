@@ -52,7 +52,7 @@ fun PurificationPage(
         scrollState = scrollState,
     ) {
         MissingScopeCard(
-            "com.miui.voiceassist", "com.milink.service",
+            "com.miui.voiceassist", "com.milink.service", "com.xiaomi.mirror",
             "com.xiaomi.finddevice", "com.android.settings", "system",
             "com.android.intentresolver", "com.xiaomi.aicr", "com.xiaomi.trustservice",
             "com.miui.guardprovider", "com.android.phone", "com.xiaomi.phone"
@@ -137,6 +137,18 @@ fun PurificationPage(
                 onCheckedChange = { appSettings.blockMiLinkHpplayFiles = it },
                 title = stringResource(R.string.tweaks_block_milink_hpplay_files_title),
                 summary = stringResource(R.string.tweaks_block_milink_hpplay_files_summary)
+            )
+            SwitchPreference(
+                checked = appSettings.unlockMiLinkSendApp,
+                onCheckedChange = { appSettings.unlockMiLinkSendApp = it },
+                title = stringResource(R.string.tweaks_milink_unlock_send_app_title),
+                summary = stringResource(R.string.tweaks_milink_unlock_send_app_summary)
+            )
+            SwitchPreference(
+                checked = appSettings.ignoreMiLinkClipboardRegion,
+                onCheckedChange = { appSettings.ignoreMiLinkClipboardRegion = it },
+                title = stringResource(R.string.tweaks_milink_ignore_clipboard_region_title),
+                summary = stringResource(R.string.tweaks_milink_ignore_clipboard_region_summary)
             )
         }
 

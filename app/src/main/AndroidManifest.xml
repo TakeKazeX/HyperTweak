@@ -51,6 +51,7 @@
         <package android:name="com.miui.analytics" />
         <package android:name="com.miui.powerkeeper" />
         <package android:name="com.milink.service" />
+        <package android:name="com.xiaomi.mirror" />
         <package android:name="com.xiaomi.scanner" />
         <package android:name="com.xiaomi.bluetooth" />
         <!-- Hosts the hidden Extend Unlock configuration screen. -->

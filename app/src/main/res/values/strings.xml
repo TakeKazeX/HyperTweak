@@ -1083,6 +1083,10 @@
     <string name="tweaks_milink_title">MiLink Service</string>
     <string name="tweaks_block_milink_hpplay_files_title">Block LeBo Cast Files</string>
     <string name="tweaks_block_milink_hpplay_files_summary">Stop the cast service from creating external storage folders</string>
+    <string name="tweaks_milink_unlock_send_app_title">Relay All Apps</string>
+    <string name="tweaks_milink_unlock_send_app_summary">Let any app continue on a tablet or PC, or be cast to a TV on its own. Also needs the com.xiaomi.mirror scope</string>
+    <string name="tweaks_milink_ignore_clipboard_region_title">Ignore Clipboard Region Check</string>
+    <string name="tweaks_milink_ignore_clipboard_region_summary">Accept shared clipboard content from trusted devices set to another region</string>
     <string name="tweaks_allow_third_party_theme_title">Allow third-party themes</string>
     <string name="tweaks_allow_third_party_theme_summary">Apply imported themes without automatic reversion</string>
     <string name="download_manager_title">Download Manager</string>

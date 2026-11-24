@@ -1077,6 +1077,10 @@
     <string name="tweaks_milink_title">互联互通服务</string>
     <string name="tweaks_block_milink_hpplay_files_title">阻止生成乐播投屏相关文件</string>
     <string name="tweaks_block_milink_hpplay_files_summary">阻止投屏服务创建外部存储目录</string>
+    <string name="tweaks_milink_unlock_send_app_title">解锁全部应用流转</string>
+    <string name="tweaks_milink_unlock_send_app_summary">允许任意应用流转到平板或电脑，或单独投屏到电视。还需勾选 com.xiaomi.mirror 作用域</string>
+    <string name="tweaks_milink_ignore_clipboard_region_title">关闭剪贴板地区校验</string>
+    <string name="tweaks_milink_ignore_clipboard_region_summary">接收来自其他地区可信设备的共享剪贴板内容</string>
     <string name="tweaks_allow_third_party_theme_title">允许第三方主题</string>
     <string name="tweaks_allow_third_party_theme_summary">应用本地导入的主题，避免自动还原</string>
     <string name="download_manager_title">下载管理</string>

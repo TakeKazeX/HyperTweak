@@ -11,6 +11,7 @@ internal object RuntimeSettingsGroups {
     const val SETTINGS_DISPLAY_NETWORK = "settings.display_network"
     const val MISETTINGS_REFRESH_RATE = "misettings.refresh_rate"
     const val APP_REFRESH_RATES = "display.app_refresh_rates"
+    const val MIRROR_SEND_APP = "mirror.send_app"
     const val MONET = "systemui.monet"
     const val MODULE_ENTRY = "settings.module_entry"
     const val ICONS = "systemui.icons"

@@ -102,6 +102,8 @@ internal class AppSettingsState(val storage: AppSettingsStore) {
         )
     }
     var blockMiLinkHpplayFiles by persisted(PlatformSettingsKeys.KEY_MILINK_BLOCK_HPPLAY_FILES, storage::putBoolean) { storage.getBoolean(PlatformSettingsKeys.KEY_MILINK_BLOCK_HPPLAY_FILES, false) }
+    var unlockMiLinkSendApp by persisted(PlatformSettingsKeys.KEY_MILINK_UNLOCK_SEND_APP, storage::putBoolean) { storage.getBoolean(PlatformSettingsKeys.KEY_MILINK_UNLOCK_SEND_APP, false) }
+    var ignoreMiLinkClipboardRegion by persisted(PlatformSettingsKeys.KEY_MILINK_IGNORE_CLIPBOARD_REGION, storage::putBoolean) { storage.getBoolean(PlatformSettingsKeys.KEY_MILINK_IGNORE_CLIPBOARD_REGION, false) }
     var allowThirdPartyTheme by persisted(PlatformSettingsKeys.KEY_ALLOW_THIRD_PARTY_THEME, storage::putBoolean) { storage.getBoolean(PlatformSettingsKeys.KEY_ALLOW_THIRD_PARTY_THEME, false) }
     var removeIslandPlaceholder by persisted(PlatformSettingsKeys.KEY_REMOVE_ISLAND_PLACEHOLDER, storage::putBoolean) { storage.getBoolean(PlatformSettingsKeys.KEY_REMOVE_ISLAND_PLACEHOLDER, false) }
     var threeIslands by persisted(PlatformSettingsKeys.KEY_THREE_ISLANDS, storage::putBoolean) { storage.getBoolean(PlatformSettingsKeys.KEY_THREE_ISLANDS, false) }
@@ -170,6 +172,8 @@ internal class AppSettingsState(val storage: AppSettingsStore) {
             PlatformSettingsKeys.KEY_GUARD_PROVIDER_DISABLE_ENVIRONMENT_CHECK -> disableGuardEnvironmentCheck
             PlatformSettingsKeys.KEY_GUARD_PROVIDER_BLOCK_UPLOAD_APP_LIST -> blockGuardUploadAppList
             PlatformSettingsKeys.KEY_MILINK_BLOCK_HPPLAY_FILES -> blockMiLinkHpplayFiles
+            PlatformSettingsKeys.KEY_MILINK_UNLOCK_SEND_APP -> unlockMiLinkSendApp
+            PlatformSettingsKeys.KEY_MILINK_IGNORE_CLIPBOARD_REGION -> ignoreMiLinkClipboardRegion
             PlatformSettingsKeys.KEY_ALLOW_THIRD_PARTY_THEME -> allowThirdPartyTheme
             PlatformSettingsKeys.KEY_REMOVE_ISLAND_PLACEHOLDER -> removeIslandPlaceholder
             PlatformSettingsKeys.KEY_THREE_ISLANDS -> threeIslands

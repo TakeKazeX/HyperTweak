@@ -38,6 +38,26 @@ class PackageHookPlanTest {
         assertFalse(names(PackageHookPlan.steps(pkg, pkg)).contains("AicrCopyDirectFreeformHooker"))
     }
 
+    @Test fun milinkSendAppAndClipboardRouteToTheirProcesses() {
+        val keys = com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+        val milink = "com.milink.service"
+        val clipboard = "com.milink.crossdeviceservice"
+        for (process in listOf(milink, "com.milink.service.persistent", clipboard)) {
+            assertTrue(process, names(PackageHookPlan.steps(milink, process)).contains("MiLinkSubScreenAppsHooker"))
+        }
+        assertTrue(names(PackageHookPlan.steps(milink, clipboard)).contains("MiLinkClipboardRegionHooker"))
+        assertFalse(names(PackageHookPlan.steps(milink, milink)).contains("MiLinkClipboardRegionHooker"))
+        assertTrue(RuntimeSettingsGroups.owns(milink, keys.KEY_MILINK_UNLOCK_SEND_APP))
+        assertTrue(RuntimeSettingsGroups.owns(milink, keys.KEY_MILINK_IGNORE_CLIPBOARD_REGION))
+        assertEquals(RuntimeSettingsGroups.forTarget(milink), RuntimeSettingsGroups.forProcess(clipboard))
+
+        val mirror = "com.xiaomi.mirror"
+        assertEquals(listOf("MirrorAllAppsHooker"), names(PackageHookPlan.steps(mirror, mirror)))
+        assertTrue(PackageHookPlan.steps(mirror, "$mirror:remote").isEmpty())
+        assertTrue(RuntimeSettingsGroups.owns(mirror, keys.KEY_MILINK_UNLOCK_SEND_APP))
+        assertFalse(RuntimeSettingsGroups.owns(mirror, keys.KEY_MILINK_IGNORE_CLIPBOARD_REGION))
+    }
+
     @Test fun linkTurboAppsInstallInTheSettingsMainProcess() {
         val settings = "com.android.settings"
         assertTrue(names(PackageHookPlan.steps(settings, settings)).contains("LinkTurboAppsHooker"))
