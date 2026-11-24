@@ -1964,6 +1964,8 @@
     <string name="wifi_saved_networks_position_advanced">「高级设置」上方</string>
     <string name="wifi_saved_network_custom_actions_title">已保存网络快捷操作按钮</string>
     <string name="wifi_saved_network_custom_actions_summary">将列表右侧的删除按钮替换为圆形分享按钮及蓝色查看密码按钮</string>
+    <string name="wifi_link_turbo_all_apps_title">任意应用网络加速</string>
+    <string name="wifi_link_turbo_all_apps_summary">网络加速页面列出所有可联网的桌面应用，不再限于小米允许的应用；仍需在该页面逐个开启</string>
     <string name="wifi_view_password_btn">查看密码</string>
     <string name="wifi_view_password_copy">复制密码</string>
     <string name="wifi_view_password_copied">密码已复制</string>

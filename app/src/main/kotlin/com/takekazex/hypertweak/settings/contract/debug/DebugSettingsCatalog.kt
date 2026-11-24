@@ -210,6 +210,7 @@ internal object DebugSettingsCatalog {
         DebugSetting("launcher_native_dock_glass", "Int", com.takekazex.hypertweak.settings.contract.NativeDockGlassGeometry.DEFAULT_PACKED),
         DebugSetting("launcher_native_pad_dock", "Boolean", false),
         DebugSetting("lbe_clipboard_toast", "Boolean", false),
+        DebugSetting("link_turbo_all_apps", "Boolean", false),
         DebugSetting("lockscreen_all_notifications", "Boolean", false),
         DebugSetting("lockscreen_bottom_text", "Boolean", false),
         DebugSetting("lockscreen_bottom_text_mask", "Int", com.takekazex.hypertweak.settings.contract.LockscreenBottomTextOptions.DEFAULT_MASK),

@@ -8,6 +8,7 @@ internal object RuntimeSettingsGroups {
     const val EXPERIMENTAL_CAPABILITIES = "system.experimental_capabilities"
     const val CAMERA = "camera.configuration"
     const val PHONE_NETWORK_TYPE = "phone.network_type"
+    const val SETTINGS_DISPLAY_NETWORK = "settings.display_network"
     const val MONET = "systemui.monet"
     const val MODULE_ENTRY = "settings.module_entry"
     const val ICONS = "systemui.icons"

@@ -144,6 +144,9 @@ internal object RuntimeSettingsDefinitions {
         RuntimeSettingsGroups.CAMERA to Group(setOf("com.android.camera"), keys = com.takekazex.hypertweak.settings.contract.CameraSettingsKeys.keys, strict = com.takekazex.hypertweak.settings.contract.CameraSettingsKeys.booleanKeys),
         RuntimeSettingsGroups.MONET to Group(systemUi, strict = setOf(SystemUiSettingsKeys.KEY_IMMEDIATE_MONET_REFRESH)),
         RuntimeSettingsGroups.PHONE_NETWORK_TYPE to Group(setOf("com.android.phone"), strict = setOf(PlatformSettingsKeys.KEY_ENABLE_NETWORK_TYPE_MENU)),
+        RuntimeSettingsGroups.SETTINGS_DISPLAY_NETWORK to Group(setOf("com.android.settings"), strict = setOf(
+            PlatformSettingsKeys.KEY_LINK_TURBO_ALL_APPS,
+        )),
         RuntimeSettingsGroups.MODULE_ENTRY to Group(setOf("com.android.settings"), strict = setOf(PlatformSettingsKeys.KEY_SHOW_IN_SETTINGS)),
         RuntimeSettingsGroups.IME to Group(imeTargets, keys = setOf( PlatformSettingsKeys.KEY_AOSP_IME_ENABLED, PlatformSettingsKeys.KEY_AOSP_IME_PACKAGES, PlatformSettingsKeys.KEY_AOSP_IME_MIUI_IME_LIST, PlatformSettingsKeys.KEY_AOSP_IME_RAISE_STYLE, PlatformSettingsKeys.KEY_AOSP_IME_NAV_BAR_START, PlatformSettingsKeys.KEY_AOSP_IME_NAV_BAR_END, ), strict = setOf(PlatformSettingsKeys.KEY_AOSP_IME_ENABLED, PlatformSettingsKeys.KEY_AOSP_IME_MIUI_IME_LIST)),
         RuntimeSettingsGroups.POLICY_FEATURES to Group(setOf(

@@ -38,6 +38,13 @@ class PackageHookPlanTest {
         assertFalse(names(PackageHookPlan.steps(pkg, pkg)).contains("AicrCopyDirectFreeformHooker"))
     }
 
+    @Test fun linkTurboAppsInstallInTheSettingsMainProcess() {
+        val settings = "com.android.settings"
+        assertTrue(names(PackageHookPlan.steps(settings, settings)).contains("LinkTurboAppsHooker"))
+        assertFalse(names(PackageHookPlan.steps(settings, "$settings:remote")).contains("LinkTurboAppsHooker"))
+        assertTrue(RuntimeSettingsGroups.owns(settings, com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys.KEY_LINK_TURBO_ALL_APPS))
+    }
+
     @Test fun phraseLimitsInstallInTheProviderAndActivityProcess() {
         val pkg = PhraseSettingsKeys.PACKAGE
         assertEquals(listOf("PhraseLimitHooker"), names(PackageHookPlan.steps(pkg, pkg)))

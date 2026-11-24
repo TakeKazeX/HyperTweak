@@ -9,6 +9,7 @@ import com.takekazex.hypertweak.ui.app.LocalAppSettingsStore
 import com.takekazex.hypertweak.ui.app.rememberStoredSetting
 import com.takekazex.hypertweak.ui.chrome.AppDropdownPreference as OverlayDropdownPreference
 import com.takekazex.hypertweak.ui.chrome.AppSection
+import com.takekazex.hypertweak.util.platform.PlatformLevel
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 
 @Composable
@@ -16,6 +17,7 @@ fun WifiDetailsControls() {
     val settingsStore = LocalAppSettingsStore.current
     var ipMultiline by rememberStoredSetting(PlatformSettingsKeys.KEY_WIFI_DETAIL_IP_MULTILINE, settingsStore::putBoolean) { settingsStore.getBoolean(PlatformSettingsKeys.KEY_WIFI_DETAIL_IP_MULTILINE, false) }
     var savedNetworksPosition by rememberStoredSetting(PlatformSettingsKeys.KEY_WIFI_SAVED_NETWORKS_ENTRY_POSITION, settingsStore::putInt) { settingsStore.getInt(PlatformSettingsKeys.KEY_WIFI_SAVED_NETWORKS_ENTRY_POSITION, PlatformSettingsKeys.WIFI_SAVED_NETWORKS_POSITION_DEFAULT) }
+    var linkTurboAllApps by rememberStoredSetting(PlatformSettingsKeys.KEY_LINK_TURBO_ALL_APPS, settingsStore::putBoolean) { settingsStore.getBoolean(PlatformSettingsKeys.KEY_LINK_TURBO_ALL_APPS, false) }
     var customActionsEnabled by rememberStoredSetting(PlatformSettingsKeys.KEY_WIFI_SAVED_NETWORK_CUSTOM_ACTIONS, settingsStore::putBoolean) { settingsStore.getBoolean(PlatformSettingsKeys.KEY_WIFI_SAVED_NETWORK_CUSTOM_ACTIONS, false) }
 
     val positionItems = listOf(
@@ -50,6 +52,14 @@ fun WifiDetailsControls() {
             title = stringResource(R.string.wifi_saved_network_custom_actions_title),
             summary = stringResource(R.string.wifi_saved_network_custom_actions_summary)
         )
+        if (PlatformLevel.isOs4) {
+            SwitchPreference(
+                checked = linkTurboAllApps,
+                onCheckedChange = { linkTurboAllApps = it },
+                title = stringResource(R.string.wifi_link_turbo_all_apps_title),
+                summary = stringResource(R.string.wifi_link_turbo_all_apps_summary)
+            )
+        }
     }
 
 }

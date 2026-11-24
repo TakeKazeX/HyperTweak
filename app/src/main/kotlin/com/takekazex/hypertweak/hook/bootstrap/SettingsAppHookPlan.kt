@@ -55,6 +55,8 @@ internal object SettingsAppHookPlan {
                 hook { HyperOsAiEntriesHooker }
                 // Wi-Fi details, saved-network entry, and quick actions.
                 hook { com.takekazex.hypertweak.hook.rules.settings.WifiDetailsHooker }
+                // Network acceleration lists every launcher app.
+                if (processName == packageName) hook { com.takekazex.hypertweak.hook.rules.settings.LinkTurboAppsHooker }
             }
         }
     }

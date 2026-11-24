@@ -93,6 +93,9 @@ internal object RuntimeSettingsParticipants {
         registerForProcess(RuntimeSettingsGroups.PHONE_NETWORK_TYPE) { _ ->
             com.takekazex.hypertweak.hook.rules.phone.NetworkTypeMenuHooker.refreshSettings()
         }
+        // These pages re-read their switches on the next open; the hookSetting slots are the
+        // whole live state.
+        registerForProcess(RuntimeSettingsGroups.SETTINGS_DISPLAY_NETWORK) { _ -> true }
         registerForProcess(RuntimeSettingsGroups.MONET) { _ ->
             com.takekazex.hypertweak.hook.rules.systemui.ImmediateMonetRefreshHooker.refreshSettings()
         }

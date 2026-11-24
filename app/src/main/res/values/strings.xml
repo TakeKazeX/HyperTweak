@@ -1998,6 +1998,8 @@
     <string name="wifi_saved_networks_position_advanced">Above \"Advanced settings\"</string>
     <string name="wifi_saved_network_custom_actions_title">Saved network quick action buttons</string>
     <string name="wifi_saved_network_custom_actions_summary">Replace the delete button on the right with a circular share button and a blue view password button</string>
+    <string name="wifi_link_turbo_all_apps_title">Accelerate any app</string>
+    <string name="wifi_link_turbo_all_apps_summary">List every launcher app with network access on the network acceleration page, not only the apps allowed by Xiaomi. Each app still has to be switched on there</string>
     <string name="wifi_view_password_btn">View password</string>
     <string name="wifi_view_password_copy">Copy password</string>
     <string name="wifi_view_password_copied">Password copied</string>

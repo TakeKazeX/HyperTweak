@@ -377,6 +377,14 @@ including activities opened before the feature was installed. Already cached Set
 search results depend on the host's next index refresh. Run
 `NetworkTypeMenuContractTest` with `TELESERVICE_APK` set to the verified host APK.
 
+The Wi-Fi section's default-off network acceleration switch (OS4, Settings main process)
+lists every launcher app on the acceleration page. `LinkTurboAppsHooker` resolves the AsyncTask
+that copies a no-argument List getter into the HashSet gating launcher
+`ActivityInfo.packageName`. Only reads inside that task are widened, to the native list plus
+every launcher package. Backup agents keep the native list, and the host still applies uid,
+internet and per-app whitelist state. The page re-reads the list on its next open. Run
+`SettingsDisplayNetworkContractTest` with `SETTINGS_APK` set to the verified host APK.
+
 The Analytics section has two default-off controls. Package disable is a main-user
 app-side root operation. It enumerates all installed user IDs, records original enabled
 states against Android user serial numbers before writing, and restores only states it
