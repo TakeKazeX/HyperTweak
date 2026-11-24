@@ -2,6 +2,7 @@ package com.takekazex.hypertweak.ui.chrome
 
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -14,6 +15,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
@@ -38,6 +40,8 @@ import top.yukonga.miuix.kmp.glass.GlassDialog
 import top.yukonga.miuix.kmp.glass.GlassDropdownPreference
 import top.yukonga.miuix.kmp.glass.GlassIconButton
 import top.yukonga.miuix.kmp.glass.GlassPopupSizing
+import top.yukonga.miuix.kmp.glass.GlassSegmentedTabRow
+import top.yukonga.miuix.kmp.glass.GlassSegmentedTabRowDefaults
 import top.yukonga.miuix.kmp.glass.GlassTabRow
 import top.yukonga.miuix.kmp.glass.GlassTabRowDefaults
 import top.yukonga.miuix.kmp.icon.MiuixIcons
@@ -250,10 +254,14 @@ fun AppDropdownPreference(
     )
 }
 
+/** Miuix `TabRowWithContour` internals: fixed track inset (not a parameter) and default spacing. */
+private val ContourTrackPadding = 5.dp
+private val ContourTabSpacing = 5.dp
+
 /**
- * Page tab row: upstream `GlassTabRow` over the page backdrop in OS4, Miuix `TabRowWithContour`
- * in OS3. The classic contour uses the container surface so it keeps a visible base on the
- * `surface` page.
+ * Page tab row: upstream `GlassTabRow` over the page backdrop in OS4 (or the contoured
+ * `GlassSegmentedTabRow` when [segmented] is set), Miuix `TabRowWithContour` in OS3. The classic
+ * contour uses the container surface so it keeps a visible base on the `surface` page.
  */
 @Composable
 fun AppTabRow(
@@ -261,10 +269,12 @@ fun AppTabRow(
     selectedIndex: Int,
     onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier,
+    segmented: Boolean = false,
 ) {
     if (tabs.isEmpty()) return
     val index = selectedIndex.coerceIn(tabs.indices)
     val rowModifier = modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
+    val backdrop = LocalPageBackdrop.current
     val glass = LocalAppUiStyle.current == AppUiStyle.Os4
     val textStyles = MiuixTheme.textStyles
     val selectedStyle = if (glass) textStyles.subtitle else textStyles.body1.copy(fontWeight = FontWeight.Bold)
@@ -280,37 +290,74 @@ fun AppTabRow(
         sizes.maxOf { it.width } to sizes.maxOf { it.height }
     }
     val (labelWidth, labelHeight) = with(LocalDensity.current) { widthPx.toDp() to heightPx.toDp() }
-    if (glass) {
+    if (glass && segmented && backdrop != null) {
+        // Segments split the row evenly inside a contoured track; no scroll container needed.
+        GlassSegmentedTabRow(
+            tabs = tabs,
+            selectedIndex = index,
+            onSelect = onSelect,
+            backdrop = backdrop,
+            modifier = rowModifier,
+            height = maxOf(GlassSegmentedTabRowDefaults.Height, labelHeight + 16.dp),
+        )
+    } else if (glass) {
         val horizontalPadding = GlassTabRowDefaults.TabPaddingHorizontal * 2
         val verticalPadding = GlassTabRowDefaults.TabPaddingVertical * 2
         val gap = GlassTabRowDefaults.TabGap
         val minRowWidth = (labelWidth + horizontalPadding + 1.dp) * tabs.size + gap * tabs.lastIndex
         val height = maxOf(GlassTabRowDefaults.Height, labelHeight + verticalPadding)
-        BoxWithConstraints(rowModifier) {
+        // GlassTabRow paints its float shadow outside its bounds, and a scroll container clips
+        // that (flush horizontally, 15dp vertically). Scroll only when the labels overflow, and
+        // keep the side inset inside the viewport so the resting edges keep their shadow.
+        BoxWithConstraints(modifier.fillMaxWidth()) {
+            val available = maxWidth - 32.dp
+            val overflow = minRowWidth > available
             GlassTabRow(
                 tabs = tabs,
                 selectedIndex = index,
                 onSelect = onSelect,
-                backdrop = LocalPageBackdrop.current,
-                modifier = Modifier.horizontalScroll(rememberScrollState()).width(maxOf(maxWidth, minRowWidth)),
+                backdrop = backdrop,
+                modifier = if (overflow) {
+                    Modifier.horizontalScroll(rememberScrollState())
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                        .width(minRowWidth)
+                } else {
+                    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
+                },
                 height = height,
             )
         }
     } else {
         val minWidth = maxOf(TabRowDefaults.TabRowWithContourMinWidth, labelWidth + 24.dp)
-        TabRowWithContour(
-            tabs = tabs,
-            selectedTabIndex = index,
-            onTabSelected = onSelect,
-            colors = TabRowDefaults.tabRowColors(
-                backgroundColor = MiuixTheme.colorScheme.surfaceContainer,
-                selectedBackgroundColor = MiuixTheme.colorScheme.surface,
-            ),
-            modifier = rowModifier,
-            minWidth = minWidth,
-            maxWidth = maxOf(minWidth, TabRowDefaults.TabRowWithContourMaxWidth),
-            height = maxOf(TabRowDefaults.TabRowWithContourHeight, labelHeight + 12.dp),
-        )
+        val density = LocalDensity.current
+        BoxWithConstraints(rowModifier, contentAlignment = Alignment.Center) {
+            // Miuix rounds each fractional tab width to whole pixels, so fitting tabs can sum a
+            // pixel or two past the track; its LazyRow then reports a scroll range and lets the
+            // row be dragged/overscrolled. Shrink the track (by < tab count px) to a width whose
+            // tab share is integral, keeping the row static whenever the tabs fit.
+            val trackWidth = with(density) {
+                val outerPx = maxWidth.roundToPx()
+                val contourPx = ContourTrackPadding.roundToPx() * 2
+                val spacingPx = ContourTabSpacing.roundToPx() * tabs.lastIndex
+                val tabPx = (outerPx - contourPx - spacingPx) / tabs.size
+                if (tabPx >= minWidth.roundToPx()) (tabPx * tabs.size + spacingPx + contourPx).toDp() else maxWidth
+            }
+            Box(Modifier.width(trackWidth)) {
+                TabRowWithContour(
+                    tabs = tabs,
+                    selectedTabIndex = index,
+                    onTabSelected = onSelect,
+                    colors = TabRowDefaults.tabRowColors(
+                        backgroundColor = MiuixTheme.colorScheme.surfaceContainer,
+                        selectedBackgroundColor = MiuixTheme.colorScheme.surface,
+                    ),
+                    minWidth = minWidth,
+                    maxWidth = maxOf(minWidth, TabRowDefaults.TabRowWithContourMaxWidth),
+                    height = maxOf(TabRowDefaults.TabRowWithContourHeight, labelHeight + 12.dp),
+                    itemSpacing = ContourTabSpacing,
+                )
+            }
+        }
     }
 }
 

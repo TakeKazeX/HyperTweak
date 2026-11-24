@@ -209,8 +209,8 @@ Page chrome lives only in `ui/chrome/` and mirrors the upstream example (`Adapti
 - About records its own animated backdrop for the cards; its bar uses the shared frame.
 - Icons are Miuix only (`MiuixIcons` / `MiuixIcons.Glass`); there is no Material icons dependency.
 - Settings groups use `AppSection(title) { rows }` (SmallTitle + 12dp-inset card + full-width
-  column); page tab rows use `AppTabRow` (OS4 `GlassTabRow` over the page backdrop, OS3
-  `TabRowWithContour`). Dark-dependent colors use `isAppInDarkTheme()` (active Miuix scheme), not
+  column); page tab rows use `AppTabRow` (OS4 `GlassTabRow` over the page backdrop, or
+  `GlassSegmentedTabRow` with `segmented = true`; OS3 `TabRowWithContour`). Dark-dependent colors use `isAppInDarkTheme()` (active Miuix scheme), not
   `isSystemInDarkTheme()`, so the in-app theme mode is honoured.
 - Settings state is write-through. `AppSettingsState` properties are `persisted(KEY, put) { read }`:
   assigning one stores it and notifies `AppRestartTracker` through `beforeWrite`. Keys without a
@@ -230,7 +230,10 @@ items. Landscape OS4 overlays a `GlassNavigationRail` whose progress pads the pa
 `LocalTopBarTitleAlpha`. `AppBlur.kt` applies the blur policy to card and navigation-bar blur;
 progressive mode uses Miuix's native `progressiveTextureBlur` pipeline.
 Page tab rows measure labels in selected and unselected Miuix typography. Glass tabs scroll
-when their full labels no longer fit, and classic tabs expand their native scrollable items.
+only when their full labels no longer fit (a scroll container clips the float shadow, so the
+side inset sits inside the viewport). Classic tabs expand their native scrollable items; when
+they fit, the track is narrowed to an integral per-tab pixel width because Miuix rounds tab
+widths and would otherwise expose a 1-2 px drag/overscroll range.
 The shared `CenteredDialog` delegates to Miuix's centered `WindowDialog`. MainPager uses the
 cross-axis Pager gesture driver and spring tab navigation; the liquid indicator follows Pager
 selection without redispatching tab clicks. Liquid rendering and its six auxiliary files follow
