@@ -1635,6 +1635,8 @@
     <string name="tweaks_cc_hide_super_island_summary">Hide Super Island while Control Center is open</string>
     <string name="cc_device_center_single_row_title">Single-row Device Center</string>
     <string name="cc_device_center_single_row_summary">Show up to 3 devices in one row, with More in the fourth slot</string>
+    <string name="cc_hide_edit_button_title">Hide Edit Button</string>
+    <string name="cc_hide_edit_button_summary">Remove the Edit button from Control Center. Edit mode, including the card editor, can no longer be opened</string>
     <string name="volume_panel_section">Volume panel</string>
     <string name="app_volume_title">App volume</string>
     <string name="app_volume_summary">Adds an App volume button under Silent and Do not disturb while media plays. Tap it to adjust each app beside the media slider. Requires Sound Assistant; changes last until the next reboot</string>

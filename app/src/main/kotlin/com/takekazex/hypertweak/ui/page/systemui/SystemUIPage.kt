@@ -60,6 +60,7 @@ fun SystemUIPage(
     val resources = LocalResources.current
     val upstreamBackGesture = com.takekazex.hypertweak.ui.effect.rememberUpstreamBackGestureInstalled()
     var deviceCenterSingleRow by rememberStoredSetting(SystemUiSettingsKeys.KEY_CC_DEVICE_CENTER_SINGLE_ROW, settingsStore::putBoolean) { settingsStore.getBoolean(SystemUiSettingsKeys.KEY_CC_DEVICE_CENTER_SINGLE_ROW, false) }
+    var hideCcEditButton by rememberStoredSetting(SystemUiSettingsKeys.KEY_CC_HIDE_EDIT_BUTTON, settingsStore::putBoolean) { settingsStore.getBoolean(SystemUiSettingsKeys.KEY_CC_HIDE_EDIT_BUTTON, false) }
     var appVolume by rememberStoredSetting(SystemUiSettingsKeys.KEY_VOLUME_APP_VOLUME, settingsStore::putBoolean) { settingsStore.getBoolean(SystemUiSettingsKeys.KEY_VOLUME_APP_VOLUME, false) }
     var appVolumePercent by rememberStoredSetting(SystemUiSettingsKeys.KEY_VOLUME_APP_VOLUME_PERCENT, settingsStore::putInt) { settingsStore.getInt(SystemUiSettingsKeys.KEY_VOLUME_APP_VOLUME_PERCENT, SystemUiSettingsKeys.APP_VOLUME_PERCENT_INSIDE).coerceIn(0, 2) }
     val percentColorKey = SystemUiSettingsKeys.KEY_VOLUME_APP_VOLUME_PERCENT_COLOR
@@ -281,6 +282,12 @@ fun SystemUIPage(
                 onCheckedChange = { deviceCenterSingleRow = it },
                 title = stringResource(R.string.cc_device_center_single_row_title),
                 summary = stringResource(R.string.cc_device_center_single_row_summary)
+            )
+            if (PlatformLevel.isOs4) SwitchPreference(
+                checked = hideCcEditButton,
+                onCheckedChange = { hideCcEditButton = it },
+                title = stringResource(R.string.cc_hide_edit_button_title),
+                summary = stringResource(R.string.cc_hide_edit_button_summary)
             )
         }
 

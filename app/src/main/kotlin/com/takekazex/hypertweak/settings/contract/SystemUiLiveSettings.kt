@@ -75,6 +75,7 @@ internal object SystemUiLiveSettings {
         SystemUiSettingsKeys.KEY_CC_SIZE_VOLUME,
         SystemUiSettingsKeys.KEY_CC_SIZE_DEVICE,
         SystemUiSettingsKeys.KEY_CC_DEVICE_CENTER_SINGLE_ROW,
+        SystemUiSettingsKeys.KEY_CC_HIDE_EDIT_BUTTON,
         SystemUiSettingsKeys.KEY_VOLUME_APP_VOLUME_AUTO_EXPAND,
         SystemUiSettingsKeys.KEY_VOLUME_APP_VOLUME_PERCENT,
         SystemUiSettingsKeys.KEY_VOLUME_APP_VOLUME_PERCENT_COLOR

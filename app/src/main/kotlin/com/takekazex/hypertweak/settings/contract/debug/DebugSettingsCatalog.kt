@@ -381,6 +381,7 @@ internal object DebugSettingsCatalog {
         DebugSetting("systemui_cc_carrier_two_line", "Boolean", false),
         DebugSetting("systemui_cc_device_center_single_row", "Boolean", false),
         DebugSetting("systemui_cc_hide_date", "Boolean", false),
+        DebugSetting("systemui_cc_hide_edit_button", "Boolean", false),
         DebugSetting("systemui_cc_hide_super_island", "Boolean", false),
         DebugSetting("systemui_cc_icon_row_overrides", "StringSet", emptySet<String>()),
         DebugSetting("systemui_cc_network_first_row", "Boolean", false),

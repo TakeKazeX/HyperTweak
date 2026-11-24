@@ -64,6 +64,7 @@ object SystemUiSettingsKeys {
     const val KEY_CC_SIZE_VOLUME = "systemui_control_center_size_volume"
     const val KEY_CC_SIZE_DEVICE = "systemui_control_center_size_device"
     const val KEY_CC_DEVICE_CENTER_SINGLE_ROW = "systemui_cc_device_center_single_row"
+    const val KEY_CC_HIDE_EDIT_BUTTON = "systemui_cc_hide_edit_button"
     const val KEY_VOLUME_APP_VOLUME = "systemui_volume_app_volume"
     const val KEY_VOLUME_APP_VOLUME_AUTO_EXPAND = "systemui_volume_app_volume_auto_expand"
     const val KEY_VOLUME_APP_VOLUME_PERCENT_COLOR = "systemui_volume_app_volume_percent_color"

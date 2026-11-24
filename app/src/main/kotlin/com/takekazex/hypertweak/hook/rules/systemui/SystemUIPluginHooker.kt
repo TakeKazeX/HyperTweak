@@ -2,6 +2,7 @@ package com.takekazex.hypertweak.hook.rules.systemui
 
 import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.hook.rules.systemui.controlcenter.ControlCenterCardsEditHooker
+import com.takekazex.hypertweak.hook.rules.systemui.controlcenter.ControlCenterEditButtonHooker
 import com.takekazex.hypertweak.hook.rules.systemui.controlcenter.ControlCenterSuperIslandHooker
 import com.takekazex.hypertweak.hook.rules.systemui.controlcenter.ControlCenterVolumeKeyHooker
 import com.takekazex.hypertweak.hook.rules.systemui.controlcenter.DeviceCenterSingleRowHooker
@@ -56,6 +57,7 @@ object SystemUIPluginHooker : StaticHooker() {
         val cornerHooker: ControlCenterCornerHooker,
         val volumeKeyHooker: ControlCenterVolumeKeyHooker,
         val tileMessageHooker: TileStateMessageHooker,
+        val editButtonHooker: ControlCenterEditButtonHooker,
         val superIslandHooker: ControlCenterSuperIslandHooker,
         val threeIslandHooker: ThreeIslandHooker,
         val liveUpdateIconHooker: LiveUpdateIconHooker,
@@ -125,6 +127,7 @@ object SystemUIPluginHooker : StaticHooker() {
                 session.sliderPercentHooker.refreshSettings()
                 session.cornerHooker.refreshSettings()
                 session.tileMessageHooker.refreshSettings()
+                session.editButtonHooker.refreshSettings()
             }.onFailure { DebugLog.w("SystemUIPlugin", "control-center settings refresh failed", it) }
             // Optional sub-hookers are attached on the first enable, then refresh in place. The
             // attach happens before the refresh so a freshly attached hooker also sees the
@@ -189,7 +192,8 @@ object SystemUIPluginHooker : StaticHooker() {
             session.liveUpdateIconHooker.snapshotHolders(), session.timeFontHooker.snapshotHolders(),
             session.tileMessageHooker.snapshotSlots(), session.cardsEditHooker?.saveHotReloadState(),
             session.cardResizeHooker?.saveHotReloadState(), session.flashlightHooker.snapshotController(),
-            session.deviceCenterSingleRowHooker?.saveHotReloadState(), session.appVolumeHooker?.let { true })
+            session.deviceCenterSingleRowHooker?.saveHotReloadState(), session.appVolumeHooker?.let { true },
+            session.editButtonHooker.saveHotReloadState())
     }
 
     override fun restoreHotReloadState(state: Any?) {
@@ -216,6 +220,7 @@ object SystemUIPluginHooker : StaticHooker() {
                 session.attachDeviceCenterSingleRow(hooker)
             }
             session.deviceCenterSingleRowHooker?.restoreHotReloadState(entry.getOrNull(9))
+            session.editButtonHooker.restoreHotReloadState(entry.getOrNull(11))
             if (entry.getOrNull(10) == true && session.appVolumeHooker == null) {
                 val hooker = AppVolumeHooker()
                 attach(hooker, session.classLoader)
@@ -315,6 +320,8 @@ object SystemUIPluginHooker : StaticHooker() {
                             detach(session.volumeKeyHooker)
                             runCatching { session.tileMessageHooker.prepareForHotReload() }
                             detach(session.tileMessageHooker)
+                            runCatching { session.editButtonHooker.prepareForHotReload() }
+                            detach(session.editButtonHooker)
                             detach(session.sliderPercentHooker)
                             detach(session.cornerHooker)
                         }
@@ -425,6 +432,7 @@ object SystemUIPluginHooker : StaticHooker() {
                 cornerHooker = cornerHooker,
                 volumeKeyHooker = volumeKeyHooker,
                 tileMessageHooker = TileStateMessageHooker(),
+                editButtonHooker = ControlCenterEditButtonHooker(),
                 superIslandHooker = superIslandHooker,
                 threeIslandHooker = threeIslandHooker,
                 liveUpdateIconHooker = liveUpdateIconHooker,
@@ -503,6 +511,8 @@ object SystemUIPluginHooker : StaticHooker() {
                 }
             runCatching { attach(session.tileMessageHooker, state.classLoader) }
                 .onFailure { DebugLog.e("SystemUIPlugin", "failed to attach tile-message duration", it) }
+            runCatching { attach(session.editButtonHooker, state.classLoader) }
+                .onFailure { DebugLog.e("SystemUIPlugin", "failed to attach edit-button visibility", it) }
             runCatching { attach(volumeKeyHooker, state.classLoader) }
                 .onFailure { DebugLog.e("SystemUIPlugin", "failed to attach volume-key plugin hook", it) }
             if (cardsEditHooker != null) {

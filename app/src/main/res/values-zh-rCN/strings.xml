@@ -1625,6 +1625,8 @@
     <string name="tweaks_cc_hide_super_island_summary">打开控制中心时隐藏超级岛</string>
     <string name="cc_device_center_single_row_title">融合设备中心单行显示</string>
     <string name="cc_device_center_single_row_summary">仅显示一行，最多 3 个设备，第四个位置为“更多”</string>
+    <string name="cc_hide_edit_button_title">隐藏编辑按钮</string>
+    <string name="cc_hide_edit_button_summary">移除控制中心的“编辑”按钮。隐藏后无法进入编辑模式，卡片编辑也随之不可用</string>
     <string name="volume_panel_section">音量面板</string>
     <string name="app_volume_title">应用独立音量</string>
     <string name="app_volume_summary">播放媒体时在静音、勿扰下方显示应用音量按钮，点开后在媒体音量条旁分别调节各应用。需开启声音助手，调整仅在本次开机内有效</string>
