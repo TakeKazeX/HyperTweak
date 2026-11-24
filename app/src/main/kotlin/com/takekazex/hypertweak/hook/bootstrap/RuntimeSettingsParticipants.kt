@@ -97,6 +97,8 @@ internal object RuntimeSettingsParticipants {
         // whole live state.
         registerForProcess(RuntimeSettingsGroups.SETTINGS_DISPLAY_NETWORK) { _ -> true }
         registerForProcess(RuntimeSettingsGroups.MISETTINGS_REFRESH_RATE) { _ -> true }
+        // Rows re-render on their next bind; PowerKeeper reads the slot on each foreground change.
+        registerForProcess(RuntimeSettingsGroups.APP_REFRESH_RATES) { _ -> true }
         registerForProcess(RuntimeSettingsGroups.MONET) { _ ->
             com.takekazex.hypertweak.hook.rules.systemui.ImmediateMonetRefreshHooker.refreshSettings()
         }

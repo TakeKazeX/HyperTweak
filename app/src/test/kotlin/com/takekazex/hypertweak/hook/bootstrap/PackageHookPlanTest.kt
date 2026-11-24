@@ -54,9 +54,18 @@ class PackageHookPlanTest {
 
     @Test fun refreshRateListInstallsInTheMiSettingsMainProcess() {
         val misettings = com.takekazex.hypertweak.settings.contract.MiSettingsSettingsKeys.PACKAGE
-        assertEquals(listOf("RefreshRateListHooker"), names(PackageHookPlan.steps(misettings, misettings)))
+        assertTrue(names(PackageHookPlan.steps(misettings, misettings)).contains("RefreshRateListHooker"))
         assertTrue(PackageHookPlan.steps(misettings, "$misettings:remote").isEmpty())
         assertTrue(RuntimeSettingsGroups.owns(misettings, com.takekazex.hypertweak.settings.contract.MiSettingsSettingsKeys.KEY_MORE_REFRESH_RATES))
+    }
+
+    @Test fun perAppRefreshRatesInstallInMiSettingsAndPowerKeeperMainProcesses() {
+        val keys = com.takekazex.hypertweak.settings.contract.MiSettingsSettingsKeys
+        assertTrue(names(PackageHookPlan.steps(keys.PACKAGE, keys.PACKAGE)).contains("AppRefreshRateRowsHooker"))
+        assertTrue(names(PackageHookPlan.steps(keys.POWERKEEPER_PACKAGE, keys.POWERKEEPER_PACKAGE)).contains("AppRefreshRateHooker"))
+        assertFalse(names(PackageHookPlan.steps(keys.POWERKEEPER_PACKAGE, "${keys.POWERKEEPER_PACKAGE}:remote")).contains("AppRefreshRateHooker"))
+        assertTrue(RuntimeSettingsGroups.owns(keys.PACKAGE, keys.KEY_PER_APP_REFRESH_RATES))
+        assertTrue(RuntimeSettingsGroups.owns(keys.POWERKEEPER_PACKAGE, keys.KEY_PER_APP_REFRESH_RATES))
     }
 
     @Test fun phraseLimitsInstallInTheProviderAndActivityProcess() {

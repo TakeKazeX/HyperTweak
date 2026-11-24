@@ -2005,6 +2005,8 @@
     <string name="display_never_screen_timeout_summary">Keep the \"Never\" option in the screen timeout list on OLED screens. A screen that stays on for long periods can burn in</string>
     <string name="display_more_refresh_rates_title">Show more refresh rates</string>
     <string name="display_more_refresh_rates_summary">Add the other refresh rates the screen supports to the refresh rate list in Mi Settings, up to the native maximum</string>
+    <string name="display_per_app_refresh_rates_title">Per-app refresh rate</string>
+    <string name="display_per_app_refresh_rates_summary">On the \"Custom high refresh apps\" page, tap an app to choose its refresh rate instead of switching it on or off. Takes effect only while the global refresh rate is at its highest setting</string>
     <string name="wifi_view_password_btn">View password</string>
     <string name="wifi_view_password_copy">Copy password</string>
     <string name="wifi_view_password_copied">Password copied</string>

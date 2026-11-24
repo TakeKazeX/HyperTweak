@@ -14,7 +14,7 @@ import com.takekazex.hypertweak.ui.components.scope.MissingScopeCard
 import com.takekazex.hypertweak.util.platform.PlatformLevel
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 
-/** Screen timeout (Settings) and refresh-rate list (MiSettings) switches. Both apply on the page's next open. */
+/** Screen timeout (Settings), refresh-rate list and per-app refresh rate (MiSettings/PowerKeeper) switches. */
 @Composable
 fun DisplayControls() {
     if (!PlatformLevel.isOs4) return
@@ -24,6 +24,9 @@ fun DisplayControls() {
     }
     var moreRefreshRates by rememberStoredSetting(MiSettingsSettingsKeys.KEY_MORE_REFRESH_RATES, settingsStore::putBoolean) {
         settingsStore.getBoolean(MiSettingsSettingsKeys.KEY_MORE_REFRESH_RATES, false)
+    }
+    var perAppRefreshRates by rememberStoredSetting(MiSettingsSettingsKeys.KEY_PER_APP_REFRESH_RATES, settingsStore::putBoolean) {
+        settingsStore.getBoolean(MiSettingsSettingsKeys.KEY_PER_APP_REFRESH_RATES, false)
     }
 
     MissingScopeCard(MiSettingsSettingsKeys.PACKAGE)
@@ -39,6 +42,12 @@ fun DisplayControls() {
             onCheckedChange = { moreRefreshRates = it },
             title = stringResource(R.string.display_more_refresh_rates_title),
             summary = stringResource(R.string.display_more_refresh_rates_summary)
+        )
+        SwitchPreference(
+            checked = perAppRefreshRates,
+            onCheckedChange = { perAppRefreshRates = it },
+            title = stringResource(R.string.display_per_app_refresh_rates_title),
+            summary = stringResource(R.string.display_per_app_refresh_rates_summary)
         )
     }
 }

@@ -35,6 +35,7 @@ internal object ServiceAppHookPlan {
             }
             com.takekazex.hypertweak.settings.contract.MiSettingsSettingsKeys.PACKAGE -> {
                 if (processName == packageName) hook { com.takekazex.hypertweak.hook.rules.misettings.RefreshRateListHooker }
+                if (processName == packageName) hook { com.takekazex.hypertweak.hook.rules.misettings.AppRefreshRateRowsHooker }
             }
             com.takekazex.hypertweak.settings.contract.PhraseSettingsKeys.PACKAGE -> {
                 if (processName == packageName) hook { com.takekazex.hypertweak.hook.rules.phrase.PhraseLimitHooker }
@@ -67,6 +68,8 @@ internal object ServiceAppHookPlan {
                 hook { RestartBroadcastHooker }
                 hook { FcmLivePowerKeeperHooker }
                 hook { PowerKeeperWhitelistRestoreHooker }
+                // Per-app refresh rates chosen on MiSettings' custom high refresh page.
+                if (processName == packageName) hook { com.takekazex.hypertweak.hook.rules.powerkeeper.AppRefreshRateHooker }
             }
             "com.google.android.googlequicksearchbox" -> {
                 // Keep the package scope for Lens/OMNI features, but dispatch only in their UI process.

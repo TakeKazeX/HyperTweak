@@ -248,6 +248,7 @@ internal object DebugSettingsCatalog {
         DebugSetting("media_super_island_unlock_whitelist", "Boolean", false),
         DebugSetting("milink_block_hpplay_files", "Boolean", false),
         DebugSetting("misettings_more_refresh_rates", "Boolean", false),
+        DebugSetting("misettings_per_app_refresh_rates", "Boolean", false),
         DebugSetting("mitrust_disable_risk_monitoring", "Boolean", false),
         DebugSetting("motion_cues_freeform_fix", "Boolean", false),
         DebugSetting("native_file_picker", "Boolean", false),

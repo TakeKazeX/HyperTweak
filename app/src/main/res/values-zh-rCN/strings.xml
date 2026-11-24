@@ -1971,6 +1971,8 @@
     <string name="display_never_screen_timeout_summary">在 OLED 屏幕上保留自动锁屏中的“永不”选项。长时间亮屏可能导致烧屏</string>
     <string name="display_more_refresh_rates_title">显示更多刷新率</string>
     <string name="display_more_refresh_rates_summary">在小米设置的屏幕刷新率列表中加入屏幕支持的其他刷新率，最高不超过原生上限</string>
+    <string name="display_per_app_refresh_rates_title">应用独立刷新率</string>
+    <string name="display_per_app_refresh_rates_summary">在“自定义高刷应用”页面点按应用即可选择它的刷新率，而不只是开或关。仅在全局刷新率为最高档时生效</string>
     <string name="wifi_view_password_btn">查看密码</string>
     <string name="wifi_view_password_copy">复制密码</string>
     <string name="wifi_view_password_copied">密码已复制</string>

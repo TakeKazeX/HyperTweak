@@ -149,6 +149,10 @@ internal object RuntimeSettingsDefinitions {
             PlatformSettingsKeys.KEY_ALLOW_NEVER_SCREEN_TIMEOUT,
         )),
         RuntimeSettingsGroups.MISETTINGS_REFRESH_RATE to Group(setOf(com.takekazex.hypertweak.settings.contract.MiSettingsSettingsKeys.PACKAGE), strict = setOf(com.takekazex.hypertweak.settings.contract.MiSettingsSettingsKeys.KEY_MORE_REFRESH_RATES)),
+        RuntimeSettingsGroups.APP_REFRESH_RATES to Group(setOf(
+            com.takekazex.hypertweak.settings.contract.MiSettingsSettingsKeys.PACKAGE,
+            com.takekazex.hypertweak.settings.contract.MiSettingsSettingsKeys.POWERKEEPER_PACKAGE,
+        ), strict = setOf(com.takekazex.hypertweak.settings.contract.MiSettingsSettingsKeys.KEY_PER_APP_REFRESH_RATES)),
         RuntimeSettingsGroups.MODULE_ENTRY to Group(setOf("com.android.settings"), strict = setOf(PlatformSettingsKeys.KEY_SHOW_IN_SETTINGS)),
         RuntimeSettingsGroups.IME to Group(imeTargets, keys = setOf( PlatformSettingsKeys.KEY_AOSP_IME_ENABLED, PlatformSettingsKeys.KEY_AOSP_IME_PACKAGES, PlatformSettingsKeys.KEY_AOSP_IME_MIUI_IME_LIST, PlatformSettingsKeys.KEY_AOSP_IME_RAISE_STYLE, PlatformSettingsKeys.KEY_AOSP_IME_NAV_BAR_START, PlatformSettingsKeys.KEY_AOSP_IME_NAV_BAR_END, ), strict = setOf(PlatformSettingsKeys.KEY_AOSP_IME_ENABLED, PlatformSettingsKeys.KEY_AOSP_IME_MIUI_IME_LIST)),
         RuntimeSettingsGroups.POLICY_FEATURES to Group(setOf(

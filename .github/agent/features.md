@@ -403,6 +403,26 @@ still show the native list. Upstream's forced "custom high refresh apps" entry i
 is native on the verified device and depends on PowerKeeper config. Run `RefreshRateListTest`
 with `MISETTINGS_APK` set to the verified host APK.
 
+The Display section's default-off per-app refresh rate switch spans MiSettings and PowerKeeper
+(both main processes). `AppRefreshRateRowsHooker` resolves the "custom high refresh apps" row
+holder from its bind (item field, `SlidingButton`, row click listener that reports
+`(item, checked)` to the page). It replaces the switch with the host's bundled Miuix drop-down,
+built as `miuix.preference.DropDownPreference` builds it (`MiuixDropDownContract`: the
+preference's double-line content adapter with its entries field, wrapped in the checkable
+`(Context, layout, content, isChecked)` adapter, on a `miuix.appcompat.widget.Spinner`). The
+spinner shows the rate in the row, and a row click opens the HyperOS drop-down menu of the
+panel's rates. The top rate and
+60 Hz stay Xiaomi's on/off state and are applied through the host's own row click; other rates
+are stored in `Settings.Secure` `hypertweak_app_refresh_rates` (`AppRefreshRates`; both hosts
+run as the system uid) and keep the app on. `AppRefreshRateHooker` resolves PowerKeeper's
+custom-mode updater (custom map → active map alias) and the `ForegroundInfo` handler that looks
+the foreground package up in the active map. Only in custom mode and only for apps absent from
+the custom map, it places the stored rate there for that one call and removes it afterwards, so
+native scenes still win and PowerKeeper's cap at the global rate still applies. Custom mode
+exists only at the highest global rate (120/144). Rows re-render on their next bind; a page
+open while the switch is turned off keeps its value rows until it is reopened. Run
+`AppRefreshRateTest` with `MISETTINGS_APK` and `POWERKEEPER_APK` set to verified host APKs.
+
 The Analytics section has two default-off controls. Package disable is a main-user
 app-side root operation. It enumerates all installed user IDs, records original enabled
 states against Android user serial numbers before writing, and restores only states it
