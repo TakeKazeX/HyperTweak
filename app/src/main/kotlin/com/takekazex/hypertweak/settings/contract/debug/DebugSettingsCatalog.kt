@@ -317,6 +317,7 @@ internal object DebugSettingsCatalog {
         DebugSetting("screenshot_frame_editor_mode", "Int", 0),
         DebugSetting("screenshot_pictures_directory", "Boolean", false),
         DebugSetting("securitycenter_anti_peeping_mode", "Int", com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys.SECURITY_CENTER_ANTI_PEEPING_SYSTEM_DEFAULT),
+        DebugSetting("securitycenter_app_lock_scramble_pin", "Boolean", false),
         DebugSetting("securitycenter_bubble_notification_unlock", "Boolean", false),
         DebugSetting("securitycenter_bypass_usb_install_network_verify", "Boolean", false),
         DebugSetting("securitycenter_call_privacy_camera_entry", "Boolean", false),

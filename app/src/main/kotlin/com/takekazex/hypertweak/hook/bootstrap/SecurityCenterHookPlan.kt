@@ -88,6 +88,8 @@ internal object SecurityCenterHookPlan {
                         hook { MoreAppInfoHooker }
                         hook { NamedApkShareHooker }
                         hook { SecurityCenterUsbInstallNetworkVerifyHooker }
+                        // App Lock's ConfirmAccessControl and its PIN pad run in the main process.
+                        hook { com.takekazex.hypertweak.hook.rules.securitycenter.AppLockPinScrambleHooker }
                     }
                     if (processName == packageName || processName == "$packageName.remote") {
                         hook { CarrierOfflineConfigHooker }

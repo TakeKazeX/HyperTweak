@@ -652,6 +652,12 @@ typed fragment field. Disable, reset and retirement restore native text.
 
 `SecurityCenterPrivacyResolver` reuses the operand/call-graph index to recover privacy gates, native function-card builders and the beauty initializer/support path. No obfuscated owner/member names or ROM-version branches are stored. Missing optional capabilities remain independent; selecting an absent anti-peeping variant preserves the native gates/visibility. Beauty support overrides are scoped to the native initializer with nested/exception-safe thread ownership.
 
+## App Lock PIN scramble
+- Code: `hook/rules/securitycenter/AppLockPinScrambleHooker.kt` (Security Center main process, `securitycenter_app_lock_scramble_pin`, default off; Security Center → App Lock; runtime group `securitycenter.app_lock`). Behavior follows HyperCeiler's `AppLockPinScramble`; independently implemented. Key moves go through the shared `hook/rules/shared/DigitKeypadShuffle`, also used by the lock-screen PIN.
+- Host (`com.miui.securitycenter` 13.8.0-261020.0.1, sha256 `e53a09e3…`): `com.miui.applicationlock.widget.MiuiNumericInputView` (a `LinearLayout`) builds itself in its only constructor: four fields of one nested `LinearLayout` row class (three nested `FrameLayout` keys each) and one nested-key array indexed by key code, 0..9 digits and 10/11 the bottom-row action keys around 0. Contract: exactly one such array (12 entries at use), four row fields of one type, four row children of that type with three keys each, and the two bottom-row ends being codes 10/11. Anything else leaves the pad native.
+- The after-constructor hook shuffles each pad once; listeners and the key-code array are untouched. Every Security Center screen using this widget is shuffled (unlock, set/change PIN). `com.miui.auth.widget.MiuiNumericInputView` (privacy password / biometric PIN) is a different widget and is not covered.
+- Live and lifecycle: enabling shuffles living pads, disabling restores keypad order; retirement restores keypad order, and a new generation finds living pads through `WindowInspector`. Keypad order is derived from the key-code array, so a pad left shuffled by a build that saved no state is repaired too.
+
 ## Security Center sidebar app shortcuts
 
 `SecurityCenterDockShortcutsHooker` (`com.miui.securitycenter:ui`, switch

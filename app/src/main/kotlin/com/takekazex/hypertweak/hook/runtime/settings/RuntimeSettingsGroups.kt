@@ -48,6 +48,7 @@ internal object RuntimeSettingsGroups {
     const val SECURITY_WARNINGS = "securitycenter.warnings"
     const val SECURITY_BUBBLES = "securitycenter.bubbles"
     const val SECURITY_CLIPBOARD = "securitycenter.clipboard"
+    const val SECURITY_APP_LOCK = "securitycenter.app_lock"
     const val OFFLINE_CONFIG = "carrier.offline_config"
     const val BUSINESS_HALL_ADS = "contacts.business_hall_ads"
     const val BARRAGE = "barrage.any_app"

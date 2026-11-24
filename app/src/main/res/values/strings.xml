@@ -85,6 +85,9 @@
     <string name="security_center_front_camera_assistant_entry_summary">Show the front-camera assistant and beauty settings; reload the common-functions card</string>
     <string name="security_center_call_privacy_camera_entry">Show call privacy-camera entry</string>
     <string name="security_center_call_privacy_camera_entry_summary">Show privacy-camera settings for calls in games</string>
+    <string name="security_center_app_lock_section">App Lock</string>
+    <string name="security_center_app_lock_scramble_pin">Scramble PIN Keypad</string>
+    <string name="security_center_app_lock_scramble_pin_summary">Shuffle the digit keys each time the App Lock PIN pad opens. Also applies when setting or changing the App Lock PIN</string>
     <string name="security_center_clipboard_section">Clipboard</string>
     <string name="security_center_notifications_section">Bubble notifications</string>
     <string name="aosp_volume_panel">AOSP Volume Panel</string>

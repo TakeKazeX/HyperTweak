@@ -266,6 +266,7 @@ internal object RuntimeSettingsDefinitions {
         RuntimeSettingsGroups.SECURITY_WARNINGS to Group(setOf("com.miui.securitycenter"), keys = setOf(PlatformSettingsKeys.KEY_SECURITY_CENTER_LOW_BATTERY_MODE, PlatformSettingsKeys.KEY_SECURITY_CENTER_PERMISSION_WARNING_MODE), strict = setOf(PlatformSettingsKeys.KEY_SECURITY_CENTER_HIDE_LOW_BATTERY_WARNING)),
         RuntimeSettingsGroups.SECURITY_BUBBLES to Group(setOf("com.miui.securitycenter", "com.miui.securitycore", "com.android.systemui"), strict = setOf(PlatformSettingsKeys.KEY_SECURITY_CENTER_BUBBLE_NOTIFICATION_UNLOCK)),
         RuntimeSettingsGroups.SECURITY_CLIPBOARD to Group(setOf("com.miui.securitycenter", "com.lbe.security.miui"), strict = setOf(PlatformSettingsKeys.KEY_LBE_CLIPBOARD_TOAST)),
+        RuntimeSettingsGroups.SECURITY_APP_LOCK to Group(setOf("com.miui.securitycenter"), strict = setOf(PlatformSettingsKeys.KEY_SECURITY_CENTER_APP_LOCK_SCRAMBLE_PIN)),
         RuntimeSettingsGroups.BARRAGE to Group(setOf("com.xiaomi.barrage"), strict = setOf(PlatformSettingsKeys.KEY_BARRAGE_ANY_APP)),
         RuntimeSettingsGroups.BUSINESS_HALL_ADS to Group(setOf("com.android.contacts"), strict = setOf(PlatformSettingsKeys.KEY_CONTACTS_BUSINESS_HALL_AD_BLOCK)),
         // The Network Assistant classes are packaged in Security Center; its activities run in

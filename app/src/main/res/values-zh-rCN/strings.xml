@@ -85,6 +85,9 @@
     <string name="security_center_front_camera_assistant_entry_summary">显示前置摄像助手及美颜设置；常用功能卡片需重新加载</string>
     <string name="security_center_call_privacy_camera_entry">显示通话隐私摄像入口</string>
     <string name="security_center_call_privacy_camera_entry_summary">显示游戏通话中的隐私摄像设置</string>
+    <string name="security_center_app_lock_section">应用锁</string>
+    <string name="security_center_app_lock_scramble_pin">乱序 PIN 键盘</string>
+    <string name="security_center_app_lock_scramble_pin_summary">每次打开应用锁数字密码键盘时随机打乱数字键位置。设置或修改应用锁密码时同样生效</string>
     <string name="security_center_clipboard_section">剪贴板</string>
     <string name="security_center_notifications_section">气泡通知</string>
     <string name="aosp_volume_panel">AOSP 音量面板</string>

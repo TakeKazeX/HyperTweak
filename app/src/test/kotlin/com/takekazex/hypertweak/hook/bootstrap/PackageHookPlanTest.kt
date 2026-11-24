@@ -68,6 +68,13 @@ class PackageHookPlanTest {
         assertTrue(RuntimeSettingsGroups.owns(keys.POWERKEEPER_PACKAGE, keys.KEY_PER_APP_REFRESH_RATES))
     }
 
+    @Test fun appLockPinScrambleInstallsInTheSecurityCenterMainProcess() {
+        val center = "com.miui.securitycenter"
+        assertTrue(names(PackageHookPlan.steps(center, center)).contains("AppLockPinScrambleHooker"))
+        assertFalse(names(PackageHookPlan.steps(center, "$center.remote")).contains("AppLockPinScrambleHooker"))
+        assertTrue(RuntimeSettingsGroups.owns(center, com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys.KEY_SECURITY_CENTER_APP_LOCK_SCRAMBLE_PIN))
+    }
+
     @Test fun phraseLimitsInstallInTheProviderAndActivityProcess() {
         val pkg = PhraseSettingsKeys.PACKAGE
         assertEquals(listOf("PhraseLimitHooker"), names(PackageHookPlan.steps(pkg, pkg)))

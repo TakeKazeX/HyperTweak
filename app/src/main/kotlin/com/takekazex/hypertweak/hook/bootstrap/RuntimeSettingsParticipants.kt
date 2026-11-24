@@ -299,6 +299,12 @@ internal object RuntimeSettingsParticipants {
         registerForProcess(RuntimeSettingsGroups.SECURITY_CLIPBOARD) { _ -> refreshSecurityHookers {
             it is com.takekazex.hypertweak.hook.rules.lbe.LbeClipboardToastHooker
         } }
+        registerForProcess(RuntimeSettingsGroups.SECURITY_APP_LOCK) { _ ->
+            if (processName == "com.miui.securitycenter") {
+                com.takekazex.hypertweak.hook.rules.securitycenter.AppLockPinScrambleHooker.refreshSettings()
+            }
+            true
+        }
         registerForProcess(RuntimeSettingsGroups.BARRAGE) { _ -> true }
         registerForProcess(RuntimeSettingsGroups.BUSINESS_HALL_ADS) { _ -> true }
         registerForProcess(RuntimeSettingsGroups.OFFLINE_CONFIG) { _ -> Preferences.invalidateRuntimeReadCache(); true }

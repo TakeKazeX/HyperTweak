@@ -61,6 +61,7 @@ fun SecurityCenterPage(
     var restorePowerRanking by rememberStoredSetting(PlatformSettingsKeys.KEY_SECURITY_CENTER_RESTORE_POWER_RANKING, settingsStore::putBoolean) { settingsStore.getBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_RESTORE_POWER_RANKING, false) }
     var showBerserkMode by rememberStoredSetting(PlatformSettingsKeys.KEY_SECURITY_CENTER_SHOW_BERSERK_MODE, settingsStore::putBoolean) { settingsStore.getBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_SHOW_BERSERK_MODE, false) }
     var moreBatteryInfo by rememberStoredSetting(PlatformSettingsKeys.KEY_SECURITY_CENTER_MORE_BATTERY_INFO, settingsStore::putBoolean) { settingsStore.getBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_MORE_BATTERY_INFO, false) }
+    var appLockScramblePin by rememberStoredSetting(PlatformSettingsKeys.KEY_SECURITY_CENTER_APP_LOCK_SCRAMBLE_PIN, settingsStore::putBoolean) { settingsStore.getBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_APP_LOCK_SCRAMBLE_PIN, false) }
     var privacyCallEntry by rememberStoredSetting(PlatformSettingsKeys.KEY_SECURITY_CENTER_PRIVACY_CALL_ENTRY, settingsStore::putBoolean) { settingsStore.getBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_PRIVACY_CALL_ENTRY, false) }
     var antiPeepingMode by rememberStoredSetting(PlatformSettingsKeys.KEY_SECURITY_CENTER_ANTI_PEEPING_MODE, settingsStore::putInt) { settingsStore.getInt(PlatformSettingsKeys.KEY_SECURITY_CENTER_ANTI_PEEPING_MODE, PlatformSettingsKeys.SECURITY_CENTER_ANTI_PEEPING_SYSTEM_DEFAULT).coerceIn(PlatformSettingsKeys.SECURITY_CENTER_ANTI_PEEPING_SYSTEM_DEFAULT, PlatformSettingsKeys.SECURITY_CENTER_ANTI_PEEPING_V2) }
     var frontCameraAssistantEntry by rememberStoredSetting(PlatformSettingsKeys.KEY_SECURITY_CENTER_FRONT_CAMERA_ASSISTANT_ENTRY, settingsStore::putBoolean) { settingsStore.getBoolean(PlatformSettingsKeys.KEY_SECURITY_CENTER_FRONT_CAMERA_ASSISTANT_ENTRY, false) }
@@ -172,6 +173,17 @@ fun SecurityCenterPage(
                 summary = stringResource(
                     R.string.security_center_call_privacy_camera_entry_summary
                 )
+            )
+        }
+
+        AppSection(title = stringResource(R.string.security_center_app_lock_section)) {
+            SwitchPreference(
+                checked = appLockScramblePin,
+                onCheckedChange = { enabled ->
+                    appLockScramblePin = enabled
+                },
+                title = stringResource(R.string.security_center_app_lock_scramble_pin),
+                summary = stringResource(R.string.security_center_app_lock_scramble_pin_summary)
             )
         }
 

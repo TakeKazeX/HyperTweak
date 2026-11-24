@@ -124,6 +124,7 @@ object PlatformSettingsKeys {
     const val SECURITY_CENTER_ANTI_PEEPING_V2 = 2
     const val KEY_SECURITY_CENTER_FRONT_CAMERA_ASSISTANT_ENTRY = "securitycenter_front_camera_assistant_entry"
     const val KEY_SECURITY_CENTER_CALL_PRIVACY_CAMERA_ENTRY = "securitycenter_call_privacy_camera_entry"
+    const val KEY_SECURITY_CENTER_APP_LOCK_SCRAMBLE_PIN = "securitycenter_app_lock_scramble_pin"
     const val KEY_AOSP_IME_ENABLED = "aosp_ime_fullscreen"
     const val KEY_AOSP_IME_PACKAGES = "aosp_ime_packages"
     const val KEY_AOSP_IME_NAV_BAR_START = "aosp_ime_nav_bar_start"
