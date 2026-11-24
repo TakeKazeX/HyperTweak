@@ -23,7 +23,7 @@ Fix failures caused by the change and rerun affected checks. Report unrelated fa
 ## Build toolchain
 
 Configuration Cache is enabled with `problems=fail`; fix incompatibilities rather than
-switching artifact builds to warn mode. AGP is pinned to `9.5.0-rc01` because it removes
+switching artifact builds to warn mode. AGP stays on 9.5 (currently `9.5.2`) because it removes
 the internal `Configuration.setVisible` calls deprecated by Gradle 9.8; `9.4.1` still
 emits them. When changing the build toolchain, run the applicable checks with
 `--warning-mode all`, then repeat the same task set to verify Configuration Cache reuse.

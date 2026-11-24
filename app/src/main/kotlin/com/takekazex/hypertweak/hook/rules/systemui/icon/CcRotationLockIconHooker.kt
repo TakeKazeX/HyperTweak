@@ -92,7 +92,7 @@ internal object CcRotationLockIconHooker : StaticHooker() {
                     val locked = args?.firstOrNull() as? Boolean
                     if (locked != null) main.post {
                         val current = binding
-                        if (current?.callback === proxy) guarded {
+                        if (current != null && current.callback === proxy) guarded {
                             if (!locked) current.bridge.removeOwned(SLOT_ROTATION_LOCK)
                             else if (!current.bridge.owns(SLOT_ROTATION_LOCK)) {
                                 if (current.bridge.publish(SLOT_ROTATION_LOCK, artwork, current.description)) {
