@@ -512,6 +512,11 @@ The gesture bar (`HideBottomBarHooker`) has one decision owner, `GestureBarState
 - MiSound floating entry: `AudioService.sendVolumeUpdate` → `PlaybackActivityMonitorStubImpl.startPlayerVolumeService(Context,int,int)` (miui-services) only starts `com.miui.misound/.playervolume.VolumeUIService` in the foreground. `hook/rules/system/MiSoundVolumeEntryHooker` (system_server) skips that call while app volume is on and the AOSP panel is off. `systemui_volume_app_volume` is therefore in the `VOLUME` runtime group (SystemUI + android); its SystemUI participant calls `SystemUIPluginHooker.reloadControlCenterSettings()`.
 - Lifecycle: playback callback via `generationRegistration`, Binder/PackageManager work on one `generationWorker`, drag writes coalesced to the latest value per key. Views carry the `hypertweak.appVolume` tag so a newer generation removes an older one's views; living dialogs are recovered through the native sliders' listener owner. Limitations: second-space clones share the main app's gain (host keys by package name); with auto-expand off the entry is one extra tap; an already running MiSound `VolumeUIService` is left to stop itself.
 
+## Instant volume adjustment
+- Code: `hook/rules/system/VolumeFirstPressHooker` (system_server, `volume_first_press`, default off; System Framework → Volume Keys). Behavior follows HyperCeiler's `VolumeFirstPress`; independently implemented.
+- Host: `AudioService$VolumeController.suppressAdjustment(IIZ)Z` returns true for STREAM_MUSIC while the panel is hidden and media is idle; its only caller `AudioService.adjustSuggestedStreamVolume(IIILString;String;IIZI)V` then adjusts with direction 0 (panel only). The after-hook turns a true result into false for non-mute STREAM_MUSIC; other streams keep the native rule. The caller is deoptimized against AOT inlining. Verified on myron OS4.0.6.0.XPMCNXM `services.jar` (sha256 `fe7406b3…`).
+- Live: the switch is in the `VOLUME` runtime group and is read per call; no hook is installed or removed. With custom volume steps on, the first press also uses the configured step.
+
 ## Back-gesture runtime
 
 The vendored Android-17 back runtime is split under `hooks/systemui/` into input

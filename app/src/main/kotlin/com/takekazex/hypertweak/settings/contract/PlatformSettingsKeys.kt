@@ -95,6 +95,7 @@ object PlatformSettingsKeys {
     const val KEY_VOLUME_KEY_STEP_ENABLED = "volume_key_step_enabled"
     const val KEY_VOLUME_KEY_STEP_COUNT = "volume_key_step_count"
     const val KEY_VOLUME_KEY_STEP_SCOPE = "volume_key_step_scope"
+    const val KEY_VOLUME_FIRST_PRESS = "volume_first_press"
     const val DEFAULT_VOLUME_KEY_STEP_COUNT = 15
     const val VOLUME_KEY_SCOPE_MEDIA_ONLY = 0
     const val VOLUME_KEY_SCOPE_ACTIVE_STREAM = 1

@@ -59,6 +59,7 @@ internal object SystemServerHookPlan {
         // miui-services inside system_server; the Settings-side unlock alone cannot activate them.
         hook { AonRuntimeGateHooker }
         hook { VolumeKeyStepsHooker }
+        hook { com.takekazex.hypertweak.hook.rules.system.VolumeFirstPressHooker }
         // App volume in the volume dialog replaces MiSound's floating multi-app volume entry.
         hook { com.takekazex.hypertweak.hook.rules.system.MiSoundVolumeEntryHooker }
         // Experimental: let the AON air-gesture controller honour left/right + double-press, which

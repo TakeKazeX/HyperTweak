@@ -215,7 +215,7 @@ internal object RuntimeSettingsDefinitions {
         RuntimeSettingsGroups.BACK to Group(systemUi + setOf("android", "com.miui.home"), keys = backKeys),
         RuntimeSettingsGroups.NATIVE to Group(systemUi + "com.miui.home", keys = nativeKeys, strict = setOf(PlatformSettingsKeys.KEY_XIAOAI_GESTURE_OPTIONS, PlatformSettingsKeys.KEY_NATIVE_PAD_DOCK)),
         // The app-volume switch reaches both the SystemUI dialog and system_server's MiSound entry gate.
-        RuntimeSettingsGroups.VOLUME to Group(systemUi + "android", keys = setOf(PlatformSettingsKeys.KEY_VOLUME_KEY_STEP_ENABLED, PlatformSettingsKeys.KEY_VOLUME_KEY_STEP_COUNT, PlatformSettingsKeys.KEY_VOLUME_KEY_STEP_SCOPE, SystemUiSettingsKeys.KEY_VOLUME_APP_VOLUME)),
+        RuntimeSettingsGroups.VOLUME to Group(systemUi + "android", keys = setOf(PlatformSettingsKeys.KEY_VOLUME_KEY_STEP_ENABLED, PlatformSettingsKeys.KEY_VOLUME_KEY_STEP_COUNT, PlatformSettingsKeys.KEY_VOLUME_KEY_STEP_SCOPE, PlatformSettingsKeys.KEY_VOLUME_FIRST_PRESS, SystemUiSettingsKeys.KEY_VOLUME_APP_VOLUME)),
         RuntimeSettingsGroups.XMSF to Group(setOf("com.xiaomi.xmsf"), keys = setOf(PlatformSettingsKeys.KEY_XMSF_UNLOCK_FOCUS_AUTH)),
         RuntimeSettingsGroups.FREEFORM to Group(systemUi + "android", strict = FreeformSettingsKeys.keys),
         RuntimeSettingsGroups.AICR_FREEFORM to Group(setOf("com.xiaomi.aicr"), strict = setOf(FreeformSettingsKeys.KEY_JUMP) + FreeformSettingsKeys.copyDirectKeys),

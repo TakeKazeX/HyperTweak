@@ -24,7 +24,8 @@ class RuntimeSettingsRoutingTest {
         val enabled = PlatformSettingsKeys.KEY_VOLUME_KEY_STEP_ENABLED
         val values = mapOf<String, Any>(enabled to false,
             PlatformSettingsKeys.KEY_VOLUME_KEY_STEP_COUNT to 20,
-            PlatformSettingsKeys.KEY_VOLUME_KEY_STEP_SCOPE to 0)
+            PlatformSettingsKeys.KEY_VOLUME_KEY_STEP_SCOPE to 0,
+            PlatformSettingsKeys.KEY_VOLUME_FIRST_PRESS to true)
         for (process in listOf("system_server", "com.android.systemui")) {
             assertEquals(values, Groups.subset(Groups.target(process), values))
             val ledger = RuntimeSettingsLedger()

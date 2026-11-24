@@ -95,6 +95,8 @@
     <string name="volume_key_scope_title">Apply to</string>
     <string name="volume_key_scope_media">Media volume only</string>
     <string name="volume_key_scope_active_stream">Volume stream currently controlled by the keys</string>
+    <string name="volume_first_press">Instant volume adjustment</string>
+    <string name="volume_first_press_summary">The first media volume key press changes the volume instead of only showing the volume panel</string>
     <string name="volume_key_step_enabled">Custom volume steps</string>
     <string name="volume_key_step_enabled_summary">Adjust from the current volume by a whole percentage step; turn off to restore system steps</string>
     <string name="volume_key_step_title">Volume key steps</string>

@@ -95,6 +95,8 @@
     <string name="volume_key_scope_title">作用范围</string>
     <string name="volume_key_scope_media">仅媒体音量</string>
     <string name="volume_key_scope_active_stream">音量键当前控制的音量流</string>
+    <string name="volume_first_press">音量即时调整</string>
+    <string name="volume_first_press_summary">面板未显示时，第一次按媒体音量键直接调整音量，而不只是弹出音量面板</string>
     <string name="volume_key_step_enabled">自定义音量步进</string>
     <string name="volume_key_step_enabled_summary">音量键与应用增减音量按当前百分比加减整数步长，关闭后恢复系统步进</string>
     <string name="volume_key_step_title">音量键档位数</string>

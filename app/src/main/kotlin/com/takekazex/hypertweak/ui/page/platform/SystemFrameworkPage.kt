@@ -98,6 +98,7 @@ internal fun SystemFrameworkPage(
 @Composable
 private fun VolumeKeyStepSection() {
     val settingsStore = LocalAppSettingsStore.current
+    var volumeFirstPress by rememberSaveable { mutableStateOf(settingsStore.getBoolean(PlatformSettingsKeys.KEY_VOLUME_FIRST_PRESS, false)) }
     var volumeKeyStepEnabled by rememberSaveable { mutableStateOf(settingsStore.getBoolean(PlatformSettingsKeys.KEY_VOLUME_KEY_STEP_ENABLED, false)) }
     var volumeKeyStepCount by rememberStoredSetting(PlatformSettingsKeys.KEY_VOLUME_KEY_STEP_COUNT, settingsStore::putInt) { settingsStore.getInt(PlatformSettingsKeys.KEY_VOLUME_KEY_STEP_COUNT, PlatformSettingsKeys.DEFAULT_VOLUME_KEY_STEP_COUNT).coerceIn(VolumeKeyStepPolicy.MIN_STEPS, VolumeKeyStepPolicy.MAX_STEPS) }
     var volumeKeyStepScope by rememberStoredSetting(PlatformSettingsKeys.KEY_VOLUME_KEY_STEP_SCOPE, settingsStore::putInt) { settingsStore.getInt(PlatformSettingsKeys.KEY_VOLUME_KEY_STEP_SCOPE, PlatformSettingsKeys.VOLUME_KEY_SCOPE_MEDIA_ONLY).coerceIn(PlatformSettingsKeys.VOLUME_KEY_SCOPE_MEDIA_ONLY, PlatformSettingsKeys.VOLUME_KEY_SCOPE_ACTIVE_STREAM) }
@@ -121,6 +122,15 @@ private fun VolumeKeyStepSection() {
     }
 
     AppSection(title = stringResource(R.string.volume_key_section)) {
+        SwitchPreference(
+            checked = volumeFirstPress,
+            onCheckedChange = {
+                volumeFirstPress = it
+                settingsStore.putBoolean(PlatformSettingsKeys.KEY_VOLUME_FIRST_PRESS, it)
+            },
+            title = stringResource(R.string.volume_first_press),
+            summary = stringResource(R.string.volume_first_press_summary)
+        )
         SwitchPreference(
             checked = volumeKeyStepEnabled,
             onCheckedChange = {

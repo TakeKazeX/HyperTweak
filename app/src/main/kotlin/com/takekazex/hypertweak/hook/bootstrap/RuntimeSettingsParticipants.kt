@@ -193,6 +193,7 @@ internal object RuntimeSettingsParticipants {
         registerForProcess(RuntimeSettingsGroups.VOLUME) { keys ->
             if (isSystemServer) {
                 VolumeKeyStepsHooker.refreshConfiguration()
+                com.takekazex.hypertweak.hook.rules.system.VolumeFirstPressHooker.refreshSettings()
                 com.takekazex.hypertweak.hook.rules.system.MiSoundVolumeEntryHooker.refreshSettings()
             } else if (processName == "com.android.systemui" &&
                 (keys.isEmpty() || SystemUiSettingsKeys.KEY_VOLUME_APP_VOLUME in keys)) {
