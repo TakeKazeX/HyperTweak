@@ -45,6 +45,13 @@ class PackageHookPlanTest {
         assertTrue(RuntimeSettingsGroups.owns(settings, com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys.KEY_LINK_TURBO_ALL_APPS))
     }
 
+    @Test fun neverScreenTimeoutInstallsInTheSettingsMainProcess() {
+        val settings = "com.android.settings"
+        assertTrue(names(PackageHookPlan.steps(settings, settings)).contains("NeverScreenTimeoutHooker"))
+        assertFalse(names(PackageHookPlan.steps(settings, "$settings:remote")).contains("NeverScreenTimeoutHooker"))
+        assertTrue(RuntimeSettingsGroups.owns(settings, com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys.KEY_ALLOW_NEVER_SCREEN_TIMEOUT))
+    }
+
     @Test fun phraseLimitsInstallInTheProviderAndActivityProcess() {
         val pkg = PhraseSettingsKeys.PACKAGE
         assertEquals(listOf("PhraseLimitHooker"), names(PackageHookPlan.steps(pkg, pkg)))

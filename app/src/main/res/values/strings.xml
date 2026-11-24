@@ -2000,6 +2000,9 @@
     <string name="wifi_saved_network_custom_actions_summary">Replace the delete button on the right with a circular share button and a blue view password button</string>
     <string name="wifi_link_turbo_all_apps_title">Accelerate any app</string>
     <string name="wifi_link_turbo_all_apps_summary">List every launcher app with network access on the network acceleration page, not only the apps allowed by Xiaomi. Each app still has to be switched on there</string>
+    <string name="display_section_title">Display</string>
+    <string name="display_never_screen_timeout_title">Allow \"Never\" screen timeout</string>
+    <string name="display_never_screen_timeout_summary">Keep the \"Never\" option in the screen timeout list on OLED screens. A screen that stays on for long periods can burn in</string>
     <string name="wifi_view_password_btn">View password</string>
     <string name="wifi_view_password_copy">Copy password</string>
     <string name="wifi_view_password_copied">Password copied</string>

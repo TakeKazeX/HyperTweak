@@ -33,4 +33,15 @@ class SettingsDisplayNetworkContractTest {
             DexOperandIndex.descriptor(contract.defaults),
         )
     }
+
+    @Test fun `screen timeout filter resolves the OLED flag and the preference entry accessors`() {
+        val contract = requireNotNull(NeverScreenTimeoutContract.resolve(index()))
+        assertEquals(
+            "Lcom/android/settings/KeyguardTimeoutDropDownPreference;->disableUnusableTimeouts()V",
+            DexOperandIndex.descriptor(contract.filter),
+        )
+        assertEquals("IS_OLED", contract.oled.name)
+        assertEquals(listOf("getEntries", "getEntryValues", "setEntries", "setEntryValues"),
+            listOf(contract.entries, contract.values, contract.setEntries, contract.setValues).map { it.name })
+    }
 }

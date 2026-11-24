@@ -385,6 +385,14 @@ every launcher package. Backup agents keep the native list, and the host still a
 internet and per-app whitelist state. The page re-reads the list on its next open. Run
 `SettingsDisplayNetworkContractTest` with `SETTINGS_APK` set to the verified host APK.
 
+The Display section's default-off "Never" screen timeout switch (OS4, Settings main process)
+uses `NeverScreenTimeoutHooker`. It resolves the timeout preference whose initializer writes the
+`oled` static flag and whose filter reads it next to `getMaximumTimeToLock` and the `0x7ffffffe`
+cap. On the main thread the filter runs with the flag cleared, so device-admin limits stay
+native. Each preference's unfiltered entries are captured on first sight, so enabling restores
+"Never" on a resumed page. A preference already filtered before the hook loaded needs the page
+reopened. Disabling lets the host rewrite a stored "Never" to its longest remaining entry.
+
 The Analytics section has two default-off controls. Package disable is a main-user
 app-side root operation. It enumerates all installed user IDs, records original enabled
 states against Android user serial numbers before writing, and restores only states it

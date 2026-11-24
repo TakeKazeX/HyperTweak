@@ -57,6 +57,8 @@ internal object SettingsAppHookPlan {
                 hook { com.takekazex.hypertweak.hook.rules.settings.WifiDetailsHooker }
                 // Network acceleration lists every launcher app.
                 if (processName == packageName) hook { com.takekazex.hypertweak.hook.rules.settings.LinkTurboAppsHooker }
+                // The screen timeout keeps "Never" on OLED panels.
+                if (processName == packageName) hook { com.takekazex.hypertweak.hook.rules.settings.NeverScreenTimeoutHooker }
             }
         }
     }

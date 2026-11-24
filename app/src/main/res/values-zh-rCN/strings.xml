@@ -1966,6 +1966,9 @@
     <string name="wifi_saved_network_custom_actions_summary">将列表右侧的删除按钮替换为圆形分享按钮及蓝色查看密码按钮</string>
     <string name="wifi_link_turbo_all_apps_title">任意应用网络加速</string>
     <string name="wifi_link_turbo_all_apps_summary">网络加速页面列出所有可联网的桌面应用，不再限于小米允许的应用；仍需在该页面逐个开启</string>
+    <string name="display_section_title">显示</string>
+    <string name="display_never_screen_timeout_title">允许永不息屏</string>
+    <string name="display_never_screen_timeout_summary">在 OLED 屏幕上保留自动锁屏中的“永不”选项。长时间亮屏可能导致烧屏</string>
     <string name="wifi_view_password_btn">查看密码</string>
     <string name="wifi_view_password_copy">复制密码</string>
     <string name="wifi_view_password_copied">密码已复制</string>

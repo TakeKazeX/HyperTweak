@@ -7,6 +7,7 @@ internal object DebugSettingsCatalog {
         DebugSetting("aivs_redirect", "Boolean", false),
         DebugSetting("allow_android_widgets_to_assistant", "Boolean", false),
         DebugSetting("allow_landscape", "Boolean", false),
+        DebugSetting("allow_never_screen_timeout", "Boolean", false),
         DebugSetting("allow_third_party_theme", "Boolean", false),
         DebugSetting("analytics_block_telemetry", "Boolean", false),
         DebugSetting("android_widget_stack", "Boolean", false),

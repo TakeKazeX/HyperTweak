@@ -218,6 +218,8 @@ fun TweaksScreenContent(
 
         com.takekazex.hypertweak.ui.page.wifi.WifiDetailsControls()
 
+        com.takekazex.hypertweak.ui.page.display.DisplayControls()
+
         AppSection(title = stringResource(R.string.purification_title)) {
             ArrowPreference(
                 title = stringResource(R.string.purification_title),
