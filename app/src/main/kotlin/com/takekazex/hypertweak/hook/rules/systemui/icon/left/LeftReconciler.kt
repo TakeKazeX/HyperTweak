@@ -73,8 +73,9 @@ internal class LeftReconciler {
         reloadSnapshot()
         var needsOverlayRefresh = false
         synchronized(states) {
+            val showing = keyguardShowing()
             states.values.forEach { state ->
-                val next = visibility(state)
+                val next = visibility(state, showing)
                 if (state.presentation != next) {
                     DebugLog.i(TAG, "left visibility surface=${if (state.isKeyguard) "keyguard" else "home"} " +
                         "root=${System.identityHashCode(state.barRoot)} reason=$next clones=${state.clones.size}")

@@ -170,8 +170,14 @@ internal class DuoStatusIconsMotion {
                 }?.invoke(view) as? String
             }.getOrNull()
             if (slot != null) synchronized(slotCache) { slotCache[view] = slot }
+            else if (!hasSlotMember(view.javaClass)) synchronized(slotCache) { slotCache[view] = "" }
             return slot
         }
+        /** Containers and other views without any slot member are walked every frame; remember that. */
+        private fun hasSlotMember(type: Class<*>): Boolean =
+            HostAccess.field(type, "mSlot") != null ||
+                HostAccess.publicMethod(type, "getSlot", accessible = false) != null
+
         fun slots(container: View): Map<String, View> {
             val candidates = LinkedHashMap<String, MutableList<View>>()
             fun visit(view: View) {

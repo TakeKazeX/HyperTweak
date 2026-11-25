@@ -45,10 +45,9 @@ the caller updates local mirrors or reports success/failure. These waits belong 
 Changes to retirement, host registrations, threads, executors or coroutines need a hot-reload
 leak check on the device: `python3 .github/scripts/hot_reload_check.py --root-adbd rounds <apk>`
 (3 rounds by default). Expect no reload errors, crashes or host pid changes, and system_server,
-powerkeeper and xmsf back to their starting loader/DEX counts after the final settle. SystemUI
-grows while HyperLyricsEnhanced is installed (it retains every loader); confirm ours with
-`hot_reload_check.py heap com.android.systemui` only after telling the user not to touch the
-phone, since the dump pauses SystemUI and a touch restarts it.
+powerkeeper, xmsf and SystemUI back to their starting loader/DEX counts after the final settle.
+If one keeps growing, find the holder with `hot_reload_check.py heap <process>`; for SystemUI tell
+the user not to touch the phone first, since the dump pauses SystemUI and a touch restarts it.
 
 ## Debug settings and diagnostics
 

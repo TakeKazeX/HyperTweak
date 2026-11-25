@@ -121,12 +121,31 @@ object IconSlotPolicy {
     )
 
     fun controlCenterRow(slot: String, overrides: Set<String> = emptySet()): Int {
-        // Per-frame handover path: the common no-override case allocates no keys.
-        if (overrides.isEmpty()) return if (slot in CONTROL_CENTER_UPPER_ROW_SLOTS) 1 else 2
-        val first = "1:$slot" in overrides
-        val second = "2:$slot" in overrides
-        return if (first != second) { if (first) 1 else 2 }
-            else if (slot in CONTROL_CENTER_UPPER_ROW_SLOTS) 1 else 2
+        // Per-frame handover path: look the slot up in a table parsed once per override set.
+        if (overrides.isNotEmpty()) rowTable(overrides)[slot]?.let { return it }
+        return if (slot in CONTROL_CENTER_UPPER_ROW_SLOTS) 1 else 2
+    }
+
+    private class RowTable(val source: Set<String>, val rows: Map<String, Int>)
+    @Volatile private var lastRowTable: RowTable? = null
+
+    /** A slot listed for exactly one row moves there; both or neither keep the default. */
+    private fun rowTable(overrides: Set<String>): Map<String, Int> {
+        lastRowTable?.takeIf { it.source === overrides }?.let { return it.rows }
+        val first = HashSet<String>()
+        val second = HashSet<String>()
+        overrides.forEach {
+            when {
+                it.startsWith("1:") -> first += it.substring(2)
+                it.startsWith("2:") -> second += it.substring(2)
+            }
+        }
+        val rows = HashMap<String, Int>()
+        (first + second).forEach { slot ->
+            val one = slot in first
+            if (one != slot in second) rows[slot] = if (one) 1 else 2
+        }
+        return rows.also { lastRowTable = RowTable(overrides, it) }
     }
 
     fun withControlCenterRow(overrides: Set<String>, slot: String, row: Int): Set<String> {

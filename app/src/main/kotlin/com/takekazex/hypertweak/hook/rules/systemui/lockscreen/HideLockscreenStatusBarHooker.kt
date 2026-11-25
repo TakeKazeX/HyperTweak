@@ -65,14 +65,31 @@ object HideLockscreenStatusBarHooker : StaticHooker() {
     /** Keep HOME hidden until both available host models have left the lock screen. */
     internal fun keyguardShowing(): Boolean? = KeyguardSurfacePolicy.showing(
         barState(),
-        stateController?.let { runCatching { HostAccess.read(it, "mShowing") as? Boolean }.getOrNull() },
-        stateController?.let { runCatching { HostAccess.read(it, "mOccluded") as? Boolean }.getOrNull() }
+        stateController?.let { runCatching { showingField.read(it) as? Boolean }.getOrNull() },
+        stateController?.let { runCatching { occludedField.read(it) as? Boolean }.getOrNull() }
     )
 
     /** Host `StatusBarState`: 0 SHADE, 1 KEYGUARD, 2 SHADE_LOCKED. */
     private fun barState(): Int? = barStateController?.let { controller ->
-        runCatching { HostAccess.read(controller, "mState") as? Int }.getOrNull()
+        runCatching { barStateField.read(controller) as? Int }.getOrNull()
     }
+
+    /**
+     * Left icons ask for the keyguard state several times per control-center frame. Keep the
+     * resolved handle for the controller's class instead of a by-name lookup on every read.
+     */
+    private class ClassFieldRead(private val name: String) {
+        private class Resolved(val type: Class<*>, val field: java.lang.reflect.Field?)
+        @Volatile private var resolved: Resolved? = null
+        fun read(owner: Any): Any? {
+            val current = resolved?.takeIf { it.type === owner.javaClass }
+                ?: Resolved(owner.javaClass, HostAccess.field(owner.javaClass, name)).also { resolved = it }
+            return current.field?.get(owner)
+        }
+    }
+    private val showingField = ClassFieldRead("mShowing")
+    private val occludedField = ClassFieldRead("mOccluded")
+    private val barStateField = ClassFieldRead("mState")
     internal fun statusBarSuppressed(): Boolean = enabled
 
     internal fun recoverStateController(component: Any?) {

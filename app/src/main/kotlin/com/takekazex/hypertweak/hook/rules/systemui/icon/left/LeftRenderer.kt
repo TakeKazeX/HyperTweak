@@ -23,7 +23,6 @@ import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.ref.WeakReference
 import java.lang.reflect.Field
 import java.lang.reflect.Method
-import java.util.WeakHashMap
 import com.takekazex.hypertweak.util.platform.ResourceLookup
 
 /**
@@ -87,8 +86,10 @@ internal object LeftRenderer : IconRenderer() {
         override val panelVisible get() = LeftRenderer.panelVisible
         override val panelProgress get() = LeftRenderer.panelProgress
         override fun sourceClones() = synchronized(states) {
+            // Per handover frame: one keyguard read serves every state's visibility decision.
+            val showing = keyguardShowing()
             states.values.firstOrNull { !it.isKeyguard && LeftVisibilityPolicy.handoverSource(
-                visibility(it), panelVisible || panelProgress > 0f, sourceHostDrawn(it), keyguardShowing(), it.islandShowing)
+                visibility(it, showing), panelVisible || panelProgress > 0f, sourceHostDrawn(it), showing, it.islandShowing)
             }?.clones
         }
         override fun restoreSources() = synchronized(states) {
@@ -234,7 +235,7 @@ internal object LeftRenderer : IconRenderer() {
     private var appContext: Context? by generationState { null }
 
     /** Home DarkIconManager -> bookkeeping. Weak so stale managers vanish. */
-    internal val states: WeakHashMap<Any, LeftState> = generationMainResource(WeakHashMap<Any, LeftState>()) { states ->
+    internal val states: LeftStateMap = generationMainResource(LeftStateMap()) { states ->
         states.values.filter { it.isKeyguard }.forEach(carrierSwap::releaseAirplane)
         states.clear()
     }
@@ -286,13 +287,13 @@ internal object LeftRenderer : IconRenderer() {
         appContext?.getSystemService(KeyguardManager::class.java)?.isKeyguardLocked == true
     }.getOrDefault(false)
 
-    internal fun visibility(state: LeftState): LeftVisibilityPolicy.Result = LeftVisibilityPolicy.resolve(
+    internal fun visibility(state: LeftState, showing: Boolean = keyguardShowing()): LeftVisibilityPolicy.Result = LeftVisibilityPolicy.resolve(
         configured = active && if (state.isKeyguard) leftMode == IconTunerContract.LEFT_MODE_HOME_AND_LOCKSCREEN
             else leftMode >= IconTunerContract.LEFT_MODE_HOME,
         attached = state.leftHost.isAttachedToWindow,
         hostShown = state.leftHost.isShown,
         keyguard = state.isKeyguard,
-        keyguardShowing = keyguardShowing(),
+        keyguardShowing = showing,
         hideLockscreen = IconHostPorts.keyguard.suppressed(),
         island = state.islandShowing
     )

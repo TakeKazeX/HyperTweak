@@ -21,8 +21,8 @@ PROCESSES = ["com.android.systemui", "system_server", "com.miui.powerkeeper", "c
              "com.miui.securitycenter"]
 READY = "hot reload replacement ready process="
 ERRORS = re.compile(r"Failed to call onHotReload|missing settings participants| E HyperTweak")
-# Static fields of other modules that hold every loader they ever saw (HyperLyrics in SystemUI).
-FOREIGN_EDGES = {"static knownClassLoaders"}
+# Heap edge labels of other modules known to retain our loaders; skipped in the path report.
+FOREIGN_EDGES: set = set()
 
 
 def adb(args, serial, check=True, timeout=600):

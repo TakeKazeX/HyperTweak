@@ -172,7 +172,7 @@ internal class LeftHostSubscriptions(owner: BaseHooker) : IconRenderComponent(ow
         // A host root can hide/reveal without attachment or an icon payload change.
         ViewVisibilityRouter.visibility(owner, ViewGroup::class.java, after = { root ->
             if (retiring) return@visibility
-            val states = synchronized(states) { states.values.toList() }
+            val states = synchronized(states) { states.snapshot() }
             if (!reconciling && states.any { it.barRoot === root }) {
                 requestReconcile()
             } else if (states.any { it.isKeyguard && isBetween(root, it.leftHost, it.barRoot) }) {
@@ -183,11 +183,11 @@ internal class LeftHostSubscriptions(owner: BaseHooker) : IconRenderComponent(ow
         })
         // The host swaps carrier, clock and alarm in the lockscreen frame by visibility alone.
         ViewVisibilityRouter.visibility(owner, ViewGroup::class.java, after = { view ->
-            if (!retiring) synchronized(states) { states.values.firstOrNull { it.keyguardCarrier === view } }
+            if (!retiring) synchronized(states) { states.snapshot() }.firstOrNull { it.keyguardCarrier === view }
                 ?.let(carrierSwap::update)
         })
         ViewVisibilityRouter.alpha(owner, ViewGroup::class.java, after = { view ->
-            if (!retiring && !reconciling && synchronized(states) { states.values.any { it.barRoot === view || it.leftHost === view } }) {
+            if (!retiring && !reconciling && synchronized(states) { states.snapshot() }.any { it.barRoot === view || it.leftHost === view }) {
                 runOnMain { handover.applyHandoverGuarded(panelProgress) }
             }
         })

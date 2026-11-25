@@ -724,7 +724,7 @@ internal object SlotMaskApplier : IconRenderer() {
                 container, surfaceFor(container, state.hostIgnored), state.hostIgnored
             )
             if (maskOwners.owned(container, owner) == slots &&
-                ignored == (base + maskSlotsFor(container)).distinct()) {
+                equalsDistinctConcat(ignored, base, maskSlotsFor(container))) {
                 // Owners re-assert unchanged masks from per-frame pre-draw. Native children are
                 // already held by the setVisibleState/visibility hooks, onViewAdded and onLayout;
                 // re-walk them only when the surface or the child set moved since the last walk.
@@ -737,7 +737,7 @@ internal object SlotMaskApplier : IconRenderer() {
             (container as? View)?.requestLayout()
             val result = ignoredSlotsField?.get(container) as? List<*>
                 ?: return rejectMask(owner, "ignoredSlots unavailable")
-            result == (base + maskSlotsFor(container)).distinct() || rejectMask(owner, "host list did not take the mask")
+            equalsDistinctConcat(result, base, maskSlotsFor(container)) || rejectMask(owner, "host list did not take the mask")
         }.getOrElse {
             DebugLog.w(TAG, "container slot mask failed", it)
             false
@@ -1119,4 +1119,26 @@ internal object SlotMaskApplier : IconRenderer() {
         }
         return result.toList()
     }
+}
+
+/**
+ * `actual == (first + second).distinct()` without allocating; the per-frame fast path compares
+ * the host's ignored list on every owner re-assertion. Lists hold a few dozen slots at most.
+ */
+internal fun equalsDistinctConcat(actual: List<*>, first: List<String>, second: List<String>): Boolean {
+    val total = first.size + second.size
+    var matched = 0
+    for (index in 0 until total) {
+        val value = if (index < first.size) first[index] else second[index - first.size]
+        var repeated = false
+        for (earlier in 0 until index) {
+            if ((if (earlier < first.size) first[earlier] else second[earlier - first.size]) == value) {
+                repeated = true; break
+            }
+        }
+        if (repeated) continue
+        if (matched >= actual.size || actual[matched] != value) return false
+        matched++
+    }
+    return matched == actual.size
 }
