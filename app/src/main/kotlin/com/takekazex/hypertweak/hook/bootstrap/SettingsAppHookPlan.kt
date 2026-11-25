@@ -22,43 +22,48 @@ internal object SettingsAppHookPlan {
     fun steps(packageName: String, processName: String): List<HookStep> = buildList {
         when (packageName) {
             "com.android.settings" -> {
+                // `:remote` hosts only services, receivers and WifiProvider (no activities), so
+                // page/fragment-only hooks install in the main process. Hooks on static helpers,
+                // preference controllers or credential/system classes stay in both processes,
+                // because RemoteSearchService and CredentialsUpdateService may reach them there.
+                val main = processName == packageName
                 // Flip Settings' process-local MIUI build flags before its own classes initialize.
-                hook { com.takekazex.hypertweak.hook.rules.settings.ExperimentalSettingsRefreshHooker }
+                if (main) hook { com.takekazex.hypertweak.hook.rules.settings.ExperimentalSettingsRefreshHooker }
                 hook { GlobalSettingsInterfaceHooker }
                 hook { RestartBroadcastHooker }
-                hook { SettingsHooker }
+                if (main) hook { SettingsHooker }
                 hook { AODHooker }
                 hook { PasskeyHooker }
                 // The Bluetooth extension is loaded by Settings, so its UI hook must be
                 // attached in this process as well as the Bluetooth service process.
-                hook { BluetoothPluginHooker }
+                if (main) hook { BluetoothPluginHooker }
                 hook { SpatialAudioHooker() }
                 hook { VisualPerceptionSettingsHooker }
                 // Experimental: link the orphaned 左右挥手 / 隔空暂停或播放 pages into the AON
                 // 隔空手势 landing list (stock ROM never references those fragments).
-                hook { AonGestureSettingsHooker }
+                if (main) hook { AonGestureSettingsHooker }
                 // 自适应刷新率Pro (Mimotion PWM): force ro.display.enable_pwm_switch so the
                 // 显示与亮度 mimotion_pwm_enable row is not removed by MiuiDisplaySettings on
                 // builds where the vendor prop is unset (see AdaptiveRefreshRuntimeHooker).
                 hook { AdaptiveRefreshSettingsHooker }
                 // Reveal the per-channel 锁屏通知（allow_keyguard）switch in the notification channel
                 // page; only effective when the SystemUI-side lockscreen-all-notifications hook is on.
-                hook { ChannelKeyguardToggleHooker }
+                if (main) hook { ChannelKeyguardToggleHooker }
                 // Reveal + wire up the channel page's importance drop-down and badge checkbox
                 // (HyperOS ships both as shells with no write-back listener).
-                hook { NotificationMoreSettingsHooker }
-                hook { NotificationBadgeSettingsHooker }
+                if (main) hook { NotificationMoreSettingsHooker }
+                if (main) hook { NotificationBadgeSettingsHooker }
                 // Restore Settings' own Google services home-page header on domestic builds.
-                hook { GoogleServicesSettingsHooker }
-                if (processName == packageName) hook { com.takekazex.hypertweak.hook.rules.settings.OtaNotificationRelayHooker }
+                if (main) hook { GoogleServicesSettingsHooker }
+                if (main) hook { com.takekazex.hypertweak.hook.rules.settings.OtaNotificationRelayHooker }
                 // Reveal the 小米澎湃AI page's 端侧大模型 / Gemini rows through the shared dispatcher.
                 hook { HyperOsAiEntriesHooker }
                 // Wi-Fi details, saved-network entry, and quick actions.
-                hook { com.takekazex.hypertweak.hook.rules.settings.WifiDetailsHooker }
+                if (main) hook { com.takekazex.hypertweak.hook.rules.settings.WifiDetailsHooker }
                 // Network acceleration lists every launcher app.
-                if (processName == packageName) hook { com.takekazex.hypertweak.hook.rules.settings.LinkTurboAppsHooker }
+                if (main) hook { com.takekazex.hypertweak.hook.rules.settings.LinkTurboAppsHooker }
                 // The screen timeout keeps "Never" on OLED panels.
-                if (processName == packageName) hook { com.takekazex.hypertweak.hook.rules.settings.NeverScreenTimeoutHooker }
+                if (main) hook { com.takekazex.hypertweak.hook.rules.settings.NeverScreenTimeoutHooker }
             }
         }
     }

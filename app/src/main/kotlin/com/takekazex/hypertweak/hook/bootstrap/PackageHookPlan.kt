@@ -4,6 +4,7 @@ import com.takekazex.hypertweak.hook.base.BaseHooker
 import com.takekazex.hypertweak.hook.base.ModuleContext
 import com.takekazex.hypertweak.hook.rules.ime.AospImeConfig
 import com.takekazex.hypertweak.hook.rules.ime.AospImeHooker
+import com.takekazex.hypertweak.hook.rules.ime.ImeServiceProcess
 
 /** Shared lifecycle stays in HookEntry; each host owns its own installation plan. */
 internal object PackageHookPlan {
@@ -30,8 +31,9 @@ internal object PackageHookPlan {
     }
 
     fun attach(context: ModuleContext, installIcons: () -> Unit, attach: (BaseHooker) -> Unit) {
-        for (step in steps(context.packageName, context.processName,
-                          AospImeConfig.shouldHookImePackage(context.packageName))) {
+        val selectedIme = AospImeConfig.shouldHookImePackage(context.packageName) &&
+            ImeServiceProcess.hosts(context.packageName, context.processName)
+        for (step in steps(context.packageName, context.processName, selectedIme)) {
             when (step) {
                 is HookStep.Install<*> -> attach(step.create())
                 HookStep.Icons -> installIcons()

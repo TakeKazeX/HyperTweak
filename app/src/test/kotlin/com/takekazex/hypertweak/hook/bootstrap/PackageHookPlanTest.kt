@@ -65,6 +65,21 @@ class PackageHookPlanTest {
         assertTrue(RuntimeSettingsGroups.owns(settings, com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys.KEY_LINK_TURBO_ALL_APPS))
     }
 
+    @Test fun settingsPageHooksStayOutOfSideProcesses() {
+        val settings = "com.android.settings"
+        val pageOnly = listOf(
+            "ExperimentalSettingsRefreshHooker", "SettingsHooker", "BluetoothPluginHooker", "AonGestureSettingsHooker",
+            "ChannelKeyguardToggleHooker", "NotificationMoreSettingsHooker", "NotificationBadgeSettingsHooker",
+            "GoogleServicesSettingsHooker", "WifiDetailsHooker"
+        )
+        val main = names(PackageHookPlan.steps(settings, settings))
+        val remote = names(PackageHookPlan.steps(settings, "$settings:remote"))
+        assertTrue(main.containsAll(pageOnly))
+        assertTrue(remote.intersect(pageOnly.toSet()).isEmpty())
+        // Static helpers, controllers and credential classes are reachable from :remote services.
+        assertTrue(remote.containsAll(listOf("AODHooker", "PasskeyHooker", "SpatialAudioHooker", "VisualPerceptionSettingsHooker")))
+    }
+
     @Test fun neverScreenTimeoutInstallsInTheSettingsMainProcess() {
         val settings = "com.android.settings"
         assertTrue(names(PackageHookPlan.steps(settings, settings)).contains("NeverScreenTimeoutHooker"))

@@ -851,7 +851,7 @@ class HookEntry : XposedModule() {
         val ime = ProcessLifecycleHooks.imeHooker
         if (ime !in rootHookers) {
             val state = packageStates.values.firstOrNull {
-                ProcessLifecycleHooks.isImePackage(it.packageName)
+                ProcessLifecycleHooks.isImePackage(it.packageName, processName)
             } ?: return true
             attachHooker(ime, state.classLoader, ModuleContext(
                 processName, state.packageName, false, state.isFirstPackage,

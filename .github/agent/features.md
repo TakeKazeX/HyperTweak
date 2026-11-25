@@ -808,6 +808,10 @@ the default Bionic glass token on a plain View with the same insets as the nativ
 [native.md](native.md#native-dock-glass).
 IME raising obtains
 the current layout from `InputMethodService.mRootView`, without private resource integers.
+`AospImeHooker` installs only in the processes that the selected keyboard's
+`android.view.InputMethod` services declare (`ImeServiceProcess`, e.g. WeType `:hld`). The
+plan and late keyboard selection both check this. An unknown answer (no PackageManager, failed
+query, no declared service) installs everywhere, as before.
 
 Screenshot clipboard copying has its own `ScreenshotClipboardHooker`, independent of frame resolution.
 Its structural resolver follows the native clipboard gate/publisher back to the save writer. Only

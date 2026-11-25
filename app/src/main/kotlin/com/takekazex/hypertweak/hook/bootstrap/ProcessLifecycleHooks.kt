@@ -8,6 +8,7 @@ import com.takekazex.hypertweak.hook.rules.googleapp.GoogleAppProcessPolicy
 import com.takekazex.hypertweak.hook.rules.googleapp.GoogleAppRuntime
 import com.takekazex.hypertweak.hook.rules.ime.AospImeConfig
 import com.takekazex.hypertweak.hook.rules.ime.AospImeHooker
+import com.takekazex.hypertweak.hook.rules.ime.ImeServiceProcess
 import com.takekazex.hypertweak.hook.rules.module.RestartBroadcastHooker
 import com.takekazex.hypertweak.hook.rules.securitycenter.battery.BatteryInfoHooker
 import com.takekazex.hypertweak.hook.rules.system.BatteryAutoPowerSaveHooker
@@ -138,7 +139,8 @@ internal object ProcessLifecycleHooks {
     // IME processes selected after startup
     val imeHooker: BaseHooker get() = AospImeHooker
 
-    fun isImePackage(packageName: String): Boolean = AospImeConfig.shouldHookImePackage(packageName)
+    fun isImePackage(packageName: String, processName: String): Boolean =
+        AospImeConfig.shouldHookImePackage(packageName) && ImeServiceProcess.hosts(packageName, processName)
 
     fun refreshImeSettings(): Boolean = AospImeHooker.refreshSettings()
 }

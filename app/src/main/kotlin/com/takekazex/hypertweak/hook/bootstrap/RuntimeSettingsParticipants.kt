@@ -65,6 +65,9 @@ internal object RuntimeSettingsParticipants {
     fun install(dispatcher: SettingsReloadDispatcher, processName: String, isSystemServer: Boolean, actions: Actions) {
         val registry = SettingsParticipantRegistry(RuntimeSettingsGroups.forProcess(processName, isSystemServer))
         fun registerForProcess(id: String, apply: (Set<String>) -> Boolean) = registry.register(id, apply)
+        // SettingsAppHookPlan installs page-only hookers in Settings' main process; its side
+        // processes have no such pages, so those participants have nothing to apply there.
+        val settingsSideProcess = processName.startsWith("com.android.settings:")
         registerForProcess(RuntimeSettingsGroups.POWER_BUTTON) { _ ->
             if (isSystemServer) com.takekazex.hypertweak.hook.rules.system.DefaultAssistantHooker.applyAlignment()
             true
@@ -83,7 +86,8 @@ internal object RuntimeSettingsParticipants {
             } else {
                 val display = !changed(platform.KEY_UNLOCK_ADAPTIVE_REFRESH_PRO) ||
                     com.takekazex.hypertweak.hook.rules.settings.AdaptiveRefreshSettingsHooker.refreshSettings()
-                val pages = com.takekazex.hypertweak.hook.rules.settings.ExperimentalSettingsRefreshHooker.refreshSettings()
+                val pages = settingsSideProcess ||
+                    com.takekazex.hypertweak.hook.rules.settings.ExperimentalSettingsRefreshHooker.refreshSettings()
                 display && pages
             }
         }
@@ -106,7 +110,7 @@ internal object RuntimeSettingsParticipants {
             com.takekazex.hypertweak.hook.rules.systemui.ImmediateMonetRefreshHooker.refreshSettings()
         }
         registerForProcess(RuntimeSettingsGroups.MODULE_ENTRY) { _ ->
-            com.takekazex.hypertweak.hook.rules.module.SettingsHooker.refreshSettings()
+            settingsSideProcess || com.takekazex.hypertweak.hook.rules.module.SettingsHooker.refreshSettings()
         }
         registerForProcess(RuntimeSettingsGroups.POLICY_FEATURES) { _ ->
             var applied = true
@@ -141,7 +145,7 @@ internal object RuntimeSettingsParticipants {
             com.takekazex.hypertweak.hook.rules.googleapp.GoogleAppRuntime.refreshSettings()
         }
         registerForProcess(RuntimeSettingsGroups.GOOGLE_SETTINGS) { _ ->
-            com.takekazex.hypertweak.hook.rules.settings.GoogleServicesSettingsHooker.refreshSettings()
+            settingsSideProcess || com.takekazex.hypertweak.hook.rules.settings.GoogleServicesSettingsHooker.refreshSettings()
         }
         registerForProcess(RuntimeSettingsGroups.GMS_RESTRICTIONS) { _ ->
             com.takekazex.hypertweak.hook.rules.system.SystemConfigHooker.refreshSettings()

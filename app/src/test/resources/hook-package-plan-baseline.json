@@ -216,23 +216,14 @@
     "process": "com.android.settings:aux",
     "package": "com.android.settings",
     "targets": [
-      "ExperimentalSettingsRefreshHooker",
       "GlobalSettingsInterfaceHooker",
       "RestartBroadcastHooker",
-      "SettingsHooker",
       "AODHooker",
       "PasskeyHooker",
-      "BluetoothPluginHooker",
       "SpatialAudioHooker",
       "VisualPerceptionSettingsHooker",
-      "AonGestureSettingsHooker",
       "AdaptiveRefreshSettingsHooker",
-      "ChannelKeyguardToggleHooker",
-      "NotificationMoreSettingsHooker",
-      "NotificationBadgeSettingsHooker",
-      "GoogleServicesSettingsHooker",
-      "HyperOsAiEntriesHooker",
-      "WifiDetailsHooker"
+      "HyperOsAiEntriesHooker"
     ]
   },
   {
