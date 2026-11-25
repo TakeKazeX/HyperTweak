@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.preferences
 
+import com.takekazex.hypertweak.util.logging.DebugLog
 import com.takekazex.hypertweak.hook.nativebridge.NativeRuleStateSnapshot
 import com.takekazex.hypertweak.hook.runtime.settings.BackGestureSettingsSnapshot
 import android.content.SharedPreferences
@@ -44,9 +45,9 @@ internal class SettingsBackupManager(private val storage: Storage) {
                     putLong(PlatformSettingsKeys.KEY_NATIVE_RULE_REVISION, nativeRevision)
                 }
                 if (!committed) return false
-                runCatching { storage.localSourcePrefs?.edit(commit = true) { clear().putLong("prefs_epoch", epoch).putLong(PlatformSettingsKeys.KEY_NATIVE_RULE_REVISION, nativeRevision) } }
+                runCatching { storage.localSourcePrefs?.edit(commit = true) { clear().putLong("prefs_epoch", epoch).putLong(PlatformSettingsKeys.KEY_NATIVE_RULE_REVISION, nativeRevision) } }.onFailure { DebugLog.w("SettingsBackup", "clear local source failed", it) }
                 val cache = storage.cache()
-                runCatching { cache?.edit(commit = true) { clear().putLong("prefs_epoch", epoch) } }
+                runCatching { cache?.edit(commit = true) { clear().putLong("prefs_epoch", epoch) } }.onFailure { DebugLog.w("SettingsBackup", "clear cache failed", it) }
                 return true
             }
         }
@@ -121,7 +122,7 @@ internal class SettingsBackupManager(private val storage: Storage) {
                     putLong("prefs_epoch", epoch)
                     putLong(PlatformSettingsKeys.KEY_NATIVE_RULE_REVISION, nativeRevision)
                 }
-            }
+            }.onFailure { DebugLog.w("SettingsBackup", "restore local source failed", it) }
             val cache = storage.cache()
             runCatching {
                 cache?.edit(commit = true) {
@@ -129,7 +130,7 @@ internal class SettingsBackupManager(private val storage: Storage) {
                     restored.forEach { (key, value) -> putPreferenceValue(key, value) }
                     putLong("prefs_epoch", epoch)
                 }
-            }
+            }.onFailure { DebugLog.w("SettingsBackup", "restore cache failed", it) }
             storage.invalidate()
             return restored.size
         }

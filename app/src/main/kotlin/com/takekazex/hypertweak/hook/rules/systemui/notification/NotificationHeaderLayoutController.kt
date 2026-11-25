@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.notification
 
+import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.NotificationHeaderGeometryModel
 import com.takekazex.hypertweak.settings.contract.NotificationHeaderModel
@@ -748,13 +749,13 @@ internal class NotificationHeaderLayoutController(
     private fun setClockMode(view: View, mode: Int) {
         val current = (read(view, "mClockMode") as? Number)?.toInt()
         if (current == mode) return
-        runCatching {
+        HookFailurePolicy.open("NotificationHeader", "set clock mode", Unit) {
             method(view.javaClass, "setClockMode", 1)?.invoke(view, mode)
         }
     }
 
     private fun updateClockVisibility(view: View) {
-        runCatching {
+        HookFailurePolicy.open("NotificationHeader", "update clock visibility", Unit) {
             method(view.javaClass, "updateClockVisibility", 0)?.invoke(view)
         }
     }

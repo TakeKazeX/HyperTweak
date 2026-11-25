@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.system
 
+import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.cachedDeclaredField
 import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
@@ -66,16 +67,16 @@ object SpatialAudioBlockerHooker : StaticHooker() {
         storage?.declaredMethods
             ?.filter { it.parameterTypes.any { parameter -> parameter == android.bluetooth.BluetoothDevice::class.java } }
             ?.forEach { method -> method.hook {
-                before { param -> runCatching {
-                    if (!isAirPodsTransport(param.thisObject, param.args)) return@runCatching
+                before { param ->
+                    if (!isAirPodsTransport(param.thisObject, param.args)) return@before
                     findKeyValueIndexes(param.args)?.let { (keyIndex, valueIndex) ->
                         normalizeValue(param.args, keyIndex, valueIndex)
                     }
-                } }
-                after { param -> runCatching {
-                    if (!isAirPodsTransport(param.thisObject, param.args)) return@runCatching
+                }
+                after { param ->
+                    if (!isAirPodsTransport(param.thisObject, param.args)) return@after
                     param.result = normalizeResult(param.result, keyFrom(param.args), *param.args)
-                } }
+                }
             } }
 
         // Repository provider path carries the same key/value in a Bundle. On OS4.0.0.24 the
@@ -90,54 +91,54 @@ object SpatialAudioBlockerHooker : StaticHooker() {
             ),
         ) { it.declaredMethods.any { m -> m.parameterTypes.any { p -> p == Bundle::class.java } } })
             ?.declaredMethods?.filter { it.parameterTypes.any { p -> p == Bundle::class.java } }
-            ?.forEach { method -> method.hook { before { param -> runCatching {
-                val bundle = param.args.lastOrNull { it is Bundle } as? Bundle ?: return@runCatching
+            ?.forEach { method -> method.hook { before { param ->
+                val bundle = param.args.lastOrNull { it is Bundle } as? Bundle ?: return@before
                 normalizeBundle(bundle, *param.args)
-            } }
-            after { param -> runCatching {
-                val bundle = param.result as? Bundle ?: return@runCatching
+            }
+            after { param ->
+                val bundle = param.result as? Bundle ?: return@after
                 normalizeBundle(bundle, *param.args)
-            } } } }
+            } } }
     }
 
     private fun hookMiLink() {
         findClass("com.miui.headset.runtime.AncBatteryController")?.let { type ->
             type.declaredMethods.filter { it.name == "setHeadTracking" }.forEach { method -> method.hook {
-                before { param -> runCatching {
+                before { param ->
                     if (disableSpatialEnabled() && isAirPodsCall(param.thisObject, param.args)) {
                         param.result = 201
                     }
-                } }
+                }
             } }
             type.declaredMethods.filter { it.name == "setMiAudioEffect" }.forEach { method -> method.hook {
-                before { param -> runCatching {
+                before { param ->
                     if (disableSpatialEnabled() && isAirPodsCall(param.thisObject, param.args) && param.args.size > 1) {
                         param.args[1] = 0
                     }
-                } }
+                }
             } }
             type.declaredMethods.filter { it.name == "getMiAudioEffect" }.forEach { method -> method.hook {
-                after { param -> runCatching {
+                after { param ->
                     if (disableSpatialEnabled() && isAirPodsCall(param.thisObject, param.args)) {
                         param.result = 0
                     }
-                } }
+                }
             } }
         }
         findClass("com.xiaomi.mxbluetoothsdk.manager.MxBluetoothManager")?.let { type ->
             type.declaredMethods.filter { it.name == "setSpatialMode" }.forEach { method -> method.hook {
-                before { param -> runCatching {
+                before { param ->
                     if (disableSpatialEnabled() && isAirPodsCall(param.thisObject, param.args) && param.args.size > 1) {
                         param.args[1] = 0
                     }
-                } }
+                }
             } }
             type.declaredMethods.filter { it.name == "getSpatialMode" }.forEach { method -> method.hook {
-                after { param -> runCatching {
+                after { param ->
                     if (disableSpatialEnabled() && isAirPodsCall(param.thisObject, param.args)) {
                         param.result = disabledValue(method.returnType)
                     }
-                } }
+                }
             } }
         }
         // Both MiLink spatial cards call this service method. Complete the request
@@ -145,11 +146,11 @@ object SpatialAudioBlockerHooker : StaticHooker() {
         findClass("com.miui.circulate.api.protocol.headset.HeadsetServiceController")?.let { type ->
             type.declaredMethods.filter { it.name == "setAudioEffect" && it.parameterTypes.size == 2 }
                 .forEach { method -> method.hook {
-                    before { param -> runCatching {
+                    before { param ->
                         if (disableSpatialEnabled() && isAirPodsCall(param.thisObject, param.args)) {
                             param.result = CompletableFuture.completedFuture(100)
                         }
-                    } }
+                    }
                 } }
         }
         findClass("com.miui.headset.runtime.ProfileImpl")?.let { type ->
@@ -157,38 +158,41 @@ object SpatialAudioBlockerHooker : StaticHooker() {
                 it.name == "updateHeadsetAudioEffect" && it.parameterTypes.size == 4 &&
                     it.parameterTypes.last() == Int::class.javaPrimitiveType
             }.forEach { method -> method.hook {
-                before { param -> runCatching {
+                before { param ->
                     if (disableSpatialEnabled() && isAirPodsCall(param.thisObject, param.args)) {
                         param.args[param.args.lastIndex] = 0
                     }
-                } }
+                }
             } }
         }
         // The UI is a custom View section, not a PreferenceScreen.
         findRuntimeClass("w0", "C6439w0", "updateMiAudioEffectStatus: ")?.declaredConstructors?.forEach { ctor ->
-            ctor.hook { after { param -> runCatching {
+            ctor.hook { after { param ->
                 hideSpatialCard(param.thisObject)
-            } } }
+            } }
         }
         findRuntimeClass("w0", "C6439w0", "updateMiAudioEffectStatus: ")?.let { type ->
             type.declaredMethods.filter { (it.name == "n" && it.parameterTypes.contentEquals(arrayOf(Boolean::class.javaPrimitiveType))) ||
                 (it.name == "o" && it.parameterTypes.contentEquals(arrayOf(Int::class.javaPrimitiveType))) }.forEach { method ->
-                method.hook { after { param -> runCatching { hideSpatialCard(param.thisObject) } } }
+                method.hook { after { param -> hideSpatialCard(param.thisObject)
+                } }
             }
         }
         // C6440x is the separate one-toggle card labelled "开启空间音频".
         findRuntimeClass("x", "C6440x", "updateAudioEffect: ")?.declaredConstructors?.forEach { ctor ->
-            ctor.hook { after { param -> runCatching { hideAudioEffectCard(param.thisObject) } } }
+            ctor.hook { after { param -> hideAudioEffectCard(param.thisObject)
+            } }
         }
         findRuntimeClass("x", "C6440x", "updateAudioEffect: ")?.let { type ->
             type.declaredMethods.filter { (it.name == "m" && it.parameterTypes.contentEquals(arrayOf(Boolean::class.javaPrimitiveType))) ||
                 (it.name == "o" && it.parameterTypes.contentEquals(arrayOf(Int::class.javaPrimitiveType))) }.forEach { method ->
-                method.hook { after { param -> runCatching { hideAudioEffectCard(param.thisObject) } } }
+                method.hook { after { param -> hideAudioEffectCard(param.thisObject)
+                } }
             }
         }
         findRuntimeClass("j", "C6412j", "updateMode: ")?.let { type ->
-            type.declaredConstructors.forEach { ctor -> ctor.hook { after { param -> runCatching {
-                if (!forceAdaptiveEnabled() || !isAirPodsCall(param.thisObject, emptyArray())) return@runCatching
+            type.declaredConstructors.forEach { ctor -> ctor.hook { after { param ->
+                if (!forceAdaptiveEnabled() || !isAirPodsCall(param.thisObject, emptyArray())) return@after
                 val off = (field(param.thisObject, "h") ?: field(param.thisObject, "f21223h")) as? View
                 val titleId = off?.let { ancTitleId(it, param.thisObject.javaClass.classLoader) } ?: 0
                 val title: TextView? = if (titleId != 0) off?.findViewById(titleId) else null
@@ -198,52 +202,52 @@ object SpatialAudioBlockerHooker : StaticHooker() {
                         ?.takeIf { it != current }
                         ?.let { title.text = it }
                 }
-            } } } }
+            } } }
             type.declaredMethods.filter { (it.name == "z" || it.name == "m25135z") && it.parameterTypes.size == 1 &&
                 it.parameterTypes[0] == Int::class.javaPrimitiveType }.forEach { method -> method.hook {
-                before { param -> runCatching {
+                before { param ->
                     // The converted AirPods adaptive state is rendered by the original OFF item.
                     if (forceAdaptiveEnabled() && isAirPodsCall(param.thisObject, param.args)) {
-                        val mode = (param.args.getOrNull(0) as? Number)?.toInt() ?: return@runCatching
+                        val mode = (param.args.getOrNull(0) as? Number)?.toInt() ?: return@before
                         param.args[0] = AirPodsScope.ancMode(mode, true, AirPodsScope.AIRPODS_TYPE)
                     }
-                } }
-                after { param -> runCatching {
+                }
+                after { param ->
                     if (forceAdaptiveEnabled() && isAirPodsCall(param.thisObject, param.args)) {
                         setAncAdaptiveText(param.thisObject)
                     }
-                } }
+                }
             } }
         }
         findClass("com.miui.circulate.api.protocol.headset.HeadsetServiceController")?.let { type ->
             type.declaredMethods.filter { it.name == "getBluetoothDeviceMode" }.forEach { method ->
-                method.hook { after { param -> runCatching {
+                method.hook { after { param ->
                     if (forceAdaptiveEnabled() && isAirPodsCall(param.thisObject, param.args) && param.result == 4) {
                         param.result = 2
                     }
-                } } }
+                } }
             }
         }
         findClass("com.miui.circulateplus.world.headset.HeadSetsDetail")?.let { type ->
             type.declaredMethods.filter { it.name == "E" && it.parameterTypes.contentEquals(arrayOf(Int::class.javaPrimitiveType)) }
                 .forEach { method -> method.hook {
-                    before { param -> runCatching {
+                    before { param ->
                         if (forceAdaptiveEnabled() && isAirPodsCall(param.thisObject, param.args)) {
-                            val mode = (param.args.getOrNull(0) as? Number)?.toInt() ?: return@runCatching
+                            val mode = (param.args.getOrNull(0) as? Number)?.toInt() ?: return@before
                             param.args[0] = AirPodsScope.ancMode(mode, true, AirPodsScope.AIRPODS_TYPE)
                         }
-                    } }
+                    }
                 } }
             type.declaredClasses.flatMap { outer -> listOf(outer) + outer.declaredClasses.toList() }
                 .flatMap { it.declaredMethods.toList() }
                 .filter { it.name == "onBluetoothModeChanged" && it.parameterTypes.size == 2 }
                 .forEach { method -> method.hook {
-                    before { param -> runCatching {
+                    before { param ->
                         if (forceAdaptiveEnabled() && isAirPodsCall(param.thisObject, param.args)) {
-                            val mode = (param.args.getOrNull(1) as? Number)?.toInt() ?: return@runCatching
+                            val mode = (param.args.getOrNull(1) as? Number)?.toInt() ?: return@before
                             param.args[1] = AirPodsScope.ancMode(mode, true, AirPodsScope.AIRPODS_TYPE)
                         }
-                    } }
+                    }
                 } }
         }
     }
@@ -387,7 +391,7 @@ object SpatialAudioBlockerHooker : StaticHooker() {
 
     private fun updateOwnerVisibility(target: Any, setter: String) {
         val owner = field(target, "a") ?: field(target, "f21262a") ?: field(target, "f21275a") ?: return
-        runCatching {
+        HookFailurePolicy.open("SpatialAudioBlocker", "update owner visibility", Unit) {
             owner.javaClass.methods.firstOrNull {
                 it.name == setter && it.parameterTypes.contentEquals(arrayOf(Boolean::class.javaPrimitiveType))
             }?.invoke(owner, false)

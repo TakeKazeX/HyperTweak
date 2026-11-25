@@ -202,7 +202,7 @@ object PasskeyHooker : StaticHooker() {
                                 oemComponentEnabled = false
                             }
                             if (oemComponentEnabled && info.exported) {
-                                runCatching {
+                                HookFailurePolicy.open("HyperPasskey", "set OEM UI package", Unit) {
                                     val setOemUiPackageNameMethod = HostAccess.requirePublicMethod(intentResultBuilder.javaClass, "setOemUiPackageName", String::class.java, accessible = false)
                                     setOemUiPackageNameMethod.invoke(intentResultBuilder, oemComponentName.packageName)
 
@@ -657,7 +657,7 @@ object PasskeyHooker : StaticHooker() {
     private fun hookScanner() {
         val iClass = "com.xiaomi.scanner.module.code.utils.bean.MiFiDoBean".toClassOrNull()
         if (iClass != null) {
-            runCatching {
+            HookFailurePolicy.open("HyperPasskey", "hook scanner package name", Unit) {
                 val aMethod = HostAccess.requireDeclaredMethod(iClass, "getAppPackageName", accessible = false)
                 aMethod.hook {
                     intercept { chain ->

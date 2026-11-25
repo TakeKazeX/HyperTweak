@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.lockscreen
 
+import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 
@@ -73,7 +74,7 @@ object LockscreenDateHooker : StaticHooker() {
         enabled = next
         HostAccess.onMain {
             if (enabled) {
-                roots.keys.toList().filter { it.isAttachedToWindow }.forEach { root -> runCatching { bind?.invoke(root) } }
+                roots.keys.toList().filter { it.isAttachedToWindow }.forEach { root -> HookFailurePolicy.open("LockscreenDate", "rebind date", Unit) { bind?.invoke(root) } }
             } else if (changed) {
                 // Restore while the switch is already false: the bindings' pre-draw pass reads
                 // [enabled] and returns, so releasing the recorded dates stays the last word.

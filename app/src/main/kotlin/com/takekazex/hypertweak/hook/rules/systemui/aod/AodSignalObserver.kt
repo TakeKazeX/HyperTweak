@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.aod
 
+import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.HostAccess
 import android.Manifest
 import android.annotation.SuppressLint
@@ -116,7 +117,7 @@ internal class AodSignalObserver(
             addAction(SubscriptionManager.ACTION_DEFAULT_SUBSCRIPTION_CHANGED)
             addAction(WifiManager.RSSI_CHANGED_ACTION)
         }
-        runCatching {
+        HookFailurePolicy.open("AodSignal", "register state receiver", Unit) {
             appContext.registerReceiver(stateReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
             receiverRegistered = true
         }
@@ -130,7 +131,7 @@ internal class AodSignalObserver(
             }
         }
         subscriptionListener = listener
-        runCatching { manager.addOnSubscriptionsChangedListener(mainExecutor, listener) }
+        HookFailurePolicy.open("AodSignal", "add subscription listener", Unit) { manager.addOnSubscriptionsChangedListener(mainExecutor, listener) }
     }
 
     @SuppressLint("MissingPermission")

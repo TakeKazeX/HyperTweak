@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak
 
+import com.takekazex.hypertweak.util.logging.DebugLog
 import com.takekazex.hypertweak.app.PreferencesAppSettings
 import com.takekazex.hypertweak.app.DefaultAppServices
 import android.content.ComponentName
@@ -50,7 +51,7 @@ class MainActivity : ComponentActivity() {
             ) != PackageManager.COMPONENT_ENABLED_STATE_DISABLED
         }.getOrDefault(true)
         if (launcherAliasEnabled) {
-            runCatching { DefaultAppServices.shortcuts.updateShortcuts(this) }
+            runCatching { DefaultAppServices.shortcuts.updateShortcuts(this) }.onFailure { DebugLog.w("App", "update shortcuts failed", it) }
         }
 
         window.isNavigationBarContrastEnforced = false

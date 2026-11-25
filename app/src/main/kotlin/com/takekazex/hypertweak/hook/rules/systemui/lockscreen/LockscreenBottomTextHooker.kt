@@ -110,7 +110,7 @@ object LockscreenBottomTextHooker : StaticHooker() {
         if (wasEnabled != enabled) {
             com.takekazex.hypertweak.hook.base.HostAccess.onMain {
                 knownIndicationViews.toList().filter { it.isAttachedToWindow }
-                    .forEach { runCatching { NativeViewAttachmentReplay.replay(it) } }
+                    .forEach { HookFailurePolicy.open("LockscreenBottomText", "replay attachment", Unit) { NativeViewAttachmentReplay.replay(it) } }
             }
         }
         DebugLog.i(TAG, "settings applied enabled=" + enabled)

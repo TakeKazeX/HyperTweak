@@ -49,7 +49,7 @@ object PowerSaveOverrideHooker : StaticHooker() {
         val (transition, callers) = target
         // Scope the framework interception to the real host operation. Restoration and unrelated
         // writes with the same key/value must still run, even when the master switch is enabled.
-        callers.forEach { caller -> runCatching { deoptimize(caller) } }
+        callers.forEach { caller -> HookFailurePolicy.open("PowerSaveOverride", "deoptimize caller", Unit) { deoptimize(caller) } }
         transition.isAccessible = true
         deoptimize(transition)
         transition.hook("power_save_entry_transaction") {

@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.system
 
+import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
@@ -109,7 +110,7 @@ object FcmLiveSystemHooker : StaticHooker() {
                     if (action == null || action !in CN_DEFER_BROADCAST) return@before
                     var calleePkgName = param.args[3] as? String
                     if (calleePkgName == null && calleeUid != null) {
-                        runCatching {
+                        HookFailurePolicy.open("FcmLiveSystem", "resolve callee package", Unit) {
                             calleePkgName = getPackageNameFromUidMethod.invoke(param.thisObject, calleeUid) as? String
                         }
                     }
@@ -201,7 +202,7 @@ object FcmLiveSystemHooker : StaticHooker() {
                 constructor.hook {
                     after { param ->
                         if (retired || !settingFcmLiveEnabled) return@after
-                        runCatching {
+                        HookFailurePolicy.open("FcmLiveSystem", "remove GMS from blacklist", Unit) {
                             @Suppress("UNCHECKED_CAST")
                             val blackList = systemBlackListField.get(param.thisObject) as? MutableList<String>
                             memberships.apply(blackList, false)
@@ -209,14 +210,14 @@ object FcmLiveSystemHooker : StaticHooker() {
                         // Seed GMS into the static whitelist once, in place, so the platform's own
                         // add/removeAll mutations are preserved.
                         useDataWhiteListField?.let { field ->
-                            runCatching { addGmsToWhiteListInPlace(field.get(param.thisObject)) }
+                            HookFailurePolicy.open("FcmLiveSystem", "seed GMS whitelist", Unit) { addGmsToWhiteListInPlace(field.get(param.thisObject)) }
                         }
                     }
                 }
             }
 
             // boolean isInWhiteList(String packageName)
-            runCatching {
+            HookFailurePolicy.open("FcmLiveSystem", "hook isInWhiteList", Unit) {
                 val isInWhiteListMethod = HostAccess.requireDeclaredMethod(clazz, "isInWhiteList", String::class.java, accessible = false)
                 isInWhiteListMethod.hook {
                     before { param ->
@@ -226,13 +227,13 @@ object FcmLiveSystemHooker : StaticHooker() {
                         // swap discarded the platform's concurrent add/removeAll updates and
                         // republished the static unsafely across binder threads.
                         useDataWhiteListField?.let { field ->
-                            runCatching {
+                            HookFailurePolicy.open("FcmLiveSystem", "seed GMS whitelist", Unit) {
                                 addGmsToWhiteListInPlace(field.get(param.thisObject))
                             }
                         }
                         // Repeat the blacklist removal here so it holds even when the constructor
                         // ran before this hook was installed.
-                        runCatching {
+                        HookFailurePolicy.open("FcmLiveSystem", "remove GMS from blacklist", Unit) {
                             @Suppress("UNCHECKED_CAST")
                             val blackList = systemBlackListField.get(param.thisObject) as? MutableList<String>
                             memberships.apply(blackList, false)

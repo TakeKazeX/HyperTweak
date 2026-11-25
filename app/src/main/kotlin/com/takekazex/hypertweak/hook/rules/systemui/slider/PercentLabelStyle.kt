@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.slider
 
+import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import android.content.Context
 import android.content.res.ColorStateList
 import android.content.res.Resources
@@ -181,7 +182,7 @@ internal class PercentLabelStyle(private val labels: PercentLabels, private val 
 
 // MiBlur view extensions: hidden View APIs present on HyperOS, tolerated when absent.
 private fun View.callBlur(name: String, vararg args: Any?) {
-    runCatching {
+    HookFailurePolicy.open("SliderPercentage", "apply label blur", Unit) {
         val types = args.map {
             when (it) { is Int -> Int::class.javaPrimitiveType!!; is Boolean -> Boolean::class.javaPrimitiveType!!; else -> View::class.java }
         }.toTypedArray()

@@ -168,8 +168,40 @@ def first_match_violation(relative, source):
     return count if count > allowed else None
 
 
+# A `runCatching { ... }` whose Result is dropped swallows the failure. Hook callbacks already
+# fall back through the dispatcher, and hot paths use HookFailurePolicy.open (rate-limited
+# logging). The remaining hook-code uses are cleanup, hot-reload and restore paths; the total
+# may only fall.
+DISCARDED_RUN_CATCHING_LIMIT = 91
+RUN_CATCHING = re.compile(r'(?<![\w.])runCatching\s*\{')
+STATEMENT_PREFIX = re.compile(r'(?:.*[{;]|.*->|.*\belse|try|finally|(?:\}\s*else\s+)?(?:if|while|for)\s*\(.*\))')
+
+
+def discarded_run_catching(source):
+    code = strip_non_code(source)
+    count = 0
+    for match in RUN_CATCHING.finditer(code):
+        line_start = code.rfind("\n", 0, match.start()) + 1
+        prefix = code[line_start:match.start()].strip()
+        if prefix and (not STATEMENT_PREFIX.fullmatch(prefix) or re.search(r'(?:=|return|\()\s*$', prefix)):
+            continue
+        depth, index = 0, match.end() - 1
+        while index < len(code):
+            if code[index] == "{":
+                depth += 1
+            elif code[index] == "}":
+                depth -= 1
+                if depth == 0:
+                    break
+            index += 1
+        if not code[index + 1:].lstrip().startswith((".", "?.")):
+            count += 1
+    return count
+
+
 def main():
     failures = []
+    discarded = 0
     for language in ("kotlin", "java"):
         base = ROOT / f"app/src/main/{language}/com/takekazex/hypertweak"
         for path in sorted(base.rglob("*")):
@@ -180,6 +212,7 @@ def main():
             failures.extend(f"{path.relative_to(ROOT)}:{line}: forbidden {layer} -> {target}"
                             for line, target in violations(layer, source))
             if layer == "hook":
+                discarded += discarded_run_catching(source)
                 relative = path.relative_to(base).as_posix()
                 if (count := first_match_violation(relative, source)) is not None:
                     failures.append(f"{path.relative_to(ROOT)}: {count} declared-member firstOrNull/first "
@@ -197,6 +230,11 @@ def main():
                 failures.extend(f"{path.relative_to(ROOT)}:{line}: icon renderer {name} used outside its owner; "
                                 "go through IconHostPorts"
                                 for line, name in renderer_violations(hook_parts, source))
+    if discarded > DISCARDED_RUN_CATCHING_LIMIT:
+        failures.append(f"hook code drops {discarded} runCatching results (limit {DISCARDED_RUN_CATCHING_LIMIT}); "
+                        "log through HookFailurePolicy.open or onFailure, or let the hook dispatcher fall back")
+    elif discarded < DISCARDED_RUN_CATCHING_LIMIT:
+        print(f"note: discarded runCatching in hook code fell to {discarded}; lower DISCARDED_RUN_CATCHING_LIMIT")
     if failures:
         print("\n".join(failures), file=sys.stderr)
         return 1

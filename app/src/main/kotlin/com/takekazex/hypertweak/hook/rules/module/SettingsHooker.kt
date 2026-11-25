@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.module
 
+import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.HostSelect
 import com.takekazex.hypertweak.hook.base.orSkip
 import com.takekazex.hypertweak.hook.base.HostAccess
@@ -82,7 +83,7 @@ object SettingsHooker : StaticHooker() {
 
                 val showInSettings = !retired && settingShowInSettings
                 if (!showInSettings) {
-                    runCatching {
+                    HookFailurePolicy.open("SettingsHooker", "hide module header", Unit) {
                         val iterator = list.iterator()
                         while (iterator.hasNext()) {
                             val head = iterator.next() ?: continue

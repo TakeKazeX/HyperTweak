@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.ui.page.diagnostics
 
+import com.takekazex.hypertweak.util.logging.DebugLog
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Intent
@@ -195,7 +196,7 @@ internal fun WirelessAdbPage(onBack: () -> Unit) {
                 ArrowPreference(
                     title = stringResource(R.string.debug_adb_tcp_open_system),
                     onClick = {
-                        runCatching { context.startActivity(Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS)) }
+                        runCatching { context.startActivity(Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS)) }.onFailure { DebugLog.w("WirelessAdb", "open developer options failed", it) }
                     },
                 )
             }

@@ -61,7 +61,7 @@ internal class NativeRuleStatePublisher {
                     ledger.latest()?.let { iconSize?.submit(it.iconPercent) }
                 }
                 runCatching { SettingsTransport.send(context, Intent("com.takekazex.hypertweak.action.DESKTOP_GRID_STATE")
-                    .setPackage(SettingsTransport.MODULE).putExtras(intent)) }
+                    .setPackage(SettingsTransport.MODULE).putExtras(intent)) }.onFailure { DebugLog.w("NativeRules", "desktop grid state relay failed", it) }
                 return
             }
             if (intent.action == "com.takekazex.hypertweak.action.NATIVE_RULE_PREPARED") {

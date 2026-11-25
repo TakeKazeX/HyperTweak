@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook
 
+import com.takekazex.hypertweak.util.logging.DebugLog
 import com.takekazex.hypertweak.settings.contract.LauncherDesktopKeys
 
 import com.takekazex.hypertweak.hook.logging.AppLogStore
@@ -457,7 +458,7 @@ object Preferences {
                 block()
                 putLong(KEY_PREFS_EPOCH, remotePrefs.getLong(KEY_PREFS_EPOCH, INITIAL_EPOCH))
             }
-        }
+        }.onFailure { DebugLog.w("Preferences", "cache write failed", it) }
     }
 
     /**

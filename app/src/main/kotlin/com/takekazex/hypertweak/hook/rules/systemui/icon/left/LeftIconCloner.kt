@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon.left
 
+import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import android.content.Context
 import android.view.View
 import android.view.ViewGroup
@@ -148,7 +149,7 @@ internal class LeftIconCloner(owner: BaseHooker) : HookComponent(owner) {
     fun updateClone(clone: View, child: View): Boolean {
         // Size: copy the system view's own layout params so the box matches the right cluster
         // exactly (this is what fixes the misplaced height of the earlier view-move version).
-        runCatching {
+        HookFailurePolicy.open("IconTuner", "sync clone layout", Unit) {
                     val src = child.layoutParams
                     if (src != null) {
                         val cur = clone.layoutParams
@@ -271,7 +272,7 @@ internal class LeftIconCloner(owner: BaseHooker) : HookComponent(owner) {
 
     fun registerDarkReceiver(manager: Any, clone: View) {
         val dispatcher = managerDarkDispatcher(manager) ?: return
-        runCatching {
+        HookFailurePolicy.open("IconTuner", "register dark receiver", Unit) {
             val method = dispatcher.javaClass.methods.firstOrNull {
                 it.name == "addDarkReceiver" && it.parameterTypes.size == 1 &&
                     it.parameterTypes[0].isAssignableFrom(clone.javaClass)

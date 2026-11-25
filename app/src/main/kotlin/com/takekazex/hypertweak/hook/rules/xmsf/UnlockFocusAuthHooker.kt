@@ -62,7 +62,7 @@ object UnlockFocusAuthHooker : StaticHooker() {
         }
 
         // Deoptimize so ART cannot AOT-inline the error dispatch past the hook.
-        runCatching { deoptimize(targets.errorDispatch) }
+        HookFailurePolicy.open("UnlockFocusAuth", "deoptimize error dispatch", Unit) { deoptimize(targets.errorDispatch) }
 
         targets.errorDispatch.hook {
             before { param ->
@@ -71,7 +71,7 @@ object UnlockFocusAuthHooker : StaticHooker() {
                         return@open
                     }
                     val error = param.args[0] ?: return@open
-                    runCatching { targets.errorCode.set(error, 0) }
+                    HookFailurePolicy.open("UnlockFocusAuth", "clear error code", Unit) { targets.errorCode.set(error, 0) }
                     param.result = targets.success.invoke(param.thisObject)
                 }
             }
@@ -112,7 +112,7 @@ object UnlockFocusAuthHooker : StaticHooker() {
                 it.parameterTypes[1] == Int::class.javaPrimitiveType &&
                 it.returnType == Bundle::class.java
         }.singleOrNull()?.let { helper ->
-            runCatching { deoptimize(helper) }
+            HookFailurePolicy.open("UnlockFocusAuth", "deoptimize helper", Unit) { deoptimize(helper) }
         }
 
         return Targets(errorDispatch, success, errorCode)

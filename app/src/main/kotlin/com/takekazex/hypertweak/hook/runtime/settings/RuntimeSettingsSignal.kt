@@ -98,7 +98,7 @@ internal object RuntimeSettingsSignal {
                     .isFailure
             }
             if (targetPackage == null && committed != null && failed == 0) {
-                runCatching { ledger()?.edit()?.putLong(PUBLISHED, committed)?.apply() }
+                runCatching { ledger()?.edit()?.putLong(PUBLISHED, committed)?.apply() }.onFailure { DebugLog.w("RuntimeSettings", "publish ledger write failed", it) }
             }
         }
     }

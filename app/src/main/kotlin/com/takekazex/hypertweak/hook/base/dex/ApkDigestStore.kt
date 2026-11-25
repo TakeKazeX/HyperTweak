@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.base.dex
 
+import com.takekazex.hypertweak.util.logging.DebugLog
 import java.io.File
 import java.nio.file.Files
 import java.security.MessageDigest
@@ -96,7 +97,7 @@ internal class ApkDigestStore(private val file: File?, private val fingerprint: 
             val temporary = File(directory, target.name + "." + android.os.Process.myPid() + ".tmp")
             temporary.outputStream().use { properties.store(it, null) }
             if (!temporary.renameTo(target)) temporary.delete()
-        }
+        }.onFailure { DebugLog.w("ApkDigestStore", "digest store failed", it) }
     }
 
     private fun load(): Properties = Properties().also { properties ->

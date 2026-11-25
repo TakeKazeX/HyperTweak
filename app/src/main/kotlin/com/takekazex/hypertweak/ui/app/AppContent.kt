@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.ui.app
 
+import com.takekazex.hypertweak.util.logging.DebugLog
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.LocalActivity
@@ -238,7 +239,7 @@ internal fun AppContent(
                     },
                     onShortcutsChanged = {
                         coroutineScope.launch(Dispatchers.IO) {
-                            runCatching { services.shortcuts.updateShortcuts(activity) }
+                            runCatching { services.shortcuts.updateShortcuts(activity) }.onFailure { DebugLog.w("App", "update shortcuts failed", it) }
                         }
                     },
                     updateManager = updateManager,

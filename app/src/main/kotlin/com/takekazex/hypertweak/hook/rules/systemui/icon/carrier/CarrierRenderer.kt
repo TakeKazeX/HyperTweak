@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon.carrier
 
+import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import android.content.Context
 import android.content.res.Resources
 import android.os.Handler
@@ -433,7 +434,7 @@ internal object CarrierRenderer : IconRenderer() {
         }
         rowClass.findMethodOrNull { name("updateHDText"); paramCount(2) }?.let { method ->
             method.observe { after { param ->
-                if (ownsRow(param.thisObject as? ViewGroup)) runCatching {
+                if (ownsRow(param.thisObject as? ViewGroup)) HookFailurePolicy.open("IconTuner", "hide carrier HD and plus text", Unit) {
                     (readField(param.thisObject, "hdText") as? View)?.visibility = View.GONE
                     (readField(param.thisObject, "plusText") as? View)?.visibility = View.GONE
                 }

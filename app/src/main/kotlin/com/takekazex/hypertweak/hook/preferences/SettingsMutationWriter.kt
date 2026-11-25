@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.preferences
 
+import com.takekazex.hypertweak.util.logging.DebugLog
 import com.takekazex.hypertweak.settings.contract.LauncherDesktopKeys
 
 import com.takekazex.hypertweak.hook.logging.AppLogStore
@@ -256,7 +257,7 @@ internal class SettingsMutationWriter(private val storage: Storage) {
         }
         if (!isInitialized) return
         val local = localSourcePrefs
-        runCatching { local?.edit(commit = true) { putString(key, value) } }
+        runCatching { local?.edit(commit = true) { putString(key, value) } }.onFailure { DebugLog.w("SettingsWriter", "local source write failed", it) }
         if (isLocalOnly || local === remotePrefs) return
         val task = serializedWriter.submit {
             runCatching {
@@ -271,7 +272,7 @@ internal class SettingsMutationWriter(private val storage: Storage) {
                 SettingsDiagnostics.w("Preferences", "synchronous remote pref write failed", t)
             }
         }
-        runCatching { task.get(3, TimeUnit.SECONDS) }
+        runCatching { task.get(3, TimeUnit.SECONDS) }.onFailure { DebugLog.w("SettingsWriter", "remote write did not finish", it) }
     }
 
 }

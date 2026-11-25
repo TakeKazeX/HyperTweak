@@ -136,4 +136,13 @@ class HookDslTest {
         repeat(3) { hooker.intercept(FakeChain("r", listOf("a", "b"))) }
         assertEquals(3, HookHits.counter(owner, "count").hits)
     }
+
+    @Test fun repeatedCallbackFailuresAreCountedAndEachCallStillFallsBack() {
+        val owner = "HookDslTest.failures"
+        val hooker = HookFactory(method).apply { id("fail"); before { error("callback") } }.buildHooker(owner)
+        repeat(25) { assertEquals("ab", hooker.intercept(FakeChain("r", listOf("a", "b")))) }
+        val counter = HookHits.counter(owner, "fail")
+        assertEquals(25, counter.hits)
+        assertEquals(25, counter.failures)
+    }
 }

@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.util.update
 
+import com.takekazex.hypertweak.util.logging.DebugLog
 import com.takekazex.hypertweak.settings.contract.AppSettingsKeys
 
 import com.takekazex.hypertweak.BuildConfig
@@ -623,7 +624,7 @@ class GitHubUpdateRepository internal constructor(
                         .toString(),
                     StandardCharsets.UTF_8
                 )
-            }
+            }.onFailure { DebugLog.w("Update", "write download sidecar failed", it) }
             return DownloadedUpdate(target, downloaded, actualSha, mode == UpdateProxyMode.OFFICIAL && proxy.isNotBlank())
         } catch (cancelled: kotlinx.coroutines.CancellationException) {
             val safeName = safeAssetName(info.apkAsset)

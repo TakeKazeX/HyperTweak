@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.island.flashlight
 
+import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import android.content.Context
 import android.graphics.Bitmap
 import android.os.Handler
@@ -132,7 +133,7 @@ internal class FlashlightGl(
             override fun onViewAttachedToWindow(v: View) {
                 guardRenderThread()
                 if (failed) return
-                runCatching { support.armFirstFrame(renderer) }
+                HookFailurePolicy.open("IslandFlashlight", "arm first frame", Unit) { support.armFirstFrame(renderer) }
                 onSurfacePending?.invoke()
             }
 
@@ -147,7 +148,7 @@ internal class FlashlightGl(
             failed = true
             main.post {
                 running = false
-                runCatching { support.pause(renderer) }
+                HookFailurePolicy.open("IslandFlashlight", "pause renderer", Unit) { support.pause(renderer) }
                 onFailure?.invoke()
             }
         }
@@ -180,7 +181,7 @@ internal class FlashlightGl(
     /** `MiFlashlightController.updateFlashlightUi` progress, 0..1. */
     fun setProgress(progress: Float) {
         if (failed) return
-        runCatching { support.setProgress(renderer, progress) }
+        HookFailurePolicy.open("IslandFlashlight", "set renderer progress", Unit) { support.setProgress(renderer, progress) }
     }
 
     fun setRunning(run: Boolean) {

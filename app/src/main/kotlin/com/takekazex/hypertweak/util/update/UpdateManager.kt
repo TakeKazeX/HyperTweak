@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.util.update
 
+import com.takekazex.hypertweak.util.logging.DebugLog
 import com.takekazex.hypertweak.settings.contract.AppSettingsKeys
 
 import android.content.Intent
@@ -238,7 +239,7 @@ class UpdateManager internal constructor(private val activity: ComponentActivity
     fun retryPendingInstall() {
         val pending = _state.value as? UpdateUiState.AwaitingUnknownSources ?: return
         if (!installer.canRequestPackageInstalls()) {
-            runCatching { activity.startActivity(installer.unknownSourcesIntent()) }
+            runCatching { activity.startActivity(installer.unknownSourcesIntent()) }.onFailure { DebugLog.w("Update", "open unknown-sources settings failed", it) }
             return
         }
         startPendingInstall(pending)
@@ -299,7 +300,7 @@ class UpdateManager internal constructor(private val activity: ComponentActivity
             is UpdateInstaller.InstallResult.Started -> _state.value = UpdateUiState.Available(info)
             is UpdateInstaller.InstallResult.RequiresUnknownSources -> {
                 _state.value = UpdateUiState.AwaitingUnknownSources(info, result.file)
-                runCatching { activity.startActivity(installer.unknownSourcesIntent()) }
+                runCatching { activity.startActivity(installer.unknownSourcesIntent()) }.onFailure { DebugLog.w("Update", "open unknown-sources settings failed", it) }
             }
             is UpdateInstaller.InstallResult.Failure -> {
                 // An APK that fails archive/integrity/signature validation must not leave the page
@@ -354,13 +355,13 @@ class UpdateManager internal constructor(private val activity: ComponentActivity
                 clipData = android.content.ClipData.newRawUri("HyperTweak APK", uri)
             }
             startChooser(send)
-        }
+        }.onFailure { DebugLog.w("Update", "share downloaded APK failed", it) }
     }
 
     fun openReleasePage() {
         val url = currentInfo()?.releaseUrl?.takeIf(UpdateNetworkPolicy::isAllowedReleasePageUrl)
             ?: UpdateNetworkPolicy.releasePageUrl(channel())
-        runCatching { activity.startActivity(Intent(Intent.ACTION_VIEW, url.toUri())) }
+        runCatching { activity.startActivity(Intent(Intent.ACTION_VIEW, url.toUri())) }.onFailure { DebugLog.w("Update", "open release page failed", it) }
     }
 
     fun clearDownloadedUpdates() {
@@ -420,7 +421,7 @@ class UpdateManager internal constructor(private val activity: ComponentActivity
     }
 
     private fun startChooser(intent: Intent) {
-        runCatching { activity.startActivity(Intent.createChooser(intent, null)) }
+        runCatching { activity.startActivity(Intent.createChooser(intent, null)) }.onFailure { DebugLog.w("Update", "open chooser failed", it) }
     }
 
     private fun isOfficialPackage(): Boolean = appContext.packageName == BuildConfig.APPLICATION_ID

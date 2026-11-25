@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.ui.page.launcher
 
+import com.takekazex.hypertweak.util.logging.DebugLog
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
@@ -64,7 +65,7 @@ internal fun DesktopIconSizePage(onBack: () -> Unit) {
         val appContext = context.applicationContext
         DesktopIconSizeWriter.submit(value) { requested ->
             store.launcher.commitDesktopIconPercent(requested).also { ok ->
-                if (ok) runCatching { services.nativeRules.publish(appContext, store.launcher.hideRecentsClearButton()) }
+                if (ok) runCatching { services.nativeRules.publish(appContext, store.launcher.hideRecentsClearButton()) }.onFailure { DebugLog.w("DesktopIconSize", "publish native rules failed", it) }
             }
         }
     }

@@ -78,7 +78,7 @@ fun DockBackgroundPage(onBack: () -> Unit) {
     }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         if (uri != null) {
-            runCatching { context.contentResolver.takePersistableUriPermission(uri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION) }
+            runCatching { context.contentResolver.takePersistableUriPermission(uri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION) }.onFailure { DebugLog.w("DockBackground", "persist image permission failed", it) }
             imageUri = uri.toString()
         }
     }

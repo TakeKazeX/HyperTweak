@@ -1,9 +1,21 @@
 import unittest
-from check_architecture import (dispatcher_violations, executor_violations, first_match_violation, hook_unit,
+from check_architecture import (discarded_run_catching, dispatcher_violations, executor_violations, first_match_violation, hook_unit,
                                 hook_violations, renderer_violations, violations)
 
 
 class ArchitectureGuardTest(unittest.TestCase):
+    def test_discarded_run_catching_counts_only_dropped_results(self):
+        dropped = ("runCatching { a() }\n"
+                   "if (x) runCatching { b() }\n"
+                   "after { param -> runCatching { c() } }\n")
+        kept = ("val r = runCatching { a() }\n"
+                "runCatching { b() }.onFailure { log(it) }\n"
+                "return runCatching { c() }\n"
+                "foo(runCatching { d() })\n"
+                "// runCatching { e() }\n")
+        self.assertEqual(3, discarded_run_catching(dropped))
+        self.assertEqual(0, discarded_run_catching(kept))
+
     def test_declared_member_first_match_only_shrinks(self):
         pick = "val m = type.declaredMethods.firstOrNull { it.name == \"x\" }\n"
         nullable = "val f = type?.declaredFields?.first { true }\n"

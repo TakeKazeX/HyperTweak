@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.slider
 
+import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 
@@ -490,7 +491,7 @@ class ControlCenterCornerHooker(
             getSetOutlineRadius(clz)?.let { setter ->
                 outlineBaselines[holder]?.let { baseline ->
                     outlineBaselines.remove(holder)
-                    runCatching { setter.invoke(holder, baseline) }
+                    HookFailurePolicy.open("ControlCenterCorner", "restore toggle slider corner", Unit) { setter.invoke(holder, baseline) }
                 }
             }
             return
@@ -511,7 +512,7 @@ class ControlCenterCornerHooker(
         // to the user radius is exactly what rounded the white progress.
         val outlineSetter = getSetOutlineRadius(clz)
         if (outlineSetter != null) {
-            runCatching { outlineSetter.invoke(holder, radius) }
+            HookFailurePolicy.open("ControlCenterCorner", "set toggle outline radius", Unit) { outlineSetter.invoke(holder, radius) }
         }
         val inner = runCatching { HostAccess.requirePublicField(binding.javaClass, "toggleSliderInner", accessible = false).get(binding) as? View }.getOrNull()
             ?: runCatching { HostAccess.requirePublicMethod(binding.javaClass, "getToggleSliderInner", accessible = false).invoke(binding) as? View }.getOrNull()

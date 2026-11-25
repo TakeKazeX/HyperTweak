@@ -170,7 +170,7 @@ object AospAppInfoEntryHooker : StaticHooker() {
                 else -> null
             }
         }
-        runCatching { setListener.invoke(preference, listener) }
+        HookFailurePolicy.open("AospAppInfoEntry", "set click listener", Unit) { setListener.invoke(preference, listener) }
     }
 
     /** Makes room at [order] so the new entry lands directly after its anchor. */

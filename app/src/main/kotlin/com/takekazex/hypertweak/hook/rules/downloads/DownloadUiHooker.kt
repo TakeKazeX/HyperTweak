@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.downloads
 
+import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.HostSelect
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
@@ -743,7 +744,7 @@ object DownloadUiHooker : StaticHooker() {
             ?: return
         val textView = runCatching { field.get(owner) as? TextView }.getOrNull() ?: return
         (textView.parent as? ViewGroup)?.removeView(textView)
-        runCatching { field.set(owner, null) }
+        HookFailurePolicy.open("DownloadUi", "clear Xunlei text", Unit) { field.set(owner, null) }
         DebugLog.d(TAG, "removed legacy Xunlei text field=${field.name}")
     }
 

@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.aod
 
+import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.AodSettingsKeys
 
@@ -657,7 +658,7 @@ class AodStatusIconHooker : DynamicHooker() {
     }.getOrNull()
 
     private fun write(target: Any, name: String, value: Any) {
-        runCatching { field(target.javaClass, name)?.set(target, value) }
+        HookFailurePolicy.open("AodStatusIcon", "write host field", Unit) { field(target.javaClass, name)?.set(target, value) }
     }
 
     private fun findMethod(type: Class<*>, name: String, vararg params: Class<*>): Method? {

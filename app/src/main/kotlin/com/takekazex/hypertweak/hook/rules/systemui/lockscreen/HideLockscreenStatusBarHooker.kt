@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.lockscreen
 
+import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.orSkip
 import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
@@ -320,9 +321,9 @@ object HideLockscreenStatusBarHooker : StaticHooker() {
         val roots: List<View> = systemUiViewRoots()
         val found = ArrayList<View>(2)
         roots.distinct().forEach { root ->
-            runCatching {
+            HookFailurePolicy.open("HideLockscreenStatusBar", "walk keyguard status bars", Unit) {
                 if (target.isInstance(root)) found += root
-                walk(root as? ViewGroup ?: return@runCatching, target, found)
+                walk(root as? ViewGroup ?: return@open, target, found)
             }
         }
         return (found + knownViews).filter { target.isInstance(it) }

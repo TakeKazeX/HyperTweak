@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.ui.state
 
+import com.takekazex.hypertweak.util.logging.DebugLog
 import com.takekazex.hypertweak.settings.contract.DesktopGridStatus
 import com.takekazex.hypertweak.settings.contract.LauncherDesktopKeys
 import kotlinx.coroutines.CoroutineScope
@@ -46,7 +47,7 @@ internal object DesktopGridWriter {
                 if (!current) return@launch
                 if (status?.stage == 7 && status.requested == mutable.value.requested) {
                     val undo = synchronized(this@DesktopGridWriter) { rollback.also { rollback = null } }
-                    if (undo != null) runCatching { undo() }
+                    if (undo != null) runCatching { undo() }.onFailure { DebugLog.w("DesktopGrid", "rollback failed", it) }
                     return@launch
                 }
                 if (status?.applied == true || status?.restored == true) return@launch

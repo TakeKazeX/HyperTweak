@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.controlcenter
 
+import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.HostSelect
 import com.takekazex.hypertweak.util.logging.DebugLog
 import com.takekazex.hypertweak.hook.base.HostAccess
@@ -285,7 +286,7 @@ class ControlCenterCardResizeHooker : DynamicHooker() {
             getter.hook {
                 before { param ->
                     if (!enabled()) return@before
-                    runCatching {
+                    HookFailurePolicy.open("CardResize", "apply configured span", Unit) {
                         val cols = parseSize(configuredSize(key))?.first ?: 0
                         if (cols > 0) param.result = cols
                     }

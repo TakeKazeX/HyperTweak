@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon.left
 
+import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import android.animation.Animator
 import android.animation.AnimatorListenerAdapter
 import android.animation.ValueAnimator
@@ -159,7 +160,7 @@ private class ViewEndpoint(override val view: View, val native: Boolean) : Glyph
             DebugLog.w("IconTuner", "keyguard airplane capture failed", error)
             return null
         } finally {
-            runCatching { appear.setFloat(image, saved) }
+            HookFailurePolicy.open("IconTuner", "restore airplane appear value", Unit) { appear.setFloat(image, saved) }
         }
         return recorded
     }

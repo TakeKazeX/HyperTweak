@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.island.flashlight
 
+import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
@@ -27,7 +28,7 @@ internal class FlashlightTorch private constructor(
 
     fun apply(on: Boolean, logic: Float) {
         val level = FlashlightLevels.clamp(logic, maxLevel)
-        if (on) runCatching { Settings.Global.putFloat(context.contentResolver, KEY_STRENGTH, level) }
+        if (on) HookFailurePolicy.open("IslandFlashlight", "write torch strength", Unit) { Settings.Global.putFloat(context.contentResolver, KEY_STRENGTH, level) }
         val intent = Intent(ACTION_OPERATE).setPackage(SYSTEMUI)
             .putExtra("miui_flashlight_camera_id", cameraId)
             .putExtra("miui_flashlight_strength", if (on) FlashlightLevels.strength(level, maxLevel) else 0)

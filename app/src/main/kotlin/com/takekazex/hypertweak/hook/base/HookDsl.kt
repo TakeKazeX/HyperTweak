@@ -269,7 +269,7 @@ internal class HookDispatcher(
         } catch (failure: HookStageFailure) {
             // A logging failure must not cancel the fallback already chosen for the host call.
             try {
-                DebugLog.e(owner, "${failure.phase} hook failed for $target", failure.cause ?: failure)
+                logFailure(failure)
             } catch (_: Throwable) {
             }
             when (failure.fallback) {
@@ -280,6 +280,21 @@ internal class HookDispatcher(
                     failure.savedResult
                 }
             }
+        }
+    }
+
+    /**
+     * Callback bodies rely on this boundary instead of wrapping themselves in `runCatching`, so a
+     * callback that fails on every call of a hot method must not flood the log ([FailureLogBudget]).
+     */
+    private fun logFailure(failure: HookStageFailure) {
+        val count = ++counter.failures
+        val cause = failure.cause ?: failure
+        when (FailureLogBudget.entry(count)) {
+            FailureLogBudget.Entry.FULL -> DebugLog.e(owner, "${failure.phase} hook failed for $target (failure $count)", cause)
+            FailureLogBudget.Entry.SUMMARY -> DebugLog.e(owner, "${failure.phase} hook failed for $target " +
+                "failures=$count last=${cause.javaClass.name}: ${cause.message}")
+            FailureLogBudget.Entry.NONE -> Unit
         }
     }
 
@@ -327,6 +342,8 @@ internal class HookDispatcher(
 internal object HookHits {
     class Counter(val hooker: String, val id: String) {
         @JvmField var hits: Long = 0
+        /** Callback failures handled by the dispatcher fallback; never reset with the hit window. */
+        @JvmField var failures: Long = 0
     }
 
     private val counters = java.util.concurrent.ConcurrentHashMap<String, Counter>()
@@ -352,6 +369,9 @@ internal object HookHits {
             }
         all.filter { it.hits > 0 }.sortedByDescending { it.hits }.take(top).forEach {
             DebugLog.i(tag, "process=$process hot hooker=${it.hooker} id=${it.id} hits=${it.hits}")
+        }
+        all.filter { it.failures > 0 }.sortedByDescending { it.failures }.forEach {
+            DebugLog.i(tag, "process=$process failing hooker=${it.hooker} id=${it.id} failures=${it.failures}")
         }
         if (reset) {
             all.forEach { it.hits = 0 }

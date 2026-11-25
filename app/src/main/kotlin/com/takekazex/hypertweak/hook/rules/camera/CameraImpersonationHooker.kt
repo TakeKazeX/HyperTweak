@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.camera
 
+import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.cachedPublicMethod
 import com.takekazex.hypertweak.hook.base.HostAccess
 import android.content.ComponentName
@@ -338,7 +339,7 @@ object CameraImpersonationHooker : StaticHooker() {
                 val saved = pendingFormat.get() ?: return@after
                 pendingFormat.set(null)
                 val receiver = param.thisObject
-                runCatching { formatField.set(receiver, saved) }
+                HookFailurePolicy.open("CamImpersonate", "restore watermark format", Unit) { formatField.set(receiver, saved) }
             }
         }
         DebugLog.d(TAG, "brand logo-line hooked on ${clazz.name}#${oMethod.name}()")

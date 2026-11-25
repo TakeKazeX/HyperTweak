@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.lockscreen
 
+import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import android.os.Handler
 import android.os.Looper
 import com.takekazex.hypertweak.hook.Preferences
@@ -140,7 +141,7 @@ object KeyguardFingerprintAvoidHooker : StaticHooker() {
             runCatching { refresh(binding) }.onFailure {
                 applied = false
                 binding.subscriptions.clear()
-                runCatching { publish?.invoke(binding.flow, binding.projection.upstream) }
+                HookFailurePolicy.open("KeyguardFingerprintAvoid", "republish projection", Unit) { publish?.invoke(binding.flow, binding.projection.upstream) }
                 DebugLog.w(TAG, "bound refresh failed; native baseline restored", it)
             }
         }
