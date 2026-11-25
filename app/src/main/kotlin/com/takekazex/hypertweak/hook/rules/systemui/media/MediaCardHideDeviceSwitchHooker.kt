@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.media
 
+import com.takekazex.hypertweak.hook.base.HostSelect
 import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 
@@ -219,9 +220,7 @@ object MediaCardHideDeviceSwitchHooker : StaticHooker() {
         }
         shadeSeamlessButtonField = findField(holderCls, "seamlessButton")
         shadeSeamlessIconField = findField(holderCls, "seamlessIcon")
-        val setSeamless = vc.declaredMethods.firstOrNull {
-            it.name == "setSeamless" && it.parameterTypes.size == 1
-        } ?: run {
+        val setSeamless = HostSelect.method(vc) { name("setSeamless"); paramCount(1) } ?: run {
             DebugLog.hookSkipped(TAG, "$SHADE_VC#setSeamless", "method not found")
             return
         }
@@ -260,9 +259,7 @@ object MediaCardHideDeviceSwitchHooker : StaticHooker() {
         }
         islandSeamlessButtonField = findField(holderCls, "seamlessButton")
         islandSeamlessIconField = findField(holderCls, "seamlessIcon")
-        val setSeamless = binder.declaredMethods.firstOrNull {
-            it.name == "setSeamless" && it.parameterTypes.size == 2
-        } ?: run {
+        val setSeamless = HostSelect.method(binder) { name("setSeamless"); paramCount(2) } ?: run {
             DebugLog.hookSkipped(TAG, "$ISLAND_BINDER#setSeamless", "method not found")
             return
         }
@@ -296,10 +293,9 @@ object MediaCardHideDeviceSwitchHooker : StaticHooker() {
             DebugLog.hookSkipped(TAG, TRANSFER_MANAGER, "class not found")
             return
         }
-        val applyMediaTransferView = manager.declaredMethods.firstOrNull {
-            it.name == "applyMediaTransferView" &&
-                it.parameterTypes.size == 2 &&
-                it.parameterTypes[0] == ViewGroup::class.java
+        val applyMediaTransferView = HostSelect.method(manager) {
+            name("applyMediaTransferView")
+            params(ViewGroup::class.java, null)
         }
         if (applyMediaTransferView == null) {
             DebugLog.hookSkipped(TAG, "$TRANSFER_MANAGER#applyMediaTransferView", "method not found")
@@ -315,11 +311,7 @@ object MediaCardHideDeviceSwitchHooker : StaticHooker() {
             DebugLog.d(TAG, "media transfer view hidden after applyMediaTransferView")
         }
 
-        val updateChip = manager.declaredMethods.firstOrNull {
-            it.name == "updateChip" &&
-                it.parameterTypes.size == 1 &&
-                it.parameterTypes[0] == android.widget.ImageView::class.java
-        }
+        val updateChip = HostSelect.method(manager) { name("updateChip"); params(android.widget.ImageView::class.java) }
         if (updateChip == null) {
             DebugLog.hookSkipped(TAG, "$TRANSFER_MANAGER#updateChip", "method not found")
         } else {
@@ -360,11 +352,12 @@ object MediaCardHideDeviceSwitchHooker : StaticHooker() {
             DebugLog.hookSkipped(TAG, "$AOSP_MEDIA_PANEL#bindPlayer", "holder fields not found")
             return
         }
-        val bindPlayer = panel.declaredMethods.firstOrNull {
-            it.name == "bindPlayer" &&
-                it.parameterTypes.size == 2 &&
-                it.parameterTypes[0].name == "com.android.systemui.media.controls.shared.model.MediaData" &&
-                it.parameterTypes[1] == String::class.java
+        val bindPlayer = HostSelect.method(panel) {
+            name("bindPlayer")
+            params(null, String::class.java)
+            where("MediaData param") {
+                it.parameterTypes[0].name == "com.android.systemui.media.controls.shared.model.MediaData"
+            }
         } ?: run {
             DebugLog.hookSkipped(TAG, "$AOSP_MEDIA_PANEL#bindPlayer", "method not found")
             return

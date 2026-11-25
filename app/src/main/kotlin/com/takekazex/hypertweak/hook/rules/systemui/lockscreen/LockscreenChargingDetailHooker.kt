@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.lockscreen
 
+import com.takekazex.hypertweak.hook.base.HostSelect
 import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 
@@ -274,9 +275,9 @@ object LockscreenChargingDetailHooker : StaticHooker() {
             HostAccess.requirePublicMethod(BatteryManager::class.java, "getIntProperty", Int::class.javaPrimitiveType, accessible = true)
         }.getOrNull()
 
-        val showIndication = clazz.declaredMethods.firstOrNull {
-            it.name == "showIndication" &&
-                it.parameterTypes.contentEquals(arrayOf(Int::class.javaPrimitiveType))
+        val showIndication = HostSelect.method(clazz) {
+            name("showIndication")
+            params(Int::class.javaPrimitiveType)
         } ?: run {
             DebugLog.hookSkipped(TAG, "$ROTATE_VC#showIndication(int)", "method not found")
             return

@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui
 
+import com.takekazex.hypertweak.hook.base.HostSelect
 import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 
@@ -90,15 +91,10 @@ object ImmediateMonetRefreshHooker : StaticHooker() {
         val callbacks = hookParam.appInfo?.sourceDir?.let(::resolveGeneratedCallbacks)
         themeOverlayCallback = callbacks?.themeOverlay
         miuiWallpaperCallback = callbacks?.miuiWallpaper
-        handleWallpaperColorsMethod = controllerType.declaredMethods.firstOrNull {
-            it.name == "handleWallpaperColors" && it.parameterTypes.contentEquals(
-                arrayOf(
-                    WallpaperColors::class.java,
-                    Int::class.javaPrimitiveType,
-                    Int::class.javaPrimitiveType
-                )
-            )
-        }?.apply { isAccessible = true }
+        handleWallpaperColorsMethod = HostSelect.method(controllerType) {
+            name("handleWallpaperColors")
+            params(WallpaperColors::class.java, Int::class.javaPrimitiveType, Int::class.javaPrimitiveType)
+        }
         controllerStore = deferredStore(controllerType, source = "system")
         miuiStore = MIUI_HELPER_CLASS.toClassOrNull()?.let {
             deferredStore(it, source = "miui")
@@ -111,9 +107,7 @@ object ImmediateMonetRefreshHooker : StaticHooker() {
             return
         }
 
-        controllerType.declaredMethods.firstOrNull {
-            it.name == "start" && it.parameterCount == 0
-        }?.apply { isAccessible = true }?.hook {
+        HostSelect.method(controllerType) { name("start"); noParams() }?.hook {
             after { param -> rememberController(param.thisObject) }
         }
 

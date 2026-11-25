@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.downloads
 
+import com.takekazex.hypertweak.hook.base.HostSelect
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import com.takekazex.hypertweak.hook.base.dex.DexContractMembers
@@ -180,12 +181,10 @@ object DownloadUiHooker : StaticHooker() {
         // Keep lifecycle fallbacks because the host can rebuild the action-bar view after a
         // configuration change. They refresh/reinstall our separate end button instead of
         // mutating the original Xunlei ImageView.
-        val viewInflatedMethod = homeClass.declaredMethods.firstOrNull { method ->
-            method.name == "onViewInflated" &&
-                method.parameterTypes.size == 2 &&
-                method.parameterTypes[0] == View::class.java &&
-                method.parameterTypes[1] == Bundle::class.java
-        }?.apply { isAccessible = true }
+        val viewInflatedMethod = HostSelect.method(homeClass) {
+            name("onViewInflated")
+            params(View::class.java, Bundle::class.java)
+        }
         if (viewInflatedMethod != null) {
             deoptimize(viewInflatedMethod)
             viewInflatedMethod.hook("download_ui_action_bar_options_after_inflate") {
@@ -210,9 +209,7 @@ object DownloadUiHooker : StaticHooker() {
             DebugLog.hookRegistered(TAG, "download home onViewInflated(View,Bundle)")
             installed++
 
-            val onResumeMethod = homeClass.declaredMethods.firstOrNull { method ->
-                method.name == "onResume" && method.parameterTypes.isEmpty()
-            }?.apply { isAccessible = true }
+            val onResumeMethod = HostSelect.method(homeClass) { name("onResume"); noParams() }
             if (onResumeMethod != null) {
                 deoptimize(onResumeMethod)
                 onResumeMethod.hook("download_ui_action_bar_options_on_resume") {

@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.securitycenter
 
+import com.takekazex.hypertweak.hook.base.HostSelect
 import com.takekazex.hypertweak.hook.base.cachedPublicMethod
 import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
@@ -173,10 +174,7 @@ object WarningCountdownHooker : StaticHooker() {
             DebugLog.hookSkipped(TAG, "countdown path", "$BASE_ACTIVITY_CLASS not found")
             return
         }
-        val onCreate = activityClass.declaredMethods.firstOrNull { method ->
-            method.name == "onCreate" &&
-                method.parameterTypes.contentEquals(arrayOf(Bundle::class.java))
-        } ?: run {
+        val onCreate = HostSelect.method(activityClass) { name("onCreate"); params(Bundle::class.java) } ?: run {
             DebugLog.hookSkipped(TAG, "countdown path", "onCreate(Bundle) not found")
             return
         }
@@ -223,11 +221,9 @@ object WarningCountdownHooker : StaticHooker() {
             DebugLog.hookSkipped(TAG, "direct approve path", "$BASE_FRAGMENT_CLASS not found")
             return
         }
-        val onInflateView = fragmentClass.declaredMethods.firstOrNull { method ->
-            method.name == "onInflateView" &&
-                method.parameterTypes.contentEquals(
-                    arrayOf(LayoutInflater::class.java, ViewGroup::class.java, Bundle::class.java)
-                )
+        val onInflateView = HostSelect.method(fragmentClass) {
+            name("onInflateView")
+            params(LayoutInflater::class.java, ViewGroup::class.java, Bundle::class.java)
         } ?: run {
             DebugLog.hookSkipped(TAG, "direct approve path", "onInflateView not found")
             return
@@ -348,10 +344,7 @@ object WarningCountdownHooker : StaticHooker() {
             DebugLog.hookSkipped(TAG, "adb input path", "$ADB_INPUT_APPLY_CLASS not found")
             return
         }
-        val onCreate = activityClass.declaredMethods.firstOrNull { method ->
-            method.name == "onCreate" &&
-                method.parameterTypes.contentEquals(arrayOf(Bundle::class.java))
-        } ?: run {
+        val onCreate = HostSelect.method(activityClass) { name("onCreate"); params(Bundle::class.java) } ?: run {
             DebugLog.hookSkipped(TAG, "adb input path", "onCreate(Bundle) not found")
             return
         }
@@ -371,10 +364,7 @@ object WarningCountdownHooker : StaticHooker() {
             }
         }
 
-        val onClick = activityClass.declaredMethods.firstOrNull { method ->
-            method.name == "onClick" &&
-                method.parameterTypes.contentEquals(arrayOf(View::class.java))
-        } ?: run {
+        val onClick = HostSelect.method(activityClass) { name("onClick"); params(View::class.java) } ?: run {
             DebugLog.hookSkipped(TAG, "adb input path", "onClick(View) not found")
             return
         }
@@ -525,10 +515,7 @@ object WarningCountdownHooker : StaticHooker() {
             DebugLog.hookSkipped(TAG, "adb verify path", "$ADB_VERIFY_CLASS not found")
             return
         }
-        val onCreate = verifyClass.declaredMethods.firstOrNull { method ->
-            method.name == "onCreate" &&
-                method.parameterTypes.contentEquals(arrayOf(Bundle::class.java))
-        } ?: run {
+        val onCreate = HostSelect.method(verifyClass) { name("onCreate"); params(Bundle::class.java) } ?: run {
             DebugLog.hookSkipped(TAG, "adb verify path", "onCreate(Bundle) not found")
             return
         }

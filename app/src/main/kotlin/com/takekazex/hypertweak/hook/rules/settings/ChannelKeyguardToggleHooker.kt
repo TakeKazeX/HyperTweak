@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.settings
 
+import com.takekazex.hypertweak.hook.base.HostSelect
 import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 
@@ -72,9 +73,7 @@ object ChannelKeyguardToggleHooker : StaticHooker() {
             DebugLog.hookSkipped(TAG, CHANNEL_SETTINGS, "class not found")
             return
         }
-        val removeDefaultPrefs = clazz.declaredMethods.firstOrNull {
-            it.name == "removeDefaultPrefs" && it.parameterTypes.isEmpty()
-        } ?: run {
+        val removeDefaultPrefs = HostSelect.method(clazz) { name("removeDefaultPrefs"); noParams() } ?: run {
             DebugLog.hookSkipped(TAG, "$CHANNEL_SETTINGS#removeDefaultPrefs", "method not found")
             return
         }

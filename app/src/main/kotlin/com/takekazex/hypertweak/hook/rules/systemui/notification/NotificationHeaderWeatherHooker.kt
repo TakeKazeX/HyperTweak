@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.notification
 
+import com.takekazex.hypertweak.hook.base.HostSelect
 import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
 import com.takekazex.hypertweak.settings.contract.NotificationHeaderModel
 
@@ -337,10 +338,10 @@ object NotificationHeaderWeatherHooker : StaticHooker() {
             val callbackClass = CALLBACK_CLASS.toClassOrNull() ?: return false
             val controller = fetcherClass.getDeclaredConstructor().apply { isAccessible = true }
                 .newInstance()
-            val method = fetcherClass.declaredMethods.firstOrNull {
-                it.name == "fetchWeatherData" && it.parameterCount == 3 &&
-                    it.parameterTypes[2] == callbackClass
-            }?.apply { isAccessible = true } ?: return false
+            val method = HostSelect.method(fetcherClass) {
+                name("fetchWeatherData")
+                params(null, null, callbackClass)
+            } ?: return false
             val callback = Proxy.newProxyInstance(
                 callbackClass.classLoader ?: classLoader,
                 arrayOf(callbackClass)

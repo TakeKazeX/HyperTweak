@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.securitycenter.battery
 
+import com.takekazex.hypertweak.hook.base.HostSelect
 import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
@@ -308,9 +309,7 @@ object MoreBatteryInfoHooker : StaticHooker() {
         order: Int
     ): Any? {
         val preferenceClass = "miuix.preference.TextPreference".toClassOrNull() ?: return null
-        val constructor = preferenceClass.declaredConstructors.firstOrNull { ctor ->
-            ctor.parameterTypes.contentEquals(arrayOf(Context::class.java))
-        } ?: return null
+        val constructor = HostSelect.constructor(preferenceClass) { params(Context::class.java) } ?: return null
         return runCatching {
             constructor.isAccessible = true
             val preference = constructor.newInstance(context)

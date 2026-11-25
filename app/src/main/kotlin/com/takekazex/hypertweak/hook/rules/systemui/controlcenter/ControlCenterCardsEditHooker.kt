@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.controlcenter
 
+import com.takekazex.hypertweak.hook.base.HostSelect
 import com.takekazex.hypertweak.util.logging.DebugLog
 import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
@@ -390,13 +391,10 @@ class ControlCenterCardsEditHooker : DynamicHooker() {
         // empty payloads it falls through to the full 2-arg bind via super), and by the time the
         // after-hook runs the holder's mode field has already been updated by owner.updateMode in
         // both paths.
-        val onBind = adapter.declaredMethods.firstOrNull {
-            it.name == "onBindViewHolder" && it.parameterTypes.size == 3 &&
-                it.parameterTypes[0] == holderCls
-        } ?: adapter.declaredMethods.firstOrNull {
-            it.name == "onBindViewHolder" && it.parameterTypes.size == 2 &&
-                it.parameterTypes[0] == holderCls
-        } ?: return
+        val onBind = HostSelect.method(adapter) {
+            name("onBindViewHolder")
+            params(holderCls, null, null)
+        } ?: HostSelect.method(adapter) { name("onBindViewHolder"); params(holderCls, null) } ?: return
         val modeField = editor.findField(holderCls, "mode")
         val ownerMethod = holderCls.methods.firstOrNull {
             it.name == "getOwner" && it.parameterCount == 0
@@ -446,10 +444,11 @@ class ControlCenterCardsEditHooker : DynamicHooker() {
      */
     private fun installModeSweepHook() {
         val adapter = ADAPTER_NAME.toClassOrNull() ?: run { DebugLog.hookSkipped("ControlCenterCardsEditHooker", "$ADAPTER_NAME", "not found on host"); return }
-        val notifyChanged = adapter.declaredMethods.firstOrNull {
-            it.name == "notifyChanged" && it.parameterTypes.size == 2 &&
-                it.parameterTypes.all { p -> p == Boolean::class.javaPrimitiveType }
-        } ?: return
+        val notifyChanged = HostSelect.method(adapter) {
+            name("notifyChanged")
+            paramCount(2)
+            where("all boolean params") { it.parameterTypes.all { p -> p == Boolean::class.javaPrimitiveType }
+        } } ?: return
         val modeField = editor.findField(adapter, "mode")
         if (editor.attachedHoldersField == null) editor.attachedHoldersField = editor.findField(adapter, "attachedHolders")
         if (editor.endAnimationMethod == null) {
@@ -589,10 +588,10 @@ class ControlCenterCardsEditHooker : DynamicHooker() {
             Log.w(TAG, "ControlCenterCardsEdit: ItemTouchHelper callback not found")
             return
         }
-        val onMove = callbackCls.declaredMethods.firstOrNull {
-            it.name == "onMove" && it.parameterTypes.size == 3
-        } ?: return
-        val adapterField = callbackCls.declaredFields.firstOrNull { it.type.name == ADAPTER_NAME }
+        val onMove = HostSelect.method(callbackCls) { name("onMove"); paramCount(3) } ?: return
+        val adapterField = HostSelect.field(callbackCls) {
+            where("type.name == ADAPTER_NAME") { it.type.name == ADAPTER_NAME }
+        }
 
         onMove.hook {
             before { param ->
@@ -611,11 +610,11 @@ class ControlCenterCardsEditHooker : DynamicHooker() {
         // clearView is inherited from ItemTouchHelper.Callback and is skipped when the settle
         // animation gets interrupted, so prefer the scoped onStopDrag.
         val stopDragCls = "$ADAPTER_NAME\$itemTouchHelper\$1".toClassOrNull()
-        val stopDrag = stopDragCls?.declaredMethods?.firstOrNull {
-            it.name == "onStopDrag" && it.parameterTypes.size == 1
-        }
+        val stopDrag = stopDragCls?.let { HostSelect.method(it) { name("onStopDrag"); paramCount(1) } }
         if (stopDrag != null) {
-            val stopDragAdapterField = stopDragCls.declaredFields.firstOrNull { it.type.name == ADAPTER_NAME }
+            val stopDragAdapterField = HostSelect.field(stopDragCls) {
+                where("type.name == ADAPTER_NAME") { it.type.name == ADAPTER_NAME }
+            }
             stopDrag.hook {
                 after { param ->
                     runCatching { commitPendingOrders(stopDragAdapterField, param.thisObject) }

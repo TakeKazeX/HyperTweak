@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.volume
 
+import com.takekazex.hypertweak.hook.base.HostSelect
 import com.takekazex.hypertweak.hook.base.cachedPublicField
 import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
@@ -107,9 +108,9 @@ object AospVolumeHapticHooker : StaticHooker() {
                 DebugLog.hookSkipped(TAG, CONTROLLER_CALLBACKS, "class not found")
                 return
             }
-        val hapticIntent = callbacksClass.declaredMethods.firstOrNull {
-            it.name == "onPerformHapticFeedback" && it.parameterTypes.size == 1 &&
-                it.parameterTypes[0] == Int::class.javaPrimitiveType
+        val hapticIntent = HostSelect.method(callbacksClass) {
+            name("onPerformHapticFeedback")
+            params(Int::class.javaPrimitiveType)
         } ?: run {
             DebugLog.hookSkipped(TAG, "$CONTROLLER_CALLBACKS#onPerformHapticFeedback(Int)", "method not found")
             return
@@ -138,9 +139,9 @@ object AospVolumeHapticHooker : StaticHooker() {
                 DebugLog.hookSkipped(TAG, SLIDER_PROVIDER, "class not found")
                 return
             }
-        val onProgress = clazz.declaredMethods.firstOrNull {
-            it.name == "onProgress" && it.parameterTypes.size == 1 &&
-                it.parameterTypes[0] == Float::class.javaPrimitiveType
+        val onProgress = HostSelect.method(clazz) {
+            name("onProgress")
+            params(Float::class.javaPrimitiveType)
         } ?: run {
             DebugLog.hookSkipped(TAG, "$SLIDER_PROVIDER#onProgress(Float)", "method not found")
             return
@@ -169,9 +170,10 @@ object AospVolumeHapticHooker : StaticHooker() {
                 DebugLog.hookSkipped(TAG, SLIDER_STATE_TRACKER, "class not found")
                 return
             }
-        val executeOnState = tracker.declaredMethods.firstOrNull {
-            it.name == "executeOnState" && it.parameterTypes.size == 1 &&
-                it.parameterTypes[0].name == SLIDER_STATE
+        val executeOnState = HostSelect.method(tracker) {
+            name("executeOnState")
+            paramCount(1)
+            where("slider state param") { it.parameterTypes[0].name == SLIDER_STATE }
         } ?: run {
             DebugLog.hookSkipped(TAG, "$SLIDER_STATE_TRACKER#executeOnState($SLIDER_STATE)", "method not found")
             return
@@ -198,9 +200,10 @@ object AospVolumeHapticHooker : StaticHooker() {
                 DebugLog.hookSkipped(TAG, MSDL_PLAYER_IMPL, "class not found")
                 return
             }
-        val playToken = playerClass.declaredMethods.firstOrNull {
-            it.name == "playToken" && it.parameterTypes.size == 2 &&
-                it.parameterTypes[0].name == MSDL_TOKEN
+        val playToken = HostSelect.method(playerClass) {
+            name("playToken")
+            paramCount(2)
+            where("MSDL token param") { it.parameterTypes[0].name == MSDL_TOKEN }
         } ?: run {
             DebugLog.hookSkipped(TAG, "$MSDL_PLAYER_IMPL#playToken(MSDLToken,InteractionProperties)", "method not found")
             return

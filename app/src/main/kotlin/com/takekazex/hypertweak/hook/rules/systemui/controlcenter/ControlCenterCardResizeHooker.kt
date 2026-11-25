@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.controlcenter
 
+import com.takekazex.hypertweak.hook.base.HostSelect
 import com.takekazex.hypertweak.util.logging.DebugLog
 import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
@@ -330,10 +331,9 @@ class ControlCenterCardResizeHooker : DynamicHooker() {
     private fun installTileCardCreateHook() {
         val listController =
             "miui.systemui.controlcenter.panel.main.qs.QSListController".toClassOrNull() ?: return
-        val create = listController.declaredMethods.firstOrNull {
-            it.name == "createViewHolder" && it.parameterTypes.size == 2 &&
-                it.parameterTypes[0] == ViewGroup::class.java &&
-                it.parameterTypes[1] == Int::class.javaPrimitiveType
+        val create = HostSelect.method(listController) {
+            name("createViewHolder")
+            params(ViewGroup::class.java, Int::class.javaPrimitiveType)
         } ?: return
         create.hook {
             before { param ->
@@ -378,10 +378,8 @@ class ControlCenterCardResizeHooker : DynamicHooker() {
      * trailing DefaultConstructorMarker; the plain 3-arg constructor is the fallback.
      */
     private fun newCardIconView(iconCls: Class<*>, context: Context, sysUIContext: Context): Any {
-        val synthetic = iconCls.declaredConstructors.firstOrNull { ctor ->
-            ctor.parameterTypes.size == 5 &&
-                ctor.parameterTypes[0] == Context::class.java &&
-                ctor.parameterTypes[1] == Context::class.java
+        val synthetic = HostSelect.constructor(iconCls) {
+            params(Context::class.java, Context::class.java, null, null, null)
         }
         if (synthetic != null) {
             synthetic.isAccessible = true
@@ -397,15 +395,11 @@ class ControlCenterCardResizeHooker : DynamicHooker() {
     private fun installTextModeSync() {
         val listController =
             "miui.systemui.controlcenter.panel.main.qs.QSListController".toClassOrNull() ?: return
-        val onBind = listController.declaredMethods.firstOrNull {
-            it.name == "onBindViewHolder" && it.parameterTypes.size == 2
-        } ?: return
+        val onBind = HostSelect.method(listController) { name("onBindViewHolder"); paramCount(2) } ?: return
         val textModeField = findField(listController, "textMode") ?: run { DebugLog.hookSkipped("ControlCenterCardResizeHooker", "findField(listController, \"textMode\")", "not found on host"); return }
         val cardHolderCls =
             "miui.systemui.controlcenter.panel.main.qs.QSCardViewHolder".toClassOrNull() ?: return
-        val textModeSetter = cardHolderCls.declaredMethods.firstOrNull {
-            it.name == "onTextModeChanged" && it.parameterTypes.size == 2
-        }?.apply { isAccessible = true } ?: return
+        val textModeSetter = HostSelect.method(cardHolderCls) { name("onTextModeChanged"); paramCount(2) } ?: return
         onBind.hook {
             after { param ->
                 if (!enabled()) return@after
@@ -425,13 +419,10 @@ class ControlCenterCardResizeHooker : DynamicHooker() {
     private fun installBindSizeHook() {
         val adapter = ADAPTER_NAME.toClassOrNull() ?: run { DebugLog.hookSkipped("ControlCenterCardResizeHooker", "$ADAPTER_NAME", "not found on host"); return }
         val holderCls = HOLDER_NAME.toClassOrNull() ?: run { DebugLog.hookSkipped("ControlCenterCardResizeHooker", "$HOLDER_NAME", "not found on host"); return }
-        val onBind = adapter.declaredMethods.firstOrNull {
-            it.name == "onBindViewHolder" && it.parameterTypes.size == 3 &&
-                it.parameterTypes[0] == holderCls
-        } ?: adapter.declaredMethods.firstOrNull {
-            it.name == "onBindViewHolder" && it.parameterTypes.size == 2 &&
-                it.parameterTypes[0] == holderCls
-        } ?: return
+        val onBind = HostSelect.method(adapter) {
+            name("onBindViewHolder")
+            params(holderCls, null, null)
+        } ?: HostSelect.method(adapter) { name("onBindViewHolder"); params(holderCls, null) } ?: return
         val ownerMethod = holderCls.methods.firstOrNull {
             it.name == "getOwner" && it.parameterCount == 0
         } ?: return
@@ -590,10 +581,11 @@ class ControlCenterCardResizeHooker : DynamicHooker() {
      */
     private fun installLiveApplyHook() {
         val adapter = ADAPTER_NAME.toClassOrNull() ?: run { DebugLog.hookSkipped("ControlCenterCardResizeHooker", "$ADAPTER_NAME", "not found on host"); return }
-        val changeVisible = adapter.declaredMethods.firstOrNull {
-            it.name == "changeItemVisible" && it.parameterTypes.size == 3 &&
-                it.parameterTypes.all { p -> p == Boolean::class.javaPrimitiveType }
-        } ?: return
+        val changeVisible = HostSelect.method(adapter) {
+            name("changeItemVisible")
+            paramCount(3)
+            where("all boolean params") { it.parameterTypes.all { p -> p == Boolean::class.javaPrimitiveType }
+        } } ?: return
         val notifyChanged = adapter.methods.firstOrNull {
             it.name == "notifyChanged" && it.parameterTypes.size == 2 &&
                 it.parameterTypes.all { p -> p == Boolean::class.javaPrimitiveType }

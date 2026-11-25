@@ -1,9 +1,21 @@
 import unittest
-from check_architecture import (dispatcher_violations, executor_violations, hook_unit, hook_violations,
-                                renderer_violations, violations)
+from check_architecture import (dispatcher_violations, executor_violations, first_match_violation, hook_unit,
+                                hook_violations, renderer_violations, violations)
 
 
 class ArchitectureGuardTest(unittest.TestCase):
+    def test_declared_member_first_match_only_shrinks(self):
+        pick = "val m = type.declaredMethods.firstOrNull { it.name == \"x\" }\n"
+        nullable = "val f = type?.declaredFields?.first { true }\n"
+        self.assertEqual(1, first_match_violation("hook/rules/new/NewHooker.kt", pick))
+        self.assertEqual(1, first_match_violation("hook/rules/new/NewHooker.kt", nullable))
+        self.assertIsNone(first_match_violation("hook/rules/new/NewHooker.kt", "// declaredMethods.firstOrNull\n"))
+        self.assertIsNone(first_match_violation("hook/rules/new/NewHooker.kt",
+                                                "HostSelect.method(type) { name(\"x\") }\n"))
+        allowed = "hook/rules/system/ForceDarkAppListHooker.kt"
+        self.assertIsNone(first_match_violation(allowed, pick))
+        self.assertEqual(2, first_match_violation(allowed, pick * 2))
+
     def test_import_alias_wildcard_and_fully_qualified_bypasses(self):
         for code in ("import com.takekazex.hypertweak.hook.Preferences as Store",
                      "import com.takekazex.hypertweak.hook.*;",

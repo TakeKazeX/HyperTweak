@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.freeform
 
+import com.takekazex.hypertweak.hook.base.HostSelect
 import android.graphics.Canvas
 import android.graphics.Color
 import android.view.View
@@ -333,9 +334,10 @@ object FreeformBlurTransitionHooker : StaticHooker() {
             DebugLog.hookSkipped(TAG, COMMON_UTILS, "class not found")
         } else {
             listOf("isBlurAnimToggleEnable", "enableAdvancedMaterials").forEach { name ->
-                val method = utils.declaredMethods.firstOrNull {
-                    it.name == name && it.parameterCount == 0 &&
-                        it.returnType == Boolean::class.javaPrimitiveType
+                val method = HostSelect.method(utils) {
+                    name(name)
+                    returns(Boolean::class.javaPrimitiveType)
+                    noParams()
                 }
                 if (method == null) {
                     DebugLog.hookSkipped(TAG, "$COMMON_UTILS#$name", "method not found")

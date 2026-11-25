@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.volume
 
+import com.takekazex.hypertweak.hook.base.HostSelect
 import com.takekazex.hypertweak.hook.base.cachedDeclaredMethod
 import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
@@ -110,10 +111,10 @@ object AospVolumeExtrasHooker : StaticHooker() {
             DebugLog.hookSkipped(TAG, VOLUME_DIALOG_VIEW_BINDER, "class not found")
             return
         }
-        val bind = binderClass.declaredMethods.firstOrNull { method ->
-            method.name == "bind" && method.parameterTypes.size == 3 &&
-                Dialog::class.java.isAssignableFrom(method.parameterTypes[1]) &&
-                method.parameterTypes[2] == Boolean::class.javaPrimitiveType
+        val bind = HostSelect.method(binderClass) {
+            name("bind")
+            params(null, null, Boolean::class.javaPrimitiveType)
+            where("Dialog param") { method -> Dialog::class.java.isAssignableFrom(method.parameterTypes[1]) }
         } ?: run {
             DebugLog.hookSkipped(TAG, "$VOLUME_DIALOG_VIEW_BINDER#bind(CoroutineScope,Dialog,Boolean)", "method not found")
             return
@@ -140,9 +141,7 @@ object AospVolumeExtrasHooker : StaticHooker() {
             DebugLog.hookSkipped(TAG, CONTROLLER_CALLBACKS, "class not found")
             return
         }
-        val onStateChanged = callbacksClass.declaredMethods.firstOrNull {
-            it.name == "onStateChanged" && it.parameterTypes.size == 1
-        } ?: run {
+        val onStateChanged = HostSelect.method(callbacksClass) { name("onStateChanged"); paramCount(1) } ?: run {
             DebugLog.hookSkipped(TAG, "$CONTROLLER_CALLBACKS#onStateChanged(State)", "method not found")
             return
         }
@@ -169,11 +168,9 @@ object AospVolumeExtrasHooker : StaticHooker() {
             DebugLog.hookSkipped(TAG, CONTROLLER, "class not found")
             return
         }
-        val onVolumeChanged = controllerClass.declaredMethods.firstOrNull {
-            it.name == "onVolumeChangedW" && it.parameterTypes.size == 3 &&
-                it.parameterTypes[0] == Int::class.javaPrimitiveType &&
-                it.parameterTypes[1] == Int::class.javaPrimitiveType &&
-                it.parameterTypes[2] == Boolean::class.javaPrimitiveType
+        val onVolumeChanged = HostSelect.method(controllerClass) {
+            name("onVolumeChangedW")
+            params(Int::class.javaPrimitiveType, Int::class.javaPrimitiveType, Boolean::class.javaPrimitiveType)
         } ?: run {
             DebugLog.hookSkipped(TAG, "$CONTROLLER#onVolumeChangedW(Int,Int,Boolean)", "method not found")
             return

@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.lockscreen
 
+import com.takekazex.hypertweak.hook.base.HostSelect
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 
 import android.content.Context
@@ -62,9 +63,7 @@ object LockscreenAllNotificationsHooker : StaticHooker() {
             DebugLog.hookSkipped(TAG, SETTINGS_MANAGER, "class not found")
             return
         }
-        val canShow = manager.declaredMethods.firstOrNull {
-            it.name == "canShowOnKeyguard" && it.parameterTypes.size == 3
-        } ?: run {
+        val canShow = HostSelect.method(manager) { name("canShowOnKeyguard"); paramCount(3) } ?: run {
             DebugLog.hookSkipped(TAG, "$SETTINGS_MANAGER#canShowOnKeyguard", "method not found")
             return
         }

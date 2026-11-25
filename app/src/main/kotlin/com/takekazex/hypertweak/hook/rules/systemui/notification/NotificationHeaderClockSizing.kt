@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.notification
 
+import com.takekazex.hypertweak.hook.base.HostSelect
 import android.content.Context
 import android.content.res.Configuration
 import com.takekazex.hypertweak.settings.contract.NotificationHeaderModel
@@ -96,10 +97,12 @@ internal class NotificationHeaderClockSizing(
     }.getOrNull() ?: false
 
     private fun resolveMiuiConfigMethod(name: String): Method? =
-        resolveClass(MIUI_CONFIGS_CLASS)?.declaredMethods?.firstOrNull {
-            it.name == name && it.parameterCount == 1 &&
-                Context::class.java.isAssignableFrom(it.parameterTypes[0])
-        }?.apply { isAccessible = true }
+        resolveClass(MIUI_CONFIGS_CLASS)?.let { configs ->
+            HostSelect.method(configs) {
+                name(name); paramCount(1)
+                where("Context param") { Context::class.java.isAssignableFrom(it.parameterTypes[0]) }
+            }
+        }
 
     fun restore() {
         controllerSizes.forEach { (controller, state) ->

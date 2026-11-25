@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.module
 
+import com.takekazex.hypertweak.hook.base.HostSelect
 import com.takekazex.hypertweak.hook.base.orSkip
 import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
@@ -70,9 +71,9 @@ object SettingsHooker : StaticHooker() {
         )
 
         // 1. Hook updateHeaderList to inject our custom entry in MiuiSettings
-        clzMiuiSettings.declaredMethods.firstOrNull { m ->
-            m.name == "updateHeaderList" && m.parameterTypes.size == 1 &&
-                m.parameterTypes[0].name == "java.util.List"
+        HostSelect.method(clzMiuiSettings) {
+            name("updateHeaderList")
+            params(java.util.List::class.java)
         }?.hook {
             after { param ->
                 @Suppress("UNCHECKED_CAST")
@@ -151,7 +152,9 @@ object SettingsHooker : StaticHooker() {
         }
 
         // 2. Hook setIcon in HeaderAdapter to set our custom icon from module resources
-        clzHeaderAdapter?.declaredMethods?.firstOrNull { it.name == "setIcon" }.orSkip("SettingsHooker", "clzHeaderAdapter#setIcon")?.hook {
+        clzHeaderAdapter?.let { HostSelect.method(it) {
+            name("setIcon")
+        } }.orSkip("SettingsHooker", "clzHeaderAdapter#setIcon")?.hook {
             intercept { chain ->
                 val param = chain.args
                 val headerViewHolder = param[0]

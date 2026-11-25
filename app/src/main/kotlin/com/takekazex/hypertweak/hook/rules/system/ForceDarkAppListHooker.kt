@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.system
 
+import com.takekazex.hypertweak.hook.base.HostSelect
 import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
@@ -32,11 +33,11 @@ object ForceDarkAppListHooker : StaticHooker() {
             DebugLog.w(TAG, "ForceDarkAppListManager unavailable")
             return
         }
-        val method = managerClass.declaredMethods.firstOrNull { candidate ->
-            candidate.name == METHOD_NAME &&
-                candidate.parameterTypes.contentEquals(arrayOf(ApplicationInfo::class.java)) &&
-                candidate.returnType == Boolean::class.javaPrimitiveType
-        }?.apply { isAccessible = true } ?: run {
+        val method = HostSelect.method(managerClass) {
+            name(METHOD_NAME)
+            params(ApplicationInfo::class.java)
+            returns(Boolean::class.javaPrimitiveType)
+        } ?: run {
             DebugLog.w(TAG, "shouldShowInSettings(ApplicationInfo) unavailable")
             return
         }
@@ -47,11 +48,11 @@ object ForceDarkAppListHooker : StaticHooker() {
                 }
             }
         }
-        managerClass.declaredMethods.firstOrNull { candidate ->
-            candidate.name == "getAppDarkModeEnable" && candidate.parameterTypes.contentEquals(
-                arrayOf(String::class.java, Int::class.javaPrimitiveType)
-            ) && candidate.returnType == Boolean::class.javaPrimitiveType
-        }?.apply { isAccessible = true }?.hook("force_dark_state_read") {
+        HostSelect.method(managerClass) {
+            name("getAppDarkModeEnable")
+            params(String::class.java, Int::class.javaPrimitiveType)
+            returns(Boolean::class.javaPrimitiveType)
+        }?.hook("force_dark_state_read") {
             after { param ->
                 // Keep the vendor SecurityManager-backed value as the source of truth. This hook is
                 // deliberately present at the service boundary so callers use the same state as Settings.
@@ -59,10 +60,11 @@ object ForceDarkAppListHooker : StaticHooker() {
                 param.result = param.result as? Boolean ?: false
             }
         }
-        managerClass.declaredMethods.firstOrNull { candidate ->
-            candidate.name == "getAppForceDarkOrigin" && candidate.parameterTypes.contentEquals(arrayOf(String::class.java)) &&
-                candidate.returnType == Boolean::class.javaPrimitiveType
-        }?.apply { isAccessible = true }?.hook("force_dark_origin") {
+        HostSelect.method(managerClass) {
+            name("getAppForceDarkOrigin")
+            params(String::class.java)
+            returns(Boolean::class.javaPrimitiveType)
+        }?.hook("force_dark_origin") {
             after { param ->
                 if (!settingUnlockThirdPartyDarkMode) return@after
                 val packageName = param.args.getOrNull(0) as? String ?: return@after

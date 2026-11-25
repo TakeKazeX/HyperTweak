@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.phone
 
+import com.takekazex.hypertweak.hook.base.HostSelect
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
@@ -56,12 +57,12 @@ object VideoRingbackHooker : StaticHooker() {
             DebugLog.hookSkipped(TAG, BASE_CLASS, "class not found")
             return
         }
-        setCrbtDisable = base.declaredMethods.firstOrNull {
-            it.name == "setCrbtDisable" &&
-                it.parameterTypes.contentEquals(arrayOf(java.lang.Boolean.TYPE)) &&
-                it.returnType == Void.TYPE &&
-                !Modifier.isStatic(it.modifiers)
-        }?.apply { isAccessible = true } ?: run {
+        setCrbtDisable = HostSelect.method(base) {
+            name("setCrbtDisable")
+            params(java.lang.Boolean.TYPE)
+            returns(Void.TYPE)
+            instance()
+        } ?: run {
             DebugLog.hookSkipped(TAG, "$BASE_CLASS#setCrbtDisable(boolean)", "method not found")
             return
         }
@@ -90,11 +91,11 @@ object VideoRingbackHooker : StaticHooker() {
             DebugLog.w(TAG, "$MANAGER_CLASS not found; startup enforcement will use the display gate")
             return
         }
-        val factory = manager.declaredMethods.firstOrNull {
-            it.name == "make" &&
-                Modifier.isStatic(it.modifiers) &&
-                it.parameterTypes.isEmpty() &&
-                it.returnType.name == BASE_CLASS
+        val factory = HostSelect.method(manager) {
+            name("make")
+            noParams()
+            static()
+            where("returnType.name == BASE_CLASS") { it.returnType.name == BASE_CLASS }
         } ?: run {
             DebugLog.w(TAG, "$MANAGER_CLASS#make() not found; startup enforcement will use the display gate")
             return
@@ -115,11 +116,11 @@ object VideoRingbackHooker : StaticHooker() {
      * `MiuiPhoneInterfaceManager` binder method.
      */
     private fun hookDisplayGate(clazz: Class<*>) {
-        val method = clazz.declaredMethods.firstOrNull {
-            it.name == "shouldDisplayCrbtButton" &&
-                it.parameterTypes.isEmpty() &&
-                it.returnType == java.lang.Boolean.TYPE &&
-                !Modifier.isStatic(it.modifiers)
+        val method = HostSelect.method(clazz) {
+            name("shouldDisplayCrbtButton")
+            returns(java.lang.Boolean.TYPE)
+            noParams()
+            instance()
         } ?: return
         deoptimize(method)
         method.hook("phone_video_ringback_display_${clazz.name}") {

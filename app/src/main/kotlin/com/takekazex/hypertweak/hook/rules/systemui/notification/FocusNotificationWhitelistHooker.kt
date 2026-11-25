@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.notification
 
+import com.takekazex.hypertweak.hook.base.HostSelect
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import android.content.Context
@@ -50,15 +51,11 @@ object FocusNotificationWhitelistHooker : StaticHooker() {
             DebugLog.hookSkipped(TAG, SETTINGS_MANAGER, "class not found")
             return
         }
-        val canShow = manager.declaredMethods.firstOrNull {
-            it.name == "canShowFocusState" && it.parameterTypes.size == 2
-        } ?: run {
+        val canShow = HostSelect.method(manager) { name("canShowFocusState"); paramCount(2) } ?: run {
             DebugLog.hookSkipped(TAG, "$SETTINGS_MANAGER#canShowFocusState", "method not found")
             return
         }
-        val canShowApp = manager.declaredMethods.firstOrNull {
-            it.name == "canShowFocusStateApp" && it.parameterTypes.size == 2
-        } ?: run {
+        val canShowApp = HostSelect.method(manager) { name("canShowFocusStateApp"); paramCount(2) } ?: run {
             DebugLog.hookSkipped(TAG, "$SETTINGS_MANAGER#canShowFocusStateApp", "method not found")
             return
         }

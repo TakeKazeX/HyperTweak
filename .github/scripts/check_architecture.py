@@ -138,6 +138,36 @@ def executor_violations(source):
     return [code.count("\n", 0, match.start()) + 1 for match in EXECUTOR_FACTORY.finditer(code)]
 
 
+# `firstOrNull` over declared members silently takes whichever match the runtime lists first.
+# New host member selection goes through HostSelect (exactly one match, ambiguity logged).
+# Remaining uses are hierarchy-walking/shared helpers or unverified host contracts; counts may only fall.
+FIRST_MATCH = re.compile(r'declared(?:Methods|Fields|Constructors)\??\.(?:firstOrNull|first)\b')
+FIRST_MATCH_ALLOWED = {
+    "hook/rules/downloads/DownloadUiHooker.kt": 3,
+    "hook/rules/mediaeditor/MediaEditorWatermarkHooker.kt": 2,
+    "hook/rules/securitycenter/battery/PowerRankingHooker.kt": 1,
+    "hook/rules/settings/ChannelKeyguardToggleHooker.kt": 1,
+    "hook/rules/settings/NotificationBadgeSettingsHooker.kt": 1,
+    "hook/rules/settings/NotificationMoreSettingsHooker.kt": 1,
+    "hook/rules/system/ForceDarkAppListHooker.kt": 1,
+    "hook/rules/system/PowerButtonCtsHooker.kt": 3,
+    "hook/rules/systemui/aod/AodStatusIconHooker.kt": 1,
+    "hook/rules/systemui/freeform/FreeformBlurTransitionHooker.kt": 3,
+    "hook/rules/systemui/icon/CellularTypeIconHooker.kt": 1,
+    "hook/rules/systemui/icon/HostIconBridge.kt": 1,
+    "hook/rules/systemui/icon/IconSlotTintHooker.kt": 1,
+    "hook/rules/systemui/icon/MobileSignalVisibility.kt": 1,
+    "hook/rules/systemui/notification/NotificationFontWeightHooker.kt": 1,
+    "hook/rules/systemui/slider/ControlCenterCornerHooker.kt": 1,
+}
+
+
+def first_match_violation(relative, source):
+    count = len(FIRST_MATCH.findall(strip_non_code(source)))
+    allowed = FIRST_MATCH_ALLOWED.get(relative, 0)
+    return count if count > allowed else None
+
+
 def main():
     failures = []
     for language in ("kotlin", "java"):
@@ -150,6 +180,10 @@ def main():
             failures.extend(f"{path.relative_to(ROOT)}:{line}: forbidden {layer} -> {target}"
                             for line, target in violations(layer, source))
             if layer == "hook":
+                relative = path.relative_to(base).as_posix()
+                if (count := first_match_violation(relative, source)) is not None:
+                    failures.append(f"{path.relative_to(ROOT)}: {count} declared-member firstOrNull/first "
+                                    f"(allowed {FIRST_MATCH_ALLOWED.get(relative, 0)}); use HostSelect")
                 unit = hook_unit(path.relative_to(base / "hook").parts)
                 failures.extend(f"{path.relative_to(ROOT)}:{line}: forbidden hook.{unit} -> hook.{target}"
                                 for line, target in hook_violations(unit, source))

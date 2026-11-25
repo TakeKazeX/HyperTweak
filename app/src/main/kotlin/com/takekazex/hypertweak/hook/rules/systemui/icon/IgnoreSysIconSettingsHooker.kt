@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import com.takekazex.hypertweak.hook.base.HostSelect
 import com.takekazex.hypertweak.hook.base.orSkip
 import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
 import com.takekazex.hypertweak.settings.contract.IconSlotMode
@@ -115,7 +116,9 @@ internal object IgnoreSysIconSettingsHooker : IconRenderer() {
         }
         // R8 keeps this generated nest-method prefix on the OS4 build. Keep the hook limited to
         // the show callback so normal hide requests and the user's slot mode remain intact.
-        speedClass.declaredMethods.firstOrNull { it.name.contains("mupdateVisibility") }.orSkip("IgnoreSysIconSettingsHooker", "speedClass#mupdateVisibility")?.observe {
+        HostSelect.method(speedClass) {
+            where("name.contains(mupdateVisibility)") { it.name.contains("mupdateVisibility") }
+        }.orSkip("IgnoreSysIconSettingsHooker", "speedClass#mupdateVisibility")?.observe {
             before { param ->
                 val reason = param.args.getOrNull(1) as? String
                 if (reason == "show" && netSpeedShown) {

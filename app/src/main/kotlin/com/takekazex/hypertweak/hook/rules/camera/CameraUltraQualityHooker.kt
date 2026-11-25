@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.camera
 
+import com.takekazex.hypertweak.hook.base.HostSelect
 import com.takekazex.hypertweak.settings.contract.CameraSettingsKeys
 
 import com.takekazex.hypertweak.hook.base.dex.DexOperandIndex
@@ -72,9 +73,7 @@ object CameraUltraQualityHooker : StaticHooker() {
         val clazz = CameraFeatureResolver.selfieSettings(
             CameraResolver.Ctx(classLoader, hookParam.appInfo), TAG,
         ) ?: return
-        val method = clazz.declaredMethods.firstOrNull {
-            it.name == "addCurrentPreferences" && it.parameterCount == 0
-        } ?: return
+        val method = HostSelect.method(clazz) { name("addCurrentPreferences"); noParams() } ?: return
         val semantics = CameraSemantics.create(CameraResolver.Ctx(classLoader, hookParam.appInfo), TAG) ?: return
         val ids = semantics.dex.preferenceResources("pref_front_mirror_boolean_key")
         if (ids.size != 2) { DebugLog.w(TAG, "mirror preference resources are not unique"); return }
@@ -102,9 +101,7 @@ object CameraUltraQualityHooker : StaticHooker() {
         val clazz = CameraFeatureResolver.commonSettings(
             CameraResolver.Ctx(classLoader, hookParam.appInfo), TAG,
         ) ?: return
-        val method = clazz.declaredMethods.firstOrNull {
-            it.name == "addCommonPreferences1" && it.parameterCount == 0
-        } ?: return
+        val method = HostSelect.method(clazz) { name("addCommonPreferences1"); noParams() } ?: return
         val semantics = CameraSemantics.create(CameraResolver.Ctx(classLoader, hookParam.appInfo), TAG) ?: return
         val groupClass = classLoader.loadClass("androidx.preference.PreferenceGroup")
         val groupField = generateSequence(clazz) { it.superclass }.flatMap { it.declaredFields.asSequence() }

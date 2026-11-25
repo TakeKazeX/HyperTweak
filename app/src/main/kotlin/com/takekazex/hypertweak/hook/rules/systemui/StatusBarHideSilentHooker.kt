@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui
 
+import com.takekazex.hypertweak.hook.base.HostSelect
 import com.takekazex.hypertweak.hook.base.cachedDeclaredField
 import com.takekazex.hypertweak.hook.base.cachedDeclaredMethod
 import com.takekazex.hypertweak.hook.base.cachedPublicField
@@ -75,10 +76,11 @@ object StatusBarHideSilentHooker : StaticHooker() {
         }
         // toModel has two single-argument overloads (GroupEntry and NotificationEntry); matching on
         // the parameter count alone can pick the group one, whose return type has no isSilent field.
-        val toModel = builderClass.declaredMethods.firstOrNull {
-            it.name == "toModel" && it.parameterTypes.size == 1 &&
-                it.parameterTypes[0].name.endsWith("NotificationEntry")
-        }?.apply { isAccessible = true } ?: run {
+        val toModel = HostSelect.method(builderClass) {
+            name("toModel")
+            paramCount(1)
+            where("NotificationEntry param") { it.parameterTypes[0].name.endsWith("NotificationEntry") }
+        } ?: run {
             DebugLog.hookSkipped(TAG, "$BUILDER#toModel(NotificationEntry)", "method not found")
             return
         }

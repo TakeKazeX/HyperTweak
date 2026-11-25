@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.media
 
+import com.takekazex.hypertweak.hook.base.HostSelect
 import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 
@@ -143,9 +144,7 @@ object MediaCardHideAppIconHooker : StaticHooker() {
             DebugLog.hookSkipped(TAG, SHADE_HOLDER, "class not found")
             return
         }
-        val attach = vc.declaredMethods.firstOrNull {
-            it.name == "attach" && it.parameterTypes.size == 1
-        } ?: run {
+        val attach = HostSelect.method(vc) { name("attach"); paramCount(1) } ?: run {
             DebugLog.hookSkipped(TAG, "$SHADE_VC#attach", "method not found")
             return
         }
@@ -176,9 +175,7 @@ object MediaCardHideAppIconHooker : StaticHooker() {
             DebugLog.hookSkipped(TAG, ISLAND_HOLDER, "class not found")
             return
         }
-        val attach = binder.declaredMethods.firstOrNull {
-            it.name == "attach" && it.parameterTypes.size == 2
-        } ?: run {
+        val attach = HostSelect.method(binder) { name("attach"); paramCount(2) } ?: run {
             DebugLog.hookSkipped(TAG, "$ISLAND_BINDER#attach", "method not found")
             return
         }

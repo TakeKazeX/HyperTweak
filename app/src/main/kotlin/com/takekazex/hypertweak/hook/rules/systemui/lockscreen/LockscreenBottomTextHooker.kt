@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.lockscreen
 
+import com.takekazex.hypertweak.hook.base.HostSelect
 import com.takekazex.hypertweak.hook.base.ViewVisibilityRouter
 import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
@@ -144,11 +145,9 @@ object LockscreenBottomTextHooker : StaticHooker() {
             DebugLog.hookSkipped(TAG, INDICATION_CONTROLLER, "class not found")
             return
         }
-        val updateIndication = controller.declaredMethods.firstOrNull {
-            it.name == "updateIndication" &&
-                it.parameterTypes.size == 3 &&
-                it.parameterTypes[0] == Int::class.javaPrimitiveType &&
-                it.parameterTypes[2] == Boolean::class.javaPrimitiveType
+        val updateIndication = HostSelect.method(controller) {
+            name("updateIndication")
+            params(Int::class.javaPrimitiveType, null, Boolean::class.javaPrimitiveType)
         } ?: run {
             DebugLog.hookSkipped(TAG, "$INDICATION_CONTROLLER#updateIndication", "method not found")
             return
@@ -205,15 +204,11 @@ object LockscreenBottomTextHooker : StaticHooker() {
             DebugLog.hookSkipped(TAG, NUM_STATE_ANIMATE_EXT, "class not found")
             return
         }
-        val animateVisibility = animateClass.declaredMethods.firstOrNull {
-            it.name == "animateUpdateViewVisibility" &&
-                it.parameterTypes.size == 7 &&
-                it.parameterTypes[0] == View::class.java &&
-                it.parameterTypes[2] == Float::class.javaPrimitiveType &&
-                it.parameterTypes[3] == Float::class.javaPrimitiveType &&
-                it.parameterTypes[4] == Float::class.javaPrimitiveType &&
-                it.parameterTypes[5] == Boolean::class.javaPrimitiveType &&
-                it.parameterTypes[6] == Boolean::class.javaPrimitiveType
+        val animateVisibility = HostSelect.method(animateClass) {
+            name("animateUpdateViewVisibility")
+            val f = Float::class.javaPrimitiveType
+            val z = Boolean::class.javaPrimitiveType
+            params(View::class.java, null, f, f, f, z, z)
         } ?: run {
             DebugLog.hookSkipped(
                 TAG,

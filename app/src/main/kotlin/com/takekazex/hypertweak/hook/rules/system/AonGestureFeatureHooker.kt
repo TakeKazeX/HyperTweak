@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.system
 
+import com.takekazex.hypertweak.hook.base.HostSelect
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.HostAccess
 import android.content.Context
@@ -73,12 +74,8 @@ object AonGestureFeatureHooker : StaticHooker() {
     override fun onHook() {
         retired = false
         val clazz = CONTROLLER_CLASS.toClassOrNull() ?: run { DebugLog.hookSkipped("AonGestureFeatureHooker", "$CONTROLLER_CLASS", "not found on host"); return }
-        val update = clazz.declaredMethods.firstOrNull {
-            it.name == "updateSupprotFeature" && it.parameterTypes.isEmpty()
-        }
-        val current = clazz.declaredMethods.firstOrNull {
-            it.name == "getCurrentSupportFeature" && it.parameterTypes.isEmpty()
-        }
+        val update = HostSelect.method(clazz) { name("updateSupprotFeature"); noParams() }
+        val current = HostSelect.method(clazz) { name("getCurrentSupportFeature"); noParams() }
         if (update == null || current == null) {
             DebugLog.w(TAG, "AON gesture controller methods not found; skipped")
             return

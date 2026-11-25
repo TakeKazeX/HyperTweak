@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.controlcenter
 
+import com.takekazex.hypertweak.hook.base.HostSelect
 import com.takekazex.hypertweak.hook.base.HostAccess
 import android.util.Log
 import android.view.View
@@ -225,10 +226,10 @@ internal class ControlCenterEditorAccess(private val resolveClass: (String) -> C
 
     fun findContentMapField(adapter: Class<*>): Field? =
         findField(adapter, "contentMap")
-            ?: adapter.declaredFields.firstOrNull {
-                !Modifier.isStatic(it.modifiers) &&
-                    it.type.name.contains("LinkedHashMap")
-            }?.apply { isAccessible = true }
+            ?: HostSelect.field(adapter) {
+                instance()
+                where("type.name.contains(LinkedHashMap)") { it.type.name.contains("LinkedHashMap") }
+            }
 
     fun findField(cls: Class<*>, name: String): Field? =
         runCatching {

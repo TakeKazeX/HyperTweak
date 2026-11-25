@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.settings
 
+import com.takekazex.hypertweak.hook.base.HostSelect
 import com.takekazex.hypertweak.hook.base.HostAccess
 import android.content.Context
 import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
@@ -53,9 +54,7 @@ object AonGestureSettingsHooker : StaticHooker() {
 
     override fun onHook() {
         val clazz = CLASS.toClassOrNull() ?: run { DebugLog.hookSkipped("AonGestureSettingsHooker", "$CLASS", "not found on host"); return }
-        val onResume = clazz.declaredMethods.firstOrNull {
-            it.name == "onResume" && it.parameterTypes.isEmpty()
-        } ?: return
+        val onResume = HostSelect.method(clazz) { name("onResume"); noParams() } ?: return
         deoptimize(onResume)
         onResume.hook("aon_gesture_extras_rows") { after { param ->
             if (!settingUnlockMoreAonGestures) return@after

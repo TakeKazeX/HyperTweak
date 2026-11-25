@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.settings
 
+import com.takekazex.hypertweak.hook.base.HostSelect
 import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
@@ -36,9 +37,7 @@ object BluetoothPluginHooker : StaticHooker() {
     }
 
     private fun hookPreferenceClass(prefClass: Class<*>) {
-        val callChangeListener = prefClass.declaredMethods.firstOrNull {
-            it.name == "callChangeListener" && it.parameterTypes.size == 1
-        }
+        val callChangeListener = HostSelect.method(prefClass) { name("callChangeListener"); paramCount(1) }
         if (callChangeListener == null) {
             Log.e(TAG, "BluetoothPluginHooker: callChangeListener not found")
             return

@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.settings
 
+import com.takekazex.hypertweak.hook.base.HostSelect
 import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
@@ -51,19 +52,19 @@ object GoogleServicesSettingsHooker : StaticHooker() {
         retired = false
         hostClass = clazz
         rebuild = HostAccess.requireDeclaredMethod(clazz, "updateHeader", accessible = true)
-        val updateHeaderList = clazz.declaredMethods.firstOrNull {
-                it.name == UPDATE_HEADER_LIST &&
-                it.parameterTypes.size == 1 &&
-                List::class.java.isAssignableFrom(it.parameterTypes[0])
+        val updateHeaderList = HostSelect.method(clazz) {
+            name(UPDATE_HEADER_LIST)
+            paramCount(1)
+            where("List param") { List::class.java.isAssignableFrom(it.parameterTypes[0]) }
         } ?: run {
             DebugLog.hookSkipped(TAG, "$SETTINGS_CLASS#$UPDATE_HEADER_LIST(List)", "method not found")
             return
         }
-        val addGoogleHeaders = clazz.declaredMethods.firstOrNull {
-                it.name == ADD_GOOGLE_HEADERS &&
-                it.parameterTypes.size == 1 &&
-                List::class.java.isAssignableFrom(it.parameterTypes[0])
-        }?.apply { isAccessible = true } ?: run {
+        val addGoogleHeaders = HostSelect.method(clazz) {
+            name(ADD_GOOGLE_HEADERS)
+            paramCount(1)
+            where("List param") { List::class.java.isAssignableFrom(it.parameterTypes[0]) }
+        } ?: run {
             DebugLog.hookSkipped(TAG, "$SETTINGS_CLASS#$ADD_GOOGLE_HEADERS(List)", "method not found")
             return
         }

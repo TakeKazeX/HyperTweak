@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui
 
+import com.takekazex.hypertweak.hook.base.HostSelect
 import com.takekazex.hypertweak.hook.base.cachedPublicMethod
 import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
@@ -252,9 +253,7 @@ object ExtendUnlockHooker : StaticHooker() {
      * `onTrustChanged` notification loop cannot read back a stale cached `true` during a revocation.
      */
     private fun hookOnTrustChanged(monitor: Class<*>) {
-        val method = monitor.declaredMethods.firstOrNull {
-            it.name == "onTrustChanged" && it.parameterTypes.size == 5
-        } ?: run {
+        val method = HostSelect.method(monitor) { name("onTrustChanged"); paramCount(5) } ?: run {
             DebugLog.hookSkipped(TAG, "$KEYGUARD_UPDATE_MONITOR#onTrustChanged", "method not found")
             return
         }

@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.media
 
+import com.takekazex.hypertweak.hook.base.HostSelect
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 
 import android.view.View
@@ -65,7 +66,7 @@ class MediaPlayerDeviceIconHooker : DynamicHooker() {
             DebugLog.hookSkipped(TAG, HOLDER_CLASS, "class not found")
             return
         }
-        val bindingType = holder.declaredFields.firstOrNull { it.name == "binding" } ?: run {
+        val bindingType = HostSelect.field(holder) { name("binding") } ?: run {
             DebugLog.hookSkipped(TAG, "$HOLDER_CLASS#binding", "field not found")
             return
         }
@@ -75,9 +76,7 @@ class MediaPlayerDeviceIconHooker : DynamicHooker() {
             return
         }
         getDeviceIcon = iconGetter
-        val setDetail = holder.declaredMethods.firstOrNull {
-            it.name == "setDetailAvailable" && it.parameterTypes.size == 1
-        } ?: run {
+        val setDetail = HostSelect.method(holder) { name("setDetailAvailable"); paramCount(1) } ?: run {
             DebugLog.hookSkipped(TAG, "$HOLDER_CLASS#setDetailAvailable", "method not found")
             return
         }

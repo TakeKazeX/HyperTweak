@@ -26,6 +26,8 @@ import android.widget.TextView
 import android.widget.Toast
 import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.hook.Preferences
+import com.takekazex.hypertweak.hook.base.HostAccess
+import com.takekazex.hypertweak.hook.base.HostSelect
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.hook.runtime.settings.HookSettingsSnapshots
 import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
@@ -100,9 +102,7 @@ object WifiDetailsHooker : StaticHooker() {
         // 1. Hook formatIpAddresses in MiuiWifiDetailFragment to include all IPv4 and IPv6 addresses
         val detailFragmentClass = "com.android.settings.wifi.MiuiWifiDetailFragment".toClassOrNull()
         if (detailFragmentClass != null) {
-            val formatIpMethod = detailFragmentClass.declaredMethods.firstOrNull {
-                it.name == "formatIpAddresses" && it.parameterTypes.size == 2
-            }?.apply { isAccessible = true }
+            val formatIpMethod = HostSelect.method(detailFragmentClass) { name("formatIpAddresses"); paramCount(2) }
 
             if (formatIpMethod != null) {
                 deoptimize(formatIpMethod)
@@ -144,9 +144,7 @@ object WifiDetailsHooker : StaticHooker() {
         // 2. Hook WifiDetailLinearLayout$2.run() to prevent setSingleLine() / marquee compression
         val runnableClass = "com.android.settings.wifi.WifiDetailLinearLayout\$2".toClassOrNull()
         if (runnableClass != null) {
-            val runMethod = runnableClass.declaredMethods.firstOrNull {
-                it.name == "run" && it.parameterTypes.isEmpty()
-            }?.apply { isAccessible = true }
+            val runMethod = HostSelect.method(runnableClass) { name("run"); noParams() }
 
             if (runMethod != null) {
                 deoptimize(runMethod)
@@ -154,9 +152,9 @@ object WifiDetailsHooker : StaticHooker() {
                     before { param ->
                         if (!settingWifiDetailIpMultiline) return@before
                         val target = param.thisObject
-                        val summaryField = target.javaClass.declaredFields.firstOrNull {
-                            TextView::class.java.isAssignableFrom(it.type)
-                        }?.apply { isAccessible = true }
+                        val summaryField = HostSelect.field(target.javaClass, "wifi.detail.summaryView") {
+                            typeIs(TextView::class.java)
+                        }
                         val summaryTv = summaryField?.get(target) as? TextView ?: return@before
                         val text = summaryTv.text
                         if (WifiIpAddressText.isIpList(text) || text?.contains('\n') == true) {
@@ -175,9 +173,10 @@ object WifiDetailsHooker : StaticHooker() {
         // 3. Hook WifiDetailLinearLayout.getBaseView(int) to attach click-to-copy handler
         val layoutClass = "com.android.settings.wifi.WifiDetailLinearLayout".toClassOrNull()
         if (layoutClass != null) {
-            val getBaseViewMethod = layoutClass.declaredMethods.firstOrNull {
-                it.name == "getBaseView" && it.parameterTypes.size == 1 && it.parameterTypes[0] == Int::class.javaPrimitiveType
-            }?.apply { isAccessible = true }
+            val getBaseViewMethod = HostSelect.method(layoutClass) {
+                name("getBaseView")
+                params(Int::class.javaPrimitiveType)
+            }
 
             if (getBaseViewMethod != null) {
                 deoptimize(getBaseViewMethod)
@@ -232,9 +231,7 @@ object WifiDetailsHooker : StaticHooker() {
         // Intercept WifiShareFloatingActivity.onCreate to unmask preSharedKey (fixing asterisk *)
         val shareActivityClass = "com.android.settings.wifi.WifiShareFloatingActivity".toClassOrNull()
         if (shareActivityClass != null) {
-            val onCreateMethod = shareActivityClass.declaredMethods.firstOrNull {
-                it.name == "onCreate" && it.parameterTypes.size == 1 && it.parameterTypes[0] == Bundle::class.java
-            }?.apply { isAccessible = true }
+            val onCreateMethod = HostSelect.method(shareActivityClass) { name("onCreate"); params(Bundle::class.java) }
 
             if (onCreateMethod != null) {
                 deoptimize(onCreateMethod)
@@ -250,9 +247,10 @@ object WifiDetailsHooker : StaticHooker() {
                     }
                     after { param ->
                         val activity = param.thisObject as? Activity ?: return@after
-                        val wifiConfigField = activity.javaClass.declaredFields.firstOrNull {
-                            it.name == "mWifiConfig" && it.type == WifiConfiguration::class.java
-                        }?.apply { isAccessible = true }
+                        val wifiConfigField = HostSelect.field(activity.javaClass, "wifi.share.config") {
+                            name("mWifiConfig")
+                            type(WifiConfiguration::class.java)
+                        }
                         val current = wifiConfigField?.get(activity) as? WifiConfiguration
                         if (current != null && (current.preSharedKey == null || current.preSharedKey == "*")) {
                             val unmasked = getUnmaskedWifiConfiguration(activity, current)
@@ -275,7 +273,7 @@ object WifiDetailsHooker : StaticHooker() {
             val preference = checkNotNull("androidx.preference.Preference".toClassOrNull())
             val holder = checkNotNull("androidx.preference.PreferenceViewHolder".toClassOrNull())
             val entry = SavedNetworksEntry(host, entryClass, group, preference)
-            val init = host.getDeclaredMethod("initUI").apply { isAccessible = true }
+            val init = HostAccess.requireDeclaredMethod(host, "initUI", accessible = true)
             val create = host.getDeclaredMethod("onCreate", Bundle::class.java)
             // initUI removes unavailable native anchors. Apply after it, before the adapter binds.
             deoptimize(create)
@@ -409,9 +407,7 @@ object WifiDetailsHooker : StaticHooker() {
     private fun hookSavedAccessPointButtons() {
         val savedPrefClass = "com.android.settings.wifi.SavedAccessPointPreference".toClassOrNull() ?: run { DebugLog.hookSkipped("WifiDetailsHooker", "com.android.settings.wifi.SavedAccessPointPreference", "not found on host"); return }
 
-        val onBindMethod = savedPrefClass.declaredMethods.firstOrNull {
-            it.name == "onBindViewHolder" && it.parameterTypes.size == 1
-        }?.apply { isAccessible = true }
+        val onBindMethod = HostSelect.method(savedPrefClass) { name("onBindViewHolder"); paramCount(1) }
 
         if (onBindMethod != null) {
             deoptimize(onBindMethod)
@@ -428,9 +424,11 @@ object WifiDetailsHooker : StaticHooker() {
                     val btnDelete = if (btnDeleteId != 0) view.findViewById<View>(btnDeleteId) else null
                     val checkbox = if (checkboxId != 0) view.findViewById<View>(checkboxId) else null
 
-                    val inActionModeField = preference.javaClass.declaredFields.firstOrNull {
-                        it.type == Boolean::class.javaPrimitiveType && it.name.contains("Acti", ignoreCase = true)
-                    }?.apply { isAccessible = true }
+                    val inActionModeField = // The host spells it mInActinoMode; match the stable stem only.
+                    HostSelect.field(preference.javaClass, "wifi.saved.actionMode") {
+                        type(Boolean::class.javaPrimitiveType)
+                        where("name~Acti") { it.name.contains("Acti", ignoreCase = true) }
+                    }
                     val inActionMode = inActionModeField?.getBoolean(preference) ?: false
 
                     val container = btnDelete?.parent as? ViewGroup ?: return@after
@@ -461,9 +459,10 @@ object WifiDetailsHooker : StaticHooker() {
             DebugLog.hookSkipped(TAG, "SavedAccessPointPreference#onBindViewHolder", "method not found")
         }
 
-        val setActionModeMethod = savedPrefClass.declaredMethods.firstOrNull {
-            it.name == "setActionMode" && it.parameterTypes.size == 1 && it.parameterTypes[0] == Boolean::class.javaPrimitiveType
-        }?.apply { isAccessible = true }
+        val setActionModeMethod = HostSelect.method(savedPrefClass) {
+            name("setActionMode")
+            params(Boolean::class.javaPrimitiveType)
+        }
 
         if (setActionModeMethod != null) {
             deoptimize(setActionModeMethod)
@@ -473,9 +472,10 @@ object WifiDetailsHooker : StaticHooker() {
                     val preference = param.thisObject
                     val inActionMode = param.args[0] as? Boolean ?: false
 
-                    val viewField = preference.javaClass.declaredFields.firstOrNull {
-                        it.name == "mView" && View::class.java.isAssignableFrom(it.type)
-                    }?.apply { isAccessible = true }
+                    val viewField = HostSelect.field(preference.javaClass, "wifi.saved.view") {
+                        name("mView")
+                        typeIs(View::class.java)
+                    }
                     val view = viewField?.get(preference) as? View ?: return@after
 
                     val btnDeleteId = ResourceLookup.identifier(view.context.resources, "btn_delete", "id", "com.android.settings")

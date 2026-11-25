@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.lockscreen
 
+import com.takekazex.hypertweak.hook.base.HostSelect
 import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 
@@ -80,9 +81,7 @@ object LockscreenKeepNotificationsHooker : StaticHooker() {
             DebugLog.hookSkipped(TAG, FILTER_CONTROLLER, "class not found")
             return
         }
-        val forceHide = controller.declaredMethods.firstOrNull {
-            it.name == "forceHideOnKeyguard" && it.parameterTypes.size == 1
-        } ?: run {
+        val forceHide = HostSelect.method(controller) { name("forceHideOnKeyguard"); paramCount(1) } ?: run {
             DebugLog.hookSkipped(TAG, "$FILTER_CONTROLLER#forceHideOnKeyguard", "method not found")
             return
         }
