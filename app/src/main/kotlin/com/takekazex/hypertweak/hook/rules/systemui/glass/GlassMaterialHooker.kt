@@ -2,6 +2,7 @@ package com.takekazex.hypertweak.hook.rules.systemui.glass
 
 import com.takekazex.hypertweak.hook.base.orSkip
 import com.takekazex.hypertweak.hook.base.HostAccess
+import com.takekazex.hypertweak.hook.base.ResourceValueRouter
 import com.takekazex.hypertweak.presentation.glass.scaleBlendArrayColors
 import com.takekazex.hypertweak.presentation.glass.scaleColorAlpha
 import com.takekazex.hypertweak.presentation.glass.scaleColorLightness
@@ -10,15 +11,12 @@ import com.takekazex.hypertweak.presentation.glass.scaleRadius
 
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 
-import android.content.res.AssetManager
-import android.content.res.Resources
 import android.view.View
 import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
-import io.github.lingqiqi5211.ezhooktool.xposed.common.HookParam
 import java.lang.ref.WeakReference
 import io.github.libxposed.api.XposedInterface
 import java.lang.reflect.Method
@@ -136,8 +134,6 @@ object GlassMaterialHooker : StaticHooker() {
         "notification_element_blend_headsUp_color_2"
     )
 
-    private enum class Kind { BLEND_ARRAY, RADIUS_DIMEN, DIM_COLOR, SOLID_BG_COLOR, CARD_SHADE_COLOR, OTHER }
-
     /**
      * Control-center blend arrays from the miui.systemui.plugin resources (the plugin keeps
      * its own res table, so the SystemUI names above do not cover it). Classic-mode control
@@ -159,6 +155,9 @@ object GlassMaterialHooker : StaticHooker() {
     private var glassTone by generationState { 1f }
 
     private var setGlass: XposedInterface.Invoker<*, Method>? by generationState { null }
+    // Resource rules exist only while the tuner is on; an unused tuner leaves the framework
+    // Resources readers unhooked.
+    private var resourceRules: List<AutoCloseable>? by generationState { null }
     private var shadeBlur: WeakReference<Any>? by generationState { null }
     private var blurUtils: WeakReference<Any>? by generationState { null }
     private val originalShaders = generationResource(WeakHashMap<View, FloatArray>()) {
@@ -193,6 +192,7 @@ object GlassMaterialHooker : StaticHooker() {
         val shadersChanged = wasEnabled != settingGlassTunerEnabled ||
             glassOpacity != settingGlassTunerGlassOpacity || glassTone != settingGlassTunerGlassTone
         readSettings()
+        syncResourceRules()
         if (wasEnabled || enabled) {
             if (resourcesChanged) refreshHostResources()
             if (shadersChanged) replayShaders()
@@ -212,6 +212,7 @@ object GlassMaterialHooker : StaticHooker() {
 
     override fun onHook() {
         readSettings()
+        syncResourceRules()
         // Collect baselines even while disabled so the first enable updates already-created views.
         SHADE_BLUR.toClassOrNull().orSkip("GlassMaterialHooker", SHADE_BLUR)?.hookAllConstructors {
             after { param -> shadeBlur = WeakReference(param.thisObject) }
@@ -219,7 +220,7 @@ object GlassMaterialHooker : StaticHooker() {
         BLUR_UTILS.toClassOrNull().orSkip("GlassMaterialHooker", BLUR_UTILS)?.hookAllConstructors {
             after { param -> blurUtils = WeakReference(param.thisObject) }
         }
-        installFunnels()
+        hookViewSetMiGlass()
     }
 
     private fun refreshHostResources() {
@@ -252,25 +253,29 @@ object GlassMaterialHooker : StaticHooker() {
         }
     }
 
-    private fun installFunnels() {
-        val resources = Resources::class.java
-        val targets = listOf(
-            HostAccess.requirePublicMethod(resources, "getDimensionPixelSize", Int::class.javaPrimitiveType, accessible = false),
-            HostAccess.requirePublicMethod(resources, "getIntArray", Int::class.javaPrimitiveType, accessible = false),
-            HostAccess.requirePublicMethod(resources, "getColor", Int::class.javaPrimitiveType, Resources.Theme::class.java, accessible = false)
-        )
-        targets.forEach { method ->
-            runCatching {
-                deoptimize(method)
-                method.hook {
-                    after { param -> overrideResourceResult(param) }
-                }
-            }.onFailure {
-                DebugLog.hookFailed(TAG, "Resources#${method.name}", it)
-            }
+    private fun syncResourceRules() {
+        val current = resourceRules
+        if (enabled == (current != null)) return
+        if (!enabled) {
+            current?.forEach { runCatching(it::close) }
+            resourceRules = null
+            return
         }
-
-        hookViewSetMiGlass()
+        val router = ResourceValueRouter
+        resourceRules = listOf(
+            router.subscribe(this, ResourceValueRouter.Channel.INT_ARRAY, BLEND_ARRAYS + PLUGIN_BLEND_ARRAYS) { _, _, result ->
+                if (enabled) (result as? IntArray)?.let { scaleBlendArrayColors(it, blendAlpha, blendLightness) } else null
+            },
+            router.subscribe(this, ResourceValueRouter.Channel.DIMENSION_PIXEL_SIZE, RADIUS_DIMENS) { _, _, result ->
+                if (enabled) scaleRadius(result as? Int ?: 0, radiusScale) else null
+            },
+            router.subscribe(this, ResourceValueRouter.Channel.COLOR, setOf(DIM_COLOR, SOLID_BG_COLOR)) { _, _, result ->
+                if (enabled) scaleColorLightness(scaleColorAlpha(result as? Int ?: 0, blendAlpha), blendLightness) else null
+            },
+            router.subscribe(this, ResourceValueRouter.Channel.COLOR, CARD_SHADE_COLORS) { _, _, result ->
+                if (enabled) scaleColorAlpha(result as? Int ?: 0, glassOpacity) else null
+            },
+        )
     }
 
     /**
@@ -310,51 +315,5 @@ object GlassMaterialHooker : StaticHooker() {
         }.onFailure {
             DebugLog.hookFailed(TAG, "View#setMiGlass", it)
         }
-    }
-
-    private fun overrideResourceResult(param: HookParam) {
-        if (!enabled) return
-        val resources = param.thisObject as? Resources ?: return
-        val id = (param.args.getOrNull(0) as? Int) ?: return
-        val kind = kindOf(resources, id) ?: return
-        val result = param.result
-        param.result = when (kind) {
-            Kind.BLEND_ARRAY -> (result as? IntArray)?.let {
-                scaleBlendArrayColors(it, blendAlpha, blendLightness)
-            }
-            Kind.RADIUS_DIMEN -> scaleRadius(result as? Int ?: 0, radiusScale)
-            Kind.DIM_COLOR -> {
-                val color = result as? Int ?: 0
-                scaleColorLightness(scaleColorAlpha(color, blendAlpha), blendLightness)
-            }
-            Kind.SOLID_BG_COLOR -> {
-                val color = result as? Int ?: 0
-                scaleColorLightness(scaleColorAlpha(color, blendAlpha), blendLightness)
-            }
-            Kind.CARD_SHADE_COLOR -> scaleColorAlpha(result as? Int ?: 0, glassOpacity)
-            Kind.OTHER -> result
-        }
-    }
-
-    // Plugin and SystemUI resource tables can reuse numeric IDs. Cache by asset table.
-    private val kinds = generationResource(WeakHashMap<AssetManager, MutableMap<Int, Kind>>()) {
-        synchronized(it) { it.clear() }
-    }
-
-    private fun kindOf(resources: Resources, id: Int): Kind? {
-        if (id == 0) return null
-        val kind = synchronized(kinds) {
-            kinds.getOrPut(resources.assets) { HashMap() }.getOrPut(id) {
-                when (runCatching { resources.getResourceEntryName(id) }.getOrNull()) {
-                    in BLEND_ARRAYS, in PLUGIN_BLEND_ARRAYS -> Kind.BLEND_ARRAY
-                    in RADIUS_DIMENS -> Kind.RADIUS_DIMEN
-                    DIM_COLOR -> Kind.DIM_COLOR
-                    SOLID_BG_COLOR -> Kind.SOLID_BG_COLOR
-                    in CARD_SHADE_COLORS -> Kind.CARD_SHADE_COLOR
-                    else -> Kind.OTHER
-                }
-            }
-        }
-        return kind.takeUnless { it == Kind.OTHER }
     }
 }

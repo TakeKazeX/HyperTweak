@@ -9,6 +9,7 @@ import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.StaticHooker
+import com.takekazex.hypertweak.hook.base.ViewVisibilityRouter
 import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.reflect.Field
@@ -181,37 +182,17 @@ object MediaCardHideDeviceSwitchHooker : StaticHooker() {
      * intentionally done before entering the failure wrapper because View#setVisibility is hot.
      */
     private fun installVisibilityGuard() {
-        val viewClass = "android.view.View".toClassOrNull() ?: run {
-            DebugLog.hookSkipped(TAG, "android.view.View", "class not found")
-            return
-        }
-        val setVisibility = viewClass.declaredMethods.firstOrNull {
-            it.name == "setVisibility" &&
-                it.parameterTypes.size == 1 &&
-                it.parameterTypes[0] == Int::class.javaPrimitiveType &&
-                it.returnType == Void.TYPE
-        } ?: run {
-            DebugLog.hookSkipped(TAG, "android.view.View#setVisibility", "method not found")
-            return
-        }
-        deoptimize(setVisibility)
-        setVisibility.hook {
-            before { param ->
-                val view = param.thisObject as? View
-                if (enabled && view != null && isMediaSwitchView(view)) {
-                    HookFailurePolicy.open(TAG, "media switch View#setVisibility", Unit) {
-                        val requested = param.args.getOrNull(0) as? Int
-                        if (requested != null && !applyingVisibility) originals[view] = requested
-                        if (requested != null && requested != View.GONE) {
-                            param.args[0] = View.GONE
-                            if (visibilityGuardLogged.compareAndSet(false, true)) {
-                                DebugLog.i(TAG, "final visibility guard engaged for media output switch")
-                            }
-                        }
-                    }
-                }
+        // Shares the router's single View#setVisibility hook instead of a second hook on the same
+        // framework method.
+        ViewVisibilityRouter.visibility(this, before = { view, requested ->
+            if (!enabled || !isMediaSwitchView(view)) return@visibility null
+            if (!applyingVisibility) originals[view] = requested
+            if (requested == View.GONE) return@visibility null
+            if (visibilityGuardLogged.compareAndSet(false, true)) {
+                DebugLog.i(TAG, "final visibility guard engaged for media output switch")
             }
-        }
+            View.GONE
+        })
         DebugLog.d(TAG, "final media output switch visibility guard installed with runtime resource names")
     }
 

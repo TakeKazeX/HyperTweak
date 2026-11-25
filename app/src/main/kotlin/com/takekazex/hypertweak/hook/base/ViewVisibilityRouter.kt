@@ -41,24 +41,25 @@ internal object ViewVisibilityRouter : StaticHooker() {
     override fun onHook() {
         visibilityInstallation.install {
             val visibilityMethod = HostAccess.requireDeclaredMethod(View::class.java, "setVisibility", Int::class.javaPrimitiveType, accessible = false)
-            deoptimize(visibilityMethod)
             visibilityMethod.hook("HyperTweak.ViewVisibilityRouter.visibility") {
                 before { param ->
                     val view = param.thisObject as? View ?: return@before
                     val requested = param.args[0] as? Int ?: return@before
-                    param.args[0] = visibility.before(view, requested)
+                    // Boxing a fresh argument on every View call is wasted work when no rule changes it.
+                    val routed = visibility.before(view, requested)
+                    if (routed != requested) param.args[0] = routed
                 }
                 after { param -> (param.thisObject as? View)?.let(visibility::after) }
             }
         }
         alphaInstallation.install {
             val alphaMethod = HostAccess.requireDeclaredMethod(View::class.java, "setAlpha", Float::class.javaPrimitiveType, accessible = false)
-            deoptimize(alphaMethod)
             alphaMethod.hook("HyperTweak.ViewVisibilityRouter.alpha") {
                 before { param ->
                     val view = param.thisObject as? View ?: return@before
                     val requested = param.args[0] as? Float ?: return@before
-                    param.args[0] = alpha.before(view, requested)
+                    val routed = alpha.before(view, requested)
+                    if (routed != requested) param.args[0] = routed
                 }
                 after { param -> (param.thisObject as? View)?.let(alpha::after) }
             }

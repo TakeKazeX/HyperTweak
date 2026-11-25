@@ -10,9 +10,9 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.ScheduledFuture
+import java.util.concurrent.ScheduledThreadPoolExecutor
 import java.util.concurrent.TimeUnit
 
 object DebugLog {
@@ -64,6 +64,7 @@ object DebugLog {
 
     private const val TAG = "HyperTweak"
     private const val FLUSH_DELAY_MS = 750L
+    private const val FLUSH_WORKER_KEEP_ALIVE_MS = 30_000L
 
     /** Default threshold: drop VERBOSE/DEBUG, keep INFO and above. */
     const val DEFAULT_LEVEL = Log.INFO
@@ -273,8 +274,14 @@ object DebugLog {
     @Synchronized
     private fun getFlushExecutor(): ScheduledExecutorService {
         flushExecutor?.takeUnless { it.isShutdown }?.let { return it }
-        return Executors.newSingleThreadScheduledExecutor { runnable ->
+        // The core thread times out between flushes; a single-thread scheduled executor kept one
+        // idle thread alive for the life of every hooked process.
+        return ScheduledThreadPoolExecutor(1) { runnable ->
             Thread(runnable, "HyperTweakDebugLog").apply { isDaemon = true }
+        }.apply {
+            setKeepAliveTime(FLUSH_WORKER_KEEP_ALIVE_MS, TimeUnit.MILLISECONDS)
+            allowCoreThreadTimeOut(true)
+            removeOnCancelPolicy = true
         }.also { flushExecutor = it }
     }
 

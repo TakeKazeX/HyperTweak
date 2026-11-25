@@ -199,7 +199,6 @@ object HideLockscreenStatusBarHooker : StaticHooker() {
                 it.name == "setState" && it.returnType == Boolean::class.javaPrimitiveType &&
                     it.parameterTypes.contentEquals(arrayOf(Int::class.javaPrimitiveType, Boolean::class.javaPrimitiveType))
             }?.let { method ->
-                deoptimize(method)
                 method.hook {
                     after { param ->
                         runCatching {

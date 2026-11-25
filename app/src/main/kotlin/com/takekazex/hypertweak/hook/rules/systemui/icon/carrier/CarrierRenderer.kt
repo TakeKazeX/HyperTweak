@@ -360,7 +360,6 @@ internal object CarrierRenderer : IconRenderer() {
             }
         }
         layoutClass.findMethodOrNull { name("onMeasure"); paramCount(2) }?.let { method ->
-            deoptimize(method)
             method.observe {
                 before { param ->
                     val block = blocks[param.thisObject] ?: return@before

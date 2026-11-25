@@ -405,7 +405,6 @@ object NotificationHeaderHooker : StaticHooker() {
                 it.name == "dispatchApplyWindowInsets" &&
                     it.parameterTypes.contentEquals(arrayOf(WindowInsets::class.java))
             }?.let { method ->
-                deoptimize(method)
                 method.hook {
                     after { param ->
                         if (!restoring) guarded("header insets") {
@@ -484,7 +483,6 @@ object NotificationHeaderHooker : StaticHooker() {
 
     private fun installHeaderHeightAccounting() {
         generatedCallbacks?.notificationExpansion?.let { method ->
-            deoptimize(method)
             method.hook {
                 after { guarded("notification expansion height") {
                     if (layoutController.onNativeExpansionChanged()) {
@@ -496,7 +494,6 @@ object NotificationHeaderHooker : StaticHooker() {
         } ?: DebugLog.hookSkipped(TAG, "notification expansion callback", "unique DexKit target not found")
 
         generatedCallbacks?.combinedExpansion?.let { method ->
-            deoptimize(method)
             method.hook {
                 after { param -> guarded("header stretch translation") {
                     val owner = readOuter(param.thisObject, COMBINED_EXPAND_CONTROLLER_CLASS)
@@ -518,7 +515,6 @@ object NotificationHeaderHooker : StaticHooker() {
         NOTIFICATION_STACK_CLASS.toClassOrNull()
             ?.findMethodOrNull { name("setOwnScrollY"); paramCount(4) }
             ?.let { method ->
-                deoptimize(method)
                 method.hook {
                     after { param -> guarded("notification list scroll") {
                         val scrollY = (read(param.thisObject, "mOwnScrollY") as? Number)?.toInt()
@@ -562,7 +558,6 @@ object NotificationHeaderHooker : StaticHooker() {
         animatorClass.declaredMethods
             .filter { it.name == "updateAnimateHeight" && it.parameterCount == 2 }
             .forEach { method ->
-                deoptimize(method)
                 method.hook {
                     after { param -> guarded("shade header clip height") {
                         shadeHeaderHeightAnimators[param.thisObject] = true
@@ -618,7 +613,6 @@ object NotificationHeaderHooker : StaticHooker() {
         controllerClass.declaredMethods
             .filter { it.name == "getTopPadding" && it.parameterCount == 0 }
             .forEach { method ->
-                deoptimize(method)
                 method.hook {
                     after { param -> guarded("custom notification top padding") {
                         val owner = param.thisObject
@@ -641,7 +635,6 @@ object NotificationHeaderHooker : StaticHooker() {
         panelClass.declaredMethods
             .filter { it.name == "requestScrollerTopPaddingUpdate" && it.parameterCount == 0 }
             .forEach { method ->
-                deoptimize(method)
                 method.hook {
                     before {
                         notificationTopPaddingRefreshDepth.set(
@@ -661,7 +654,6 @@ object NotificationHeaderHooker : StaticHooker() {
                     it.parameterTypes[0] == Boolean::class.javaPrimitiveType
             }
             .forEach { method ->
-                deoptimize(method)
                 method.hook {
                     before {
                         notificationClockPositionDepth.set(
@@ -680,7 +672,6 @@ object NotificationHeaderHooker : StaticHooker() {
         qsControllerClass.declaredMethods
             .filter { it.name == "getHeaderHeight" && it.parameterCount == 0 }
             .forEach { method ->
-                deoptimize(method)
                 method.hook {
                     after { param -> guarded("notification-only header height") {
                         if ((notificationClockPositionDepth.get() ?: 0) == 0) return@guarded

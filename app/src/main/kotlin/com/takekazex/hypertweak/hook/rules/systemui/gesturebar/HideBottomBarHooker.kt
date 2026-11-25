@@ -24,7 +24,7 @@ import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.ref.WeakReference
 import java.util.concurrent.atomic.AtomicBoolean
-import com.takekazex.hypertweak.util.platform.ResourceLookup
+import com.takekazex.hypertweak.hook.base.ResourceValueRouter
 
 /**
  * Hides the gesture bar (小白条) and keeps it hidden for exactly as long as recent tasks owns the
@@ -112,8 +112,9 @@ object HideBottomBarHooker : StaticHooker() {
         applyCurrent = presentation::applyCurrentState, refreshHome = home::refreshLauncherHome,
         animate = presentation::animateHandles, hide = presentation::fadeImmediately)
 
-    private var navBarHeightAndroidResId by generationState { 0 }
-    private var navBarHeightSystemUiResId by generationState { 0 }
+    // Zeroes navigation_bar_height while the bar is hidden without the raised layout. Subscribed
+    // only in that state, so the framework Resources reader is not hooked for anyone else.
+    private var navBarHeightRule: AutoCloseable? by generationState { null }
 
     /** Whether any feature of this hooker is on, so the draw hooks can skip work when idle. */
     private val anyEnabled: Boolean
@@ -203,41 +204,13 @@ object HideBottomBarHooker : StaticHooker() {
         hostContext.clear()
     }
 
+    // Host hooks attach from onPackageReady and the Resources rule only while hiding, so onHook
+    // legitimately registers nothing itself.
+    override val expectsHooks: Boolean get() = false
+
     override fun onHook() {
         followGenerationActive = true
         loadSettings()
-        // Every callback below tests the live fields, so the hooks install regardless of the
-        // current values; a switch toggled later applies without a SystemUI restart.
-        try {
-            runCatching {
-                // Hiding the gesture bar zeroes this framework inset dimension on purpose.
-                @Suppress("InternalInsetResource")
-                navBarHeightAndroidResId = Resources.getSystem()
-                    .getIdentifier("navigation_bar_height", "dimen", "android")
-            }
-            HostAccess.requirePublicMethod(Resources::class.java, "getDimensionPixelSize", Int::class.javaPrimitiveType, accessible = false).hook {
-                before { param ->
-                    if (!hideGestureBarEnabled || raiseLayoutEnabled) return@before
-                    val resources = param.thisObject as? Resources ?: return@before
-                    val id = param.args[0] as? Int ?: return@before
-                    if (id != navBarHeightAndroidResId && id != navBarHeightSystemUiResId) return@before
-                    try {
-                        // Rare match: keep the original name/type/package verification so an id
-                        // that collides numerically in another package is not zeroed.
-                        val name = resources.getResourceEntryName(id)
-                        val type = resources.getResourceTypeName(id)
-                        val pkg = resources.getResourcePackageName(id)
-                        if (name == "navigation_bar_height" && type == "dimen" &&
-                            (pkg == "android" || pkg == "com.android.systemui")
-                        ) {
-                            param.result = 0
-                        }
-                    } catch (_: Throwable) {}
-                }
-            }
-        } catch (t: Throwable) {
-            DebugLog.e(TAG, "failed to hook Resources.getDimensionPixelSize", t)
-        }
         // Dynamic SystemUI classes are hooked from HookEntry.onPackageReady.
     }
 
@@ -279,7 +252,6 @@ object HideBottomBarHooker : StaticHooker() {
         val usable = context?.applicationContext ?: context ?: return
         hostContext = WeakReference(usable)
         Preferences.initLocalCache(usable)
-        resolveNavigationBarHeightResIds(usable)
     }
 
     /** Applies a committed live-settings change from the shared dispatcher. */
@@ -339,6 +311,23 @@ object HideBottomBarHooker : StaticHooker() {
         hideInRecentsEnabled = settingHideGestureBarRecents
         hideInLauncherEnabled = settingHideGestureBarLauncher
         attachTransitionEnabled = settingGestureBarAttachTransition
+        syncNavBarHeightRule()
+    }
+
+    private fun syncNavBarHeightRule() {
+        if (generationRetired) return
+        val wanted = hideGestureBarEnabled && !raiseLayoutEnabled
+        val rule = navBarHeightRule
+        if (wanted && rule == null) {
+            // Hiding the gesture bar zeroes this framework inset dimension on purpose.
+            navBarHeightRule = ResourceValueRouter.subscribe(this, ResourceValueRouter.Channel.DIMENSION_PIXEL_SIZE,
+                setOf("navigation_bar_height"), setOf("android", "com.android.systemui")) { _, _, _ ->
+                if (hideGestureBarEnabled && !raiseLayoutEnabled) 0 else null
+            }
+        } else if (!wanted && rule != null) {
+            runCatching(rule::close)
+            navBarHeightRule = null
+        }
     }
 
     // ── Evidence → state ─────────────────────────────────────────────────────────
@@ -480,14 +469,6 @@ object HideBottomBarHooker : StaticHooker() {
                     view.requestApplyInsets()
                 }.onFailure { DebugLog.w(TAG, "failed to refresh native navigation insets", it) }
             }
-        }
-    }
-
-    private fun resolveNavigationBarHeightResIds(context: Context) {
-        runCatching {
-            navBarHeightSystemUiResId = ResourceLookup.identifier(context.resources, 
-                "navigation_bar_height", "dimen", "com.android.systemui"
-            )
         }
     }
 

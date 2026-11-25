@@ -16,6 +16,13 @@ internal object RuntimeSettingsSignal {
     @Volatile private var appContext: Context? = null
     private var source: SharedPreferences? = null
     private var acknowledged: RuntimeSettingsSnapshot? = null
+    /**
+     * Targets whose request arrived before the first baseline; `null` stands for every target.
+     * A cold start caused by one host's request answers that host only: every running host
+     * already holds the committed values, and re-broadcasting the unchanged baseline woke all
+     * ~45 scoped packages on each module-process start.
+     */
+    private val deferred = LinkedHashSet<String?>()
     fun attach(context: Context) {
         appContext = context.applicationContext ?: context
         // Include deselected keyboards too, so disable/reset reaches an already running host.
@@ -40,8 +47,14 @@ internal object RuntimeSettingsSignal {
         }
         source = prefs
         acknowledged = next
-        publishCommitted()
+        val waiting = deferred.toList().also { deferred.clear() }
+        // A commit whose broadcast never went out (process death between commit and publish)
+        // is still repaired on the next start: only an already delivered revision is skipped.
+        if (null in waiting || stored != publishedRevision()) publishCommitted(committed = stored)
+        else waiting.forEach { publishCommitted(it) }
     }
+    private fun ledger() = appContext?.getSharedPreferences(LEDGER, Context.MODE_PRIVATE)
+    private fun publishedRevision(): Long = runCatching { ledger()?.getLong(PUBLISHED, -1L) }.getOrNull() ?: -1L
     @Synchronized fun prepare(key: String, value: Any): RuntimeSettingsSnapshot = prepare(mapOf(key to value))
     @Synchronized fun prepare(changes: Map<String, Any>): RuntimeSettingsSnapshot {
         val old = acknowledged ?: error("runtime settings baseline unavailable")
@@ -53,7 +66,7 @@ internal object RuntimeSettingsSignal {
     @Synchronized fun acknowledge(snapshot: RuntimeSettingsSnapshot) {
         if (snapshot.revision <= (acknowledged?.revision ?: 0)) return
         acknowledged = snapshot
-        publishCommitted()
+        publishCommitted(committed = snapshot.revision)
     }
     /** Ordinary commits send a delta while repairing rejected editor shadows. A clear/replacement
      * must explicitly repopulate the entire desired subset, even values equal to the baseline. */
@@ -68,19 +81,27 @@ internal object RuntimeSettingsSignal {
     @Synchronized fun prepareReplacement(values: Map<String, *>): RuntimeSettingsSnapshot =
         requireNotNull(RuntimeSettingsSnapshot.read(maxOf((acknowledged?.revision ?: 0) + 1,
             SystemClock.elapsedRealtimeNanos()), values)) { "invalid runtime settings replacement" }
-    fun publishCommitted(targetPackage: String? = null) {
+    /** [committed] is the stored revision a complete fan-out delivers; recorded once all sends succeed. */
+    fun publishCommitted(targetPackage: String? = null, committed: Long? = null) {
         main.post {
             val target = appContext ?: return@post
-            val snapshot = synchronized(this) { acknowledged } ?: return@post
+            val snapshot = synchronized(this) { acknowledged ?: run { deferred += targetPackage; null } }
+                ?: return@post
             RuntimeSettingsGroups.registerImeTargets(
                 (snapshot.values[com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys.KEY_AOSP_IME_PACKAGES]
                     as? Set<*>)?.filterIsInstance<String>()?.toSet().orEmpty())
             val destinations = targetPackage?.let { setOf(it).intersect(RuntimeSettingsGroups.targets) } ?: RuntimeSettingsGroups.targets
-            destinations.forEach { destination ->
+            val failed = destinations.count { destination ->
                 runCatching { SettingsTransport.send(target, RuntimeSettingsProtocol.encode(snapshot, destination)) }
                     .onSuccess { DebugLog.i("RuntimeSettings", "snapshot sent target=$destination revision=${snapshot.revision}") }
                     .onFailure { DebugLog.w("RuntimeSettings", "snapshot send failed target=$destination", it) }
+                    .isFailure
+            }
+            if (targetPackage == null && committed != null && failed == 0) {
+                runCatching { ledger()?.edit()?.putLong(PUBLISHED, committed)?.apply() }
             }
         }
     }
+    private const val LEDGER = "runtime_settings_signal"
+    private const val PUBLISHED = "published_revision"
 }

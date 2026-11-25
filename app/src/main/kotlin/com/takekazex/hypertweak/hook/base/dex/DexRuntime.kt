@@ -37,10 +37,11 @@ internal class DexSession internal constructor(
  */
 internal object DexRuntime {
     private const val TAG = "DexRuntime"
-    private const val IDENTITY_MAX_AGE_NANOS = 60_000_000_000L
     private val resolutions = DexResolution()
     private val identities = ConcurrentHashMap<String, DexKitCacheIdentity>()
-    private val identityTimes = ConcurrentHashMap<String, Long>()
+    /** Kernel stat of base + splits captured with each memoized identity. */
+    private val identityStats = ConcurrentHashMap<String, List<ApkFileStat?>>()
+    @Volatile private var digestStore: ApkDigestStore? = null
     @Volatile private var executingInfo: ApplicationInfo? = null
     private val sourceInfos = ConcurrentHashMap<String, ApplicationInfo>()
 
@@ -54,7 +55,7 @@ internal object DexRuntime {
     }
     /** Package dispatch/update is an explicit identity epoch, including equal-stat replacements. */
     fun invalidateSource(path: String) {
-        synchronized(identities) { identities.remove(path); identityTimes.remove(path) }
+        synchronized(identities) { identities.remove(path); identityStats.remove(path) }
     }
     private val scopes = DexScopes(DexKitManager::beginSharedSession)
     val isResolving: Boolean get() = DexKitManager.hasActiveUsers
@@ -88,7 +89,11 @@ internal object DexRuntime {
             ?: info?.dataDir?.takeIf(String::isNotBlank))?.let { File(it, "cache") }
 
     /** Complete base/split byte identity, memoized per installed metadata in this process. */
-    fun identityFor(info: ApplicationInfo?, apkPath: String): DexKitCacheIdentity? {
+    /**
+     * [hashAllowed] false never reads APK bytes: an identity whose digest is neither memoized nor
+     * persisted for the current stat is reported unavailable instead of hashed.
+     */
+    fun identityFor(info: ApplicationInfo?, apkPath: String, hashAllowed: Boolean = true): DexKitCacheIdentity? {
         val apk = File(apkPath)
         val key = apk.absolutePath
         val modified = apk.lastModified()
@@ -109,18 +114,31 @@ internal object DexRuntime {
             val split = File(path)
             DexKitCacheIdentity.SplitStamp(path, split.length(), split.lastModified())
         }
-        identities[key]?.let { cached ->
-            if (cached.modified == modified && cached.size == size && cached.splits == stamps &&
-                System.nanoTime() - (identityTimes[key] ?: 0L) < IDENTITY_MAX_AGE_NANOS) return cached
-        }
+        // Revalidation is stat-only: inode and kernel ctime expose an equal-size/equal-mtime
+        // replacement, so the full bytes are never re-read while the install is unchanged.
+        val stats = (listOf(apkPath) + stamps.map { it.path }).map { ApkFileStat.of(File(it)) }
+        fun reusable(cached: DexKitCacheIdentity) = cached.modified == modified && cached.size == size &&
+            cached.splits == stamps && identityStats[key] == stats
+        identities[key]?.takeIf(::reusable)?.let { return it }
         return synchronized(identities) {
-            identities[key]?.takeIf { it.modified == modified && it.size == size && it.splits == stamps &&
-                System.nanoTime() - (identityTimes[key] ?: 0L) < IDENTITY_MAX_AGE_NANOS }
+            identities[key]?.takeIf(::reusable)
                 ?: DexKitCacheIdentity.capture(apk, splits, fingerprintFor(apkPath))
-                    ?.let(DexKitCacheIdentity::withFullDigest)
+                    ?.let { captured ->
+                        val store = digestStore()
+                        DexKitCacheIdentity.withFullDigest(captured,
+                            if (hashAllowed) store::digest else { file -> checkNotNull(store.cached(file)) { "digest not persisted" } })
+                    }
                     ?.takeIf { !it.fullDigest.isNullOrBlank() }
-                    ?.also { identities[key] = it; identityTimes[key] = System.nanoTime() }
+                    ?.also { identities[key] = it; identityStats[key] = stats }
         }
+    }
+
+    /** Persistent per-host digests; the executing package's cache directory owns the file. */
+    private fun digestStore(): ApkDigestStore = digestStore ?: synchronized(this) {
+        digestStore ?: ApkDigestStore(
+            cacheDirectory(executingInfo ?: selfApplicationInfo())?.let { File(it, ApkDigestStore.FILE_NAME) },
+            runCatching { android.os.Build.FINGERPRINT }.getOrNull().orEmpty(),
+        ).also { store -> if (store.persistent) digestStore = store }
     }
 
     /** The executing process's own ApplicationInfo; available after the application is attached. */
@@ -296,7 +314,13 @@ internal object DexRuntime {
         val apk = File(apkPath)
         if (!apk.isFile) return null
         val started = System.nanoTime()
-        val identity = identityFor(appInfo, apkPath) ?: return null
+        // A cache-only replay on the main thread must not hash a cold 50-350 MB APK. A miss falls
+        // through to the caller's background preparation, which hashes off the main thread.
+        val onMain = cacheOnly && android.os.Looper.getMainLooper().let { it != null && it === android.os.Looper.myLooper() }
+        val identity = identityFor(appInfo, apkPath, hashAllowed = !onMain) ?: run {
+            if (onMain) DebugLog.d(TAG) { "feature=" + feature.id + " identity cold on main thread; deferring" }
+            return null
+        }
         val store = DexCacheStore(feature, cacheDir)
         var backend = DexBackendId.DEXKIT
         return resolutions.resolve(

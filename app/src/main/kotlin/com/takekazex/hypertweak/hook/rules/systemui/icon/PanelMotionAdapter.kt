@@ -78,7 +78,6 @@ internal object PanelMotionAdapter : StaticHooker() {
     private fun installMethods(methods: Map<String, Method>) {
         callbackType = methods.getValue("expansion").declaringClass
         methods.forEach { (key, method) ->
-            deoptimize(method)
             method.hook {
                 before { param ->
                     if (key != "stretch") PanelHub.prepare(next(key, param.args[0], PanelHub.state) ?: PanelHub.state)

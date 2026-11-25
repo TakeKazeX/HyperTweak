@@ -55,6 +55,9 @@ sealed class BaseHooker {
     lateinit var hookParam: ModuleContext
 
     private val hookHandles = CopyOnWriteArraySet<XposedInterface.HookHandle>()
+    // Identity of executables this hooker deoptimized; read only for the DEBUG diagnostic above.
+    private val deoptimizedTargets: MutableSet<Executable> = java.util.Collections.newSetFromMap(java.util.concurrent.ConcurrentHashMap())
+    @Volatile private var selfDeoptimizationReported = false
     private val subscriptions = CopyOnWriteArraySet<AutoCloseable>()
 
     internal fun ownSubscription(subscription: AutoCloseable) { subscriptions += subscription }
@@ -553,6 +556,13 @@ sealed class BaseHooker {
         block: HookFactory.() -> Unit
     ): XposedInterface.HookHandle {
         val target = formatExecutable(method)
+        // Deoptimizing a hook target only interprets its original body; inlining is undone at the
+        // caller. One line per hooker names the first such target, so intentional cases (a target
+        // that itself inlines another hooked method) stay visible without flooding the log.
+        if (method in deoptimizedTargets && !selfDeoptimizationReported) {
+            selfDeoptimizationReported = true
+            DebugLog.d(hookerName) { "self-deoptimized hook target $target (first of this hooker)" }
+        }
         return try {
             val replacementMap = replacementHandles
             val oldHandle = replacementMap?.firstForTarget(hookId, method)
@@ -669,6 +679,7 @@ sealed class BaseHooker {
      * EzHookTool preserves the framework's Boolean result and exposes exceptions for logging.
      */
     fun deoptimize(executable: Executable): Boolean {
+        deoptimizedTargets += executable
         return runCatching {
             EzXposed.deoptimizeOrThrow(executable)
         }.onFailure { t ->

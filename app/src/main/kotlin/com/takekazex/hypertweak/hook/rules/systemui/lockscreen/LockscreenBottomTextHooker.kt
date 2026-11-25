@@ -105,6 +105,7 @@ object LockscreenBottomTextHooker : StaticHooker() {
     fun refreshSettings() {
         val wasEnabled = enabled
         enabled = settingLockscreenBottomText
+        syncMeasurementHook()
         if (wasEnabled != enabled) {
             com.takekazex.hypertweak.hook.base.HostAccess.onMain {
                 knownIndicationViews.toList().filter { it.isAttachedToWindow }
@@ -123,6 +124,18 @@ object LockscreenBottomTextHooker : StaticHooker() {
         hookRotatingIndications()
         hookCompactStatusText()
         hookCompactStatusAnimations()
+        syncMeasurementHook()
+    }
+
+    private var measurementHookInstalled by generationState { false }
+
+    /**
+     * `View.measure` is the hottest framework method in SystemUI. It is hooked the first time the
+     * switch is on, not for every user, and stays for the generation; the callback re-checks it.
+     */
+    private fun syncMeasurementHook() {
+        if (!enabled || measurementHookInstalled || generationRetired) return
+        measurementHookInstalled = true
         hookCompactStatusMeasurement()
     }
 
@@ -257,29 +270,15 @@ object LockscreenBottomTextHooker : StaticHooker() {
         runCatching {
             measure.hook {
                 before { param ->
+                    if (!enabled) return@before
+                    val view = param.thisObject as? View ?: return@before
                     HookFailurePolicy.open(TAG, "compact status measurement", Unit) {
-                        val view = param.thisObject as? View ?: return@open
-                        if (!enabled) return@open
-                        if (isCompactStatusContainer(view) && !hasAllowedCompactStatus()) {
-                            param.args[0] = View.MeasureSpec.makeMeasureSpec(
-                                0,
-                                View.MeasureSpec.EXACTLY
-                            )
-                            param.args[1] = View.MeasureSpec.makeMeasureSpec(
-                                0,
-                                View.MeasureSpec.EXACTLY
-                            )
-                            return@open
-                        }
-                        if (isCompactStatusView(view) && shouldHideCompactView(view)) {
-                            param.args[0] = View.MeasureSpec.makeMeasureSpec(
-                                0,
-                                View.MeasureSpec.EXACTLY
-                            )
-                            param.args[1] = View.MeasureSpec.makeMeasureSpec(
-                                0,
-                                View.MeasureSpec.EXACTLY
-                            )
+                        val hide = if (isCompactStatusContainer(view)) !hasAllowedCompactStatus()
+                            else isCompactStatusView(view) && shouldHideCompactView(view)
+                        if (hide) {
+                            val zero = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.EXACTLY)
+                            param.args[0] = zero
+                            param.args[1] = zero
                         }
                     }
                 }
@@ -372,6 +371,10 @@ object LockscreenBottomTextHooker : StaticHooker() {
     private fun resolveCompactIds(view: View) {
         if (zenViewId != 0 && notificationCountViewId != 0 && dividingLineId != 0) return
         val resources = view.resources
+        // An ID missing from this ROM stays 0; without this guard every measured View would
+        // repeat the lookups. Views of one table share its AssetManager, so one attempt each.
+        if (compactIdsAttempt?.get() === resources.assets) return
+        compactIdsAttempt = java.lang.ref.WeakReference(resources.assets)
         val packageNames = listOf("com.android.systemui", view.context.packageName).distinct()
         fun id(name: String): Int = packageNames.firstNotNullOfOrNull { packageName ->
             runCatching { ResourceLookup.identifier(resources, name, "id", packageName) }
@@ -389,6 +392,8 @@ object LockscreenBottomTextHooker : StaticHooker() {
             )
         }
     }
+
+    private var compactIdsAttempt: java.lang.ref.WeakReference<android.content.res.AssetManager>? by generationState { null }
 
     private fun Class<*>.staticId(name: String): Int = runCatching {
         HostAccess.requirePublicField(this, name, accessible = false).getInt(null)

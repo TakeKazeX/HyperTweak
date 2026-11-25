@@ -1,12 +1,12 @@
 package com.takekazex.hypertweak.hook.rules.systemui.freeform
 
-import android.content.res.Resources
 import android.graphics.Canvas
 import android.graphics.Color
 import android.view.View
 import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
+import com.takekazex.hypertweak.hook.base.ResourceValueRouter
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 import io.github.lingqiqi5211.ezhooktool.xposed.dsl.HookFactory
@@ -15,7 +15,6 @@ import com.takekazex.hypertweak.util.platform.StaticFieldWriter
 import java.util.WeakHashMap
 import java.lang.reflect.Field
 import java.lang.reflect.Method
-import java.util.concurrent.ConcurrentHashMap
 
 /**
  * 多任务过渡模糊 (SystemUI): restores the gaussian-blur cross-fade HyperOS uses when a freeform,
@@ -88,6 +87,7 @@ object FreeformBlurTransitionHooker : StaticHooker() {
     private const val BOTTOM_BOARD_ALPHA_FIELD = "bottomBoardAlpha"
     private const val TRANSACTION_FIELD = "mTransaction"
 
+    private const val WM_SHELL_PACKAGE = "com.android.wm.shell"
     private val bottomBoardNames = setOf(
         "drag_bottom_board_color", "drag_bottom_board_stoke_color",
         "sosc_decor_bottom_board_color", "sosc_decor_bottom_board_stoke_color"
@@ -111,9 +111,8 @@ object FreeformBlurTransitionHooker : StaticHooker() {
 
     private var targets: Targets? by generationState { null }
 
-    /** Resource-id verdicts, so the hot `Resources.getColor` path never resolves a name twice. */
-    private val knownBottomBoardIds = generationResource(ConcurrentHashMap.newKeySet<Int>()) { it.clear() }
-    private val missedBottomBoardIds = generationResource(ConcurrentHashMap.newKeySet<Int>()) { it.clear() }
+    private var frameworkHooksInstalled by generationState { false }
+    private var bottomBoardRule: AutoCloseable? by generationState { null }
 
     /** Everything group 3 needs, resolved once. Group 2 resolves its own shape-view members. */
     private class Targets(
@@ -135,6 +134,7 @@ object FreeformBlurTransitionHooker : StaticHooker() {
 
     fun refreshSettings() = HostAccess.onMain {
         enabled = settingFreeformBlurTransition
+        syncFrameworkHooks()
         nativeCapabilities.forEach { (field, original) -> StaticFieldWriter.setBoolean(field, original || enabled) }
         if (!enabled) restoreBackgrounds()
         DebugLog.i(TAG, "settings applied enabled=$enabled capabilityCaches=${nativeCapabilities.size}")
@@ -189,14 +189,12 @@ object FreeformBlurTransitionHooker : StaticHooker() {
         )
     }
 
-    // ─── Group 1: blur gates ───────────────────────────────────────────────────────────────────
-
     /**
-     * Opens the property layer and the two `MultiTaskingCommonUtils` gates. The property hooks only
-     * rewrite a value the ROM reported as "off", so a build that already ships blur enabled keeps its
-     * own value, and every unrelated property read in SystemUI is untouched.
+     * The property layer hooks framework readers that every SystemUI component calls, so it is
+     * installed the first time the switch is on rather than for every user. It stays installed
+     * for the generation; each callback re-checks the live switch.
      */
-    private fun installBlurGates(): Int {
+    private fun installPropertyOverrides(): Int {
         var installed = 0
         val systemProperties = "android.os.SystemProperties".toClassOrNull()
         if (systemProperties == null) {
@@ -209,7 +207,7 @@ object FreeformBlurTransitionHooker : StaticHooker() {
             )
             if (getBoolean == null) {
                 DebugLog.hookSkipped(TAG, "SystemProperties#getBoolean(String,boolean)", "method not found")
-            } else if (prepare(getBoolean, "SystemProperties#getBoolean")) {
+            } else if (prepare(getBoolean, "SystemProperties#getBoolean", keepCompiled = true)) {
                 getBoolean.hook("freeform_blur_prop_boolean") {
                     after { param ->
                         if (!enabled) return@after
@@ -229,7 +227,7 @@ object FreeformBlurTransitionHooker : StaticHooker() {
             )
             if (getInt == null) {
                 DebugLog.hookSkipped(TAG, "SystemProperties#getInt(String,int)", "method not found")
-            } else if (prepare(getInt, "SystemProperties#getInt")) {
+            } else if (prepare(getInt, "SystemProperties#getInt", keepCompiled = true)) {
                 getInt.hook("freeform_blur_prop_int") {
                     after { param ->
                         if (!enabled) return@after
@@ -253,7 +251,7 @@ object FreeformBlurTransitionHooker : StaticHooker() {
             )
             if (getString == null) {
                 DebugLog.hookSkipped(TAG, "SystemProperties#get(String,String)", "method not found")
-            } else if (prepare(getString, "SystemProperties#get")) {
+            } else if (prepare(getString, "SystemProperties#get", keepCompiled = true)) {
                 getString.hook("freeform_blur_prop_string") {
                     after { param ->
                         if (!enabled) return@after
@@ -267,6 +265,68 @@ object FreeformBlurTransitionHooker : StaticHooker() {
             }
         }
 
+        return installed
+    }
+
+    /** Framework-wide cover hooks; see [installPropertyOverrides] for why they install lazily. */
+    private fun installShapeBackground(): Int {
+        var installed = 0
+        val shapeViewClass = SHAPE_VIEW.toClassOrNull() ?: return 0
+        // View.setBackgroundColor — MultiTaskingCoverLayerController paints the shape view with
+        // the app's dominant colour, which is the solid rectangle that hides the blur. Matched by
+        // cached Class identity rather than by class name, because this method is called for every
+        // background set anywhere in SystemUI.
+        runCatching {
+            val method = HostAccess.requirePublicMethod(View::class.java,
+                "setBackgroundColor", Int::class.javaPrimitiveType, accessible = false)
+            method.hook("freeform_blur_shape_view_background") {
+                before { param ->
+                    if (!enabled) return@before
+                    if (!shapeViewClass.isInstance(param.thisObject)) return@before
+                    HookFailurePolicy.open(TAG, "clear shape view background", Unit) {
+                        val view = param.thisObject as? View ?: return@open
+                        val requested = param.args[0] as? Int ?: return@open
+                        backgrounds[view] = requested
+                        param.args[0] = Color.TRANSPARENT
+                    }
+                }
+            }
+            installed++
+        }.onFailure { DebugLog.hookFailed(TAG, "View#setBackgroundColor", it) }
+
+        return installed
+    }
+
+    /**
+     * Installs the framework-wide hooks on the first enable and keeps the bottom-board colour
+     * rule subscribed exactly while the switch is on.
+     */
+    private fun syncFrameworkHooks() {
+        if (generationRetired) return
+        if (enabled && !frameworkHooksInstalled) {
+            frameworkHooksInstalled = true
+            val count = installPropertyOverrides() + installShapeBackground()
+            DebugLog.d(TAG, "framework hooks installed count=$count")
+        }
+        val rule = bottomBoardRule
+        if (enabled && rule == null) {
+            bottomBoardRule = ResourceValueRouter.subscribe(this, ResourceValueRouter.Channel.COLOR,
+                bottomBoardNames, setOf(WM_SHELL_PACKAGE)) { _, _, _ -> if (enabled) Color.TRANSPARENT else null }
+        } else if (!enabled && rule != null) {
+            runCatching(rule::close)
+            bottomBoardRule = null
+        }
+    }
+
+    // ─── Group 1: blur gates ───────────────────────────────────────────────────────────────────
+
+    /**
+     * Opens the property layer and the two `MultiTaskingCommonUtils` gates. The property hooks only
+     * rewrite a value the ROM reported as "off", so a build that already ships blur enabled keeps its
+     * own value, and every unrelated property read in SystemUI is untouched.
+     */
+    private fun installBlurGates(): Int {
+        var installed = 0
         val utils = COMMON_UTILS.toClassOrNull()
         if (utils == null) {
             DebugLog.hookSkipped(TAG, COMMON_UTILS, "class not found")
@@ -300,53 +360,6 @@ object FreeformBlurTransitionHooker : StaticHooker() {
         var installed = 0
         val shapeViewClass = SHAPE_VIEW.toClassOrNull()
         if (shapeViewClass == null) DebugLog.hookSkipped(TAG, SHAPE_VIEW, "class not found")
-
-        // 2a. Resources.getColor — the two overloads the original module hooked. getColor(int)
-        // delegates to getColor(int, Theme) on this platform; both are covered so a deoptimized
-        // direct call site cannot slip through.
-        runCatching {
-            listOf(
-                HostAccess.requirePublicMethod(Resources::class.java, "getColor", Int::class.javaPrimitiveType, accessible = false),
-                HostAccess.requirePublicMethod(Resources::class.java,
-                    "getColor", Int::class.javaPrimitiveType, Resources.Theme::class.java, accessible = false)
-            ).forEach { method ->
-                deoptimize(method)
-                method.hook("freeform_blur_bottom_board_${method.parameterCount}") {
-                    before { param ->
-                        if (!enabled) return@before
-                        val resourcesInstance = param.thisObject as? Resources ?: return@before
-                        val id = param.args.getOrNull(0) as? Int ?: return@before
-                        if (!isBottomBoardColor(resourcesInstance, id)) return@before
-                        param.result = Color.TRANSPARENT
-                    }
-                }
-                installed++
-            }
-        }.onFailure { DebugLog.hookFailed(TAG, "Resources#getColor", it) }
-
-        // 2b. View.setBackgroundColor — MultiTaskingCoverLayerController paints the shape view with
-        // the app's dominant colour, which is the solid rectangle that hides the blur. Matched by
-        // cached Class identity rather than by class name, because this method is called for every
-        // background set anywhere in SystemUI.
-        runCatching {
-            val method = HostAccess.requirePublicMethod(View::class.java,
-                "setBackgroundColor", Int::class.javaPrimitiveType, accessible = false)
-            deoptimize(method)
-            method.hook("freeform_blur_shape_view_background") {
-                before { param ->
-                    if (!enabled) return@before
-                    val viewClass = shapeViewClass ?: return@before
-                    if (!viewClass.isInstance(param.thisObject)) return@before
-                    HookFailurePolicy.open(TAG, "clear shape view background", Unit) {
-                        val view = param.thisObject as? View ?: return@open
-                        val requested = param.args[0] as? Int ?: return@open
-                        backgrounds[view] = requested
-                        param.args[0] = Color.TRANSPARENT
-                    }
-                }
-            }
-            installed++
-        }.onFailure { DebugLog.hookFailed(TAG, "View#setBackgroundColor", it) }
 
         // 2c. MultiTaskingShapeView.onDraw — the board is drawn only while bottomBoardAlpha > 0, so
         // zeroing it every frame skips the fill and the stroke while keeping the app icon and label.
@@ -389,22 +402,6 @@ object FreeformBlurTransitionHooker : StaticHooker() {
         }
 
         return installed
-    }
-
-    /**
-     * Match the current resource package/name rather than ids from an older APK. Cache because
-     * this runs on
-     * every `Resources.getColor` call in SystemUI.
-     */
-    private fun isBottomBoardColor(resources: Resources, id: Int): Boolean {
-        if (id == 0) return false
-        if (id in knownBottomBoardIds) return true
-        if (id in missedBottomBoardIds) return false
-        val name = runCatching { resources.getResourceEntryName(id) }.getOrNull()
-        val match = name in bottomBoardNames &&
-            runCatching { resources.getResourcePackageName(id) == "com.android.wm.shell" }.getOrDefault(false)
-        if (match) knownBottomBoardIds += id else missedBottomBoardIds += id
-        return match
     }
 
     // ─── Group 3: smooth blur transition ───────────────────────────────────────────────────────
@@ -661,12 +658,15 @@ object FreeformBlurTransitionHooker : StaticHooker() {
     // ─── Reflection helpers ────────────────────────────────────────────────────────────────────
 
     /**
-     * Marks [method] accessible and undoes AOT inlining. The blur gates and the shape-view `onDraw`
-     * are small, hot methods whose call sites ART may have inlined before the hook installed.
+     * Marks [method] accessible and, for host gates, deoptimizes it so its own compiled body
+     * cannot keep an inlined copy of another hooked gate. `SystemProperties` readers are hooked
+     * framework-wide in SystemUI and inline nothing we hook (oatdump, OS4 boot-framework.oat), so
+     * they keep their AOT code: deoptimizing a hooked method only forces its original body into
+     * the interpreter and never fixes inlining at its callers.
      */
-    private fun prepare(method: Method, label: String): Boolean = runCatching {
+    private fun prepare(method: Method, label: String, keepCompiled: Boolean = false): Boolean = runCatching {
         method.isAccessible = true
-        deoptimize(method)
+        if (!keepCompiled) deoptimize(method)
         true
     }.onFailure { DebugLog.hookFailed(TAG, label, it) }.getOrDefault(false)
 

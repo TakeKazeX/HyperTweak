@@ -455,7 +455,6 @@ internal object SlotMaskApplier : IconRenderer() {
         // View.onLayout is (changed, left, top, right, bottom): five parameters. A four-parameter
         // query silently misses this final host override, leaving every icon at the host's row.
         containerClass.findMethodOrNull { name("onLayout"); paramCount(5) }?.let { method ->
-            deoptimize(method)
             method.observe {
                 before { param ->
                     val container = param.thisObject as? ViewGroup ?: return@before

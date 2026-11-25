@@ -53,6 +53,7 @@ internal object SystemUiHookPlan {
             "com.android.systemui" -> {
                 hook { RestartBroadcastHooker }
                 hook { com.takekazex.hypertweak.hook.base.ViewVisibilityRouter }
+                hook { com.takekazex.hypertweak.hook.base.ResourceValueRouter }
                 hook { AODHooker }
                 hook { AodWallpaperHandoffHooker }
                 hook { HideFingerprintIcon }

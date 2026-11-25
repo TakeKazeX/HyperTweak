@@ -92,7 +92,6 @@ object PowerSaveOverrideHooker : StaticHooker() {
 
     private fun install(method: Method): Boolean = runCatching {
         method.isAccessible = true
-        deoptimize(method)
         method.hook("power_save_override_${method.declaringClass.name}_${method.name}") {
             before { param ->
                 HookFailurePolicy.open(TAG, "skip power-save pin", Unit) {

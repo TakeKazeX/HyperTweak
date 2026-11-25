@@ -119,7 +119,6 @@ object LowBatteryWarningHooker : StaticHooker() {
     private fun install(method: Method, target: String, action: (HookParam) -> Unit) {
         runCatching {
             method.isAccessible = true
-            deoptimize(method)
             method.hook("low_battery_warning_${method.declaringClass.name}_${method.name}_${method.parameterCount}") {
                 before { param ->
                     HookFailurePolicy.open(TAG, "$target.before", Unit) {

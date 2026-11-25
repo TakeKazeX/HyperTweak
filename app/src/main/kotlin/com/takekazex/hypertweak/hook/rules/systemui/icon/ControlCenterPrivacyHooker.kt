@@ -231,7 +231,7 @@ object ControlCenterPrivacyHooker : StaticHooker() {
             }
         }
         "com.android.systemui.controlcenter.shade.ControlCenterHeaderExpandController".toClassOrNull()?.let { expansion ->
-            hook(expansion, listOf("updateLocation")) { owner, _ ->
+            hook(expansion, listOf("updateLocation"), keepCompiled = true) { owner, _ ->
                 val combined = read(owner, "headerController")?.let { invoke(it, "get") }
                 val root = combined?.let { read(it, "controlCenterPrivacyContainer") } as? ViewGroup
                 root?.let { bindings[it] }?.expansion = WeakReference(owner)
@@ -328,9 +328,19 @@ object ControlCenterPrivacyHooker : StaticHooker() {
         recoverExistingViews(views, component)
     }
 
-    private fun hook(type: Class<*>, names: List<String>, action: (Any, String) -> Unit) {
+    /**
+     * [keepCompiled] skips the self-deoptimization for per-frame host methods whose AOT body
+     * inlines nothing we hook (verified with oatdump); deoptimizing them only made every frame
+     * interpret the original body.
+     */
+    private fun hook(
+        type: Class<*>,
+        names: List<String>,
+        keepCompiled: Boolean = false,
+        action: (Any, String) -> Unit,
+    ) {
         type.declaredMethods.filter { it.name in names }.forEach { method ->
-            deoptimize(method)
+            if (!keepCompiled) deoptimize(method)
             method.hook { after { param ->
                 if (enabled && !retiring) guarded { action(param.thisObject, method.name) }
             } }

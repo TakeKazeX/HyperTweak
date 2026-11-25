@@ -85,7 +85,6 @@ object AonRuntimeGateHooker : StaticHooker() {
         val method = runCatching {
             HostAccess.requireDeclaredMethod(resources, "getBoolean", Int::class.javaPrimitiveType, accessible = false)
         }.getOrNull() ?: return
-        deoptimize(method)
         method.hook("aon_runtime_visual_gates") { after { param ->
             val id = param.args.getOrNull(0) as? Int ?: return@after
             if (id !in visualPerceptionIds) return@after

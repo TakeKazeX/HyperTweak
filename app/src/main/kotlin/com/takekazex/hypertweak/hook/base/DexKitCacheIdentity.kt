@@ -79,26 +79,19 @@ internal data class DexKitCacheIdentity(
             DexKitCacheIdentity(file.absolutePath, modified, size, splits, fingerprint)
         }.getOrNull()
 
-        /** Verify complete bytes once; never publish a partial identity on IO or replacement. */
-        fun withFullDigest(identity: DexKitCacheIdentity): DexKitCacheIdentity = runCatching {
+        /** Verify complete bytes once; never publish a partial identity on IO or replacement.
+         * [digestOf] may serve a persisted digest bound to the file's kernel stat. */
+        fun withFullDigest(
+            identity: DexKitCacheIdentity,
+            digestOf: (File) -> ByteArray = com.takekazex.hypertweak.hook.base.dex.ApkDigestStore::sha256,
+        ): DexKitCacheIdentity = runCatching {
             val files = listOf(File(identity.path)) + identity.splits.map { File(it.path) }
             val stamps = listOf(SplitStamp(identity.path, identity.size, identity.modified)) + identity.splits
             fun unchanged() = files.zip(stamps).all { (file, stamp) ->
                 file.isFile && file.length() == stamp.size && file.lastModified() == stamp.modified
             }
             check(unchanged()) { "APK changed before hashing" }
-            val digests = files.map { file ->
-                val digest = MessageDigest.getInstance("SHA-256")
-                file.inputStream().use { input ->
-                    val buffer = ByteArray(64 * 1024)
-                    while (true) {
-                        val count = input.read(buffer)
-                        if (count < 0) break
-                        digest.update(buffer, 0, count)
-                    }
-                }
-                digest.digest()
-            }
+            val digests = files.map(digestOf)
             check(unchanged()) { "APK changed while hashing" }
             val digest = if (digests.size == 1) digests.single() else {
                 MessageDigest.getInstance("SHA-256").apply { digests.forEach(::update) }.digest()
