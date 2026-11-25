@@ -20,7 +20,7 @@ import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.hook.base.InstallPolicy
 import com.takekazex.hypertweak.util.logging.DebugLog
-import io.github.lingqiqi5211.ezhooktool.xposed.common.HookParam
+import com.takekazex.hypertweak.hook.base.HookParam
 import org.luckypray.dexkit.query.enums.StringMatchType
 import org.luckypray.dexkit.query.matchers.MethodMatcher
 import java.lang.reflect.Field

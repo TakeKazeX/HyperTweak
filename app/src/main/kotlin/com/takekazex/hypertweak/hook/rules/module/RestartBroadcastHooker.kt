@@ -6,12 +6,14 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.os.Process
 import androidx.core.content.ContextCompat
+import com.takekazex.hypertweak.hook.base.HookHits
 import com.takekazex.hypertweak.hook.base.HostApplicationContext
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 import com.takekazex.hypertweak.util.restart.RestartProtocol
 import java.util.concurrent.ConcurrentHashMap
 
+/** Restart receiver; it also serves the root-only hook hit dump, so no second receiver is registered. */
 object RestartBroadcastHooker : StaticHooker() {
     /** Installs no method hook by design: its receiver is registered from onPackageReady. */
     override val expectsHooks = false
@@ -41,9 +43,16 @@ object RestartBroadcastHooker : StaticHooker() {
         // unregisterAll() clears the claim when hot reload retires this generation first.
         if (generationRetired || !registeredPackages.contains(pkgName) || receivers.containsKey(pkgName)) return
         try {
-            val filter = IntentFilter(RestartProtocol.ACTION)
+            val filter = IntentFilter(RestartProtocol.ACTION).apply {
+                addAction(RestartProtocol.ACTION_DUMP_HOOK_HITS)
+            }
             val receiver = object : BroadcastReceiver() {
                 override fun onReceive(ctx: Context, intent: Intent) {
+                    if (intent.action == RestartProtocol.ACTION_DUMP_HOOK_HITS) {
+                        HookHits.dump(android.app.Application.getProcessName(),
+                            intent.getBooleanExtra(RestartProtocol.EXTRA_RESET, false))
+                        return
+                    }
                     if (intent.action == RestartProtocol.ACTION) {
                         val restartSystemUi = intent.getBooleanExtra(RestartProtocol.EXTRA_SYSTEM_UI, false)
                         val restartMiuiHome = intent.getBooleanExtra(RestartProtocol.EXTRA_MIUI_HOME, false)

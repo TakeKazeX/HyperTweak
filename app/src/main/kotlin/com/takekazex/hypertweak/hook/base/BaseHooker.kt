@@ -8,8 +8,6 @@ import io.github.lingqiqi5211.ezhooktool.core.query.ConstructorQuery
 import io.github.lingqiqi5211.ezhooktool.core.query.FieldQuery
 import io.github.lingqiqi5211.ezhooktool.core.query.MethodQuery
 import io.github.lingqiqi5211.ezhooktool.xposed.EzXposed
-import io.github.lingqiqi5211.ezhooktool.xposed.dsl.HookFactory
-import io.github.lingqiqi5211.ezhooktool.xposed.dsl.createHook
 import java.lang.reflect.Constructor
 import java.lang.reflect.Executable
 import java.lang.reflect.Method
@@ -31,21 +29,6 @@ import kotlinx.coroutines.CoroutineScope
 sealed class BaseHooker {
     companion object {
         private val preparationMain by lazy { Handler(Looper.getMainLooper()) }
-        private val hookFactoryConstructor by lazy {
-            HookFactory::class.java.getDeclaredConstructor(Executable::class.java).apply {
-                isAccessible = true
-            }
-        }
-        private val hookFactoryStagesField by lazy {
-            HookFactory::class.java.getDeclaredField("stages").apply {
-                isAccessible = true
-            }
-        }
-        private val buildHookerMethod by lazy {
-            Class.forName("io.github.lingqiqi5211.ezhooktool.xposed.dsl.HookFactoryKt")
-                .getDeclaredMethod("buildHooker", Executable::class.java, List::class.java)
-                .apply { isAccessible = true }
-        }
     }
 
     lateinit var module: XposedModule
@@ -535,7 +518,7 @@ sealed class BaseHooker {
     // ─── Hook registration helpers ─────────────────────────────────────────────
 
     /**
-     * Hook a [Method] using EzHookTool's createHook DSL.
+     * Hook a [Method] through the module hook DSL ([HookFactory]).
      * Registers the handle for lifecycle management.
      */
     fun Method.hook(
@@ -570,10 +553,7 @@ sealed class BaseHooker {
                 replaceOldHandle(oldHandle, target, hookId, block).also {
                     replacementMap.markHandled(oldHandle)
                 }
-            } else method.createHook {
-                id(hookId)
-                block()
-            }
+            } else installHook(method, hookId, block)
             registerHandle(handle, target, managed)
         } catch (t: Throwable) {
             DebugLog.hookFailed(hookerName, target, t)
@@ -595,7 +575,7 @@ sealed class BaseHooker {
     }
 
     /**
-     * Hook a [Constructor] using EzHookTool's createHook DSL.
+     * Hook a [Constructor] through the module hook DSL ([HookFactory]).
      */
     fun Constructor<*>.hook(
         managed: Boolean = true,
@@ -631,10 +611,7 @@ sealed class BaseHooker {
                 replaceOldHandle(oldHandle, target, hookId, block).also {
                     replacementMap.markHandled(oldHandle)
                 }
-            } else constructor.createHook {
-                id(hookId)
-                block()
-            }
+            } else installHook(constructor, hookId, block)
             registerHandle(handle, target, managed)
         } catch (t: Throwable) {
             DebugLog.hookFailed(hookerName, target, t)
@@ -698,19 +675,27 @@ sealed class BaseHooker {
         return ownManagedHandle(handle)
     }
 
+    private fun installHook(
+        target: Executable,
+        hookId: String,
+        block: HookFactory.() -> Unit
+    ): XposedInterface.HookHandle {
+        val factory = HookFactory(target).apply { id(hookId); block() }
+        return module.hook(target)
+            .setPriority(factory.priority)
+            .setExceptionMode(factory.exceptionMode)
+            .setId(factory.hookId ?: hookId)
+            .intercept(factory.buildHooker(hookerName))
+    }
+
     private fun replaceOldHandle(
         oldHandle: XposedInterface.HookHandle,
         target: String,
         hookId: String,
         block: HookFactory.() -> Unit
     ): XposedInterface.HookHandle {
-        val factory = hookFactoryConstructor.newInstance(oldHandle.executable) as HookFactory
-        factory.id(hookId)
-        block(factory)
-        @Suppress("UNCHECKED_CAST")
-        val stages = hookFactoryStagesField.get(factory) as List<Any>
-        val hooker = buildHookerMethod.invoke(null, oldHandle.executable, stages) as XposedInterface.Hooker
-        val replacement = oldHandle.replaceHook(hooker)
+        val factory = HookFactory(oldHandle.executable).apply { id(hookId); block() }
+        val replacement = oldHandle.replaceHook(factory.buildHooker(hookerName))
         DebugLog.hookRegistered(hookerName, "$target id=$hookId replaced=true")
         return replacement
     }

@@ -4,7 +4,7 @@ import com.takekazex.hypertweak.hook.base.BaseHooker
 import com.takekazex.hypertweak.hook.base.HookComponent
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
-import io.github.lingqiqi5211.ezhooktool.xposed.common.HookParam
+import com.takekazex.hypertweak.hook.base.HookParam
 import java.lang.reflect.Constructor
 import java.lang.reflect.Executable
 import java.lang.reflect.Method

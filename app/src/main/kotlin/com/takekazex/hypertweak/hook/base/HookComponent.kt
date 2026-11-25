@@ -1,7 +1,7 @@
 package com.takekazex.hypertweak.hook.base
 
 import com.takekazex.hypertweak.hook.base.dex.DexContractMembers
-import io.github.lingqiqi5211.ezhooktool.xposed.dsl.HookFactory
+
 import java.lang.reflect.Constructor
 import java.lang.reflect.Executable
 import java.lang.reflect.Method

@@ -7,13 +7,6 @@
 -keep class com.takekazex.hypertweak.hook.NativeRules { native <methods>; }
 -keepnames class * extends com.takekazex.hypertweak.hook.base.BaseHooker
 
-# API-102 hot-reload reflection into EzHookTool.
--keepclassmembers class io.github.lingqiqi5211.ezhooktool.xposed.dsl.HookFactory {
-    private java.util.List stages;
-}
--keep,allowoptimization class io.github.lingqiqi5211.ezhooktool.xposed.dsl.HookFactoryKt {
-    public static io.github.libxposed.api.XposedInterface$Hooker buildHooker(java.lang.reflect.Executable, java.util.List);
-}
 -keepclassmembers,allowoptimization class com.takekazex.hypertweak.MainActivity {
     public boolean isModuleActive();
 }

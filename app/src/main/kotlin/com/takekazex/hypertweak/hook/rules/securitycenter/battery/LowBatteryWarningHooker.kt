@@ -9,7 +9,7 @@ import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
-import io.github.lingqiqi5211.ezhooktool.xposed.common.HookParam
+import com.takekazex.hypertweak.hook.base.HookParam
 import java.lang.reflect.Method
 
 /**
