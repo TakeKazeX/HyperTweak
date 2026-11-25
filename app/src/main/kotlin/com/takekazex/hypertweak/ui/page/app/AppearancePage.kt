@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import kotlinx.coroutines.delay
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalResources
@@ -30,12 +31,28 @@ import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
+/** Covers the glass dropdown's closing motion (200 ms fade, ~0.35 s bounds spring). */
+private const val UI_STYLE_SWITCH_DELAY_MS = 420L
+
 @Composable
 fun AppearancePage(
     onBack: () -> Unit,
 ) {
     val appSettings = LocalAppSettings.current
     val resources = LocalResources.current
+    // Switching the interface style swaps the whole chrome, including this dropdown (glass <->
+    // classic). Applied at once, the swap lands mid-way through the popup's closing spring and the
+    // popup jumps; show the pick now and apply it once the popup has settled, or on leaving.
+    var pendingUiStyle by remember { mutableStateOf<Int?>(null) }
+    LaunchedEffect(pendingUiStyle) {
+        val style = pendingUiStyle ?: return@LaunchedEffect
+        delay(UI_STYLE_SWITCH_DELAY_MS)
+        appSettings.appUiStyle = style
+        pendingUiStyle = null
+    }
+    DisposableEffect(Unit) {
+        onDispose { pendingUiStyle?.let { appSettings.appUiStyle = it } }
+    }
     val systemAccent = rememberDeviceAccentColor()
     val resolvedSeed = if (appSettings.seedColorHex == 0) systemAccent else appSettings.seedColorHex
     val darkPreview = isEffectivelyDark(appSettings.themeMode, isSystemInDarkTheme())
@@ -115,8 +132,8 @@ fun AppearancePage(
                     stringResource(R.string.appearance_ui_style_os3),
                     stringResource(R.string.appearance_ui_style_os4)
                 ),
-                selectedIndex = appSettings.appUiStyle.coerceIn(0, 1),
-                onSelectedIndexChange = { appSettings.appUiStyle = it }
+                selectedIndex = (pendingUiStyle ?: appSettings.appUiStyle).coerceIn(0, 1),
+                onSelectedIndexChange = { pendingUiStyle = it.takeIf { pick -> pick != appSettings.appUiStyle } }
             )
             OverlayDropdownPreference(
                 title = stringResource(R.string.appearance_theme_mode),
