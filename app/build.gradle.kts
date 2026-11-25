@@ -285,14 +285,14 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.11.1")
 
     // Miuix UI & Preferences
-    implementation("top.yukonga.miuix.kmp:miuix-ui:0.9.5-beta04")
-    implementation("top.yukonga.miuix.kmp:miuix-preference:0.9.5-beta04")
-    implementation("top.yukonga.miuix.kmp:miuix-icons:0.9.5-beta04")
-    implementation("top.yukonga.miuix.kmp:miuix-blur:0.9.5-beta04")
-    implementation("top.yukonga.miuix.kmp:miuix-nav:0.9.5-beta04")
-    implementation("top.yukonga.miuix.kmp:miuix-material:0.9.5-beta04")
-    implementation("top.yukonga.miuix.kmp:miuix-glass:0.9.5-beta04")
-    implementation("top.yukonga.miuix.kmp:miuix-glass-icons:0.9.5-beta04")
+    implementation("top.yukonga.miuix.kmp:miuix-ui:0.9.5-rc01")
+    implementation("top.yukonga.miuix.kmp:miuix-preference:0.9.5-rc01")
+    implementation("top.yukonga.miuix.kmp:miuix-icons:0.9.5-rc01")
+    implementation("top.yukonga.miuix.kmp:miuix-blur:0.9.5-rc01")
+    implementation("top.yukonga.miuix.kmp:miuix-nav:0.9.5-rc01")
+    implementation("top.yukonga.miuix.kmp:miuix-material:0.9.5-rc01")
+    implementation("top.yukonga.miuix.kmp:miuix-glass:0.9.5-rc01")
+    implementation("top.yukonga.miuix.kmp:miuix-glass-icons:0.9.5-rc01")
     implementation("androidx.navigationevent:navigationevent-compose:1.2.0")
 
     // libxposed

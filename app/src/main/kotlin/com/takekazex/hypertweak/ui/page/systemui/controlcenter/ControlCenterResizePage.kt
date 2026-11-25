@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.ui.page.systemui.controlcenter
 
+import com.takekazex.hypertweak.ui.chrome.AppTextField
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.padding
@@ -28,7 +29,6 @@ import com.takekazex.hypertweak.ui.chrome.AppSection
 import com.takekazex.hypertweak.ui.chrome.AppTextButton as TextButton
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -320,7 +320,7 @@ private fun CustomTileSpecRow(onSelect: () -> Unit) {
                     readTileCardSpecs(settingsStore).filterNot { it in knownSpecTokens }.joinToString(",")
                 )
             }
-            TextField(
+            AppTextField(
                 modifier = Modifier.padding(bottom = 16.dp),
                 state = input,
                 lineLimits = TextFieldLineLimits.SingleLine,

@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.ui.page.launcher
 
+import com.takekazex.hypertweak.ui.chrome.AppTextField
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.input.InputTransformation
 import androidx.compose.foundation.text.input.TextFieldLineLimits
@@ -53,7 +54,7 @@ internal fun LauncherIconThemePreferences() {
     OverlayDialog(show = editing, title = stringResource(R.string.desktop_icon_theme_color),
         summary = stringResource(R.string.desktop_icon_theme_color_hint), onDismissRequest = { editing = false },
         content = {
-            TextField(
+            AppTextField(
                 state = input,
                 lineLimits = TextFieldLineLimits.SingleLine,
                 modifier = Modifier.padding(bottom = 16.dp),

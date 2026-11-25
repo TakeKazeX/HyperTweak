@@ -3,6 +3,8 @@
 
 package com.takekazex.hypertweak.ui.page.app
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import top.yukonga.miuix.kmp.interfaces.ExperimentalScrollBarApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
@@ -30,7 +32,7 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.computedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -63,8 +65,6 @@ import com.takekazex.hypertweak.ui.chrome.rememberPageBackdrop
 import com.takekazex.hypertweak.ui.effect.BgEffectBackground
 import com.takekazex.hypertweak.ui.page.update.updateStatusSummary
 import com.takekazex.hypertweak.util.update.UpdateManager
-import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.ScrollBehavior
 import top.yukonga.miuix.kmp.basic.SmallTitle
@@ -73,6 +73,7 @@ import top.yukonga.miuix.kmp.basic.VerticalScrollBar
 import top.yukonga.miuix.kmp.basic.rememberScrollBarAdapter
 import top.yukonga.miuix.kmp.blur.BlendColorEntry
 import top.yukonga.miuix.kmp.blur.BlurBlendMode
+import top.yukonga.miuix.kmp.glass.GlassCard
 import top.yukonga.miuix.kmp.blur.BlurDefaults
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.textureBlur
@@ -80,15 +81,6 @@ import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 private val AboutContentWidth = 600.dp
-
-private val CardBlendDark = listOf(
-    BlendColorEntry(Color(0x757A7A7A), BlurBlendMode.Luminosity),
-)
-
-private val CardBlendLight = listOf(
-    BlendColorEntry(Color(0x340034F9), BlurBlendMode.Overlay),
-    BlendColorEntry(Color(0xB3FFFFFF), BlurBlendMode.HardLight),
-)
 
 private fun Color.isLight(): Boolean {
     val luminance = 0.2126f * red + 0.7152f * green + 0.0722f * blue
@@ -119,7 +111,7 @@ fun AboutPage(
     var logoHeightPx by remember { mutableIntStateOf(0) }
 
     val scrollProgress by remember {
-        derivedStateOf {
+        computedStateOf {
             if (logoHeightPx <= 0) {
                 0f
             } else {
@@ -130,16 +122,23 @@ fun AboutPage(
         }
     }
 
-    // Upstream About: the title fades in as the logo collapses; the bar's blur and the glass
-    // band appear once the logo has fully scrolled away.
+    // Upstream About: the title fades in once the logo is half collapsed; the bar's blur and the
+    // glass band appear once the logo has fully scrolled away.
+    val collapsed by remember { computedStateOf { scrollProgress == 1f } }
+    val showTitle by remember { computedStateOf { scrollProgress >= 0.45f } }
+    val titleAlpha = animateFloatAsState(
+        targetValue = if (showTitle) 1f else 0f,
+        animationSpec = tween(durationMillis = 200),
+        label = "aboutTitleAlpha",
+    )
     AppPage(
         title = stringResource(R.string.about_title),
         onBack = onBack,
         backContentDescription = stringResource(R.string.about_back),
         expandable = false,
         scrollBehavior = topAppBarScrollBehavior,
-        contentScrolled = scrollProgress == 1f,
-        titleAlpha = { ((scrollProgress - 0.35f) / 0.65f).coerceIn(0f, 1f) },
+        contentScrolled = collapsed,
+        titleAlpha = { titleAlpha.value },
     ) { innerPadding ->
         AboutContentBody(
             innerPadding = innerPadding,
@@ -175,14 +174,7 @@ private fun AboutContentBody(
     val uriHandler = LocalUriHandler.current
     val contentBackdrop = rememberPageBackdrop()
 
-    val blurRadius = 60f
-    val noiseCoefficient = BlurDefaults.NoiseCoefficient
-    val brightness = 0f
-    val contrast = 1f
-    val saturation = 1f
-
     val isDarkTheme = !MiuixTheme.colorScheme.background.isLight()
-    val cardBlend = if (isDarkTheme) CardBlendDark else CardBlendLight
     val logoBlend = remember(isDarkTheme) {
         if (isDarkTheme) {
             listOf(
@@ -297,7 +289,7 @@ private fun AboutContentBody(
                                 backdrop = contentBackdrop,
                                 shape = RoundedCornerShape(16.dp),
                                 blurRadius = 150f,
-                                noiseCoefficient = noiseCoefficient,
+                                noiseCoefficient = BlurDefaults.NoiseCoefficient,
                                 colors = BlurDefaults.blurColors(blendColors = logoBlend),
                                 contentBlendMode = ComposeBlendMode.DstIn,
                                 enabled = true,
@@ -334,6 +326,7 @@ private fun AboutContentBody(
                 .appPageScroll(topAppBarScrollBehavior),
             contentPadding = listContentPadding,
             horizontalAlignment = Alignment.CenterHorizontally,
+            overscrollEffect = null,
         ) {
             item(key = "logoSpacer") {
                 Box(
@@ -356,40 +349,13 @@ private fun AboutContentBody(
                     .fillMaxWidth()
                     .padding(horizontal = 12.dp)
 
-                val cardColors = CardDefaults.defaultColors(
-                    color = if (contentBackdrop != null) Color.Transparent else MiuixTheme.colorScheme.surfaceContainer,
-                )
-
-                @Composable
-                fun Modifier.applyCardBlur(): Modifier = this.then(
-                    if (contentBackdrop != null) {
-                        Modifier.textureBlur(
-                            backdrop = contentBackdrop,
-                            shape = RoundedCornerShape(16.dp),
-                            blurRadius = blurRadius,
-                            noiseCoefficient = noiseCoefficient,
-                            colors = BlurDefaults.blurColors(
-                                blendColors = cardBlend,
-                                brightness = brightness,
-                                contrast = contrast,
-                                saturation = saturation,
-                            ),
-                        )
-                    } else {
-                        Modifier
-                    }
-                )
-
                 Column(
                     modifier = Modifier
                         .fillParentMaxHeight()
                         .padding(bottom = listContentPadding.calculateBottomPadding() + 16.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    Card(
-                        modifier = section.applyCardBlur(),
-                        colors = cardColors,
-                    ) {
+                    GlassCard(modifier = section) {
                         ArrowPreference(
                             title = stringResource(R.string.update_title),
                             summary = updateStatusSummary(updateState, lastCheckedAt),
@@ -405,10 +371,7 @@ private fun AboutContentBody(
                             .padding(top = 12.dp),
                     )
 
-                    Card(
-                        modifier = section.applyCardBlur(),
-                        colors = cardColors,
-                    ) {
+                    GlassCard(modifier = section) {
                         ArrowPreference(
                             title = stringResource(R.string.about_view_source_code),
                             summary = stringResource(R.string.about_view_source_code_summary),
@@ -436,10 +399,7 @@ private fun AboutContentBody(
                             .padding(top = 12.dp),
                     )
 
-                    Card(
-                        modifier = section.applyCardBlur(),
-                        colors = cardColors,
-                    ) {
+                    GlassCard(modifier = section) {
                         ArrowPreference(
                             title = stringResource(R.string.settings_debug),
                             summary = stringResource(R.string.settings_debug_summary),

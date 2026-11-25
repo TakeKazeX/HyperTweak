@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.ui.page.update
 
+import com.takekazex.hypertweak.ui.chrome.AppTextField
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -48,7 +49,6 @@ import top.yukonga.miuix.kmp.basic.HorizontalDivider
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.icon.extended.Forward
@@ -240,7 +240,7 @@ fun UpdatePage(
                                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary
                                 )
                                 Spacer(Modifier.height(8.dp))
-                                TextField(
+                                AppTextField(
                                     modifier = Modifier.fillMaxWidth(),
                                     state = proxyInput,
                                     enabled = proxyMode == UpdateProxyMode.THIRD_PARTY,

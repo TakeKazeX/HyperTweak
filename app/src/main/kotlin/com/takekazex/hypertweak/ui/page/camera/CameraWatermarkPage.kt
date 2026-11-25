@@ -51,7 +51,7 @@ fun CameraWatermarkUnlockPage(onBack: () -> Unit) {
         onBack = onBack,
         backContentDescription = stringResource(R.string.camera_unlock_back),
         topBarBottom = {
-            AppTabRow(tabs = tabs, selectedIndex = selectedTab, onSelect = { selectedTab = it }, segmented = true)
+            AppTabRow(tabs = tabs, selectedIndex = selectedTab, onSelect = { selectedTab = it })
         },
     ) {
 

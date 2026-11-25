@@ -11,7 +11,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.computedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -62,7 +62,7 @@ fun BgEffectBackground(
     val resumed by lifecycleOwner.lifecycle.currentStateAsState()
     val inForeground = resumed.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)
     val alphaProvider = rememberUpdatedState(alpha)
-    val visible by remember { derivedStateOf { alphaProvider.value() > 0f } }
+    val visible by remember { computedStateOf { alphaProvider.value() > 0f } }
     val playing = dynamicBackground && effectBackground && inForeground && visible
     val shaderSupported = remember { isRuntimeShaderSupported() }
     if (!shaderSupported) {

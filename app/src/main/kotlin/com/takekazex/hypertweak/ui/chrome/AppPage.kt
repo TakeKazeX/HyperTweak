@@ -43,11 +43,15 @@ private val ContentTopGap: Dp = 8.dp
 private val ContentBottomGap: Dp = 16.dp
 
 /**
- * The frame every page uses: top bar, scroll behavior, page backdrop, popup host and insets.
+ * The frame every page uses: top bar, scroll behavior, top-bar backdrop, popup host and insets.
  *
  * [content] receives the Scaffold padding (top bar, system bars and cutout on every side). Lay
  * content out *under* the bar using it, never below it, so the bar can collapse and blur over the
  * scrolled content. Most pages use [AppScrollPage] or [AppLazyPage] instead.
+ *
+ * [backdrop] records only the page content, for the top bar (upstream two-level sampling); the
+ * floating overlays sample the whole-page [PageBackdropBox] recording instead. The recording is
+ * applied before the rail inset so the bar's blur never gets cut at the rail edge.
  *
  * The backdrop is captured from the first frame in OS4 (glass must never enter as its fallback);
  * OS3 keeps deferring it until the entry transition settles.
@@ -70,10 +74,10 @@ fun AppPage(
     content: @Composable (PaddingValues) -> Unit,
 ) {
     val ready = rememberContentReady() || LocalAppUiStyle.current == AppUiStyle.Os4
-    val pageBackdrop = backdrop?.takeIf { ready }
+    val barBackdrop = backdrop?.takeIf { ready }
     CompositionLocalProvider(
         LocalAppOverlayHost provides true,
-        LocalPageBackdrop provides pageBackdrop,
+        LocalTopAppBarBackdrop provides barBackdrop,
     ) {
         Scaffold(
             modifier = modifier,
@@ -94,8 +98,10 @@ fun AppPage(
             snackbarHost = snackbarHost,
             popupHost = { MiuixPopupHost() },
         ) { padding ->
-            Box(Modifier.fillMaxSize().then(if (pageBackdrop != null) Modifier.layerBackdrop(pageBackdrop) else Modifier)) {
-                content(padding)
+            Box(Modifier.fillMaxSize().then(if (barBackdrop != null) Modifier.layerBackdrop(barBackdrop) else Modifier)) {
+                Box(Modifier.fillMaxSize().sidebarStartInset()) {
+                    content(padding)
+                }
             }
         }
     }
@@ -140,7 +146,7 @@ fun AppScrollPage(
                 .fillMaxSize()
                 .padding(start = padding.calculateStartPadding(direction), end = padding.calculateEndPadding(direction))
                 .appPageScroll(scrollBehavior)
-                .verticalScroll(scrollState),
+                .verticalScroll(scrollState, overscrollEffect = null),
             verticalArrangement = verticalArrangement,
         ) {
             Spacer(Modifier.height(padding.calculateTopPadding() + ContentTopGap))
@@ -180,6 +186,7 @@ fun AppLazyPage(
             state = state,
             modifier = Modifier.fillMaxSize().appPageScroll(scrollBehavior),
             contentPadding = padding.withGaps(),
+            overscrollEffect = null,
             content = content,
         )
     }
@@ -200,7 +207,8 @@ fun PaddingValues.withGaps(): PaddingValues {
 /**
  * Page scroll wiring (upstream example `pageScrollModifiers`): elastic overscroll is mirrored into
  * the bar state so the OS4 glass band and buttons follow the visual content position; the nested
- * scroll connection drives title collapse in both styles.
+ * scroll connection drives title collapse in both styles. This modifier owns the rebound, so the
+ * scrollable under it must pass `overscrollEffect = null` (the Miuix theme would add a second one).
  */
 @Composable
 fun Modifier.appPageScroll(scrollBehavior: ScrollBehavior): Modifier {

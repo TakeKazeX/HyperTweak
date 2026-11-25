@@ -1,7 +1,10 @@
 package com.takekazex.hypertweak.ui.chrome
 
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.input.InputTransformation
+import androidx.compose.foundation.text.input.TextFieldLineLimits
+import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -10,7 +13,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.ui.res.stringResource
 import com.takekazex.hypertweak.R
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
@@ -36,14 +38,13 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButtonDefaults
 import top.yukonga.miuix.kmp.basic.TabRowDefaults
 import top.yukonga.miuix.kmp.basic.TabRowWithContour
+import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.glass.GlassDialog
 import top.yukonga.miuix.kmp.glass.GlassDropdownPreference
 import top.yukonga.miuix.kmp.glass.GlassIconButton
 import top.yukonga.miuix.kmp.glass.GlassPopupSizing
 import top.yukonga.miuix.kmp.glass.GlassSegmentedTabRow
 import top.yukonga.miuix.kmp.glass.GlassSegmentedTabRowDefaults
-import top.yukonga.miuix.kmp.glass.GlassTabRow
-import top.yukonga.miuix.kmp.glass.GlassTabRowDefaults
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.glass.ChevronBackward
@@ -259,9 +260,10 @@ private val ContourTrackPadding = 5.dp
 private val ContourTabSpacing = 5.dp
 
 /**
- * Page tab row: upstream `GlassTabRow` over the page backdrop in OS4 (or the contoured
- * `GlassSegmentedTabRow` when [segmented] is set), Miuix `TabRowWithContour` in OS3. The classic
- * contour uses the container surface so it keeps a visible base on the `surface` page.
+ * Page tab row: upstream `GlassSegmentedTabRow` in OS4, Miuix `TabRowWithContour` in OS3. The
+ * glass track rests clear and rises once content scrolls under the top bar (upstream
+ * `surfaceAlpha`); without blur it stays a plain fill. The classic contour uses the container
+ * surface so it keeps a visible base on the `surface` page.
  */
 @Composable
 fun AppTabRow(
@@ -269,12 +271,9 @@ fun AppTabRow(
     selectedIndex: Int,
     onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier,
-    segmented: Boolean = false,
 ) {
     if (tabs.isEmpty()) return
     val index = selectedIndex.coerceIn(tabs.indices)
-    val rowModifier = modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
-    val backdrop = LocalPageBackdrop.current
     val glass = LocalAppUiStyle.current == AppUiStyle.Os4
     val textStyles = MiuixTheme.textStyles
     val selectedStyle = if (glass) textStyles.subtitle else textStyles.body1.copy(fontWeight = FontWeight.Bold)
@@ -290,47 +289,27 @@ fun AppTabRow(
         sizes.maxOf { it.width } to sizes.maxOf { it.height }
     }
     val (labelWidth, labelHeight) = with(LocalDensity.current) { widthPx.toDp() to heightPx.toDp() }
-    if (glass && segmented && backdrop != null) {
-        // Segments split the row evenly inside a contoured track; no scroll container needed.
+    if (glass) {
+        val backdrop = LocalTopAppBarBackdrop.current
+        val fallbackBackdrop = rememberLayerBackdrop()
+        val scrolled = LocalTopBarContentScrolled.current
         GlassSegmentedTabRow(
             tabs = tabs,
             selectedIndex = index,
             onSelect = onSelect,
-            backdrop = backdrop,
-            modifier = rowModifier,
+            backdrop = backdrop ?: fallbackBackdrop,
+            surfaceAlpha = if (backdrop != null && scrolled) 1f else 0f,
+            modifier = modifier.fillMaxWidth().padding(horizontal = 12.dp).padding(top = 6.dp, bottom = 12.dp),
+            // Large font scales only; at default sizes this is the upstream height.
             height = maxOf(GlassSegmentedTabRowDefaults.Height, labelHeight + 16.dp),
         )
-    } else if (glass) {
-        val horizontalPadding = GlassTabRowDefaults.TabPaddingHorizontal * 2
-        val verticalPadding = GlassTabRowDefaults.TabPaddingVertical * 2
-        val gap = GlassTabRowDefaults.TabGap
-        val minRowWidth = (labelWidth + horizontalPadding + 1.dp) * tabs.size + gap * tabs.lastIndex
-        val height = maxOf(GlassTabRowDefaults.Height, labelHeight + verticalPadding)
-        // GlassTabRow paints its float shadow outside its bounds, and a scroll container clips
-        // that (flush horizontally, 15dp vertically). Scroll only when the labels overflow, and
-        // keep the side inset inside the viewport so the resting edges keep their shadow.
-        BoxWithConstraints(modifier.fillMaxWidth()) {
-            val available = maxWidth - 32.dp
-            val overflow = minRowWidth > available
-            GlassTabRow(
-                tabs = tabs,
-                selectedIndex = index,
-                onSelect = onSelect,
-                backdrop = backdrop,
-                modifier = if (overflow) {
-                    Modifier.horizontalScroll(rememberScrollState())
-                        .padding(horizontal = 16.dp, vertical = 8.dp)
-                        .width(minRowWidth)
-                } else {
-                    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
-                },
-                height = height,
-            )
-        }
     } else {
         val minWidth = maxOf(TabRowDefaults.TabRowWithContourMinWidth, labelWidth + 24.dp)
         val density = LocalDensity.current
-        BoxWithConstraints(rowModifier, contentAlignment = Alignment.Center) {
+        BoxWithConstraints(
+            modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+            contentAlignment = Alignment.Center,
+        ) {
             // Miuix rounds each fractional tab width to whole pixels, so fitting tabs can sum a
             // pixel or two past the track; its LazyRow then reports a scroll range and lets the
             // row be dragged/overscrolled. Shrink the track (by < tab count px) to a width whose
@@ -358,6 +337,46 @@ fun AppTabRow(
                 )
             }
         }
+    }
+}
+
+/**
+ * Drop-in for Miuix `TextField` (state form): upstream `GlassTextField` inside an OS4 glass
+ * dialog, so its fill and label contrast follow the glass material; the classic field elsewhere.
+ */
+@Composable
+fun AppTextField(
+    state: TextFieldState,
+    modifier: Modifier = Modifier,
+    label: String = "",
+    enabled: Boolean = true,
+    inputTransformation: InputTransformation? = null,
+    keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
+    lineLimits: TextFieldLineLimits = TextFieldLineLimits.Default,
+    trailingIcon: @Composable (() -> Unit)? = null,
+) {
+    if (LocalGlassDialog.current) {
+        top.yukonga.miuix.kmp.glass.GlassTextField(
+            state = state,
+            modifier = modifier,
+            label = label,
+            enabled = enabled,
+            inputTransformation = inputTransformation,
+            keyboardOptions = keyboardOptions,
+            lineLimits = lineLimits,
+            trailingIcon = trailingIcon,
+        )
+    } else {
+        top.yukonga.miuix.kmp.basic.TextField(
+            state = state,
+            modifier = modifier,
+            label = label,
+            enabled = enabled,
+            inputTransformation = inputTransformation,
+            keyboardOptions = keyboardOptions,
+            lineLimits = lineLimits,
+            trailingIcon = trailingIcon,
+        )
     }
 }
 

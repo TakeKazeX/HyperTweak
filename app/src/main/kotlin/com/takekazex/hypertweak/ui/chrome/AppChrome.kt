@@ -1,11 +1,19 @@
 package com.takekazex.hypertweak.ui.chrome
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.offset
 import com.takekazex.hypertweak.ui.effect.AppBlurMode
 import com.takekazex.hypertweak.ui.effect.LocalAppBlurMode
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
+import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.material.isRuntimeShaderSupported
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -21,13 +29,25 @@ val LocalAppUiStyle = staticCompositionLocalOf { AppUiStyle.Os4 }
 fun appUiStyleFromStored(value: Int): AppUiStyle = AppUiStyle.entries.getOrElse(value) { AppUiStyle.Os4 }
 
 /**
- * Recording of the current page behind its chrome, provided by [AppPage]. Top bar, glass
- * buttons, dialogs and dropdowns sample it; null means blur is off and they use opaque fills.
+ * Whole-page recording (top bar, content and bottom bar), provided by [PageBackdropBox]. Floating
+ * overlays sample it: glass dialogs, bottom sheets and dropdown popups. Null means blur is off.
  */
 internal val LocalPageBackdrop = staticCompositionLocalOf<LayerBackdrop?> { null }
 
+/**
+ * Content-only recording behind the top bar, provided by [AppPage]. The glass top bar, its
+ * buttons and its tab row sample it; it never contains the bar itself.
+ */
+internal val LocalTopAppBarBackdrop = staticCompositionLocalOf<LayerBackdrop?> { null }
+
 /** Draw-phase title opacity for chrome that covers the top bar title (the glass rail). */
 val LocalTopBarTitleAlpha = staticCompositionLocalOf<() -> Float> { { 1f } }
+
+/**
+ * Start space taken by the expanded glass rail. The page backdrop stays full screen; the top bar
+ * and page content apply it at layout time ([sidebarStartInset]).
+ */
+val LocalTopBarStartInset = staticCompositionLocalOf<() -> Dp> { { 0.dp } }
 
 /** Set inside [AppPage]; overlay dialogs and dropdowns need its popup host. */
 internal val LocalAppOverlayHost = staticCompositionLocalOf { false }
@@ -40,6 +60,36 @@ fun rememberPageBackdrop(): LayerBackdrop? {
     return rememberLayerBackdrop {
         drawRect(surface)
         drawContent()
+    }
+}
+
+/**
+ * Upstream `PageBackdropBox`: records everything inside it into [LocalPageBackdrop] for floating
+ * overlays. The outermost box wins; nested ones only lay out their content. [enabled] = false
+ * keeps the same tree without recording, so toggling it never recreates [content].
+ */
+@Composable
+fun PageBackdropBox(modifier: Modifier = Modifier, enabled: Boolean = true, content: @Composable () -> Unit) {
+    if (LocalPageBackdrop.current != null) {
+        Box(modifier) { content() }
+        return
+    }
+    val pageBackdrop = if (enabled) rememberPageBackdrop() else null
+    CompositionLocalProvider(LocalPageBackdrop provides pageBackdrop) {
+        Box(modifier.then(if (pageBackdrop != null) Modifier.layerBackdrop(pageBackdrop) else Modifier)) {
+            content()
+        }
+    }
+}
+
+/** Moves content clear of the expanded glass rail ([LocalTopBarStartInset]) at layout time. */
+@Composable
+fun Modifier.sidebarStartInset(): Modifier {
+    val startInset = LocalTopBarStartInset.current
+    return layout { measurable, constraints ->
+        val insetPx = startInset().roundToPx().coerceIn(0, constraints.maxWidth)
+        val placeable = measurable.measure(constraints.offset(horizontal = -insetPx))
+        layout(placeable.width + insetPx, placeable.height) { placeable.placeRelative(insetPx, 0) }
     }
 }
 

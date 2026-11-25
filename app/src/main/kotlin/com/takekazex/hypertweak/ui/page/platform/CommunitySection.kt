@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.ui.page.platform
 
+import com.takekazex.hypertweak.ui.chrome.AppTextField
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.input.TextFieldLineLimits
 import androidx.compose.foundation.text.input.rememberTextFieldState
@@ -63,7 +64,7 @@ internal fun CommunitySection() {
     }
     CenteredDialog(show = editing, title = stringResource(R.string.community_model),
         summary = stringResource(R.string.community_model_empty), onDismissRequest = { editing = false }) {
-        TextField(
+        AppTextField(
             state = draft,
             lineLimits = TextFieldLineLimits.SingleLine,
             modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),

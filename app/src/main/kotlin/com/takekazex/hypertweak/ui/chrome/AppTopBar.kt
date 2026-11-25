@@ -5,9 +5,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.computedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -28,14 +30,20 @@ import top.yukonga.miuix.kmp.glass.GlassTopAppBarDefaults
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
+ * Whether content sits under the OS4 top bar. Tab rows in the bar's bottom content read it to
+ * raise their resting glass track (upstream `surfaceAlpha`).
+ */
+internal val LocalTopBarContentScrolled = staticCompositionLocalOf { false }
+
+/**
  * The app's only top bar (upstream example `AdaptiveTopAppBar` + `BlurredBar`).
  *
  * OS4: upstream [GlassTopAppBar]; the band stays clear until content scrolls under it, then fades
- * in as a progressive blur of [LocalPageBackdrop] (a surface gradient when blur is off); slot
+ * in as a progressive blur of [LocalTopAppBarBackdrop] (a surface gradient when blur is off); slot
  * buttons become glass pills. OS3: Miuix [TopAppBar] over a blurred layer of the same backdrop.
  *
  * @param contentScrolled Explicit overlap state for pages whose header is not a scroll offset
- *   (About); null derives it from [scrollBehavior].
+ *   (About); null derives it from [scrollBehavior]. Upward overscroll always counts as scrolled.
  * @param titleAlpha Extra title opacity (About's collapsing logo).
  */
 @Composable
@@ -52,7 +60,7 @@ fun AppTopBar(
     actions: @Composable RowScope.() -> Unit = {},
     bottomContent: @Composable () -> Unit = {},
 ) {
-    val backdrop = LocalPageBackdrop.current
+    val backdrop = LocalTopAppBarBackdrop.current
     val navigationIcon: @Composable () -> Unit = {
         if (onBack != null) BackNavigationIcon(onClick = onBack, contentDescription = backContentDescription)
     }
@@ -60,13 +68,19 @@ fun AppTopBar(
         val chromeTitleAlpha = LocalTopBarTitleAlpha.current
         val surface = MiuixTheme.colorScheme.surface
         val bandBrush = remember(surface) { GlassTopAppBarDefaults.bandBrush(surface) }
+        // Upstream thresholds: -1px absorbs rebound jitter at the edge, and upward overscroll on
+        // a short page still floats the bar material.
         val scrolled by remember(scrollBehavior, contentScrolled) {
-            derivedStateOf { contentScrolled ?: ((scrollBehavior?.state?.contentOffset ?: 0f) < 0f) }
+            computedStateOf {
+                val overscrolled = scrollBehavior?.state?.let { it.overscrollOffset < -1f } ?: false
+                (contentScrolled ?: (scrollBehavior?.state?.let { it.contentOffset < -1f } ?: false)) || overscrolled
+            }
         }
         GlassTopAppBar(
             title = title,
             isContentScrolled = scrolled,
             modifier = modifier,
+            contentModifier = Modifier.sidebarStartInset(),
             expandable = expandable,
             progressiveBlur = backdrop != null,
             backdrop = backdrop,
@@ -86,7 +100,9 @@ fun AppTopBar(
                     )
                 }
             },
-            bottomContent = bottomContent,
+            bottomContent = {
+                CompositionLocalProvider(LocalTopBarContentScrolled provides scrolled, content = bottomContent)
+            },
         )
         return
     }

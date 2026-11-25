@@ -5,7 +5,15 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.graphics.Color
+import top.yukonga.miuix.kmp.basic.Scaffold
+import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.takekazex.hypertweak.ui.chrome.AppUiStyle
+import com.takekazex.hypertweak.ui.chrome.LocalAppUiStyle
+import com.takekazex.hypertweak.ui.chrome.PageBackdropBox
 import com.takekazex.hypertweak.ui.effect.scaleBackTransition
 import com.takekazex.hypertweak.ui.page.Route
 import com.takekazex.hypertweak.ui.page.saveKey
@@ -36,7 +44,7 @@ fun HyperTweakNavContainer(
     val navController = remember(backStack) { NavController(backStack) }
 
     val isPagerBackHandlerEnabled by remember(backStack, mainPagerState.selectedPage) {
-        derivedStateOf {
+        computedStateOf {
             backStack.lastOrNull() is Route.Main && backStack.size == 1 && mainPagerState.selectedPage != 0
         }
     }
@@ -59,7 +67,7 @@ fun HyperTweakNavContainer(
         scaleBackTransition(predictiveBackFollowGesture)
     }
     val debugRevision by com.takekazex.hypertweak.util.diagnostics.DebugSettingsEvents.revision.collectAsStateWithLifecycle()
-    key(debugRevision) {
+    val navDisplay: @Composable () -> Unit = {
     NavDisplay(
         backStack = backStack,
         onBack = { navController.pop() },
@@ -74,5 +82,17 @@ fun HyperTweakNavContainer(
         ),
         content = entryProvider,
     )
+    }
+    key(debugRevision) {
+        // OS4 glass overlays (dialogs, sheets, dropdown popups) sample the whole page, bars
+        // included; the top bar samples its own content-only recording (see AppPage). Overlays
+        // render in the root Scaffold's popup host, so that Scaffold must sit outside the
+        // recording (upstream Mishka layout): an overlay inside the layer it samples recurses
+        // in RenderThread until the stack overflows.
+        // The tree is the same in both styles, so switching style keeps NavDisplay state; OS3
+        // only skips the recording.
+        Scaffold(containerColor = Color.Transparent, contentWindowInsets = WindowInsets(0)) {
+            PageBackdropBox(Modifier.fillMaxSize(), enabled = LocalAppUiStyle.current == AppUiStyle.Os4, content = navDisplay)
+        }
     }
 }

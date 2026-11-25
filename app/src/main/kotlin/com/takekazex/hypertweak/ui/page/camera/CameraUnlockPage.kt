@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.ui.page.camera
 
+import com.takekazex.hypertweak.ui.chrome.AppTextField
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -31,7 +32,6 @@ import com.takekazex.hypertweak.ui.chrome.AppTextButton as TextButton
 import com.takekazex.hypertweak.ui.components.MiuixExpandableContent
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -331,7 +331,7 @@ private fun CameraWatermarkTextDialog(
         onDismissRequest = onDismissRequest,
         content = {
             val input = remember(show) { TextFieldState(initial) }
-            TextField(
+            AppTextField(
                 modifier = Modifier.padding(bottom = 16.dp),
                 state = input,
                 lineLimits = TextFieldLineLimits.SingleLine,

@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.ui.page.diagnostics
 
+import com.takekazex.hypertweak.ui.chrome.AppTextField
 import com.takekazex.hypertweak.util.logging.DebugLog
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -56,7 +57,6 @@ import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -323,7 +323,7 @@ internal fun WirelessAdbPage(onBack: () -> Unit) {
                     },
                 )
                 MiuixExpandableContent(visible = custom && !randomOnly) {
-                    TextField(
+                    AppTextField(
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
                         state = input,
                         label = stringResource(R.string.debug_adb_tcp_port),

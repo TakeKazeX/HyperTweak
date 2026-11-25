@@ -154,7 +154,7 @@ fun IconOrderPage(onBack: () -> Unit) {
                 Modifier.fillMaxSize()
                     .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
                     .appPageScroll(scrollBehavior)
-                    .verticalScroll(pageScroll)
+                    .verticalScroll(pageScroll, overscrollEffect = null)
             ) {
                 Spacer(Modifier.height(padding.calculateTopPadding() + 8.dp))
 

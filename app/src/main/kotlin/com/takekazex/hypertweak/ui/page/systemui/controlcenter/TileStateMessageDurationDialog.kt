@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.ui.page.systemui.controlcenter
 
+import com.takekazex.hypertweak.ui.chrome.AppTextField
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -21,7 +22,6 @@ import com.takekazex.hypertweak.ui.chrome.AppOverlayDialog as OverlayDialog
 import com.takekazex.hypertweak.ui.chrome.AppTextButton as TextButton
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme
 
 @Composable
@@ -38,7 +38,7 @@ internal fun TileStateMessageDurationDialog(
         onDismissRequest = onDismiss,
         content = {
             val input = remember(show) { TextFieldState(String.format(java.util.Locale.ROOT, "%.1f", current)) }
-            TextField(
+            AppTextField(
                 modifier = Modifier.padding(bottom = 16.dp),
                 state = input,
                 lineLimits = TextFieldLineLimits.SingleLine,

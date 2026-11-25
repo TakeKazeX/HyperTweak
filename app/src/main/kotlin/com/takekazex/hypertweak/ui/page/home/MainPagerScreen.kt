@@ -15,19 +15,19 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
-import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.offset
+import androidx.compose.ui.unit.Dp
 import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.settings.contract.HotReloadReport
 import com.takekazex.hypertweak.ui.app.LocalAppSettings
 import com.takekazex.hypertweak.ui.chrome.AppUiStyle
 import com.takekazex.hypertweak.ui.chrome.BottomBarStyle
 import com.takekazex.hypertweak.ui.chrome.LocalAppUiStyle
+import com.takekazex.hypertweak.ui.chrome.LocalTopBarStartInset
 import com.takekazex.hypertweak.ui.chrome.LocalTopBarTitleAlpha
 import com.takekazex.hypertweak.ui.chrome.bottomBarStyle
 import com.takekazex.hypertweak.ui.chrome.isAppInDarkTheme
@@ -390,7 +390,7 @@ private fun MainPagerLayout(
 
 /**
  * OS4 landscape: the upstream glass rail floats over the page. Expanded, it is a side panel and
- * the page moves clear of it; collapsed, it is a capsule over the top bar, whose title fades out
+ * the page content moves clear of it; collapsed, it is a capsule over the top bar, whose title fades out
  * while covered. The page is recorded into [backdrop] so the glass samples it.
  */
 @Composable
@@ -410,24 +410,20 @@ private fun GlassRailLayout(
     }
     val panelWidth = GlassNavigationRailDefaults.Margin + GlassNavigationRailDefaults.ExpandedWidth
     val titleAlpha: () -> Float = remember(railState) { { railState.progress } }
+    val startInset: () -> Dp = remember(railState) { { panelWidth * railState.progress } }
     Box(Modifier.fillMaxSize().background(MiuixTheme.colorScheme.surface)) {
         Box(
             Modifier
                 .fillMaxSize()
                 .then(if (blurActive) Modifier.layerBackdrop(backdrop) else Modifier),
         ) {
-            Box(
-                Modifier
-                    .fillMaxSize()
-                    .layout { measurable, constraints ->
-                        val start = (panelWidth * railState.progress).roundToPx().coerceIn(0, constraints.maxWidth)
-                        val placeable = measurable.measure(constraints.offset(horizontal = -start))
-                        layout(constraints.maxWidth, placeable.height) { placeable.placeRelative(start, 0) }
-                    },
+            // The page stays full screen so its background and top bar blur reach under the
+            // rail; the bar and content move clear of it themselves (upstream LocalTopBarStartInset).
+            CompositionLocalProvider(
+                LocalTopBarTitleAlpha provides titleAlpha,
+                LocalTopBarStartInset provides startInset,
             ) {
-                CompositionLocalProvider(LocalTopBarTitleAlpha provides titleAlpha) {
-                    content()
-                }
+                content()
             }
         }
         GlassNavigationRail(

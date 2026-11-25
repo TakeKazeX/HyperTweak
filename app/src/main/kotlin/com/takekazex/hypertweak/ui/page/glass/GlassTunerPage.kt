@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.ui.page.glass
 
+import com.takekazex.hypertweak.ui.chrome.AppTextField
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -69,7 +70,6 @@ import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.icon.extended.Edit
@@ -709,7 +709,7 @@ fun GlassTunerPage(onBack: () -> Unit) {
                         stringResource(R.string.glass_preset_rename_title),
                         color = MiuixTheme.colorScheme.onSurface,
                     )
-                    TextField(
+                    AppTextField(
                         state = renameInput,
                         lineLimits = TextFieldLineLimits.SingleLine,
                         label = stringResource(R.string.glass_preset_name_label),

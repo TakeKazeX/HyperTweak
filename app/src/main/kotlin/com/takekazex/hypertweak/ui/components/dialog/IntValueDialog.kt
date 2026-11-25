@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.ui.components.dialog
 
+import com.takekazex.hypertweak.ui.chrome.AppTextField
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -19,7 +20,6 @@ import com.takekazex.hypertweak.ui.chrome.AppOverlayDialog as OverlayDialog
 import com.takekazex.hypertweak.ui.chrome.AppTextButton as TextButton
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme
 
 /**
@@ -53,7 +53,7 @@ fun IntValueDialog(
         onDismissRequest = onDismissRequest,
         content = {
             val input = remember(show) { TextFieldState(currentValue().toString()) }
-            TextField(
+            AppTextField(
                 modifier = Modifier.padding(bottom = 16.dp),
                 state = input,
                 lineLimits = TextFieldLineLimits.SingleLine,

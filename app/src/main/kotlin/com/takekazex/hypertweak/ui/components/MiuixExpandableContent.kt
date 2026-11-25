@@ -1,6 +1,6 @@
 package com.takekazex.hypertweak.ui.components
 
-import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.CapturedAnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -19,7 +19,7 @@ internal fun MiuixExpandableContent(
     visible: Boolean,
     content: @Composable () -> Unit,
 ) {
-    AnimatedVisibility(
+    CapturedAnimatedVisibility(
         visible = visible,
         enter = expandVertically(animationSpec = expandSizeSpring, expandFrom = Alignment.Top) +
             fadeIn(animationSpec = expandAlphaSpring),

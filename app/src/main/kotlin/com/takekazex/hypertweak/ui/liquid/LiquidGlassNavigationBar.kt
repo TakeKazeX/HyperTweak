@@ -27,6 +27,9 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredWidth
@@ -40,7 +43,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
-import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.computedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -144,14 +147,14 @@ private const val GRAVITY_ANGLE_STEP_RAD = (3.0 * PI / 180.0).toFloat()
  *
  * Returned as [State] so the read can be deferred to the draw phase: the sensor writes tilt
  * state unthrottled (~50Hz), and a composition-time read would recompose the whole caller
- * scope on every tick. The derivedStateOf equality check then drops draw invalidations to
+ * scope on every tick. The computedStateOf equality check then drops draw invalidations to
  * quantization-step crossings.
  */
 @Composable
 private fun rememberQuantizedGravityAngle(): State<Float> {
     val tiltState = rememberDeviceTilt()
     return remember(tiltState) {
-        derivedStateOf {
+        computedStateOf {
             val tilt = tiltState.value
             val gx = tilt.gravityX
             val gy = tilt.gravityY
@@ -181,7 +184,7 @@ private fun rememberGravityRotatedStroke(
 ): State<EdgeStroke> {
     val gravityAngle = rememberQuantizedGravityAngle()
     return remember(gravityAngle, base, extraDegrees) {
-        derivedStateOf {
+        computedStateOf {
             val rad = gravityAngle.value + (extraDegrees * PI / 180.0).toFloat()
             val opposite = rad + PI.toFloat()
             base.copy(
@@ -227,7 +230,7 @@ internal fun IosLiquidGlassNavigationBar(
     val offsetAnimation = remember { Animatable(0f) }
     val rubberBandPx = with(density) { 4.dp.toPx() }
     val panelOffset by remember(rubberBandPx) {
-        derivedStateOf {
+        computedStateOf {
             if (totalWidthPx == 0f) {
                 0f
             } else {
@@ -401,7 +404,12 @@ internal fun IosLiquidGlassNavigationBar(
         }
     }
 
-    Column(modifier = modifier.fillMaxWidth()) {
+    // Upstream: keep the floating capsule clear of side cutouts and side navigation bars.
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .windowInsetsPadding(WindowInsets.displayCutout.union(WindowInsets.navigationBars).only(WindowInsetsSides.Horizontal)),
+    ) {
         Box(
             modifier = Modifier
                 .padding(bottom = floatingMargin + animatedCaptionBarHeight)

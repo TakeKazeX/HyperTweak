@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.ui.page.home
 
+import com.takekazex.hypertweak.ui.chrome.AppTextField
 import androidx.compose.animation.*
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
@@ -35,7 +36,6 @@ import com.takekazex.hypertweak.util.restart.RestartScopeSelection
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
-import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 
@@ -342,14 +342,14 @@ private fun ModelSpoofValuesRow() {
         summary = stringResource(R.string.settings_pa_model_spoof_dialog_summary),
         onDismissRequest = { editing = false },
         content = {
-            TextField(
+            AppTextField(
                 modifier = Modifier.padding(bottom = 8.dp),
                 state = modelInput,
                 lineLimits = TextFieldLineLimits.SingleLine,
                 label = stringResource(R.string.settings_pa_model_spoof_model_label),
                 inputTransformation = InputTransformation.byValue { _, proposed -> proposed.trim() },
             )
-            TextField(
+            AppTextField(
                 modifier = Modifier.padding(bottom = 16.dp),
                 state = deviceInput,
                 lineLimits = TextFieldLineLimits.SingleLine,
