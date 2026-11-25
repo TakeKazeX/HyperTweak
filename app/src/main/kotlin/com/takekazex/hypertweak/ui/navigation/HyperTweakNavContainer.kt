@@ -1,6 +1,11 @@
 package com.takekazex.hypertweak.ui.navigation
 
+import android.content.res.Configuration
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.LocalActivity
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.delay
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.listSaver
@@ -43,9 +48,40 @@ fun HyperTweakNavContainer(
 
     val navController = remember(backStack) { NavController(backStack) }
 
-    val isPagerBackHandlerEnabled by remember(backStack, mainPagerState.selectedPage) {
+    val uiStyle = LocalAppUiStyle.current
+    // OS4 search is the glass overlay on the main pager; OS3 keeps the classic search page.
+    var searchExpanded by rememberSaveable { mutableStateOf(false) }
+    // One frame of instant transitions when the rail or search jumps back to the main pager from
+    // a secondary page (upstream InstantNavTransition), so the pop does not animate.
+    var suppressNavTransition by remember { mutableStateOf(false) }
+    LaunchedEffect(backStack.size, backStack.lastOrNull()) {
+        if (suppressNavTransition) {
+            delay(50)
+            suppressNavTransition = false
+        }
+    }
+    fun returnToMain() {
+        if (backStack.lastOrNull() !is Route.Main) {
+            suppressNavTransition = true
+            navController.popUntil { it is Route.Main }
+        }
+    }
+    val search = MainSearch(
+        expanded = searchExpanded && uiStyle == AppUiStyle.Os4,
+        open = {
+            if (uiStyle == AppUiStyle.Os4) {
+                returnToMain()
+                searchExpanded = true
+            } else {
+                navController.navigateTo(Route.Search)
+            }
+        },
+        dismiss = { searchExpanded = false },
+    )
+
+    val isPagerBackHandlerEnabled by remember(backStack, mainPagerState.selectedPage, search.expanded) {
         computedStateOf {
-            backStack.lastOrNull() is Route.Main && backStack.size == 1 && mainPagerState.selectedPage != 0
+            !search.expanded && backStack.lastOrNull() is Route.Main && backStack.size == 1 && mainPagerState.selectedPage != 0
         }
     }
 
@@ -54,7 +90,7 @@ fun HyperTweakNavContainer(
     }
 
     val entryProvider: NavEntryBuilder.() -> Unit = {
-        mainPages(settings, navController, mainPagerState)
+        mainPages(settings, navController, mainPagerState, search)
         systemPages(settings, navController)
         featuresPages(settings, navController)
         toolsPages(settings, navController)
@@ -66,18 +102,20 @@ fun HyperTweakNavContainer(
     val scaleTransition = remember(predictiveBackFollowGesture) {
         scaleBackTransition(predictiveBackFollowGesture)
     }
+    val activity = LocalActivity.current
     val debugRevision by com.takekazex.hypertweak.util.diagnostics.DebugSettingsEvents.revision.collectAsStateWithLifecycle()
     val navDisplay: @Composable () -> Unit = {
     NavDisplay(
         backStack = backStack,
         onBack = { navController.pop() },
-        transition = when (predictiveBackStyle) {
-            0 -> NavTransitions.None
-            2 -> scaleTransition
+        transition = when {
+            suppressNavTransition || predictiveBackStyle == 0 -> NavTransitions.None
+            predictiveBackStyle == 2 -> scaleTransition
             else -> NavTransitions.MiuixDefault
         },
         effects = if (predictiveBackStyle == 0) NavDisplayEffects.None else NavDisplayEffects(
-            cornerClipRadius = rememberNavSystemCornerRadius(),
+            // Upstream: rounded predictive-back corners only for a full-screen window.
+            cornerClipRadius = if (activity?.isInMultiWindowMode == true) 0.dp else rememberNavSystemCornerRadius(),
             cornerClipMode = if (predictiveBackStyle == 2) NavCornerClipMode.All else NavCornerClipMode.Leading,
         ),
         content = entryProvider,
@@ -92,7 +130,21 @@ fun HyperTweakNavContainer(
         // The tree is the same in both styles, so switching style keeps NavDisplay state; OS3
         // only skips the recording.
         Scaffold(containerColor = Color.Transparent, contentWindowInsets = WindowInsets(0)) {
-            PageBackdropBox(Modifier.fillMaxSize(), enabled = LocalAppUiStyle.current == AppUiStyle.Os4, content = navDisplay)
+            PageBackdropBox(Modifier.fillMaxSize(), enabled = uiStyle == AppUiStyle.Os4) {
+                GlassRailHost(
+                    enabled = uiStyle == AppUiStyle.Os4 &&
+                        LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE,
+                    mainPagerState = mainPagerState,
+                    onMain = backStack.lastOrNull() is Route.Main,
+                    search = search,
+                    onSelectTab = { index ->
+                        returnToMain()
+                        searchExpanded = false
+                        mainPagerState.animateToPage(index)
+                    },
+                    content = navDisplay,
+                )
+            }
         }
     }
 }

@@ -1,7 +1,6 @@
 package com.takekazex.hypertweak.ui.page.home
 
 import android.content.res.Configuration
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerDefaults
@@ -20,15 +19,21 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.Dp
 import com.takekazex.hypertweak.R
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import com.takekazex.hypertweak.ui.chrome.LocalTopBarSearchExpanded
+import com.takekazex.hypertweak.ui.liquid.IosLiquidGlassActionButton
+import com.takekazex.hypertweak.ui.page.search.SettingsSearchOverlay
+import com.takekazex.hypertweak.ui.search.SearchEntry
+import top.yukonga.miuix.kmp.glass.rememberGlassSearchBarAlpha
 import com.takekazex.hypertweak.settings.contract.HotReloadReport
 import com.takekazex.hypertweak.ui.app.LocalAppSettings
 import com.takekazex.hypertweak.ui.chrome.AppUiStyle
 import com.takekazex.hypertweak.ui.chrome.BottomBarStyle
 import com.takekazex.hypertweak.ui.chrome.LocalAppUiStyle
-import com.takekazex.hypertweak.ui.chrome.LocalTopBarStartInset
-import com.takekazex.hypertweak.ui.chrome.LocalTopBarTitleAlpha
 import com.takekazex.hypertweak.ui.chrome.bottomBarStyle
 import com.takekazex.hypertweak.ui.chrome.isAppInDarkTheme
 import com.takekazex.hypertweak.ui.effect.AppBlurMode
@@ -62,9 +67,6 @@ import top.yukonga.miuix.kmp.icon.glass.Search
 import top.yukonga.miuix.kmp.glass.GlassNavigationBarDefaults
 import top.yukonga.miuix.kmp.glass.GlassIconButton
 import top.yukonga.miuix.kmp.glass.GlassNavigationItem
-import top.yukonga.miuix.kmp.glass.GlassNavigationRail
-import top.yukonga.miuix.kmp.glass.GlassNavigationRailDefaults
-import top.yukonga.miuix.kmp.glass.rememberGlassNavigationRailState
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.glass.HomeOutline
 import top.yukonga.miuix.kmp.icon.glass.SettingsOutline
@@ -76,7 +78,7 @@ import top.yukonga.miuix.kmp.utils.PagerNavigationSpringSpec
 import top.yukonga.miuix.kmp.utils.pagerGestureOverride
 
 @Composable
-fun MainPagerScreen(
+internal fun MainPagerScreen(
     mainPagerState: MainPagerState,
     backdrop: LayerBackdrop,
     moduleActive: Boolean,
@@ -85,7 +87,10 @@ fun MainPagerScreen(
     hotReloadTargets: List<String>,
     hotReloadReport: HotReloadReport?,
     pendingRestartScopes: RestartScopeSelection,
-    onNavigateToSearch: () -> Unit,
+    searchExpanded: Boolean,
+    onSearch: () -> Unit,
+    onSearchDismiss: () -> Unit,
+    onSearchOpen: (SearchEntry) -> Unit,
     onNavigateToSystemLauncher: () -> Unit,
     onNavigateToSystemUi: () -> Unit,
     onNavigateToPhrase: () -> Unit,
@@ -124,29 +129,35 @@ fun MainPagerScreen(
     val pagerState = mainPagerState.pagerState
     val showNavigationRail = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
     val uiStyle = LocalAppUiStyle.current
-    val navigationItems = listOf(
-        NavigationItem(stringResource(R.string.main_tab_home), MiuixIcons.Glass.HomeOutline),
-        NavigationItem(stringResource(R.string.main_tab_tweaks), MiuixIcons.Glass.Tune),
-        NavigationItem(stringResource(R.string.main_tab_settings), MiuixIcons.Glass.SettingsOutline),
-    )
+    val navigationItems = mainNavigationItems()
     val contentReady = rememberContentReady()
     val barStyle = bottomBarStyle(uiStyle, appSettings.useFloatingBottomBar, appSettings.floatingBarStyle)
-    // The glass bar carries search as its trailing action (upstream GlassNavigationBar); other bars
-    // and the landscape rails fall back to a top-bar button. Settings never offers search.
-    val topBarSearch = if (!showNavigationRail && barStyle == BottomBarStyle.Glass) null else onNavigateToSearch
+    // Every bottom bar carries search beside its tabs, and the OS4 glass rail as a secondary item;
+    // only the OS3 classic rail has no slot and falls back to a top-bar button. Settings never
+    // offers search.
+    val topBarSearch = if (showNavigationRail && uiStyle == AppUiStyle.Os3) onSearch else null
+    val glassSearch = uiStyle == AppUiStyle.Os4
+    val searchBarAlpha = rememberGlassSearchBarAlpha(searchExpanded && glassSearch)
 
+    Box(Modifier.fillMaxSize()) {
     Scaffold(
+        // Upstream search host: only the page fades here; the top bars scale and blur through
+        // LocalTopBarSearchExpanded, and the overlay owns semantics while open.
+        modifier = Modifier
+            .graphicsLayer { alpha = searchBarAlpha.value }
+            .then(if (searchExpanded && glassSearch) Modifier.clearAndSetSemantics { } else Modifier),
         // Hosts the one-shot "updated successfully" snackbar. It lives on the root Scaffold because
         // the app always starts here, so a notice queued before the first frame still has a host.
         snackbarHost = { SnackbarHost(snackbarHostState) },
         bottomBar = {
             if (!showNavigationRail) {
-                MainBottomBar(barStyle, navigationItems, mainPagerState, backdrop, onNavigateToSearch)
+                MainBottomBar(barStyle, navigationItems, mainPagerState, backdrop, onSearch)
             }
         },
     ) { padding ->
         val pagerFling = PagerDefaults.flingBehavior(state = pagerState, snapAnimationSpec = PagerNavigationSpringSpec)
         MainPagerLayout(showNavigationRail, navigationItems, mainPagerState, backdrop) {
+            CompositionLocalProvider(LocalTopBarSearchExpanded provides (searchExpanded && glassSearch).takeIf { glassSearch }) {
             HorizontalPager(
                 state = pagerState,
                 modifier = Modifier.fillMaxSize().pagerGestureOverride(
@@ -226,24 +237,49 @@ fun MainPagerScreen(
                     }
                 }
             }
+            }
         }
+    }
+    if (glassSearch) {
+        SettingsSearchOverlay(
+            expanded = searchExpanded,
+            onDismissRequest = onSearchDismiss,
+            onOpen = onSearchOpen,
+        )
+    }
     }
 }
 
+/** The three main tabs, shared by the bottom bars, the rails and the OS4 glass rail host. */
+@Composable
+internal fun mainNavigationItems(): List<NavigationItem> = listOf(
+    NavigationItem(stringResource(R.string.main_tab_home), MiuixIcons.Glass.HomeOutline),
+    NavigationItem(stringResource(R.string.main_tab_tweaks), MiuixIcons.Glass.Tune),
+    NavigationItem(stringResource(R.string.main_tab_settings), MiuixIcons.Glass.SettingsOutline),
+)
 
-private const val SETTINGS_PAGE = 2
 
-/** The main bottom bar in the style picked in Appearance (see [BottomBarStyle]). */
+/** The Settings tab never offers search. */
+internal const val SETTINGS_PAGE = 2
+
+/**
+ * The main bottom bar in the style picked in Appearance (see [BottomBarStyle]). Every style offers
+ * search except on the Settings tab: the glass bar as upstream's independent trailing action
+ * (which animates away), the liquid bar as a matching liquid circle beside its capsule, and the
+ * classic Miuix bars as a fourth, never-selected item.
+ */
 @Composable
 private fun MainBottomBar(
     style: BottomBarStyle,
     navigationItems: List<NavigationItem>,
     mainPagerState: MainPagerState,
     backdrop: LayerBackdrop,
-    onNavigateToSearch: () -> Unit,
+    onSearch: () -> Unit,
 ) {
     val blurActive = LocalAppBlurMode.current != AppBlurMode.Off
     val selected = mainPagerState.selectedPage
+    val searchLabel = stringResource(R.string.search_title)
+    val showSearch = selected != SETTINGS_PAGE
     when (style) {
         BottomBarStyle.Glass -> {
             val glassItems = remember(navigationItems) {
@@ -257,24 +293,20 @@ private fun MainBottomBar(
                     onSelect = mainPagerState::animateToPage,
                     backdrop = if (blurActive) backdrop else null,
                     modifier = Modifier.widthIn(max = 340.dp).fillMaxWidth(0.8f),
-                    // Upstream's independent search action beside the capsule; the bar animates
-                    // it away on the Settings tab.
-                    trailingAction = if (selected != SETTINGS_PAGE) {
+                    trailingAction = if (!showSearch) null else {
                         {
-                            GlassIconButton(
-                                onClick = onNavigateToSearch,
-                                backdrop = if (blurActive) backdrop else null,
-                                size = GlassNavigationBarDefaults.Height,
-                            ) {
-                                Icon(
-                                    imageVector = MiuixIcons.Glass.Search,
-                                    contentDescription = stringResource(R.string.search_title),
-                                    tint = MiuixTheme.colorScheme.onBackground,
-                                )
-                            }
+                        GlassIconButton(
+                            onClick = onSearch,
+                            backdrop = if (blurActive) backdrop else null,
+                            size = GlassNavigationBarDefaults.Height,
+                        ) {
+                            Icon(
+                                imageVector = MiuixIcons.Glass.Search,
+                                contentDescription = searchLabel,
+                                tint = MiuixTheme.colorScheme.onBackground,
+                            )
                         }
-                    } else {
-                        null
+                        }
                     },
                 )
             }
@@ -285,6 +317,16 @@ private fun MainBottomBar(
             onItemClick = mainPagerState::animateToPage,
             isBlurActive = blurActive,
             backdrop = backdrop,
+            showTrailingAction = showSearch,
+            trailingAction = {
+                IosLiquidGlassActionButton(
+                    onClick = onSearch,
+                    backdrop = backdrop,
+                    isBlurActive = blurActive,
+                    contentDescription = searchLabel,
+                    icon = MiuixIcons.Glass.Search,
+                )
+            },
         )
         BottomBarStyle.MiuixFloating -> {
             val stroke = if (isAppInDarkTheme()) EdgeStrokes.MiddleDark else EdgeStrokes.MiddleLight
@@ -308,6 +350,14 @@ private fun MainBottomBar(
                         label = item.label,
                     )
                 }
+                if (showSearch) {
+                    FloatingNavigationBarItem(
+                        selected = false,
+                        onClick = onSearch,
+                        icon = MiuixIcons.Glass.Search,
+                        label = searchLabel,
+                    )
+                }
             }
         }
         BottomBarStyle.Miuix -> NavigationBar(
@@ -327,6 +377,14 @@ private fun MainBottomBar(
                     onClick = { mainPagerState.animateToPage(index) },
                     icon = item.icon,
                     label = item.label,
+                )
+            }
+            if (showSearch) {
+                NavigationBarItem(
+                    selected = false,
+                    onClick = onSearch,
+                    icon = MiuixIcons.Glass.Search,
+                    label = searchLabel,
                 )
             }
         }
@@ -350,7 +408,9 @@ private fun MainPagerLayout(
         if (expandRail) railState.expand() else railState.collapse()
     }
     if (showNavigationRail && LocalAppUiStyle.current == AppUiStyle.Os4) {
-        GlassRailLayout(navigationItems, mainPagerState, backdrop, expandRail, content)
+        // The OS4 glass rail is owned by the nav container, outside NavDisplay, so it stays on
+        // secondary pages too; the pager only fills the screen (see HyperTweakNavContainer).
+        Box(Modifier.fillMaxSize()) { content() }
         return
     }
     Row(Modifier.fillMaxSize()) {
@@ -385,55 +445,5 @@ private fun MainPagerLayout(
         ) {
             content()
         }
-    }
-}
-
-/**
- * OS4 landscape: the upstream glass rail floats over the page. Expanded, it is a side panel and
- * the page content moves clear of it; collapsed, it is a capsule over the top bar, whose title fades out
- * while covered. The page is recorded into [backdrop] so the glass samples it.
- */
-@Composable
-private fun GlassRailLayout(
-    navigationItems: List<NavigationItem>,
-    mainPagerState: MainPagerState,
-    backdrop: LayerBackdrop,
-    expandRail: Boolean,
-    content: @Composable () -> Unit,
-) {
-    val railState = rememberGlassNavigationRailState(initialExpanded = expandRail)
-    LaunchedEffect(expandRail) { railState.expanded = expandRail }
-    LaunchedEffect(railState.expanded) { mainPagerState.snapTransitions = railState.expanded }
-    val blurActive = LocalAppBlurMode.current != AppBlurMode.Off
-    val glassItems = remember(navigationItems) {
-        navigationItems.map { GlassNavigationItem(icon = it.icon, label = it.label) }
-    }
-    val panelWidth = GlassNavigationRailDefaults.Margin + GlassNavigationRailDefaults.ExpandedWidth
-    val titleAlpha: () -> Float = remember(railState) { { railState.progress } }
-    val startInset: () -> Dp = remember(railState) { { panelWidth * railState.progress } }
-    Box(Modifier.fillMaxSize().background(MiuixTheme.colorScheme.surface)) {
-        Box(
-            Modifier
-                .fillMaxSize()
-                .then(if (blurActive) Modifier.layerBackdrop(backdrop) else Modifier),
-        ) {
-            // The page stays full screen so its background and top bar blur reach under the
-            // rail; the bar and content move clear of it themselves (upstream LocalTopBarStartInset).
-            CompositionLocalProvider(
-                LocalTopBarTitleAlpha provides titleAlpha,
-                LocalTopBarStartInset provides startInset,
-            ) {
-                content()
-            }
-        }
-        GlassNavigationRail(
-            items = glassItems,
-            selectedIndex = mainPagerState.selectedPage,
-            onSelect = mainPagerState::animateToPage,
-            backdrop = if (blurActive) backdrop else null,
-            state = railState,
-            expandContentDescription = stringResource(R.string.main_navigation_rail_expand),
-            collapseContentDescription = stringResource(R.string.main_navigation_rail_collapse),
-        )
     }
 }

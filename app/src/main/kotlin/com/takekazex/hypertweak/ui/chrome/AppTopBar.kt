@@ -27,6 +27,7 @@ import top.yukonga.miuix.kmp.blur.progressiveTextureBlur
 import top.yukonga.miuix.kmp.blur.textureBlur
 import top.yukonga.miuix.kmp.glass.GlassTopAppBar
 import top.yukonga.miuix.kmp.glass.GlassTopAppBarDefaults
+import top.yukonga.miuix.kmp.glass.glassSearchBarTransition
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
@@ -80,7 +81,13 @@ fun AppTopBar(
             title = title,
             isContentScrolled = scrolled,
             modifier = modifier,
-            contentModifier = Modifier.sidebarStartInset(),
+            contentModifier = Modifier.sidebarStartInset().then(
+                // Upstream: the search transition goes on the bar content only, never on the
+                // whole page, so it costs no full-page offscreen blur.
+                LocalTopBarSearchExpanded.current?.let { expanded ->
+                    Modifier.glassSearchBarTransition(expanded, blurEnabled = LocalAppBlurMode.current != AppBlurMode.Off) { 1f }
+                } ?: Modifier,
+            ),
             expandable = expandable,
             progressiveBlur = backdrop != null,
             backdrop = backdrop,

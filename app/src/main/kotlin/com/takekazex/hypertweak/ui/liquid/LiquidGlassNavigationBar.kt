@@ -14,6 +14,14 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
+import androidx.compose.animation.core.animateFloatAsState
+import kotlin.math.tanh
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.zIndex
+import androidx.compose.foundation.LocalIndication
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -35,7 +43,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
@@ -210,6 +217,8 @@ internal fun IosLiquidGlassNavigationBar(
     isBlurActive: Boolean,
     modifier: Modifier = Modifier,
     badge: (Int) -> (@Composable () -> Unit)? = { null },
+    showTrailingAction: Boolean = true,
+    trailingAction: (@Composable () -> Unit)? = null,
 ) {
     val isDark = MiuixTheme.colorScheme.background.luminance() < 0.5f
     val pillShape = remember { CircleShape }
@@ -410,12 +419,38 @@ internal fun IosLiquidGlassNavigationBar(
             .fillMaxWidth()
             .windowInsetsPadding(WindowInsets.displayCutout.union(WindowInsets.navigationBars).only(WindowInsetsSides.Horizontal)),
     ) {
+        // Kyant's interactive glass bottom bar: the capsule takes the row's remaining width
+        // (weight 1) beside a bar-high round action, 8dp apart. Alone the capsule keeps the
+        // centered 80% / 340dp footprint; with the action the row widens toward 16dp side margins
+        // so the tabs keep their width instead of shrinking into circles. One progress drives the
+        // footprint and the action slot, so the capsule never jumps while the action comes and goes.
+        val actionProgress by animateFloatAsState(
+            targetValue = if (trailingAction != null && showTrailingAction) 1f else 0f,
+            animationSpec = spring(dampingRatio = 0.75f, stiffness = 420f),
+            label = "liquidTrailingAction",
+        )
+        var rowWidthPx by remember { mutableFloatStateOf(0f) }
         Box(
-            modifier = Modifier
+            Modifier
                 .padding(bottom = floatingMargin + animatedCaptionBarHeight)
-                .widthIn(max = 340.dp)
-                .fillMaxWidth(0.8f)
                 .align(Alignment.CenterHorizontally),
+        ) {
+        Row(
+            modifier = Modifier
+                .onSizeChanged { rowWidthPx = it.width.toFloat() }
+                .layout { measurable, constraints ->
+                    val max = constraints.maxWidth.toFloat()
+                    val alone = minOf(max * 0.8f, 340.dp.toPx())
+                    val withAction = minOf(max - 32.dp.toPx(), 340.dp.toPx() + LiquidActionSlot.toPx())
+                        .coerceAtLeast(alone)
+                    val width = lerp(alone, withAction, actionProgress).roundToInt()
+                    val placeable = measurable.measure(constraints.copy(minWidth = width, maxWidth = width))
+                    layout(placeable.width, placeable.height) { placeable.place(0, 0) }
+                },
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+        Box(
+            modifier = Modifier.weight(1f),
             contentAlignment = Alignment.CenterStart,
         ) {
             CompositionLocalProvider(LocalContentColor provides tabContentColor) {
@@ -614,5 +649,113 @@ internal fun IosLiquidGlassNavigationBar(
                 }
             }
         }
+        if (trailingAction != null && actionProgress > 0f) {
+            // Grows out of the capsule: drawn beneath it (zIndex), the circle starts tucked under
+            // the capsule's trailing end and slides out as the slot opens, and slides back in.
+            Box(
+                modifier = Modifier
+                    .zIndex(-1f)
+                    .layout { measurable, constraints ->
+                        val placeable = measurable.measure(constraints.copy(minWidth = 0, maxWidth = Constraints.Infinity))
+                        val slot = (LiquidActionSlot.toPx() * actionProgress).roundToInt().coerceAtLeast(0)
+                        val x = lerp(-LiquidActionSize.toPx(), LiquidActionSpacing.toPx(), actionProgress)
+                        layout(slot, placeable.height) {
+                            placeable.place(if (isLtr) x.roundToInt() else slot - placeable.width - x.roundToInt(), 0)
+                        }
+                    }
+                    .graphicsLayer {
+                        alpha = (actionProgress * 4f).coerceIn(0f, 1f)
+                        val s = lerp(0.82f, 1f, actionProgress.coerceIn(0f, 1f))
+                        scaleX = s
+                        scaleY = s
+                    },
+            ) {
+                trailingAction()
+            }
+        }
+        }
+        }
+    }
+}
+
+private val LiquidActionSize = 64.dp
+private val LiquidActionSpacing = 8.dp
+private val LiquidActionSlot = LiquidActionSize + LiquidActionSpacing
+
+/**
+ * The bar-high round action beside [IosLiquidGlassNavigationBar] (search), built like Kyant's
+ * catalog `LiquidButton`: the capsule's own glass chain (vibrancy, blur, lens) and gravity
+ * specular, an interactive press spot, and press scale plus a rubber-band pull toward the finger,
+ * all inside `layerBlock` so the glass moves while the sampled backdrop stays put.
+ */
+@Composable
+internal fun IosLiquidGlassActionButton(
+    onClick: () -> Unit,
+    backdrop: LayerBackdrop?,
+    isBlurActive: Boolean,
+    contentDescription: String,
+    icon: ImageVector,
+) {
+    val isDark = MiuixTheme.colorScheme.background.luminance() < 0.5f
+    val shape = CircleShape
+    val surfaceContainer = MiuixTheme.colorScheme.surfaceContainer
+    val containerColor = if (isBlurActive) surfaceContainer.copy(alpha = 0.4f) else surfaceContainer
+    val stroke = rememberGravityRotatedStroke(iosIndicatorSpecular, extraDegrees = -45f)
+    val animationScope = rememberCoroutineScope()
+    val highlight = remember(animationScope) { InteractiveHighlight(animationScope) }
+    val glass = isBlurActive && backdrop != null
+    Box(
+        modifier = Modifier
+            .size(LiquidActionSize)
+            .dropShadow(
+                shape = shape,
+                shadow = Shadow(radius = 10.dp, color = Color.Black, alpha = if (isDark) 0.2f else 0.1f),
+            )
+            .then(
+                if (glass) {
+                    Modifier.drawBackdrop(
+                        backdrop = backdrop,
+                        shape = { shape },
+                        effects = {
+                            // 24dp lens refraction + press/pull reach, raised before blur() reads it.
+                            padding = maxOf(padding, 32.dp.toPx())
+                            vibrancy()
+                            blur(4.dp.toPx(), 4.dp.toPx())
+                            lens(refractionHeight = 24.dp.toPx(), refractionAmount = 24.dp.toPx())
+                        },
+                        onDrawFront = { drawEdgeStroke(shape = shape, stroke = stroke.value, alpha = 0.75f) },
+                        layerBlock = {
+                            val progress = highlight.pressProgress
+                            val scale = lerp(1f, 1f + 4.dp.toPx() / size.height, progress)
+                            val maxOffset = size.minDimension
+                            val offset = highlight.offset
+                            translationX = maxOffset * tanh(0.05f * offset.x / maxOffset)
+                            translationY = maxOffset * tanh(0.05f * offset.y / maxOffset)
+                            val maxDragScale = 4.dp.toPx() / size.height
+                            val angle = atan2(offset.y, offset.x)
+                            scaleX = scale + maxDragScale * abs(cos(angle) * offset.x / size.maxDimension)
+                            scaleY = scale + maxDragScale * abs(sin(angle) * offset.y / size.maxDimension)
+                        },
+                        onDrawSurface = { drawRect(containerColor) },
+                    )
+                } else {
+                    Modifier.background(containerColor, shape)
+                },
+            )
+            .clickable(
+                interactionSource = null,
+                indication = if (glass) null else LocalIndication.current,
+                role = Role.Button,
+                onClick = onClick,
+            )
+            .then(if (glass) highlight.modifier.then(highlight.gestureModifier) else Modifier),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = contentDescription,
+            modifier = Modifier.size(28.dp),
+            tint = MiuixTheme.colorScheme.onSurface,
+        )
     }
 }

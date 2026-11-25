@@ -49,6 +49,18 @@ val LocalTopBarTitleAlpha = staticCompositionLocalOf<() -> Float> { { 1f } }
  */
 val LocalTopBarStartInset = staticCompositionLocalOf<() -> Dp> { { 0.dp } }
 
+/**
+ * Top clearance for the glass search bar below the collapsed rail capsule, which sits over the
+ * top bar center (upstream `searchTop`). Zero without a rail.
+ */
+val LocalSearchTopInset = staticCompositionLocalOf<() -> Dp> { { 0.dp } }
+
+/**
+ * Search mode of the host page, for the OS4 top bar's upstream `glassSearchBarTransition` (fade,
+ * shrink and blur while the glass search overlay is open). Null where the page has no overlay.
+ */
+val LocalTopBarSearchExpanded = staticCompositionLocalOf<Boolean?> { null }
+
 /** Set inside [AppPage]; overlay dialogs and dropdowns need its popup host. */
 internal val LocalAppOverlayHost = staticCompositionLocalOf { false }
 

@@ -37,6 +37,12 @@ internal class InteractiveHighlight(
     private val positionAnimation = Animatable(Offset.Zero, Offset.VectorConverter, Offset.VisibilityThreshold)
     private var startPosition = Offset.Zero
 
+    /** Press progress, 0..1, for press-driven layer transforms (catalog LiquidButton). */
+    val pressProgress: Float get() = pressProgressAnimation.value
+
+    /** Finger travel from the press-down point. */
+    val offset: Offset get() = positionAnimation.value - startPosition
+
     // Smoothstep press spot; without runtime shader support, falls back to a radialGradient
     // approximation (linear instead of S-curve falloff — barely distinguishable).
     private val spotShader: RuntimeShader? =
