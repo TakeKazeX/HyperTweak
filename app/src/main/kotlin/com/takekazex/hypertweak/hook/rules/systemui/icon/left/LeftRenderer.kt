@@ -212,14 +212,16 @@ internal object LeftRenderer : IconRenderer() {
      * Slots the home status bar's left container actually renders, i.e. the ones the HOME row must
      * stop drawing. Empty while the feature is off.
      *
-     * This is the home state's [LeftState.migratedSlots] — the slots whose clone was really created
-     * — and deliberately not the requested `activeSlots`: a slot whose clone could not be built must
-     * stay visible on the right. Read by [IconManagerHooker.applyPolicy] when it merges a host
-     * block-list emission, so the change reaches an already-attached row.
+     * This is the union of the home states' [LeftState.migratedSlots] — the slots whose clone was
+     * really created — and deliberately not the requested `activeSlots`: a slot whose clone could
+     * not be built must stay visible on the right. Read by [IconManagerHooker.applyPolicy] when it
+     * merges a host block-list emission, so the change reaches an already-attached row.
+     *
+     * Every state counts, not the first: hot reload carries status-bar roots that have since
+     * detached, and a torn-down state owns nothing. Taking the first one let a detached root hand
+     * the HOME rows an empty set, so the moved icons were drawn on both sides.
      */
-    fun homeOwnedSlots(): Set<String> = synchronized(states) {
-        states.values.firstOrNull { !it.isKeyguard }?.migratedSlots ?: emptySet()
-    }
+    fun homeOwnedSlots(): Set<String> = ownedSlots(keyguard = false)
 
     /**
      * Same for the lockscreen row, from the keyguard state. Non-empty only in
@@ -227,8 +229,10 @@ internal object LeftRenderer : IconRenderer() {
      * the per-location rule in [IconSlotPolicy.ownedSlotsFor] can hand the keyguard its own set
      * instead of the home bar's.
      */
-    fun keyguardOwnedSlots(): Set<String> = synchronized(states) {
-        states.values.firstOrNull { it.isKeyguard }?.migratedSlots ?: emptySet()
+    fun keyguardOwnedSlots(): Set<String> = ownedSlots(keyguard = true)
+
+    private fun ownedSlots(keyguard: Boolean): Set<String> = synchronized(states) {
+        states.values.filter { it.isKeyguard == keyguard }.flatMapTo(LinkedHashSet()) { it.migratedSlots }
     }
 
     internal var islandShowingField: Field? by generationState { null }
