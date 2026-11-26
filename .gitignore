@@ -1,7 +1,6 @@
 *.iml
 .gradle
 /local.properties
-/.idea
 .idea/
 .vscode/
 .kotlin/
@@ -17,13 +16,6 @@
 *.keystore
 *.jks
 
-/decompiled_classes
-/scratch
-
-# SQLite runtime artifacts
-modules_config.db
-modules_config.db-shm
-modules_config.db-wal
 /.gradle-home
 
 # Local evidence/research documents (reverse-engineering notes, investigation
