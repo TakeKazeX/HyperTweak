@@ -9,8 +9,11 @@ import com.takekazex.hypertweak.util.platform.ResourceLookup
 /** Restores retained framework views and reports the recovered hosts. */
 internal class LeftRecovery {
     // Only framework objects and collections cross the module class-loader boundary.
+    // Only rows still in a window are carried: a detached root is either gone for good or the home
+    // bar hidden behind the lockscreen, which onAttachedToWindow/onViewAttached capture again.
+    // Carrying the rest kept every dead root (and its manager) alive and grew the set per reload.
     fun saveHotReloadState(): Any = with(LeftRenderer) { onMainBlocking {
-        listOf(states.values.map { state ->
+        listOf(states.values.filter { it.leftHost.isAttachedToWindow }.map { state ->
             listOf(state.leftHost, state.anchor, state.rightContainer, state.manager,
                 state.isKeyguard, state.barRoot, state.anchorEntries.map {
                     listOf(it.view, it.parent, it.index, it.layoutParams)

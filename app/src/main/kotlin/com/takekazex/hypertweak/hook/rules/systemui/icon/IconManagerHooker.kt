@@ -3,6 +3,7 @@ package com.takekazex.hypertweak.hook.rules.systemui.icon
 import com.takekazex.hypertweak.hook.base.HostSelect
 import android.os.Handler
 import android.os.Looper
+import android.view.View
 import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
 import com.takekazex.hypertweak.settings.contract.IconSlotPolicy
@@ -78,6 +79,15 @@ internal object IconManagerHooker : IconRenderer() {
     }
 
     internal fun recoverManagers(managers: List<Any>) {
+        // A carried manager the controller no longer drives and whose group left the window belongs
+        // to a destroyed row; keeping it would pin that row and re-carry it on every reload.
+        val groupField = hierarchyField(ICON_MANAGER_CLASS.toClassOrNull() ?: return, "mGroup")
+        synchronized(stateLock) {
+            states.keys.filter { manager ->
+                managers.none { it === manager } &&
+                    (groupField?.get(manager) as? View)?.isAttachedToWindow != true
+            }.forEach(states::remove)
+        }
         managers.forEach { manager ->
             val known = synchronized(stateLock) { states.containsKey(manager) }
             if (!known) {
