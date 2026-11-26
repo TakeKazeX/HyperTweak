@@ -34,6 +34,10 @@ object RestartBroadcastHooker : StaticHooker() {
 
         // Do not register inside our own app to avoid killing the manager UI.
         if (pkgName == "com.takekazex.hypertweak") return
+        // system_server's packages (providers.settings, telecom, ...) publish the "android" context.
+        // A receiver there runs on system_server's main looper: a restart would kill the system and
+        // an escaped exception crashes it (a hit dump did, and RescueParty rebooted the device).
+        if (pkgName == "android") return
         if (!registeredPackages.add(pkgName)) return
         // The attach-time context would key the receiver on a ContextImpl that hot reload cannot unregister.
         HostApplicationContext.whenPublished(context) { register(it, pkgName) }
@@ -48,8 +52,17 @@ object RestartBroadcastHooker : StaticHooker() {
             }
             val receiver = object : BroadcastReceiver() {
                 override fun onReceive(ctx: Context, intent: Intent) {
+                    // System-callback boundary: nothing may escape into the host's looper.
+                    try {
+                        handle(intent)
+                    } catch (t: Throwable) {
+                        DebugLog.e("RestartBroadcastHooker", "restart receiver failed in $pkgName action=${intent.action}", t)
+                    }
+                }
+
+                private fun handle(intent: Intent) {
                     if (intent.action == RestartProtocol.ACTION_DUMP_HOOK_HITS) {
-                        HookHits.dump(android.app.Application.getProcessName(),
+                        HookHits.dump(android.app.Application.getProcessName() ?: pkgName,
                             intent.getBooleanExtra(RestartProtocol.EXTRA_RESET, false))
                         return
                     }
