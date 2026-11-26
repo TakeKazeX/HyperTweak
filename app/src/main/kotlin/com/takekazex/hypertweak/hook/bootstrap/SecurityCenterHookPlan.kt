@@ -46,8 +46,6 @@ internal object SecurityCenterHookPlan {
                     if (processName == packageName || processName == "$packageName.cache") {
                         hook { PasskeyHooker }
                     }
-                    hook { AospAppInfoEntryHooker }
-                    hook { AospAppManagerEntryHooker }
                     // Only the main application process owns the on-demand battery request receiver.
                     // Auxiliary Security Center processes must not start another sampling worker.
                     if (processName == packageName) {
@@ -61,8 +59,6 @@ internal object SecurityCenterHookPlan {
                     // The 省电模式 pins come from Security Center's remote process (PowerSaveService),
                     // so this cannot be limited to the main application process.
                     hook { PowerSaveOverrideHooker }
-                    hook { MoreBatteryInfoHooker }
-                    hook { WarningCountdownHooker }
                     // Anti-peeping capability checks also run in Security Center's remote process;
                     // the hooker limits preference and function-card changes to the main process.
                     hook { SecurityCenterPrivacyEntriesHooker }
@@ -81,7 +77,17 @@ internal object SecurityCenterHookPlan {
                         hook { SecurityCenterPopupHooker }
                         hook { SecurityCenterSidebarHooker }
                     }
+                    // Page-only hookers. In 13.8.0-261020 every activity they patch (or that hosts
+                    // the fragment they patch) is declared in the main process, and their callbacks
+                    // reach no service, provider or receiver. BerserkMode, DetailedPowerData and
+                    // PowerRanking stay process-wide: their static gates are also read by
+                    // PerformanceModeTileService, PowerSaveService, SecSettingsSearchProvider and
+                    // the security scan.
                     if (processName == packageName) {
+                        hook { AospAppInfoEntryHooker }
+                        hook { AospAppManagerEntryHooker }
+                        hook { MoreBatteryInfoHooker }
+                        hook { WarningCountdownHooker }
                         hook { AppDetailsIconLaunchHooker }
                         hook { AppDetailsActionsHooker }
                         hook { AppLinkManagementHooker }

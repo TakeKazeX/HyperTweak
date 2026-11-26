@@ -180,8 +180,11 @@ internal object RuntimeSettingsParticipants {
             com.takekazex.hypertweak.hook.rules.systemui.AospSystemUiPluginBlockHooker.refreshSettings()
         }
         registerForProcess(RuntimeSettingsGroups.AOSP_SECURITY) { _ ->
-            com.takekazex.hypertweak.hook.rules.securitycenter.AospAppInfoEntryHooker.refreshSettings()
-            com.takekazex.hypertweak.hook.rules.securitycenter.AospAppManagerEntryHooker.refreshSettings()
+            // Both hookers are installed only in the main process; side processes have no page.
+            if (processName == "com.miui.securitycenter") {
+                com.takekazex.hypertweak.hook.rules.securitycenter.AospAppInfoEntryHooker.refreshSettings()
+                com.takekazex.hypertweak.hook.rules.securitycenter.AospAppManagerEntryHooker.refreshSettings()
+            }
             true
         }
         registerForProcess(RuntimeSettingsGroups.DARK_MODE) { _ ->
