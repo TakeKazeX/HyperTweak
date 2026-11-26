@@ -357,7 +357,7 @@ video-ringback switches with their original MainActivity callbacks. App-specific
 Xiaomi Community settings open independent `Route.Market` / `Route.Community` child pages
 with their own scope guidance and application icons on the parent entries. GetApps uses nine default-off policies at
 validated request/presentation boundaries; introduction video is independent of detail promotions.
-See `docs/MARKET_IMPLEMENTATION_20261101.md` for contracts and cached-page limitations. Copy Direct resolves the
+See `docs/apps/MARKET_IMPLEMENTATION_20261101.md` for contracts and cached-page limitations. Copy Direct resolves the
 system default browser and its PackageManager application label for each new cue batch; the
 native application highlight range, title, application icon and web Intent are rewritten
 together in a copied ToolRequest at the real AI Panel dispatch boundary, before EventManager
@@ -470,7 +470,7 @@ vendor OPEN_DOCUMENT rewrite and redirects Hyper's Browse action through OPEN_DO
 Each hooker owns its installation and live cached flag. Missing independent keys inherit the
 legacy `KEY_NATIVE_PICKER`, while explicit false wins. Photo needs `system`; file additionally
 needs `com.android.photopicker` scope. Changes affect subsequent requests, so active pickers
-must be reopened. See `docs/PICKER_REROUTE_RESEARCH_20261024.md`.
+must be reopened. See `docs/framework/PICKER_REROUTE_RESEARCH_20261024.md`.
 
 ## Upstream back-gesture module coexistence
 
@@ -482,7 +482,7 @@ System Launcher page opens its exported Xposed settings entry. Native load callb
 independently detect its mapped payload and yield shared gesture/contextual/Dart-state
 hooks. Independent native rules retain their broadcast metadata and forward through
 upstream's identity-options GOT chain. The separate upstream Overview observer shares
-only authenticated visibility with gesture-bar hiding. See `docs/PR10_BACKGESTURE_IPC_20261021.md`
+only authenticated visibility with gesture-bar hiding. See `docs/backgesture/PR10_BACKGESTURE_IPC_20261021.md`
 for the reproduced conflict, actual-image contracts and delivery evidence.
 
 ## Motion Cues and floating window gestures
@@ -503,7 +503,7 @@ For host verification, check both regions received by `MiuiFreeformModeControlle
 then manually test top and bottom captions, resize, and rotation with dots visible.
 
 ## MiLink: relay all apps and clipboard region
-- Code: `hook/rules/milink/MiLinkSubScreenAppsHooker.kt`, `MiLinkClipboardRegionHooker.kt` (`com.milink.service`), `hook/rules/mirror/MirrorAllAppsHooker.kt` (`com.xiaomi.mirror` main process, scope added for this). Keys `milink_unlock_send_app` and `milink_ignore_clipboard_region`, default off, Purification page → MiLink section. Ported from HyperCeiler's `UnlockSendApp`/`UnlockSendAppM` and `DisablePcManagerClipboardRegionCheck`, narrowed. Research: `docs/MILINK_SEND_APP_AND_CLIPBOARD_REGION_UPSTREAM_20261124.md`.
+- Code: `hook/rules/milink/MiLinkSubScreenAppsHooker.kt`, `MiLinkClipboardRegionHooker.kt` (`com.milink.service`), `hook/rules/mirror/MirrorAllAppsHooker.kt` (`com.xiaomi.mirror` main process, scope added for this). Keys `milink_unlock_send_app` and `milink_ignore_clipboard_region`, default off, Purification page → MiLink section. Ported from HyperCeiler's `UnlockSendApp`/`UnlockSendAppM` and `DisablePcManagerClipboardRegionCheck`, narrowed. Research: `docs/apps/MILINK_SEND_APP_AND_CLIPBOARD_REGION_UPSTREAM_20261124.md`.
 - Hosts: MiLink 18.2.4.1 (sha256 `e257e049…`), Mirror 18.03.01 (sha256 `7ef1c816…`). Contract test `MiLinkSendAppContractTest` with `MILINK_APK` / `MIRROR_APK`.
 - Relay: the real gate is Mirror's provider (`CallProvider` → `isSupportSendApp` → `b4.d.i` allow list). Mirror has its own "all apps" switch (`support_all_app_sub_screen`, cached in a static boolean read by a trivial getter that `b4.d.h/i/j` and the car lists consult). The contract finds the getter as the guard of the "isSupportSubScreen[Old]: all app support" logs, its field, and the config initializer that writes it from the preference reader. The hooker sets that field (no hook on the inlinable getter), re-sets it after the initializer, and on disable/retirement re-runs the initializer so the host restores its own value. Live via the `mirror.send_app` group.
 - MiLink side: only the local sub-screen/TV app-cast allow list (class logging `ML::SubScreenApps`, static `(String)Z` member) answers true; empty names, the default launcher and MiLink itself stay native, and all callers are deoptimized. `WHEN_ENABLED`, toggled through `POLICY_FEATURES`.
@@ -581,7 +581,7 @@ controller hierarchy and Android-16 back adapters have been removed. Material an
 back-haptic mute are choices in the indicator/haptic dropdowns and join the shared
 Boolean snapshot (both default off). Each dropdown commits its two flags together; mute preserves
 the selected haptic scheme and does not mute contextual search. See
-`docs/BACK_GESTURE_UPSTREAM.md` for the upstream pin and integration boundaries.
+`docs/backgesture/BACK_GESTURE_UPSTREAM.md` for the upstream pin and integration boundaries.
 
 Feature synchronization through upstream 0.13.0 (`c4a39e0`) adds a Binder-identity
 Launcher connection observer, revocable Recents OPEN completion receipts, and

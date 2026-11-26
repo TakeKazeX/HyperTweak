@@ -285,7 +285,7 @@ is feature-local and preserves SDK admission. The existing Dart observer perform
 refresh; no native thread calls Dart. Install the release APK and activate the HYOS
 spawner's new payload as needed, then inspect the actual mapped APK and runtime
 identity. Visible icon colors, theme-source coverage and brightness transitions
-remain user acceptance. Current scope and shape limitations: `docs/DESKTOP_ICON_THEME.md`.
+remain user acceptance. Current scope and shape limitations: `docs/launcher/DESKTOP_ICON_THEME.md`.
 
 ### Desktop rows/columns
 

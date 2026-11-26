@@ -108,7 +108,7 @@ internal object HardwareIdentityReader {
             "samsung" in tokens -> "Samsung Display"
             "visionox" in tokens -> "Visionox"
             // Identified panel family + supplier announcement. Not a global 0x42 vendor map.
-            // Evidence: docs/DEVICE_HARDWARE_IDENTITY_2026-10-24.md; UI marks model matching.
+            // Evidence: docs/apps/DEVICE_HARDWARE_IDENTITY_2026-10-24.md; UI marks model matching.
             text == "mdss_dsi_p11u_42_0d_0a_dsc_cmd" -> "TCL CSOT (P11U)"
             else -> null
         }
