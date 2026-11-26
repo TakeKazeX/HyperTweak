@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import com.takekazex.hypertweak.hook.base.HostSelect
 import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
 import com.takekazex.hypertweak.settings.contract.CcBatteryPercentStyle
 
@@ -80,7 +81,7 @@ internal object CcBatteryStyleHooker : IconRenderer() {
         // forced style enters through the host's own parameter rather than an after-the-fact
         // visibility patch. `onBatteryStyleChanged` also runs again on island/AOD/state changes,
         // and these hooks only exist for an outside style.
-        battery.findMethodOrNull { name("onBatteryStyleChanged"); paramCount(1) }?.let { method ->
+        HostSelect.method(battery) { name("onBatteryStyleChanged"); paramCount(1) }?.let { method ->
             deoptimize(method)
             method.observe {
                 before { param ->
@@ -98,7 +99,7 @@ internal object CcBatteryStyleHooker : IconRenderer() {
         }
         // The host's onLayout always restores the trailing-edge order first, so the pair is
         // re-placed unconditionally after it; no state has to be remembered per instance.
-        battery.findMethodOrNull { name("onLayout"); paramCount(5) }?.let { method ->
+        HostSelect.method(battery) { name("onLayout"); paramCount(5) }?.let { method ->
             deoptimize(method)
             method.observe {
                 after { param ->

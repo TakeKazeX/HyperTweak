@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon.duo
 
+import com.takekazex.hypertweak.hook.base.HostSelect
 import android.content.Context
 import android.graphics.Color
 import android.graphics.Paint
@@ -246,7 +247,7 @@ internal object DuoRenderer : IconRenderer() {
             DebugLog.hookSkipped(TAG, "native Wi-Fi tint artwork", "resource transformer signature unavailable")
         }
         // No hooks on global View/ImageView draw, visibility or tint methods.
-        batteryClass.findMethodOrNull { name("onAttachedToWindow"); paramCount(0) }.orSkip("DuoRenderer", "batteryClass#onAttachedToWindow")?.observe {
+        HostSelect.method(batteryClass) { name("onAttachedToWindow"); paramCount(0) }.orSkip("DuoRenderer", "batteryClass#onAttachedToWindow")?.observe {
             after { param -> (param.thisObject as? View)?.let { battery ->
                 val token = epoch
                 if (Looper.myLooper() == Looper.getMainLooper()) {
@@ -256,7 +257,7 @@ internal object DuoRenderer : IconRenderer() {
                 }
             } }
         }
-        batteryClass.findMethodOrNull { name("onDetachedFromWindow"); paramCount(0) }.orSkip("DuoRenderer", "batteryClass#onDetachedFromWindow")?.observe {
+        HostSelect.method(batteryClass) { name("onDetachedFromWindow"); paramCount(0) }.orSkip("DuoRenderer", "batteryClass#onDetachedFromWindow")?.observe {
             before { param -> (param.thisObject as? View)?.let { battery -> guarded { detach(battery) } } }
         }
         visibilityMethod?.observe {
@@ -330,10 +331,10 @@ internal object DuoRenderer : IconRenderer() {
         // The native battery changes style only after its fade-out. Keep the current renderer
         // until that handoff, even if the dozing callback arrives earlier or later.
         "com.android.systemui.statusbar.phone.KeyguardStatusBarViewControllerInject".toClassOrNull()
-            ?.findMethodOrNull {
+            ?.let { HostSelect.method(it) {
                 name("animateFullAod")
-                parameterTypes(Boolean::class.javaPrimitiveType!!, Boolean::class.javaPrimitiveType!!)
-            }?.let { method ->
+                params(Boolean::class.javaPrimitiveType!!, Boolean::class.javaPrimitiveType!!)
+            } }?.let { method ->
                 val statusBar = field(method.declaringClass, "keyguardStatusBarView")
                 deoptimize(method)
                 method.observe {

@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import com.takekazex.hypertweak.hook.base.HostSelect
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
@@ -454,7 +455,7 @@ internal object SlotMaskApplier : IconRenderer() {
             Int::class.javaPrimitiveType!!, accessible = true)?.let(::deoptimize)
         // View.onLayout is (changed, left, top, right, bottom): five parameters. A four-parameter
         // query silently misses this final host override, leaving every icon at the host's row.
-        containerClass.findMethodOrNull { name("onLayout"); paramCount(5) }?.let { method ->
+        HostSelect.method(containerClass) { name("onLayout"); paramCount(5) }?.let { method ->
             method.observe {
                 before { param ->
                     val container = param.thisObject as? ViewGroup ?: return@before
@@ -500,7 +501,7 @@ internal object SlotMaskApplier : IconRenderer() {
                 layoutStates, view, visibleState, hiddenBySpace, inIslandState, gone, translationX, layoutTranslationX
             )
         }
-        val method = containerClass.findMethodOrNull { name("enableAnimation\$1"); noParams() }
+        val method = HostSelect.method(containerClass) { name("enableAnimation\$1"); noParams() }
         if (access == null || method == null) {
             DebugLog.hookSkipped(TAG, "$CONTAINER_CLASS#enableAnimation\$1", "two-line state boundary unavailable")
             return

@@ -177,13 +177,6 @@ RUN_CATCHING = re.compile(r'(?<![\w.])runCatching\s*\{')
 STATEMENT_PREFIX = re.compile(r'(?:.*[{;]|.*->|.*\belse|try|finally|(?:\}\s*else\s+)?(?:if|while|for)\s*\(.*\))')
 
 
-# EzHookTool-compatible first-match queries (HostMethodQuery) still to move to HostSelect. The rest
-# never ran on the verification device (disabled features), so their resolution is unproven; the
-# count may only fall.
-FIND_METHOD_QUERY = re.compile(r"\bfindMethodOrNull\s*\{")
-FIND_METHOD_QUERY_LIMIT = 27
-
-
 def discarded_run_catching(source):
     code = strip_non_code(source)
     count = 0
@@ -209,7 +202,6 @@ def discarded_run_catching(source):
 def main():
     failures = []
     discarded = 0
-    find_method_queries = 0
     for language in ("kotlin", "java"):
         base = ROOT / f"app/src/main/{language}/com/takekazex/hypertweak"
         for path in sorted(base.rglob("*")):
@@ -221,7 +213,6 @@ def main():
                             for line, target in violations(layer, source))
             if layer == "hook":
                 discarded += discarded_run_catching(source)
-                find_method_queries += len(FIND_METHOD_QUERY.findall(strip_non_code(source)))
                 relative = path.relative_to(base).as_posix()
                 if (count := first_match_violation(relative, source)) is not None:
                     failures.append(f"{path.relative_to(ROOT)}: {count} declared-member firstOrNull/first "
@@ -244,11 +235,6 @@ def main():
                         "log through HookFailurePolicy.open or onFailure, or let the hook dispatcher fall back")
     elif discarded < DISCARDED_RUN_CATCHING_LIMIT:
         print(f"note: discarded runCatching in hook code fell to {discarded}; lower DISCARDED_RUN_CATCHING_LIMIT")
-    if find_method_queries > FIND_METHOD_QUERY_LIMIT:
-        failures.append(f"hook code has {find_method_queries} findMethodOrNull queries "
-                        f"(limit {FIND_METHOD_QUERY_LIMIT}); select declared members with HostSelect")
-    elif find_method_queries < FIND_METHOD_QUERY_LIMIT:
-        print(f"note: findMethodOrNull queries fell to {find_method_queries}; lower FIND_METHOD_QUERY_LIMIT")
     if failures:
         print("\n".join(failures), file=sys.stderr)
         return 1

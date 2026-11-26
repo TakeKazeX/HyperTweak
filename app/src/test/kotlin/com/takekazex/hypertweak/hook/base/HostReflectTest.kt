@@ -21,8 +21,6 @@ class HostReflectTest {
         fun both(value: String?, other: Any?): String = "string-any"
         fun both(value: Any?, other: String?): String = "any-string"
         fun fails(): Nothing = throw IllegalStateException("host failure")
-        fun update(value: Int) = Unit
-        fun update(value: String) = Unit
 
         class Nested
     }
@@ -51,17 +49,6 @@ class HostReflectTest {
     @Test fun callPropagatesTheMethodsOwnException() {
         val error = runCatching { host.callMethodOrNull("fails") }.exceptionOrNull()
         assertTrue(error is IllegalStateException)
-    }
-
-    @Test fun queryReturnsTheFirstDeclaredMatchAndMakesItAccessible() {
-        val exact = Host::class.java.findHostMethodOrNull { name("update"); parameterTypes(String::class.java) }
-        assertEquals(String::class.java, exact?.parameterTypes?.single())
-        assertTrue(exact!!.isAccessible)
-        // Two overloads match: the first is still returned (and logged), exactly as before.
-        assertNotNull(Host::class.java.findHostMethodOrNull { name("update"); paramCount(1) })
-        assertNull(Host::class.java.findHostMethodOrNull { name("key"); paramCount(1) })
-        // The class chain is searched, private superclass methods included.
-        assertEquals(Base::class.java, Host::class.java.findHostMethodOrNull { name("hidden"); noParams() }?.declaringClass)
     }
 
     @Test fun classLoadingFallsBackToNestedClassNames() {

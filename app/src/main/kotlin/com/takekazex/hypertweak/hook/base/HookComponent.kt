@@ -26,8 +26,6 @@ internal abstract class HookComponent(protected val owner: BaseHooker) {
     protected fun Constructor<*>.hook(id: String, block: HookFactory.() -> Unit) = with(owner) { this@hook.hook(id, block = block) }
     protected fun Class<*>.hookAllConstructors(block: HookFactory.() -> Unit) =
         with(owner) { this@hookAllConstructors.hookAllConstructors(block) }
-    protected fun Class<*>.findMethodOrNull(query: HostMethodQuery.() -> Unit): Method? =
-        with(owner) { this@findMethodOrNull.findMethodOrNull(query) }
     protected fun deoptimize(executable: Executable) = owner.deoptimize(executable)
     protected fun <T : Any> resolveDexContract(
         id: String, apk: String, schema: Int = 1, compute: (DexKitBridge) -> T?,

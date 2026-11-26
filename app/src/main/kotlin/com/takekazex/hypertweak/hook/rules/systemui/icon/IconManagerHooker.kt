@@ -178,7 +178,7 @@ internal object IconManagerHooker : IconRenderer() {
                 }
             }
         }
-        val setBlocked = icon.findMethodOrNull { name("setBlocked"); paramCount(1) }
+        val setBlocked = HostSelect.method(icon) { name("setBlocked"); paramCount(1) }
         setBlocked?.let { method ->
             deoptimize(method)
             method.observe {

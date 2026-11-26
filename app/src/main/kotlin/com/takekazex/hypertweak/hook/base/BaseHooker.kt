@@ -743,10 +743,6 @@ sealed class BaseHooker {
         this.toClassOrNull(initialize)
     }
 
-    /** First declared method matching [query]; see [HostMethodQuery]. */
-    fun Class<*>.findMethodOrNull(query: HostMethodQuery.() -> Unit): Method? =
-        findHostMethodOrNull(query)
-
     /** Hook all declared constructors of a class. */
     fun Class<*>.hookAllConstructors(block: HookFactory.() -> Unit) {
         declaredConstructorsAccessible().forEach { ctor ->

@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon.left
 
+import com.takekazex.hypertweak.hook.base.HostSelect
 import com.takekazex.hypertweak.hook.base.orSkip
 import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IconManagerHooker
@@ -367,8 +368,27 @@ internal object LeftRenderer : IconRenderer() {
     internal fun onShadeSwitchStarted(controlCenterVisible: Boolean) = panelBinding.onShadeSwitchStarted(controlCenterVisible)
     internal fun onShadeSwitchFinished(controlCenterVisible: Boolean) = panelBinding.onShadeSwitchFinished(controlCenterVisible)
 
+    /**
+     * The callback [managerClass] runs: its own declaration, else the one it inherits, searched
+     * level by level up to `IconManager` and unique at the level that declares it. SystemUI's
+     * MiuiLightDarkIconManager declares only onIconAdded and inherits onSetIcon/onRemoveIcon from
+     * IconManager, so those hooks sit on IconManager; [syncClonesFor] ignores managers without a
+     * captured state. A class outside the IconManager hierarchy yields null.
+     */
+    private fun managerCallback(managerClass: Class<*>, methodName: String, count: Int): Method? {
+        val base = ICON_MANAGER_BASE_CLASS.toClassOrNull() ?: return null
+        if (!base.isAssignableFrom(managerClass)) return null
+        var level: Class<*>? = managerClass
+        while (level != null && base.isAssignableFrom(level)) {
+            val declared = level.declaredMethods.count { it.name == methodName && it.parameterCount == count && !it.isSynthetic && !it.isBridge }
+            if (declared > 0) return HostSelect.method(level) { name(methodName); paramCount(count) }
+            level = level.superclass
+        }
+        return null
+    }
+
     internal fun hookManagerEvents(managerClass: Class<*>) {
-        managerClass.findMethodOrNull { name("onIconAdded"); paramCount(4) }?.let { method ->
+        HostSelect.method(managerClass) { name("onIconAdded"); paramCount(4) }?.let { method ->
             deoptimize(method)
             method.observe {
                 after { param ->
@@ -377,7 +397,7 @@ internal object LeftRenderer : IconRenderer() {
                 }
             }
         }
-        managerClass.findMethodOrNull { name("onSetIcon"); paramCount(2) }?.let { method ->
+        managerCallback(managerClass, "onSetIcon", 2)?.let { method ->
             deoptimize(method)
             method.observe {
                 after { param ->
@@ -386,7 +406,7 @@ internal object LeftRenderer : IconRenderer() {
                 }
             }
         }
-        managerClass.findMethodOrNull { name("onRemoveIcon"); paramCount(1) }?.let { method ->
+        managerCallback(managerClass, "onRemoveIcon", 1)?.let { method ->
             deoptimize(method)
             method.observe {
                 after { param ->

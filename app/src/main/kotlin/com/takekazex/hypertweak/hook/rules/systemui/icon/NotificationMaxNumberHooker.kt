@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import com.takekazex.hypertweak.hook.base.HostSelect
 import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
 import com.takekazex.hypertweak.settings.contract.NotificationIconLimit
 
@@ -76,7 +77,7 @@ object NotificationMaxNumberHooker : StaticHooker() {
             DebugLog.hookSkipped(TAG, TRANSFORM_CLASS, "class not found")
             return
         }
-        val invoke = transformClass.findMethodOrNull { name("invoke"); paramCount(3) } ?: run {
+        val invoke = HostSelect.method(transformClass) { name("invoke"); paramCount(3) } ?: run {
             DebugLog.hookSkipped(TAG, "$TRANSFORM_CLASS#invoke", "method not found")
             return
         }

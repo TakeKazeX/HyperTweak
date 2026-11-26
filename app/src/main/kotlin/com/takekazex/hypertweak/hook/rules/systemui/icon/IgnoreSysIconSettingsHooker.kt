@@ -78,7 +78,7 @@ internal object IgnoreSysIconSettingsHooker : IconRenderer() {
             DebugLog.hookSkipped(TAG, OBSERVER_CLASS, "class not found")
             return
         }
-        observerClass.findMethodOrNull {
+        HostSelect.method(observerClass) {
             name("loadStatusBarIcon")
             noParams()
         }?.observe {

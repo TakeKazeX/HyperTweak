@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon.left
 
+import com.takekazex.hypertweak.hook.base.HostSelect
 import com.takekazex.hypertweak.hook.rules.systemui.icon.HandoverCoordinator
 
 import android.view.ViewGroup
@@ -20,7 +21,7 @@ internal class LeftPanelBinding(owner: BaseHooker) : IconRenderComponent(owner) 
                 DebugLog.hookSkipped(TAG, name, "class not found")
                 return@forEach
             }
-            rowClass.findMethodOrNull { name("onAttachedToWindow"); noParams() }?.let { method ->
+            HostSelect.method(rowClass) { name("onAttachedToWindow"); noParams() }?.let { method ->
                 method.observe {
                     after { param -> (param.thisObject as? ViewGroup)?.let(::captureShadeRow) }
                 }

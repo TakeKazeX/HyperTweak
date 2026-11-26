@@ -1,6 +1,5 @@
 package com.takekazex.hypertweak.hook.base
 
-import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.reflect.Constructor
 import java.lang.reflect.InvocationTargetException
 import java.lang.reflect.Method
@@ -9,89 +8,14 @@ import java.lang.reflect.Modifier
 /**
  * Module-owned replacements for the EzHookTool 1.3.1 `core` reflection helpers HyperTweak used.
  *
- * Each helper keeps the library's observable result so the migration changes no hook target:
- * - [HostMethodQuery] with exactly a name and parameter types is an exact signature lookup:
- *   `getDeclaredMethod` on the class, then on each superclass. Any other query walks the same
- *   chain and returns the first declared match of the first class that has one (private
- *   superclass methods included); more than one match in that class is logged once at WARN, so
- *   the call site can be moved to [HostSelect], which rejects ambiguity.
- *   Results are made accessible and cached per actual Class through [HostMembers.cached].
+ * Each helper keeps the library's observable result. Method lookup for hooks is not here: hook
+ * targets are selected as declared members through [HostSelect], which rejects ambiguity.
  * - [callMethodOrNull] walks the receiver's class chain (superclass private methods excluded,
  *   instance methods only), keeps the single most specific applicable overload, and returns null
  *   when none or several remain. Exceptions thrown by the invoked method propagate.
  * - [loadHostClassOrNull] uses `Class.forName(name, false, loader)`, then retries with the last
  *   `.` replaced by `$` for nested classes.
  */
-class HostMethodQuery internal constructor() {
-    private var name: String? = null
-    private var paramCount: Int? = null
-    private var parameterTypes: Array<out Class<*>>? = null
-
-    fun name(value: String) { name = value }
-    fun paramCount(value: Int) { paramCount = value }
-    fun noParams() { paramCount = 0 }
-    fun parameterTypes(vararg types: Class<*>) { parameterTypes = types }
-
-    internal fun matches(method: Method): Boolean {
-        name?.let { if (method.name != it) return false }
-        paramCount?.let { if (method.parameterCount != it) return false }
-        parameterTypes?.let { if (!method.parameterTypes.contentEquals(it)) return false }
-        return true
-    }
-
-    /** EzHookTool's ExactLookup: a name and parameter types, and no other condition. */
-    internal val exact: Boolean
-        get() = name != null && parameterTypes != null && paramCount == null
-
-    internal fun exactLookup(owner: Class<*>): Method? {
-        var current: Class<*>? = owner
-        while (current != null) {
-            try {
-                return current.getDeclaredMethod(name!!, *parameterTypes!!)
-            } catch (_: NoSuchMethodException) {
-                current = current.superclass
-            }
-        }
-        return null
-    }
-
-    internal val key: String
-        get() = "query:${name}/${paramCount}/${parameterTypes?.joinToString(",") { it.name }}"
-}
-
-/** The method EzHookTool's `findMethodOrNull` returned for [query]; see the file comment. */
-fun Class<*>.findHostMethodOrNull(query: HostMethodQuery.() -> Unit): Method? {
-    val spec = HostMethodQuery().apply(query)
-    return HostMembers.cached(this, spec.key, Method::class.java) {
-        if (spec.exact) {
-            return@cached spec.exactLookup(this)?.apply { isAccessible = true }
-                .also { logResolution(this, spec, exact = true, candidates = if (it == null) 0 else 1, method = it) }
-        }
-        val matches = generateSequence(this) { it.superclass }
-            .map { owner -> owner.declaredMethods.filter(spec::matches) }
-            .firstOrNull { it.isNotEmpty() }
-            .orEmpty()
-        if (matches.size > 1) {
-            DebugLog.w(
-                "HostReflect",
-                "first of ${matches.size} matches for $name ${spec.key}: ${matches.joinToString { it.toGenericString() }}"
-            )
-        }
-        matches.firstOrNull()?.apply { isAccessible = true }
-            .also { logResolution(this, spec, exact = false, candidates = matches.size, method = it) }
-    }
-}
-
-/** One line per cached resolution, so a migration can prove where each query lands. */
-private fun logResolution(owner: Class<*>, spec: HostMethodQuery, exact: Boolean, candidates: Int, method: Method?) {
-    DebugLog.d(
-        "HostReflect",
-        "resolved owner=${owner.name} ${spec.key} exact=$exact candidates=$candidates " +
-            "declaring=${method?.declaringClass?.name} inherited=${method != null && method.declaringClass != owner} " +
-            "synthetic=${method?.isSynthetic} bridge=${method?.isBridge}"
-    )
-}
-
 /** All declared constructors, made accessible. */
 fun Class<*>.declaredConstructorsAccessible(): List<Constructor<*>> =
     declaredConstructors.onEach { it.isAccessible = true }.toList()

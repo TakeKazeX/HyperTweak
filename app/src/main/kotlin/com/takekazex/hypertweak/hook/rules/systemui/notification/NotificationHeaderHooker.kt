@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.notification
 
+import com.takekazex.hypertweak.hook.base.HostSelect
 import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
 import com.takekazex.hypertweak.settings.contract.NotificationHeaderModel
 import com.takekazex.hypertweak.settings.contract.NotificationHeaderMotionModel
@@ -513,7 +514,7 @@ object NotificationHeaderHooker : StaticHooker() {
         installShadeHeaderClipHooks()
 
         NOTIFICATION_STACK_CLASS.toClassOrNull()
-            ?.findMethodOrNull { name("setOwnScrollY"); paramCount(4) }
+            ?.let { HostSelect.method(it) { name("setOwnScrollY"); paramCount(4) } }
             ?.let { method ->
                 method.hook {
                     after { param -> guarded("notification list scroll") {

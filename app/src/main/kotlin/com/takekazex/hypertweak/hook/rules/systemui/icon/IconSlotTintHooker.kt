@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import com.takekazex.hypertweak.hook.base.HostSelect
 import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.IconSlotPolicy
 
@@ -31,7 +32,7 @@ internal object IconSlotTintHooker : IconRenderer() {
             DebugLog.hookSkipped(TAG, VIEW_CLASS, "class not found")
             return
         }
-        viewClass.findMethodOrNull {
+        HostSelect.method(viewClass) {
             name("updateLightDarkTint")
             paramCount(4)
         }?.observe {

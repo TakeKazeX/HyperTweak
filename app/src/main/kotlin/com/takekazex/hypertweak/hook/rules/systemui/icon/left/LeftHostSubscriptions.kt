@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon.left
 
+import com.takekazex.hypertweak.hook.base.HostSelect
 import android.view.ViewGroup
 import com.takekazex.hypertweak.hook.base.BaseHooker
 import com.takekazex.hypertweak.hook.base.HostAccess
@@ -35,7 +36,7 @@ internal class LeftHostSubscriptions(owner: BaseHooker) : IconRenderComponent(ow
             DebugLog.hookSkipped(TAG, STATUS_BAR_VIEW_CLASS, "class not found")
             return
         }
-        statusBarViewClass.findMethodOrNull { name("setDarkIconManager"); paramCount(1) }
+        HostSelect.method(statusBarViewClass) { name("setDarkIconManager"); paramCount(1) }
             ?.let { method ->
                 method.observe {
                     after { param ->
@@ -73,7 +74,7 @@ internal class LeftHostSubscriptions(owner: BaseHooker) : IconRenderComponent(ow
         // tracks itself — writing it from here used to bypass the slot modes entirely.
 
         // 3. Re-sync the left clones whenever the bar changes (slot scan, no indices).
-        managerClass.findMethodOrNull {
+        HostSelect.method(managerClass) {
             name("onIconAdded"); paramCount(4)
         }?.let { method ->
             deoptimize(method)
@@ -85,7 +86,7 @@ internal class LeftHostSubscriptions(owner: BaseHooker) : IconRenderComponent(ow
             }
         } ?: DebugLog.hookSkipped(TAG, "$ICON_MANAGER_CLASS#onIconAdded", "method not found")
 
-        managerClass.findMethodOrNull { name("onSetIcon"); paramCount(2) }?.let { method ->
+        HostSelect.method(managerClass) { name("onSetIcon"); paramCount(2) }?.let { method ->
             deoptimize(method)
             method.observe {
                 after { param ->
@@ -95,7 +96,7 @@ internal class LeftHostSubscriptions(owner: BaseHooker) : IconRenderComponent(ow
             }
         } ?: DebugLog.hookSkipped(TAG, "$ICON_MANAGER_CLASS#onSetIcon", "method not found")
 
-        managerClass.findMethodOrNull { name("onRemoveIcon"); paramCount(1) }?.let { method ->
+        HostSelect.method(managerClass) { name("onRemoveIcon"); paramCount(1) }?.let { method ->
             deoptimize(method)
             method.observe {
                 after { param ->
@@ -115,14 +116,14 @@ internal class LeftHostSubscriptions(owner: BaseHooker) : IconRenderComponent(ow
         // Capture the lockscreen manager only after KeyguardStatusBarViewController has completed
         // onViewAttached(): that is when mTintedIconManager and its group are initialized.
         KEYGUARD_VIEW_CONTROLLER_CLASS.toClassOrNull()?.let { controllerClass ->
-            controllerClass.findMethodOrNull { name("onViewAttached"); noParams() }.orSkip("LeftRenderer", "controllerClass#onViewAttached")?.observe {
+            HostSelect.method(controllerClass) { name("onViewAttached"); noParams() }.orSkip("LeftRenderer", "controllerClass#onViewAttached")?.observe {
                 after { param ->
                     runCatching { keyguardCapture.captureController(param.thisObject) }
                         .onFailure { DebugLog.w(TAG, "lockscreen state capture failed", it) }
                     reconcileAll()
                 }
             } ?: DebugLog.hookSkipped(TAG, "$KEYGUARD_VIEW_CONTROLLER_CLASS#onViewAttached", "method not found")
-            controllerClass.findMethodOrNull { name("onViewDetached"); noParams() }.orSkip("LeftRenderer", "controllerClass#onViewDetached")?.observe {
+            HostSelect.method(controllerClass) { name("onViewDetached"); noParams() }.orSkip("LeftRenderer", "controllerClass#onViewDetached")?.observe {
                 before { param ->
                     runCatching { keyguardCapture.detachController(param.thisObject) }
                         .onFailure { DebugLog.w(TAG, "lockscreen teardown failed", it) }
@@ -142,7 +143,7 @@ internal class LeftHostSubscriptions(owner: BaseHooker) : IconRenderComponent(ow
 
         // The home view can detach/re-attach without recreating its manager. Teardown is kept
         // reversible and the state object remains available for the next attachment.
-        statusBarViewClass.findMethodOrNull { name("onDetachedFromWindow"); noParams() }
+        HostSelect.method(statusBarViewClass) { name("onDetachedFromWindow"); noParams() }
             .orSkip("LeftRenderer", "${statusBarViewClass.name}#onDetachedFromWindow")
             ?.observe {
             before { param ->
@@ -156,7 +157,7 @@ internal class LeftHostSubscriptions(owner: BaseHooker) : IconRenderComponent(ow
         // before the root is attached, so setDarkIconManager() may capture a state that is
         // immediately torn down by shouldRender(). Reconcile again after the root is attached;
         // otherwise unlock has no icon event left to trigger clone creation.
-        statusBarViewClass.findMethodOrNull { name("onAttachedToWindow"); noParams() }
+        HostSelect.method(statusBarViewClass) { name("onAttachedToWindow"); noParams() }
             .orSkip("LeftRenderer", "${statusBarViewClass.name}#onAttachedToWindow")
             ?.observe {
             after { param ->
@@ -200,7 +201,7 @@ internal class LeftHostSubscriptions(owner: BaseHooker) : IconRenderComponent(ow
             islandShowingField = runCatching {
                 HostAccess.requireDeclaredField(islandHandlerClass, "islandShowing", accessible = true)
             }.getOrNull()
-            islandHandlerClass.findMethodOrNull { name("islandUpdate"); paramCount(2) }
+            HostSelect.method(islandHandlerClass) { name("islandUpdate"); paramCount(2) }
                 ?.let { method ->
                     method.observe {
                         after { param ->

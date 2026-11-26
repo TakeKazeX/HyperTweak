@@ -178,9 +178,9 @@ class AodStatusIconHooker : DynamicHooker() {
             }
         }
         val statusType = loadClass(BATTERY_STATUS)
-        type.findMethodOrNull {
+        HostSelect.method(type) {
             name("onBatteryLevelChanged")
-            if (statusType != null) parameterTypes(statusType)
+            if (statusType != null) params(statusType)
         }?.let { method ->
             deoptimize(method)
             method.hook {
@@ -204,9 +204,9 @@ class AodStatusIconHooker : DynamicHooker() {
             return
         }
         val styleType = loadClass(STYLE_INFO)
-        type.findMethodOrNull {
+        HostSelect.method(type) {
             name("update")
-            if (styleType != null) parameterTypes(styleType, Int::class.javaPrimitiveType!!)
+            if (styleType != null) params(styleType, Int::class.javaPrimitiveType!!)
         }?.let { method ->
             deoptimize(method)
             method.hook {
