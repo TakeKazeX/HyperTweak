@@ -41,7 +41,7 @@ Read only the section that matches the task.
 | Task | Read |
 | --- | --- |
 | App shell, settings storage/backup, runtime settings reload, hot reload, reflection caches, logging, build/size | [.github/agent/architecture.md](.github/agent/architecture.md) |
-| A specific feature: UI shell/navigation/blur, Purification/Copy Direct, pickers, gesture bar, back gesture, Security Center, PA widgets, screenshot/Dock/IME, shortcuts | [.github/agent/features.md](.github/agent/features.md) |
+| A specific feature: UI shell/navigation/blur, Purification/Copy Direct, pickers, gesture bar, back gesture, status-bar icons, islands/media, Security Center, PA widgets, screenshot/Dock/IME, shortcuts | [.github/agent/features.md](.github/agent/features.md) (index of per-family files in `features/`) |
 | Launcher native payload, Dart structural targets, native settings transport, native upgrade | [.github/agent/native.md](.github/agent/native.md) |
 | Choosing checks, per-feature test recipes, reverse engineering, release, CI, device delivery, commits | [.github/agent/workflows.md](.github/agent/workflows.md) |
 | Root settings debugging and diagnostic bundles | [docs/DEBUG_DIAGNOSTICS.md](docs/DEBUG_DIAGNOSTICS.md) |
