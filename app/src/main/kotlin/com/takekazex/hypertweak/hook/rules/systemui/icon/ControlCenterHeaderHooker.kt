@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import com.takekazex.hypertweak.hook.base.HostSelect
 import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
 import com.takekazex.hypertweak.settings.contract.ControlCenterPrivacyPolicy
@@ -149,7 +150,7 @@ internal object ControlCenterHeaderHooker : IconRenderer() {
             }
         }
         val combined = "com.android.systemui.controlcenter.shade.CombinedHeaderController".toClassOrNull()
-        combined?.findMethodOrNull { name("updateControlCenterHeaderLayout"); noParams() }?.let { method ->
+        combined?.let { HostSelect.method(it) { name("updateControlCenterHeaderLayout"); noParams() } }?.let { method ->
             deoptimize(method)
             method.observe { after { param -> guarded {
                 (read(param.thisObject, "controlCenterCarrierLayout") as? ViewGroup)
@@ -175,14 +176,14 @@ internal object ControlCenterHeaderHooker : IconRenderer() {
     private fun hookClockPolicy() {
         val clock = CLOCK_CLASS.toClassOrNull() ?: run { DebugLog.hookSkipped("ControlCenterHeaderHooker", "$CLOCK_CLASS", "not found on host"); return }
         listOf("onAttachedToWindow", "updateClockVisibility").forEach { name ->
-            clock.findMethodOrNull { name(name); noParams() }?.let { method ->
+            HostSelect.method(clock) { name(name); noParams() }?.let { method ->
                 deoptimize(method)
                 method.observe { after { param -> guarded {
                     (param.thisObject as? View)?.let(::hideDateView)
                 } } }
             }
         }
-        clock.findMethodOrNull { name("setPolicyVisibility"); paramCount(1) }?.let { method ->
+        HostSelect.method(clock) { name("setPolicyVisibility"); paramCount(1) }?.let { method ->
             deoptimize(method)
             method.observe {
                 before { param -> guarded {

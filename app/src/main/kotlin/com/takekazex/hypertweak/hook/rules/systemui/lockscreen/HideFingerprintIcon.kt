@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.lockscreen
 
+import com.takekazex.hypertweak.hook.base.HostSelect
 import com.takekazex.hypertweak.hook.base.HostAccess
 import android.graphics.Canvas
 import android.graphics.PorterDuff
@@ -97,10 +98,10 @@ object HideFingerprintIcon : StaticHooker() {
             )
         }
 
-        val onDraw = clzAnimationView?.findMethodOrNull {
+        val onDraw = clzAnimationView?.let { HostSelect.method(it) {
             name("onDraw")
-            parameterTypes(Canvas::class.java)
-        }
+            params(Canvas::class.java)
+        } }
         if (onDraw == null) {
             DebugLog.hookSkipped(
                 "HideFingerprint",
@@ -145,10 +146,10 @@ object HideFingerprintIcon : StaticHooker() {
         // The touch/highlight indicator is a separate WindowManager window ("gxzw_icon").
         iconDozingField = clzIconView?.let { findField(it, "mDozing") }
         iconKeyguardAuthenField = clzIconView?.let { findField(it, "mKeyguardAuthen") }
-        setHighlightTransparentMethod = clzIconView?.findMethodOrNull {
+        setHighlightTransparentMethod = clzIconView?.let { HostSelect.method(it) {
             name("setHightlightTransparen")
             noParams()
-        }
+        } }
         if (setHighlightTransparentMethod == null) {
             DebugLog.hookSkipped(
                 "HideFingerprint",
@@ -158,22 +159,22 @@ object HideFingerprintIcon : StaticHooker() {
         }
 
         listOf(
-            clzIconView?.findMethodOrNull {
+            clzIconView?.let { HostSelect.method(it) {
                 name("onKeyguardAuthen")
-                parameterTypes(Boolean::class.javaPrimitiveType!!)
-            } to "MiuiGxzwIconView#onKeyguardAuthen(boolean)",
-            clzIconView?.findMethodOrNull {
+                params(Boolean::class.javaPrimitiveType!!)
+            } } to "MiuiGxzwIconView#onKeyguardAuthen(boolean)",
+            clzIconView?.let { HostSelect.method(it) {
                 name("setGxzwIconOpaque")
                 noParams()
-            } to "MiuiGxzwIconView#setGxzwIconOpaque()",
-            clzIconView?.findMethodOrNull {
+            } } to "MiuiGxzwIconView#setGxzwIconOpaque()",
+            clzIconView?.let { HostSelect.method(it) {
                 name("onTouchDown")
                 noParams()
-            } to "MiuiGxzwIconView#onTouchDown()",
-            clzIconView?.findMethodOrNull {
+            } } to "MiuiGxzwIconView#onTouchDown()",
+            clzIconView?.let { HostSelect.method(it) {
                 name("show")
-                parameterTypes(Boolean::class.javaPrimitiveType!!)
-            } to "MiuiGxzwIconView#show(boolean)"
+                params(Boolean::class.javaPrimitiveType!!)
+            } } to "MiuiGxzwIconView#show(boolean)"
         ).forEach { (method, target) ->
             if (method == null) {
                 DebugLog.hookSkipped("HideFingerprint", target, "method not found")

@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import com.takekazex.hypertweak.hook.base.HostSelect
 import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.hook.base.BaseHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
@@ -86,7 +87,7 @@ object MobileSignalVisibility {
             return false
         }
         val method = with(hooker) {
-            vmClass.findMethodOrNull { name("isVisible"); noParams() }
+            HostSelect.method(vmClass) { name("isVisible"); noParams() }
         } ?: run {
             DebugLog.hookSkipped(TAG, "$VM_IMPL_CLASS#isVisible", "method not found")
             return false

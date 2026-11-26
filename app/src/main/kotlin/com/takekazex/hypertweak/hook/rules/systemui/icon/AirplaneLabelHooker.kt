@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import com.takekazex.hypertweak.hook.base.HostSelect
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
@@ -102,7 +103,7 @@ internal object AirplaneLabelHooker : IconRenderer() {
             DebugLog.hookSkipped(TAG, "carrier airplane label", "carrier fields not found")
             return
         }
-        val method = callbackClass.findMethodOrNull { name("onCarrierTextChanged"); paramCount(3) } ?: run {
+        val method = HostSelect.method(callbackClass) { name("onCarrierTextChanged"); paramCount(3) } ?: run {
             DebugLog.hookSkipped(TAG, "$CC_CALLBACK_CLASS#onCarrierTextChanged", "method not found")
             return
         }

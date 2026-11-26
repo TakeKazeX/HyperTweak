@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import com.takekazex.hypertweak.hook.base.HostSelect
 import android.os.Handler
 import android.os.Looper
 import com.takekazex.hypertweak.hook.base.HostAccess
@@ -140,7 +141,7 @@ internal object IconManagerHooker : IconRenderer() {
 
     private fun hookFinalVisibility(managerClass: Class<*>) {
         // addHolder receives tuner blocking before the first observer refresh.
-        val addHolder = managerClass.findMethodOrNull { name("addHolder"); paramCount(4) }
+        val addHolder = HostSelect.method(managerClass) { name("addHolder"); paramCount(4) }
         addHolder?.let(::deoptimize)
         addHolder?.observe {
             before { param ->
@@ -158,7 +159,7 @@ internal object IconManagerHooker : IconRenderer() {
         } ?: return
         val icon = "com.android.systemui.statusbar.StatusBarIconView".toClassOrNull() ?: run { DebugLog.hookSkipped("IconManagerHooker", "com.android.systemui.statusbar.StatusBarIconView", "not found on host"); return }
         val slotField = hierarchyField(icon, "mSlot") ?: return
-        val refreshGroup = controller.findMethodOrNull { name("refreshIconGroup"); paramCount(1) }
+        val refreshGroup = HostSelect.method(controller) { name("refreshIconGroup"); paramCount(1) }
         refreshGroup?.let { method ->
             deoptimize(method)
             method.observe {
@@ -205,7 +206,7 @@ internal object IconManagerHooker : IconRenderer() {
             DebugLog.hookSkipped(TAG, ICON_MANAGER_CLASS, "class not found")
             return
         }
-        val method = managerClass.findMethodOrNull {
+        val method = HostSelect.method(managerClass) {
             name("setBlockList")
             paramCount(1)
         }

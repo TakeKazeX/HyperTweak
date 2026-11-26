@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import com.takekazex.hypertweak.hook.base.HostSelect
 import android.annotation.SuppressLint
 import android.content.Context
 import android.os.Handler
@@ -327,7 +328,7 @@ object WifiPipelineAdapter : StaticHooker() {
         }
         // The activity arrows stay hooked while the option is off, so a toggle only flips the gate
         // and the bound binder re-emits; resource 0 is the host's "no arrows" value.
-        vmClass.findMethodOrNull { name("getActivityInOutRes"); noParams() }?.let { getter ->
+        HostSelect.method(vmClass) { name("getActivityInOutRes"); noParams() }?.let { getter ->
             val returnType = getter.returnType
             getter.hook {
                 after { param ->
@@ -384,7 +385,7 @@ object WifiPipelineAdapter : StaticHooker() {
             DebugLog.hookSkipped(TAG, BINDER_CLASS, "class not found")
             return
         }
-        val bind = binderClass.findMethodOrNull { name("bind"); paramCount(2) } ?: run {
+        val bind = HostSelect.method(binderClass) { name("bind"); paramCount(2) } ?: run {
             DebugLog.hookSkipped(TAG, "$BINDER_CLASS#bind", "method not found")
             return
         }
@@ -397,7 +398,7 @@ object WifiPipelineAdapter : StaticHooker() {
                 applyBinderLayout(root)
             }
         }
-        binderClass.findMethodOrNull {
+        HostSelect.method(binderClass) {
             name("access\$bind\$updateWifiStandardLayoutParams"); paramCount(2)
         }?.let { method ->
             deoptimize(method)
@@ -413,7 +414,7 @@ object WifiPipelineAdapter : StaticHooker() {
             val collector = "$BINDER_CLASS\$bind\$1\$1\$6".toClassOrNull()
             if (collector?.declaredFields?.any { it.type.name.endsWith(".LocationBasedWifiViewModel") } == true &&
                 collector.declaredFields.any { ImageView::class.java.isAssignableFrom(it.type) }) {
-                collector.findMethodOrNull { name("invokeSuspend"); paramCount(1) }?.let(::deoptimize)
+                HostSelect.method(collector) { name("invokeSuspend"); paramCount(1) }?.let(::deoptimize)
             }
         }.onFailure { DebugLog.w(TAG, "Wi-Fi activity collector deoptimization failed", it) }
     }
@@ -472,7 +473,7 @@ object WifiPipelineAdapter : StaticHooker() {
             DebugLog.hookSkipped(TAG, VM_CLASS, "class not found")
             return
         }
-        vmClass.findMethodOrNull { name("getInoutLeft"); noParams() }?.let { getter ->
+        HostSelect.method(vmClass) { name("getInoutLeft"); noParams() }?.let { getter ->
             deoptimize(getter)
             val returnType = getter.returnType
             getter.hook {

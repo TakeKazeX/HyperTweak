@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import com.takekazex.hypertweak.hook.base.HostSelect
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Rect
@@ -230,8 +231,8 @@ internal object CellularTypeIconHooker : IconRenderer() {
             extraWidth = requiredField("mExtraWidth") ?: return,
             doublePlus = requiredField("mShowMobileTypeDoublePlus") ?: return
         )
-        val measure = drawableClass.findMethodOrNull { name("measure"); paramCount(0) }
-        val draw = drawableClass.findMethodOrNull { name("draw"); paramCount(1) }
+        val measure = HostSelect.method(drawableClass) { name("measure"); paramCount(0) }
+        val draw = HostSelect.method(drawableClass) { name("draw"); paramCount(1) }
         if (measure == null || draw == null) {
             DebugLog.hookSkipped(TAG, DRAWABLE_CLASS, "measure/draw methods not found")
             return

@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import com.takekazex.hypertweak.hook.base.HostSelect
 import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
 import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
 
@@ -135,7 +136,7 @@ internal object HideCarrierLabelHooker : IconRenderer() {
         if (ccCarrierHiding != CarrierRowVisibility.NONE || hideHd || hidesControlCenter) {
             val ccClass = ccTextClass
             if (ccClass != null && hdTextField != null && plusTextField != null) {
-                ccClass.findMethodOrNull { name("updateHDText"); paramCount(2) }?.let { method ->
+                HostSelect.method(ccClass) { name("updateHDText"); paramCount(2) }?.let { method ->
                     method.observe {
                         before { param ->
                             runCatching { prepareHdUpdate(param.thisObject) }
@@ -167,7 +168,7 @@ internal object HideCarrierLabelHooker : IconRenderer() {
             if (callbackOwnerField == null || carrierTextViewField == null) {
                 DebugLog.hookSkipped(TAG, CC_CALLBACK_CLASS, "owner/carrier view fields not found")
             } else {
-                callbackClass.findMethodOrNull { name("onCarrierTextChanged"); paramCount(3) }?.let { method ->
+                HostSelect.method(callbackClass) { name("onCarrierTextChanged"); paramCount(3) }?.let { method ->
                     method.observe {
                         after { param ->
                             val callback = param.thisObject

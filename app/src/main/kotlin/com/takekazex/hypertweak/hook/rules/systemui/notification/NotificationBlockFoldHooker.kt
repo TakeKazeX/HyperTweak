@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.notification
 
+import com.takekazex.hypertweak.hook.base.HostSelect
 import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
@@ -100,7 +101,7 @@ object NotificationBlockFoldHooker : StaticHooker() {
             DebugLog.hookSkipped(TAG, COORDINATOR, "class not found")
             return false
         }
-        val schedule = coordinatorClass.findMethodOrNull {
+        val schedule = HostSelect.method(coordinatorClass) {
             name("scheduleHistoryNotification"); paramCount(1)
         } ?: run {
             DebugLog.hookSkipped(TAG, "$COORDINATOR#scheduleHistoryNotification", "method not found")
@@ -128,7 +129,7 @@ object NotificationBlockFoldHooker : StaticHooker() {
             DebugLog.hookSkipped(TAG, NOTIFICATION_UTIL, "class not found")
             return false
         }
-        val setFold = utilClass.findMethodOrNull {
+        val setFold = HostSelect.method(utilClass) {
             name("setFold"); paramCount(2)
         } ?: run {
             DebugLog.hookSkipped(TAG, "$NOTIFICATION_UTIL#setFold", "method not found")

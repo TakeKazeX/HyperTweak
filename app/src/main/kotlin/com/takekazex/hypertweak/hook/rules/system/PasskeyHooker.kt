@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.system
 
+import com.takekazex.hypertweak.hook.base.HostSelect
 import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
@@ -227,10 +228,10 @@ object PasskeyHooker : StaticHooker() {
         val defaultCombinedPickerClass = "com.android.settings.applications.credentials.DefaultCombinedPicker".toClassOrNull()
         // Every flip target is deoptimized to match upstream HyperPasskey. Compiled code still
         // re-reads the static IS_INTERNATIONAL_BUILD field, so this is cheap insurance, not a known fix.
-        defaultCombinedPickerClass?.findMethodOrNull {
+        defaultCombinedPickerClass?.let { HostSelect.method(it) {
             name("setDefaultKey")
-            parameterTypes(String::class.java)
-        }?.also { deoptimize(it) }?.hook {
+            params(String::class.java)
+        } }?.also { deoptimize(it) }?.hook {
             intercept { chain ->
                 handleIsInternationalBuild(chain)
             }
@@ -239,9 +240,9 @@ object PasskeyHooker : StaticHooker() {
         val defaultCombinedPreferenceControllerClass = "com.android.settings.applications.credentials.DefaultCombinedPreferenceController".toClassOrNull()
         val credentialManagerClass = "android.credentials.CredentialManager".toClassOrNull()
         if (defaultCombinedPreferenceControllerClass != null && credentialManagerClass != null) {
-            defaultCombinedPreferenceControllerClass.findMethodOrNull {
+            HostSelect.method(defaultCombinedPreferenceControllerClass) {
                 name("getCombinedProviderInfos")
-                parameterTypes(credentialManagerClass, Int::class.javaPrimitiveType!!)
+                params(credentialManagerClass, Int::class.javaPrimitiveType!!)
             }?.also { deoptimize(it) }?.hook {
                 intercept { chain ->
                     handleIsInternationalBuild(chain)
@@ -280,9 +281,9 @@ object PasskeyHooker : StaticHooker() {
 
         val listenerClass = resolved["OnCombiPreferenceClickListener"]
         if (listenerClass != null) {
-            listenerClass.findMethodOrNull {
+            HostSelect.method(listenerClass) {
                 name("onLeftSideClicked")
-                parameterTypes()
+                noParams()
             }?.also { deoptimize(it) }?.hook {
                 intercept { chain ->
                     handleIsInternationalBuild(chain)
@@ -305,9 +306,9 @@ object PasskeyHooker : StaticHooker() {
      */
     private fun hookSettingsActivityLaunchFallback() {
         val combinedProviderInfoClass = "com.android.settings.applications.credentials.CombinedProviderInfo".toClassOrNull() ?: run { DebugLog.hookSkipped("PasskeyHooker", "com.android.settings.applications.credentials.CombinedProviderInfo", "not found on host"); return }
-        combinedProviderInfoClass.findMethodOrNull {
+        HostSelect.method(combinedProviderInfoClass) {
             name("launchSettingsActivityIntent")
-            parameterTypes(Context::class.java, CharSequence::class.java, CharSequence::class.java, Int::class.javaPrimitiveType!!)
+            params(Context::class.java, CharSequence::class.java, CharSequence::class.java, Int::class.javaPrimitiveType!!)
         }?.hook {
             intercept { chain ->
                 if (!featureEnabled) return@intercept chain.proceed()
@@ -376,9 +377,9 @@ object PasskeyHooker : StaticHooker() {
         val combiPreferenceClass =
             "com.android.settings.applications.credentials.CredentialManagerPreferenceController\$CombiPreference".toClassOrNull() ?: return
         val preferenceViewHolderClass = "androidx.preference.PreferenceViewHolder".toClassOrNull() ?: run { DebugLog.hookSkipped("PasskeyHooker", "androidx.preference.PreferenceViewHolder", "not found on host"); return }
-        val bind = combiPreferenceClass.findMethodOrNull {
+        val bind = HostSelect.method(combiPreferenceClass) {
             name("onBindViewHolder")
-            parameterTypes(preferenceViewHolderClass)
+            params(preferenceViewHolderClass)
         } ?: return
         bindMethod = bind
         bind.hook {

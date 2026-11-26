@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.notification
 
+import com.takekazex.hypertweak.hook.base.HostSelect
 import com.takekazex.hypertweak.hook.base.orSkip
 import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
@@ -257,7 +258,7 @@ object NotificationHeaderClockSecondsHooker : StaticHooker() {
             if (it == null) DebugLog.hookSkipped(TAG, HEADER_CLOCK_CLASS, "class not found")
         }
 
-        val updateTime = resolvedClockClass.findMethodOrNull {
+        val updateTime = HostSelect.method(resolvedClockClass) {
             name("updateTime")
             noParams()
         }
@@ -269,10 +270,10 @@ object NotificationHeaderClockSecondsHooker : StaticHooker() {
             "com.android.systemui.statusbar.phone.PhoneStatusBarView",
             "com.android.systemui.shade.NotificationShadeWindowView"
         ).forEach { name ->
-            name.toClassOrNull()?.findMethodOrNull {
+            name.toClassOrNull()?.let { HostSelect.method(it) {
                 name("dispatchTouchEvent")
-                parameterTypes(MotionEvent::class.java)
-            }?.hook {
+                params(MotionEvent::class.java)
+            } }?.hook {
                 before { param ->
                     HookFailurePolicy.open(TAG, "observeClockTouch", Unit) {
                         val window = param.thisObject as? View ?: return@open
@@ -299,7 +300,7 @@ object NotificationHeaderClockSecondsHooker : StaticHooker() {
             "method not found"
         )
 
-        resolvedClockClass.findMethodOrNull { name("onAttachedToWindow"); noParams() }.orSkip("NotificationHeaderClockSecondsHooker", "resolvedClockClass#onAttachedToWindow")?.hook {
+        HostSelect.method(resolvedClockClass) { name("onAttachedToWindow"); noParams() }.orSkip("NotificationHeaderClockSecondsHooker", "resolvedClockClass#onAttachedToWindow")?.hook {
             after { param ->
                 HookFailurePolicy.open(TAG, "onAttachedToWindow", Unit) {
                     val view = param.thisObject as? TextView ?: return@open
@@ -314,7 +315,7 @@ object NotificationHeaderClockSecondsHooker : StaticHooker() {
             "method not found"
         )
 
-        resolvedClockClass.findMethodOrNull { name("onDetachedFromWindow"); noParams() }.orSkip("NotificationHeaderClockSecondsHooker", "resolvedClockClass#onDetachedFromWindow")?.hook {
+        HostSelect.method(resolvedClockClass) { name("onDetachedFromWindow"); noParams() }.orSkip("NotificationHeaderClockSecondsHooker", "resolvedClockClass#onDetachedFromWindow")?.hook {
             after { param ->
                 HookFailurePolicy.open(TAG, "onDetachedFromWindow", Unit) {
                     val view = param.thisObject as? View ?: return@open

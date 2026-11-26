@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.system
 
+import com.takekazex.hypertweak.hook.base.HostSelect
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
@@ -94,9 +95,9 @@ object AospPackageInstallerHooker : StaticHooker() {
             return
         }
 
-        val isCts = pmsImpl.findMethodOrNull {
+        val isCts = HostSelect.method(pmsImpl) {
             name("isCTS")
-            parameterTypes()
+            noParams()
         }
         if (isCts == null) {
             DebugLog.hookSkipped(TAG, "$PMS_IMPL#isCTS()", "method not found")

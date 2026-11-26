@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon.carrier
 
+import com.takekazex.hypertweak.hook.base.HostSelect
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import android.content.Context
 import android.content.res.Resources
@@ -339,13 +340,13 @@ internal object CarrierRenderer : IconRenderer() {
             DebugLog.hookSkipped(TAG, "$LAYOUT_CLASS fields", "carrier fields not found")
             return
         }
-        if (layoutClass.findMethodOrNull { name("onMeasure"); paramCount(2) } == null ||
-            layoutClass.findMethodOrNull { name("setCarrierMaxWidth"); paramCount(2) } == null ||
-            rowClass.findMethodOrNull { name("setMaxWidth"); paramCount(1) } == null) {
+        if (HostSelect.method(layoutClass) { name("onMeasure"); paramCount(2) } == null ||
+            HostSelect.method(layoutClass) { name("setCarrierMaxWidth"); paramCount(2) } == null ||
+            HostSelect.method(rowClass) { name("setMaxWidth"); paramCount(1) } == null) {
             DebugLog.hookSkipped(TAG, "CarrierBlock", "measurement boundary unavailable")
             return
         }
-        layoutClass.findMethodOrNull { name("onAttachedToWindow"); noParams() }?.let { method ->
+        HostSelect.method(layoutClass) { name("onAttachedToWindow"); noParams() }?.let { method ->
             method.observe { after { param ->
                 val layout = param.thisObject as? ViewGroup ?: return@after
                 if (enabled) runCatching { installBlock(layout) }
@@ -360,7 +361,7 @@ internal object CarrierRenderer : IconRenderer() {
                     .onFailure { DebugLog.w(TAG, "carrier block install failed", it) }
             }
         }
-        layoutClass.findMethodOrNull { name("onMeasure"); paramCount(2) }?.let { method ->
+        HostSelect.method(layoutClass) { name("onMeasure"); paramCount(2) }?.let { method ->
             method.observe {
                 before { param ->
                     val block = blocks[param.thisObject] ?: return@before
@@ -383,7 +384,7 @@ internal object CarrierRenderer : IconRenderer() {
         }
         // The horizontal host budget schedules a delayed setMaxWidth. Neither that budget nor
         // its delayed write may overwrite the full-width vertical budget for an owned row.
-        layoutClass.findMethodOrNull { name("setCarrierMaxWidth"); paramCount(2) }?.let { method ->
+        HostSelect.method(layoutClass) { name("setCarrierMaxWidth"); paramCount(2) }?.let { method ->
             deoptimize(method)
             method.observe { before { param ->
                 if (ownsLayout(param.thisObject as? ViewGroup)) param.result = null
@@ -406,7 +407,7 @@ internal object CarrierRenderer : IconRenderer() {
             } }
         } ?: DebugLog.hookSkipped(TAG, "custom carrier refresh", "controller callback unavailable")
         listOf("onMiuiThemeChanged", "onConfigChanged").forEach { methodName ->
-            layoutClass.findMethodOrNull { name(methodName); paramCount(1) }?.let { method ->
+            HostSelect.method(layoutClass) { name(methodName); paramCount(1) }?.let { method ->
                 method.observe { after { param ->
                     val block = blocks[param.thisObject] ?: return@after
                     runCatching { presentation.configureBlock(block, restyle = true); scheduleRender() }
@@ -418,13 +419,13 @@ internal object CarrierRenderer : IconRenderer() {
 
     internal fun hookRowMaxWidth() {
         val rowClass = ROW_CLASS.toClassOrNull() ?: run { DebugLog.hookSkipped("CarrierRenderer", "$ROW_CLASS", "not found on host"); return }
-        rowClass.findMethodOrNull { name("setMaxWidth"); paramCount(1) }?.let { method ->
+        HostSelect.method(rowClass) { name("setMaxWidth"); paramCount(1) }?.let { method ->
             deoptimize(method)
             method.observe { before { param ->
                 if (ownsRow(param.thisObject as? ViewGroup)) param.result = null
             } }
         }
-        rowClass.findMethodOrNull { name("onConfigurationChanged"); paramCount(1) }?.let { method ->
+        HostSelect.method(rowClass) { name("onConfigurationChanged"); paramCount(1) }?.let { method ->
             method.observe { after { param ->
                 val row = param.thisObject as? ViewGroup ?: return@after
                 val block = blocks[row.parent] ?: return@after
@@ -432,7 +433,7 @@ internal object CarrierRenderer : IconRenderer() {
                     .onFailure { DebugLog.w(TAG, "carrier row restyle failed", it) }
             } }
         }
-        rowClass.findMethodOrNull { name("updateHDText"); paramCount(2) }?.let { method ->
+        HostSelect.method(rowClass) { name("updateHDText"); paramCount(2) }?.let { method ->
             method.observe { after { param ->
                 if (ownsRow(param.thisObject as? ViewGroup)) HookFailurePolicy.open("IconTuner", "hide carrier HD and plus text", Unit) {
                     (readField(param.thisObject, "hdText") as? View)?.visibility = View.GONE

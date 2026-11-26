@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import com.takekazex.hypertweak.hook.base.HostSelect
 import com.takekazex.hypertweak.presentation.icon.MobileSignalEvent
 import com.takekazex.hypertweak.presentation.icon.MobileSignalModel
 import com.takekazex.hypertweak.presentation.icon.MobileSignalState
@@ -103,7 +104,7 @@ internal class MobileSignalSource(
             DebugLog.hookSkipped(TAG, ICONS_VM_CLASS, "class not found")
             return
         }
-        val method = vmClass.findMethodOrNull {
+        val method = HostSelect.method(vmClass) {
             name("createViewModel")
             paramCount(1)
         } ?: run {
@@ -130,7 +131,7 @@ internal class MobileSignalSource(
             DebugLog.hookSkipped(TAG, ADAPTER_CLASS, "class not found")
             return
         }
-        val method = adapterClass.findMethodOrNull { name("start"); noParams() } ?: run {
+        val method = HostSelect.method(adapterClass) { name("start"); noParams() } ?: run {
             DebugLog.hookSkipped(TAG, "$ADAPTER_CLASS#start", "method not found")
             return
         }

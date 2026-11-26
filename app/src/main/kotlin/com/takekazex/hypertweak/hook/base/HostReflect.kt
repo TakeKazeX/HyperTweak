@@ -63,7 +63,10 @@ class HostMethodQuery internal constructor() {
 fun Class<*>.findHostMethodOrNull(query: HostMethodQuery.() -> Unit): Method? {
     val spec = HostMethodQuery().apply(query)
     return HostMembers.cached(this, spec.key, Method::class.java) {
-        if (spec.exact) return@cached spec.exactLookup(this)?.apply { isAccessible = true }
+        if (spec.exact) {
+            return@cached spec.exactLookup(this)?.apply { isAccessible = true }
+                .also { logResolution(this, spec, exact = true, candidates = if (it == null) 0 else 1, method = it) }
+        }
         val matches = generateSequence(this) { it.superclass }
             .map { owner -> owner.declaredMethods.filter(spec::matches) }
             .firstOrNull { it.isNotEmpty() }
@@ -75,7 +78,18 @@ fun Class<*>.findHostMethodOrNull(query: HostMethodQuery.() -> Unit): Method? {
             )
         }
         matches.firstOrNull()?.apply { isAccessible = true }
+            .also { logResolution(this, spec, exact = false, candidates = matches.size, method = it) }
     }
+}
+
+/** One line per cached resolution, so a migration can prove where each query lands. */
+private fun logResolution(owner: Class<*>, spec: HostMethodQuery, exact: Boolean, candidates: Int, method: Method?) {
+    DebugLog.d(
+        "HostReflect",
+        "resolved owner=${owner.name} ${spec.key} exact=$exact candidates=$candidates " +
+            "declaring=${method?.declaringClass?.name} inherited=${method != null && method.declaringClass != owner} " +
+            "synthetic=${method?.isSynthetic} bridge=${method?.isBridge}"
+    )
 }
 
 /** All declared constructors, made accessible. */

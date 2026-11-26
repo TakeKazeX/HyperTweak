@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import com.takekazex.hypertweak.hook.base.HostSelect
 import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
 import com.takekazex.hypertweak.settings.contract.ControlCenterPrivacyPolicy
 
@@ -180,7 +181,7 @@ object ControlCenterPrivacyHooker : StaticHooker() {
             if (name == "onDensityOrFontScaleChanged") bindings[root]?.let { it.textSize = it.text.textSize }
             bind(root)?.let(::style)
         }
-        viewClass.findMethodOrNull { name("onPromptInfoChanged"); paramCount(2) }?.let { method ->
+        HostSelect.method(viewClass) { name("onPromptInfoChanged"); paramCount(2) }?.let { method ->
             deoptimize(method)
             method.hook { after { param ->
                 if (!enabled || retiring) return@after

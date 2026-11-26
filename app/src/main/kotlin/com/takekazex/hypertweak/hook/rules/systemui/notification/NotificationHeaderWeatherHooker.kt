@@ -224,7 +224,7 @@ object NotificationHeaderWeatherHooker : StaticHooker() {
             DebugLog.hookSkipped(TAG, CLOCK_CLASS, "class not found")
             return
         }
-        updateTimeMethod = clockClass.findMethodOrNull { name("updateTime"); noParams() }
+        updateTimeMethod = HostSelect.method(clockClass) { name("updateTime"); noParams() }
 
         var hookCount = 0
         listOf("onFinishInflate", "onAttachedToWindow").forEach { name ->

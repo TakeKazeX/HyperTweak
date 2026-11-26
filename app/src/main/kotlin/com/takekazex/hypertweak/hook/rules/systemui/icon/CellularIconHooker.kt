@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.icon
 
+import com.takekazex.hypertweak.hook.base.HostSelect
 import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
 import com.takekazex.hypertweak.settings.contract.IconSettingsPreferencePolicy
 
@@ -99,7 +100,7 @@ internal object CellularIconHooker : IconRenderer() {
         )
         var hooked = 0
         visibility.forEach { (getter, gate) ->
-            val method = vmClass.findMethodOrNull { name(getter); noParams() }
+            val method = HostSelect.method(vmClass) { name(getter); noParams() }
             if (method == null) {
                 DebugLog.hookSkipped(TAG, "$VM_CLASS#$getter", "method not found")
                 return@forEach

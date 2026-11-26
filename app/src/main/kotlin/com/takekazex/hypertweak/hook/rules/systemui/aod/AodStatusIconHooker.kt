@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.aod
 
+import com.takekazex.hypertweak.hook.base.HostSelect
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.AodSettingsKeys
@@ -151,14 +152,14 @@ class AodStatusIconHooker : DynamicHooker() {
             return
         }
         // Prepare the replacement during inflation, before the first AOD frame can be drawn.
-        type.findMethodOrNull { name("onFinishInflate"); parameterTypes() }?.let { method ->
+        HostSelect.method(type) { name("onFinishInflate"); noParams() }?.let { method ->
             deoptimize(method)
             method.hook { after { param ->
                 val root = param.thisObject as? View ?: return@after
                 onMain { bind(root) }
             } }
         }
-        type.findMethodOrNull { name("onAttachedToWindow"); parameterTypes() }?.let { method ->
+        HostSelect.method(type) { name("onAttachedToWindow"); noParams() }?.let { method ->
             deoptimize(method)
             method.hook {
                 after { param ->
@@ -167,7 +168,7 @@ class AodStatusIconHooker : DynamicHooker() {
                 }
             }
         }
-        type.findMethodOrNull { name("onDetachedFromWindow"); parameterTypes() }?.let { method ->
+        HostSelect.method(type) { name("onDetachedFromWindow"); noParams() }?.let { method ->
             deoptimize(method)
             method.hook {
                 after { param ->
@@ -215,9 +216,9 @@ class AodStatusIconHooker : DynamicHooker() {
                 }
             }
         }
-        type.findMethodOrNull {
+        HostSelect.method(type) {
             name("showBatteryIcon")
-            parameterTypes(Boolean::class.javaPrimitiveType!!)
+            params(Boolean::class.javaPrimitiveType!!)
         }?.let { method ->
             deoptimize(method)
             method.hook {
@@ -240,7 +241,7 @@ class AodStatusIconHooker : DynamicHooker() {
 
     private fun hookLinkageBattery() {
         val type = loadClass(LINKAGE_CLOCK) ?: return
-        type.findMethodOrNull { name("updateBattery"); parameterTypes() }?.let { method ->
+        HostSelect.method(type) { name("updateBattery"); noParams() }?.let { method ->
             deoptimize(method)
             method.hook { after { param ->
                 val clock = param.thisObject as? View ?: return@after
