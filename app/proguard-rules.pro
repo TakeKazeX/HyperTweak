@@ -18,12 +18,6 @@
 -keep,allowshrinking,allowoptimization class kotlinx.coroutines.flow.StateFlow { *; }
 -keep,allowshrinking,allowoptimization class kotlin.Pair
 
-# Replacement for the filtered hook-xposed-102:1.3.1 consumer file. All other
-# library helpers use direct calls. Preserve its API-isolation/metadata contract.
--keep class io.github.lingqiqi5211.ezhooktool.xposed.internal.XposedApiCompat$Api102 { *; }
--keep class kotlin.Metadata
--dontwarn java.lang.reflect.AnnotatedType
-
 # Production app_process entry; invoked after the existing user confirmations.
 -keep,allowoptimization class com.takekazex.hypertweak.root.NotificationBannerBatch {
     public static void main(java.lang.String[]);

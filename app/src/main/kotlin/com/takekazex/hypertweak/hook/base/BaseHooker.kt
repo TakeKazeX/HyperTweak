@@ -3,11 +3,6 @@ package com.takekazex.hypertweak.hook.base
 import com.takekazex.hypertweak.util.logging.DebugLog
 import io.github.libxposed.api.XposedInterface
 import io.github.libxposed.api.XposedModule
-import io.github.lingqiqi5211.ezhooktool.core.findAllConstructors
-import io.github.lingqiqi5211.ezhooktool.core.query.ConstructorQuery
-import io.github.lingqiqi5211.ezhooktool.core.query.FieldQuery
-import io.github.lingqiqi5211.ezhooktool.core.query.MethodQuery
-import io.github.lingqiqi5211.ezhooktool.xposed.EzXposed
 import java.lang.reflect.Constructor
 import java.lang.reflect.Executable
 import java.lang.reflect.Method
@@ -653,12 +648,12 @@ sealed class BaseHooker {
 
     /**
      * Undo AOT inlining of [executable] so hooks on small or private methods actually fire.
-     * EzHookTool preserves the framework's Boolean result and exposes exceptions for logging.
+     * The framework's Boolean result is preserved; a thrown failure is logged and reads as false.
      */
     fun deoptimize(executable: Executable): Boolean {
         deoptimizedTargets += executable
         return runCatching {
-            EzXposed.deoptimizeOrThrow(executable)
+            module.deoptimize(executable)
         }.onFailure { t ->
             DebugLog.w(hookerName, "failed to deoptimize ${formatExecutable(executable)}", t)
         }.getOrDefault(false)
@@ -732,12 +727,12 @@ sealed class BaseHooker {
 
     fun String.toClass(initialize: Boolean = false): Class<Any> {
         @Suppress("UNCHECKED_CAST")
-        return io.github.lingqiqi5211.ezhooktool.core.loadClass(this, classLoader) as Class<Any>
+        return loadHostClass(this, classLoader) as Class<Any>
     }
 
     fun String.toClassOrNull(initialize: Boolean = false): Class<Any>? {
         @Suppress("UNCHECKED_CAST")
-        return io.github.lingqiqi5211.ezhooktool.core.loadClassOrNull(this, classLoader) as? Class<Any>
+        return loadHostClassOrNull(this, classLoader) as? Class<Any>
     }
 
     fun String.lazyClass(initialize: Boolean = false): Lazy<Class<Any>> = lazy {
@@ -748,28 +743,13 @@ sealed class BaseHooker {
         this.toClassOrNull(initialize)
     }
 
-    /** Find a method on a [Class] using EzHookTool's DSL query. */
-    fun Class<*>.findMethod(query: MethodQuery.() -> Unit): Method =
-        io.github.lingqiqi5211.ezhooktool.core.findMethod(this, query)
-
-    fun Class<*>.findMethodOrNull(query: MethodQuery.() -> Unit): Method? =
-        io.github.lingqiqi5211.ezhooktool.core.findMethodOrNull(this, query)
-
-    fun Class<*>.findConstructor(query: ConstructorQuery.() -> Unit): Constructor<*> =
-        io.github.lingqiqi5211.ezhooktool.core.findConstructor(this, query)
-
-    fun Class<*>.findConstructorOrNull(query: ConstructorQuery.() -> Unit): Constructor<*>? =
-        io.github.lingqiqi5211.ezhooktool.core.findConstructorOrNull(this, query)
-
-    fun Class<*>.findField(query: FieldQuery.() -> Unit) =
-        io.github.lingqiqi5211.ezhooktool.core.findField(this, query)
-
-    fun Class<*>.findFieldOrNull(query: FieldQuery.() -> Unit) =
-        io.github.lingqiqi5211.ezhooktool.core.findFieldOrNull(this, query)
+    /** First declared method matching [query]; see [HostMethodQuery]. */
+    fun Class<*>.findMethodOrNull(query: HostMethodQuery.() -> Unit): Method? =
+        findHostMethodOrNull(query)
 
     /** Hook all declared constructors of a class. */
     fun Class<*>.hookAllConstructors(block: HookFactory.() -> Unit) {
-        findAllConstructors(this).forEach { ctor ->
+        declaredConstructorsAccessible().forEach { ctor ->
             try {
                 ctor.hook(block = block)
             } catch (t: Throwable) {

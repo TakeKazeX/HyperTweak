@@ -60,7 +60,7 @@ class MiuiImeBottomHooker : StaticHooker() {
         hookNativeStyle(bottomManager)
         HookFailurePolicy.open(TAG, "attach clipboard retention", Unit) {
             val context = hookParam.appContext
-                ?: io.github.lingqiqi5211.ezhooktool.xposed.EzXposed.appContextOrNull
+                ?: com.takekazex.hypertweak.hook.base.HostContext.appContextOrNull
                 ?: return@open
             val apk = context.packageManager.getApplicationInfo(PhraseSettingsKeys.PACKAGE, 0).sourceDir
             attach(ImeClipboardRetentionHooker(apk), classLoader)

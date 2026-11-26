@@ -35,7 +35,7 @@ import com.takekazex.hypertweak.settings.contract.ScreenshotSettingsLedger
 import com.takekazex.hypertweak.settings.contract.ScreenshotSettingsSnapshot
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 import com.takekazex.hypertweak.util.logging.SettingsDiagnostics
-import io.github.lingqiqi5211.ezhooktool.xposed.EzXposed
+import com.takekazex.hypertweak.hook.base.HostContext
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
@@ -621,7 +621,7 @@ object Preferences {
      */
     private fun resolveAppContext(): Context? {
         cachedAppContext?.let { return it }
-        val ctx = runCatching { EzXposed.appContextOrNull }.getOrNull()
+        val ctx = HostContext.appContextOrNull
         return ctx
     }
 

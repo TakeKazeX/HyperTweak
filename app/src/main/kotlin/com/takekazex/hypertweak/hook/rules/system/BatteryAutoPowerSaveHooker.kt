@@ -20,7 +20,7 @@ import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.HostApplicationContext
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
-import io.github.lingqiqi5211.ezhooktool.xposed.EzXposed
+import com.takekazex.hypertweak.hook.base.HostContext
 
 // Published on settings acceptance; hook callbacks perform no storage reads.
 private val settingBatteryAutoPowerSaveEnabled by hookSetting(false) { Preferences.batteryAutoPowerSaveEnabled() }
@@ -47,7 +47,7 @@ object BatteryAutoPowerSaveHooker : StaticHooker() {
         settingBatteryAutoPowerSaveEnabled
         if (hookParam.packageName != PACKAGE) return
         // Preference-channel recovery retries onHook after package-ready may already have run.
-        val context = hookParam.appContext ?: runCatching { EzXposed.appContextOrNull }.getOrNull()
+        val context = hookParam.appContext ?: HostContext.appContextOrNull
         if (context != null) onPackageReady(context)
         else DebugLog.d(TAG, "battery monitor waiting for the SystemUI context")
     }
@@ -94,7 +94,7 @@ object BatteryAutoPowerSaveHooker : StaticHooker() {
             monitor = null
             return
         }
-        val context = hookParam.appContext ?: runCatching { EzXposed.appContextOrNull }.getOrNull() ?: return
+        val context = hookParam.appContext ?: HostContext.appContextOrNull ?: return
         onPackageReady(context)
         monitor?.let { it.postEvaluation() }
         DebugLog.i(TAG, "settings applied autoSave=" + settingBatteryAutoPowerSaveEnabled +

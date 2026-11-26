@@ -313,7 +313,7 @@ object ControlCenterPrivacyHooker : StaticHooker() {
     /** Re-enable must also bind headers inflated while the master was disabled. */
     private fun recoverLivingHeaders() = guarded {
         val context = hookParam.appContext
-            ?: io.github.lingqiqi5211.ezhooktool.xposed.EzXposed.appContextOrNull ?: return@guarded
+            ?: com.takekazex.hypertweak.hook.base.HostContext.appContextOrNull ?: return@guarded
         val app = context.applicationContext ?: context
         val component = read(app, "mSysUIComponent")
             ?: read(app, "mInitializer")?.let { invoke(it, "getSysUIComponent") }

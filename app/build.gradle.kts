@@ -121,10 +121,6 @@ android {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
-            // Only app-owned dynamic entry points need keeping; see proguard-rules.pro.
-            optimization.keepRules {
-                ignoreFrom("io.github.lingqiqi5211.ezhooktool:hook-xposed-102")
-            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -300,11 +296,6 @@ dependencies {
     compileOnly(project(":hidden-api"))
     implementation("io.github.libxposed:service:102.0.0")
 
-    // EzHookTool
-    implementation("io.github.lingqiqi5211.ezhooktool:core:1.3.1")
-    // Re-audit the filtered consumer contract in proguard-rules.pro when upgrading.
-    implementation("io.github.lingqiqi5211.ezhooktool:hook-xposed-102:1.3.1")
-
     // DexKit
     implementation("org.luckypray:dexkit:2.3.0")
     // Read operands/control flow at semantic camera call sites; DexKit exposes opcodes only.
@@ -322,7 +313,6 @@ dependencies {
 // Credits follow the same declarations that feed compilation; translations contain no versions.
 val creditedLibraries = mapOf(
     "CREDIT_LIBXPOSED_VERSION" to "io.github.libxposed:api",
-    "CREDIT_EZHOOKTOOL_VERSION" to "io.github.lingqiqi5211.ezhooktool:core",
     "CREDIT_DEXKIT_VERSION" to "org.luckypray:dexkit",
     "CREDIT_DEXLIB2_VERSION" to "org.smali:dexlib2",
     "CREDIT_MIUIX_VERSION" to "top.yukonga.miuix.kmp:miuix-ui",
@@ -337,3 +327,5 @@ creditedLibraries.forEach { (field, coordinate) ->
     }
     android.defaultConfig.buildConfigField("String", field, "\"$version\"")
 }
+// No longer a dependency: hook/base/HookDsl.kt is ported from this EzHookTool release.
+android.defaultConfig.buildConfigField("String", "CREDIT_EZHOOKTOOL_VERSION", "\"1.3.1\"")

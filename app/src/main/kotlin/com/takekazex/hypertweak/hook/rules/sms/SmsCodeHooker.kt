@@ -24,7 +24,7 @@ import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.settings.contract.SmsSettingsKeys
 import com.takekazex.hypertweak.util.logging.DebugLog
 import com.takekazex.hypertweak.util.platform.PlatformLevel
-import io.github.lingqiqi5211.ezhooktool.xposed.EzXposed
+import com.takekazex.hypertweak.hook.base.HostContext
 
 private object SmsCodeFeature : DexFeature {
     override val id = "sms.auto_copy_code"
@@ -201,6 +201,6 @@ object SmsCodeHooker : StaticHooker() {
     }
     override fun recoverHotReloadHosts() {
         if (retired) return
-        (hookParam.appContext ?: runCatching { EzXposed.appContextOrNull }.getOrNull())?.let(::onPackageReady)
+        (hookParam.appContext ?: HostContext.appContextOrNull)?.let(::onPackageReady)
     }
 }

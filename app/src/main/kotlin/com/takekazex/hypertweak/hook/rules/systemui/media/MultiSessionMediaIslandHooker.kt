@@ -10,7 +10,7 @@ import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 import com.takekazex.hypertweak.util.logging.DebugLog
-import io.github.lingqiqi5211.ezhooktool.xposed.EzXposed
+import com.takekazex.hypertweak.hook.base.HostContext
 import java.util.WeakHashMap
 
 /** Opt-in handoff from the stock single publisher when multiple cards are playing. */
@@ -102,7 +102,7 @@ internal object MultiSessionMediaIslandHooker : StaticHooker() {
             return
         }
         HookFailurePolicy.open(TAG, "refresh playing cards", Unit) {
-            val context = hookParam.appContext ?: EzXposed.appContextOrNull
+            val context = hookParam.appContext ?: HostContext.appContextOrNull
             val app = context?.applicationContext ?: context
             val component = host.component(recoveredComponent ?: app?.let {
                 HostAccess.read(it, "mSysUIComponent")

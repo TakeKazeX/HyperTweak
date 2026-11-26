@@ -16,7 +16,7 @@ import com.takekazex.hypertweak.hook.base.CompatibleMethodResolver
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
-import io.github.lingqiqi5211.ezhooktool.core.callMethodOrNull
+import com.takekazex.hypertweak.hook.base.callMethodOrNull
 import java.util.Locale
 
 /**

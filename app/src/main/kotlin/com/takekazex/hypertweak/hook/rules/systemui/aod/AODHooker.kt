@@ -20,7 +20,7 @@ import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.hook.rules.systemui.icon.IconTunerFlows
 import com.takekazex.hypertweak.util.logging.DebugLog
 import com.takekazex.hypertweak.util.platform.StaticFieldWriter
-import io.github.lingqiqi5211.ezhooktool.xposed.EzXposed
+import com.takekazex.hypertweak.hook.base.HostContext
 import java.lang.reflect.Field
 import java.util.WeakHashMap
 import java.util.concurrent.atomic.AtomicReference
@@ -361,7 +361,7 @@ object AODHooker : StaticHooker() {
     private fun recoverManager() {
         if (hookParam.packageName != "com.android.systemui") return
         runCatching {
-            val app = hookParam.appContext ?: EzXposed.appContextOrNull ?: return
+            val app = hookParam.appContext ?: HostContext.appContextOrNull ?: return
             val component = HostAccess.read(app, "mSysUIComponent")
                 ?: HostAccess.read(app, "mInitializer")?.let { HostAccess.invoke(it, "getSysUIComponent") }
                 ?: return

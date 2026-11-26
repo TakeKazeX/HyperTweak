@@ -90,7 +90,7 @@ object XiaoaiGestureHooker : StaticHooker() {
                     if (intent.action != Intent.ACTION_ASSIST) return@open
                     val trigger = intent.getStringExtra("triggerType")
                     if (trigger != XiaoaiGesturePolicy.DOUBLE_CLICK) return@open
-                    val context = io.github.lingqiqi5211.ezhooktool.xposed.EzXposed.appContextOrNull ?: return@open
+                    val context = com.takekazex.hypertweak.hook.base.HostContext.appContextOrNull ?: return@open
                     val selected = Settings.Secure.getString(context.contentResolver, trigger)
                     if (XiaoaiGesturePolicy.voiceRoute(true, trigger, selected, intent.getStringExtra(FUNCTION))) param.result = false
                 }

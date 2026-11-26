@@ -29,9 +29,7 @@ import com.takekazex.hypertweak.hook.bootstrap.ProcessLogging
 import com.takekazex.hypertweak.util.logging.DebugLog
 import io.github.libxposed.api.XposedModule
 import io.github.libxposed.api.XposedModuleInterface
-import io.github.lingqiqi5211.ezhooktool.core.EzReflect
-import io.github.lingqiqi5211.ezhooktool.xposed.ApplicationAttachCallback
-import io.github.lingqiqi5211.ezhooktool.xposed.EzXposed
+import com.takekazex.hypertweak.hook.base.HostContext
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
 
@@ -194,8 +192,7 @@ class HookEntry : XposedModule() {
         RuntimeSettingsStore.configure(processName, isSystemServer)
         try {
             preferenceRetryGeneration.incrementAndGet()
-            // Initialize EzXposed with the module interface
-            EzXposed.initOnModuleLoaded(this, param)
+            HostContext.reset(this)
             NativeRules.bindProcess(processName)
             ProcessLogging.bind()
             DebugLog.setProcessTag(processName)
@@ -212,7 +209,6 @@ class HookEntry : XposedModule() {
     }
 
     override fun onSystemServerStarting(param: XposedModuleInterface.SystemServerStartingParam) {
-        EzXposed.initOnSystemServerStarting(param)
         systemServerClassLoader = param.classLoader
         DebugLog.d("HookEntry", "system_server starting")
         // Safety net: a structural failure while dispatching the framework hooks (any hooker failing
@@ -236,8 +232,6 @@ class HookEntry : XposedModule() {
         // Process boundary: a failure while installing this package's hooks must be isolated and
         // logged rather than escaping into the host app's own package-load path.
         try {
-            EzXposed.initOnPackageLoaded(param)
-            EzReflect.init(param.defaultClassLoader)
             recordPackageState(
                 packageName = param.packageName,
                 classLoader = param.defaultClassLoader,
@@ -266,15 +260,13 @@ class HookEntry : XposedModule() {
         if (skipGoogleProcess) return
         // Process boundary, same rationale as onPackageLoaded.
         try {
-            // Establishes the target snapshot required for hot reload state restore.
-            EzXposed.initOnPackageReady(param)
             recordPackageState(
                 packageName = param.packageName,
                 classLoader = param.classLoader,
                 appInfo = param.applicationInfo,
                 isFirstPackage = false,
                 isPackageReady = true,
-                appContext = runCatching { EzXposed.appContextOrNull }.getOrNull(),
+                appContext = HostContext.appContextOrNull,
                 pluginStates = currentPluginStates(param.packageName)
             )
 
@@ -287,7 +279,7 @@ class HookEntry : XposedModule() {
 
             if (param.packageName == "com.android.systemui") {
                 val appContext = packageStates[param.packageName]?.appContext
-                    ?: runCatching { EzXposed.appContextOrNull }.getOrNull()
+                    ?: HostContext.appContextOrNull
                 ProcessLifecycleHooks.onSystemUiPackageReady(appContext, param.classLoader)
             }
         } catch (t: Throwable) {
@@ -394,7 +386,7 @@ class HookEntry : XposedModule() {
         generationRetired = false
         if (RuntimeSettingsGroups.forProcess(processName, isSystemServer).isNotEmpty()) cancelSettingsReload()
         preferenceRetryGeneration.incrementAndGet()
-        EzXposed.initOnModuleLoaded(this, param)
+        HostContext.reset(this)
         NativeRules.bindProcess(processName)
         ProcessLogging.bind()
         DebugLog.setProcessTag(processName)
@@ -460,7 +452,6 @@ class HookEntry : XposedModule() {
                 unhookRemainingOldHandles(oldHandles)
                 return
             }
-            EzReflect.init(targetClassLoader)
             dispatchSystemServerHookers(targetClassLoader, oldHandles)
         } else {
             restoredState.packages.forEach { state ->
@@ -477,7 +468,6 @@ class HookEntry : XposedModule() {
                 if (state.appContext != null) {
                     pendingAppContextPackages.remove(state.packageName)
                 }
-                EzReflect.init(state.classLoader)
                 dispatchPackageHookers(
                     packageName = state.packageName,
                     classLoader = state.classLoader,
@@ -616,9 +606,7 @@ class HookEntry : XposedModule() {
     }
 
     private fun handlePackageReadyContext(packageName: String, classLoader: ClassLoader) {
-        val appContext = packageStates[packageName]?.appContext ?: runCatching {
-            EzXposed.appContextOrNull
-        }.getOrNull()?.also { context ->
+        val appContext = packageStates[packageName]?.appContext ?: HostContext.appContextOrNull?.also { context ->
             recordPackageState(
                 packageName = packageName,
                 classLoader = classLoader,
@@ -638,11 +626,10 @@ class HookEntry : XposedModule() {
         DebugLog.d("HookEntry", "package ready package=$packageName waiting for app context")
         if (!pendingAppContextPackages.add(packageName)) return
 
-        EzXposed.runOnApplicationAttach(object : ApplicationAttachCallback {
-            override fun onApplicationAttached(context: Context) {
+        HostContext.runOnApplicationAttach { context ->
                 val appContext = context.applicationContext ?: context
-                if (appContext.packageName != packageName) return
-                if (!pendingAppContextPackages.remove(packageName)) return
+                if (appContext.packageName != packageName) return@runOnApplicationAttach
+                if (!pendingAppContextPackages.remove(packageName)) return@runOnApplicationAttach
 
                 recordPackageState(
                     packageName = packageName,
@@ -654,8 +641,7 @@ class HookEntry : XposedModule() {
                     pluginStates = currentPluginStates(packageName)
                 )
                 onPackageReadyContextAvailable(packageName, appContext)
-            }
-        })
+        }
     }
 
     private fun onPackageReadyContextAvailable(packageName: String, appContext: Context) {
@@ -681,7 +667,7 @@ class HookEntry : XposedModule() {
         state: HotReloadPackageState,
         replacementHandles: HotReloadHandleStore? = null
     ) {
-        val appContext = state.appContext ?: runCatching { EzXposed.appContextOrNull }.getOrNull()
+        val appContext = state.appContext ?: HostContext.appContextOrNull
         if (appContext != null) {
             Preferences.initLocalCache(appContext)
             ProcessLifecycleHooks.registerRestartReceiver(appContext)
@@ -756,7 +742,7 @@ class HookEntry : XposedModule() {
         if (generationRetired) return
         if (processName == "com.android.systemui") {
             val context = packageStates[processName]?.appContext
-                ?: runCatching { EzXposed.appContextOrNull }.getOrNull()
+                ?: HostContext.appContextOrNull
             val publisher = nativePublisher() ?: return
             if (context != null) { publisher.attach(context); runtimeSettingsReceiver.attach(context) }
             publisher.publish()

@@ -259,7 +259,7 @@ object HideBottomBarHooker : StaticHooker() {
         // Hot reload restores state without going through onPackageReady; recover the context here
         // too, otherwise the platform query stays unavailable for the whole generation.
         if (hostContext.get() == null) {
-            adoptContext(runCatching { io.github.lingqiqi5211.ezhooktool.xposed.EzXposed.appContextOrNull }
+            adoptContext(runCatching { com.takekazex.hypertweak.hook.base.HostContext.appContextOrNull }
                 .getOrNull())
         }
         val previousHide = hideGestureBarEnabled

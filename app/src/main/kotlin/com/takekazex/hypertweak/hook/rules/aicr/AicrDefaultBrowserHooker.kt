@@ -368,7 +368,7 @@ object AicrDefaultBrowserHooker : StaticHooker() {
 
     private fun currentContext(): Context? =
         hookParam.appContext ?: runCatching {
-            io.github.lingqiqi5211.ezhooktool.xposed.EzXposed.appContextOrNull
+            com.takekazex.hypertweak.hook.base.HostContext.appContextOrNull
         }.getOrNull()
 
     private fun isEnabled(): Boolean =
