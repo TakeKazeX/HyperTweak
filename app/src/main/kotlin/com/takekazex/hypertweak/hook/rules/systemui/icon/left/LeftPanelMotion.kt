@@ -34,6 +34,13 @@ internal class LeftPanelMotion(private val onFrameStateChanged: () -> Unit) {
     private var appliedTargetAlpha = 1f
     private var holdTargetUntilReady = false
     private var frameReady = false
+    /**
+     * The overlay's window has committed a frame that shows it. The source lives in another window
+     * (the status bar), which commits on its own; hiding it before this point could leave a frame
+     * with neither copy on screen.
+     */
+    private var presented = false
+    private var commitPending = false
     private var drawFailed = false
     private var progress = 0f
     private var sameArtwork = false
@@ -56,6 +63,25 @@ internal class LeftPanelMotion(private val onFrameStateChanged: () -> Unit) {
             val save = canvas.saveLayerAlpha(null, if (frameReady) 255 else 0)
             try {
                 travel.draw(canvas, sourceFrame, targetFrame, from, to, progress, sameArtwork = sameArtwork)
+                if (frameReady && !presented && commitPending) {
+                    // A later visible frame is being recorded, so the window is producing frames:
+                    // do not let a commit callback that never arrives hold the source forever.
+                    commitPending = false; presented = true
+                    val owner = host
+                    owner?.post { if (host === owner) onFrameStateChanged() }
+                } else if (frameReady && !presented) {
+                    // This frame draws the overlay visibly; it starts on the source's ink, so the
+                    // still-visible source and the overlay coincide until the commit lands.
+                    val owner = host
+                    commitPending = owner != null
+                    owner?.viewTreeObserver?.registerFrameCommitCallback {
+                        owner.post {
+                            if (host !== owner || !commitPending) return@post
+                            commitPending = false
+                            if (frameReady && !drawFailed) { presented = true; onFrameStateChanged() }
+                        }
+                    }
+                }
                 if (!frameReady) {
                     frameReady = true
                     val owner = host
@@ -63,7 +89,7 @@ internal class LeftPanelMotion(private val onFrameStateChanged: () -> Unit) {
                     owner?.postInvalidateOnAnimation()
                 }
             } catch (error: Throwable) {
-                drawFailed = true; frameReady = false
+                drawFailed = true; frameReady = false; presented = false; commitPending = false
                 restoreTarget()
                 if (sourcePicture == null) source?.let { HandoverCoordinator.alpha(it, 1f) }
                 host?.post { onFrameStateChanged() }
@@ -88,7 +114,7 @@ internal class LeftPanelMotion(private val onFrameStateChanged: () -> Unit) {
             !signalEndpointVisible(target, root) || !progress.isFinite()) { clear(); return false }
         if (host !== root) { clear(); host = root; root.overlay.add(layer) }
         if (this.source !== source || (this.sourcePicture == null) != (sourcePicture == null)) {
-            this.source = source; frameReady = false; drawFailed = false
+            this.source = source; frameReady = false; drawFailed = false; presented = false; commitPending = false
             sourceFrame.invalidateView()
             this.sourcePicture = null
         }
@@ -102,7 +128,7 @@ internal class LeftPanelMotion(private val onFrameStateChanged: () -> Unit) {
             this.target = target; this.targetAlpha = targetAlpha
             savedTargetAlpha = parkedTargetAlpha ?: readTargetAlpha()
             appliedTargetAlpha = readTargetAlpha(); holdTargetUntilReady = parkedTargetAlpha != null
-            frameReady = false
+            frameReady = false; presented = false; commitPending = false
         } else if (parkedTargetAlpha != null) {
             savedTargetAlpha = parkedTargetAlpha; holdTargetUntilReady = true
         }
@@ -127,6 +153,7 @@ internal class LeftPanelMotion(private val onFrameStateChanged: () -> Unit) {
         this.progress = progress.coerceIn(0f, 1f)
         this.sameArtwork = sameArtwork
         val ready = frameReady && !drawFailed
+        val shown = ready && presented
         // One moving image through the full drag; do not reveal a stationary endpoint at 75%.
         // Before the first overlay frame the source is still drawn, so the destination waits hidden.
         appliedTargetAlpha = if (ready) savedTargetAlpha * LeftHandover.destinationAlpha(this.progress)
@@ -137,7 +164,7 @@ internal class LeftPanelMotion(private val onFrameStateChanged: () -> Unit) {
         val nextKey = listOf(sourceFrame.revision, targetFrame.revision, RectF(from), RectF(to),
             this.progress, ready, sameArtwork, root.width, root.height)
         if (drawKey != nextKey) { drawKey = nextKey; layer.invalidateSelf() }
-        return ready
+        return shown
     }
     private fun readTargetAlpha(): Float = targetAlpha?.value ?: target?.alpha ?: 1f
     private fun writeTargetAlpha(value: Float) {
@@ -153,6 +180,7 @@ internal class LeftPanelMotion(private val onFrameStateChanged: () -> Unit) {
     fun clear() {
         restoreTarget(); host?.overlay?.remove(layer)
         host = null; source = null; sourcePicture = null; frameReady = false; drawFailed = false
+        presented = false; commitPending = false
         drawKey = null
         from.setEmpty(); to.setEmpty()
     }

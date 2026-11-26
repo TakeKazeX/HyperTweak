@@ -22,6 +22,8 @@ internal class LeftHandoverController(private val host: Host) {
         val panelVisible: Boolean
         val panelProgress: Float
         fun sourceClones(): Map<String, View>?
+        /** The other home rows drawing the same clones; they follow the source's alpha. */
+        fun mirroredSourceClones(): List<Map<String, View>>
         fun restoreSources()
         fun rows(): List<ViewGroup>
         fun slotOf(view: View): String?
@@ -57,6 +59,9 @@ internal class LeftHandoverController(private val host: Host) {
 
     private var statusIconsId = 0
 
+    /** This frame's other home rows (see [sourceAlpha]); read once per frame, main thread only. */
+    private var mirrors: List<Map<String, View>> = emptyList()
+
     private fun applyHandover(progress: Float) {
         if (Looper.myLooper() != Looper.getMainLooper()) {
             mainHandler.post { if (!host.retiring) applyHandoverGuarded(progress) }
@@ -82,6 +87,7 @@ internal class LeftHandoverController(private val host: Host) {
         }
 
         val clones = host.sourceClones()
+        mirrors = host.mirroredSourceClones()
         val rows = host.rows()
         if (!host.active || clones == null || clones.isEmpty() || rows.isEmpty()) {
             restoreHandover()
@@ -119,7 +125,7 @@ internal class LeftHandoverController(private val host: Host) {
             if (!clone.isAttachedToWindow || clone.visibility != View.VISIBLE || clone.width <= 0 || clone.height <= 0 ||
                 target == null
             ) {
-                if (clone.alpha != 1f) HandoverCoordinator.alpha(clone, 1f)
+                sourceAlpha(slot, clone, 1f)
                 panelMotions.remove(slot)?.clear()
                 // No measured destination yet: keep the parked copies hidden rather than release them.
                 hideCopies(null)
@@ -131,7 +137,7 @@ internal class LeftHandoverController(private val host: Host) {
             val parkedTargetAlpha = takeEndpointForMotion(target)
             val root = target.rootView as? ViewGroup
             if (root == null || !root.isAttachedToWindow) {
-                if (clone.alpha != 1f) HandoverCoordinator.alpha(clone, 1f)
+                sourceAlpha(slot, clone, 1f)
                 panelMotions.remove(slot)?.clear()
                 hideCopies(null)
                 return@forEach
@@ -147,7 +153,7 @@ internal class LeftHandoverController(private val host: Host) {
             // frame: until the overlay draws, the source clone is the only visible copy. The
             // selected target is owned by LeftPanelMotion.
             hideCopies(target)
-            HandoverCoordinator.alpha(clone, LeftHandover.sourceAlpha(clamped, ready))
+            sourceAlpha(slot, clone, LeftHandover.sourceAlpha(clamped, ready))
         }
 
         panelMotions.entries.removeIf { (slot, motion) ->
@@ -166,8 +172,20 @@ internal class LeftHandoverController(private val host: Host) {
             if (!host.retiring) applyHandoverGuarded(host.panelProgress)
         }.also { panelMotions[slot] = it }
         val ready = motion.update(root, clone, glyphView, progress, targetPicture = picture, targetAlpha = glyph)
-        HandoverCoordinator.alpha(clone, LeftHandover.sourceAlpha(progress, ready))
+        sourceAlpha(slot, clone, LeftHandover.sourceAlpha(progress, ready))
         return true
+    }
+
+    /**
+     * Sets the moving slot's source alpha on every home row that draws it, so a second status-bar
+     * window cannot keep a stationary copy while the overlay carries the first one's artwork.
+     */
+    private fun sourceAlpha(slot: String, clone: View, alpha: Float) {
+        if (clone.alpha != alpha) HandoverCoordinator.alpha(clone, alpha)
+        mirrors.forEach { clones ->
+            val mirror = clones[slot] ?: return@forEach
+            if (mirror !== clone && mirror.alpha != alpha) HandoverCoordinator.alpha(mirror, alpha)
+        }
     }
 
     /** The host callback runs inside a frame; never let a failure in here reach SystemUI. */
@@ -190,11 +208,12 @@ internal class LeftHandoverController(private val host: Host) {
         val clones = host.sourceClones() ?: return
         if (!host.active) return
         val rows = host.rows()
+        mirrors = host.mirroredSourceClones()
         clones.forEach { (slot, clone) ->
             val ready = rows.any { row -> statusRowIcon(row, slot)?.let(::isUsableDestination) == true } ||
                 slot == AIRPLANE_SLOT && AirplaneGlyphTargets.controlCenter() != null
             val alpha = if (ready) 0f else 1f
-            if (clone.alpha != alpha) HandoverCoordinator.alpha(clone, alpha)
+            sourceAlpha(slot, clone, alpha)
         }
     }
 
@@ -243,6 +262,7 @@ internal class LeftHandoverController(private val host: Host) {
         panelMotions.values.forEach(LeftPanelMotion::clear)
         panelMotions.clear()
         releaseEndpointStates(emptySet())
+        mirrors = emptyList()
         host.restoreSources()
     }
 

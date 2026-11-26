@@ -86,12 +86,19 @@ internal object LeftRenderer : IconRenderer() {
         override val shadeSwitchSettledToControlCenter get() = LeftRenderer.shadeSwitchSettledToControlCenter
         override val panelVisible get() = LeftRenderer.panelVisible
         override val panelProgress get() = LeftRenderer.panelProgress
-        override fun sourceClones() = synchronized(states) {
-            // Per handover frame: one keyguard read serves every state's visibility decision.
+        override fun sourceClones() = handoverSources().firstOrNull()
+
+        override fun mirroredSourceClones() = handoverSources().drop(1)
+
+        // Per handover frame: one keyguard read serves every state's visibility decision.
+        // More than one home row can qualify: HyperOS keeps the status bar in two windows at once
+        // (`StatusBar` and the `STATUS_BAR_ADDITIONAL` one above it), each with its own left
+        // container drawn at the same place. Which window really shows depends on the foreground.
+        private fun handoverSources(): List<Map<String, View>> = synchronized(states) {
             val showing = keyguardShowing()
-            states.values.firstOrNull { !it.isKeyguard && LeftVisibilityPolicy.handoverSource(
+            states.values.filter { !it.isKeyguard && LeftVisibilityPolicy.handoverSource(
                 visibility(it, showing), panelVisible || panelProgress > 0f, sourceHostDrawn(it), showing, it.islandShowing)
-            }?.clones
+            }.map { it.clones }
         }
         override fun restoreSources() = synchronized(states) {
             states.values.forEach { state ->
