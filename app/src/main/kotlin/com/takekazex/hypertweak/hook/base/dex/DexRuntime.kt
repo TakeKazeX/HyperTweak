@@ -218,8 +218,9 @@ internal object DexRuntime {
         publish: (() -> Unit) -> Unit,
         failure: (Throwable) -> Unit,
         afterStartup: (() -> Unit) -> Unit = { it() },
+        low: Boolean = false,
     ): DexPreparation = DexPreparation(
-        background = { batches.submit(apkPath, it) }, publish = publish, failure = failure, afterStartup = afterStartup,
+        background = { batches.submit(apkPath, low, it) }, publish = publish, failure = failure, afterStartup = afterStartup,
     )
 
     /** Queues [block] on the single background preparation worker. */

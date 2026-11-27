@@ -378,6 +378,23 @@ sealed class BaseHooker {
         name: String = hookerName,
         resolve: () -> T?,
         install: (T) -> Unit,
+    ) = prepareDexTargets(name, resolve, install, low = false)
+
+    /**
+     * For a feature whose hooks only matter later (for example inside a game): its cold scan
+     * queues behind the process's other preparations instead of delaying them.
+     */
+    protected fun <T : Any> prepareLowPriorityDexTargets(
+        name: String = hookerName,
+        resolve: () -> T?,
+        install: (T) -> Unit,
+    ) = prepareDexTargets(name, resolve, install, low = true)
+
+    private fun <T : Any> prepareDexTargets(
+        name: String,
+        resolve: () -> T?,
+        install: (T) -> Unit,
+        low: Boolean,
     ) {
         dexPreparations.prepare(name,
             create = { failure -> DexRuntime.preparation(
@@ -391,6 +408,7 @@ sealed class BaseHooker {
                 afterStartup = { action -> action() },
                 publish = { action -> check(preparationMain.post { action() }) },
                 failure = failure,
+                low = low,
             ) },
             failure = { DebugLog.hookFailed(hookerName, "prepare targets: $name", it) },
             // A resolution without a usable target leaves the feature uninstalled. It is reported

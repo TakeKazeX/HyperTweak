@@ -23,6 +23,18 @@ class DexWorkBatchTest {
         assertEquals(listOf("open:base", "new", "close:base"), events.takeLast(3))
     }
 
+    @Test fun `low-priority work waits behind later normal work but keeps its own order`() {
+        val scheduled = ArrayList<Runnable>()
+        val events = ArrayList<String>()
+        val batch = DexWorkBatch({ scheduled += it }, { _, action -> action() }, { throw it })
+        batch.submit("base", low = true) { events += "game1" }
+        batch.submit("base", low = true) { events += "game2" }
+        batch.submit("base") { events += "dock" }
+        batch.submit("base") { events += "sidebar" }
+        scheduled.single().run()
+        assertEquals(listOf("dock", "sidebar", "game1", "game2"), events)
+    }
+
     @Test fun `one failed preparation cannot strand later features`() {
         val scheduled = ArrayList<Runnable>()
         var failures = 0

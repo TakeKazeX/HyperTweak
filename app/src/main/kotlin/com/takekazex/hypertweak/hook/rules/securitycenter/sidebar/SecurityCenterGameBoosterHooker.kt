@@ -38,12 +38,13 @@ object SecurityCenterGameBoosterHooker : DynamicHooker() {
         retired = false
         val apk = hookParam.appInfo?.sourceDir ?: return
         // Resolve independently: a changed macro contract must not disable gunsight (or vice versa).
-        for (feature in GameBoosterFeature.entries) prepareDexTargets(name = feature.id, resolve = {
+        for (feature in GameBoosterFeature.entries) prepareLowPriorityDexTargets(name = feature.id, resolve = {
             DexRuntime.resolve(feature = feature, apkPath = apk, cacheDir = dexCacheDirectory,
                 compute = {
                     val resolver = SecurityCenterGameBoosterResolver(DexRuntime.operands(apk))
                     if (feature == GameBoosterFeature.GUNSIGHT) resolver.gunsight() else resolver.macro()
                 }, decode = { values, _ -> decode(values, feature) })
+        // Game-only hooks; their 1-5 s cold scans must not hold the sidebar Dock back.
         }, install = { targets -> install(targets, feature) })
     }
 
