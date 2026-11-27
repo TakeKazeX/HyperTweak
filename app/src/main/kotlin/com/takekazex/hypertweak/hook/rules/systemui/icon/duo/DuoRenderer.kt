@@ -86,10 +86,10 @@ internal object DuoRenderer : IconRenderer() {
     internal val settingIconDuoBatteryScale by hookSetting(100) { Preferences.iconConfig().int(IconSettingsKeys.KEY_ICON_DUO_BATTERY_SCALE) }
     internal val settingIconDuoPercentScale by hookSetting(100) { Preferences.iconConfig().int(IconSettingsKeys.KEY_ICON_DUO_PERCENT_SCALE) }
     internal val hideTypeWhenDisconnected by hookSetting(false) {
-        Preferences.cellularTypeHidesWhenDisconnected()
+        Preferences.iconConfig().typeHiddenWhenDisconnected
     }
     internal val settingCcBatteryPercentLeft by hookSetting(false) {
-        Preferences.ccBatteryPercentStyle() == CcBatteryPercentStyle.OUTSIDE_LEADING
+        CcBatteryPercentStyle.entries[Preferences.iconConfig().controlCenter.batteryPercentStyle] == CcBatteryPercentStyle.OUTSIDE_LEADING
     }
 
     init {

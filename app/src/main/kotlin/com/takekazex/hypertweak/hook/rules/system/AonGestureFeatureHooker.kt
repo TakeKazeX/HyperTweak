@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.system
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 import com.takekazex.hypertweak.hook.base.HostSelect
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.HostAccess
@@ -37,7 +38,7 @@ import java.lang.reflect.Field
  */
 object AonGestureFeatureHooker : StaticHooker() {
     // Published on settings acceptance; hook callbacks perform no storage reads.
-    private val settingUnlockMoreAonGestures by hookSetting(false) { Preferences.unlockMoreAonGestures() }
+    private val settingUnlockMoreAonGestures by hookSetting(false) { Preferences.getBoolean(PlatformSettingsKeys.KEY_UNLOCK_MORE_AON_GESTURES, false) }
 
     private var retired by generationState { false }
 

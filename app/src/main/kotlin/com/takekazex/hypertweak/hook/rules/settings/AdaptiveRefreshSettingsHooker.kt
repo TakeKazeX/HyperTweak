@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.settings
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 import com.takekazex.hypertweak.util.platform.StaticFieldWriter
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.HostAccess
@@ -13,7 +14,7 @@ object AdaptiveRefreshSettingsHooker : StaticHooker() {
     override val expectsHooks = false
 
     // Published on settings acceptance; hook callbacks perform no storage reads.
-    private val settingUnlockAdaptiveRefreshPro by hookSetting(false) { Preferences.unlockAdaptiveRefreshPro() }
+    private val settingUnlockAdaptiveRefreshPro by hookSetting(false) { Preferences.getBoolean(PlatformSettingsKeys.KEY_UNLOCK_ADAPTIVE_REFRESH_PRO, false) }
 
     private const val TAG = "AdaptiveRefreshSettings"
     private const val PROP_PWM_SWITCH = "ro.display.enable_pwm_switch"

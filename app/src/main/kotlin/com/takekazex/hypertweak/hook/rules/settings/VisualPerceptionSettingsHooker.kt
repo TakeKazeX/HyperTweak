@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.settings
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
@@ -18,8 +19,8 @@ import java.lang.reflect.Modifier
  */
 object VisualPerceptionSettingsHooker : StaticHooker() {
     // Published on settings acceptance; hook callbacks perform no storage reads.
-    private val settingUnlockMoreVisualPerception by hookSetting(false) { Preferences.unlockMoreVisualPerception() }
-    private val settingUnlockMoreAonGestures by hookSetting(false) { Preferences.unlockMoreAonGestures() }
+    private val settingUnlockMoreVisualPerception by hookSetting(false) { Preferences.getBoolean(PlatformSettingsKeys.KEY_UNLOCK_MORE_VISUAL_PERCEPTION, false) }
+    private val settingUnlockMoreAonGestures by hookSetting(false) { Preferences.getBoolean(PlatformSettingsKeys.KEY_UNLOCK_MORE_AON_GESTURES, false) }
 
     private const val TAG = "VisualPerception"
     private const val CLASS = "com.android.settings.MiuiUtils"

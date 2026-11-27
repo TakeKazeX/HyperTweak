@@ -30,7 +30,7 @@ class HyperTweakApp : Application() {
 
         // Republish the native rule flags on every start so the launcher-side payload sees the
         // current state even when the last write came from an older build.
-        NativeRuleConfig.publish(this, Preferences.hideRecentsClearButton())
+        NativeRuleConfig.publish(this, Preferences.getBoolean(PlatformSettingsKeys.KEY_HIDE_RECENTS_CLEAR_BUTTON, false))
 
         // The boot receiver normally re-applies this after OTA; opening the app is a second
         // recovery point if the OEM blocked the boot broadcast.

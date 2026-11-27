@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.screenshot
 
+import com.takekazex.hypertweak.settings.contract.ScreenshotSettingsKeys
 import android.content.ContentResolver
 import android.content.ContentValues
 import android.content.Context
@@ -22,7 +23,7 @@ private object ScreenshotClipboardFeature : DexFeature {
 /** Keep the host's URI publication, permission grants and save failure handling intact. */
 object ScreenshotClipboardHooker : StaticHooker() {
     // Published on settings acceptance; hook callbacks perform no storage reads.
-    private val settingScreenshotCopyToClipboard by hookSetting(false) { Preferences.screenshotCopyToClipboard() }
+    private val settingScreenshotCopyToClipboard by hookSetting(false) { Preferences.getBoolean(ScreenshotSettingsKeys.KEY_SCREENSHOT_COPY_TO_CLIPBOARD, false) }
 
     @Volatile
     private var retired = false

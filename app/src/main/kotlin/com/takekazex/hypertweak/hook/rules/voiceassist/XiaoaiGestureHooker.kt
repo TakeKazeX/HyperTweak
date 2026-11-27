@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.voiceassist
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 import com.takekazex.hypertweak.hook.base.HostAccess
 import android.app.Service
 import android.content.Intent
@@ -22,7 +23,7 @@ private object XiaoaiGestureFeature : DexFeature {
 /** Let XiaoAI's normal keyboard/recording flows handle the three added native choices. */
 object XiaoaiGestureHooker : StaticHooker() {
     // Published on settings acceptance; hook callbacks perform no storage reads.
-    private val settingXiaoaiGestureOptions by hookSetting(false) { Preferences.xiaoaiGestureOptions() }
+    private val settingXiaoaiGestureOptions by hookSetting(false) { Preferences.getBoolean(PlatformSettingsKeys.KEY_XIAOAI_GESTURE_OPTIONS, false) }
 
     private const val TAG = "XiaoaiGesture"
     private const val FUNCTION = "voice_assist_function_key"

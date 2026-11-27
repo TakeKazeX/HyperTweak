@@ -64,7 +64,7 @@ internal object StackedRenderer : IconRenderer() {
         Preferences.iconConfig().signalStyle == SignalStyle.STACKED
     }
     private val networkVisibility by hookSetting(NetworkIconVisibility()) { IconTunerOptions.networkVisibility() }
-    private val settingIconStackedSignalStyle by hookSetting(0) { Preferences.iconStackedSignalStyle() }
+    private val settingIconStackedSignalStyle by hookSetting(0) { Preferences.iconConfig().stacked.stackedSignalStyle }
     private val settingIconStackedWeight by hookSetting(0f) { Preferences.iconConfig().stacked.stackedWeight }
 
 

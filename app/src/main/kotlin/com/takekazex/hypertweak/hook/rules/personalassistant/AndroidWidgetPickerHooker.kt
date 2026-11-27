@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.personalassistant
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 import com.takekazex.hypertweak.hook.base.HookDispatchers
 import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.hook.base.dex.DexContractMembers
@@ -43,7 +44,7 @@ import com.takekazex.hypertweak.util.platform.ResourceLookup
 object AndroidWidgetPickerHooker : StaticHooker() {
     init { generationCleanup { worker.cancel() } }
     // Published on settings acceptance; hook callbacks perform no storage reads.
-    private val settingAllowAndroidWidgetsToAssistant by hookSetting(false) { Preferences.allowAndroidWidgetsToAssistant() }
+    private val settingAllowAndroidWidgetsToAssistant by hookSetting(false) { Preferences.getBoolean(PlatformSettingsKeys.KEY_ALLOW_ANDROID_WIDGETS_TO_ASSISTANT, false) }
 
     private const val TAG = "PAAndroidWidgets"
     private var worker = CoroutineScope(SupervisorJob() + HookDispatchers.IO)

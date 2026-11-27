@@ -41,12 +41,12 @@ object NativeRuleConfig {
         context: Context,
         hideRecentsClearButton: Boolean,
         openedFolderColumns: Int = Preferences.openedFolderColumns(),
-        contextualSearchLongPress: Boolean = Preferences.contextualSearchLongPress(),
-        assistantWidgets: Boolean = Preferences.allowAndroidWidgetsToAssistant(),
-        recentsHaptic: Boolean = Preferences.recentsCardHaptic(),
-        folderStack: Boolean = Preferences.folderStackPreview(),
-        widgetStack: Boolean = Preferences.androidWidgetStack(),
-        xiaoaiOptions: Boolean = Preferences.xiaoaiGestureOptions(),
+        contextualSearchLongPress: Boolean = Preferences.getBoolean(PlatformSettingsKeys.KEY_CONTEXTUAL_SEARCH_LONG_PRESS, false),
+        assistantWidgets: Boolean = Preferences.getBoolean(PlatformSettingsKeys.KEY_ALLOW_ANDROID_WIDGETS_TO_ASSISTANT, false),
+        recentsHaptic: Boolean = Preferences.getBoolean(PlatformSettingsKeys.KEY_RECENTS_CARD_HAPTIC, false),
+        folderStack: Boolean = Preferences.getBoolean(PlatformSettingsKeys.KEY_FOLDER_STACK_PREVIEW, false),
+        widgetStack: Boolean = Preferences.getBoolean(PlatformSettingsKeys.KEY_ANDROID_WIDGET_STACK, false),
+        xiaoaiOptions: Boolean = Preferences.getBoolean(PlatformSettingsKeys.KEY_XIAOAI_GESTURE_OPTIONS, false),
         iconPercent: Int = Preferences.desktopIconPercent()
     ) {
         val contents = buildString {

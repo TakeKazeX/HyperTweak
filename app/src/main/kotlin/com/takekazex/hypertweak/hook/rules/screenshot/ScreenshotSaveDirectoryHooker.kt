@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.screenshot
 
+import com.takekazex.hypertweak.settings.contract.ScreenshotSettingsKeys
 import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.StaticHooker
@@ -49,7 +50,7 @@ internal class ScreenshotDirectoryDecisions {
 
 object ScreenshotSaveDirectoryHooker : StaticHooker() {
     // Published on settings acceptance; hook callbacks perform no storage reads.
-    private val settingScreenshotPicturesDirectory by hookSetting(false) { Preferences.screenshotPicturesDirectory() }
+    private val settingScreenshotPicturesDirectory by hookSetting(false) { Preferences.getBoolean(ScreenshotSettingsKeys.KEY_SCREENSHOT_PICTURES_DIRECTORY, false) }
 
     @Volatile
     private var retired = false

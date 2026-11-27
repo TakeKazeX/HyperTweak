@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.thememanager
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 import com.takekazex.hypertweak.hook.base.dex.DexContractMembers
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 
@@ -31,7 +32,7 @@ import java.lang.reflect.Method
  */
 object ThemeManagerRightsCheckHooker : StaticHooker() {
     // Published on settings acceptance; hook callbacks perform no storage reads.
-    private val settingAllowThirdPartyTheme by hookSetting(false) { Preferences.allowThirdPartyTheme() }
+    private val settingAllowThirdPartyTheme by hookSetting(false) { Preferences.getBoolean(PlatformSettingsKeys.KEY_ALLOW_THIRD_PARTY_THEME, false) }
 
     private const val TAG = "ThemeManagerDrm"
     private const val PACKAGE = "com.android.thememanager"

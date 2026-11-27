@@ -79,9 +79,9 @@ internal object CarrierRenderer : IconRenderer() {
         Preferences.iconConfig().boolean(SystemUiSettingsKeys.KEY_CC_CARRIER_SHOW_NON_DATA_TYPE)
     }
     internal val hideTypeWhenDisconnected by hookSetting(false) {
-        Preferences.cellularTypeHidesWhenDisconnected()
+        Preferences.iconConfig().typeHiddenWhenDisconnected
     }
-    internal val settingCellularTypeKeepsOnWifi by hookSetting(false) { Preferences.cellularTypeKeepsOnWifi() }
+    internal val settingCellularTypeKeepsOnWifi by hookSetting(false) { Preferences.iconConfig().keepCellularTypeOnWifi }
     internal val settingCcCarrierShowBadge by hookSetting(true) {
         Preferences.iconConfig().boolean(SystemUiSettingsKeys.KEY_CC_CARRIER_SHOW_BADGE)
     }

@@ -50,11 +50,11 @@ class PreferencesSignalSvgStyleTest {
     }
 
     @Test fun legacyAndExplicitNewValuesAreReadThroughPreferences() {
-        isolated(mapOf(legacy to 3)) { assertEquals(1, Preferences.iconStackedSignalStyle()) }
-        isolated(mapOf(legacy to 3, key to 0)) { assertEquals(0, Preferences.iconStackedSignalStyle()) }
-        isolated(mapOf(legacy to 0, key to 1)) { assertEquals(1, Preferences.iconStackedSignalStyle()) }
-        isolated(mapOf(legacy to 3, key to 99)) { assertEquals(0, Preferences.iconStackedSignalStyle()) }
-        isolated(mapOf(legacy to 3, key to "invalid")) { assertEquals(0, Preferences.iconStackedSignalStyle()) }
+        isolated(mapOf(legacy to 3)) { assertEquals(1, Preferences.iconConfig().stacked.stackedSignalStyle) }
+        isolated(mapOf(legacy to 3, key to 0)) { assertEquals(0, Preferences.iconConfig().stacked.stackedSignalStyle) }
+        isolated(mapOf(legacy to 0, key to 1)) { assertEquals(1, Preferences.iconConfig().stacked.stackedSignalStyle) }
+        isolated(mapOf(legacy to 3, key to 99)) { assertEquals(0, Preferences.iconConfig().stacked.stackedSignalStyle) }
+        isolated(mapOf(legacy to 3, key to "invalid")) { assertEquals(0, Preferences.iconConfig().stacked.stackedSignalStyle) }
     }
 
     @Test fun committedSnapshotWinsOverContradictoryRemoteAndResetCannotResurrectOldKeys() {
@@ -63,15 +63,15 @@ class PreferencesSignalSvgStyleTest {
                 assertTrue(RuntimeSettingsStore.accept(RuntimeSettingsSnapshot.read(revision, values, setOf(RuntimeSettingsGroups.ICONS))!!))
             }
             accept(1, mapOf(key to 1))
-            assertEquals(1, Preferences.iconStackedSignalStyle())
+            assertEquals(1, Preferences.iconConfig().stacked.stackedSignalStyle)
             accept(2, mapOf(legacy to 3))
-            assertEquals(1, Preferences.iconStackedSignalStyle())
+            assertEquals(1, Preferences.iconConfig().stacked.stackedSignalStyle)
             accept(3, mapOf(key to 0, legacy to 3))
-            assertEquals(0, Preferences.iconStackedSignalStyle())
+            assertEquals(0, Preferences.iconConfig().stacked.stackedSignalStyle)
             accept(4, emptyMap())
-            assertEquals(0, Preferences.iconStackedSignalStyle())
+            assertEquals(0, Preferences.iconConfig().stacked.stackedSignalStyle)
             accept(5, mapOf(key to "invalid", legacy to 3))
-            assertEquals(0, Preferences.iconStackedSignalStyle())
+            assertEquals(0, Preferences.iconConfig().stacked.stackedSignalStyle)
         }
     }
 

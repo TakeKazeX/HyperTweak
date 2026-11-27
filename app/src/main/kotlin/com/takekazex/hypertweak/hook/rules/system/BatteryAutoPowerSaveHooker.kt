@@ -23,8 +23,8 @@ import com.takekazex.hypertweak.util.logging.DebugLog
 import com.takekazex.hypertweak.hook.base.HostContext
 
 // Published on settings acceptance; hook callbacks perform no storage reads.
-private val settingBatteryAutoPowerSaveEnabled by hookSetting(false) { Preferences.batteryAutoPowerSaveEnabled() }
-private val settingExitPowerSaveWhenCharging by hookSetting(false) { Preferences.exitPowerSaveWhenCharging() }
+private val settingBatteryAutoPowerSaveEnabled by hookSetting(false) { Preferences.getBoolean(PlatformSettingsKeys.KEY_BATTERY_AUTO_POWER_SAVE_ENABLED, false) }
+private val settingExitPowerSaveWhenCharging by hookSetting(false) { Preferences.getBoolean(PlatformSettingsKeys.KEY_EXIT_POWER_SAVE_WHEN_CHARGING, false) }
 private val settingBatteryAutoPowerSaveThreshold by hookSetting(PlatformSettingsKeys.DEFAULT_BATTERY_AUTO_POWER_SAVE_THRESHOLD) { Preferences.batteryAutoPowerSaveThreshold() }
 
 /** Owns the battery monitor in SystemUI once its application context is available. */

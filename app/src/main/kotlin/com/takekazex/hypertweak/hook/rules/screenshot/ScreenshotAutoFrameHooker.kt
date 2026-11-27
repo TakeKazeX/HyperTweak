@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.screenshot
 
+import com.takekazex.hypertweak.settings.contract.ScreenshotSettingsKeys
 import com.takekazex.hypertweak.hook.base.cachedDeclaredMethod
 import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
@@ -23,8 +24,8 @@ import androidx.core.graphics.scale
 /** Native frame composition at the full-screen save boundary, leaving capture/scroll bitmaps alone. */
 object ScreenshotAutoFrameHooker : StaticHooker() {
     // Published on settings acceptance; hook callbacks perform no storage reads.
-    private val settingScreenshotAutoFrameEnabled by hookSetting(false) { Preferences.screenshotAutoFrameEnabled() }
-    private val settingScreenshotEditorMode by hookSetting(0) { Preferences.screenshotEditorMode() }
+    private val settingScreenshotAutoFrameEnabled by hookSetting(false) { Preferences.getBoolean(ScreenshotSettingsKeys.KEY_SCREENSHOT_AUTO_FRAME, false) }
+    private val settingScreenshotEditorMode by hookSetting(0) { Preferences.getInt(ScreenshotSettingsKeys.KEY_SCREENSHOT_FRAME_EDITOR_MODE, 0).coerceIn(0, 1) }
 
     private const val TAG = "ScreenshotAutoFrame"
     private const val RECEIPTS = "hypertweak_screenshot_frames"

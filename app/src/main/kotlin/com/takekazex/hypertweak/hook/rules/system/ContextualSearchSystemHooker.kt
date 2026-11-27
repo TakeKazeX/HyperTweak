@@ -22,7 +22,7 @@ import io.github.libxposed.api.XposedInterface
 object ContextualSearchSystemHooker : StaticHooker() {
     // Published on settings acceptance; hook callbacks perform no storage reads.
     private val settingPowerButtonAction by hookSetting(PlatformSettingsKeys.POWER_BUTTON_ACTION_DISABLED) { Preferences.powerButtonAction() }
-    private val settingContextualSearchLongPress by hookSetting(false) { Preferences.contextualSearchLongPress() }
+    private val settingContextualSearchLongPress by hookSetting(false) { Preferences.getBoolean(PlatformSettingsKeys.KEY_CONTEXTUAL_SEARCH_LONG_PRESS, false) }
 
     private const val SCOPE = "ContextualSearchBridge"
     private const val SYSTEM_UI_PACKAGE = "com.android.systemui"

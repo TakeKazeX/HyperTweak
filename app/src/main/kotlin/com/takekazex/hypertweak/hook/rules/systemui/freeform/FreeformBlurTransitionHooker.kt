@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.freeform
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 import com.takekazex.hypertweak.hook.base.HostSelect
 import android.graphics.Canvas
 import android.graphics.Color
@@ -64,7 +65,7 @@ import java.lang.reflect.Method
  */
 object FreeformBlurTransitionHooker : StaticHooker() {
     // Published on settings acceptance; hook callbacks perform no storage reads.
-    private val settingFreeformBlurTransition by hookSetting(false) { Preferences.freeformBlurTransition() }
+    private val settingFreeformBlurTransition by hookSetting(false) { Preferences.getBoolean(PlatformSettingsKeys.KEY_FREEFORM_BLUR_TRANSITION, false) }
 
     private const val TAG = "FreeformBlur"
 

@@ -234,10 +234,10 @@ internal class ProcessSettings(
         if ((!remoteSettingsReady && !RuntimeSettingsStore.owns(PlatformSettingsKeys.KEY_NATIVE_RULE_REVISION)) || processName != LAUNCHER_PACKAGE) return
         runCatching {
             NativeRules.applyRuleSwitches(
-                hideRecentsClearButton = Preferences.hideRecentsClearButton(),
+                hideRecentsClearButton = Preferences.getBoolean(PlatformSettingsKeys.KEY_HIDE_RECENTS_CLEAR_BUTTON, false),
                 openedFolderColumns = Preferences.openedFolderColumns(),
-                contextualSearchLongPress = Preferences.contextualSearchLongPress(),
-                assistantWidgets = Preferences.allowAndroidWidgetsToAssistant()
+                contextualSearchLongPress = Preferences.getBoolean(PlatformSettingsKeys.KEY_CONTEXTUAL_SEARCH_LONG_PRESS, false),
+                assistantWidgets = Preferences.getBoolean(PlatformSettingsKeys.KEY_ALLOW_ANDROID_WIDGETS_TO_ASSISTANT, false)
             )
         }.onFailure { t ->
             DebugLog.w("HookEntry", "native rule switch publish failed", t)

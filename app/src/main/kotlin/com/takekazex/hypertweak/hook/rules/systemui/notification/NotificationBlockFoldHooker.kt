@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.notification
 
+import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 import com.takekazex.hypertweak.hook.base.HostSelect
 import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
@@ -59,7 +60,7 @@ import com.takekazex.hypertweak.util.logging.DebugLog
  */
 object NotificationBlockFoldHooker : StaticHooker() {
     // Published on settings acceptance; hook callbacks perform no storage reads.
-    private val settingNotificationBlockFold by hookSetting(false) { Preferences.notificationBlockFold() }
+    private val settingNotificationBlockFold by hookSetting(false) { Preferences.getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_BLOCK_FOLD, false) }
 
     private const val TAG = "NotifBlockFold"
     private const val COORDINATOR =

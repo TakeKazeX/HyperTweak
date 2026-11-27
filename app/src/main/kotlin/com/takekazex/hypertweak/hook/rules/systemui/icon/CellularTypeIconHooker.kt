@@ -37,7 +37,7 @@ import kotlin.math.ceil
  */
 internal object CellularTypeIconHooker : IconRenderer() {
     // Published on settings acceptance; hook callbacks perform no storage reads.
-    private val settingIconCellularTypeSingle by hookSetting(false) { Preferences.separateCellularType() }
+    private val settingIconCellularTypeSingle by hookSetting(false) { Preferences.iconConfig().separateCellularType }
     // The stacked bars replace the signal half of the native row, so there is nothing to order
     // the label against inside it; IconSlotPolicy places the stacked slot before or after `mobile`.
     private val settingTypeOrder by hookSetting(0) {

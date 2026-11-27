@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 import com.takekazex.hypertweak.util.logging.DebugLog
 
 /**
@@ -85,10 +86,10 @@ object NativeRules {
         openedFolderColumns: Int,
         contextualSearchLongPress: Boolean,
         assistantWidgets: Boolean,
-        recentsHaptic: Boolean = Preferences.recentsCardHaptic(),
-        folderStack: Boolean = Preferences.folderStackPreview(),
-        widgetStack: Boolean = Preferences.androidWidgetStack(),
-        xiaoaiOptions: Boolean = Preferences.xiaoaiGestureOptions(),
+        recentsHaptic: Boolean = Preferences.getBoolean(PlatformSettingsKeys.KEY_RECENTS_CARD_HAPTIC, false),
+        folderStack: Boolean = Preferences.getBoolean(PlatformSettingsKeys.KEY_FOLDER_STACK_PREVIEW, false),
+        widgetStack: Boolean = Preferences.getBoolean(PlatformSettingsKeys.KEY_ANDROID_WIDGET_STACK, false),
+        xiaoaiOptions: Boolean = Preferences.getBoolean(PlatformSettingsKeys.KEY_XIAOAI_GESTURE_OPTIONS, false),
         iconPercent: Int = Preferences.desktopIconPercent()
     ): Boolean {
         if (!ensureLoaded()) return false

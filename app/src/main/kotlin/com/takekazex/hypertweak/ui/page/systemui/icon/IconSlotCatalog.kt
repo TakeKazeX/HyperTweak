@@ -9,7 +9,7 @@ import com.takekazex.hypertweak.R
 /**
  * Display metadata for one icon-tuner slot row.
  *
- * The host slot names are stable wire values (`Preferences.slotKey`), never user-visible text, so
+ * The host slot names are stable wire values (`IconSettingsPreferencePolicy.slotKey`), never user-visible text, so
  * every row needs its own localized label; showing the raw name is what made this page read as
  * English on a Chinese ROM.
  */

@@ -15,9 +15,9 @@ object MobilePipelineAdapter : StaticHooker() {
     private val generation = AtomicLong()
     private var enabled by generationState { false }
     private var context: Context? by generationState { null }
-    private val separateType by hookSetting(false) { Preferences.separateCellularType() }
-    private val keepOnWifi by hookSetting(false) { Preferences.cellularTypeKeepsOnWifi() }
-    private val hideDisconnected by hookSetting(false) { Preferences.cellularTypeHidesWhenDisconnected() }
+    private val separateType by hookSetting(false) { Preferences.iconConfig().separateCellularType }
+    private val keepOnWifi by hookSetting(false) { Preferences.iconConfig().keepCellularTypeOnWifi }
+    private val hideDisconnected by hookSetting(false) { Preferences.iconConfig().typeHiddenWhenDisconnected }
     private val visibility by hookSetting(NetworkIconVisibility()) {
         IconTunerOptions.networkVisibility()
     }

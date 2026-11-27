@@ -1,5 +1,8 @@
 package com.takekazex.hypertweak.app
 
+import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+import com.takekazex.hypertweak.settings.contract.IconSettingsPreferencePolicy
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.settings.contract.AppSettingsStore
 import com.takekazex.hypertweak.settings.contract.BackupSettings
@@ -65,7 +68,7 @@ internal object PreferencesAppSettings : AppSettingsStore {
     }
 
     override val backGesture = object : BackGestureSettings {
-        override fun contextualSearchLongPress(): Boolean = Preferences.contextualSearchLongPress()
+        override fun contextualSearchLongPress(): Boolean = Preferences.getBoolean(PlatformSettingsKeys.KEY_CONTEXTUAL_SEARCH_LONG_PRESS, false)
         override fun backGestureBoolean(key: String, defaultValue: Boolean): Boolean = Preferences.backGestureBoolean(key, defaultValue)
         override fun putBackGestureAppearance(values: Map<String, Boolean>): Unit = Preferences.putBackGestureAppearance(values)
     }
@@ -82,37 +85,37 @@ internal object PreferencesAppSettings : AppSettingsStore {
         override fun desktopIconPercent(): Int = Preferences.desktopIconPercent()
         override fun commitDesktopIconPercent(value: Int): Boolean = Preferences.commitDesktopIconPercent(value)
         override fun openedFolderColumns(): Int = Preferences.openedFolderColumns()
-        override fun allowAndroidWidgetsToAssistant(): Boolean = Preferences.allowAndroidWidgetsToAssistant()
-        override fun androidWidgetStack(): Boolean = Preferences.androidWidgetStack()
-        override fun folderStackPreview(): Boolean = Preferences.folderStackPreview()
-        override fun hideRecentsClearButton(): Boolean = Preferences.hideRecentsClearButton()
-        override fun recentsCardHaptic(): Boolean = Preferences.recentsCardHaptic()
-        override fun xiaoaiGestureOptions(): Boolean = Preferences.xiaoaiGestureOptions()
+        override fun allowAndroidWidgetsToAssistant(): Boolean = Preferences.getBoolean(PlatformSettingsKeys.KEY_ALLOW_ANDROID_WIDGETS_TO_ASSISTANT, false)
+        override fun androidWidgetStack(): Boolean = Preferences.getBoolean(PlatformSettingsKeys.KEY_ANDROID_WIDGET_STACK, false)
+        override fun folderStackPreview(): Boolean = Preferences.getBoolean(PlatformSettingsKeys.KEY_FOLDER_STACK_PREVIEW, false)
+        override fun hideRecentsClearButton(): Boolean = Preferences.getBoolean(PlatformSettingsKeys.KEY_HIDE_RECENTS_CLEAR_BUTTON, false)
+        override fun recentsCardHaptic(): Boolean = Preferences.getBoolean(PlatformSettingsKeys.KEY_RECENTS_CARD_HAPTIC, false)
+        override fun xiaoaiGestureOptions(): Boolean = Preferences.getBoolean(PlatformSettingsKeys.KEY_XIAOAI_GESTURE_OPTIONS, false)
     }
 
     override val systemUi = object : SystemUiAppSettings {
-        override fun slotKey(slot: String): String = Preferences.slotKey(slot)
-        override fun getNotificationHeaderTimeScale(): Float = Preferences.getNotificationHeaderTimeScale()
-        override fun iconStackedSignalStyle(): Int = Preferences.iconStackedSignalStyle()
-        override fun notificationBadge(): Boolean = Preferences.notificationBadge()
-        override fun notificationBlockFold(): Boolean = Preferences.notificationBlockFold()
-        override fun notificationMoreSettings(): Boolean = Preferences.notificationMoreSettings()
+        override fun slotKey(slot: String): String = IconSettingsPreferencePolicy.slotKey(slot)
+        override fun getNotificationHeaderTimeScale(): Float = Preferences.getFloat(SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_TIME_SCALE, 1f)
+        override fun iconStackedSignalStyle(): Int = Preferences.iconConfig().stacked.stackedSignalStyle
+        override fun notificationBadge(): Boolean = Preferences.getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_BADGE, false)
+        override fun notificationBlockFold(): Boolean = Preferences.getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_BLOCK_FOLD, false)
+        override fun notificationMoreSettings(): Boolean = Preferences.getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_MORE_SETTINGS, false)
     }
 
     override val platform = object : PlatformAppSettings {
         override fun nativePickerEnabled(key: String): Boolean = Preferences.nativePickerEnabled(key)
-        override fun freeformBlurTransition(): Boolean = Preferences.freeformBlurTransition()
-        override fun motionCuesFreeformFix(): Boolean = Preferences.motionCuesFreeformFix()
-        override fun unlockAdaptiveRefreshPro(): Boolean = Preferences.unlockAdaptiveRefreshPro()
-        override fun unlockMoreAonGestures(): Boolean = Preferences.unlockMoreAonGestures()
-        override fun unlockMoreVisualPerception(): Boolean = Preferences.unlockMoreVisualPerception()
+        override fun freeformBlurTransition(): Boolean = Preferences.getBoolean(PlatformSettingsKeys.KEY_FREEFORM_BLUR_TRANSITION, false)
+        override fun motionCuesFreeformFix(): Boolean = Preferences.getBoolean(PlatformSettingsKeys.KEY_MOTION_CUES_FREEFORM_FIX, false)
+        override fun unlockAdaptiveRefreshPro(): Boolean = Preferences.getBoolean(PlatformSettingsKeys.KEY_UNLOCK_ADAPTIVE_REFRESH_PRO, false)
+        override fun unlockMoreAonGestures(): Boolean = Preferences.getBoolean(PlatformSettingsKeys.KEY_UNLOCK_MORE_AON_GESTURES, false)
+        override fun unlockMoreVisualPerception(): Boolean = Preferences.getBoolean(PlatformSettingsKeys.KEY_UNLOCK_MORE_VISUAL_PERCEPTION, false)
     }
 
     override val powerSave = object : PowerSaveSettings {
         override fun setPowerSaveFeature(key: String, enabled: Boolean): Unit = Preferences.setPowerSaveFeature(key, enabled)
         override fun batteryAutoPowerSaveThreshold(): Int = Preferences.batteryAutoPowerSaveThreshold()
-        override fun batteryAutoPowerSaveEnabled(): Boolean = Preferences.batteryAutoPowerSaveEnabled()
-        override fun exitPowerSaveWhenCharging(): Boolean = Preferences.exitPowerSaveWhenCharging()
+        override fun batteryAutoPowerSaveEnabled(): Boolean = Preferences.getBoolean(PlatformSettingsKeys.KEY_BATTERY_AUTO_POWER_SAVE_ENABLED, false)
+        override fun exitPowerSaveWhenCharging(): Boolean = Preferences.getBoolean(PlatformSettingsKeys.KEY_EXIT_POWER_SAVE_WHEN_CHARGING, false)
         override fun keepHapticFeedbackInPowerSave(): Boolean = Preferences.keepHapticFeedbackInPowerSave()
         override fun keepRefreshRateInPowerSave(): Boolean = Preferences.keepRefreshRateInPowerSave()
         override fun keepSystemSoundsInPowerSave(): Boolean = Preferences.keepSystemSoundsInPowerSave()

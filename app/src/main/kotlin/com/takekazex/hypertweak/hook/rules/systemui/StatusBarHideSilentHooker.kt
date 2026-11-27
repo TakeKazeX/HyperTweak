@@ -28,7 +28,7 @@ import java.lang.reflect.Method
  */
 object StatusBarHideSilentHooker : StaticHooker() {
     // Published on settings acceptance; hook callbacks perform no storage reads.
-    private val settingNotificationMoreSettings by hookSetting(false) { Preferences.notificationMoreSettings() }
+    private val settingNotificationMoreSettings by hookSetting(false) { Preferences.getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_MORE_SETTINGS, false) }
     private val settingNotificationIconFilterMode by hookSetting(0) {
         Preferences.getInt(SystemUiSettingsKeys.KEY_NOTIFICATION_ICON_FILTER_MODE, 0)
     }

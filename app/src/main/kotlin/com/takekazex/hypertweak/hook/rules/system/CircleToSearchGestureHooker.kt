@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.system
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 import com.takekazex.hypertweak.hook.base.GenerationInputs
 import com.takekazex.hypertweak.hook.base.HostAccess
 import android.content.Context
@@ -67,7 +68,7 @@ object CircleToSearchGestureHooker : StaticHooker() {
     override val expectsHooks = false
 
     // Published on settings acceptance; hook callbacks perform no storage reads.
-    private val settingContextualSearchLongPress by hookSetting(false) { Preferences.contextualSearchLongPress() }
+    private val settingContextualSearchLongPress by hookSetting(false) { Preferences.getBoolean(PlatformSettingsKeys.KEY_CONTEXTUAL_SEARCH_LONG_PRESS, false) }
 
     override val hookerName = "CircleToSearchGesture"
 

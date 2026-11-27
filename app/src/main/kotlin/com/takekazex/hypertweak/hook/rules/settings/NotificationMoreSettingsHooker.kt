@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.settings
 
+import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 import com.takekazex.hypertweak.hook.base.HostAccess
 import android.app.NotificationChannel
 import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
@@ -38,7 +39,7 @@ import java.lang.reflect.Proxy
  */
 object NotificationMoreSettingsHooker : StaticHooker() {
     // Published on settings acceptance; hook callbacks perform no storage reads.
-    private val settingNotificationMoreSettings by hookSetting(false) { Preferences.notificationMoreSettings() }
+    private val settingNotificationMoreSettings by hookSetting(false) { Preferences.getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_MORE_SETTINGS, false) }
 
     private const val TAG = "NotifMoreSettings"
     private const val BASE = "com.android.settings.notification.BaseNotificationSettings"

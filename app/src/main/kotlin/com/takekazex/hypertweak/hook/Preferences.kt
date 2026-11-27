@@ -87,15 +87,6 @@ object Preferences {
     }
     internal fun runtimePreferenceSource(): SharedPreferences? = if (isInitialized) remotePrefs else null
     private const val CACHE_NAME = "hypertweak_cache"
-    fun screenshotAutoFrameEnabled(): Boolean = getBoolean(ScreenshotSettingsKeys.KEY_SCREENSHOT_AUTO_FRAME, false)
-    fun screenshotEditorMode(): Int = getInt(ScreenshotSettingsKeys.KEY_SCREENSHOT_FRAME_EDITOR_MODE, 0).coerceIn(0, 1)
-    fun screenshotCopyToClipboard(): Boolean = getBoolean(ScreenshotSettingsKeys.KEY_SCREENSHOT_COPY_TO_CLIPBOARD, false)
-    fun screenshotPicturesDirectory(): Boolean = getBoolean(ScreenshotSettingsKeys.KEY_SCREENSHOT_PICTURES_DIRECTORY, false)
-
-    fun iconStackedSignalStyle(): Int = iconConfig().stacked.stackedSignalStyle
-
-    // Status-bar slot preference key for [slot]; shared by the hooks and the settings UI.
-    fun slotKey(slot: String): String = IconSettingsPreferencePolicy.slotKey(slot)
 
     /**
      * The current long-press power action ([POWER_BUTTON_ACTION_*]). Reads
@@ -160,21 +151,6 @@ object Preferences {
         }
     }
 
-    /** Native gesture-line choices and XiaoAI input routing. */
-    fun xiaoaiGestureOptions(): Boolean = getBoolean(PlatformSettingsKeys.KEY_XIAOAI_GESTURE_OPTIONS, false)
-
-    /**
-     * 长按底部手势指示器启动圈定即搜. The launcher's own long-press terminal is replaced by the
-     * native payload so the gesture starts Circle to Search instead of Xiaomi's route, which
-     * rejects NavLongPress on China builds. Like the other native launcher rules the value reaches
-     * the payload through `NativeRules.applyRuleSwitches` when `com.miui.home` loads the module,
-     * so changing it takes effect after a launcher restart. It is independent of
-     * [KEY_POWER_BUTTON_ACTION]: either entry point may be on.
-     */
-    fun unlockMoreVisualPerception(): Boolean = getBoolean(PlatformSettingsKeys.KEY_UNLOCK_MORE_VISUAL_PERCEPTION, false)
-    fun unlockMoreAonGestures(): Boolean = getBoolean(PlatformSettingsKeys.KEY_UNLOCK_MORE_AON_GESTURES, false)
-    fun unlockAdaptiveRefreshPro(): Boolean = getBoolean(PlatformSettingsKeys.KEY_UNLOCK_ADAPTIVE_REFRESH_PRO, false)
-
     // The removed master is retained only to interpret legacy snapshots. Each new individual
     // edit atomically flattens the effective selection and permanently opens that legacy gate.
     private fun powerSaveFeatureEnabled(key: String): Boolean =
@@ -184,12 +160,6 @@ object Preferences {
     fun keepHapticFeedbackInPowerSave(): Boolean = powerSaveFeatureEnabled(PlatformSettingsKeys.KEY_KEEP_HAPTIC_FEEDBACK_IN_POWER_SAVE)
     fun keepSystemSoundsInPowerSave(): Boolean = powerSaveFeatureEnabled(PlatformSettingsKeys.KEY_KEEP_SYSTEM_SOUNDS_IN_POWER_SAVE)
     fun keepWakeupGesturesInPowerSave(): Boolean = powerSaveFeatureEnabled(PlatformSettingsKeys.KEY_KEEP_WAKEUP_GESTURES_IN_POWER_SAVE)
-
-    /** Whether the module enables power save below [batteryAutoPowerSaveThreshold]. */
-    fun batteryAutoPowerSaveEnabled(): Boolean = getBoolean(PlatformSettingsKeys.KEY_BATTERY_AUTO_POWER_SAVE_ENABLED, false)
-
-    /** Whether a new charger connection requests one native power-save exit. */
-    fun exitPowerSaveWhenCharging(): Boolean = getBoolean(PlatformSettingsKeys.KEY_EXIT_POWER_SAVE_WHEN_CHARGING, false)
 
     /** The low-battery threshold in percent, bounded to the slider's band. */
     fun batteryAutoPowerSaveThreshold(): Int = getInt(
@@ -244,16 +214,6 @@ object Preferences {
         }
     }
 
-    fun androidWidgetStack(): Boolean = getBoolean(PlatformSettingsKeys.KEY_ANDROID_WIDGET_STACK, false)
-    fun folderStackPreview(): Boolean = getBoolean(PlatformSettingsKeys.KEY_FOLDER_STACK_PREVIEW, false)
-
-    fun recentsCardHaptic(): Boolean = getBoolean(PlatformSettingsKeys.KEY_RECENTS_CARD_HAPTIC, false)
-
-    fun hideRecentsClearButton(): Boolean = getBoolean(PlatformSettingsKeys.KEY_HIDE_RECENTS_CLEAR_BUTTON, false)
-
-    /** Whether MIUI's theme DRM rights verification is bypassed for local/third-party themes. */
-    fun allowThirdPartyTheme(): Boolean = getBoolean(PlatformSettingsKeys.KEY_ALLOW_THIRD_PARTY_THEME, false)
-
     @Volatile private var cachedIconSnapshot: RuntimeSettingsSnapshot? = null
     @Volatile private var cachedIconConfig: IconConfig? = null
 
@@ -284,50 +244,10 @@ object Preferences {
         }.also { memoPut(fallbackCacheKey, it) }
     }
 
-    /**
-     * Whether every network-type label (native, Duo, carrier rows) stays visible while Wi-Fi
-     * carries the data connection. Default off, matching the host's own single-type rule.
-     */
-    fun cellularTypeKeepsOnWifi(): Boolean =
-        iconConfig().keepCellularTypeOnWifi
-
-    /**
-     * Whether every network-type label (native, Duo, carrier rows) is hidden while mobile data is
-     * disconnected. The key keeps its historical stacked name.
-     */
-    fun cellularTypeHidesWhenDisconnected(): Boolean =
-        iconConfig().typeHiddenWhenDisconnected
-
-    /** Standalone native type label, also implied by stacked signal. */
-    internal fun separateCellularType(): Boolean =
-        iconConfig().separateCellularType
-
-    internal fun ccBatteryPercentStyle() =
-        com.takekazex.hypertweak.settings.contract.CcBatteryPercentStyle.entries[iconConfig().controlCenter.batteryPercentStyle]
-
-    fun hideNonDefaultSim(): Boolean =
-        iconConfig().network.hideNonDefaultSim
-
-    internal fun iconBoolean(key: String): Boolean =
-        iconConfig().value(key) as? Boolean ?: false
-
-    fun allowAndroidWidgetsToAssistant(): Boolean = getBoolean(PlatformSettingsKeys.KEY_ALLOW_ANDROID_WIDGETS_TO_ASSISTANT, false)
-
-    fun contextualSearchLongPress(): Boolean = getBoolean(PlatformSettingsKeys.KEY_CONTEXTUAL_SEARCH_LONG_PRESS, false)
-
     fun openedFolderColumns(): Int = getInt(
         PlatformSettingsKeys.KEY_OPENED_FOLDER_COLUMNS,
         PlatformSettingsKeys.DEFAULT_OPENED_FOLDER_COLUMNS
     ).coerceIn(PlatformSettingsKeys.MIN_OPENED_FOLDER_COLUMNS, PlatformSettingsKeys.MAX_OPENED_FOLDER_COLUMNS)
-
-    fun notificationMoreSettings(): Boolean = getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_MORE_SETTINGS, false)
-
-    fun notificationBadge(): Boolean = getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_BADGE, false)
-
-    fun notificationBlockFold(): Boolean = getBoolean(SystemUiSettingsKeys.KEY_NOTIFICATION_BLOCK_FOLD, false)
-
-    fun freeformBlurTransition(): Boolean = getBoolean(PlatformSettingsKeys.KEY_FREEFORM_BLUR_TRANSITION, false)
-    fun motionCuesFreeformFix(): Boolean = getBoolean(PlatformSettingsKeys.KEY_MOTION_CUES_FREEFORM_FIX, false)
 
     private lateinit var remotePrefs: SharedPreferences
     // Only the module Application may supply this store via useLocalOnly; never a host cache.
@@ -757,8 +677,6 @@ object Preferences {
         memoPut(key, value)
         return value
     }
-
-    fun getNotificationHeaderTimeScale(): Float = getFloat(SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_TIME_SCALE, 1f)
 
     fun putBoolean(key: String, value: Boolean) {
         memoInvalidate(key)

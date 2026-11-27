@@ -52,7 +52,7 @@ object NotificationHeaderHooker : StaticHooker() {
     private val settingNotificationHeaderTimeAlignment by hookSetting(NotificationHeaderModel.ALIGN_START) {
         Preferences.getInt(SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_TIME_ALIGNMENT, NotificationHeaderModel.ALIGN_START)
     }
-    private val settingGetNotificationHeaderTimeScale by hookSetting(1f) { Preferences.getNotificationHeaderTimeScale() }
+    private val settingGetNotificationHeaderTimeScale by hookSetting(1f) { Preferences.getFloat(SystemUiSettingsKeys.KEY_NOTIFICATION_HEADER_TIME_SCALE, 1f) }
 
     init {
         hostRecovery(HostRecoveryPhase.HEADERS) {

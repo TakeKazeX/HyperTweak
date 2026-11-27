@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.system
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.hook.base.StaticHooker
@@ -28,7 +29,7 @@ import com.takekazex.hypertweak.util.logging.DebugLog
  */
 object AonRuntimeGateHooker : StaticHooker() {
     // Published on settings acceptance; hook callbacks perform no storage reads.
-    private val settingUnlockMoreVisualPerception by hookSetting(false) { Preferences.unlockMoreVisualPerception() }
+    private val settingUnlockMoreVisualPerception by hookSetting(false) { Preferences.getBoolean(PlatformSettingsKeys.KEY_UNLOCK_MORE_VISUAL_PERCEPTION, false) }
 
     private var retired by generationState { false }
     private val nativeRead = ThreadLocal<Boolean>()

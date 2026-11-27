@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.settings
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 import com.takekazex.hypertweak.hook.base.HostSelect
 import com.takekazex.hypertweak.hook.base.HostAccess
 import android.content.Context
@@ -17,7 +18,7 @@ import com.takekazex.hypertweak.util.platform.ResourceLookup
  * their XMLs, but no preference tree or activity references them, so the landing page only ever
  * offers 上下滑动屏幕. This hooker appends rows for both pages (same keys/strings the fragments
  * already manage: `miui_aon_left_right_waving` / `miui_aon_double_press`) whenever
- * [Preferences.unlockMoreAonGestures] is on. All `androidx.preference` types are manipulated
+ * [PlatformSettingsKeys.KEY_UNLOCK_MORE_AON_GESTURES] is on. All `androidx.preference` types are manipulated
  * reflectively because this module does not compile against the preference library; the host
  * (Settings) process provides the classes at runtime.
  *
@@ -25,7 +26,7 @@ import com.takekazex.hypertweak.util.platform.ResourceLookup
  */
 object AonGestureSettingsHooker : StaticHooker() {
     // Published on settings acceptance; hook callbacks perform no storage reads.
-    private val settingUnlockMoreAonGestures by hookSetting(false) { Preferences.unlockMoreAonGestures() }
+    private val settingUnlockMoreAonGestures by hookSetting(false) { Preferences.getBoolean(PlatformSettingsKeys.KEY_UNLOCK_MORE_AON_GESTURES, false) }
 
     private const val TAG = "AonGestureExtras"
     private const val CLASS = "com.android.settings.aon.gesture.AonGestureSettings"

@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.freeform
 
+import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 import android.view.View
 import android.view.ViewTreeObserver
 import android.view.WindowManager
@@ -19,7 +20,7 @@ import java.util.WeakHashMap
 object MotionCuesFreeformHooker : DynamicHooker() {
     private const val TAG = "MotionCuesFreeform"
     private const val TYPE_VOLUME_OVERLAY = 2020
-    private val enabled by hookSetting(false) { Preferences.motionCuesFreeformFix() }
+    private val enabled by hookSetting(false) { Preferences.getBoolean(PlatformSettingsKeys.KEY_MOTION_CUES_FREEFORM_FIX, false) }
     private var windows: OverlayWindows? by generationState { null }
 
     init {
