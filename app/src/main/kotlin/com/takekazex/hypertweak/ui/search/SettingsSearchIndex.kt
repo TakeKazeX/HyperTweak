@@ -396,6 +396,7 @@ internal val SettingsSearchIndex: List<SearchEntry> = listOf(
     SearchEntry(Route.SystemUi, -1, R.string.settings_system_ui, R.string.tweaks_navigation_bar_title, R.string.tweaks_hide_gesture_bar_launcher_title, R.string.tweaks_hide_gesture_bar_launcher_summary),
     SearchEntry(Route.SystemUi, -1, R.string.settings_system_ui, R.string.tweaks_navigation_bar_title, R.string.tweaks_cts_long_press_title, 0),
     SearchEntry(Route.SystemUi, -1, R.string.settings_system_ui, R.string.tweaks_navigation_bar_title, R.string.tweaks_power_button_action_title, R.string.tweaks_power_button_action_summary),
+    SearchEntry(Route.ControlCenterIconRows, -1, R.string.icon_cc_rows_title, 0, R.string.icon_cc_rows_all, 0),
     SearchEntry(Route.ControlCenterResize, -1, R.string.cc_resize_title, R.string.cc_size_section_sliders, R.string.cc_size_brightness, R.string.cc_size_brightness_summary),
     SearchEntry(Route.ControlCenterResize, -1, R.string.cc_resize_title, R.string.cc_size_section_sliders, R.string.cc_size_volume, R.string.cc_size_volume_summary),
     SearchEntry(Route.ControlCenterResize, -1, R.string.cc_resize_title, R.string.cc_size_section_other, R.string.cc_size_media, R.string.cc_size_media_summary),
