@@ -62,3 +62,23 @@ The gesture bar (`HideBottomBarHooker`) has one decision owner, `GestureBarState
 - Code: `hook/rules/system/VolumeFirstPressHooker` (system_server, `volume_first_press`, default off; System Framework → Volume Keys). Behavior follows HyperCeiler's `VolumeFirstPress`; independently implemented.
 - Host: `AudioService$VolumeController.suppressAdjustment(IIZ)Z` returns true for STREAM_MUSIC while the panel is hidden and media is idle; its only caller `AudioService.adjustSuggestedStreamVolume(IIILString;String;IIZI)V` then adjusts with direction 0 (panel only). The after-hook turns a true result into false for non-mute STREAM_MUSIC; other streams keep the native rule. The caller is deoptimized against AOT inlining. Verified on myron OS4.0.6.0.XPMCNXM `services.jar` (sha256 `fe7406b3…`).
 - Live: the switch is in the `VOLUME` runtime group and is read per call; no hook is installed or removed. With custom volume steps on, the first press also uses the configured step.
+
+## Cross-family host surfaces
+SystemUI families touch each other at a few host methods and through explicit ports. These are not a shared coordination layer. Verified on SystemUI 17.03.260226.r (sha256 `6c6c1121…`) from a hot-reload `HOOK_OK` inventory, which covers only features enabled on the device, plus a static grep of every `rules/systemui` file. When you add a hook here, check whether the *write targets* are disjoint, not whether the hook point is shared.
+
+| Host method(s) | Families | Who writes what |
+| --- | --- | --- |
+| `MiuiClock#onAttachedToWindow` / `setPolicyVisibility` / `updateClockVisibility` | icon (`ControlCenterHeaderHooker`, through `IconHostHooks`), notification (`NotificationHeaderHooker`; `updateTime` also clock-seconds and weather) | icon hides only `ControlCenterDateView` with id `normal_control_center_date_view`, through its `mPolicyVisibility` and visibility. Notification enforces only the time/date/carrier views that its header sessions registered (`NotificationHeaderLayoutController.rootFor`). The targets are disjoint by code; the host layout was not checked. |
+| `KeyguardStatusBarViewController#onViewAttached` | lockscreen (`HideLockscreenStatusBarHooker`), icon/left (`LeftHostSubscriptions`) | Both only capture controllers after attach. Root visibility and alpha go through `ViewVisibilityRouter` (lockscreen). Left clones live inside the root. Duo reads `MiuiKeyguardStatusBarView` only as an ancestor to classify the surface. |
+| `VolumePanelViewController#initPanelView` / `showVolumePanelH` / `onConfigChanged` / `onMaterialModeChanged` | slider (`VolumePanelPercentage`), volume (`AppVolumeHooker`) | slider owns the native columns' percent capsule and label material. Volume owns its own app strip and the `MiuiVolumeDialogMotion.getShowX` offset. It reuses slider's style helpers by import (`AppVolumePercentStyle`), not through hooks. |
+| `MiuiFullAodManager` constructors | aod (`AODHooker`), icon/duo (`FullAodDozingSource`) | Both only capture the manager. This is the declared `("aod", "DuoRenderer")` collaboration. |
+
+The Super Island window classes are used by island and controlcenter, but the two hook no common methods. controlcenter hooks the temp-hide gate and the expand callbacks; island hooks animation, event and template-width methods.
+
+Cross-family state goes through ports wired in `bootstrap/`, not through hooks:
+- lockscreen → icon: `HideLockscreenStatusBarHooker.keyguardShowing()` / `statusBarSuppressed()` feed `IconHostServices.Keyguard`. Its `notifyPresentation()` calls `IconHostPorts.left.visibilityChanged()`. lockscreen is the only owner of the "keyguard surface showing" model (`KeyguardSurfacePolicy`, bar state plus showing/occluded).
+- lockscreen → icon: `KeyguardFingerprintAvoidHooker` reuses `HostFlowSubscriptions`. That is a utility import, not shared state.
+- aod ↔ icon/duo: AOD draws the Duo view (`DuoRenderer`, `HostBatteryDrawable`, `IconTunerFlows`), and Duo reads AOD policy types.
+- slider → controlcenter: `ControlCenterCornerHooker` uses `CornerOverridePolicy` / `CornerOverrideRecord`.
+
+Rule for a new cross-family hook point: put writes behind the existing single-hook routers (`ViewVisibilityRouter`, `ResourceValueRouter`; `IconHostHooks` inside icon), or keep them on disjoint views. Add a surface-specific router only when two families write the *same property of the same view*. That has not happened yet.
