@@ -163,8 +163,14 @@ data class ControlCenterIconConfig internal constructor(val values: Map<String, 
     val hideDate: Boolean get() = values.getValue(SystemUiSettingsKeys.KEY_CC_HIDE_DATE) as Boolean
     val networkFirstRow: Boolean get() = values.getValue(SystemUiSettingsKeys.KEY_CC_NETWORK_FIRST_ROW) as Boolean
     val carrierTwoLine: Boolean get() = values.getValue(SystemUiSettingsKeys.KEY_CC_CARRIER_TWO_LINE) as Boolean
-    val iconRowOverrides: Set<String> by lazy(LazyThreadSafetyMode.PUBLICATION) {
+    /** The stored per-slot choices; kept intact while a uniform row mode is selected. */
+    val customIconRowOverrides: Set<String> by lazy(LazyThreadSafetyMode.PUBLICATION) {
         checkedStringSet(values.getValue(SystemUiSettingsKeys.KEY_CC_ICON_ROW_OVERRIDES))
+    }
+    val iconRowMode: Int get() = values.getValue(SystemUiSettingsKeys.KEY_CC_ICON_ROW_MODE) as Int
+    /** The row table the runtime applies: the custom choices, or every offered slot in one row. */
+    val iconRowOverrides: Set<String> by lazy(LazyThreadSafetyMode.PUBLICATION) {
+        IconSlotPolicy.effectiveControlCenterRows(iconRowMode, customIconRowOverrides)
     }
     val carrierShowNonDataType: Boolean get() = values.getValue(SystemUiSettingsKeys.KEY_CC_CARRIER_SHOW_NON_DATA_TYPE) as Boolean
     val carrierShowBadge: Boolean get() = values.getValue(SystemUiSettingsKeys.KEY_CC_CARRIER_SHOW_BADGE) as Boolean
@@ -416,6 +422,7 @@ object IconConfigDecoder {
         put(SystemUiSettingsKeys.KEY_CC_NETWORK_FIRST_ROW, false)
         put(SystemUiSettingsKeys.KEY_CC_CARRIER_TWO_LINE, false)
         put(SystemUiSettingsKeys.KEY_CC_ICON_ROW_OVERRIDES, emptySet<String>())
+        put(SystemUiSettingsKeys.KEY_CC_ICON_ROW_MODE, 0)
         put(SystemUiSettingsKeys.KEY_CC_CARRIER_SHOW_NON_DATA_TYPE, false)
         put(SystemUiSettingsKeys.KEY_CC_CARRIER_SHOW_BADGE, true)
         put(SystemUiSettingsKeys.KEY_CC_CARRIER_BADGE_ONE, "1")
@@ -457,6 +464,8 @@ object IconConfigDecoder {
                 when {
                     value is Set<*> -> Collections.unmodifiableSet(value.filterIsInstance<String>().toSet())
                     key == IconTunerContract.KEY_LEFT_MODE -> (value as Int).coerceIn(0, 2)
+                    key == SystemUiSettingsKeys.KEY_CC_ICON_ROW_MODE -> (value as Int).takeIf { it in 0..2 }
+                        ?: IconSlotPolicy.CC_ROW_MODE_CUSTOM
                     key == IconTunerContract.KEY_LEFT_KEYGUARD_CARRIER -> (value as Int).takeIf { it in 0..1 }
                         ?: IconTunerContract.LEFT_KEYGUARD_CARRIER_REPLACE
                     key == IconSettingsKeys.KEY_ICON_CELLULAR_ROAM_MODE ||
@@ -579,6 +588,7 @@ object IconConfigDecoder {
         SystemUiSettingsKeys.KEY_CC_NETWORK_FIRST_ROW,
         SystemUiSettingsKeys.KEY_CC_CARRIER_TWO_LINE,
         SystemUiSettingsKeys.KEY_CC_ICON_ROW_OVERRIDES,
+        SystemUiSettingsKeys.KEY_CC_ICON_ROW_MODE,
         SystemUiSettingsKeys.KEY_CC_CARRIER_SHOW_NON_DATA_TYPE,
         SystemUiSettingsKeys.KEY_CC_CARRIER_SHOW_BADGE,
         SystemUiSettingsKeys.KEY_CC_CARRIER_BADGE_ONE,

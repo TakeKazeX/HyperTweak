@@ -110,7 +110,7 @@ internal object IconLayoutPlan {
             nonDefaultSimMode = config.network.nonDefaultSimVisibility,
             slotModes = policy.slotModes
         )
-        val rowOverrides = config.controlCenter.value(SystemUiSettingsKeys.KEY_CC_ICON_ROW_OVERRIDES).stringSet()
+        val rowOverrides = config.controlCenter.iconRowOverrides
         return plan(
             policy, config.signalStyle, network.copy(visibility = visibility), claims, slots, rowOverrides, leftMode,
             config.duoExpandedStacked

@@ -449,6 +449,28 @@ class IconSlotPolicyTest {
     }
 
     @Test
+    fun uniformControlCenterRowModeKeepsCustomChoices() {
+        assertEquals(
+            listOf("nfc", "zen"),
+            IconSlotPolicy.controlCenterRowSlots(
+                listOf("nfc", "zen", "mobile", "no_sim", "wifi", "airplane", "hypertweak_stacked_mobile_icon")
+            )
+        )
+        val custom = setOf("2:nfc", "1:zen", "1:future_slot")
+        val second = IconSlotPolicy.effectiveControlCenterRows(IconSlotPolicy.CC_ROW_MODE_SECOND, custom)
+        val first = IconSlotPolicy.effectiveControlCenterRows(IconSlotPolicy.CC_ROW_MODE_FIRST, custom)
+        IconSlotPolicy.controlCenterRowSlots(IconSlotPolicy.configurableSlots).forEach { slot ->
+            assertEquals(slot, 2, IconSlotPolicy.controlCenterRow(slot, second))
+            assertEquals(slot, 1, IconSlotPolicy.controlCenterRow(slot, first))
+        }
+        // Carrier-block slots and unknown slots are not forced by a uniform mode.
+        assertEquals(1, IconSlotPolicy.controlCenterRow("wifi", second))
+        assertEquals(1, IconSlotPolicy.controlCenterRow("future_slot", second))
+        // Custom mode is the stored table itself, so leaving a uniform mode restores it.
+        assertEquals(custom, IconSlotPolicy.effectiveControlCenterRows(IconSlotPolicy.CC_ROW_MODE_CUSTOM, custom))
+    }
+
+    @Test
     fun hiddenFirstCountsHostAndOneSurfaceStatusBarHiding() {
         val native = listOf("handle", "nfc", "bluetooth", "zen", "volume", "wifi")
         val config = IconSlotPolicyConfig(

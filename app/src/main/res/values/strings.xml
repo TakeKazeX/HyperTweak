@@ -1592,6 +1592,8 @@
     <string name="icon_cc_rows_summary">Dual SIMs use the configured rows. A single SIM uses one row. Battery stays in the first row.</string>
     <string name="icon_cc_row_first">First row</string>
     <string name="icon_cc_row_second">Second row</string>
+    <string name="icon_cc_rows_all">All icons</string>
+    <string name="icon_cc_row_custom">Custom</string>
     <string name="appearance_global_blur">Global blur</string>
     <string name="appearance_blur_off">Off</string>
     <string name="appearance_blur_uniform">Blur</string>

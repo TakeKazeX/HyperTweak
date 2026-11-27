@@ -159,6 +159,41 @@ object IconSlotPolicy {
         return next
     }
 
+    /**
+     * Network, SIM and airplane slots the compact control-center carrier block draws on its own
+     * (the airplane in its label); the row page does not offer them because their row choice has
+     * no visible effect there.
+     */
+    val CONTROL_CENTER_CARRIER_SLOTS: Set<String> = linkedSetOf(
+        SLOT_MOBILE, "demo_mobile", "stacked_mobile", "no_sim", SLOT_WIFI, SLOT_DEMO_WIFI, SLOT_AIRPLANE,
+        *SIGNAL_SLOTS.toTypedArray()
+    )
+
+    /** The slots whose control-center row the user can choose, in [catalog] order. */
+    fun controlCenterRowSlots(catalog: List<String>): List<String> =
+        catalog.filterNot { it in CONTROL_CENTER_CARRIER_SLOTS }
+
+    const val CC_ROW_MODE_CUSTOM = 0
+    const val CC_ROW_MODE_FIRST = 1
+    const val CC_ROW_MODE_SECOND = 2
+
+    /**
+     * The row table for [mode]. A uniform mode is derived from [custom] on every read and never
+     * written back, so returning to the custom mode restores the user's per-slot choices.
+     */
+    fun effectiveControlCenterRows(mode: Int, custom: Set<String>): Set<String> = when (mode) {
+        CC_ROW_MODE_FIRST, CC_ROW_MODE_SECOND ->
+            withAllControlCenterRows(custom, controlCenterRowSlots(configurableSlots), mode)
+        else -> custom
+    }
+
+    /** Moves every slot in [slots] to [row]; entries for other slots are kept. */
+    fun withAllControlCenterRows(overrides: Set<String>, slots: List<String>, row: Int): Set<String> {
+        var next = overrides
+        slots.forEach { next = withControlCenterRow(next, it, row) }
+        return next
+    }
+
     fun isTwoLineUpperSlot(slot: String, overrides: Set<String> = emptySet()): Boolean =
         controlCenterRow(slot, overrides) == 1
 

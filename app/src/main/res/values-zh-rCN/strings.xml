@@ -1582,6 +1582,8 @@
     <string name="icon_cc_rows_summary">双卡按配置分排，单卡自动合并为一排，电池固定在第一排</string>
     <string name="icon_cc_row_first">第一排</string>
     <string name="icon_cc_row_second">第二排</string>
+    <string name="icon_cc_rows_all">统一分排</string>
+    <string name="icon_cc_row_custom">自定义</string>
     <string name="appearance_global_blur">全局模糊</string>
     <string name="appearance_blur_off">关闭模糊</string>
     <string name="appearance_blur_uniform">模糊</string>

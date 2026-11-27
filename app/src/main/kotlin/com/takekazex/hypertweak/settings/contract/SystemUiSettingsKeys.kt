@@ -101,6 +101,8 @@ object SystemUiSettingsKeys {
     const val KEY_CC_NETWORK_FIRST_ROW = "systemui_cc_network_first_row"
     const val KEY_CC_CARRIER_TWO_LINE = "systemui_cc_carrier_two_line"
     const val KEY_CC_ICON_ROW_OVERRIDES = "systemui_cc_icon_row_overrides"
+    /** 0 per-slot ([KEY_CC_ICON_ROW_OVERRIDES]), 1 every offered slot in the first row, 2 in the second. */
+    const val KEY_CC_ICON_ROW_MODE = "systemui_cc_icon_row_mode"
     const val KEY_CC_CARRIER_SHOW_NON_DATA_TYPE = "systemui_cc_carrier_show_non_data_type"
     const val KEY_CC_CARRIER_SHOW_BADGE = "systemui_cc_carrier_show_badge"
     const val KEY_CC_CARRIER_BADGE_ONE = "systemui_cc_carrier_badge_one"
