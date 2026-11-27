@@ -18,6 +18,24 @@ class DexResolutionTest {
         assertEquals("valid", cached["target"])
     }
 
+    @Test fun `a cache published by a sibling while waiting for the lock replaces the scan`() {
+        var cache: Map<String, String>? = null; var scans = 0; var writes = 0
+        val result = DexResolution().resolve("build", false, { cache }, { scans++; mapOf("key" to "own") },
+            { values, _ -> values["key"] }, { writes++ }, { throw it },
+            exclusive = { block -> cache = mapOf("key" to "sibling"); block() })
+        assertEquals("sibling", result)
+        assertEquals(0, scans)
+        assertEquals(0, writes)
+    }
+
+    @Test fun `cache-only replay never takes the cross-process lock`() {
+        var locked = false
+        val result = DexResolution().resolve("build", true, { null }, { error("no scan") },
+            { _, _ -> "never" }, { }, { throw it }, exclusive = { block -> locked = true; block() })
+        assertNull(result)
+        assertFalse(locked)
+    }
+
     @Test fun `invalid fresh reflection never overwrites a previous cache`() {
         var writes = 0
         val result = DexResolution().resolve("build", false, { null }, { mapOf("bad" to "target") },

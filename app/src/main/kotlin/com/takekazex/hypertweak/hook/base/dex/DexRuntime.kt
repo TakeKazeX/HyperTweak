@@ -345,6 +345,7 @@ internal object DexRuntime {
                 if (values.isNotEmpty() || cacheEmpty) store.write(apk, values, identity, backend)
             },
             invalid = { DebugLog.w(TAG, "feature=" + feature.id + " descriptors rejected", it) },
+            exclusive = { block -> HostFileLock.withLock(store.lockFile, block = block) },
         )
     }
 

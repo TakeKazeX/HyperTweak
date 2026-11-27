@@ -60,15 +60,26 @@ internal class ApkDigestStore(private val file: File?, private val fingerprint: 
     /** False before the executing package's data directory is known; such a store is not kept. */
     val persistent: Boolean get() = file != null
 
-    @Synchronized
+    /** Held for a whole hash, so one thread per process opens the lock file and the rest reuse it. */
+    private val hashing = Any()
+
+    /**
+     * `this` only guards the properties file: a main-thread [cached] lookup never queues behind a
+     * multi-second hash. [hashing] serializes hashes in this process, so callers here wait and reuse
+     * the result, and only one channel per process ever holds the cross-process lock file (closing
+     * a second channel on the same file could release the first one's lock).
+     */
     fun digest(target: File): ByteArray {
         val before = ApkFileStat.of(target)
         val key = before?.let { fingerprint + "|" + it.encode() }
-        if (key != null) lookup(target.absolutePath, key)?.let { return it }
-        val bytes = sha256(target)
-        // Never persist a digest whose bytes may belong to a different version than its key.
-        if (key != null && ApkFileStat.of(target) == before) store(target.absolutePath, key, bytes)
-        return bytes
+        if (key != null) synchronized(this) { lookup(target.absolutePath, key) }?.let { return it }
+        // Sibling processes of one host start together; one hashes, the others reuse its entry.
+        return synchronized(hashing) { HostFileLock.withLock(file?.let { File(it.parentFile, it.name + ".lock") }) {
+            key?.let { synchronized(this) { lookup(target.absolutePath, it) } } ?: sha256(target).also { bytes ->
+                // Never persist a digest whose bytes may belong to a different version than its key.
+                if (key != null && ApkFileStat.of(target) == before) synchronized(this) { store(target.absolutePath, key, bytes) }
+            }
+        } }
     }
 
     /** The persisted digest for [target]'s current stat, or null; never reads the file's bytes. */

@@ -83,6 +83,9 @@ internal class DexCacheStore(
         temporary?.takeIf(File::exists)?.delete()
     }
 
+    /** Advisory lock shared by the host's processes for this feature; never read as a cache. */
+    val lockFile: File? get() = file?.let { File(it.parentFile, it.name + ".lock") }
+
     /** True when a readable cache file exists for this feature, regardless of identity. */
     fun exists(): Boolean = file?.let { it.isFile && it.length() <= MAX_BYTES } == true
 
