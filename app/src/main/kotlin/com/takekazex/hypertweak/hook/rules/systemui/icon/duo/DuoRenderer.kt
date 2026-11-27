@@ -140,6 +140,17 @@ internal object DuoRenderer : IconRenderer() {
     }
 
     internal val bindings = generationMainResource(IdentityHashMap<View, DuoBinding>()) { it.clear() }
+    /** Frozen rows of the retiring generation, by host battery, until a binding adopts or releases them. */
+    internal val handoffRows = generationMainResource(IdentityHashMap<View, DuoHandoffRow>()) { it.clear() }
+    /** This generation's outgoing records, created with the saved state and filled by the freeze. */
+    internal var handoffRecords: java.util.ArrayList<Any?>? by generationState { null }
+    /**
+     * The one freeze of this hot reload. SlotMaskApplier and this hooker both ask for it, in
+     * whichever order the roots retire, and each must see the same rows. Not generation state:
+     * the reset after this hooker's retirement must not let a later caller freeze again.
+     */
+    @Volatile
+    internal var handoffFrozen: List<MutableMap<String, Any?>>? = null
 
     /** Main thread. The lit lockscreen ring under [root] that currently draws the airplane. */
     internal fun keyguardAirplane(root: View): GlyphEndpoint? = bindings.values.firstOrNull { binding ->
@@ -504,15 +515,24 @@ internal object DuoRenderer : IconRenderer() {
 
     internal fun <T> onMainBlocking(action: () -> T): T = HostAccess.onMain(action)
     override fun saveHotReloadState(): Any? = onMainBlocking {
+        val handoff = java.util.ArrayList<Any?>().also { handoffRecords = it }
+        handoffFrozen = null
+        // Index 8 is filled later, by the freeze in this generation's retirement.
         listOf(null, null, null, bindings.keys.toList(),
-            panelProgress, panelVisible, panelStretchHeight, shadeSwitchSettledToControlCenter)
+            panelProgress, panelVisible, panelStretchHeight, shadeSwitchSettledToControlCenter, handoff)
     }
     override fun restoreHotReloadState(state: Any?) {
         val saved = state as? List<*> ?: return
         val token = epoch
-        main.post { if (enabled && token == epoch) guarded {
-            (saved.getOrNull(3) as? List<*>)?.filterIsInstance<View>()?.filter { it.isAttachedToWindow }?.forEach({ attach(it) })
-        } }
+        main.post {
+            guarded {
+                readHandoff(saved.getOrNull(8))
+                if (enabled && token == epoch) {
+                    (saved.getOrNull(3) as? List<*>)?.filterIsInstance<View>()?.filter { it.isAttachedToWindow }?.forEach({ attach(it) })
+                }
+            }
+            guarded { releaseUnboundHandoff(if (standardEnabled) "row not attached" else "Duo disabled") }
+        }
     }
     internal fun recoverExistingViews(views: List<View>) {
         if (!enabled) return
@@ -528,6 +548,8 @@ internal object DuoRenderer : IconRenderer() {
         epoch++
         // Finish native restoration before the lifecycle removes this generation's hooks.
         onMainBlocking {
+            // Frozen rows leave the bindings first, so the detach below does not restore them.
+            freezeForHandoff()
             bindings.keys.toList().forEach({ detach(it) })
             aodController.retire()
             wifiTintResourceMethod = null

@@ -38,7 +38,9 @@ internal class IconHostServices {
         /** The airplane Duo draws in the lockscreen ring under this window root, if any. */
         val keyguardAirplane: (View) -> GlyphEndpoint? = { null },
         /** Why [keyguardAirplane] found no ring under this root, for the location log. */
-        val keyguardAirplaneState: (View) -> String = { "unbound" }
+        val keyguardAirplaneState: (View) -> String = { "unbound" },
+        /** Main thread, retiring generation: freezes Duo's active rows; see [DuoHotReloadHandoff]. */
+        val freezeForHandoff: () -> List<MutableMap<String, Any?>> = { emptyList() }
     )
     data class Header(
         val supportsCompactLayout: (View) -> Boolean = { false },

@@ -135,10 +135,16 @@ internal object SlotMaskApplier : IconRenderer() {
     private var layoutFromField: Field? by generationState { null }
     private var slotConstructor: Constructor<*>? by generationState { null }
 
+    /** Outgoing Duo handoff records, created with the saved state and filled at retirement. */
+    private var duoHandoff: ArrayList<Any?>? by generationState { null }
+    /** Duo masks taken over from a frozen row, until this generation's Duo asserts or drops them. */
+    private val provisionalDuo = generationMainResource(WeakHashMap<Any, Boolean>()) { it.clear() }
+
     override fun saveHotReloadState(): Any = HostAccess.onMain {
+        val handoff = ArrayList<Any?>().also { duoHandoff = it }
         mapOf("order" to ArrayList(originalSlotOrder), "containers" to synchronized(stateLock) {
             containerStates.entries.map { (container, state) -> listOf(container, ArrayList(state.hostIgnored)) }
-        })
+        }, "duo" to handoff)
     }
 
     override fun restoreHotReloadState(state: Any?) {
@@ -152,6 +158,31 @@ internal object SlotMaskApplier : IconRenderer() {
                 val ignored = (row.getOrNull(1) as? List<*>)?.filterIsInstance<String>() ?: return@forEach
                 synchronized(stateLock) { containerStates[container] = ContainerState(ignored) }
             }
+            adoptDuoHandoff((state as? Map<*, *>)?.get("duo"))
+        }
+    }
+
+    /**
+     * Keeps a frozen Duo row's network mask under this generation's registry, so the containers
+     * recovered next do not show the native signal icons beside it. Duo re-asserts it on its first
+     * pass; a mask nobody re-asserts is released after [DuoHotReloadHandoff.MASK_EXPIRY_MS].
+     */
+    private fun adoptDuoHandoff(raw: Any?) {
+        DuoHotReloadHandoff.records(raw).forEach { record ->
+            val container = record[DuoHotReloadHandoff.ICONS] as View
+            val surface = (record[DuoHotReloadHandoff.SURFACE] as? String)
+                ?.let { name -> PlanSurface.entries.firstOrNull { it.name == name } } ?: return@forEach
+            if (record[DuoHotReloadHandoff.MASK_ADOPTED] == true) return@forEach
+            record[DuoHotReloadHandoff.MASK_ADOPTED] = true
+            duoSurfaces[container] = surface
+            maskOwners.set(container, RendererId.DUO, duoSlots)
+            provisionalDuo[container] = true
+            mainHandler.postDelayed({
+                if (provisionalDuo.remove(container) == true && !retiring) {
+                    DebugLog.i(TAG, "Duo handover mask expired surface=$surface")
+                    setDuoMask(container, false)
+                }
+            }, DuoHotReloadHandoff.MASK_EXPIRY_MS)
         }
     }
 
@@ -202,12 +233,27 @@ internal object SlotMaskApplier : IconRenderer() {
     }
 
     override fun onPrepareHotReload() {
+        // Before retiring: a Duo pass between this and Duo's own retirement would see its mask
+        // rejected and restore the native row. Frozen containers keep their mask for the handoff.
+        val frozen = IdentityHashMap<Any, Boolean>()
+        duoHandoff?.let { handoff ->
+            HostAccess.onMain {
+                IconHostPorts.duo.freezeForHandoff().forEach { record ->
+                    val container = record[DuoHotReloadHandoff.ICONS] ?: return@forEach
+                    val host = synchronized(stateLock) { containerStates[container]?.hostIgnored } ?: return@forEach
+                    record[DuoHotReloadHandoff.HOST_IGNORED] = ArrayList(host)
+                    frozen[container] = true
+                    handoff.add(record)
+                }
+            }
+        }
         retiring = true
         HostAccess.onMain { releaseMobile(); typeOnly.retire() }
         mainHandler.removeCallbacksAndMessages(null)
         // The replacement callback runs off the UI thread. Restore only the mutable container
         // lists on the main thread. The replacement rebuilds groups before changing slot indices.
         val pending = synchronized(stateLock) { containerStates.entries.map { it.key to it.value } }
+            .filter { (container, _) -> !frozen.containsKey(container) }
         HostAccess.onMain {
             restoring = true
             maskOwners.clear()
@@ -690,6 +736,7 @@ internal object SlotMaskApplier : IconRenderer() {
     fun setDuoMask(container: Any, active: Boolean, surface: PlanSurface? = null): Boolean {
         if (retiring) return !active
         if (Looper.myLooper() != Looper.getMainLooper()) return rejectMask(RendererId.DUO, "off the main thread")
+        provisionalDuo.remove(container)
         if (active && surface == null) return rejectMask(RendererId.DUO, "surface unavailable")
         if (active) duoSurfaces[container] = surface!! else duoSurfaces.remove(container)
         return setContainerMask(container, if (active) duoSlots else emptySet(), RendererId.DUO)

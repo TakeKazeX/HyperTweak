@@ -144,6 +144,8 @@ internal fun DuoRenderer.foreground(binding: DuoBinding): Int {
     }
 
 internal fun DuoRenderer.restore(binding: DuoBinding) {
+        // A frozen row still holds the host reference: give it back to the native battery first.
+        releaseHandoff(binding, binding.nativeReason ?: "restored")
         aodController.restoreNativeFullAod(binding)
         panelHandover.clearSignalMotions(binding)
         panelHandover.clearPanelMotion(binding)

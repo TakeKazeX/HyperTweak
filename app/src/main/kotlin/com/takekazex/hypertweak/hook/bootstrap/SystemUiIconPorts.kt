@@ -3,6 +3,7 @@ package com.takekazex.hypertweak.hook.bootstrap
 import com.takekazex.hypertweak.hook.rules.systemui.icon.carrier.CarrierRenderer
 import com.takekazex.hypertweak.hook.rules.systemui.icon.left.LeftRenderer
 import com.takekazex.hypertweak.hook.rules.systemui.icon.duo.DuoRenderer
+import com.takekazex.hypertweak.hook.rules.systemui.icon.duo.freezeForHandoff
 import com.takekazex.hypertweak.hook.rules.systemui.icon.*
 import com.takekazex.hypertweak.hook.rules.systemui.lockscreen.HideLockscreenStatusBarHooker
 
@@ -36,7 +37,8 @@ internal object SystemUiIconPorts {
         duo = IconHostServices.Duo(
             releaseStatusIcons = { DuoRenderer.releaseLeftStatusIcons(it) },
             keyguardAirplane = { DuoRenderer.keyguardAirplane(it) },
-            keyguardAirplaneState = { DuoRenderer.keyguardAirplaneState(it) }
+            keyguardAirplaneState = { DuoRenderer.keyguardAirplaneState(it) },
+            freezeForHandoff = { DuoRenderer.freezeForHandoff() }
         ),
         header = IconHostServices.Header(
             supportsCompactLayout = { ControlCenterHeaderHooker.supportsCompactLayout(it) },

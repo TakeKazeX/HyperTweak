@@ -56,7 +56,9 @@ import kotlin.math.roundToInt
 internal fun DuoRenderer.attach(battery: View) {
         if (bindings.containsKey(battery)) return
         val parent = battery.parent as? ViewGroup ?: return
-        if (parent.javaClass.name != CONTAINER || batteryLayoutField?.get(parent) !== battery) return
+        if (parent.javaClass.name != CONTAINER) return
+        val held = batteryLayoutField?.get(parent)
+        if (held !== battery && !heldByHandoff(battery, held)) return
         val surface = surface(battery)
         // Keep dormant expanded bindings too: switching from native to Duo must not require
         // that the already-attached control-center header happens to be reinflated.
@@ -67,7 +69,12 @@ internal fun DuoRenderer.attach(battery: View) {
             if (surface == DuoSurface.KEYGUARD)
                 ancestor(battery, "com.android.systemui.statusbar.phone.MiuiKeyguardStatusBarView") else null,
             panelVisible && panelProgress >= 0.999f)
-        binding.hostHideBattery = read(parent, "mIsHideBattery") as? Boolean ?: false
+        val handoff = handoffRows[battery]?.takeIf { held === it.oldView }
+        binding.handoff = handoff
+        // The frozen row already cleared mIsHideBattery and masked the airplane slot: the host's
+        // own values come from the retiring generation's record.
+        binding.hostHideBattery = handoff?.hostHideBattery ?: (read(parent, "mIsHideBattery") as? Boolean ?: false)
+        binding.hostIgnoredAirplane = handoff?.hostIgnoredAirplane
         binding.rowPhase = aodController.phaseFor(binding.keyguardRoot)
         binding.view.setIconSize(iconSizeDp)
         binding.view.setPaddingRelative((4f * battery.resources.displayMetrics.density).roundToInt(), 0, 0, 0)
@@ -165,6 +172,10 @@ internal fun DuoRenderer.reconcile(binding: DuoBinding) {
                 return
             }
             val decision = aodController.keyguardDecision(binding)
+            // The row was frozen lit; the AOD branches below never restore, so release it here.
+            if (binding.handoff != null && binding.surface == DuoSurface.KEYGUARD && decision.phase != AodHostPhase.LIT) {
+                releaseHandoff(binding, "keyguard phase ${decision.phase}")
+            }
             // Nothing owns this keyguard row: release every borrowed reference, mask and native
             // child so a lit lock screen keeps exactly the host's result.
             if (decision.owner == KeyguardRowOwner.NONE) {
@@ -255,6 +266,7 @@ internal fun DuoRenderer.reconcile(binding: DuoBinding) {
                 else -> null
             }
             reportNativeReason(binding, nativeReason)
+            if (nativeReason != null && holdsHandoff(binding, nativeReason)) return
             if (nativeReason != null) {
                 restore(binding)
                 binding.rowPhase = decision.phase
@@ -340,13 +352,16 @@ internal fun DuoRenderer.reconcile(binding: DuoBinding) {
             binding.view.scaleX = 1f
             binding.view.scaleY = 1f
             if (!binding.active) {
-                if (batteryLayoutField?.get(binding.parent) !== battery) return
+                val held = batteryLayoutField?.get(binding.parent)
+                if (held !== battery && (binding.handoff == null || held !== binding.handoff?.oldView)) return
                 // Establish a measured, visible replacement before claiming the signal mask.
                 batteryLayoutField?.set(binding.parent, binding.view)
                 binding.active = true
                 field(binding.parent.javaClass, "mIsHideBattery")?.setBoolean(binding.parent, false)
                 binding.view.visibility = View.VISIBLE
                 battery.visibility = View.GONE
+                // Same frame: the frozen row leaves as this one takes the host reference.
+                completeHandoff(binding)
                 binding.parent.requestLayout()
             }
             // Runs on every pre-draw; View#setVisibility is routed through a framework hook, so

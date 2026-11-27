@@ -99,6 +99,9 @@ internal class DuoBinding(val battery: View, val parent: ViewGroup, val icons: V
     var hostIgnoredAirplane: Boolean? = null
     var airplaneMasked = false
     var wifiGlyph: NativeWifiDrawable? = null
+    /** The retiring generation's frozen row this binding replaces on its first activation. */
+    var handoff: DuoHandoffRow? = null
+    var handoffRetry: Runnable? = null
     var wifiArtworkRevision = -1
 }
 
