@@ -28,6 +28,24 @@ class DexResolutionTest {
         assertEquals(0, writes)
     }
 
+    @Test fun `a caller that must not wait resolves beside a running scan instead of queueing`() {
+        val resolution = DexResolution()
+        val inside = java.util.concurrent.CountDownLatch(1); val release = java.util.concurrent.CountDownLatch(1)
+        val worker = Thread {
+            resolution.resolve("build", false, { null }, { inside.countDown(); release.await(5, java.util.concurrent.TimeUnit.SECONDS); mapOf("key" to "worker") },
+                { values, _ -> values["key"] }, { }, { throw it })
+        }
+        worker.start()
+        try {
+            assertTrue(inside.await(3, java.util.concurrent.TimeUnit.SECONDS))
+            val started = System.nanoTime()
+            val result = resolution.resolve("build", false, { null }, { mapOf("key" to "main") },
+                { values, _ -> values["key"] }, { }, { throw it }, wait = false)
+            assertEquals("main", result)
+            assertTrue((System.nanoTime() - started) / 1_000_000L < 1_000)
+        } finally { release.countDown(); worker.join(3000) }
+    }
+
     @Test fun `cache-only replay never takes the cross-process lock`() {
         var locked = false
         val result = DexResolution().resolve("build", true, { null }, { error("no scan") },

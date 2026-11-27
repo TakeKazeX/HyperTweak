@@ -52,15 +52,18 @@ internal class DexOperandIndex internal constructor(
         }
         require(result.map { it.type }.distinct().size == result.size) { "Ambiguous duplicate DEX class definitions" }
         // A cache-hit start should never get here; this line names the thread that paid for it.
-        com.takekazex.hypertweak.util.logging.DebugLog.i("DexOperandIndex", "loaded classes=" + result.size +
+        // Performance diagnostics: DEBUG, and the stack walk only when DEBUG is printed.
+        com.takekazex.hypertweak.util.logging.DebugLog.d("DexOperandIndex") { "loaded classes=" + result.size +
             " in " + (System.nanoTime() - started) / 1_000_000L + "ms thread=" + Thread.currentThread().name +
-            " source=" + containers.first().name + callerHint())
+            " source=" + containers.first().name + callerHint() }
         result
     } }
     /** Off the worker, the module frames that asked for the index (R8 names: retrace with the build's mapping). */
     private fun callerHint(): String {
         if (Thread.currentThread().name == "HT-DexPrepare") return ""
-        val frames = Throwable().stackTrace.filter { it.className.startsWith("com.takekazex") || it.className.length <= 4 }
+        // Only the module's frames: R8 repackages release classes into the root package (`h11`), while
+        // host classes keep a package even when obfuscated.
+        val frames = Throwable().stackTrace.filter { it.className.startsWith("com.takekazex") || '.' !in it.className }
             .drop(1).take(12).joinToString(" < ") { it.className + "." + it.methodName + ":" + it.lineNumber }
         return " caller=" + frames
     }

@@ -22,4 +22,18 @@ class DexPhasesTest {
         DexPhases.add("scan", 50 * ms)
         assertEquals("", DexPhases.frame { phases -> DexPhases.add("read", ms / 2); phases() })
     }
+
+    @Test fun `a phase excludes the phases nested inside it`() {
+        var elapsedMs = 0L
+        val line = DexPhases.frame { phases ->
+            val started = System.nanoTime()
+            DexPhases.measure("identity") { DexPhases.add("lock", 30 * ms); Thread.sleep(45) }
+            elapsedMs = (System.nanoTime() - started) / ms
+            phases()
+        }
+        val values = line.split(',').associate { it.substringBefore(':') to it.substringAfter(':').toLong() }
+        assertEquals(30L, values["lock"])
+        // identity ran about 45 ms; the 30 ms recorded as a nested lock wait counts only under lock.
+        assertTrue("identity=${values["identity"]} elapsed=$elapsedMs", values.getValue("identity") <= elapsedMs - 30 + 1)
+    }
 }

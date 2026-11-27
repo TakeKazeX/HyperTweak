@@ -3,7 +3,12 @@ package com.takekazex.hypertweak.hook.base.dex
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.locks.ReentrantLock
 
-/** Serialize one feature/build, without making cache-only startup wait for an active scan. */
+/**
+ * Serialize one feature/build, without making cache-only startup wait for an active scan. A caller
+ * that must not wait ([wait] false: the host main thread) never queues behind another thread's scan,
+ * which may itself be waiting for a sibling process: on contention it resolves without the key lock,
+ * at worst repeating that scan.
+ */
 internal class DexResolution {
     private val locks = ConcurrentHashMap<String, ReentrantLock>()
 
@@ -17,11 +22,11 @@ internal class DexResolution {
         invalid: (Throwable) -> Unit,
         /** Cross-process exclusion around re-read, scan and write; see [HostFileLock]. */
         exclusive: (() -> T?) -> T? = { it() },
+        wait: Boolean = true,
     ): T? {
         val lock = locks.computeIfAbsent(key) { ReentrantLock() }
-        if (cacheOnly) {
-            if (!lock.tryLock()) return null
-        } else lock.lock()
+        val locked = if (cacheOnly || !wait) lock.tryLock() else { lock.lock(); true }
+        if (!locked && cacheOnly) return null
         try {
             val first = read()
             first?.let { values ->
@@ -40,7 +45,7 @@ internal class DexResolution {
                 result
             }
         } finally {
-            lock.unlock()
+            if (locked) lock.unlock()
         }
     }
 }

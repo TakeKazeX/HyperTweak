@@ -41,6 +41,14 @@ internal object DexRuntime {
     private val identities = ConcurrentHashMap<String, DexKitCacheIdentity>()
     /** Kernel stat of base + splits captured with each memoized identity. */
     private val identityStats = ConcurrentHashMap<String, List<ApkFileStat?>>()
+    /**
+     * One capture at a time per APK path. A capture may hash the APK and wait for a sibling process
+     * ([ApkDigestStore.digest]); holding a process-wide monitor for that made every other lookup
+     * wait, including main-thread cache replays of unrelated APKs.
+     */
+    private val identityLocks = ConcurrentHashMap<String, java.util.concurrent.locks.ReentrantLock>()
+    /** Bumped by [invalidateSource]; a capture that started before the bump is not memoized. */
+    private val identityEpochs = ConcurrentHashMap<String, Long>()
     @Volatile private var digestStore: ApkDigestStore? = null
     @Volatile private var executingInfo: ApplicationInfo? = null
     private val sourceInfos = ConcurrentHashMap<String, ApplicationInfo>()
@@ -55,7 +63,10 @@ internal object DexRuntime {
     }
     /** Package dispatch/update is an explicit identity epoch, including equal-stat replacements. */
     fun invalidateSource(path: String) {
-        synchronized(identities) { identities.remove(path); identityStats.remove(path) }
+        synchronized(identities) {
+            identityEpochs.merge(path, 1L, Long::plus)
+            identities.remove(path); identityStats.remove(path)
+        }
     }
     private val scopes = DexScopes(DexKitManager::beginSharedSession)
     val isResolving: Boolean get() = DexKitManager.hasActiveUsers
@@ -85,11 +96,6 @@ internal object DexRuntime {
     private val warnedInstallThreadScans = ConcurrentHashMap.newKeySet<String>()
 
     /**
-     * Declares that scans inside [block] must run synchronously on an install thread, with the
-     * reason. Without it, [resolve] warns once per feature when a scan runs on the host main thread
-     * or a binder thread: those are the install callbacks, which replay caches and defer scans.
-     */
-    /**
      * Every resolution inside [block] answers from the cache only, so a resolver composed of several
      * lookups can be replayed on an install thread without one of them scanning. A miss anywhere
      * returns null from that lookup; the caller defers the whole resolver ([BaseHooker]'s
@@ -104,6 +110,11 @@ internal object DexRuntime {
     /** True inside [replayOnly]: a null result there is a cache miss, not a missing host contract. */
     val isReplayOnly: Boolean get() = replaying.get() == true
 
+    /**
+     * Declares that scans inside [block] must run synchronously on an install thread, with the
+     * reason. Without it, [resolve] warns once per feature when a scan runs on the host main thread
+     * or a binder thread: those are the install callbacks, which replay caches and defer scans.
+     */
     fun <T> synchronousScan(reason: String, block: () -> T): T {
         val previous = synchronousReason.get()
         synchronousReason.set(reason)
@@ -135,8 +146,9 @@ internal object DexRuntime {
         (info?.deviceProtectedDataDir?.takeIf(String::isNotBlank)
             ?: info?.dataDir?.takeIf(String::isNotBlank))?.let { File(it, "cache") }
 
-    /** Complete base/split byte identity, memoized per installed metadata in this process. */
     /**
+     * Complete base/split byte identity, memoized per installed metadata in this process.
+     *
      * [hashAllowed] false never reads APK bytes: an identity whose digest is neither memoized nor
      * persisted for the current stat is reported unavailable instead of hashed.
      */
@@ -167,18 +179,37 @@ internal object DexRuntime {
         fun reusable(cached: DexKitCacheIdentity) = cached.modified == modified && cached.size == size &&
             cached.splits == stamps && identityStats[key] == stats
         identities[key]?.takeIf(::reusable)?.let { return it }
-        return synchronized(identities) {
-            identities[key]?.takeIf(::reusable)
-                ?: DexKitCacheIdentity.capture(apk, splits, fingerprintFor(apkPath))
-                    ?.let { captured ->
-                        val store = digestStore()
-                        DexKitCacheIdentity.withFullDigest(captured,
-                            if (hashAllowed) store::digest else { file -> checkNotNull(store.cached(file)) { "digest not persisted" } })
-                    }
-                    ?.takeIf { !it.fullDigest.isNullOrBlank() }
-                    ?.also { identities[key] = it; identityStats[key] = stats }
+        val lock = identityLocks.computeIfAbsent(key) { java.util.concurrent.locks.ReentrantLock() }
+        // The host main thread never waits behind another thread's capture, which may be hashing or
+        // waiting for a sibling process. On contention a replay reports the identity unavailable
+        // (its caller defers to the worker), and a synchronous resolution captures it unlocked, at
+        // worst hashing twice.
+        val locked = if (isMainThread()) lock.tryLock() else { lock.lock(); true }
+        if (!locked && !hashAllowed) return null
+        try {
+            identities[key]?.takeIf(::reusable)?.let { return it }
+            val epoch = identityEpochs[key] ?: 0L
+            val identity = DexKitCacheIdentity.capture(apk, splits, fingerprintFor(apkPath))
+                ?.let { captured ->
+                    val store = digestStore()
+                    DexKitCacheIdentity.withFullDigest(captured,
+                        if (hashAllowed) store::digest else { file -> checkNotNull(store.cached(file)) { "digest not persisted" } })
+                }
+                ?.takeIf { !it.fullDigest.isNullOrBlank() }
+                ?: return null
+            synchronized(identities) {
+                // An invalidation during the capture means it may describe the previous install.
+                if ((identityEpochs[key] ?: 0L) == epoch) { identities[key] = identity; identityStats[key] = stats }
+            }
+            return identity
+        } finally {
+            if (locked) lock.unlock()
         }
     }
+
+    private fun isMainThread(): Boolean = runCatching {
+        android.os.Looper.getMainLooper().let { it != null && it === android.os.Looper.myLooper() }
+    }.getOrDefault(false)
 
     /** Persistent per-host digests; the executing package's cache directory owns the file. */
     private fun digestStore(): ApkDigestStore = digestStore ?: synchronized(this) {
@@ -387,7 +418,8 @@ internal object DexRuntime {
         val started = System.nanoTime()
         // A cache-only replay on the main thread must not hash a cold 50-350 MB APK. A miss falls
         // through to the caller's background preparation, which hashes off the main thread.
-        val onMain = cacheOnly && android.os.Looper.getMainLooper().let { it != null && it === android.os.Looper.myLooper() }
+        val mainThread = isMainThread()
+        val onMain = cacheOnly && mainThread
         val identity = DexPhases.measure("identity") { identityFor(appInfo, apkPath, hashAllowed = !onMain) } ?: run {
             if (onMain) DebugLog.d(TAG) { "feature=" + feature.id + " identity cold on main thread; deferring" }
             return null
@@ -417,7 +449,9 @@ internal object DexRuntime {
                 if (values.isNotEmpty() || cacheEmpty) store.write(apk, values, identity, backend)
             },
             invalid = { DebugLog.w(TAG, "feature=" + feature.id + " descriptors rejected", it) },
-            exclusive = { block -> HostFileLock.withLock(store.lockFile, block = block) },
+            exclusive = { block -> HostFileLock.withLock(store.lockFile,
+                onContended = { DexKitManager.releaseIdleBridge(apkPath) }, block = block) },
+            wait = !mainThread,
         )
     }
 

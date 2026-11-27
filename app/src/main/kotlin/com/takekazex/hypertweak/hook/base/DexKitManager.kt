@@ -21,6 +21,8 @@ object DexKitManager {
         var bridge: DexKitBridge? = null
         var active = false
         var failed = false
+        /** [withBridge] blocks running on this scope's bridge; an idle bridge may be released. */
+        var inUse = 0
     }
 
     private val sharedScopes: ThreadLocal<ArrayList<SharedScope>> =
@@ -116,10 +118,27 @@ object DexKitManager {
         return try {
             val scope = scopeStack().last { it.apkPath == apkPath }
             val bridge = sharedBridge(scope) ?: return null
-            runCatching { block(bridge) }.onFailure { t ->
-                DebugLog.e("DexKit", "failed to run shared bridge block for APK $apkPath", t)
-            }.getOrNull()
+            scope.inUse++
+            try {
+                runCatching { block(bridge) }.onFailure { t ->
+                    DebugLog.e("DexKit", "failed to run shared bridge block for APK $apkPath", t)
+                }.getOrNull()
+            } finally { scope.inUse-- }
         } finally { session.close() }
+    }
+
+    /**
+     * Closes this thread's open but idle bridge for [apkPath] before a long wait (a sibling process
+     * holding a scan lock). An open bridge counts as an active user, so leaving it open during the
+     * wait refused every hot reload of that time and kept the native index mapped for nothing. The
+     * scope stays; the next [withBridge] reopens the bridge. A bridge inside a running block is kept.
+     */
+    fun releaseIdleBridge(apkPath: String): Boolean {
+        val scope = scopeStack().lastOrNull { it.apkPath == apkPath } ?: return false
+        if (scope.bridge == null || scope.inUse > 0) return false
+        closeScope(scope)
+        DebugLog.d("DexKit", "released idle shared bridge while waiting for $apkPath")
+        return true
     }
 
     /** Bridge currently open on this thread for [apkPath], if a shared scope opened one. */
