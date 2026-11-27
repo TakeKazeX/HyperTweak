@@ -76,7 +76,7 @@ internal class SystemHelperEngine(
         }
 
         return try {
-            run(SystemHelperPackage.command(enabled, initial.userId))
+            val _ = run(SystemHelperPackage.command(enabled, initial.userId))
             val after = try {
                 readState()
             } catch (e: Exception) {

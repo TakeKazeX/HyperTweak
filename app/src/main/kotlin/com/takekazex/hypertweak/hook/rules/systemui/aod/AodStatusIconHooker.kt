@@ -33,6 +33,7 @@ import java.text.NumberFormat
 import java.util.IdentityHashMap
 import java.util.Locale
 import androidx.core.view.isVisible
+import com.takekazex.hypertweak.util.ignoreFailure
 import com.takekazex.hypertweak.util.platform.ResourceLookup
 
 /** Adapter for the AOD plugin's battery row, usually hosted inside SystemUI. */
@@ -109,7 +110,7 @@ class AodStatusIconHooker : DynamicHooker() {
             AODHooker.applyAodPluginCapability(classLoader, retiring = true)
             revision++ // separates this generation's queued refreshes from the next one
             synchronized(live) { live.remove(this) }
-            bindings.values.toList().forEach { binding -> runCatching { restore(binding) } }
+            bindings.values.toList().forEach { binding -> ignoreFailure { restore(binding) } }
             signalObserver?.stop()
         }
     }

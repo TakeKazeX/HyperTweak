@@ -37,6 +37,7 @@ import com.takekazex.hypertweak.hook.rules.systemui.media.MediaPlayerDeviceIconH
 import com.takekazex.hypertweak.hook.rules.systemui.media.MediaSuperIslandWhitelistHooker
 import com.takekazex.hypertweak.hook.rules.systemui.notification.DownloadFocusAuthPluginHooker
 import com.takekazex.hypertweak.hook.rules.systemui.volume.app.AppVolumeHooker
+import com.takekazex.hypertweak.util.ignoreFailure
 
 object SystemUIPluginHooker : StaticHooker() {
     // Published on settings acceptance; hook callbacks perform no storage reads.
@@ -271,56 +272,56 @@ object SystemUIPluginHooker : StaticHooker() {
                     HookFailurePolicy.open("SystemUIPlugin", "unloadPlugin", Unit) {
                         val pluginInstance = param.thisObject
                         activeAodSessions.remove(pluginInstance)?.let { session ->
-                            runCatching { session.hooker.prepareForHotReload() }
+                            ignoreFailure { session.hooker.prepareForHotReload() }
                             detach(session.hooker)
                         }
                         val session = activeSessions.release(pluginInstance)
                         if (session != null) {
-                            runCatching { session.sliderPercentHooker.prepareForHotReload() }
-                            runCatching { session.cornerHooker.prepareForHotReload() }
+                            ignoreFailure { session.sliderPercentHooker.prepareForHotReload() }
+                            ignoreFailure { session.cornerHooker.prepareForHotReload() }
                             session.cardsEditHooker?.let { cardsEdit ->
-                                runCatching { cardsEdit.prepareForHotReload() }
+                                ignoreFailure { cardsEdit.prepareForHotReload() }
                                 detach(cardsEdit)
                             }
                             session.cardResizeHooker?.let { resize ->
-                                runCatching { resize.prepareForHotReload() }
+                                ignoreFailure { resize.prepareForHotReload() }
                                 detach(resize)
                             }
                             session.mediaDeviceIconHooker?.let { deviceIcon ->
-                                runCatching { deviceIcon.prepareForHotReload() }
+                                ignoreFailure { deviceIcon.prepareForHotReload() }
                                 detach(deviceIcon)
                             }
                             session.deviceCenterSingleRowHooker?.let { deviceRow ->
-                                runCatching { deviceRow.prepareForHotReload() }
+                                ignoreFailure { deviceRow.prepareForHotReload() }
                                 detach(deviceRow)
                             }
                             session.appVolumeHooker?.let { appVolume ->
-                                runCatching { appVolume.prepareForHotReload() }
+                                ignoreFailure { appVolume.prepareForHotReload() }
                                 detach(appVolume)
                             }
                             session.mediaSuperIslandWhitelistHooker.let { mediaWhitelist ->
-                                runCatching { mediaWhitelist.prepareForHotReload() }
+                                ignoreFailure { mediaWhitelist.prepareForHotReload() }
                                 detach(mediaWhitelist)
                             }
-                            runCatching { session.threeIslandHooker.prepareForHotReload() }
+                            ignoreFailure { session.threeIslandHooker.prepareForHotReload() }
                             detach(session.threeIslandHooker)
-                            runCatching { session.liveUpdateIconHooker.prepareForHotReload() }
+                            ignoreFailure { session.liveUpdateIconHooker.prepareForHotReload() }
                             detach(session.liveUpdateIconHooker)
-                            runCatching { session.timeFontHooker.prepareForHotReload() }
+                            ignoreFailure { session.timeFontHooker.prepareForHotReload() }
                             detach(session.timeFontHooker)
-                            runCatching { session.pullDownHooker.prepareForHotReload() }
+                            ignoreFailure { session.pullDownHooker.prepareForHotReload() }
                             detach(session.pullDownHooker)
-                            runCatching { session.lottieResumeHooker.prepareForHotReload() }
+                            ignoreFailure { session.lottieResumeHooker.prepareForHotReload() }
                             detach(session.lottieResumeHooker)
-                            runCatching { session.flashlightHooker.prepareForHotReload() }
+                            ignoreFailure { session.flashlightHooker.prepareForHotReload() }
                             detach(session.flashlightHooker)
-                            runCatching { session.superIslandHooker.prepareForHotReload() }
+                            ignoreFailure { session.superIslandHooker.prepareForHotReload() }
                             detach(session.superIslandHooker)
-                            runCatching { session.volumeKeyHooker.prepareForHotReload() }
+                            ignoreFailure { session.volumeKeyHooker.prepareForHotReload() }
                             detach(session.volumeKeyHooker)
-                            runCatching { session.tileMessageHooker.prepareForHotReload() }
+                            ignoreFailure { session.tileMessageHooker.prepareForHotReload() }
                             detach(session.tileMessageHooker)
-                            runCatching { session.editButtonHooker.prepareForHotReload() }
+                            ignoreFailure { session.editButtonHooker.prepareForHotReload() }
                             detach(session.editButtonHooker)
                             detach(session.sliderPercentHooker)
                             detach(session.cornerHooker)

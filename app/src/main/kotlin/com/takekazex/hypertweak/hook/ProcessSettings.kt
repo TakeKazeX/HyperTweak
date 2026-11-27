@@ -11,6 +11,7 @@ import com.takekazex.hypertweak.hook.runtime.settings.RuntimeSettingsStore
 import com.takekazex.hypertweak.hook.runtime.settings.SettingsReloadDispatcher
 import com.takekazex.hypertweak.settings.contract.AppSettingsKeys
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+import com.takekazex.hypertweak.util.ignoreFailure
 import com.takekazex.hypertweak.util.logging.DebugLog
 import io.github.libxposed.api.XposedModule
 import java.util.concurrent.atomic.AtomicLong
@@ -151,7 +152,7 @@ internal class ProcessSettings(
     fun detachPreferencesListener() {
         settingsHandler.removeCallbacks(callbackSnapshotRefresh)
         runtimePreferencesSource?.let { source ->
-            runCatching { source.unregisterOnSharedPreferenceChangeListener(runtimePreferencesListener) }
+            ignoreFailure { source.unregisterOnSharedPreferenceChangeListener(runtimePreferencesListener) }
         }
         runtimePreferencesSource = null
     }
@@ -193,7 +194,7 @@ internal class ProcessSettings(
         Thread({
             var attempt = 0
             while (attempt < MAX_PREFS_INIT_RETRIES) {
-                runCatching { Thread.sleep(PREFS_RETRY_DELAY_MS * (1L shl attempt)) }
+                ignoreFailure { Thread.sleep(PREFS_RETRY_DELAY_MS * (1L shl attempt)) }
                 if (preferenceRetryGeneration.get() != retryGeneration) return@Thread
                 if (tryInitPreferences()) {
                     retryPreferenceGatedHookers(retryGeneration)

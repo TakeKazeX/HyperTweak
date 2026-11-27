@@ -17,6 +17,7 @@ import android.view.View
 import android.view.ViewConfiguration
 import android.view.animation.PathInterpolator
 import android.widget.FrameLayout
+import com.takekazex.hypertweak.util.ignoreFailure
 import com.takekazex.hypertweak.util.logging.DebugLog
 import kotlin.math.abs
 import kotlin.math.max
@@ -117,7 +118,7 @@ internal class FlashlightIslandSession(
     }
 
     fun onPanelDetached() {
-        if (callbackRegistered) runCatching { torch.cameraManager.unregisterTorchCallback(torchCallback) }
+        if (callbackRegistered) ignoreFailure { torch.cameraManager.unregisterTorchCallback(torchCallback) }
         callbackRegistered = false
         onHeldChanged(false)
     }
@@ -258,7 +259,7 @@ internal class FlashlightIslandSession(
         lightsAnimator?.cancel()
         shownAnimator?.cancel()
         panel.release()
-        if (callbackRegistered) runCatching { torch.cameraManager.unregisterTorchCallback(torchCallback) }
+        if (callbackRegistered) ignoreFailure { torch.cameraManager.unregisterTorchCallback(torchCallback) }
         callbackRegistered = false
         if (!released) FlashlightIslandHold.held = false
         disposed = true

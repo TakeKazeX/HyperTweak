@@ -8,6 +8,7 @@ import android.os.Process
 import android.content.pm.ApplicationInfo
 import java.util.concurrent.ConcurrentHashMap
 import com.takekazex.hypertweak.hook.base.DexKitCacheIdentity
+import com.takekazex.hypertweak.util.ignoreFailure
 import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
@@ -85,7 +86,7 @@ internal object DexRuntime {
      */
     private val worker = ThreadPoolExecutor(1, 1, 30L, TimeUnit.SECONDS, ArrayBlockingQueue(32), { task ->
         Thread({
-            runCatching { Process.setThreadPriority(Process.THREAD_PRIORITY_BACKGROUND) }
+            ignoreFailure { Process.setThreadPriority(Process.THREAD_PRIORITY_BACKGROUND) }
             task.run()
         }, WORKER_THREAD).apply { isDaemon = true }
     }).apply { allowCoreThreadTimeOut(true) }

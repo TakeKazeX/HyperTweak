@@ -15,6 +15,11 @@ class ArchitectureGuardTest(unittest.TestCase):
                 "// runCatching { e() }\n")
         self.assertEqual(3, discarded_run_catching(dropped))
         self.assertEqual(0, discarded_run_catching(kept))
+        ignored = ("ignoreFailure { a() }\n"
+                   "list.forEach { ignoreFailure { it.close() } }\n"
+                   "ignoreFailure(rule::close)\n"
+                   "// ignoreFailure { b() }\n")
+        self.assertEqual(3, discarded_run_catching(ignored))
 
     def test_declared_member_first_match_only_shrinks(self):
         pick = "val m = type.declaredMethods.firstOrNull { it.name == \"x\" }\n"

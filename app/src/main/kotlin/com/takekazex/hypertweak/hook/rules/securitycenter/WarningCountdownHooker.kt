@@ -22,6 +22,7 @@ import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.hook.base.InstallPolicy
 import com.takekazex.hypertweak.util.logging.DebugLog
 import com.takekazex.hypertweak.hook.base.HookParam
+import com.takekazex.hypertweak.util.ignoreFailure
 import org.luckypray.dexkit.query.enums.StringMatchType
 import org.luckypray.dexkit.query.matchers.MethodMatcher
 import java.lang.reflect.Field
@@ -454,7 +455,7 @@ object WarningCountdownHooker : StaticHooker() {
         if (!prepared) return false
         return try {
             handler.handleMessage(Message.obtain())
-            runCatching { handler.removeCallbacksAndMessages(null) }
+            ignoreFailure { handler.removeCallbacksAndMessages(null) }
             true
         } catch (t: Throwable) {
             DebugLog.w(TAG, "adb input countdown drive failed", t)
@@ -481,7 +482,7 @@ object WarningCountdownHooker : StaticHooker() {
 
         // One probe tick: the host decrements its own counter, and re-arms a tick we drop.
         val ticked = runCatching { handler.handleMessage(Message.obtain()) }.isSuccess
-        runCatching { handler.removeCallbacksAndMessages(null) }
+        ignoreFailure { handler.removeCallbacksAndMessages(null) }
         if (!ticked) {
             DebugLog.w(TAG, "adb input probe tick failed; native countdown kept")
             return null

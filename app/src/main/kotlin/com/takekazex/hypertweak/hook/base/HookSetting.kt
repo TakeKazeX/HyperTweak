@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.base
 
+import com.takekazex.hypertweak.util.ignoreFailure
 import java.lang.ref.WeakReference
 import kotlin.properties.ReadOnlyProperty
 import kotlin.reflect.KProperty
@@ -31,6 +32,6 @@ internal class HookSettingRegistry(private val failure: (Throwable) -> Unit = {}
     }
 
     private fun refreshOne(setting: HookSetting<*>, failure: (Throwable) -> Unit) {
-        try { setting.refresh() } catch (error: Throwable) { runCatching { failure(error) } }
+        try { setting.refresh() } catch (error: Throwable) { ignoreFailure { failure(error) } }
     }
 }

@@ -1,6 +1,7 @@
 package com.takekazex.hypertweak.hook.runtime.reload
 
 import com.takekazex.hypertweak.hook.base.HostMembers
+import com.takekazex.hypertweak.util.ignoreFailure
 import com.takekazex.hypertweak.util.logging.DebugLog
 
 /**
@@ -40,7 +41,7 @@ internal object GenerationRetirement {
     /** A process this module never hooks still loads every generation; it must free them too. */
     fun retireSkipped(): Any {
         val state = arrayOf<Any?>(SKIPPED_STATE, savedState().second)
-        finalSteps().forEach { step -> runCatching(step) }
+        finalSteps().forEach { step -> ignoreFailure(step) }
         return state
     }
 

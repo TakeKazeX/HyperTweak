@@ -74,7 +74,7 @@ object SettingsHooker : StaticHooker() {
         // 1. Hook updateHeaderList to inject our custom entry in MiuiSettings
         HostSelect.method(clzMiuiSettings) {
             name("updateHeaderList")
-            params(java.util.List::class.java)
+            params(List::class.java)
         }?.hook {
             after { param ->
                 @Suppress("UNCHECKED_CAST")

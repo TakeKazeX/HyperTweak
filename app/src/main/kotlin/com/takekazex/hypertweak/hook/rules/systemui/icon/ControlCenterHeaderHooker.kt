@@ -18,6 +18,7 @@ import android.view.ViewGroup
 import android.widget.LinearLayout
 import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
+import com.takekazex.hypertweak.util.ignoreFailure
 
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.ref.WeakReference
@@ -88,7 +89,7 @@ internal object ControlCenterHeaderHooker : IconRenderer() {
     override fun onPrepareHotReload() {
         val restore = {
             dates.forEach { (date, state) ->
-                runCatching {
+                ignoreFailure {
                     field(date.javaClass, "mPolicyVisibility")?.setInt(date, state.policy)
                     date.visibility = state.visibility
                 }
@@ -96,7 +97,7 @@ internal object ControlCenterHeaderHooker : IconRenderer() {
             dates.clear()
             layouts.keys.toList().forEach(::restoreLayout)
             compactCarrierVisibility.toList().forEach { (carrier, visibility) ->
-                runCatching { carrier.visibility = visibility }
+                ignoreFailure { carrier.visibility = visibility }
             }
             compactCarrierVisibility.clear()
             compactHeaders.clear()

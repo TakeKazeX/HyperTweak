@@ -4,6 +4,7 @@ import android.bluetooth.BluetoothDevice
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
+import com.takekazex.hypertweak.util.ignoreFailure
 import java.lang.reflect.Field
 import java.lang.reflect.Method
 import java.lang.reflect.Modifier
@@ -273,7 +274,7 @@ internal object AirPodsScope {
             while (current != null && current != Any::class.java) {
                 current.declaredMethods.forEach { method ->
                     if (!method.isSynthetic && !Modifier.isStatic(method.modifiers)) {
-                        runCatching { method.isAccessible = true }
+                        ignoreFailure { method.isAccessible = true }
                         add(method)
                     }
                 }
@@ -290,7 +291,7 @@ internal object AirPodsScope {
                     if (!Modifier.isStatic(field.modifiers) &&
                         (!field.isSynthetic || field.name.startsWith("this\$") || field.name.contains("\$this"))
                     ) {
-                        runCatching { field.isAccessible = true }
+                        ignoreFailure { field.isAccessible = true }
                         add(field)
                     }
                 }
@@ -380,7 +381,7 @@ internal object AirPodsScope {
             while (current != null && current != Any::class.java) {
                 current.declaredMethods.forEach { method ->
                     if (!method.isSynthetic && Modifier.isStatic(method.modifiers)) {
-                        runCatching { method.isAccessible = true }
+                        ignoreFailure { method.isAccessible = true }
                         add(method)
                     }
                 }

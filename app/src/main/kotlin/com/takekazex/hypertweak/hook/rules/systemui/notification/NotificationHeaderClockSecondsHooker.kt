@@ -28,6 +28,7 @@ import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.hook.base.HostAccess
+import com.takekazex.hypertweak.util.ignoreFailure
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.ref.WeakReference
 import java.lang.reflect.Method
@@ -132,7 +133,7 @@ object NotificationHeaderClockSecondsHooker : StaticHooker() {
             addAction("android.intent.action.USER_SWITCHED")
         }, Context.RECEIVER_NOT_EXPORTED) }.onFailure {
             DebugLog.w(TAG, "clock demand receiver unavailable", it)
-        }.getOrElse { return }
+        }.let { if (it.isFailure) return }
         demandContext = context
         interactive = context.getSystemService(PowerManager::class.java)?.isInteractive ?: true
         HookFailurePolicy.open(TAG, "clock format observer", Unit) {
@@ -565,7 +566,7 @@ object NotificationHeaderClockSecondsHooker : StaticHooker() {
 
     private fun cancelTick(view: View) {
         val callback = synchronized(callbacksLock) { tickCallbacks.remove(view) } ?: return
-        runCatching { view.removeCallbacks(callback) }
+        ignoreFailure { view.removeCallbacks(callback) }
     }
 
     private fun isRestoringStock(view: View): Boolean =

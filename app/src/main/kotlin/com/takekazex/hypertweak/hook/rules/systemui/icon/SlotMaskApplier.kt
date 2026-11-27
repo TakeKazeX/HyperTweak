@@ -20,6 +20,7 @@ import com.takekazex.hypertweak.settings.contract.IconConfigDecoder
 import com.takekazex.hypertweak.settings.contract.IconSlotPolicy
 import com.takekazex.hypertweak.settings.contract.IconSurface
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
+import com.takekazex.hypertweak.util.ignoreFailure
 import com.takekazex.hypertweak.util.logging.DebugLog
 import com.takekazex.hypertweak.util.platform.ResourceLookup
 import java.lang.reflect.Constructor
@@ -1130,10 +1131,10 @@ internal object SlotMaskApplier : IconRenderer() {
     private fun findNoArgMethod(type: Class<*>, name: String): Method? {
         var current: Class<*>? = type
         while (current != null) {
-            runCatching {
+            ignoreFailure {
                 return HostAccess.requireDeclaredMethod(current, name, accessible = true)
             }
-            runCatching {
+            ignoreFailure {
                 return HostAccess.requirePublicMethod(current, name, accessible = true)
             }
             current = current.superclass

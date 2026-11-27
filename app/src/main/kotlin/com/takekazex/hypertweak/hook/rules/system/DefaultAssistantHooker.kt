@@ -17,6 +17,7 @@ import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.reflect.Method
 import com.takekazex.hypertweak.hook.base.SystemServerStartupRetry
+import com.takekazex.hypertweak.util.ignoreFailure
 
 /**
  * Repairs the platform state that keeps long-press power from reaching the assistant selected in
@@ -442,7 +443,7 @@ object DefaultAssistantHooker : StaticHooker() {
                     )
                 } catch (t: Throwable) {
                     // One observer serves both URIs; unregistering it drops a partial registration.
-                    runCatching { context.contentResolver.unregisterContentObserver(observer) }
+                    ignoreFailure { context.contentResolver.unregisterContentObserver(observer) }
                     throw t
                 }
             }) { context.contentResolver.unregisterContentObserver(observer) }
@@ -451,7 +452,7 @@ object DefaultAssistantHooker : StaticHooker() {
             DebugLog.i(SCOPE, "secure setting observers ready")
             true
         }.onFailure {
-            runCatching { context.contentResolver.unregisterContentObserver(observer) }
+            ignoreFailure { context.contentResolver.unregisterContentObserver(observer) }
             if (logFailure || SystemServiceReadiness.contentReady()) {
                 DebugLog.w(SCOPE, "could not observe the assistant setting", it)
             } else {

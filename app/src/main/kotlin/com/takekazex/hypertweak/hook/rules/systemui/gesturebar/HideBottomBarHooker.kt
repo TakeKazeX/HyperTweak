@@ -25,6 +25,7 @@ import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.ref.WeakReference
 import java.util.concurrent.atomic.AtomicBoolean
 import com.takekazex.hypertweak.hook.base.ResourceValueRouter
+import com.takekazex.hypertweak.util.ignoreFailure
 
 /**
  * Hides the gesture bar (小白条) and keeps it hidden for exactly as long as recent tasks owns the
@@ -325,7 +326,7 @@ object HideBottomBarHooker : StaticHooker() {
                 if (hideGestureBarEnabled && !raiseLayoutEnabled) 0 else null
             }
         } else if (!wanted && rule != null) {
-            runCatching(rule::close)
+            ignoreFailure(rule::close)
             navBarHeightRule = null
         }
     }

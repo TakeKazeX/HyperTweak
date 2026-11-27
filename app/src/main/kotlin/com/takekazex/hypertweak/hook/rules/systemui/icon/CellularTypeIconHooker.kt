@@ -21,6 +21,7 @@ import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
 import com.takekazex.hypertweak.settings.contract.IconSettingsPreferencePolicy
 import com.takekazex.hypertweak.settings.contract.MobileTypeLabelStyle
 import com.takekazex.hypertweak.settings.contract.SmallMobileTypeLabel
+import com.takekazex.hypertweak.util.ignoreFailure
 import com.takekazex.hypertweak.util.logging.DebugLog
 import com.takekazex.hypertweak.util.platform.ResourceLookup
 import java.lang.reflect.Field
@@ -420,7 +421,7 @@ internal object CellularTypeIconHooker : IconRenderer() {
     private fun hierarchyField(clazz: Class<*>, name: String): Field? {
         var current: Class<*>? = clazz
         while (current != null) {
-            runCatching {
+            ignoreFailure {
                 return HostAccess.requireDeclaredField(current, name, accessible = true)
             }
             current = current.superclass

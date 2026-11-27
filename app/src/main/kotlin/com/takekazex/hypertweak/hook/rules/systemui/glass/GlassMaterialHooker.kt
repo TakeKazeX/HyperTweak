@@ -16,6 +16,7 @@ import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HostRecoveryPhase
 import com.takekazex.hypertweak.hook.base.StaticHooker
+import com.takekazex.hypertweak.util.ignoreFailure
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.ref.WeakReference
 import io.github.libxposed.api.XposedInterface
@@ -257,7 +258,7 @@ object GlassMaterialHooker : StaticHooker() {
         val current = resourceRules
         if (enabled == (current != null)) return
         if (!enabled) {
-            current?.forEach { runCatching(it::close) }
+            current?.forEach { ignoreFailure(it::close) }
             resourceRules = null
             return
         }

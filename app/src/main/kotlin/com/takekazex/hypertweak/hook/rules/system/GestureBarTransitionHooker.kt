@@ -281,7 +281,7 @@ object GestureBarTransitionHooker : StaticHooker() {
             check(caller.returnType == Void.TYPE && method.returnType == Boolean::class.javaPrimitiveType)
             deoptimize(caller)
             deoptimize(method)
-        }.onFailure { DebugLog.hookFailed(TAG, "native recents attach gate", it) }.getOrNull() ?: return
+        }.onFailure { DebugLog.hookFailed(TAG, "native recents attach gate", it) }.let { if (it.isFailure) return }
 
         val attachResourceId = ResourceLookup.identifier(Resources.getSystem(), 
             "config_attachNavBarToAppDuringTransition", "bool", "android"

@@ -4,6 +4,7 @@ import android.app.ActivityManager
 import android.app.ApplicationExitInfo
 import android.content.Context
 import com.takekazex.hypertweak.BuildConfig
+import com.takekazex.hypertweak.util.ignoreFailure
 import kotlin.math.abs
 
 /** Reconciles installs after the package replacement has killed the previous app process. */
@@ -38,8 +39,8 @@ class UpdateRecoveryManager(context: Context) {
         val recentPackageUpdate = hasRecentPackageUpdate(nowWallClock)
 
         if ((packageTimestampChanged || recentPackageUpdate) && installer.installedMatches(arm)) {
-            runCatching { java.io.File(arm.apkPath).delete() }
-            runCatching { java.io.File("${arm.apkPath}.json").delete() }
+            ignoreFailure { java.io.File(arm.apkPath).delete() }
+            ignoreFailure { java.io.File("${arm.apkPath}.json").delete() }
             store.clearArm()
             val notice = CompletionNotice(arm.targetVersionName, arm.targetVersionCode)
             store.markCompletionNotice(notice)

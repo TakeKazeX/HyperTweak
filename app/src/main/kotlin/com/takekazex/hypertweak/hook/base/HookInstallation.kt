@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.base
 
+import com.takekazex.hypertweak.util.ignoreFailure
+
 /** Readiness only; the owning BaseHooker continues to own every installed handle. */
 internal class HookInstallation(private val failure: (Throwable) -> Unit) {
     @Volatile var isInstalled = false
@@ -15,7 +17,7 @@ internal class HookInstallation(private val failure: (Throwable) -> Unit) {
             isInstalled = true
         } catch (error: Throwable) {
             lastFailure = error
-            runCatching { failure(error) }
+            ignoreFailure { failure(error) }
         }
     }
 

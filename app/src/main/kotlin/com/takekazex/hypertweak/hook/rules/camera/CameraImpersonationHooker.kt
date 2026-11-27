@@ -16,6 +16,7 @@ import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.hook.base.dex.DexOperandIndex
 import com.takekazex.hypertweak.settings.contract.CameraSettingsKeys
+import com.takekazex.hypertweak.util.ignoreFailure
 import com.takekazex.hypertweak.util.logging.DebugLog
 import com.takekazex.hypertweak.util.platform.StaticFieldWriter
 import java.lang.reflect.Field
@@ -384,7 +385,7 @@ object CameraImpersonationHooker : StaticHooker() {
             return
         }
 
-        hookParam.appInfo?.sourceDir?.takeIf { it.isNotBlank() } ?: run {
+        if (hookParam.appInfo?.sourceDir.isNullOrBlank()) {
             DebugLog.w(TAG, "camera APK path unavailable; adaptive tint-color gate skipped")
             return
         }
@@ -440,7 +441,7 @@ object CameraImpersonationHooker : StaticHooker() {
             ) {
                 continue
             }
-            runCatching { gate.isAccessible = true }
+            ignoreFailure { gate.isAccessible = true }
 
             for (accessorData in invokes) {
                 if (accessorData.paramCount != 0) continue
@@ -449,7 +450,7 @@ object CameraImpersonationHooker : StaticHooker() {
                 if (accessor.returnType != gate.declaringClass || Modifier.isStatic(accessor.modifiers)) {
                     continue
                 }
-                runCatching { accessor.isAccessible = true }
+                ignoreFailure { accessor.isAccessible = true }
 
                 for (fieldData in holderFields) {
                     val field = runCatching { fieldData.getFieldInstance(classLoader) }.getOrNull()
@@ -460,7 +461,7 @@ object CameraImpersonationHooker : StaticHooker() {
                     ) {
                         continue
                     }
-                    runCatching { field.isAccessible = true }
+                    ignoreFailure { field.isAccessible = true }
                     val holder = runCatching { field.get(null) }.getOrNull() ?: continue
                     if (!accessor.declaringClass.isInstance(holder)) continue
                     val provider = runCatching { accessor.invoke(holder) }.getOrNull() ?: continue

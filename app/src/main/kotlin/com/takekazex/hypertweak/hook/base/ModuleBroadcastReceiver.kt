@@ -3,6 +3,7 @@ package com.takekazex.hypertweak.hook.base
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import com.takekazex.hypertweak.util.ignoreFailure
 
 /**
  * A receiver registered inside a host process. Use it instead of a bare [BroadcastReceiver].
@@ -24,7 +25,7 @@ abstract class ModuleBroadcastReceiver : BroadcastReceiver() {
 
         /** For a receiver that cannot extend this class: call once the intent is no longer read. */
         @JvmStatic fun releaseModuleLoader(intent: Intent?) {
-            runCatching { intent?.setExtrasClassLoader(frameworkLoader) }
+            ignoreFailure { intent?.setExtrasClassLoader(frameworkLoader) }
         }
     }
 }

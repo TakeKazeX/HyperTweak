@@ -18,6 +18,7 @@ import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.reflect.Field
 import java.util.WeakHashMap
 import androidx.core.view.isGone
+import com.takekazex.hypertweak.util.ignoreFailure
 
 /**
  * Carrier label hiding, ported from Hyper Helper's `HideCarrierLabel` (OS4_ADAPTATION_PLAN.md T7).
@@ -263,7 +264,7 @@ internal object HideCarrierLabelHooker : IconRenderer() {
     private fun hierarchyField(clazz: Class<*>, name: String): Field? {
         var c: Class<*>? = clazz
         while (c != null) {
-            runCatching {
+            ignoreFailure {
                 return HostAccess.requireDeclaredField(c, name, accessible = true)
             }
             c = c.superclass

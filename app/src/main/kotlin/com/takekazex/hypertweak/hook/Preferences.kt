@@ -27,6 +27,7 @@ import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 import com.takekazex.hypertweak.settings.contract.ScreenshotSettingsSnapshot
 import com.takekazex.hypertweak.util.logging.SettingsDiagnostics
 import com.takekazex.hypertweak.hook.base.HostContext
+import com.takekazex.hypertweak.util.ignoreFailure
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
@@ -339,7 +340,7 @@ object Preferences {
         if (!isInitialized || isLocalOnly) return
         val latch = CountDownLatch(1)
         serializedWriter.execute { latch.countDown() }
-        runCatching { latch.await(3, TimeUnit.SECONDS) }
+        ignoreFailure { latch.await(3, TimeUnit.SECONDS) }
     }
 
     fun initLocalCache(context: Context): Boolean {

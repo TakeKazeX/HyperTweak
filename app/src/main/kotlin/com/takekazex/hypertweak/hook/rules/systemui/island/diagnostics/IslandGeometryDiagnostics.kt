@@ -10,6 +10,7 @@ import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
+import com.takekazex.hypertweak.util.ignoreFailure
 import com.takekazex.hypertweak.util.logging.DebugLog
 
 /** Explicit, DUMP-permission protected, read-only geometry sampling; never records text. */
@@ -24,7 +25,7 @@ internal class IslandGeometryDiagnostics(context: Context, main: Handler, dump: 
         this.context.registerReceiver(receiver, IntentFilter(ACTION), android.Manifest.permission.DUMP,
             main, Context.RECEIVER_EXPORTED)
     }
-    fun retire() { runCatching { context.unregisterReceiver(receiver) } }
+    fun retire() { ignoreFailure { context.unregisterReceiver(receiver) } }
 
     companion object {
         const val ACTION = "com.takekazex.hypertweak.action.DUMP_ISLAND_GEOMETRY"

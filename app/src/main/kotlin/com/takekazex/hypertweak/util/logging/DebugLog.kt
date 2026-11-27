@@ -5,6 +5,7 @@ import android.os.Process
 import android.os.SystemClock
 import android.util.Log
 import com.takekazex.hypertweak.BuildConfig
+import com.takekazex.hypertweak.util.ignoreFailure
 import io.github.libxposed.api.XposedInterface
 import java.io.File
 import java.text.SimpleDateFormat
@@ -100,7 +101,7 @@ object DebugLog {
      */
     fun ensureSession() {
         if (xposed == null) runCatching { backend.rotateSession(sessionToken()) }
-            .onFailure { runCatching { Log.e(TAG, "log session rotation failed", it) } }
+            .onFailure { ignoreFailure { Log.e(TAG, "log session rotation failed", it) } }
         emitSessionHeader()
     }
 
@@ -149,7 +150,7 @@ object DebugLog {
     fun prepareForHotReload() {
         controlListeners.clear()
         runCatching { removePropertyObserver() }.onFailure {
-            runCatching { Log.w(TAG, "log-tag observer cleanup failed", it) }
+            ignoreFailure { Log.w(TAG, "log-tag observer cleanup failed", it) }
         }
         repeatLimiter.drain(SystemClock.elapsedRealtime(), force = true).forEach(::enqueue)
         synchronized(this) {
@@ -264,7 +265,7 @@ object DebugLog {
             }, if (immediate) 0L else FLUSH_DELAY_MS, TimeUnit.MILLISECONDS)
         }.getOrElse {
             // The logger's own failures must never re-enter DebugLog.
-            runCatching { Log.e(TAG, "log worker unavailable", it) }
+            ignoreFailure { Log.e(TAG, "log worker unavailable", it) }
             null
         }
     }
@@ -299,18 +300,18 @@ object DebugLog {
         for ((record, throwable, logger) in pending) {
             val priority = when (record.level) { "E", "F" -> Log.ERROR; "W" -> Log.WARN; "I" -> Log.INFO; else -> Log.DEBUG }
             val text = "${record.scope}: ${record.message}"
-            runCatching { Log.println(priority, TAG, text + if (record.stack.isBlank()) "" else "\n${record.stack}") }
+            ignoreFailure { Log.println(priority, TAG, text + if (record.stack.isBlank()) "" else "\n${record.stack}") }
             if (logger != null) {
                 runCatching {
                     if (throwable == null) logger.log(priority, TAG, text)
                     else logger.log(priority, TAG, text, throwable)
-                }.onFailure { runCatching { Log.e(TAG, "LSPosed log forwarding failed", it) } }
+                }.onFailure { ignoreFailure { Log.e(TAG, "LSPosed log forwarding failed", it) } }
             } else localLines += LogCodec.encode(record)
         }
         // Hook-side remote preferences are a configuration channel, not a writable log store.
         // LSPosed owns those records; the app reads them through LsposedLogReader.
         if (localLines.isNotEmpty()) runCatching { backend.append(processTag, localLines) }
-            .onFailure { runCatching { Log.e(TAG, "app log persistence failed", it) } }
+            .onFailure { ignoreFailure { Log.e(TAG, "app log persistence failed", it) } }
     }
 
     private fun levelName(priority: Int): String = when (priority) {

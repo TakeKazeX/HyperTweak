@@ -352,8 +352,8 @@ internal object RuntimeSettingsParticipants {
         registerForProcess(RuntimeSettingsGroups.AOD) { _ -> actions.aod() }
         registerForProcess(RuntimeSettingsGroups.AOD_CAPABILITY) { _ ->
             AODHooker.refreshSettings()
-            if (processName == "com.android.systemui") actions.aod()
-            true
+            // Report the AOD refresh like the AOD group does, so a failed one is retried.
+            if (processName == "com.android.systemui") actions.aod() else true
         }
         registerForProcess(RuntimeSettingsGroups.NOTIFICATION_ICONS) { _ ->
             StatusBarHideSilentHooker.refreshSettings()

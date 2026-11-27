@@ -3,6 +3,7 @@ package com.takekazex.hypertweak.hook.rules.systemui.island.template
 import android.view.View
 import android.view.ViewTreeObserver
 import com.takekazex.hypertweak.hook.rules.systemui.island.policy.IslandRelayoutState
+import com.takekazex.hypertweak.util.ignoreFailure
 
 /** One owner and one frame listener for settings, rotation, and asynchronous template binds. */
 internal class IslandRelayoutDriver(
@@ -50,7 +51,7 @@ internal class IslandRelayoutDriver(
     }
     private fun fail(error: Throwable) {
         state.cancel()
-        runCatching { failure(error) }
+        ignoreFailure { failure(error) }
     }
     init { window.addOnAttachStateChangeListener(attach) }
     private fun observe() {

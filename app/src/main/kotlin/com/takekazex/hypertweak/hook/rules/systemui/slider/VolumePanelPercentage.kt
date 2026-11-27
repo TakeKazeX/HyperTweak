@@ -6,6 +6,7 @@ import android.widget.TextView
 import com.takekazex.hypertweak.hook.base.HookComponent
 import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.hook.base.ViewVisibilityRouter
+import com.takekazex.hypertweak.util.ignoreFailure
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.ref.WeakReference
 import java.util.WeakHashMap
@@ -345,7 +346,7 @@ internal class VolumePanelPercentage(private val session: SliderPercentageHooker
     fun retire() {
         replaying = true
         restoreViews()
-        controllers.keys.toList().forEach { runCatching { nativeRender(it) } }
+        controllers.keys.toList().forEach { ignoreFailure { nativeRender(it) } }
         controllers.clear()
         owners.clear()
         badgeStyler.clear()

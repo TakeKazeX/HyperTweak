@@ -426,7 +426,7 @@ object WifiPipelineAdapter : StaticHooker() {
             val groupId = ResourceLookup.identifier(root.resources, "wifi_group", "id", "com.android.systemui")
             val group = (if (groupId != 0) root.findViewById<ViewGroup>(groupId) else null) ?: root
             if (paddingEnabled) {
-                originalPadding.getOrPut(group) {
+                originalPadding.computeIfAbsent(group) {
                     intArrayOf(group.paddingStart, group.paddingTop, group.paddingEnd, group.paddingBottom)
                 }
                 group.setPaddingRelative(dpToPx(root, paddingStart), group.paddingTop,

@@ -10,6 +10,7 @@ import android.provider.Settings
 import com.takekazex.hypertweak.hook.base.CompatibleMethodResolver
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.StaticHooker
+import com.takekazex.hypertweak.util.ignoreFailure
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.reflect.Field
 import java.util.concurrent.atomic.AtomicBoolean
@@ -211,7 +212,7 @@ object AospImeSystemHooker : StaticHooker() {
                         IME_SETTINGS.forEach { resolver.registerContentObserver(it, false, observer) }
                     } catch (t: Throwable) {
                         // One observer serves every URI; unregistering it drops any partial registration.
-                        runCatching { resolver.unregisterContentObserver(observer) }
+                        ignoreFailure { resolver.unregisterContentObserver(observer) }
                         throw t
                     }
                 }) { resolver.unregisterContentObserver(observer) }

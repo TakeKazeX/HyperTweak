@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.base
 
+import com.takekazex.hypertweak.util.ignoreFailure
 import com.takekazex.hypertweak.util.logging.DebugLog
 import org.luckypray.dexkit.DexKitBridge
 import java.util.concurrent.locks.ReentrantLock
@@ -77,7 +78,7 @@ object DexKitManager {
             while (activeBridgeUsers > 0) {
                 val remaining = deadline - System.nanoTime()
                 if (remaining <= 0) break
-                runCatching { bridgeDrained.awaitNanos(remaining) }
+                ignoreFailure { bridgeDrained.awaitNanos(remaining) }
             }
 
             val ready = activeBridgeUsers == 0
@@ -197,7 +198,7 @@ object DexKitManager {
     }
 
     private fun closeScope(scope: SharedScope) {
-        runCatching { scope.bridge?.close() }
+        ignoreFailure { scope.bridge?.close() }
         scope.bridge = null
         if (scope.active) {
             scope.active = false

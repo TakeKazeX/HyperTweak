@@ -44,6 +44,7 @@ import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
 import com.takekazex.hypertweak.settings.contract.IconSurface
 import com.takekazex.hypertweak.settings.contract.SignalStyle
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
+import com.takekazex.hypertweak.util.ignoreFailure
 import com.takekazex.hypertweak.util.logging.DebugLog
 import com.takekazex.hypertweak.util.platform.ResourceLookup
 import java.io.File
@@ -237,7 +238,7 @@ internal object CarrierRenderer : IconRenderer() {
             renderGate.cancel()
             handover.retire()
             maskedContainers.keys.toList().forEach { container ->
-                runCatching { IconHostPorts.positions.carrierMask(container, CarrierMask()) }
+                ignoreFailure { IconHostPorts.positions.carrierMask(container, CarrierMask()) }
             }
             maskedContainers.clear()
             blocks.values.toList().forEach({ removeBlock(it) })

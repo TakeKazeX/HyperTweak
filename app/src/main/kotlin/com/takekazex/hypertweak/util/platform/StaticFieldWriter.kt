@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.util.platform
 
+import com.takekazex.hypertweak.util.ignoreFailure
 import java.lang.reflect.Field
 import java.lang.reflect.Method
 
@@ -46,7 +47,7 @@ object StaticFieldWriter {
     /** Writes [value] into the static [field]. */
     @Suppress("DEPRECATION") // sun.misc.Unsafe is the only host API on ART; intentional.
     fun set(field: Field, value: Any?) {
-        if (!field.isAccessible) runCatching { field.isAccessible = true }
+        if (!field.isAccessible) ignoreFailure { field.isAccessible = true }
         runCatching { field.set(null, value) }.onFailure {
             unsafe.putObject(staticFieldBase(field), staticFieldOffset(field), value)
         }
@@ -55,7 +56,7 @@ object StaticFieldWriter {
     /** Writes [value] into the static boolean [field]. */
     @Suppress("DEPRECATION") // sun.misc.Unsafe is the only host API on ART; intentional.
     fun setBoolean(field: Field, value: Boolean) {
-        if (!field.isAccessible) runCatching { field.isAccessible = true }
+        if (!field.isAccessible) ignoreFailure { field.isAccessible = true }
         runCatching { field.setBoolean(null, value) }.onFailure {
             unsafe.putBoolean(staticFieldBase(field), staticFieldOffset(field), value)
         }

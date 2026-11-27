@@ -2,6 +2,7 @@ package com.takekazex.hypertweak.util.update
 
 import android.content.Context
 import androidx.core.content.edit
+import com.takekazex.hypertweak.util.ignoreFailure
 import org.json.JSONObject
 import java.io.File
 import java.io.FileInputStream
@@ -94,8 +95,8 @@ class UpdateStateStore(context: Context) {
     fun deleteCachedDownload(info: UpdateInfo) {
         val assetName = safeAssetName(info.apkAsset) ?: return
         val directory = updatesDirectory()
-        runCatching { File(directory, assetName).delete() }
-        runCatching { File(directory, "$assetName.json").delete() }
+        ignoreFailure { File(directory, assetName).delete() }
+        ignoreFailure { File(directory, "$assetName.json").delete() }
     }
 
     fun skip(info: UpdateInfo) {
@@ -183,7 +184,7 @@ class UpdateStateStore(context: Context) {
         val protectedPath = arm()?.apkPath
         updatesDirectory().listFiles().orEmpty().forEach { file ->
             if (file.absolutePath == protectedPath) return@forEach
-            if (now - file.lastModified() >= ttlMillis) runCatching { file.delete() }
+            if (now - file.lastModified() >= ttlMillis) ignoreFailure { file.delete() }
         }
     }
 
@@ -202,7 +203,7 @@ class UpdateStateStore(context: Context) {
         var removedBytes = 0L
         updatesDirectory().listFiles().orEmpty().forEach { file ->
             removedBytes += file.length()
-            runCatching { file.delete() }
+            ignoreFailure { file.delete() }
         }
         clearArm()
         return removedBytes

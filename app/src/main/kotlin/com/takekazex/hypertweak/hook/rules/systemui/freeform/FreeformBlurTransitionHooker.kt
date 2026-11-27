@@ -14,6 +14,7 @@ import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 
 import com.takekazex.hypertweak.hook.base.HostAccess
+import com.takekazex.hypertweak.util.ignoreFailure
 import com.takekazex.hypertweak.util.platform.StaticFieldWriter
 import java.util.WeakHashMap
 import java.lang.reflect.Field
@@ -316,7 +317,7 @@ object FreeformBlurTransitionHooker : StaticHooker() {
             bottomBoardRule = ResourceValueRouter.subscribe(this, ResourceValueRouter.Channel.COLOR,
                 bottomBoardNames, setOf(WM_SHELL_PACKAGE)) { _, _, _ -> if (enabled) Color.TRANSPARENT else null }
         } else if (!enabled && rule != null) {
-            runCatching(rule::close)
+            ignoreFailure(rule::close)
             bottomBoardRule = null
         }
     }

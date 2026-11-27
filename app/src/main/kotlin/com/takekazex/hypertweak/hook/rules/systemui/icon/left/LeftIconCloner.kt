@@ -13,6 +13,7 @@ import java.lang.reflect.Field
 import java.lang.reflect.Method
 import java.util.WeakHashMap
 import androidx.core.view.isVisible
+import com.takekazex.hypertweak.util.ignoreFailure
 
 /**
  * 图标左置 — shows selected status-bar slots (勿扰 zen, 静音/振动 volume+mute, 热点 hotspot,
@@ -285,7 +286,7 @@ internal class LeftIconCloner(owner: BaseHooker) : HookComponent(owner) {
 
     fun unregisterDarkReceiver(manager: Any, clone: View) {
         val dispatcher = managerDarkDispatcher(manager) ?: return
-        runCatching {
+        ignoreFailure {
             val method = dispatcher.javaClass.methods.firstOrNull {
                 it.name == "removeDarkReceiver" && it.parameterTypes.size == 1
             } ?: return

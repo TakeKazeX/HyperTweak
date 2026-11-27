@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook.base
 
+import com.takekazex.hypertweak.util.ignoreFailure
+
 /** Reject only before teardown. Once retirement begins, the replacement must take ownership. */
 internal object HotReloadRetirement {
     fun run(
@@ -16,7 +18,7 @@ internal object HotReloadRetirement {
             val first = failures.first()
             failures.drop(1).filter { it !== first }.forEach(first::addSuppressed)
             // Diagnostic failures cannot turn a partially retired generation back into an owner.
-            runCatching { cleanupFailed(first) }
+            ignoreFailure { cleanupFailed(first) }
         }
         return true
     }

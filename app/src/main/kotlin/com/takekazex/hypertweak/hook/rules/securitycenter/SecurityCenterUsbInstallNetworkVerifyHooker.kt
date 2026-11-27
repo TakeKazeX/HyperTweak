@@ -12,6 +12,7 @@ import com.takekazex.hypertweak.hook.base.dex.DexFeature
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 import com.takekazex.hypertweak.hook.base.dex.MethodDescriptorCodec
 import com.takekazex.hypertweak.hook.base.dex.DexOperandIndex
+import com.takekazex.hypertweak.util.ignoreFailure
 import com.takekazex.hypertweak.util.logging.DebugLog
 import org.luckypray.dexkit.DexKitBridge
 import org.luckypray.dexkit.query.enums.StringMatchType
@@ -291,7 +292,7 @@ object SecurityCenterUsbInstallNetworkVerifyHooker : DynamicHooker() {
                             return@open
                         }
                         param.result = null
-                        runCatching { activity.finish() }
+                        ignoreFailure { activity.finish() }
                     }
                 }
             }

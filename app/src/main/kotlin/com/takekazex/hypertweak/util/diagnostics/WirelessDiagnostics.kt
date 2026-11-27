@@ -132,7 +132,7 @@ internal class WirelessDiagnosticsEngine(
             var last = readings()
             if (!last.cnss.supported || !last[logger].supported) return WirelessResult(last)
             var writeFailure: String? = null
-            try { run("setprop ${logger.property} $enabled") }
+            try { val _ = run("setprop ${logger.property} $enabled") }
             catch (e: Exception) { writeFailure = reason(e) }
             // A failed verification must not hide a known write error or show pre-write state.
             last = try { readings() } catch (e: Exception) {
@@ -177,7 +177,7 @@ internal class WirelessDiagnosticsEngine(
         return try {
             val before = readings()
             if (!before.cnss.supported) return WirelessResult(before)
-            try { run(WirelessLogPath.cleanupScript()) }
+            try { val _ = run(WirelessLogPath.cleanupScript()) }
             catch (e: Exception) {
                 // Refresh is secondary: preserve the cleanup failure even if root/read access is
                 // lost afterward, and never reuse the snapshot from before the deletion attempt.

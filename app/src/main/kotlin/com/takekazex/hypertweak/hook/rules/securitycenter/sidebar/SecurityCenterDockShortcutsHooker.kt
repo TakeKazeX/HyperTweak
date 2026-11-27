@@ -37,6 +37,7 @@ import java.lang.reflect.Method
 import java.util.WeakHashMap
 import java.util.concurrent.ConcurrentHashMap
 import androidx.core.view.isVisible
+import com.takekazex.hypertweak.util.ignoreFailure
 
 private object SecurityCenterDockShortcutsFeature : DexFeature {
     override val id = "securitycenter.dock_shortcuts"
@@ -84,7 +85,7 @@ object SecurityCenterDockShortcutsHooker : DynamicHooker() {
     // Reusable: a settings reload retires and reinstalls this same object.
     private val worker = generationWorker("HyperTweak-DockShortcuts")
     private val cards = generationMainResource(WeakHashMap<ViewGroup, ShortcutCard>()) { map ->
-        map.values.toList().forEach { runCatching { it.detach() } }
+        map.values.toList().forEach { ignoreFailure { it.detach() } }
         map.clear()
     }
     private var appsCallback: AutoCloseable? by generationState { null }

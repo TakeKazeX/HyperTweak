@@ -13,7 +13,7 @@ internal class LeftStateMap : WeakHashMap<Any, LeftState>() {
 
     override fun put(key: Any, value: LeftState): LeftState? = super.put(key, value).also { cached = null }
     override fun putAll(from: Map<out Any, LeftState>) { super.putAll(from); cached = null }
-    override fun remove(key: Any): LeftState? = super.remove(key).also { cached = null }
+    override fun remove(key: Any?): LeftState? = super.remove(key).also { cached = null }
     override fun clear() { super.clear(); cached = null }
 
     fun snapshot(): Array<LeftState> {

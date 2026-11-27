@@ -12,6 +12,7 @@ import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.InstallPolicy
 import com.takekazex.hypertweak.hook.base.StaticHooker
+import com.takekazex.hypertweak.util.ignoreFailure
 import com.takekazex.hypertweak.util.logging.DebugLog
 import org.luckypray.dexkit.query.enums.StringMatchType
 import java.io.File
@@ -253,7 +254,7 @@ object LbeClipboardToastHooker : StaticHooker() {
         if (resourceId != 0) {
             runCatching { return context.getString(resourceId, label) }
                 .onFailure { DebugLog.w(TAG, "failed to format $TOAST_TEXT_RES_NAME", it) }
-            runCatching { return context.getString(resourceId) }
+            ignoreFailure { return context.getString(resourceId) }
         }
         // A missing vendor resource should not make the clipboard event disappear altogether.
         return label

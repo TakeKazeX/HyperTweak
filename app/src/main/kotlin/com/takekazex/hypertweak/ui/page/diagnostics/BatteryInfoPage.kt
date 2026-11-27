@@ -38,6 +38,7 @@ import com.takekazex.hypertweak.ui.chrome.AppScrollPage
 import com.takekazex.hypertweak.ui.chrome.AppSection
 import com.takekazex.hypertweak.util.device.BatteryInfoChannel
 import com.takekazex.hypertweak.util.device.BatteryInfoReader
+import com.takekazex.hypertweak.util.ignoreFailure
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -119,7 +120,7 @@ fun BatteryInfoPage(onBack: () -> Unit) {
                 manual = withTimeoutOrNull(REFRESH_MS) { refreshRequests.receive() } != null
             }
         } finally {
-            runCatching { BatteryInfoChannel.request(context, session, stop = true) }
+            ignoreFailure { BatteryInfoChannel.request(context, session, stop = true) }
         }
     }
 

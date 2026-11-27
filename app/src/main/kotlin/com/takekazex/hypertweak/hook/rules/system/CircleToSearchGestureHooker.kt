@@ -14,6 +14,7 @@ import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 import com.takekazex.hypertweak.hook.base.SystemServerStartupRetry
+import com.takekazex.hypertweak.util.ignoreFailure
 
 /**
  * Makes the launcher's gesture-bar long press reach Circle to Search instead of XiaoAI.
@@ -200,7 +201,7 @@ object CircleToSearchGestureHooker : StaticHooker() {
             DebugLog.i(SCOPE, "secure setting observers ready")
             true
         }.onFailure {
-            runCatching { context.contentResolver.unregisterContentObserver(observer) }
+            ignoreFailure { context.contentResolver.unregisterContentObserver(observer) }
             if (logFailure || SystemServiceReadiness.contentReady()) {
                 DebugLog.w(SCOPE, "could not observe $SETTING_NAV_LONG_PRESS", it)
             } else {

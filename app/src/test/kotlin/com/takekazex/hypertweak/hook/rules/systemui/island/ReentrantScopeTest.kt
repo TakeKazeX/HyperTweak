@@ -3,6 +3,7 @@ package com.takekazex.hypertweak.hook.rules.systemui.island
 import com.takekazex.hypertweak.hook.rules.systemui.island.policy.IslandExpansionOwnership
 import com.takekazex.hypertweak.hook.rules.systemui.island.policy.ReentrantScope
 import com.takekazex.hypertweak.hook.rules.systemui.island.policy.IslandTemplateRebinds
+import com.takekazex.hypertweak.util.ignoreFailure
 
 import org.junit.Assert.*
 import org.junit.Test
@@ -38,7 +39,7 @@ class ReentrantScopeTest {
         assertFalse(scope.active)
         scope.run {
             assertTrue(scope.active)
-            runCatching { scope.run { error("native width callback") } }
+            ignoreFailure { scope.run { error("native width callback") } }
             assertTrue(scope.active)
         }
         assertFalse(scope.active)

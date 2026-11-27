@@ -3,6 +3,7 @@ package com.takekazex.hypertweak.hook.rules.systemui.island
 import com.takekazex.hypertweak.hook.rules.systemui.island.model.IslandSession
 import com.takekazex.hypertweak.hook.rules.systemui.island.model.SchedulingTransaction
 import com.takekazex.hypertweak.hook.rules.systemui.island.session.CallbackContext
+import com.takekazex.hypertweak.util.ignoreFailure
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
@@ -15,7 +16,7 @@ class CallbackContextTest {
         val outer = IslandSession(Any())
         val inner = IslandSession(Any())
         context.withNativeSession(outer) {
-            runCatching {
+            ignoreFailure {
                 context.withNativeSession(inner) {
                     context.withAnimating(Any()) { assertSame(inner, context.nativeSession) }
                     error("native failure")

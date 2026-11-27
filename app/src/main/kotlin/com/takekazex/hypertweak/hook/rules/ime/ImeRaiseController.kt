@@ -11,6 +11,7 @@ import android.view.ViewGroup
 import androidx.core.view.isVisible
 import com.takekazex.hypertweak.hook.base.BaseHooker
 import com.takekazex.hypertweak.hook.base.HookComponent
+import com.takekazex.hypertweak.util.ignoreFailure
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.ref.WeakReference
 import java.lang.reflect.Field
@@ -48,7 +49,7 @@ internal class ImeRaiseController(
     private fun sweepLegacyRootPadding(root: View, target: Int): Boolean {
         if (legacySweptRoots.put(root, true) == true) return false
         if (root.paddingBottom != target) return false
-        runCatching { root.setPadding(root.paddingLeft, root.paddingTop, root.paddingRight, 0) }
+        ignoreFailure { root.setPadding(root.paddingLeft, root.paddingTop, root.paddingRight, 0) }
         paddedViews.remove(root)
         DebugLog.i(TAG, "legacy root raise withdrawn")
         return true
@@ -224,7 +225,7 @@ internal class ImeRaiseController(
         for (entry in paddedViews.entries.toList()) {
             val view = entry.key
             if (view.paddingBottom == entry.value.applied) {
-                runCatching { view.setPadding(view.paddingLeft, view.paddingTop, view.paddingRight, entry.value.base) }
+                ignoreFailure { view.setPadding(view.paddingLeft, view.paddingTop, view.paddingRight, entry.value.base) }
                 withdrew = true
             }
             paddedViews.remove(view)

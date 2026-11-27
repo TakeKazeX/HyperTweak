@@ -92,7 +92,7 @@ class ControlCenterEditButtonHooker : DynamicHooker() {
         distribute[0].hook {
             before { param ->
                 HookFailurePolicy.open(TAG, "remember distributor", Unit) {
-                    if (!retiring) param.thisObject?.let { distributors[it] = isHidden() }
+                    if (!retiring) param.thisObjectOrNull?.let { distributors[it] = isHidden() }
                 }
             }
         }
@@ -106,7 +106,7 @@ class ControlCenterEditButtonHooker : DynamicHooker() {
         start?.hook {
             after { param ->
                 HookFailurePolicy.open(TAG, "catch up on open", Unit) {
-                    val owner = param.thisObject ?: return@open
+                    val owner = param.thisObjectOrNull ?: return@open
                     if (!retiring && distributors[owner] != isHidden()) redistributeNow(listOf(owner))
                 }
             }

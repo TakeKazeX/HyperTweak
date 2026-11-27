@@ -16,6 +16,7 @@ import android.widget.TextView
 import com.takekazex.hypertweak.settings.contract.IconTunerContract
 import com.takekazex.hypertweak.util.logging.DebugLog
 import androidx.core.view.isVisible
+import com.takekazex.hypertweak.util.ignoreFailure
 
 /** Which sibling of the host's `keyguard_left_frame` is drawn; pure so the rules stay testable. */
 internal object LeftCarrierSwapPolicy {
@@ -266,7 +267,7 @@ internal class LeftKeyguardCarrierSwap(private val host: Host) {
     /** Generation cleanup; the states themselves are released by their teardown. */
     fun reset() {
         host.handler.removeCallbacks(introExpired)
-        receiverContext?.let { context -> runCatching { context.unregisterReceiver(receiver) } }
+        receiverContext?.let { context -> ignoreFailure { context.unregisterReceiver(receiver) } }
         receiverContext = null
         introUntil = 0L
         introPhase = LeftCarrierSwapPolicy.IntroPhase.NONE

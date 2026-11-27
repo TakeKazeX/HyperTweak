@@ -104,7 +104,7 @@ internal object AppRefreshRateRowsHooker : StaticHooker() {
         }) { targets ->
             targets.bind.hook("misettings_app_refresh_rate_bind") {
                 after { param ->
-                    val holder = param.thisObject ?: return@after
+                    val holder = param.thisObjectOrNull ?: return@after
                     if (generationRetired) return@after
                     HookFailurePolicy.open(TAG, "render app refresh rate", Unit) { render(targets, holder) }
                 }

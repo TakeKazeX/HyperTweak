@@ -7,6 +7,7 @@ import android.util.TypedValue
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
+import com.takekazex.hypertweak.util.ignoreFailure
 import java.util.WeakHashMap
 import kotlin.math.abs
 
@@ -100,7 +101,7 @@ internal class PercentLabels {
     }
 
     fun restoreAll() {
-        baselines.entries.toList().forEach { (view, baseline) -> runCatching { baseline.restore(view) } }
+        baselines.entries.toList().forEach { (view, baseline) -> ignoreFailure { baseline.restore(view) } }
         baselines.clear()
     }
 }

@@ -1,6 +1,7 @@
 package com.takekazex.hypertweak.util.logging
 
 import android.util.Log
+import com.takekazex.hypertweak.util.ignoreFailure
 
 /** Storage reports diagnostics without constructing the logger or reading its own settings again. */
 internal object SettingsDiagnostics {
@@ -27,7 +28,7 @@ internal object SettingsDiagnostics {
 
     private fun fallback(level: Int, scope: String, message: String, error: Throwable?) {
         // A storage/bootstrap/logger failure must not initialize Preferences through DebugLog.
-        runCatching { Log.println(level, "HyperTweak", "$scope: $message" +
+        ignoreFailure { Log.println(level, "HyperTweak", "$scope: $message" +
             (error?.let { "\n${Log.getStackTraceString(it)}" } ?: "")) }
     }
 }

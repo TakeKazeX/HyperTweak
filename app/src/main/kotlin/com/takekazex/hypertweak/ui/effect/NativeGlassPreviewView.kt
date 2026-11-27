@@ -15,6 +15,7 @@ import android.widget.TextView
 import com.takekazex.hypertweak.R
 import com.takekazex.hypertweak.presentation.glass.scaleBlendArrayColors
 import com.takekazex.hypertweak.presentation.glass.scaleGlassParams
+import com.takekazex.hypertweak.util.ignoreFailure
 
 /** A real MIUI View glass surface, using GlassToken/ColorBlendToken from the installed plugin. */
 internal class NativeGlassPreviewView(context: Context) : FrameLayout(context) {
@@ -154,7 +155,7 @@ internal class NativeGlassPreviewView(context: Context) : FrameLayout(context) {
     }
 
     private fun setSdfSize(view: View) {
-        runCatching {
+        ignoreFailure {
             val method = View::class.java.getMethod(
                 "setMiGlassSdfMaxSize",
                 Float::class.javaPrimitiveType!!,

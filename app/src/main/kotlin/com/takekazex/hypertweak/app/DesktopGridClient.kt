@@ -9,6 +9,7 @@ import android.os.Looper
 import android.os.SystemClock
 import com.takekazex.hypertweak.hook.runtime.settings.SettingsTransport
 import com.takekazex.hypertweak.settings.contract.DesktopGridStatus
+import com.takekazex.hypertweak.util.ignoreFailure
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
@@ -26,7 +27,7 @@ internal object DesktopGridClient {
             var registered = false
             var finished = false
             lateinit var receiver: BroadcastReceiver
-            val timeout = Runnable { if (!finished) { finished = true; if (registered) runCatching { app.unregisterReceiver(receiver) }; continuation.resume(null) } }
+            val timeout = Runnable { if (!finished) { finished = true; if (registered) ignoreFailure { app.unregisterReceiver(receiver) }; continuation.resume(null) } }
             receiver = object : BroadcastReceiver() {
                 override fun onReceive(context: Context, intent: Intent) {
                     if (finished || intent.action != "com.takekazex.hypertweak.action.DESKTOP_GRID_STATE" ||
@@ -37,18 +38,18 @@ internal object DesktopGridClient {
                     if (!status.valid()) return
                     finished = true
                     handler.removeCallbacks(timeout)
-                    if (registered) runCatching { app.unregisterReceiver(this) }
+                    if (registered) ignoreFailure { app.unregisterReceiver(this) }
                     continuation.resume(status)
                 }
             }
-            continuation.invokeOnCancellation { handler.post { if (!finished) { finished = true; handler.removeCallbacks(timeout); if (registered) runCatching { app.unregisterReceiver(receiver) } } } }
+            continuation.invokeOnCancellation { handler.post { if (!finished) { finished = true; handler.removeCallbacks(timeout); if (registered) ignoreFailure { app.unregisterReceiver(receiver) } } } }
             runCatching {
                 app.registerReceiver(receiver, IntentFilter("com.takekazex.hypertweak.action.DESKTOP_GRID_STATE"), Context.RECEIVER_EXPORTED)
                 registered = true
                 handler.postDelayed(timeout, 1500)
                 SettingsTransport.send(app, Intent("com.takekazex.hypertweak.action.DESKTOP_GRID_QUERY")
                     .setPackage(SettingsTransport.SYSTEM_UI).putExtra("nonce", nonce))
-            }.onFailure { if (!finished) { finished = true; handler.removeCallbacks(timeout); if (registered) runCatching { app.unregisterReceiver(receiver) }; continuation.resume(null) } }
+            }.onFailure { if (!finished) { finished = true; handler.removeCallbacks(timeout); if (registered) ignoreFailure { app.unregisterReceiver(receiver) }; continuation.resume(null) } }
         }
     }
 }

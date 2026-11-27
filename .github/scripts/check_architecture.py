@@ -168,12 +168,14 @@ def first_match_violation(relative, source):
     return count if count > allowed else None
 
 
-# A `runCatching { ... }` whose Result is dropped swallows the failure. Hook callbacks already
-# fall back through the dispatcher, and hot paths use HookFailurePolicy.open (rate-limited
-# logging). The remaining hook-code uses are cleanup, hot-reload and restore paths; the total
-# may only fall.
-DISCARDED_RUN_CATCHING_LIMIT = 91
+# A `runCatching { ... }` whose Result is dropped swallows the failure, and so does every
+# `ignoreFailure { ... }`, the helper that spells that drop out for the Kotlin return-value
+# checker. Hook callbacks already fall back through the dispatcher, and hot paths use
+# HookFailurePolicy.open (rate-limited logging). The remaining hook-code uses are cleanup,
+# hot-reload and restore paths; the total may only fall.
+DISCARDED_RUN_CATCHING_LIMIT = 95
 RUN_CATCHING = re.compile(r'(?<![\w.])runCatching\s*\{')
+IGNORE_FAILURE = re.compile(r'(?<![\w.])ignoreFailure\s*[{(]')
 STATEMENT_PREFIX = re.compile(r'(?:.*[{;]|.*->|.*\belse|try|finally|(?:\}\s*else\s+)?(?:if|while|for)\s*\(.*\))')
 
 
@@ -196,7 +198,7 @@ def discarded_run_catching(source):
             index += 1
         if not code[index + 1:].lstrip().startswith((".", "?.")):
             count += 1
-    return count
+    return count + len(IGNORE_FAILURE.findall(code))
 
 
 def main():
@@ -232,7 +234,8 @@ def main():
                                 for line, name in renderer_violations(hook_parts, source))
     if discarded > DISCARDED_RUN_CATCHING_LIMIT:
         failures.append(f"hook code drops {discarded} runCatching results (limit {DISCARDED_RUN_CATCHING_LIMIT}); "
-                        "log through HookFailurePolicy.open or onFailure, or let the hook dispatcher fall back")
+                        "log through HookFailurePolicy.open or onFailure, or let the hook dispatcher fall back; "
+                        "ignoreFailure counts as a drop")
     elif discarded < DISCARDED_RUN_CATCHING_LIMIT:
         print(f"note: discarded runCatching in hook code fell to {discarded}; lower DISCARDED_RUN_CATCHING_LIMIT")
     if failures:

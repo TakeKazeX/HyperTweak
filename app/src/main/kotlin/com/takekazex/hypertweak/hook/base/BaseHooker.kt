@@ -15,6 +15,7 @@ import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import androidx.core.content.ContextCompat
+import com.takekazex.hypertweak.util.ignoreFailure
 import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.CoroutineScope
 
@@ -124,7 +125,7 @@ sealed class BaseHooker {
             // Slot mutation must escape to the native transaction so its rollback can run.
             if (scope.phase == HostRecoveryPhase.SLOT_ORDER) recovery.recover(scope)
             else runCatching { recovery.recover(scope) }.onFailure {
-                runCatching { DebugLog.w("HostRecovery", "$hookerName phase=${scope.phase}", it) }
+                ignoreFailure { DebugLog.w("HostRecovery", "$hookerName phase=${scope.phase}", it) }
             }
         }
         childHookers.forEach { it.recoverHostSurfaces(scope, iconsOnly) }
@@ -377,7 +378,7 @@ sealed class BaseHooker {
             runCatching { child.prepareForHotReload() }
                 .onFailure { t ->
                     failures += t
-                    runCatching { DebugLog.w("BaseHooker", "failed to prepare child ${child.hookerName} for hot reload", t) }
+                    ignoreFailure { DebugLog.w("BaseHooker", "failed to prepare child ${child.hookerName} for hot reload", t) }
                 }
         }
         // Inputs stop before the feature restores its host.
@@ -385,7 +386,7 @@ sealed class BaseHooker {
         runCatching { onPrepareHotReload() }
             .onFailure { t ->
                 failures += t
-                runCatching { DebugLog.w("BaseHooker", "failed to prepare $hookerName for hot reload", t) }
+                ignoreFailure { DebugLog.w("BaseHooker", "failed to prepare $hookerName for hot reload", t) }
             }
         runCatching { closeSubscriptions() }.onFailure(failures::add)
         runCatching { generationStates.reset() }.onFailure(failures::add)

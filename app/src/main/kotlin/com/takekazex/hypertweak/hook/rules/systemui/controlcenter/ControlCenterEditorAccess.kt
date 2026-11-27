@@ -5,6 +5,7 @@ import com.takekazex.hypertweak.hook.base.HostAccess
 import android.util.Log
 import android.view.View
 import com.takekazex.hypertweak.hook.base.CompatibleMethodResolver
+import com.takekazex.hypertweak.util.ignoreFailure
 import java.lang.reflect.Field
 import java.lang.reflect.Modifier
 import java.util.concurrent.ConcurrentHashMap
@@ -53,7 +54,7 @@ internal class ControlCenterEditorAccess(private val resolveClass: (String) -> C
             for (field in type.declaredFields) {
                 if (Modifier.isStatic(field.modifiers)) continue
                 val fieldType = field.type
-                runCatching { field.isAccessible = true }
+                ignoreFailure { field.isAccessible = true }
                 when {
                     declaresZeroArg(fieldType, "getMode") -> paths += field to null
                     declaresZeroArg(fieldType, "get") -> paths += field to "get"

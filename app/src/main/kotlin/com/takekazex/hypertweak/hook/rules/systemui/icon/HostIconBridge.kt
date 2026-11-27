@@ -7,6 +7,7 @@ import android.graphics.Bitmap
 import android.graphics.drawable.Icon
 import android.os.Looper
 import android.os.UserHandle
+import com.takekazex.hypertweak.util.ignoreFailure
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.reflect.Constructor
 import java.lang.reflect.Field
@@ -352,7 +353,7 @@ class HostIconBridge(
         private val tag = holderTagField(holder).getInt(holder)
 
         fun restore(holder: Any) {
-            runCatching {
+            ignoreFailure {
                 holderIconField(holder).set(holder, icon)
                 holderTypeField(holder).setInt(holder, type)
                 holderTagField(holder).setInt(holder, tag)

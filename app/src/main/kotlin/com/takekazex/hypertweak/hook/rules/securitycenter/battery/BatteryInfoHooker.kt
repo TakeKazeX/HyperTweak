@@ -16,6 +16,7 @@ import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.device.BatteryInfoChannel
+import com.takekazex.hypertweak.util.ignoreFailure
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.reflect.InvocationTargetException
 import java.lang.reflect.Method
@@ -124,7 +125,7 @@ object BatteryInfoHooker : StaticHooker() {
 
         fun close() {
             requests.close()
-            if (registered) runCatching { context.unregisterReceiver(receiver) }
+            if (registered) ignoreFailure { context.unregisterReceiver(receiver) }
             registered = false
             // A synchronous vendor Binder call is not reliably interruptible. Let the current
             // call finish; isActive prevents any subsequent read or publish by this generation.

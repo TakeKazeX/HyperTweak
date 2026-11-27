@@ -18,6 +18,7 @@ import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.hook.base.HostAccess
+import com.takekazex.hypertweak.util.ignoreFailure
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.reflect.Field
 import java.lang.reflect.Method
@@ -121,7 +122,7 @@ object NotificationHeaderWeatherHooker : StaticHooker() {
         retiring = true
         main.removeCallbacksAndMessages(null)
         val restore = {
-            runCatching { fetcher?.javaClass?.methods?.firstOrNull {
+            ignoreFailure { fetcher?.javaClass?.methods?.firstOrNull {
                 it.name == "reset" && it.parameterCount == 0
             }?.invoke(fetcher) }
             headers.forEach { (root, state) -> root.removeOnLayoutChangeListener(state.listener) }
@@ -187,7 +188,7 @@ object NotificationHeaderWeatherHooker : StaticHooker() {
 
     /** Releases the weather suffix and the state this module owns without retiring the hooks. */
     private fun releaseWeather() {
-        runCatching { fetcher?.javaClass?.methods?.firstOrNull {
+        ignoreFailure { fetcher?.javaClass?.methods?.firstOrNull {
             it.name == "reset" && it.parameterCount == 0
         }?.invoke(fetcher) }
         headers.forEach { (root, state) -> root.removeOnLayoutChangeListener(state.listener) }

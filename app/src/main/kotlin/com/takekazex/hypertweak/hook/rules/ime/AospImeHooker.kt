@@ -15,6 +15,7 @@ import android.view.WindowInsets
 import com.takekazex.hypertweak.hook.base.CompatibleMethodResolver
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.StaticHooker
+import com.takekazex.hypertweak.util.ignoreFailure
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.ref.WeakReference
 import java.lang.reflect.Field
@@ -91,7 +92,7 @@ object AospImeHooker : StaticHooker() {
         HostAccess.onMain { nativeAppearance.retire(); windowPolicy.retire(); raise.prepareReload() }
         HostAccess.onMain {
             insetsView?.get()?.let { view ->
-                runCatching { view.setOnApplyWindowInsetsListener(null) }
+                ignoreFailure { view.setOnApplyWindowInsetsListener(null) }
                 basePaddings.remove(view)
             }
         }
@@ -109,7 +110,7 @@ object AospImeHooker : StaticHooker() {
         val parts = state as? ArrayList<*> ?: return@onMain
         (parts.getOrNull(0) as? View)?.let { view ->
             installRoundedCornerInsetsListener(view)
-            runCatching { view.requestApplyInsets() }
+            ignoreFailure { view.requestApplyInsets() }
         }
         raise.restoreOwnedViews(parts.getOrNull(1))
         windowPolicy.restoreCaptions(parts.getOrNull(2))

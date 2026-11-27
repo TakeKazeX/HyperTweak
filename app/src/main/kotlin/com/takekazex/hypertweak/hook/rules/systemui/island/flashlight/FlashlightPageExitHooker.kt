@@ -21,6 +21,7 @@ import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+import com.takekazex.hypertweak.util.ignoreFailure
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.reflect.Proxy
 import java.util.Collections
@@ -156,7 +157,7 @@ object FlashlightPageExitHooker : StaticHooker() {
 
             override fun onViewDetachedFromWindow(v: View) {
                 v.removeOnAttachStateChangeListener(this)
-                runCatching { manager.unregisterTorchCallback(callback) }
+                ignoreFailure { manager.unregisterTorchCallback(callback) }
                 torchOn.remove(v)
                 flying = false
             }

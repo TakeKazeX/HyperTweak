@@ -6,6 +6,7 @@ import android.view.ViewTreeObserver
 import androidx.core.view.isGone
 import androidx.core.view.isVisible
 import com.takekazex.hypertweak.hook.rules.systemui.island.ISLAND_TAG
+import com.takekazex.hypertweak.util.ignoreFailure
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.util.LinkedHashMap
 
@@ -53,7 +54,7 @@ internal class IslandLyricGuard(
         released = true
         roots.forEach { it.removeOnAttachStateChangeListener(attachListener) }
         registrations.forEach { registration ->
-            runCatching { registration.observer.removeOnPreDrawListener(registration.listener) }
+            ignoreFailure { registration.observer.removeOnPreDrawListener(registration.listener) }
         }
         registrations.clear()
         runCatching { restore() }.onFailure { DebugLog.w(ISLAND_TAG, "lyric guard restore failed", it) }
@@ -75,7 +76,7 @@ internal class IslandLyricGuard(
         }
         val existing = registrations.firstOrNull { it.root === root }
         if (existing != null) {
-            runCatching { existing.observer.removeOnPreDrawListener(existing.listener) }
+            ignoreFailure { existing.observer.removeOnPreDrawListener(existing.listener) }
             existing.observer = observer
             existing.listener = listener
         } else registrations += Registration(root, observer, listener)
@@ -175,7 +176,7 @@ internal class IslandLyricGuard(
     }
 
     private fun snapshot(view: View) {
-        changed.getOrPut(view) { Snapshot(view.visibility) }
+        changed.computeIfAbsent(view) { Snapshot(view.visibility) }
     }
 
     private fun restore() {

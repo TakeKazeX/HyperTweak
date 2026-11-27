@@ -5,6 +5,7 @@ import com.takekazex.hypertweak.settings.contract.AppSettingsKeys
 
 import com.takekazex.hypertweak.BuildConfig
 import com.takekazex.hypertweak.settings.contract.SettingsValues
+import com.takekazex.hypertweak.util.ignoreFailure
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
@@ -210,7 +211,7 @@ class GitHubUpdateRepository internal constructor(
     fun discardPartial(info: UpdateInfo) {
         val safeName = safeAssetName(info.apkAsset) ?: return
         val directory = stateStore.updatesDirectory()
-        runCatching { File(directory, "$safeName.part").delete() }
+        ignoreFailure { File(directory, "$safeName.part").delete() }
     }
 
     private fun classify(info: UpdateInfo, checkedAt: Long, fromCache: Boolean = false): UpdateCheckResult {
@@ -561,7 +562,7 @@ class GitHubUpdateRepository internal constructor(
                 ?: throw UpdateException.InvalidMetadata("Unsafe APK asset name")
             val part = File(directory, "$safeName.part")
             val target = File(directory, safeName)
-            runCatching { part.delete() }
+            ignoreFailure { part.delete() }
             val digest = MessageDigest.getInstance("SHA-256")
             var downloaded = 0L
             var lastProgressAt = System.nanoTime()
@@ -628,15 +629,15 @@ class GitHubUpdateRepository internal constructor(
             return DownloadedUpdate(target, downloaded, actualSha, mode == UpdateProxyMode.OFFICIAL && proxy.isNotBlank())
         } catch (cancelled: kotlinx.coroutines.CancellationException) {
             val safeName = safeAssetName(info.apkAsset)
-            if (safeName != null) runCatching { File(stateStore.updatesDirectory(), "$safeName.part").delete() }
+            if (safeName != null) ignoreFailure { File(stateStore.updatesDirectory(), "$safeName.part").delete() }
             throw cancelled
         } catch (failure: UpdateException) {
             val safeName = safeAssetName(info.apkAsset)
-            if (safeName != null) runCatching { File(stateStore.updatesDirectory(), "$safeName.part").delete() }
+            if (safeName != null) ignoreFailure { File(stateStore.updatesDirectory(), "$safeName.part").delete() }
             throw failure
         } catch (failure: Throwable) {
             val safeName = safeAssetName(info.apkAsset)
-            if (safeName != null) runCatching { File(stateStore.updatesDirectory(), "$safeName.part").delete() }
+            if (safeName != null) ignoreFailure { File(stateStore.updatesDirectory(), "$safeName.part").delete() }
             throw UpdateException.Network("APK download failed", failure)
         } finally {
             connection?.disconnect()

@@ -59,14 +59,14 @@ fun Any.callMethodOrNull(name: String, vararg args: Any?): Any? {
 }
 
 private val WRAPPERS: Map<Class<*>, Class<*>> = mapOf(
-    java.lang.Boolean.TYPE to java.lang.Boolean::class.java,
-    java.lang.Byte.TYPE to java.lang.Byte::class.java,
-    java.lang.Character.TYPE to java.lang.Character::class.java,
-    java.lang.Short.TYPE to java.lang.Short::class.java,
-    java.lang.Integer.TYPE to java.lang.Integer::class.java,
-    java.lang.Long.TYPE to java.lang.Long::class.java,
-    java.lang.Float.TYPE to java.lang.Float::class.java,
-    java.lang.Double.TYPE to java.lang.Double::class.java,
+    java.lang.Boolean.TYPE to Boolean::class.javaObjectType,
+    java.lang.Byte.TYPE to Byte::class.javaObjectType,
+    java.lang.Character.TYPE to Char::class.javaObjectType,
+    java.lang.Short.TYPE to Short::class.javaObjectType,
+    java.lang.Integer.TYPE to Int::class.javaObjectType,
+    java.lang.Long.TYPE to Long::class.javaObjectType,
+    java.lang.Float.TYPE to Float::class.javaObjectType,
+    java.lang.Double.TYPE to Double::class.javaObjectType,
     java.lang.Void.TYPE to java.lang.Void::class.java,
 )
 

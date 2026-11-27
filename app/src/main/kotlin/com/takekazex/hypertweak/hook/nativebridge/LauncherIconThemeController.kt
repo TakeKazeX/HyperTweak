@@ -5,6 +5,7 @@ import android.content.Context
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
+import com.takekazex.hypertweak.util.ignoreFailure
 import com.takekazex.hypertweak.util.logging.DebugLog
 import com.takekazex.hypertweak.util.storage.commitEdit
 
@@ -80,7 +81,7 @@ internal class LauncherIconThemeController(private val context: Context) {
 
     fun close() {
         closed = true; latest = null; handler.removeCallbacks(refresh)
-        runCatching { wallpaper.removeOnColorsChangedListener(colorsChanged) }
+        ignoreFailure { wallpaper.removeOnColorsChangedListener(colorsChanged) }
     }
     private companion object {
         const val ENABLE = "key_monochrome"

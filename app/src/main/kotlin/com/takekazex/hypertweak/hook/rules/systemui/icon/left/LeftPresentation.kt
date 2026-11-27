@@ -6,6 +6,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.LinearLayout
 import com.takekazex.hypertweak.hook.rules.systemui.icon.HandoverCoordinator
+import com.takekazex.hypertweak.util.ignoreFailure
 import com.takekazex.hypertweak.util.logging.DebugLog
 
 /** Owns the borrowed host tree and clone presentation; the parent sequences hook lifecycle. */
@@ -93,7 +94,7 @@ internal class LeftPresentation(private val host: Host, private val cloner: Left
         host.releaseCarrierSwap(state)
         removeClones(state)
         state.leftContainer?.let { left ->
-            runCatching { (left.parent as? ViewGroup)?.removeView(left) }
+            ignoreFailure { (left.parent as? ViewGroup)?.removeView(left) }
             state.leftContainer = null
         }
         state.clones.clear()
@@ -137,7 +138,7 @@ internal class LeftPresentation(private val host: Host, private val cloner: Left
                     if (cloner.isAnimating(clone)) continue
                 }
                 it.remove()
-                runCatching { (clone.parent as? ViewGroup)?.removeView(clone) }
+                ignoreFailure { (clone.parent as? ViewGroup)?.removeView(clone) }
                 cloner.forget(clone)
                 cloner.unregisterDarkReceiver(state.manager, clone)
             }
@@ -161,7 +162,7 @@ internal class LeftPresentation(private val host: Host, private val cloner: Left
             if (!cloner.updateClone(clone, child)) {
                 failed += slot
                 state.clones.remove(slot)
-                runCatching { (clone.parent as? ViewGroup)?.removeView(clone) }
+                ignoreFailure { (clone.parent as? ViewGroup)?.removeView(clone) }
                 cloner.forget(clone)
                 cloner.unregisterDarkReceiver(state.manager, clone)
                 continue
@@ -236,7 +237,7 @@ internal class LeftPresentation(private val host: Host, private val cloner: Left
 
     fun removeClones(state: LeftState) {
         state.clones.values.forEach { clone ->
-            runCatching { (clone.parent as? ViewGroup)?.removeView(clone) }
+            ignoreFailure { (clone.parent as? ViewGroup)?.removeView(clone) }
             cloner.forget(clone)
             cloner.unregisterDarkReceiver(state.manager, clone)
         }

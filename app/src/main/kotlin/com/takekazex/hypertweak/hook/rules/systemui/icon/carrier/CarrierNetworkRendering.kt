@@ -200,7 +200,7 @@ internal fun CarrierRenderer.releaseMask(block: CarrierBlock) {
             parts.signal.alpha = 0f; parts.networkSlot.alpha = 0f
         }
         val container = block.maskContainer ?: return
-        IconHostPorts.positions.carrierMask(container, CarrierMask())
+        val _ = IconHostPorts.positions.carrierMask(container, CarrierMask())
         maskedContainers.remove(container)
         block.maskContainer = null
     }

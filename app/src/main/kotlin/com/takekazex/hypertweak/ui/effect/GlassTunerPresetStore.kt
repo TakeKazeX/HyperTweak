@@ -2,6 +2,7 @@ package com.takekazex.hypertweak.ui.effect
 
 import android.content.SharedPreferences
 import android.util.Base64
+import com.takekazex.hypertweak.util.ignoreFailure
 import org.json.JSONArray
 import org.json.JSONObject
 import java.nio.charset.StandardCharsets
@@ -34,7 +35,7 @@ internal object GlassTunerPresetStore {
         buildList {
             for (index in 0 until array.length()) {
                 val item = array.optJSONObject(index) ?: continue
-                runCatching {
+                ignoreFailure {
                     val name = item.getString("name").trim().take(40)
                     require(name.isNotEmpty())
                     add(

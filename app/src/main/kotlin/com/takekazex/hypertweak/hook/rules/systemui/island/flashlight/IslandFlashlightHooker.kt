@@ -17,6 +17,7 @@ import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
+import com.takekazex.hypertweak.util.ignoreFailure
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.ref.WeakReference
 import java.lang.reflect.Field
@@ -269,7 +270,7 @@ class IslandFlashlightHooker : DynamicHooker() {
             after { param ->
                 if (retiring || !enabled || param.args[0] != FlashlightNativeAssets.PLUGIN_PACKAGE) return@after
                 HookFailurePolicy.open(TAG, "restore flashlight island after its page", Unit) {
-                    restoreParked(param.thisObjectOrNull ?: return@open, "page closed")
+                    val _ = restoreParked(param.thisObjectOrNull ?: return@open, "page closed")
                 }
             }
         }
@@ -441,7 +442,7 @@ class IslandFlashlightHooker : DynamicHooker() {
         retiring = true
         if (!::access.isInitialized) return
         val cleanup = Runnable {
-            pageExitReceiver?.let { (context, receiver) -> runCatching { context.unregisterReceiver(receiver) } }
+            pageExitReceiver?.let { (context, receiver) -> ignoreFailure { context.unregisterReceiver(receiver) } }
             pageExitReceiver = null
             HookFailurePolicy.open(TAG, "restore native flashlight island", Unit) { restoreAll("retired") }
         }

@@ -14,6 +14,7 @@ import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.settings.contract.AppVolumePercentColor
 import com.takekazex.hypertweak.settings.contract.SliderPercentagePolicy
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
+import com.takekazex.hypertweak.util.ignoreFailure
 import com.takekazex.hypertweak.util.logging.DebugLog
 import com.takekazex.hypertweak.util.platform.PlatformLevel
 import java.lang.reflect.Field
@@ -73,7 +74,7 @@ class AppVolumeHooker : DynamicHooker() {
     private var api: AppVolumeAudio.Api? by generationState { null }
     private var controllerType: Class<*>? by generationState { null }
     private val panels = generationMainResource(WeakHashMap<Any, AppVolumePanel>()) { map ->
-        map.values.toList().forEach { runCatching { it.detach() } }
+        map.values.toList().forEach { ignoreFailure { it.detach() } }
         map.clear()
     }
     private val main = generationMainHandler()
@@ -208,7 +209,7 @@ class AppVolumeHooker : DynamicHooker() {
 
     /** Disable or retirement: drop the views, the playback callback and queued work. */
     private fun teardown() {
-        panels.values.toList().forEach { runCatching { it.detach() } }
+        panels.values.toList().forEach { ignoreFailure { it.detach() } }
         panels.clear()
         runCatching { audioRegistration?.close() }.onFailure { DebugLog.w(TAG, "playback callback release failed", it) }
         audioRegistration = null

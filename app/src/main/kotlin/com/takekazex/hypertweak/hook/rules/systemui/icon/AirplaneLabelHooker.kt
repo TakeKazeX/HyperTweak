@@ -23,6 +23,7 @@ import java.util.ArrayDeque
 import java.util.WeakHashMap
 import androidx.core.view.isGone
 import androidx.core.view.isVisible
+import com.takekazex.hypertweak.util.ignoreFailure
 
 /**
  * The host's carrier "airplane mode" label on the control-center, notification and lockscreen
@@ -126,12 +127,12 @@ internal object AirplaneLabelHooker : IconRenderer() {
             releaseMotion()
             AirplaneGlyphTargets.release(AirplaneGlyphTargets.Owner.HOST_LABEL)
             decorated.keys.toList().forEach { view ->
-                runCatching { AirplaneLabelText.nativeText(view.text)?.let { if (AirplaneLabelText.hasGlyph(view.text)) view.text = it } }
+                ignoreFailure { AirplaneLabelText.nativeText(view.text)?.let { if (AirplaneLabelText.hasGlyph(view.text)) view.text = it } }
             }
             decorated.clear()
             hidden.forEach { (view, visibility) -> if (view.isGone) view.visibility = visibility }
             hidden.clear()
-            masked.keys.toList().forEach { runCatching { SlotMaskApplier.setAirplaneLabelMask(it, false) } }
+            masked.keys.toList().forEach { ignoreFailure { SlotMaskApplier.setAirplaneLabelMask(it, false) } }
             masked.clear()
             // A disabled label releases Duo/native ownership even if the replacement installs no hooks.
             IconHostPorts.left.visibilityChanged()

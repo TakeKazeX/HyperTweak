@@ -29,6 +29,7 @@ import com.takekazex.hypertweak.presentation.icon.MobileSignalModel
 import com.takekazex.hypertweak.presentation.icon.MobileSignalState
 import com.takekazex.hypertweak.presentation.icon.duo.DuoNetwork
 import com.takekazex.hypertweak.presentation.icon.duo.DuoTransport
+import com.takekazex.hypertweak.util.ignoreFailure
 import java.util.concurrent.Executor
 
 /** AOD plugin adapter for the same mobile reducer used by the SystemUI Duo renderer. */
@@ -90,19 +91,19 @@ internal class AodSignalObserver(
         if (!started) return
         started = false
         callbacks.values.forEach { (manager, callback) ->
-            runCatching { manager.unregisterTelephonyCallback(callback) }
+            ignoreFailure { manager.unregisterTelephonyCallback(callback) }
         }
         callbacks.clear()
         subscriptionListener?.let { listener ->
-            runCatching { subscriptionManager?.removeOnSubscriptionsChangedListener(listener) }
+            ignoreFailure { subscriptionManager?.removeOnSubscriptionsChangedListener(listener) }
         }
         subscriptionListener = null
         networkCallback?.let { callback ->
-            runCatching { connectivityManager?.unregisterNetworkCallback(callback) }
+            ignoreFailure { connectivityManager?.unregisterNetworkCallback(callback) }
         }
         networkCallback = null
         if (receiverRegistered) {
-            runCatching { appContext.unregisterReceiver(stateReceiver) }
+            ignoreFailure { appContext.unregisterReceiver(stateReceiver) }
             receiverRegistered = false
         }
         lastNetwork = null
@@ -153,7 +154,7 @@ internal class AodSignalObserver(
 
         callbacks.keys.filterNot(activeIds::contains).toList().forEach { subId ->
             callbacks.remove(subId)?.let { (manager, callback) ->
-                runCatching { manager.unregisterTelephonyCallback(callback) }
+                ignoreFailure { manager.unregisterTelephonyCallback(callback) }
             }
         }
         activeIds.forEach { subId ->
