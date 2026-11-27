@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[2]
 READ = re.compile(r'\bPreferences\s*(?:\.|::)\s*(\w+)')
 ALLOWED_OPERATIONS = frozenset({
     "flush", "putStringSynchronous", "initLocalCache", "invalidateRuntimeReadCache",
-    "saveScreenshotSettings", "restoreScreenshotSettings", "isInitialized",
+    "isInitialized",
 })
 VIEW = re.compile(r'(?:require\w*Method|find\w*Method)\s*\(\s*View\s*::\s*class\s*\.\s*java\s*,\s*'
                   r'"set(?:Visibility|Alpha)"')

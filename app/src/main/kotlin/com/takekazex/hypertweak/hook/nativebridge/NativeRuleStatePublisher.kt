@@ -29,13 +29,13 @@ internal class NativeRuleStatePublisher {
     private var waiting: String? = null
     private var forwarded: NativeRuleStateSnapshot? = null
     @Volatile private var closed = false
-    fun saveSnapshot(): Array<Any> = arrayOf(ledger.save() ?: emptyArray<Any>(),
-        Preferences.saveBackGestureSettings() ?: emptyArray<Any>())
+    // The second slot once carried the retired back-gesture channel (removed in 1.9.1). It stays
+    // empty so the two-slot shape is unchanged; a restored value there is ignored.
+    fun saveSnapshot(): Array<Any> = arrayOf(ledger.save() ?: emptyArray<Any>(), emptyArray<Any>())
     fun restoreSnapshot(state: Any?) {
         val values = state as? Array<*>
         if (values != null && values.size >= 2 && values[0] is Array<*>) {
             ledger.restore(values[0])
-            Preferences.restoreBackGestureSettings(values[1])
         } else ledger.restore(state)
     }
     private val receiver = object : ModuleBroadcastReceiver() {

@@ -41,8 +41,6 @@ object ScreenshotAutoFrameHooker : StaticHooker() {
     private var retired = false
     init { generationCleanup { retired = true } }
     private var frameAccess: NativeScreenshotFrameAccess? by generationState { null }
-    override fun saveHotReloadState(): Any? = Preferences.saveScreenshotSettings()
-    override fun restoreHotReloadState(state: Any?) { Preferences.restoreScreenshotSettings(state) }
 
     override fun onHook() {
         retired = false

@@ -8,7 +8,6 @@ import com.takekazex.hypertweak.hook.nativebridge.NativeRuleStateSnapshot
 import com.takekazex.hypertweak.hook.preferences.RuntimeSettingsPreferences
 import com.takekazex.hypertweak.hook.preferences.SettingsBackupManager
 import com.takekazex.hypertweak.hook.preferences.SettingsMutationWriter
-import com.takekazex.hypertweak.hook.runtime.settings.BackGestureSettingsLedger
 import com.takekazex.hypertweak.hook.runtime.settings.BackGestureSettingsSnapshot
 import com.takekazex.hypertweak.hook.runtime.settings.RuntimeSettingsReadCache
 import com.takekazex.hypertweak.hook.runtime.settings.RuntimeSettingsSignal
@@ -31,7 +30,6 @@ import com.takekazex.hypertweak.settings.contract.IconSettingsPreferencePolicy
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 import com.takekazex.hypertweak.settings.contract.PowerSaveOverrideSelection
 import com.takekazex.hypertweak.settings.contract.ScreenshotSettingsKeys
-import com.takekazex.hypertweak.settings.contract.ScreenshotSettingsLedger
 import com.takekazex.hypertweak.settings.contract.ScreenshotSettingsSnapshot
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 import com.takekazex.hypertweak.util.logging.SettingsDiagnostics
@@ -65,7 +63,6 @@ object Preferences {
             commitRemoteMutation(snapshot, replacement, edit)
     })
 
-    private val liveBackSettings = BackGestureSettingsLedger()
     fun upstreamBackGestureOwnsInput(): Boolean =
         com.takekazex.hypertweak.util.platform.UpstreamBackGesturePolicy.shouldYield(
             com.takekazex.hypertweak.util.platform.UpstreamBackGesture.installed,
@@ -73,15 +70,9 @@ object Preferences {
     fun backGestureEnabled(): Boolean = !upstreamBackGestureOwnsInput() &&
         backGestureBoolean(BackGestureKeys.KEY_BACK_GESTURE_ENABLED, false)
     fun backGestureBoolean(key: String, defaultValue: Boolean): Boolean =
-        if (RuntimeSettingsStore.owns(key)) getBoolean(key, defaultValue) else liveBackSettings.latest()?.value(key) ?: runCatching {
+        if (RuntimeSettingsStore.owns(key)) getBoolean(key, defaultValue) else runCatching {
             if (isInitialized) remotePrefs.getBoolean(key, defaultValue) else defaultValue
         }.getOrDefault(defaultValue)
-    internal fun acceptBackGestureSettings(snapshot: BackGestureSettingsSnapshot): Boolean =
-        snapshot != liveBackSettings.latest() && liveBackSettings.offer(snapshot)
-    internal fun saveBackGestureSettings(): Array<Any>? = liveBackSettings.latest()?.save()
-    internal fun restoreBackGestureSettings(state: Any?) {
-        BackGestureSettingsSnapshot.restore(state)?.let(liveBackSettings::offer)
-    }
 
     /** The vendored runtime uses the same authoritative source and listeners as other hooks. */
     fun backGesturePreferences(): SharedPreferences = RuntimeSettingsPreferences.bind(compatibilityReader)
@@ -96,18 +87,10 @@ object Preferences {
     }
     internal fun runtimePreferenceSource(): SharedPreferences? = if (isInitialized) remotePrefs else null
     private const val CACHE_NAME = "hypertweak_cache"
-    private val screenshotSettings = ScreenshotSettingsLedger()
-    fun screenshotAutoFrameEnabled(): Boolean = if (RuntimeSettingsStore.owns(ScreenshotSettingsKeys.KEY_SCREENSHOT_AUTO_FRAME)) getBoolean(ScreenshotSettingsKeys.KEY_SCREENSHOT_AUTO_FRAME, false) else screenshotSettings.latest()?.enabled
-        ?: getBoolean(ScreenshotSettingsKeys.KEY_SCREENSHOT_AUTO_FRAME, false)
-    fun screenshotEditorMode(): Int = if (RuntimeSettingsStore.owns(ScreenshotSettingsKeys.KEY_SCREENSHOT_FRAME_EDITOR_MODE)) getInt(ScreenshotSettingsKeys.KEY_SCREENSHOT_FRAME_EDITOR_MODE, 0).coerceIn(0, 1) else screenshotSettings.latest()?.editorMode
-        ?: getInt(ScreenshotSettingsKeys.KEY_SCREENSHOT_FRAME_EDITOR_MODE, 0).let { if (it == 1) 1 else 0 }
-    fun screenshotCopyToClipboard(): Boolean = if (RuntimeSettingsStore.owns(ScreenshotSettingsKeys.KEY_SCREENSHOT_COPY_TO_CLIPBOARD)) getBoolean(ScreenshotSettingsKeys.KEY_SCREENSHOT_COPY_TO_CLIPBOARD, false) else screenshotSettings.latest()?.copyToClipboard
-        ?: getBoolean(ScreenshotSettingsKeys.KEY_SCREENSHOT_COPY_TO_CLIPBOARD, false)
-    fun screenshotPicturesDirectory(): Boolean = if (RuntimeSettingsStore.owns(ScreenshotSettingsKeys.KEY_SCREENSHOT_PICTURES_DIRECTORY)) getBoolean(ScreenshotSettingsKeys.KEY_SCREENSHOT_PICTURES_DIRECTORY, false) else screenshotSettings.latest()?.picturesDirectory
-        ?: getBoolean(ScreenshotSettingsKeys.KEY_SCREENSHOT_PICTURES_DIRECTORY, false)
-    internal fun acceptScreenshotSettings(snapshot: ScreenshotSettingsSnapshot): Boolean = screenshotSettings.accept(snapshot)
-    internal fun saveScreenshotSettings(): Array<Any>? = screenshotSettings.save()
-    internal fun restoreScreenshotSettings(state: Any?) = screenshotSettings.restore(state)
+    fun screenshotAutoFrameEnabled(): Boolean = getBoolean(ScreenshotSettingsKeys.KEY_SCREENSHOT_AUTO_FRAME, false)
+    fun screenshotEditorMode(): Int = getInt(ScreenshotSettingsKeys.KEY_SCREENSHOT_FRAME_EDITOR_MODE, 0).coerceIn(0, 1)
+    fun screenshotCopyToClipboard(): Boolean = getBoolean(ScreenshotSettingsKeys.KEY_SCREENSHOT_COPY_TO_CLIPBOARD, false)
+    fun screenshotPicturesDirectory(): Boolean = getBoolean(ScreenshotSettingsKeys.KEY_SCREENSHOT_PICTURES_DIRECTORY, false)
 
     fun iconStackedSignalStyle(): Int = iconConfig().stacked.stackedSignalStyle
 
