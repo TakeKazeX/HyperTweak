@@ -18,7 +18,7 @@ import top.yukonga.miuix.kmp.preference.SwitchPreference
 fun ScreenshotPage(onBack: () -> Unit) {
     val settingsStore = LocalAppSettingsStore.current
     var enabled by rememberStoredSetting(ScreenshotSettingsKeys.KEY_SCREENSHOT_AUTO_FRAME, settingsStore::putBoolean) { settingsStore.getBoolean(ScreenshotSettingsKeys.KEY_SCREENSHOT_AUTO_FRAME, false) }
-    var editorMode by rememberStoredSetting(ScreenshotSettingsKeys.KEY_SCREENSHOT_FRAME_EDITOR_MODE, settingsStore::putInt) { settingsStore.getInt(ScreenshotSettingsKeys.KEY_SCREENSHOT_FRAME_EDITOR_MODE, 0).let { if (it == 1) 1 else 0 } }
+    var editorMode by rememberStoredSetting(ScreenshotSettingsKeys.KEY_SCREENSHOT_FRAME_EDITOR_MODE, settingsStore::putInt) { ScreenshotSettingsKeys.editorMode(settingsStore.getInt(ScreenshotSettingsKeys.KEY_SCREENSHOT_FRAME_EDITOR_MODE, 0)) }
     var copyToClipboard by rememberStoredSetting(ScreenshotSettingsKeys.KEY_SCREENSHOT_COPY_TO_CLIPBOARD, settingsStore::putBoolean) { settingsStore.getBoolean(ScreenshotSettingsKeys.KEY_SCREENSHOT_COPY_TO_CLIPBOARD, false) }
     var picturesDirectory by rememberStoredSetting(ScreenshotSettingsKeys.KEY_SCREENSHOT_PICTURES_DIRECTORY, settingsStore::putBoolean) { settingsStore.getBoolean(ScreenshotSettingsKeys.KEY_SCREENSHOT_PICTURES_DIRECTORY, false) }
     var hideStatusBar by rememberStoredSetting(ScreenshotSettingsKeys.KEY_SCREENSHOT_HIDE_STATUS_BAR, settingsStore::putBoolean) { settingsStore.getBoolean(ScreenshotSettingsKeys.KEY_SCREENSHOT_HIDE_STATUS_BAR, false) }

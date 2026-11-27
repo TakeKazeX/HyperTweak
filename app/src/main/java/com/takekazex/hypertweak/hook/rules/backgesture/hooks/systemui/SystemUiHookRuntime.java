@@ -947,7 +947,7 @@ public abstract class SystemUiHookRuntime extends com.takekazex.hypertweak.hook.
         }
         pendingModuleStatusNonce.set(nonce);
         boolean ready = systemUiInputArbiterMonitorCount.get() > 0
-                && com.takekazex.hypertweak.hook.Preferences.INSTANCE.backGestureEnabled();
+                && com.takekazex.hypertweak.hook.preferences.BackGesturePrefs.backGestureEnabled();
         sendModuleRuntimeStatusReply(context, nonce, false, ready,
                 "systemUiResponse", null);
         try {
@@ -998,7 +998,7 @@ public abstract class SystemUiHookRuntime extends com.takekazex.hypertweak.hook.
         pendingModuleStatusNonce.compareAndSet(nonce, 0L);
         sendModuleRuntimeStatusReply(context, nonce, true,
                 systemUiInputArbiterMonitorCount.get() > 0
-                        && com.takekazex.hypertweak.hook.Preferences.INSTANCE.backGestureEnabled(),
+                        && com.takekazex.hypertweak.hook.preferences.BackGesturePrefs.backGestureEnabled(),
                 "nativeResponse", intent);
     }
 
@@ -1328,7 +1328,7 @@ public abstract class SystemUiHookRuntime extends com.takekazex.hypertweak.hook.
 
     protected void installBackInputDriver(Object edgeBackGestureHandler, Object backAnimationImpl) {
         if (!acceptingBackInputInstalls
-                || com.takekazex.hypertweak.hook.Preferences.INSTANCE.upstreamBackGestureOwnsInput()) {
+                || com.takekazex.hypertweak.hook.preferences.BackGesturePrefs.upstreamBackGestureOwnsInput()) {
             return;
         }
         ensureLauncherConnection(edgeBackGestureHandler);

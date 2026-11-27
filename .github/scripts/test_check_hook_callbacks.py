@@ -1,5 +1,5 @@
 import unittest
-from check_hook_callbacks import READERS, violations, preferences_api_violations
+from check_hook_callbacks import READERS, violations, preferences_api_violations, reader_violations
 
 
 class HookCallbacksGuardTest(unittest.TestCase):
@@ -57,6 +57,26 @@ class HookCallbacksGuardTest(unittest.TestCase):
         stale = preferences_api_violations(source, frozenset({"getBoolean", "iconConfig", "removedReader"}))
         self.assertEqual(1, len(stale))
         self.assertIn("removedReader", stale[0])
+
+    def test_frozen_surface_sees_every_member_shape(self):
+        source = """object Preferences {
+    suspend fun awaitFlag(): Boolean = false
+    operator fun get(key: String): Any? = null
+    internal fun SharedPreferences.Editor.putFlag(value: Boolean) = Unit
+    @JvmStatic inline fun <reified T> typed(key: String): T? = null
+    object Nested { fun hidden() = Unit }
+    private fun memoGet(key: String): Any? = null
+}"""
+        names = {message.split('`')[1] for message in preferences_api_violations(source, frozenset())}
+        self.assertEqual({"awaitFlag", "get", "putFlag", "typed", "Nested"}, names)
+
+    def test_readers_are_named_and_filed_as_readers(self):
+        self.assertEqual([], reader_violations({"PowerSavePrefs.kt": ["PowerSavePrefs"]}))
+        self.assertEqual(1, len(reader_violations({"Power.kt": ["PowerSaveReader"]})))
+        self.assertEqual(1, len(reader_violations({"Misc.kt": ["PowerSavePrefs"]})))
+        self.assertEqual([], reader_violations({"Codec.kt": ["Codec"]}, frozenset({"Codec"})))
+        self.assertIn("BackGesturePrefs", READERS)
+        self.assertNotIn("RuntimeSettingsPreferences", READERS)
 
 
 if __name__ == '__main__':

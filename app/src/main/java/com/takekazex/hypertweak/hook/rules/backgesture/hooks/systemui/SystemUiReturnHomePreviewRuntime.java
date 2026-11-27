@@ -174,7 +174,7 @@ public abstract class SystemUiReturnHomePreviewRuntime extends SystemUiAnimation
 
     @Override
     protected boolean isReturnHomePreviewEnabled() {
-        return com.takekazex.hypertweak.hook.Preferences.INSTANCE.backGestureEnabled()
+        return com.takekazex.hypertweak.hook.preferences.BackGesturePrefs.backGestureEnabled()
                 && isReturnHomePreviewSupported() && readHyperOsBooleanPreference(
                 PredictiveBackPreferences.KEY_RETURN_HOME_ICON_PREVIEW,
                 PredictiveBackPreferences.DEFAULT_RETURN_HOME_ICON_PREVIEW);

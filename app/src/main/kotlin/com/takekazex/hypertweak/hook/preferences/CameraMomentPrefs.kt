@@ -24,13 +24,4 @@ internal object CameraMomentPrefs {
         }
         return CameraLegendaryMomentMode.resolve(stored, legacy)
     }
-
-    /** Persists the selected name and drops the superseded Boolean. */
-    fun setCameraLegendaryMomentMode(mode: String) {
-        Preferences.commitRuntimeChanges(mapOf(CameraSettingsKeys.KEY_CAMERA_LEGENDARY_MOMENT_MODE to mode,
-            CameraSettingsKeys.KEY_CAMERA_LEGENDARY_MOMENT to false)) {
-            putString(CameraSettingsKeys.KEY_CAMERA_LEGENDARY_MOMENT_MODE, mode)
-            remove(CameraSettingsKeys.KEY_CAMERA_LEGENDARY_MOMENT)
-        }
-    }
 }

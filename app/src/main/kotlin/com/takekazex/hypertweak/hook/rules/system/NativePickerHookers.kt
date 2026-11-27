@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.system
 
+import com.takekazex.hypertweak.hook.preferences.NativePickerPrefs
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import android.app.Activity
@@ -21,7 +22,7 @@ internal abstract class PickerHooker(private val key: String) : StaticHooker() {
     override val installPolicy = InstallPolicy.WHEN_ENABLED
     @Volatile protected var enabled = false
 
-    private val selected by hookSetting(false) { Preferences.nativePickerEnabled(key) }
+    private val selected by hookSetting(false) { NativePickerPrefs.nativePickerEnabled(key) }
     override fun isFeatureEnabled() = selected
 
     fun refreshSettings() {

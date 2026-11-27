@@ -1383,7 +1383,7 @@ public abstract class SystemUiInputDriverRuntime extends SystemUiInputPolicyRunt
         protected void retryNavigationAfterRecentsIdle(ShellGestureSession session,
                                                      RecentsIdleRetry retry, Object transitions) {
             if (!gestureActive || gestureSuppressed || !aospNullNavigationGesture
-                    || !Preferences.INSTANCE.backGestureEnabled() || !isShellSessionOwnerCurrent(session)) return;
+                    || !com.takekazex.hypertweak.hook.preferences.BackGesturePrefs.backGestureEnabled() || !isShellSessionOwnerCurrent(session)) return;
             if (!isRecentsRetryInputAllowed(edgeBackGestureHandler)) return;
             android.app.ActivityManager.RunningTaskInfo focus = focusedAppTask();
             if (focus == null) return;

@@ -227,7 +227,7 @@ public abstract class SystemUiInputRuntime extends SystemUiInputDriverRuntime {
 
         protected boolean onNativeDown(MotionEvent event) {
             resetCandidate();
-            if (!com.takekazex.hypertweak.hook.Preferences.INSTANCE.backGestureEnabled()) return false;
+            if (!com.takekazex.hypertweak.hook.preferences.BackGesturePrefs.backGestureEnabled()) return false;
             int edge = edgeForDown(event);
             if (edge < 0 || !canStartBackGesture(event, edge)) {
                 return false;

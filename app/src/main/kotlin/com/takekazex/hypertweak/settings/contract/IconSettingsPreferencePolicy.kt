@@ -39,7 +39,12 @@ internal object IconSettingsPreferencePolicy {
 }
 
 /** Stable preference values in dropdown order. */
-internal enum class CcBatteryPercentStyle { SYSTEM, OUTSIDE_TRAILING, OUTSIDE_LEADING }
+internal enum class CcBatteryPercentStyle { SYSTEM, OUTSIDE_TRAILING, OUTSIDE_LEADING;
+    companion object {
+        /** The style a stored index selects; an index from a newer or corrupt snapshot is [SYSTEM]. */
+        fun of(index: Int): CcBatteryPercentStyle = entries.getOrElse(index) { SYSTEM }
+    }
+}
 
 internal enum class IndependentIconDomain {
     SAMPLING,

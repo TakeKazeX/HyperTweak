@@ -11,10 +11,31 @@ from check_architecture import NON_CODE
 
 ROOT = Path(__file__).resolve().parents[2]
 # Feature readers next to the storage boundary are settings sources too; their names are derived
-# from the declarations so a moved reader cannot escape the snapshot rule.
-READERS = sorted(re.findall(r'^internal object (\w+Prefs)\b', ''.join(
-    path.read_text() for path in (ROOT / 'app/src/main/kotlin/com/takekazex/hypertweak/hook/preferences')
-    .glob('*Prefs.kt')), re.M))
+# from the declarations so a moved reader cannot escape the snapshot rule. Every top-level object in
+# hook/preferences is a reader unless it is listed as storage infrastructure here.
+PREFERENCES_DIR = ROOT / 'app/src/main/kotlin/com/takekazex/hypertweak/hook/preferences'
+INFRASTRUCTURE = frozenset({"AcknowledgedSettingsTask", "RuntimeSettingsPreferences", "SettingsBackupCodec"})
+OBJECT = re.compile(r'^(?:(?:internal|public|private|data)\s+)*object\s+(\w+)', re.M)
+
+
+def declared_objects(directory=PREFERENCES_DIR):
+    return {path.name: OBJECT.findall(NON_CODE.sub(lambda m: ' ' * len(m[0]), path.read_text()))
+            for path in sorted(directory.glob('*.kt'))}
+
+
+def reader_violations(objects, infrastructure=INFRASTRUCTURE):
+    """A reader is named `<Feature>Prefs` and lives alone in `<Feature>Prefs.kt`."""
+    errors = []
+    for name, declared in objects.items():
+        for reader in (it for it in declared if it not in infrastructure):
+            if not reader.endswith('Prefs') or name != reader + '.kt':
+                errors.append(f'hook/preferences/{name}: object `{reader}` reads settings; name it '
+                              f'`<Feature>Prefs` in its own file, or list it in INFRASTRUCTURE')
+    return errors
+
+
+READERS = sorted(reader for declared in declared_objects().values() for reader in declared
+                 if reader not in INFRASTRUCTURE)
 # Any new Preferences API is rejected by default, including function references and properties.
 READ = re.compile(r'\b(?:' + '|'.join(['Preferences', *READERS]) + r')\s*(?:\.|::)\s*(\w+)')
 ALLOWED_OPERATIONS = frozenset({
@@ -26,19 +47,23 @@ ALLOWED_OPERATIONS = frozenset({
 # feature; it never adds an accessor here. Removing a member must also remove it from this list.
 PREFERENCES = ROOT / 'app/src/main/kotlin/com/takekazex/hypertweak/hook/Preferences.kt'
 PREFERENCES_API = frozenset({
-    "appLogs", "appendDebugLog", "appendDebugLogs", "backGestureBoolean", "backGestureEnabled",
+    "appLogs", "appendDebugLog", "appendDebugLogs", "backGestureBoolean",
     "backGesturePreferences", "clearAllSettings", "clearDebugLog", "commitRuntimeChanges", "contains",
     "exportSettings", "flush", "getBoolean", "getDebugLog", "getFloat", "getInt", "getString",
     "getStringSet", "hasRemoteConfig", "iconConfig", "init", "initLocalCache", "inspectDebugSettings",
     "invalidateRuntimeReadCache", "isDebugUserSetting", "isInitialized", "isRemoteBackendUnavailable",
-    "localSource", "logLevel", "nativePickerEnabled", "nativeRuleSnapshot", "noteRemoteBackendUnavailable",
-    "patchDebugSettings", "patchSettings", "putBackGestureAppearance", "putBoolean", "putFloat", "putInt",
+    "localSource", "logLevel", "nativeRuleSnapshot", "noteRemoteBackendUnavailable",
+    "patchDebugSettings", "patchSettings", "putBoolean", "putFloat", "putInt",
     "putString", "putStringSet", "putStringSynchronous", "restoreSettings", "rotateLogSessionIfNeeded",
-    "runtimePreferenceSource", "settingsEpochForUi", "upstreamBackGestureOwnsInput", "useLocalBackend",
+    "runtimePreferenceSource", "settingsEpochForUi", "useLocalBackend",
 })
+# Every non-private member declared directly in the object, whatever its modifiers: functions
+# (including extension functions, by their own name), properties and nested declarations.
 MEMBER = re.compile(r'^    (?!private\b)(?:@\w+(?:\([^)]*\))?\s+)*'
-                    r'(?:(?:internal|public|override|inline|lateinit|const|@Volatile)\s+)*'
-                    r'(?:fun|val|var)\s+(?:<[^>]+>\s*)?(\w+)', re.M)
+                    r'(?:(?:internal|public|protected|override|open|inline|lateinit|const|suspend|operator|'
+                    r'infix|tailrec|external|data|inner|enum|sealed|annotation|fun\s+interface)\s+)*'
+                    r'(?:fun\s+(?:<[^>]+>\s*)?(?:[\w.?]+(?:<[^>]*>)?\??\.)?|val\s+|var\s+|object\s+|class\s+|interface\s+)'
+                    r'(?:<[^>]+>\s*)?(\w+)', re.M)
 VIEW = re.compile(r'(?:require\w*Method|find\w*Method)\s*\(\s*View\s*::\s*class\s*\.\s*java\s*,\s*'
                   r'"set(?:Visibility|Alpha)"')
 
@@ -88,6 +113,7 @@ def preferences_api_violations(source, allowed=PREFERENCES_API):
 def main():
     failures = [f'{PREFERENCES.relative_to(ROOT)}: {message}'
                 for message in preferences_api_violations(PREFERENCES.read_text())]
+    failures.extend(reader_violations(declared_objects()))
     base = ROOT / 'app/src/main/kotlin/com/takekazex/hypertweak/hook/rules'
     for path in sorted(base.rglob('*.kt')):
         failures.extend(f'{path.relative_to(ROOT)}:{line}: {message}' for line, message in

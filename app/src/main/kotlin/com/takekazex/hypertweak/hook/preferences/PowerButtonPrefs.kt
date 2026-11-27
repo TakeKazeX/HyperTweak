@@ -26,13 +26,4 @@ internal object PowerButtonPrefs {
             PlatformSettingsKeys.POWER_BUTTON_ACTION_DISABLED
         }
     }
-
-    /** Persists the long-press power action and drops the superseded legacy boolean. */
-    fun setPowerButtonAction(action: Int) {
-        Preferences.commitRuntimeChanges(mapOf(PlatformSettingsKeys.KEY_POWER_BUTTON_ACTION to action,
-            PlatformSettingsKeys.KEY_POWER_BUTTON_CTS to false)) {
-            putInt(PlatformSettingsKeys.KEY_POWER_BUTTON_ACTION, action)
-            remove(PlatformSettingsKeys.KEY_POWER_BUTTON_CTS)
-        }
-    }
 }

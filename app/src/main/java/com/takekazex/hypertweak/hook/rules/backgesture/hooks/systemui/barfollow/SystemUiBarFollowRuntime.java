@@ -1098,7 +1098,7 @@ return Boolean.TRUE;
                     PredictiveBackPreferences.KEY_RESTORE_STATUS_BAR_FOLLOW,
                     PredictiveBackPreferences.DEFAULT_RESTORE_STATUS_BAR_FOLLOW);
             barFollowPreferenceFailureLogged = false;
-            return enabled && com.takekazex.hypertweak.hook.Preferences.INSTANCE.backGestureEnabled();
+            return enabled && com.takekazex.hypertweak.hook.preferences.BackGesturePrefs.backGestureEnabled();
         } catch (Throwable failure) {
             if (!barFollowPreferenceFailureLogged) {
                 barFollowPreferenceFailureLogged = true;

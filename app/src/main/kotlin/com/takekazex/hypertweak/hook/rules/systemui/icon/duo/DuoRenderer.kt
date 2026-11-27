@@ -89,7 +89,7 @@ internal object DuoRenderer : IconRenderer() {
         Preferences.iconConfig().typeHiddenWhenDisconnected
     }
     internal val settingCcBatteryPercentLeft by hookSetting(false) {
-        CcBatteryPercentStyle.entries[Preferences.iconConfig().controlCenter.batteryPercentStyle] == CcBatteryPercentStyle.OUTSIDE_LEADING
+        CcBatteryPercentStyle.of(Preferences.iconConfig().controlCenter.batteryPercentStyle) == CcBatteryPercentStyle.OUTSIDE_LEADING
     }
 
     init {

@@ -25,7 +25,7 @@ import androidx.core.graphics.scale
 object ScreenshotAutoFrameHooker : StaticHooker() {
     // Published on settings acceptance; hook callbacks perform no storage reads.
     private val settingScreenshotAutoFrameEnabled by hookSetting(false) { Preferences.getBoolean(ScreenshotSettingsKeys.KEY_SCREENSHOT_AUTO_FRAME, false) }
-    private val settingScreenshotEditorMode by hookSetting(0) { Preferences.getInt(ScreenshotSettingsKeys.KEY_SCREENSHOT_FRAME_EDITOR_MODE, 0).coerceIn(0, 1) }
+    private val settingScreenshotEditorMode by hookSetting(0) { ScreenshotSettingsKeys.editorMode(Preferences.getInt(ScreenshotSettingsKeys.KEY_SCREENSHOT_FRAME_EDITOR_MODE, 0)) }
 
     private const val TAG = "ScreenshotAutoFrame"
     private const val RECEIPTS = "hypertweak_screenshot_frames"

@@ -5,6 +5,7 @@ import com.takekazex.hypertweak.hook.preferences.PowerButtonPrefs
 import com.takekazex.hypertweak.hook.preferences.LauncherDesktopPrefs
 import com.takekazex.hypertweak.hook.preferences.FingerprintPrefs
 import com.takekazex.hypertweak.hook.preferences.CameraMomentPrefs
+import com.takekazex.hypertweak.hook.preferences.NativePickerPrefs
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 import com.takekazex.hypertweak.settings.contract.IconSettingsPreferencePolicy
@@ -69,26 +70,26 @@ internal object PreferencesAppSettings : AppSettingsStore {
 
     override val powerButton = object : PowerButtonSettings {
         override fun powerButtonAction(): Int = PowerButtonPrefs.powerButtonAction()
-        override fun setPowerButtonAction(action: Int): Unit = PowerButtonPrefs.setPowerButtonAction(action)
+        override fun setPowerButtonAction(action: Int): Unit = FeatureSettingsWriters.setPowerButtonAction(action)
     }
 
     override val backGesture = object : BackGestureSettings {
         override fun contextualSearchLongPress(): Boolean = Preferences.getBoolean(PlatformSettingsKeys.KEY_CONTEXTUAL_SEARCH_LONG_PRESS, false)
         override fun backGestureBoolean(key: String, defaultValue: Boolean): Boolean = Preferences.backGestureBoolean(key, defaultValue)
-        override fun putBackGestureAppearance(values: Map<String, Boolean>): Unit = Preferences.putBackGestureAppearance(values)
+        override fun putBackGestureAppearance(values: Map<String, Boolean>): Unit = FeatureSettingsWriters.putBackGestureAppearance(values)
     }
 
     override val camera = object : CameraAppSettings {
-        override fun setCameraLegendaryMomentMode(mode: String): Unit = CameraMomentPrefs.setCameraLegendaryMomentMode(mode)
+        override fun setCameraLegendaryMomentMode(mode: String): Unit = FeatureSettingsWriters.setCameraLegendaryMomentMode(mode)
         override fun cameraLegendaryMomentMode(): String = CameraMomentPrefs.cameraLegendaryMomentMode()
     }
 
     override val launcher = object : LauncherAppSettings {
         override fun desktopGrid(): Int = LauncherDesktopPrefs.desktopGrid()
-        override fun commitDesktopGrid(value: Int): Boolean = LauncherDesktopPrefs.commitDesktopGrid(value)
-        override fun migrateLegacyDockBackground(): Boolean = LauncherDesktopPrefs.migrateLegacyDockBackground()
+        override fun commitDesktopGrid(value: Int): Boolean = FeatureSettingsWriters.commitDesktopGrid(value)
+        override fun migrateLegacyDockBackground(): Boolean = FeatureSettingsWriters.migrateLegacyDockBackground()
         override fun desktopIconPercent(): Int = LauncherDesktopPrefs.desktopIconPercent()
-        override fun commitDesktopIconPercent(value: Int): Boolean = LauncherDesktopPrefs.commitDesktopIconPercent(value)
+        override fun commitDesktopIconPercent(value: Int): Boolean = FeatureSettingsWriters.commitDesktopIconPercent(value)
         override fun openedFolderColumns(): Int = LauncherDesktopPrefs.openedFolderColumns()
         override fun allowAndroidWidgetsToAssistant(): Boolean = Preferences.getBoolean(PlatformSettingsKeys.KEY_ALLOW_ANDROID_WIDGETS_TO_ASSISTANT, false)
         override fun androidWidgetStack(): Boolean = Preferences.getBoolean(PlatformSettingsKeys.KEY_ANDROID_WIDGET_STACK, false)
@@ -108,7 +109,7 @@ internal object PreferencesAppSettings : AppSettingsStore {
     }
 
     override val platform = object : PlatformAppSettings {
-        override fun nativePickerEnabled(key: String): Boolean = Preferences.nativePickerEnabled(key)
+        override fun nativePickerEnabled(key: String): Boolean = NativePickerPrefs.nativePickerEnabled(key)
         override fun freeformBlurTransition(): Boolean = Preferences.getBoolean(PlatformSettingsKeys.KEY_FREEFORM_BLUR_TRANSITION, false)
         override fun motionCuesFreeformFix(): Boolean = Preferences.getBoolean(PlatformSettingsKeys.KEY_MOTION_CUES_FREEFORM_FIX, false)
         override fun unlockAdaptiveRefreshPro(): Boolean = Preferences.getBoolean(PlatformSettingsKeys.KEY_UNLOCK_ADAPTIVE_REFRESH_PRO, false)
@@ -117,7 +118,7 @@ internal object PreferencesAppSettings : AppSettingsStore {
     }
 
     override val powerSave = object : PowerSaveSettings {
-        override fun setPowerSaveFeature(key: String, enabled: Boolean): Unit = PowerSavePrefs.setPowerSaveFeature(key, enabled)
+        override fun setPowerSaveFeature(key: String, enabled: Boolean): Unit = FeatureSettingsWriters.setPowerSaveFeature(key, enabled)
         override fun batteryAutoPowerSaveThreshold(): Int = PowerSavePrefs.batteryAutoPowerSaveThreshold()
         override fun batteryAutoPowerSaveEnabled(): Boolean = Preferences.getBoolean(PlatformSettingsKeys.KEY_BATTERY_AUTO_POWER_SAVE_ENABLED, false)
         override fun exitPowerSaveWhenCharging(): Boolean = Preferences.getBoolean(PlatformSettingsKeys.KEY_EXIT_POWER_SAVE_WHEN_CHARGING, false)

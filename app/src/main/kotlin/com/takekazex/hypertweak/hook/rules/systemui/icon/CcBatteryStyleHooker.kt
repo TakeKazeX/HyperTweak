@@ -29,7 +29,7 @@ import java.lang.reflect.Field
  */
 internal object CcBatteryStyleHooker : IconRenderer() {
     // Published on settings acceptance; hook callbacks perform no storage reads.
-    private val percentStyle by hookSetting(CcBatteryPercentStyle.SYSTEM) { CcBatteryPercentStyle.entries[Preferences.iconConfig().controlCenter.batteryPercentStyle] }
+    private val percentStyle by hookSetting(CcBatteryPercentStyle.SYSTEM) { CcBatteryPercentStyle.of(Preferences.iconConfig().controlCenter.batteryPercentStyle) }
 
     init {
         hostRecovery(HostRecoveryPhase.ICONS, icons = true) {

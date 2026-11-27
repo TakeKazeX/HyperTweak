@@ -56,12 +56,6 @@ object Preferences {
             commitRemoteMutation(snapshot, replacement, edit)
     })
 
-    fun upstreamBackGestureOwnsInput(): Boolean =
-        com.takekazex.hypertweak.util.platform.UpstreamBackGesturePolicy.shouldYield(
-            com.takekazex.hypertweak.util.platform.UpstreamBackGesture.installed,
-            backGestureBoolean(BackGestureKeys.KEY_BACK_GESTURE_UPSTREAM_DETECTION_DISABLED, false))
-    fun backGestureEnabled(): Boolean = !upstreamBackGestureOwnsInput() &&
-        backGestureBoolean(BackGestureKeys.KEY_BACK_GESTURE_ENABLED, false)
     fun backGestureBoolean(key: String, defaultValue: Boolean): Boolean =
         if (RuntimeSettingsStore.owns(key)) getBoolean(key, defaultValue) else runCatching {
             if (isInitialized) remotePrefs.getBoolean(key, defaultValue) else defaultValue
@@ -459,13 +453,6 @@ object Preferences {
         return value
     }
 
-    /** Explicit false must beat the legacy combined switch, including runtime snapshot reset. */
-    fun nativePickerEnabled(key: String): Boolean =
-        com.takekazex.hypertweak.settings.contract.NativePickerSettings.enabled(
-            if (contains(key)) getBoolean(key, false) else null,
-            getBoolean(PlatformSettingsKeys.KEY_NATIVE_PICKER, false)
-        )
-
     fun getInt(key: String, default: Int = 0): Int {
         if (AppLogStore.isRuntimeKey(key)) return appLocalStore()?.getInt(key, default) ?: default
         if (RuntimeSettingsStore.owns(key)) return (RuntimeSettingsStore.value(key) as? Int) ?: default
@@ -520,18 +507,6 @@ object Preferences {
         memoInvalidate(key)
         write(localKey = key, nativeMutation = if (key == PlatformSettingsKeys.KEY_HIDE_RECENTS_CLEAR_BUTTON || key == PlatformSettingsKeys.KEY_CONTEXTUAL_SEARCH_LONG_PRESS || key == PlatformSettingsKeys.KEY_ALLOW_ANDROID_WIDGETS_TO_ASSISTANT || key == PlatformSettingsKeys.KEY_RECENTS_CARD_HAPTIC || key == PlatformSettingsKeys.KEY_FOLDER_STACK_PREVIEW || key == PlatformSettingsKeys.KEY_ANDROID_WIDGET_STACK || key == PlatformSettingsKeys.KEY_XIAOAI_GESTURE_OPTIONS || key == PlatformSettingsKeys.KEY_NATIVE_PAD_DOCK) key to value else null,
             runtimeMutation = if (RuntimeSettingsSnapshot.owns(key)) key to value else null) { putBoolean(key, value) }
-    }
-
-    /** Publish a dropdown selection as one acknowledged snapshot, without intermediate styles. */
-    fun putBackGestureAppearance(values: Map<String, Boolean>) {
-        val allowed = setOf(BackGestureKeys.KEY_BACK_GESTURE_HYPEROS_INDICATOR, BackGestureKeys.KEY_BACK_GESTURE_INDICATOR_BLUR,
-            BackGestureKeys.KEY_BACK_GESTURE_HYPEROS_HAPTICS, BackGestureKeys.KEY_BACK_GESTURE_HAPTICS_DISABLED)
-        require(values.isNotEmpty() && values.keys.all { it in allowed })
-        val changes = values.toMap()
-        changes.keys.forEach(::memoInvalidate)
-        write(runtimeChanges = changes) {
-            changes.forEach { (key, value) -> putBoolean(key, value) }
-        }
     }
 
     fun putInt(key: String, value: Int) {

@@ -178,7 +178,7 @@ public abstract class NativeLauncherBridgeRuntime extends SystemUiHookRuntime {
             return;
         }
         try {
-            ready = ready && com.takekazex.hypertweak.hook.Preferences.INSTANCE.backGestureEnabled();
+            ready = ready && com.takekazex.hypertweak.hook.preferences.BackGesturePrefs.backGestureEnabled();
             boolean contextualSearchEnabled =
                     isContextualSearchLongPressRuntimeEnabled();
             Intent stateIntent = new Intent(systemUiInputArbiterStateAction());

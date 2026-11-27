@@ -878,7 +878,7 @@ public abstract class SystemUiNavigationRuntime extends SystemUiOpenTransitionRu
     /** Recover an already-created host after package removal or lifting the debug gate. */
     protected void recoverCurrentSystemUiBackInput(ClassLoader classLoader) {
         if (!acceptingBackInputInstalls || !acceptingHeadlessNavBarLifecycle
-                || com.takekazex.hypertweak.hook.Preferences.INSTANCE.upstreamBackGestureOwnsInput()) return;
+                || com.takekazex.hypertweak.hook.preferences.BackGesturePrefs.upstreamBackGestureOwnsInput()) return;
         Object controller = findNavigationBarControllerFromDependency(classLoader);
         if (controller == null) return; // Later native lifecycle callbacks remain retryable.
         reconcileHeadlessNavBarLifecycle(controller, "upstreamGateReleased");

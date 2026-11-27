@@ -4,6 +4,8 @@ package com.takekazex.hypertweak.settings.contract
 object ScreenshotSettingsKeys {
     const val KEY_SCREENSHOT_AUTO_FRAME = "screenshot_auto_frame"
     const val KEY_SCREENSHOT_FRAME_EDITOR_MODE = "screenshot_frame_editor_mode"
+    /** The editor mode a stored value selects; anything but 1 is the default, as the UI shows it. */
+    fun editorMode(stored: Int): Int = if (stored == 1) 1 else 0
     /** Copies each screenshot into the clipboard through the host's own write path. */
     const val KEY_SCREENSHOT_COPY_TO_CLIPBOARD = "screenshot_copy_to_clipboard"
     const val KEY_SCREENSHOT_PICTURES_DIRECTORY = "screenshot_pictures_directory"
