@@ -311,11 +311,14 @@ object CameraImpersonationHooker : StaticHooker() {
             it.parameterTypes.map(CharSequence::toString) == listOf("Ljava/lang/String;", "Ljava/lang/String;", "Z", "Z")
         } ?: return
         val clazz = oMethod.declaringClass
-        val ref = semantics.reference(oMethod) ?: return
-        val formatRef = semantics.dex.code(ref).reads.filter {
-            it.definingClass == ref.definingClass && it.type == "Ljava/lang/String;"
-        }.distinctBy { it.toString() }.singleOrNull() ?: return
-        val formatField = semantics.dex.field(formatRef, classLoader) ?: run { DebugLog.hookSkipped("CameraImpersonationHooker", "semantics.dex.field(formatRef, classLoader)", "not found on host"); return }
+        val formatField = semantics.cachedField("watermark model format field", validate = {
+            it.declaringClass == clazz && it.type == String::class.java
+        }) {
+            val ref = semantics.reference(oMethod) ?: return@cachedField null
+            semantics.dex.code(ref).reads.filter {
+                it.definingClass == ref.definingClass && it.type == "Ljava/lang/String;"
+            }.distinctBy { it.toString() }.singleOrNull()
+        } ?: run { DebugLog.hookSkipped("CameraImpersonationHooker", "watermark model format field", "not found on host"); return }
         deoptimize(oMethod)
         // Saved format for the current invocation. before/after of one call always run on the
         // same thread; J0 updates views sequentially, so the pairs never interleave.
@@ -545,10 +548,12 @@ object CameraImpersonationHooker : StaticHooker() {
     private fun hookLeicaStyle() {
         val profile = hostProfile ?: return
         val semantics = CameraSemantics.create(CameraResolver.Ctx(classLoader, hookParam.appInfo), TAG) ?: return
-        val gate = semantics.unique("native Leica sound/style capability",
+        val gate = semantics.cachedUnique("native Leica sound/style capability",
+            validate = { profile.isConfigGetter(it, java.lang.Boolean.TYPE) }) {
             semantics.dex.strings("leica_default", "leica_mechanical").flatMap {
                 semantics.dex.code(it).calls.map { call -> call.method }
-            }.filter { DexOperandIndex.isInstanceGetter(it, DexOperandIndex.descriptor(profile.configType), "Z") }) ?: return
+            }.filter { DexOperandIndex.isInstanceGetter(it, DexOperandIndex.descriptor(profile.configType), "Z") }
+        } ?: return
         configDispatchClasses().mapNotNull { profile.configMethod(it, gate.name, java.lang.Boolean.TYPE) }
             .distinct().forEach { method ->
                 deoptimize(method)
@@ -888,7 +893,11 @@ object CameraImpersonationHooker : StaticHooker() {
             return
         }
         val semantics = CameraSemantics.create(CameraResolver.Ctx(classLoader, hookParam.appInfo), TAG) ?: return
-        val resourceIds = semantics.dex.preferenceResources(SMART_COMPOSITION_PREF_KEY)
+        val resourceIds = semantics.cachedValues("smart composition preference resources", validate = { values ->
+            values.all { it.toIntOrNull() != null }
+        }) {
+            semantics.dex.preferenceResources(SMART_COMPOSITION_PREF_KEY).map { it.toString() }
+        }.orEmpty().map(String::toInt)
         if (resourceIds.size != 2) { DebugLog.w(TAG, "smart-composition title/summary are not unique"); return }
         smartCompositionResourceIds = resourceIds[0] to resourceIds[1]
         deoptimize(add)
@@ -942,12 +951,14 @@ object CameraImpersonationHooker : StaticHooker() {
     private fun hookContentCredential() {
         if (!contentCredentialUnlock()) return
         val semantics = CameraSemantics.create(CameraResolver.Ctx(classLoader, hookParam.appInfo), TAG) ?: return
-        val fields = semantics.dex.preferenceFields("pref_cai_type_key")
-        val reference = fields.singleOrNull() ?: run {
-            DebugLog.w(TAG, "content-credential preference field is not unique (${fields.size})")
-            return
-        }
-        val field = semantics.dex.field(reference, classLoader) ?: run { DebugLog.hookSkipped("CameraImpersonationHooker", "semantics.dex.field(reference, classLoader)", "not found on host"); return }
+        val field = semantics.cachedField("content credential preference field", validate = {
+            Modifier.isStatic(it.modifiers) && it.type == java.lang.Boolean.TYPE
+        }) {
+            val fields = semantics.dex.preferenceFields("pref_cai_type_key")
+            fields.singleOrNull().also {
+                if (it == null) DebugLog.w(TAG, "content-credential preference field is not unique (${fields.size})")
+            }
+        } ?: run { DebugLog.hookSkipped("CameraImpersonationHooker", "content credential preference field", "not found on host"); return }
         if (!Modifier.isStatic(field.modifiers) || field.type != java.lang.Boolean.TYPE) return
         runCatching {
             field.getBoolean(null) // Initialize the host before applying the user override.
@@ -957,10 +968,13 @@ object CameraImpersonationHooker : StaticHooker() {
 
     private fun hookAdaptiveLens() {
         val semantics = CameraSemantics.create(CameraResolver.Ctx(classLoader, hookParam.appInfo), TAG) ?: return
-        val references = semantics.dex.preferenceGates("pref_camera_auto_fallback").filter {
-            it.returnType == "Z" && it.parameterTypes.size == 1 && it.parameterTypes.single().startsWith("L")
-        }
-        val methods = references.mapNotNull(semantics::reflect).distinct()
+        val methods = semantics.cachedMethods("adaptive lens capability gates", validate = {
+            it.returnType == java.lang.Boolean.TYPE && it.parameterCount == 1 && !it.parameterTypes.single().isPrimitive
+        }) {
+            semantics.dex.preferenceGates("pref_camera_auto_fallback").filter {
+                it.returnType == "Z" && it.parameterTypes.size == 1 && it.parameterTypes.single().startsWith("L")
+            }
+        }.orEmpty()
         if (methods.size != 2 || methods.map { it.parameterTypes.toList() }.distinct().size != 1 ||
             methods.any { !Modifier.isStatic(it.modifiers) }) {
             DebugLog.w(TAG, "adaptive-lens preference did not identify two compatible capability gates")
@@ -994,10 +1008,14 @@ object CameraImpersonationHooker : StaticHooker() {
         val list = semantics.methodByShape(selected.declaringClass, "shutter sound list") {
             Modifier.isStatic(it.modifiers) && it.parameterCount == 0 && List::class.java.isAssignableFrom(it.returnType)
         } ?: return
-        val default = semantics.unique("shutter sound default", semantics.calls(selected).filter {
-            it.definingClass == DexOperandIndex.descriptor(selected.declaringClass) &&
-                it.parameterTypes.isEmpty() && it.returnType == "I"
-        }) ?: return
+        val default = semantics.cachedUnique("shutter sound default", validate = {
+            it.declaringClass == selected.declaringClass && it.parameterCount == 0 && it.returnType == Integer.TYPE
+        }) {
+            semantics.calls(selected).filter {
+                it.definingClass == DexOperandIndex.descriptor(selected.declaringClass) &&
+                    it.parameterTypes.isEmpty() && it.returnType == "I"
+            }
+        } ?: return
         deoptimize(selected)
         selected.hook("cam_shutter_sound_bounds") {
             after { param ->

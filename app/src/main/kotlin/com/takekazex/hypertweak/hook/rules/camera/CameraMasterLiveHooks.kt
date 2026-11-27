@@ -10,6 +10,7 @@ import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.BaseHooker
 import com.takekazex.hypertweak.hook.base.HookComponent
 import com.takekazex.hypertweak.hook.base.dex.DexOperandIndex
+import com.takekazex.hypertweak.hook.base.dex.MethodDescriptorCodec
 import com.takekazex.hypertweak.settings.contract.CameraSettingsKeys
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.reflect.Field
@@ -86,10 +87,12 @@ internal class CameraMasterLiveHooks(owner: BaseHooker, private val config: Came
         val profile = hostProfile ?: return@runCatching false
         val semantics = CameraSemantics.create(CameraResolver.Ctx(classLoader, hookParam.appInfo), TAG)
             ?: return@runCatching false
-        val ddf = semantics.unique("dynamic DDF config", semantics.dex.strings("dynamic_ddfid: ")
-            .flatMap { semantics.dex.code(it).calls.map { call -> call.method } }
-            .filter { DexOperandIndex.isInstanceGetter(it, DexOperandIndex.descriptor(profile.configType), "I") })
-            ?: return@runCatching false
+        val ddf = semantics.cachedUnique("dynamic DDF config",
+            validate = { profile.isConfigGetter(it, Integer.TYPE) }) {
+            semantics.dex.strings("dynamic_ddfid: ")
+                .flatMap { semantics.dex.code(it).calls.map { call -> call.method } }
+                .filter { DexOperandIndex.isInstanceGetter(it, DexOperandIndex.descriptor(profile.configType), "I") }
+        } ?: return@runCatching false
         fun stops(receiver: Any, mode: Int): FloatArray? {
             val getter = profile.configMethod(receiver.javaClass, profile.focalStops, SparseArray::class.java)
                 ?: return null
@@ -230,12 +233,19 @@ internal class CameraMasterLiveHooks(owner: BaseHooker, private val config: Came
             return
         }
         val semantics = CameraSemantics.create(CameraResolver.Ctx(classLoader, hookParam.appInfo), TAG) ?: return
-        val reader = masterLiveTypeMethod.get()?.let(semantics::reference) ?: return
-        val readers = setOf(DexOperandIndex.descriptor(reader))
-        val method = semantics.unique("MasterLive slow-motion type", semantics.dex.strings("1").filter { ref ->
-            Modifier.isStatic(ref.accessFlags) && ref.returnType == "Z" && ref.parameterTypes.map(CharSequence::toString) == listOf("I") &&
-                semantics.dex.code(ref).calls.any { DexOperandIndex.descriptor(it.method) in readers }
-        }) ?: return
+        val typeReader = masterLiveTypeMethod.get() ?: return
+        // The cache key names the reader, so a different selected-effect reader never replays this.
+        val method = semantics.cachedUnique("MasterLive slow-motion type:" + MethodDescriptorCodec.descriptor(typeReader), validate = {
+            Modifier.isStatic(it.modifiers) && it.returnType == java.lang.Boolean.TYPE &&
+                it.parameterTypes.contentEquals(arrayOf(Integer.TYPE))
+        }) {
+            val reader = semantics.reference(typeReader) ?: return@cachedUnique emptyList()
+            val readers = setOf(DexOperandIndex.descriptor(reader))
+            semantics.dex.strings("1").filter { ref ->
+                Modifier.isStatic(ref.accessFlags) && ref.returnType == "Z" && ref.parameterTypes.map(CharSequence::toString) == listOf("I") &&
+                    semantics.dex.code(ref).calls.any { DexOperandIndex.descriptor(it.method) in readers }
+            }
+        } ?: return
         val clazz = method.declaringClass
         deoptimize(method)
         method.hook("cam_masterlive_red_carpet_safe_session") {
@@ -553,10 +563,14 @@ internal class CameraMasterLiveHooks(owner: BaseHooker, private val config: Came
             it.returnType == "Landroid/util/Size;" && it.parameterTypes.size == 2 &&
                 it.parameterTypes[0] == "Landroid/util/Size;"
         } ?: return
-        val ref = semantics.reference(method) ?: return
-        val moduleField = semantics.dex.code(ref).reads.filter {
-            it.definingClass == ref.parameterTypes[1].toString() && it.type == "I"
-        }.distinctBy { it.toString() }.singleOrNull()?.let { semantics.dex.field(it, classLoader) } ?: return
+        val moduleField = semantics.cachedField("live-photo video size module field", validate = {
+            it.declaringClass == method.parameterTypes[1] && it.type == Integer.TYPE
+        }) {
+            val ref = semantics.reference(method) ?: return@cachedField null
+            semantics.dex.code(ref).reads.filter {
+                it.definingClass == ref.parameterTypes[1].toString() && it.type == "I"
+            }.distinctBy { it.toString() }.singleOrNull()
+        } ?: return
         deoptimize(method)
         method.hook("cam_masterlive_video_size_probe") {
             after { param ->

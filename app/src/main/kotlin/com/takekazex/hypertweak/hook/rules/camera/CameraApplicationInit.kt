@@ -14,6 +14,9 @@ import java.util.WeakHashMap
 
 /** Runs config-dependent camera hooks after the host initializes its shared config provider. */
 internal object CameraApplicationInit {
+    /** Cold misses here still scan in place; a cache hit costs reflection only. */
+    private const val SYNCHRONOUS_REASON =
+        "camera config hooks must be installed before Application.onCreate builds the camera modes"
     private data class Pending(
         val actions: LinkedHashMap<BaseHooker, () -> Unit> = linkedMapOf(),
         var configReady: Boolean = false,
@@ -146,7 +149,7 @@ internal object CameraApplicationInit {
     }
 
     private fun runAction(hooker: BaseHooker, action: () -> Unit) {
-        runCatching(action).onFailure { t ->
+        runCatching { DexRuntime.synchronousScan(SYNCHRONOUS_REASON, action) }.onFailure { t ->
             DebugLog.w("CamAppInit", "deferred ${hooker.hookerName} initialization failed", t)
         }
     }

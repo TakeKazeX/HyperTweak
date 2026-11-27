@@ -39,6 +39,11 @@ internal object CameraHostProfile {
             put("orderCount", modeOrders.size.toString())
             modeOrders.forEachIndexed { i, name -> put("order.$i", name) }
         }
+        /** Cache-hit check for an instance getter declared on [configType]; reflection only. */
+        fun isConfigGetter(method: Method, returnType: Class<*>): Boolean =
+            method.declaringClass == configType && !Modifier.isStatic(method.modifiers) &&
+                method.parameterCount == 0 && method.returnType == returnType
+
         fun configMethod(receiver: Class<*>, name: String?, returnType: Class<*>): Method? =
             name?.let { runCatching {
                 HostAccess.requirePublicMethod(receiver, it, accessible = true).takeIf { method ->

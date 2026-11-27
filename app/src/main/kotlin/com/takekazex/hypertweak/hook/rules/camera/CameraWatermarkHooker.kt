@@ -46,7 +46,9 @@ object CameraWatermarkHooker : StaticHooker() {
 
     private fun hookDebugFlag(ctx: CameraResolver.Ctx) {
         val semantics = CameraSemantics.create(ctx, TAG) ?: return
-        val invoke = semantics.anchored("watermark debug property", "camera.cloud.watermark.debug") {
+        val invoke = semantics.anchored("watermark debug property", "camera.cloud.watermark.debug", replay = {
+            it.parameterTypes.isEmpty() && it.returnType in setOf("Z", "Ljava/lang/Boolean;", "Ljava/lang/Object;")
+        }) {
             it.parameterTypes.isEmpty() &&
                 (it.returnType in setOf("Z", "Ljava/lang/Boolean;") ||
                     (it.returnType == "Ljava/lang/Object;" && semantics.dex.code(it).calls.any { call ->

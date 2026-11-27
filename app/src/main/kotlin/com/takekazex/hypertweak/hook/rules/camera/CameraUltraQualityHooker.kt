@@ -47,12 +47,14 @@ object CameraUltraQualityHooker : StaticHooker() {
     private fun hookImageQuality() {
         val profile = hostProfile ?: return
         val semantics = CameraSemantics.create(CameraResolver.Ctx(classLoader, hookParam.appInfo), TAG) ?: return
-        val readers = semantics.dex.strings("pref_camera_jpegquality_key").filter { ref ->
-            semantics.reflect(ref)?.returnType?.isEnum == true
-        }
-        val gate = semantics.unique("JPEG quality capability", readers.flatMap {
-            semantics.dex.code(it).calls.map { call -> call.method }
-        }.filter { DexOperandIndex.isInstanceGetter(it, DexOperandIndex.descriptor(profile.configType), "Z") }) ?: return
+        val gate = semantics.cachedUnique("JPEG quality capability",
+            validate = { profile.isConfigGetter(it, java.lang.Boolean.TYPE) }) {
+            semantics.dex.strings("pref_camera_jpegquality_key").filter { ref ->
+                semantics.reflect(ref)?.returnType?.isEnum == true
+            }.flatMap {
+                semantics.dex.code(it).calls.map { call -> call.method }
+            }.filter { DexOperandIndex.isInstanceGetter(it, DexOperandIndex.descriptor(profile.configType), "Z") }
+        } ?: return
         val methods = listOfNotNull(gate, profile.configInstance()?.javaClass?.let {
             profile.configMethod(it, gate.name, java.lang.Boolean.TYPE)
         }).distinct()
@@ -75,7 +77,11 @@ object CameraUltraQualityHooker : StaticHooker() {
         ) ?: return
         val method = HostSelect.method(clazz) { name("addCurrentPreferences"); noParams() } ?: return
         val semantics = CameraSemantics.create(CameraResolver.Ctx(classLoader, hookParam.appInfo), TAG) ?: return
-        val ids = semantics.dex.preferenceResources("pref_front_mirror_boolean_key")
+        val ids = semantics.cachedValues("front mirror preference resources", validate = { values ->
+            values.all { it.toIntOrNull() != null }
+        }) {
+            semantics.dex.preferenceResources("pref_front_mirror_boolean_key").map { it.toString() }
+        }.orEmpty().map(String::toInt)
         if (ids.size != 2) { DebugLog.w(TAG, "mirror preference resources are not unique"); return }
         val groupField = generateSequence(clazz) { it.superclass }.flatMap { it.declaredFields.asSequence() }
             .firstOrNull { it.name == "mPreferenceGroup" }?.apply { isAccessible = true } ?: return
@@ -110,10 +116,16 @@ object CameraUltraQualityHooker : StaticHooker() {
             it.parameterTypes.contentEquals(arrayOf(CharSequence::class.java)) &&
                 it.returnType.name == "androidx.preference.Preference"
         } ?: return
-        val remove = semantics.unique("preference removal", semantics.dex.declared(DexOperandIndex.descriptor(groupClass)).filter { ref ->
-            ref.returnType == "Z" && ref.parameterTypes.map(CharSequence::toString) == listOf("Landroidx/preference/Preference;") &&
-                semantics.dex.code(ref).calls.any { it.method.name == "remove" && it.method.definingClass == "Ljava/util/ArrayList;" }
-        }) ?: return
+        val preference = classLoader.loadClass("androidx.preference.Preference")
+        val remove = semantics.cachedUnique("preference removal", validate = {
+            it.declaringClass == groupClass && it.returnType == java.lang.Boolean.TYPE &&
+                it.parameterTypes.contentEquals(arrayOf(preference))
+        }) {
+            semantics.dex.declared(DexOperandIndex.descriptor(groupClass)).filter { ref ->
+                ref.returnType == "Z" && ref.parameterTypes.map(CharSequence::toString) == listOf("Landroidx/preference/Preference;") &&
+                    semantics.dex.code(ref).calls.any { it.method.name == "remove" && it.method.definingClass == "Ljava/util/ArrayList;" }
+            }
+        } ?: return
         deoptimize(method)
         method.hook("cam_remove_common_selfie_mirror") {
             after { param ->

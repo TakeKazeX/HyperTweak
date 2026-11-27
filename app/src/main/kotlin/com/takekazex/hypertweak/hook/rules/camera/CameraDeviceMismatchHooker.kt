@@ -6,6 +6,7 @@ import com.takekazex.hypertweak.hook.base.dex.DexOperandIndex
 import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
 import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.StaticHooker
+import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 import com.takekazex.hypertweak.util.logging.DebugLog
 
 /**
@@ -31,13 +32,18 @@ object CameraDeviceMismatchHooker : StaticHooker() {
 
     private const val TAG = "CamDeviceMismatch"
     private const val PACKAGE = "com.android.camera"
+    private const val GATE_REASON = "the host config provider reads the device-mismatch gate during its own create"
 
     override fun onHook() {
         if (hookParam.packageName != PACKAGE) return
         val ctx = CameraResolver.Ctx(classLoader, hookParam.appInfo)
         val started = android.os.SystemClock.uptimeMillis()
-        val (facade, configType) = CameraHostProfile.resolveGateFacade(ctx, TAG) ?: return
-        val gate = CameraResolver.resolveConfigFallbackGate(ctx, facade, configType, TAG)
+        val (facade, configType) = DexRuntime.synchronousScan(GATE_REASON) {
+            CameraHostProfile.resolveGateFacade(ctx, TAG)
+        } ?: return
+        val gate = DexRuntime.synchronousScan(GATE_REASON) {
+            CameraResolver.resolveConfigFallbackGate(ctx, facade, configType, TAG)
+        }
         if (gate == null) return
 
         deoptimize(gate)
