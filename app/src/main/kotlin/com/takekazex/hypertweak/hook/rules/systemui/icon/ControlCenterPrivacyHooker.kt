@@ -378,7 +378,7 @@ object ControlCenterPrivacyHooker : StaticHooker() {
                         setFake(binding, read(owner, "fakePrivacyContainer") as? View)
                         expansion?.let { binding.expansion = WeakReference(it) }
                     }
-                    invoke(owner, "updateConstraint")
+                    refreshConstraint(owner)
                 }
             }
         }
@@ -767,7 +767,7 @@ object ControlCenterPrivacyHooker : StaticHooker() {
                 binding.fake?.get()?.removeOnLayoutChangeListener(binding.listener)
                 guarded { restore(binding) }
             }
-            headers.keys.toList().forEach { owner -> guarded { invoke(owner, "updateConstraint") } }
+            headers.keys.toList().forEach { owner -> guarded { refreshConstraint(owner) } }
             privacyController?.get()?.let { guarded { invoke(it, "updatePrompt") } }
             bindings.clear()
             headers.clear()
@@ -795,6 +795,22 @@ object ControlCenterPrivacyHooker : StaticHooker() {
     private fun setInt(owner: Any, name: String, value: Int) { field(owner.javaClass, name)?.setInt(owner, value) }
     private fun field(type: Class<*>, name: String): Field? = HostAccess.field(type, name)
     private fun read(owner: Any, name: String) = field(owner.javaClass, name)?.get(owner)
+    /**
+     * Re-runs the host's constraint pass for our own placement changes. `ConstraintSet.applyTo`
+     * also writes the constraint set's alpha (1) to every header child, which overrode the
+     * header's Folme fade: after a hot reload the hidden carrier and status icons stayed opaque, so
+     * the first pull showed them at once. Only geometry is wanted here, so their alphas are kept.
+     */
+    private fun refreshConstraint(owner: Any) {
+        val header = (read(owner, "privacyContainer") as? View)?.parent as? ViewGroup
+        val alphas = header?.let { group -> (0 until group.childCount).map { group.getChildAt(it).let { child -> child to child.alpha } } }
+        try {
+            invoke(owner, "updateConstraint")
+        } finally {
+            alphas?.forEach { (child, alpha) -> if (child.alpha != alpha) child.alpha = alpha }
+        }
+    }
+
     private fun invoke(owner: Any, name: String) = HostAccess.cached(owner.javaClass, "declared-hierarchy-noargs:$name", java.lang.reflect.Method::class.java) {
         generateSequence(owner.javaClass) { it.superclass }.mapNotNull {
             HostAccess.declaredMethod(it, name, accessible = true)
