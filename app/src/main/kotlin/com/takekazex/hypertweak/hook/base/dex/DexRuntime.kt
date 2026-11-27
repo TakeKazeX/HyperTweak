@@ -244,6 +244,7 @@ internal object DexRuntime {
         logMissingQueries: Boolean = true,
         validators: Map<String, (Class<*>) -> Boolean> = emptyMap(),
         appInfo: ApplicationInfo? = null,
+        cacheOnly: Boolean = false,
     ): Map<String, Class<*>> {
         val scope = beginSession(apkPath)
         return try {
@@ -253,7 +254,7 @@ internal object DexRuntime {
                         override val id = "class." + key
                         override val schema = 1
                     }
-                    val target = resolve(feature, apkPath, cacheDir, appInfo = appInfo,
+                    val target = resolve(feature, apkPath, cacheDir, cacheOnly = cacheOnly, appInfo = appInfo,
                         compute = { session ->
                             session.dexKit { bridge -> query(bridge) }?.let { mapOf("class" to it) }.orEmpty()
                         },
@@ -277,11 +278,12 @@ internal object DexRuntime {
         cacheDir: File?,
         classLoader: ClassLoader,
         appInfo: ApplicationInfo? = null,
+        cacheOnly: Boolean = false,
         validate: (String, java.lang.reflect.Method) -> Boolean,
         compute: (DexKitBridge) -> Map<String, java.lang.reflect.Method>,
     ): Map<String, java.lang.reflect.Method>? = resolve(
         feature = object : DexFeature { override val id = id; override val schema = 1 },
-        apkPath = apkPath, cacheDir = cacheDir, appInfo = appInfo, cacheEmpty = true,
+        apkPath = apkPath, cacheDir = cacheDir, cacheOnly = cacheOnly, appInfo = appInfo, cacheEmpty = true,
         compute = { session -> requireNotNull(session.dexKit { bridge ->
             compute(bridge).mapValues { MethodDescriptorCodec.descriptor(it.value) }
         }) { "Method-map backend unavailable" } },

@@ -52,7 +52,7 @@ object GuardProviderUploadAppListHooker : StaticHooker() {
             DebugLog.hookSkipped(TAG, "GuardProvider app-list upload", "source APK unavailable")
             return
         }
-        val resolved = resolveDexContract("guardprovider.upload_boundaries", apkPath, compute = { bridge ->
+        prepareDexContract("guardprovider.upload_boundaries", apkPath, compute = { bridge ->
             val referenceCandidates = bridge.findMethod {
                 matcher {
                     returnType("java.lang.String")
@@ -95,11 +95,10 @@ object GuardProviderUploadAppListHooker : StaticHooker() {
             val endpoint = members.optionalMethod("endpoint")?.also { require(it.returnType == String::class.java && it.parameterTypes.map { type -> type.name } == listOf(GUARD_APPLICATION, JSON_OBJECT)) }
             require(collector != null || endpoint != null)
             ResolvedTargets(collector, endpoint)
-        }) ?: run {
-            DebugLog.hookSkipped(TAG, "GuardProvider app-list upload", "DexKit unavailable")
-            return
-        }
+        }, install = ::installBoundaries)
+    }
 
+    private fun installBoundaries(resolved: ResolvedTargets) {
         val methods = listOfNotNull(resolved.collector, resolved.endpoint)
             .distinctBy { it.toGenericString() }
         if (methods.isEmpty()) {

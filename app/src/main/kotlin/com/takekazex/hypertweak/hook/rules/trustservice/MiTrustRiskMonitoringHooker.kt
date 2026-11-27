@@ -46,7 +46,7 @@ object MiTrustRiskMonitoringHooker : StaticHooker() {
             DebugLog.hookSkipped(TAG, "MiTrustService MRM gate", "source APK unavailable")
             return
         }
-        val method = resolveDexContract("mitrust.mrm_gate", apkPath, compute = compute@ { bridge ->
+        prepareDexContract("mitrust.mrm_gate", apkPath, compute = compute@ { bridge ->
             val methodData = bridge.findMethod {
                 matcher {
                     paramCount(0)
@@ -59,11 +59,11 @@ object MiTrustRiskMonitoringHooker : StaticHooker() {
                 .onFailure { DebugLog.hookFailed(TAG, "${methodData.className}#${methodData.methodName}", it) }
                 .getOrNull()
 
-        }, encode = { target -> DexContractMembers.encode("gate" to target) }, decode = { members -> members.method("gate").also { require(it.parameterCount == 0 && it.returnType == Boolean::class.javaPrimitiveType) } }) ?: run {
-            DebugLog.hookSkipped(TAG, "MiTrustService MRM gate", "DexKit match missing or ambiguous")
-            return
-        }
+        }, encode = { target -> DexContractMembers.encode("gate" to target) }, decode = { members -> members.method("gate").also { require(it.parameterCount == 0 && it.returnType == Boolean::class.javaPrimitiveType) } },
+            install = ::installGate)
+    }
 
+    private fun installGate(method: java.lang.reflect.Method) {
         if (method.parameterCount != 0 || method.returnType != Boolean::class.javaPrimitiveType) {
             DebugLog.hookSkipped(TAG, method.toGenericString(), "resolved method shape is not ()Z")
             return

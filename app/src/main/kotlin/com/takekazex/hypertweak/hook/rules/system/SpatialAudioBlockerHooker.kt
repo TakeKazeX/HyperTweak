@@ -36,11 +36,54 @@ object SpatialAudioBlockerHooker : StaticHooker() {
         }.onFailure { Log.e(TAG, "spatial/anc hook setup failed", it) }
     }
 
-    private fun hookBluetooth() {
+    private data class BluetoothTargets(val airCore: Class<*>?, val storage: Class<*>?, val repository: Class<*>?) {
+        val complete get() = airCore != null && storage != null && repository != null
+    }
+
+    /**
+     * Direct names first, DexKit string markers only as a fallback. The install thread replays
+     * cached fallbacks only ([cacheOnly]); a cold fallback scan (0.5 s on the Bluetooth process
+     * install thread) runs on the preparation worker and installs from there.
+     */
+    private fun resolveBluetoothTargets(cacheOnly: Boolean) = BluetoothTargets(
         // C5604b.m17767r(BluetoothDevice, String, String), logged as AirCoreManager.setCommand.
-        val airCore = findFirstClass("p145l1.C5604b", "l1.C1554b")
-            ?: resolveClass("p145l1.C5604b", "AirCoreManager", "setCommand")
-        airCore?.declaredMethods?.filter { it.parameterTypes.size == 3 &&
+        airCore = findFirstClass("p145l1.C5604b", "l1.C1554b")
+            ?: resolveClass("p145l1.C5604b", "AirCoreManager", "setCommand", cacheOnly = cacheOnly),
+        // C6409a is the AirpodsModel persistence boundary used by get/set/notify Bundle calls.
+        // OS4.0.0.24 moved it to a static utility (AirLocalStorage -> f2.a); the dex names stay
+        // stable but DexKit's broad string markers now collide with unrelated classes, so resolve
+        // with a unique device/VidPid marker and a semantic (method-shape) validator.
+        storage = findFirstClass("p156n1.C6409a", "n1.C1582a")
+            ?: resolveAirPodsClass(
+                "p156n1.C6409a",
+                listOf(
+                    arrayOf("not bonded device clear: ", "isFeatureSupport"),
+                    arrayOf("AirLocalStorage", "AirpodsModel"),
+                ),
+                cacheOnly,
+            ) { it.declaredMethods.any { m -> m.parameterTypes.any { p -> p == android.bluetooth.BluetoothDevice::class.java } } },
+        // Repository provider path carries the same key/value in a Bundle. On OS4.0.0.24 the
+        // "airpodsRepository"/"send_command" strings moved into the content-provider dispatch
+        // helper (h1.a) and the old class name now DexKit-resolves to an empty shell, so use the
+        // unique AirRepository_BT tag + a Bundle-method validator.
+        repository = findFirstClass("p169q0.C6614a", "q0.C1602a") ?: resolveAirPodsClass(
+            "p169q0.C6614a",
+            listOf(
+                arrayOf("AirRepository_BT", "send_command"),
+                arrayOf("airpodsRepository", "send_command"),
+            ),
+            cacheOnly,
+        ) { it.declaredMethods.any { m -> m.parameterTypes.any { p -> p == Bundle::class.java } } },
+    )
+
+    private fun hookBluetooth() {
+        resolveBluetoothTargets(cacheOnly = true).takeIf { it.complete }?.let(::installBluetooth)
+            ?: prepareDexTargets(name = "bluetooth.spatial_audio", resolve = { resolveBluetoothTargets(cacheOnly = false) },
+                install = ::installBluetooth)
+    }
+
+    private fun installBluetooth(targets: BluetoothTargets) {
+        targets.airCore?.declaredMethods?.filter { it.parameterTypes.size == 3 &&
             it.parameterTypes[0] == android.bluetooth.BluetoothDevice::class.java &&
             it.parameterTypes[1] == String::class.java && it.parameterTypes[2] == String::class.java
         }?.forEach { method -> method.hook {
@@ -52,19 +95,7 @@ object SpatialAudioBlockerHooker : StaticHooker() {
             }.onFailure { Log.e(TAG, "AirCore command conversion failed", it) } }
         } }
 
-        // C6409a is the AirpodsModel persistence boundary used by get/set/notify Bundle calls.
-        // OS4.0.0.24 moved it to a static utility (AirLocalStorage -> f2.a); the dex names stay
-        // stable but DexKit's broad string markers now collide with unrelated classes, so resolve
-        // with a unique device/VidPid marker and a semantic (method-shape) validator.
-        val storage = findFirstClass("p156n1.C6409a", "n1.C1582a")
-            ?: resolveAirPodsClass(
-                "p156n1.C6409a",
-                listOf(
-                    arrayOf("not bonded device clear: ", "isFeatureSupport"),
-                    arrayOf("AirLocalStorage", "AirpodsModel"),
-                ),
-            ) { it.declaredMethods.any { m -> m.parameterTypes.any { p -> p == android.bluetooth.BluetoothDevice::class.java } } }
-        storage?.declaredMethods
+        targets.storage?.declaredMethods
             ?.filter { it.parameterTypes.any { parameter -> parameter == android.bluetooth.BluetoothDevice::class.java } }
             ?.forEach { method -> method.hook {
                 before { param ->
@@ -79,18 +110,7 @@ object SpatialAudioBlockerHooker : StaticHooker() {
                 }
             } }
 
-        // Repository provider path carries the same key/value in a Bundle. On OS4.0.0.24 the
-        // "airpodsRepository"/"send_command" strings moved into the content-provider dispatch
-        // helper (h1.a) and the old class name now DexKit-resolves to an empty shell, so use the
-        // unique AirRepository_BT tag + a Bundle-method validator.
-        (findFirstClass("p169q0.C6614a", "q0.C1602a") ?: resolveAirPodsClass(
-            "p169q0.C6614a",
-            listOf(
-                arrayOf("AirRepository_BT", "send_command"),
-                arrayOf("airpodsRepository", "send_command"),
-            ),
-        ) { it.declaredMethods.any { m -> m.parameterTypes.any { p -> p == Bundle::class.java } } })
-            ?.declaredMethods?.filter { it.parameterTypes.any { p -> p == Bundle::class.java } }
+        targets.repository?.declaredMethods?.filter { it.parameterTypes.any { p -> p == Bundle::class.java } }
             ?.forEach { method -> method.hook { before { param ->
                 val bundle = param.args.lastOrNull { it is Bundle } as? Bundle ?: return@before
                 normalizeBundle(bundle, *param.args)
@@ -416,7 +436,7 @@ object SpatialAudioBlockerHooker : StaticHooker() {
 
     private fun findFirstClass(vararg names: String): Class<*>? = names.firstNotNullOfOrNull(::findClass)
 
-    private fun resolveClass(name: String, vararg strings: String): Class<*>? {
+    private fun resolveClass(name: String, vararg strings: String, cacheOnly: Boolean = false): Class<*>? {
         findClass(name)?.let {
             Log.d(TAG, "resolved $name directly in ${classLoader.javaClass.name}")
             return it
@@ -428,8 +448,8 @@ object SpatialAudioBlockerHooker : StaticHooker() {
             bridge.findClass { matcher { usingStrings(*strings) } }.singleOrNull()?.name
         }
         val resolved = DexRuntime.resolveClasses(java.io.File(base, "cache"), apk, classLoader,
-            mapOf(name to query), logMissingQueries = false)[name]
-        if (resolved == null) Log.w(TAG, "unable to resolve $name using ${strings.toList()}")
+            mapOf(name to query), logMissingQueries = false, cacheOnly = cacheOnly)[name]
+        if (resolved == null) { if (!cacheOnly) Log.w(TAG, "unable to resolve $name using ${strings.toList()}") }
         else Log.d(TAG, "resolved $name as ${resolved.name} using DexKit")
         return resolved
     }
@@ -443,6 +463,7 @@ object SpatialAudioBlockerHooker : StaticHooker() {
     private fun resolveAirPodsClass(
         jadxName: String,
         markerSets: List<Array<String>>,
+        cacheOnly: Boolean,
         validator: (Class<*>) -> Boolean
     ): Class<*>? {
         findClass(jadxName)?.let { return it }
@@ -456,14 +477,14 @@ object SpatialAudioBlockerHooker : StaticHooker() {
             }
             val resolved = DexRuntime.resolveClasses(
                 java.io.File(base, "cache"), apk, classLoader,
-                mapOf(key to query), logMissingQueries = false, validators = mapOf(key to validator)
+                mapOf(key to query), logMissingQueries = false, validators = mapOf(key to validator), cacheOnly = cacheOnly
             )[key]
             if (resolved != null) {
                 Log.d(TAG, "resolved $jadxName as ${resolved.name} using DexKit(${markers.toList()})")
                 return resolved
             }
         }
-        Log.w(TAG, "unable to resolve $jadxName using ${markerSets.map { it.toList() }}")
+        if (!cacheOnly) Log.w(TAG, "unable to resolve $jadxName using ${markerSets.map { it.toList() }}")
         return null
     }
 

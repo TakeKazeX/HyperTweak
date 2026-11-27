@@ -250,10 +250,12 @@ object PasskeyHooker : StaticHooker() {
             }
         }
 
-        val resolved = DexRuntime.resolveClasses(
+        fun resolveListener(cacheOnly: Boolean) = DexRuntime.resolveClasses(
             cacheDir = cacheDir,
             apkPath = apkPath,
             classLoader = classLoader,
+            cacheOnly = cacheOnly,
+            logMissingQueries = !cacheOnly,
             queries = mapOf("OnCombiPreferenceClickListener" to { bridge ->
                 val onLeftSideClickedMatcher = org.luckypray.dexkit.query.matchers.MethodMatcher.create()
                     .name("onLeftSideClicked")
@@ -277,10 +279,8 @@ object PasskeyHooker : StaticHooker() {
                 type.declaredMethods.count { it.name == "onLeftSideClicked" &&
                     it.parameterCount == 0 && it.returnType == Void.TYPE } == 1
             })
-        )
-
-        val listenerClass = resolved["OnCombiPreferenceClickListener"]
-        if (listenerClass != null) {
+        )["OnCombiPreferenceClickListener"]
+        val installListener = { listenerClass: Class<*> ->
             HostSelect.method(listenerClass) {
                 name("onLeftSideClicked")
                 noParams()
@@ -289,7 +289,11 @@ object PasskeyHooker : StaticHooker() {
                     handleIsInternationalBuild(chain)
                 }
             }
+            Unit
         }
+        // Same install-thread rule as the SecurityCenter targets: replay the cache, scan off-thread.
+        resolveListener(cacheOnly = true)?.let(installListener)
+            ?: prepareDexTargets(name = "passkey.combi_listener", resolve = { resolveListener(cacheOnly = false) }, install = installListener)
 
         hookSettingsActivityLaunchFallback()
         hookCombiPreferenceSwitchCommit()
@@ -539,22 +543,26 @@ object PasskeyHooker : StaticHooker() {
         // them by shape instead of by class: a helper that reads a resource and writes
         // Settings.Secure, plus the wrapper that calls it with the setting names. Only the two
         // wrappers are cached; they are what the hooks target.
-        val targets = DexRuntime.resolve(
+        // Cache replay installs synchronously; a cold cache scans on the preparation worker, never on
+        // the install thread (this query cost 0.2-1.0 s of main-thread time at a cold process start).
+        fun resolve(cacheOnly: Boolean) = DexRuntime.resolve(
             feature = PasskeySecurityCenterFeature,
             apkPath = apkPath,
             cacheDir = cacheDir,
+            cacheOnly = cacheOnly,
             cacheEmpty = false,
             compute = { session ->
                 session.dexKit { bridge -> resolveSecurityCenterTargets(bridge) }
                     ?: throw IllegalStateException("DexKit session unavailable")
             },
             decode = { values, fromCache -> decodeSecurityCenterTargets(values, fromCache) },
-        ) ?: run {
-            DebugLog.w(TAG, "securitycenter default-credential targets unavailable")
-            return
+        )
+        val install = { targets: SecurityCenterTargets ->
+            installSecurityCenterTarget("autofill-service", targets.autofill)
+            installSecurityCenterTarget("credential", targets.credential)
         }
-        installSecurityCenterTarget("autofill-service", targets.autofill)
-        installSecurityCenterTarget("credential", targets.credential)
+        resolve(cacheOnly = true)?.let(install)
+            ?: prepareDexTargets(name = PasskeySecurityCenterFeature.id, resolve = { resolve(cacheOnly = false) }, install = install)
     }
 
     /** Runs inside the shared bridge; only descriptors leave the session. */

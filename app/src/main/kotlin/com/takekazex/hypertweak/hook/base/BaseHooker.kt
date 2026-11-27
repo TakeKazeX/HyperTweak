@@ -330,15 +330,37 @@ sealed class BaseHooker {
         compute: (org.luckypray.dexkit.DexKitBridge) -> T?,
         encode: (T) -> Map<String, String>,
         decode: (com.takekazex.hypertweak.hook.base.dex.DexContractMembers) -> T?,
+        cacheOnly: Boolean = false,
     ): T? = DexRuntime.resolve(
         feature = object : com.takekazex.hypertweak.hook.base.dex.DexFeature {
             override val id = id
             override val schema = schema
-        }, apkPath = apk, cacheDir = dexCacheDirectory,
+        }, apkPath = apk, cacheDir = dexCacheDirectory, cacheOnly = cacheOnly,
         compute = { session -> session.dexKit(compute)?.let(encode).orEmpty() },
         decode = { values, _ -> if (values.isEmpty()) null else decode(
             com.takekazex.hypertweak.hook.base.dex.DexContractMembers(values, classLoader))?.takeIf { encode(it) == values } },
     )
+
+    /**
+     * Install-thread entry for a final feature contract. A cached contract installs synchronously,
+     * exactly as before. A miss never scans here: install callbacks run on the host main thread at
+     * process start (and on a binder thread during hot reload), where a cold whole-APK query cost
+     * up to seconds. The scan is queued through [prepareDexTargets] instead and [install] is
+     * published on the main thread once it finishes; the host keeps its native behavior until then.
+     */
+    internal fun <T : Any> prepareDexContract(
+        id: String,
+        apk: String,
+        schema: Int = 1,
+        compute: (org.luckypray.dexkit.DexKitBridge) -> T?,
+        encode: (T) -> Map<String, String>,
+        decode: (com.takekazex.hypertweak.hook.base.dex.DexContractMembers) -> T?,
+        install: (T) -> Unit,
+    ) {
+        val cached = resolveDexContract(id, apk, schema, compute, encode, decode, cacheOnly = true)
+        if (cached != null) install(cached)
+        else prepareDexTargets(name = id, resolve = { resolveDexContract(id, apk, schema, compute, encode, decode) }, install = install)
+    }
 
     /** Roll back only handles installed by this publication, including synchronous cache replay. */
     internal fun <T> installDexContract(install: () -> T): T {
@@ -766,25 +788,26 @@ sealed class BaseHooker {
     }
 
     /**
-     * Resolve a class via DexKit first, falling back to classLoader lookup.
+     * Resolve an unobfuscated host class by its name, using the DexKit [queries] only when the name
+     * does not load. Every caller's query matches that same class name inside the same package, so a
+     * scan can only find a class the direct lookup already finds; running it first cost up to 1.1 s
+     * of host main-thread time on a cold cache (SystemUI fingerprint views, Settings headers).
      * Requires [hookParam.appInfo] to be available for cache/APK path resolution.
      */
     fun resolveAppClass(
         className: String,
         queries: Map<String, (org.luckypray.dexkit.DexKitBridge) -> String?>
     ): Class<*>? {
-        val appInfo = hookParam.appInfo ?: return className.toClassOrNull()
-        val baseDir = appInfo.deviceProtectedDataDir ?: appInfo.dataDir ?: return className.toClassOrNull()
-        val cacheDir = java.io.File(baseDir, "cache")
-        val apkPath = appInfo.sourceDir ?: return className.toClassOrNull()
-
-        val resolved = DexRuntime.resolveClasses(
-            cacheDir = cacheDir,
+        className.toClassOrNull()?.let { return it }
+        val appInfo = hookParam.appInfo ?: return null
+        val baseDir = appInfo.deviceProtectedDataDir ?: appInfo.dataDir ?: return null
+        val apkPath = appInfo.sourceDir ?: return null
+        return DexRuntime.resolveClasses(
+            cacheDir = java.io.File(baseDir, "cache"),
             apkPath = apkPath,
             classLoader = classLoader,
             queries = queries
-        )
-        return resolved.values.firstOrNull() ?: className.toClassOrNull()
+        ).values.firstOrNull()
     }
 }
 
