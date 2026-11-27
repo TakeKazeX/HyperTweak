@@ -34,10 +34,12 @@ internal class MarketResolver(private val dex: DexOperandIndex) {
             }
         }
         // Read references only, avoiding a full register-flow decode of every method in the APK.
+        // The member-name check runs before a descriptor is built for any reference.
+        val calls = DexOperandIndex.CallTargets(dispatch.keys)
         dex.methods.forEach { method ->
             method.implementation?.instructions?.forEach { insn ->
                 val reference = (insn as? ReferenceInstruction)?.reference as? MethodReference
-                if (reference != null) dispatch[MethodDescriptorCodec.descriptor(reference)]?.forEach { target ->
+                if (reference != null && calls.matches(reference)) dispatch.getValue(MethodDescriptorCodec.descriptor(reference)).forEach { target ->
                     callers.getValue(target).add(MethodDescriptorCodec.descriptor(method))
                 }
             }
