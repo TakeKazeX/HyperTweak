@@ -8,7 +8,7 @@ import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 import com.takekazex.hypertweak.hook.base.dex.DexRuntime
 
 import android.os.Bundle
-import android.util.Log
+import com.takekazex.hypertweak.util.logging.DebugLog
 import android.view.View
 import android.widget.TextView
 import java.util.concurrent.CompletableFuture
@@ -27,59 +27,115 @@ object SpatialAudioBlockerHooker : StaticHooker() {
         Preferences.getBoolean(PlatformSettingsKeys.KEY_DISABLE_SPATIAL_AUDIO, false)
     }
 
-    private const val TAG = "HyperTweak"
+    private const val TAG = "SpatialAudio"
 
     override fun onHook() {
         runCatching {
             if (hookParam.packageName == "com.xiaomi.bluetooth") hookBluetooth()
             if (hookParam.packageName == "com.milink.service") hookMiLink()
-        }.onFailure { Log.e(TAG, "spatial/anc hook setup failed", it) }
+        }.onFailure { DebugLog.e(TAG, "spatial/anc hook setup failed", it) }
     }
 
     private data class BluetoothTargets(val airCore: Class<*>?, val storage: Class<*>?, val repository: Class<*>?) {
         val complete get() = airCore != null && storage != null && repository != null
+        val missing get() = listOfNotNull("airCore".takeIf { airCore == null },
+            "storage".takeIf { storage == null }, "repository".takeIf { repository == null })
     }
 
-    /**
-     * Direct names first, DexKit string markers only as a fallback. The install thread replays
-     * cached fallbacks only ([cacheOnly]); a cold fallback scan (0.5 s on the Bluetooth process
-     * install thread) runs on the preparation worker and installs from there.
-     */
-    private fun resolveBluetoothTargets(cacheOnly: Boolean) = BluetoothTargets(
+    /** The three fallback names, including which ones this host build lacks, keyed by full APK hash. */
+    private object BluetoothTargetsFeature : com.takekazex.hypertweak.hook.base.dex.DexFeature {
+        override val id = "bluetooth.spatial_audio.targets"
+        override val schema = 1
+    }
+
+    private fun directBluetoothTargets() = BluetoothTargets(
         // C5604b.m17767r(BluetoothDevice, String, String), logged as AirCoreManager.setCommand.
-        airCore = findFirstClass("p145l1.C5604b", "l1.C1554b")
-            ?: resolveClass("p145l1.C5604b", "AirCoreManager", "setCommand", cacheOnly = cacheOnly),
-        // C6409a is the AirpodsModel persistence boundary used by get/set/notify Bundle calls.
-        // OS4.0.0.24 moved it to a static utility (AirLocalStorage -> f2.a); the dex names stay
-        // stable but DexKit's broad string markers now collide with unrelated classes, so resolve
-        // with a unique device/VidPid marker and a semantic (method-shape) validator.
-        storage = findFirstClass("p156n1.C6409a", "n1.C1582a")
-            ?: resolveAirPodsClass(
-                "p156n1.C6409a",
-                listOf(
-                    arrayOf("not bonded device clear: ", "isFeatureSupport"),
-                    arrayOf("AirLocalStorage", "AirpodsModel"),
-                ),
-                cacheOnly,
-            ) { it.declaredMethods.any { m -> m.parameterTypes.any { p -> p == android.bluetooth.BluetoothDevice::class.java } } },
-        // Repository provider path carries the same key/value in a Bundle. On OS4.0.0.24 the
-        // "airpodsRepository"/"send_command" strings moved into the content-provider dispatch
-        // helper (h1.a) and the old class name now DexKit-resolves to an empty shell, so use the
-        // unique AirRepository_BT tag + a Bundle-method validator.
-        repository = findFirstClass("p169q0.C6614a", "q0.C1602a") ?: resolveAirPodsClass(
-            "p169q0.C6614a",
-            listOf(
-                arrayOf("AirRepository_BT", "send_command"),
-                arrayOf("airpodsRepository", "send_command"),
-            ),
-            cacheOnly,
-        ) { it.declaredMethods.any { m -> m.parameterTypes.any { p -> p == Bundle::class.java } } },
+        airCore = findFirstClass("p145l1.C5604b", "l1.C1554b"),
+        storage = findFirstClass("p156n1.C6409a", "n1.C1582a"),
+        repository = findFirstClass("p169q0.C6614a", "q0.C1602a"),
     )
 
-    private fun hookBluetooth() {
-        resolveBluetoothTargets(cacheOnly = true).takeIf { it.complete }?.let(::installBluetooth)
-            ?: prepareDexTargets(name = "bluetooth.spatial_audio", resolve = { resolveBluetoothTargets(cacheOnly = false) },
-                install = ::installBluetooth)
+    /**
+     * Fallback string-marker queries for the targets [direct] did not find by name; worker only.
+     * They run on this contract's own bridge, so a failing query throws out of the scan and nothing
+     * is cached; only a completed scan records a target as missing on this build.
+     */
+    private fun scanBluetoothTargets(bridge: DexKitBridge, direct: BluetoothTargets): BluetoothTargets {
+        fun find(markerSets: List<Array<String>>, valid: (Class<*>) -> Boolean): Class<*>? = markerSets.firstNotNullOfOrNull { markers ->
+            bridge.findClass { matcher { usingStrings(*markers) } }.singleOrNull()?.name
+                ?.let(::findClass)?.takeIf(valid)
+                ?.also { DebugLog.d(TAG, "resolved ${it.name} using DexKit(${markers.toList()})") }
+        }
+        return BluetoothTargets(
+            airCore = direct.airCore ?: find(listOf(arrayOf("AirCoreManager", "setCommand"))) { true },
+            // C6409a is the AirpodsModel persistence boundary used by get/set/notify Bundle calls.
+            // OS4.0.0.24 moved it to a static utility (AirLocalStorage -> f2.a); the dex names stay
+            // stable but DexKit's broad string markers now collide with unrelated classes, so resolve
+            // with a unique device/VidPid marker and a semantic (method-shape) validator.
+            storage = direct.storage ?: find(listOf(
+                arrayOf("not bonded device clear: ", "isFeatureSupport"),
+                arrayOf("AirLocalStorage", "AirpodsModel"),
+            ), ::isStorage),
+            // Repository provider path carries the same key/value in a Bundle. On OS4.0.0.24 the
+            // "airpodsRepository"/"send_command" strings moved into the content-provider dispatch
+            // helper (h1.a) and the old class name now DexKit-resolves to an empty shell, so use the
+            // unique AirRepository_BT tag + a Bundle-method validator.
+            repository = direct.repository ?: find(listOf(
+                arrayOf("AirRepository_BT", "send_command"),
+                arrayOf("airpodsRepository", "send_command"),
+            ), ::isRepository),
+        )
+    }
+
+    private fun isStorage(type: Class<*>) =
+        type.declaredMethods.any { m -> m.parameterTypes.any { p -> p == android.bluetooth.BluetoothDevice::class.java } }
+    private fun isRepository(type: Class<*>) =
+        type.declaredMethods.any { m -> m.parameterTypes.any { p -> p == Bundle::class.java } }
+
+    /**
+     * Direct names first, DexKit string markers only as a fallback. The fallback result is one
+     * cached contract that also records the targets this build lacks, so a host missing one of them
+     * neither rescans on every start nor waits for the worker: the install thread replays it, and
+     * only a cold cache scans (0.5 s on the Bluetooth process install thread) on the worker.
+     */
+    private fun resolveBluetoothTargets(): BluetoothTargets? {
+        val direct = directBluetoothTargets()
+        if (direct.complete) return direct
+        val info = hookParam.appInfo ?: return direct
+        val apk = info.sourceDir ?: return direct
+        return DexRuntime.resolve(
+            feature = BluetoothTargetsFeature, apkPath = apk, cacheDir = DexRuntime.cacheDirectory(info),
+            appInfo = info, cacheEmpty = true,
+            compute = { session ->
+                val scanned = requireNotNull(session.dexKit { bridge -> scanBluetoothTargets(bridge, direct) }) {
+                    "DexKit session unavailable"
+                }
+                buildMap {
+                    scanned.airCore?.let { put("airCore", it.name) }
+                    scanned.storage?.let { put("storage", it.name) }
+                    scanned.repository?.let { put("repository", it.name) }
+                }
+            },
+            decode = { values, _ ->
+                // A recorded name that no longer loads, or fails its shape, invalidates the entry.
+                fun load(key: String, valid: (Class<*>) -> Boolean = { true }): Class<*>? =
+                    values[key]?.let { name -> requireNotNull(findClass(name)?.takeIf(valid)) { "stale $key=$name" } }
+                BluetoothTargets(
+                    airCore = direct.airCore ?: load("airCore"),
+                    storage = direct.storage ?: load("storage", ::isStorage),
+                    repository = direct.repository ?: load("repository", ::isRepository),
+                )
+            },
+        )
+    }
+
+    private fun hookBluetooth() = prepareCachedDexTargets("bluetooth.spatial_audio", resolve = ::resolveBluetoothTargets) { targets ->
+        if (targets.missing.size == 3) {
+            DebugLog.hookSkipped(TAG, "bluetooth spatial-audio targets", "none of airCore/storage/repository on this host build")
+            return@prepareCachedDexTargets
+        }
+        if (targets.missing.isNotEmpty()) DebugLog.w(TAG, "bluetooth spatial-audio targets missing=${targets.missing}")
+        installBluetooth(targets)
     }
 
     private fun installBluetooth(targets: BluetoothTargets) {
@@ -92,7 +148,7 @@ object SpatialAudioBlockerHooker : StaticHooker() {
                 // authority: do not rewrite a common/non-AirPods call just because it has a device.
                 if (!isAirPodsTransport(param.thisObject, param.args)) return@runCatching
                 normalizeValue(param.args, 1, 2)
-            }.onFailure { Log.e(TAG, "AirCore command conversion failed", it) } }
+            }.onFailure { DebugLog.e(TAG, "AirCore command conversion failed", it) } }
         } }
 
         targets.storage?.declaredMethods
@@ -436,9 +492,9 @@ object SpatialAudioBlockerHooker : StaticHooker() {
 
     private fun findFirstClass(vararg names: String): Class<*>? = names.firstNotNullOfOrNull(::findClass)
 
-    private fun resolveClass(name: String, vararg strings: String, cacheOnly: Boolean = false): Class<*>? {
+    private fun resolveClass(name: String, vararg strings: String): Class<*>? {
         findClass(name)?.let {
-            Log.d(TAG, "resolved $name directly in ${classLoader.javaClass.name}")
+            DebugLog.d(TAG, "resolved $name directly in ${classLoader.javaClass.name}")
             return it
         }
         val info = hookParam.appInfo ?: return null
@@ -448,44 +504,10 @@ object SpatialAudioBlockerHooker : StaticHooker() {
             bridge.findClass { matcher { usingStrings(*strings) } }.singleOrNull()?.name
         }
         val resolved = DexRuntime.resolveClasses(java.io.File(base, "cache"), apk, classLoader,
-            mapOf(name to query), logMissingQueries = false, cacheOnly = cacheOnly)[name]
-        if (resolved == null) { if (!cacheOnly) Log.w(TAG, "unable to resolve $name using ${strings.toList()}") }
-        else Log.d(TAG, "resolved $name as ${resolved.name} using DexKit")
+            mapOf(name to query), logMissingQueries = false)[name]
+        if (resolved == null) DebugLog.w(TAG, "unable to resolve $name using ${strings.toList()}")
+        else DebugLog.d(TAG, "resolved $name as ${resolved.name} using DexKit")
         return resolved
-    }
-
-    /**
-     * Resolves an AirPods data-path class that DexKit's broad string markers would otherwise
-     * match to an unrelated class. Tries each marker set in order and rejects any resolution that
-     * fails the semantic [validator] (method shape), so a reused obfuscated name never silently
-     * disables the sub-hook.
-     */
-    private fun resolveAirPodsClass(
-        jadxName: String,
-        markerSets: List<Array<String>>,
-        cacheOnly: Boolean,
-        validator: (Class<*>) -> Boolean
-    ): Class<*>? {
-        findClass(jadxName)?.let { return it }
-        val info = hookParam.appInfo ?: return null
-        val base = info.deviceProtectedDataDir ?: info.dataDir ?: return null
-        val apk = info.sourceDir ?: return null
-        for (markers in markerSets) {
-            val key = "apod_" + markers.joinToString("|")
-            val query: (DexKitBridge) -> String? = { bridge ->
-                bridge.findClass { matcher { usingStrings(*markers) } }.singleOrNull()?.name
-            }
-            val resolved = DexRuntime.resolveClasses(
-                java.io.File(base, "cache"), apk, classLoader,
-                mapOf(key to query), logMissingQueries = false, validators = mapOf(key to validator), cacheOnly = cacheOnly
-            )[key]
-            if (resolved != null) {
-                Log.d(TAG, "resolved $jadxName as ${resolved.name} using DexKit(${markers.toList()})")
-                return resolved
-            }
-        }
-        if (!cacheOnly) Log.w(TAG, "unable to resolve $jadxName using ${markerSets.map { it.toList() }}")
-        return null
     }
 
     private fun findClass(name: String): Class<*>? = runCatching { Class.forName(name, false, classLoader) }.getOrNull()
