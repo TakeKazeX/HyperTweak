@@ -32,6 +32,9 @@ internal object GenerationRetirement {
         ModuleDispatchers::retire,
     )
 
+    /** A rejected preflight keeps this generation: undo the freeze [savedState] applied. */
+    fun cancel() = RetiredDexFiles.resume()
+
     fun adopt(hookerStates: Map<String, Any?>?) = RetiredDexFiles.adopt(hookerStates?.get(RetiredDexFiles.STATE_KEY))
 
     /** A process this module never hooks still loads every generation; it must free them too. */

@@ -92,6 +92,7 @@ internal class HotReloadOrchestrator(
             },
             rejected = { error ->
                 DexRuntime.cancelRetirement()
+                GenerationRetirement.cancel()
                 DebugLog.e("HookEntry", "hot reload preflight failed; old hooks untouched", error)
                 if (state.ownsRuntimeSettings) settings.resumeReload()
             },

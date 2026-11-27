@@ -96,15 +96,31 @@ internal object RetiredDexFiles {
     private val lock = Any()
     private var pending = emptyList<Generation>()
     private var worker: Thread? = null
+    /**
+     * Set when the snapshot for the replacement is taken. Retirement stops the worker only in its
+     * final steps, so without this the worker could still close a generation, or turn a refused one
+     * into a held one, after the snapshot was handed over. The replacement would then see that
+     * generation as closable and retry the refused close.
+     */
+    private var frozen = false
 
-    /** Retired generations still open, plus this generation's own, for the replacement to close. */
+    /**
+     * Retired generations still open, plus this generation's own, for the replacement to close.
+     * Freezes this generation's worker first; [resume] undoes that when the hot reload is rejected.
+     */
     fun saveForReplacement(): Array<Any?> {
         val own = runCatching { ownGeneration() }
             .onFailure { DebugLog.w(TAG, "own module dex files unavailable", it) }
             .getOrNull()
-        val carried = synchronized(lock) { pending.filter { it.files.any(::isOpen) } }
+        val carried = synchronized(lock) {
+            frozen = true
+            pending.filter { it.files.any(::isOpen) }
+        }
         return (carried + listOfNotNull(own)).map(Generation::save).toTypedArray()
     }
+
+    /** A rejected hot reload keeps this generation; its worker may close again. */
+    fun resume() = synchronized(lock) { frozen = false }
 
     /** Starts closing the dex files the retired generations handed over. */
     fun adopt(state: Any?) {
@@ -154,7 +170,8 @@ internal object RetiredDexFiles {
             try { Thread.sleep(delay) } catch (_: InterruptedException) { return }
             if (closeUnloaded() == 0) {
                 val held = synchronized(lock) { pending.size }
-                DebugLog.i(TAG, if (held == 0) "released retired module dex files" else "released retired module dex files; held=$held")
+                DebugLog.i(TAG, if (held == 0) "released retired module dex files"
+                    else "no closable retired generation left; held for the process lifetime=$held")
                 return
             }
         }
@@ -163,6 +180,8 @@ internal object RetiredDexFiles {
 
     /** Closes the dex files of generations whose loader is gone; returns the closable generations left. */
     private fun closeUnloaded(): Int = synchronized(lock) {
+        // The snapshot is already handed over; any state change now would diverge from it.
+        if (frozen) return@synchronized pending.count { !it.held }
         pending = pending.map { generation ->
             if (!generation.unloadSettled()) return@map generation
             generation.files.forEach { file ->
