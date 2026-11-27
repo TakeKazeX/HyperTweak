@@ -7,13 +7,10 @@ import java.lang.reflect.Constructor
 import java.lang.reflect.Executable
 import java.lang.reflect.Method
 import java.util.concurrent.CopyOnWriteArraySet
-import com.takekazex.hypertweak.hook.base.dex.DexRuntime
-import com.takekazex.hypertweak.hook.base.dex.DexPreparationOwner
 import android.content.ContentResolver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.database.ContentObserver
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
@@ -22,20 +19,14 @@ import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.CoroutineScope
 
 sealed class BaseHooker {
-    companion object {
-        private val preparationMain by lazy { Handler(Looper.getMainLooper()) }
-    }
-
     lateinit var module: XposedModule
     lateinit var classLoader: ClassLoader
 
     /** Module-level metadata about the current process / package. */
     lateinit var hookParam: ModuleContext
 
-    private val hookHandles = CopyOnWriteArraySet<XposedInterface.HookHandle>()
-    // Identity of executables this hooker deoptimized; read only for the DEBUG diagnostic above.
-    private val deoptimizedTargets: MutableSet<Executable> = java.util.Collections.newSetFromMap(java.util.concurrent.ConcurrentHashMap())
-    @Volatile private var selfDeoptimizationReported = false
+    private val hooks = HookRegistrar(this)
+    private val dexTargets = HookerDexTargets(this)
     private val subscriptions = CopyOnWriteArraySet<AutoCloseable>()
 
     internal fun ownSubscription(subscription: AutoCloseable) { subscriptions += subscription }
@@ -73,23 +64,13 @@ sealed class BaseHooker {
      * retirement and before reinstall nothing is registered: a late callback of a retiring
      * generation cannot leave a host registration behind.
      */
-    internal fun generationRegistration(register: () -> Unit, unregister: () -> Unit): GenerationInputs.Registration {
-        val registration = inputs.open()
-        try { registration.attach(register) { unregister() } } catch (t: Throwable) { registration.close(); throw t }
-        return registration
-    }
+    internal fun generationRegistration(register: () -> Unit, unregister: () -> Unit): GenerationInputs.Registration =
+        inputs.registration(register, unregister)
 
     internal fun generationObserver(
         resolver: ContentResolver, uri: Uri, descendants: Boolean = false, handler: Handler? = null,
         onChange: (selfChange: Boolean, uri: Uri?) -> Unit,
-    ): AutoCloseable {
-        val observer = object : ContentObserver(handler) {
-            override fun onChange(selfChange: Boolean, changed: Uri?) = onChange(selfChange, changed)
-        }
-        return generationRegistration({ resolver.registerContentObserver(uri, descendants, observer) }) {
-            resolver.unregisterContentObserver(observer)
-        }
-    }
+    ): AutoCloseable = inputs.observer(resolver, uri, descendants, handler, onChange)
 
     /**
      * Registers on the published Application ([HostApplicationContext.whenPublished]): an attach-time
@@ -100,26 +81,9 @@ sealed class BaseHooker {
     internal fun generationReceiver(
         context: Context, filter: IntentFilter, flags: Int, permission: String? = null, handler: Handler? = null,
         onReceive: (Context, Intent) -> Unit,
-    ): AutoCloseable {
-        val registration = inputs.open()
-        val receiver = object : ModuleBroadcastReceiver() {
-            override fun receive(context: Context, intent: Intent) {
-                if (!registration.isClosed) onReceive(context, intent)
-            }
-        }
-        HostApplicationContext.whenPublished(context) { application ->
-            runCatching {
-                registration.attach({ ContextCompat.registerReceiver(application, receiver, filter, permission, handler, flags) }) {
-                    try { application.unregisterReceiver(receiver) }
-                    catch (e: IllegalArgumentException) { if (e.message?.contains("not registered") != true) throw e }
-                }
-            }.onFailure { DebugLog.e(hookerName, "receiver registration failed actions=${filter.actionsIterator().asSequence().toList()}", it) }
-        }
-        return registration
-    }
+    ): AutoCloseable = inputs.receiver(hookerName, context, filter, flags, permission, handler, onReceive)
 
     private val childHookers = CopyOnWriteArraySet<BaseHooker>()
-    private val dexPreparations = DexPreparationOwner()
     private val generationStates = GenerationStateOwner()
     private val hostRecoveries = CopyOnWriteArraySet<HostSurfaceRecovery>()
 
@@ -168,10 +132,8 @@ sealed class BaseHooker {
 
     private val trackedInstances = CopyOnWriteArraySet<HookInstances>()
 
-    private var replacementHandles: HotReloadHandleStore? = null
-
     open val isHooked: Boolean
-        get() = hookHandles.isNotEmpty() || subscriptions.isNotEmpty()
+        get() = hooks.hasHandles || subscriptions.isNotEmpty()
 
     open val hookerName: String
         get() = this::class.java.simpleName
@@ -238,7 +200,7 @@ sealed class BaseHooker {
                 if (this is DynamicHooker || installsWhenEnabledOnly) {
                     cancelDexPreparations()
                     DebugLog.d("BaseHooker", "unhooking $hookerName")
-                    val failures = hookHandles.mapNotNull { runCatching { it.unhook() }.exceptionOrNull() }
+                    val failures = hooks.unhookAll()
                     // Successful managed unhooks remove themselves; retain failed handles for retirement.
                     runCatching { closeSubscriptions() }.exceptionOrNull()?.let { error ->
                         DebugLog.w("BaseHooker", "subscription cleanup failed for $hookerName", error)
@@ -264,7 +226,7 @@ sealed class BaseHooker {
         }
         DebugLog.d("BaseHooker", "hooking $hookerName")
         val problemsBefore = DebugLog.reportedProblemCount()
-        val registrationsBefore = registrations
+        val registrationsBefore = hooks.registrations
         onHook()
         auditInstallation(problemsBefore, registrationsBefore)
     }
@@ -274,8 +236,8 @@ sealed class BaseHooker {
      * is not working. Unless the hooker already reported why, that outcome must never be silent.
      */
     private fun auditInstallation(problemsBefore: Int, registrationsBefore: Int) {
-        if (registrations != registrationsBefore || hookHandles.isNotEmpty() || subscriptions.isNotEmpty() ||
-            childHookers.isNotEmpty() || dexPreparations.hasPreparations || !expectsHooks
+        if (hooks.registrations != registrationsBefore || hooks.hasHandles || subscriptions.isNotEmpty() ||
+            childHookers.isNotEmpty() || dexTargets.hasPreparations || !expectsHooks
         ) return
         if (DebugLog.reportedProblemCount() != problemsBefore) return
         DebugLog.hookSkipped(hookerName, hookerName, "enabled but installed nothing and reported no reason")
@@ -284,13 +246,11 @@ sealed class BaseHooker {
     /** False for hookers whose onHook legitimately performs one-shot work without hooks. */
     protected open val expectsHooks: Boolean get() = true
 
-    @Volatile private var registrations = 0
-
     /**
      * Records that this hooker's installation was handed to a later host boundary (for example the
      * camera config provider). The audit then waits for that boundary instead of reporting silence.
      */
-    internal fun noteDeferredInstallation() { registrations++ }
+    internal fun noteDeferredInstallation() = hooks.noteDeferredInstallation()
 
     open fun onInit() {}
 
@@ -320,7 +280,7 @@ sealed class BaseHooker {
     }
 
     protected val dexCacheDirectory: java.io.File?
-        get() = DexRuntime.cacheDirectory(hookParam.appInfo)
+        get() = dexTargets.cacheDirectory
 
     /** Final feature contracts: compute must be pure resolution; encode materializes all lazy data. */
     internal fun <T : Any> resolveDexContract(
@@ -331,15 +291,7 @@ sealed class BaseHooker {
         encode: (T) -> Map<String, String>,
         decode: (com.takekazex.hypertweak.hook.base.dex.DexContractMembers) -> T?,
         cacheOnly: Boolean = false,
-    ): T? = DexRuntime.resolve(
-        feature = object : com.takekazex.hypertweak.hook.base.dex.DexFeature {
-            override val id = id
-            override val schema = schema
-        }, apkPath = apk, cacheDir = dexCacheDirectory, cacheOnly = cacheOnly,
-        compute = { session -> session.dexKit(compute)?.let(encode).orEmpty() },
-        decode = { values, _ -> if (values.isEmpty()) null else decode(
-            com.takekazex.hypertweak.hook.base.dex.DexContractMembers(values, classLoader))?.takeIf { encode(it) == values } },
-    )
+    ): T? = dexTargets.resolveContract(id, apk, schema, compute, encode, decode, cacheOnly)
 
     /**
      * Install-thread entry for a final feature contract. A cached contract installs synchronously,
@@ -356,22 +308,10 @@ sealed class BaseHooker {
         encode: (T) -> Map<String, String>,
         decode: (com.takekazex.hypertweak.hook.base.dex.DexContractMembers) -> T?,
         install: (T) -> Unit,
-    ) {
-        val cached = resolveDexContract(id, apk, schema, compute, encode, decode, cacheOnly = true)
-        if (cached != null) install(cached)
-        else prepareDexTargets(name = id, resolve = { resolveDexContract(id, apk, schema, compute, encode, decode) }, install = install)
-    }
+    ) = dexTargets.prepareContract(id, apk, schema, compute, encode, decode, install)
 
     /** Roll back only handles installed by this publication, including synchronous cache replay. */
-    internal fun <T> installDexContract(install: () -> T): T {
-        val before = collectManagedHookHandles().toSet()
-        return try { install() } catch (error: Throwable) {
-            collectManagedHookHandles().filterNot { it in before }.forEach { handle ->
-                runCatching { handle.unhook() }.onFailure(error::addSuppressed)
-            }
-            throw error
-        }
-    }
+    internal fun <T> installDexContract(install: () -> T): T = dexTargets.installContract(install)
 
     /**
      * Like [prepareDexContract] for a resolver made of several cached lookups: it is replayed from
@@ -382,18 +322,14 @@ sealed class BaseHooker {
         name: String = hookerName,
         resolve: () -> T?,
         install: (T) -> Unit,
-    ) {
-        val cached = com.takekazex.hypertweak.hook.base.dex.DexRuntime.replayOnly(resolve)
-        if (cached != null) installDexContract { install(cached) }
-        else prepareDexTargets(name, resolve, install, low = false)
-    }
+    ) = dexTargets.prepareCached(name, resolve, install)
 
     /** Features provide a query and hook publication; startup, queueing and retirement are shared. */
     protected fun <T : Any> prepareDexTargets(
         name: String = hookerName,
         resolve: () -> T?,
         install: (T) -> Unit,
-    ) = prepareDexTargets(name, resolve, install, low = false)
+    ) = dexTargets.prepare(name, resolve, install, low = false)
 
     /**
      * For a feature whose hooks only matter later (for example inside a game): its cold scan
@@ -403,53 +339,15 @@ sealed class BaseHooker {
         name: String = hookerName,
         resolve: () -> T?,
         install: (T) -> Unit,
-    ) = prepareDexTargets(name, resolve, install, low = true)
-
-    private fun <T : Any> prepareDexTargets(
-        name: String,
-        resolve: () -> T?,
-        install: (T) -> Unit,
-        low: Boolean,
-    ) {
-        dexPreparations.prepare(name,
-            create = { failure -> DexRuntime.preparation(
-                apkPath = hookParam.appInfo?.sourceDir,
-                // Resolution is queued straight onto the background worker instead of being
-                // posted to the main looper first. The post looked harmless, but it made every
-                // preparation wait for the main thread to go idle: on a boot where the dispatch is
-                // still installing other hookers, a hooker attached at 20.281 s did not start
-                // resolving until 21.372 s. Publication still runs on the main thread, because hook
-                // registration requires it.
-                afterStartup = { action -> action() },
-                publish = { action -> check(preparationMain.post { action() }) },
-                failure = failure,
-                low = low,
-            ) },
-            failure = { DebugLog.hookFailed(hookerName, "prepare targets: $name", it) },
-            // A resolution without a usable target leaves the feature uninstalled. It is reported
-            // here once for every feature, so no resolver can make a missing host contract silent.
-            resolve = {
-                resolve().also {
-                    if (it == null && !dexPreparations.isRetired) {
-                        DebugLog.hookSkipped(hookerName, "prepare targets: $name", "no usable target on this host build")
-                    }
-                }
-            },
-        ) { target ->
-            val started = android.os.SystemClock.uptimeMillis()
-            installDexContract { install(target) }
-            DebugLog.i("DexRuntime", "published hooker=$hookerName name=$name " +
-                "installMs=${android.os.SystemClock.uptimeMillis() - started}")
-        }
-    }
+    ) = dexTargets.prepare(name, resolve, install, low = true)
 
     private fun activateGeneration() {
-        dexPreparations.activate()
+        dexTargets.activate()
         inputs.activate()
     }
 
     private fun cancelDexPreparations() {
-        dexPreparations.cancel()
+        dexTargets.cancel()
     }
 
     internal fun instanceTracker(): HookInstances = HookInstances().also(trackedInstances::add)
@@ -459,7 +357,7 @@ sealed class BaseHooker {
         runCatching { classLoader.loadClass(className) }.getOrNull()?.declaredConstructors?.forEach { constructor ->
             constructor.hook {
                 after { param ->
-                    if (!dexPreparations.isRetired) HookFailurePolicy.open(hookerName, "capture host instance", Unit) {
+                    if (!dexTargets.isRetired) HookFailurePolicy.open(hookerName, "capture host instance", Unit) {
                         tracker.add(param.thisObject)
                     }
                 }
@@ -502,7 +400,7 @@ sealed class BaseHooker {
     fun resetAfterHotReloadPrepared() {
         cancelDexPreparations()
         childHookers.forEach { it.resetAfterHotReloadPrepared() }
-        hookHandles.clear()
+        hooks.clear()
         childHookers.clear()
         enabled = false
         isParentEnabled = false
@@ -513,7 +411,7 @@ sealed class BaseHooker {
      * unavailable. Hookers that already own a managed handle are left untouched.
      */
     fun retryHookIfNeeded() {
-        if (!dexPreparations.isRetired && isEffectiveEnabled && !isHooked) {
+        if (!dexTargets.isRetired && isEffectiveEnabled && !isHooked) {
             runCatching {
                 DebugLog.d("BaseHooker", "retrying $hookerName after preferences became available")
                 onHook()
@@ -534,7 +432,7 @@ sealed class BaseHooker {
         hooker.module = this.module
         hooker.classLoader = customClassLoader ?: this.classLoader
         hooker.hookParam = param ?: this.hookParam
-        hooker.replacementHandles = replacementHandles
+        hooker.hooks.replacementHandles = hooks.replacementHandles
 
         childHookers.add(hooker)
         hooker.performInit()
@@ -555,7 +453,7 @@ sealed class BaseHooker {
     }
 
     fun setHotReloadReplacementHandles(handles: HotReloadHandleStore?) {
-        replacementHandles = handles
+        hooks.replacementHandles = handles
         childHookers.forEach { it.setHotReloadReplacementHandles(handles) }
     }
 
@@ -574,42 +472,13 @@ sealed class BaseHooker {
     fun Method.hook(
         managed: Boolean = true,
         block: HookFactory.() -> Unit
-    ): XposedInterface.HookHandle = hookMethod(this, defaultHookId(this), managed, block)
+    ): XposedInterface.HookHandle = hooks.hook(this, null, managed, block)
 
     fun Method.hook(
         hookId: String,
         managed: Boolean = true,
         block: HookFactory.() -> Unit
-    ): XposedInterface.HookHandle = hookMethod(this, hookId, managed, block)
-
-    private fun hookMethod(
-        method: Method,
-        hookId: String,
-        managed: Boolean,
-        block: HookFactory.() -> Unit
-    ): XposedInterface.HookHandle {
-        val target = formatExecutable(method)
-        // Deoptimizing a hook target only interprets its original body; inlining is undone at the
-        // caller. One line per hooker names the first such target, so intentional cases (a target
-        // that itself inlines another hooked method) stay visible without flooding the log.
-        if (method in deoptimizedTargets && !selfDeoptimizationReported) {
-            selfDeoptimizationReported = true
-            DebugLog.d(hookerName) { "self-deoptimized hook target $target (first of this hooker)" }
-        }
-        return try {
-            val replacementMap = replacementHandles
-            val oldHandle = replacementMap?.firstForTarget(hookId, method)
-            val handle = if (oldHandle != null) {
-                replaceOldHandle(oldHandle, target, hookId, block).also {
-                    replacementMap.markHandled(oldHandle)
-                }
-            } else installHook(method, hookId, block)
-            registerHandle(handle, target, managed)
-        } catch (t: Throwable) {
-            DebugLog.hookFailed(hookerName, target, t)
-            throw t
-        }
-    }
+    ): XposedInterface.HookHandle = hooks.hook(this, hookId, managed, block)
 
     /** Registers a runtime-supplied hooker while retaining BaseHooker ownership. */
     fun registerRuntimeHook(
@@ -630,8 +499,7 @@ sealed class BaseHooker {
     fun Constructor<*>.hook(
         managed: Boolean = true,
         block: HookFactory.() -> Unit
-    ): XposedInterface.HookHandle =
-        hookConstructor(this, defaultHookId(this), managed, block)
+    ): XposedInterface.HookHandle = hooks.hook(this, null, managed, block)
 
     /**
      * Hook a [Constructor] under an explicit hook id.
@@ -645,29 +513,7 @@ sealed class BaseHooker {
         hookId: String,
         managed: Boolean = true,
         block: HookFactory.() -> Unit
-    ): XposedInterface.HookHandle = hookConstructor(this, hookId, managed, block)
-
-    private fun hookConstructor(
-        constructor: Constructor<*>,
-        hookId: String,
-        managed: Boolean,
-        block: HookFactory.() -> Unit
-    ): XposedInterface.HookHandle {
-        val target = formatExecutable(constructor)
-        return try {
-            val replacementMap = replacementHandles
-            val oldHandle = replacementMap?.firstForTarget(hookId, constructor)
-            val handle = if (oldHandle != null) {
-                replaceOldHandle(oldHandle, target, hookId, block).also {
-                    replacementMap.markHandled(oldHandle)
-                }
-            } else installHook(constructor, hookId, block)
-            registerHandle(handle, target, managed)
-        } catch (t: Throwable) {
-            DebugLog.hookFailed(hookerName, target, t)
-            throw t
-        }
-    }
+    ): XposedInterface.HookHandle = hooks.hook(this, hookId, managed, block)
 
     /**
      * Hook any [Executable] (dispatches to Method or Constructor variant).
@@ -688,95 +534,20 @@ sealed class BaseHooker {
     ) = mapNotNull { it?.hookExecutable(managed, block) }
 
     fun collectManagedHookHandles(): List<XposedInterface.HookHandle> {
-        return hookHandles.toList() + childHookers.flatMap { it.collectManagedHookHandles() }
+        return hooks.ownedHandles + childHookers.flatMap { it.collectManagedHookHandles() }
     }
 
-    /**
-     * Adopts a handle that was replaced before the new hooker generation was attached.
-     * Hot-reload coordinators use this to keep carried hooks visible to lifecycle cleanup and
-     * diagnostics even when their normal install path intentionally skips an already-replaced id.
-     */
-    internal fun adoptManagedHookHandle(handle: XposedInterface.HookHandle) {
-        ownManagedHandle(handle)
-        DebugLog.hookRegistered(hookerName, "carried id=${handle.id}")
-    }
+    /** See [HookRegistrar.adopt]. */
+    internal fun adoptManagedHookHandle(handle: XposedInterface.HookHandle) = hooks.adopt(handle)
 
     /**
      * Undo AOT inlining of [executable] so hooks on small or private methods actually fire.
      * The framework's Boolean result is preserved; a thrown failure is logged and reads as false.
      */
-    fun deoptimize(executable: Executable): Boolean {
-        deoptimizedTargets += executable
-        return runCatching {
-            module.deoptimize(executable)
-        }.onFailure { t ->
-            DebugLog.w(hookerName, "failed to deoptimize ${formatExecutable(executable)}", t)
-        }.getOrDefault(false)
-    }
-
-    private fun registerHandle(
-        handle: XposedInterface.HookHandle,
-        target: String,
-        managed: Boolean
-    ): XposedInterface.HookHandle {
-        DebugLog.hookRegistered(hookerName, "$target id=${handle.id}")
-        registrations++
-        if (!managed) return handle
-        return ownManagedHandle(handle)
-    }
-
-    private fun installHook(
-        target: Executable,
-        hookId: String,
-        block: HookFactory.() -> Unit
-    ): XposedInterface.HookHandle {
-        val factory = HookFactory(target).apply { id(hookId); block() }
-        return module.hook(target)
-            .setPriority(factory.priority)
-            .setExceptionMode(factory.exceptionMode)
-            .setId(factory.hookId ?: hookId)
-            .intercept(factory.buildHooker(hookerName))
-    }
-
-    private fun replaceOldHandle(
-        oldHandle: XposedInterface.HookHandle,
-        target: String,
-        hookId: String,
-        block: HookFactory.() -> Unit
-    ): XposedInterface.HookHandle {
-        val factory = HookFactory(oldHandle.executable).apply { id(hookId); block() }
-        val replacement = oldHandle.replaceHook(factory.buildHooker(hookerName))
-        DebugLog.hookRegistered(hookerName, "$target id=$hookId replaced=true")
-        return replacement
-    }
+    fun deoptimize(executable: Executable): Boolean = hooks.deoptimize(executable)
 
     /** Re-registering an already owned replacement must not add a second wrapper. */
-    internal fun ownManagedHandle(handle: XposedInterface.HookHandle): XposedInterface.HookHandle {
-        if (handle is ManagedHookHandle && handle.owner === this) return handle
-        return wrapHandle(handle).also(hookHandles::add)
-    }
-
-    private fun wrapHandle(original: XposedInterface.HookHandle): XposedInterface.HookHandle =
-        ManagedHookHandle(original)
-
-    private inner class ManagedHookHandle(private val original: XposedInterface.HookHandle) : XposedInterface.HookHandle {
-        val owner: BaseHooker = this@BaseHooker
-        override fun getExecutable(): Executable = original.executable
-        override fun getId(): String? = original.getId()
-        override fun unhook() {
-            original.unhook()
-            hookHandles.remove(this)
-        }
-        override fun replaceHook(hooker: XposedInterface.Hooker): XposedInterface.HookHandle {
-            val replaced = original.replaceHook(hooker)
-            hookHandles.remove(this)
-            return ownManagedHandle(replaced)
-        }
-    }
-
-    private fun defaultHookId(executable: Executable): String {
-        return "$hookerName:${formatExecutable(executable)}"
-    }
+    internal fun ownManagedHandle(handle: XposedInterface.HookHandle): XposedInterface.HookHandle = hooks.own(handle)
 
     // ─── Reflection helpers (scoped to this hooker's classLoader) ─────────────
 
@@ -809,16 +580,7 @@ sealed class BaseHooker {
         }
     }
 
-    private fun formatExecutable(executable: Executable): String {
-        val owner = executable.declaringClass.name
-        val name = when (executable) {
-            is Constructor<*> -> "<init>"
-            is Method -> executable.name
-            else -> executable.name
-        }
-        val params = executable.parameterTypes.joinToString(",") { it.simpleName }
-        return "$owner#$name($params)"
-    }
+    private fun formatExecutable(executable: Executable): String = HookRegistrar.formatExecutable(executable)
 
     /**
      * Resolve an unobfuscated host class by its name, using the DexKit [queries] only when the name
@@ -830,18 +592,7 @@ sealed class BaseHooker {
     fun resolveAppClass(
         className: String,
         queries: Map<String, (org.luckypray.dexkit.DexKitBridge) -> String?>
-    ): Class<*>? {
-        className.toClassOrNull()?.let { return it }
-        val appInfo = hookParam.appInfo ?: return null
-        val baseDir = appInfo.deviceProtectedDataDir ?: appInfo.dataDir ?: return null
-        val apkPath = appInfo.sourceDir ?: return null
-        return DexRuntime.resolveClasses(
-            cacheDir = java.io.File(baseDir, "cache"),
-            apkPath = apkPath,
-            classLoader = classLoader,
-            queries = queries
-        ).values.firstOrNull()
-    }
+    ): Class<*>? = dexTargets.resolveAppClass(className.toClassOrNull(), queries)
 }
 
 abstract class StaticHooker : BaseHooker()

@@ -1,5 +1,14 @@
 package com.takekazex.hypertweak.hook.base
 
+import android.content.ContentResolver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.database.ContentObserver
+import android.net.Uri
+import android.os.Handler
+import androidx.core.content.ContextCompat
+import com.takekazex.hypertweak.util.logging.DebugLog
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.CopyOnWriteArraySet
 import kotlin.coroutines.CoroutineContext
@@ -71,6 +80,50 @@ internal class GenerationInputs {
     fun activate() = synchronized(this) { retired = false }
 
     fun <T : Reusable> reusable(owner: T): T = owner.also(reusables::add)
+
+    /**
+     * Registers now and unregisters on retirement or [AutoCloseable.close], at most once. After
+     * retirement and before reinstall nothing is registered.
+     */
+    fun registration(register: () -> Unit, unregister: () -> Unit): Registration {
+        val registration = open()
+        try { registration.attach(register) { unregister() } } catch (t: Throwable) { registration.close(); throw t }
+        return registration
+    }
+
+    fun observer(
+        resolver: ContentResolver, uri: Uri, descendants: Boolean, handler: Handler?,
+        onChange: (selfChange: Boolean, uri: Uri?) -> Unit,
+    ): AutoCloseable {
+        val observer = object : ContentObserver(handler) {
+            override fun onChange(selfChange: Boolean, changed: Uri?) = onChange(selfChange, changed)
+        }
+        return registration({ resolver.registerContentObserver(uri, descendants, observer) }) {
+            resolver.unregisterContentObserver(observer)
+        }
+    }
+
+    /** See [BaseHooker.generationReceiver]; [logTag] names the owning hooker in failures. */
+    fun receiver(
+        logTag: String, context: Context, filter: IntentFilter, flags: Int, permission: String?, handler: Handler?,
+        onReceive: (Context, Intent) -> Unit,
+    ): AutoCloseable {
+        val registration = open()
+        val receiver = object : ModuleBroadcastReceiver() {
+            override fun receive(context: Context, intent: Intent) {
+                if (!registration.isClosed) onReceive(context, intent)
+            }
+        }
+        HostApplicationContext.whenPublished(context) { application ->
+            runCatching {
+                registration.attach({ ContextCompat.registerReceiver(application, receiver, filter, permission, handler, flags) }) {
+                    try { application.unregisterReceiver(receiver) }
+                    catch (e: IllegalArgumentException) { if (e.message?.contains("not registered") != true) throw e }
+                }
+            }.onFailure { DebugLog.e(logTag, "receiver registration failed actions=${filter.actionsIterator().asSequence().toList()}", it) }
+        }
+        return registration
+    }
 
     /** Releases everything; every input is attempted even when one fails. */
     fun releaseAll() {
