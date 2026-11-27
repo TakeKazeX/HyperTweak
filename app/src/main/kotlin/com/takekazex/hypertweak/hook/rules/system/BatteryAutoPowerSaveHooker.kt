@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.system
 
+import com.takekazex.hypertweak.hook.preferences.PowerSavePrefs
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 import android.annotation.SuppressLint
 import android.content.BroadcastReceiver
@@ -25,7 +26,7 @@ import com.takekazex.hypertweak.hook.base.HostContext
 // Published on settings acceptance; hook callbacks perform no storage reads.
 private val settingBatteryAutoPowerSaveEnabled by hookSetting(false) { Preferences.getBoolean(PlatformSettingsKeys.KEY_BATTERY_AUTO_POWER_SAVE_ENABLED, false) }
 private val settingExitPowerSaveWhenCharging by hookSetting(false) { Preferences.getBoolean(PlatformSettingsKeys.KEY_EXIT_POWER_SAVE_WHEN_CHARGING, false) }
-private val settingBatteryAutoPowerSaveThreshold by hookSetting(PlatformSettingsKeys.DEFAULT_BATTERY_AUTO_POWER_SAVE_THRESHOLD) { Preferences.batteryAutoPowerSaveThreshold() }
+private val settingBatteryAutoPowerSaveThreshold by hookSetting(PlatformSettingsKeys.DEFAULT_BATTERY_AUTO_POWER_SAVE_THRESHOLD) { PowerSavePrefs.batteryAutoPowerSaveThreshold() }
 
 /** Owns the battery monitor in SystemUI once its application context is available. */
 object BatteryAutoPowerSaveHooker : StaticHooker() {

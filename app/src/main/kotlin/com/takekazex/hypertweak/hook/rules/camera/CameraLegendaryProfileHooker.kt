@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.camera
 
+import com.takekazex.hypertweak.hook.preferences.CameraMomentPrefs
 import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.CameraSettingsKeys
 
@@ -17,7 +18,7 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicReference
 
 // Published on settings acceptance; hook callbacks perform no storage reads.
-private val settingCameraLegendaryMomentMode by hookSetting(CameraLegendaryMomentMode.DEFAULT) { Preferences.cameraLegendaryMomentMode() }
+private val settingCameraLegendaryMomentMode by hookSetting(CameraLegendaryMomentMode.DEFAULT) { CameraMomentPrefs.cameraLegendaryMomentMode() }
 private val settingCameraLegendaryExtraModes by hookSetting(false) {
     Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_LEGENDARY_EXTRA_MODES, false)
 }

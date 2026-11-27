@@ -10,10 +10,8 @@ import com.takekazex.hypertweak.hook.preferences.SettingsBackupManager
 import com.takekazex.hypertweak.hook.preferences.SettingsMutationWriter
 import com.takekazex.hypertweak.hook.runtime.settings.BackGestureSettingsSnapshot
 import com.takekazex.hypertweak.hook.runtime.settings.RuntimeSettingsReadCache
-import com.takekazex.hypertweak.hook.runtime.settings.RuntimeSettingsSignal
 import com.takekazex.hypertweak.hook.runtime.settings.RuntimeSettingsSnapshot
 import com.takekazex.hypertweak.hook.runtime.settings.RuntimeSettingsStore
-import com.takekazex.hypertweak.settings.contract.CameraLegendaryMomentMode
 
 import android.content.Context
 import android.content.SharedPreferences
@@ -21,17 +19,12 @@ import androidx.core.content.edit
 import com.takekazex.hypertweak.hook.runtime.settings.RuntimeSettingsGroups
 import com.takekazex.hypertweak.settings.contract.AppSettingsKeys
 import com.takekazex.hypertweak.settings.contract.BackGestureKeys
-import com.takekazex.hypertweak.settings.contract.CameraSettingsKeys
 import com.takekazex.hypertweak.settings.contract.IconConfig
 import com.takekazex.hypertweak.settings.contract.IconConfigDecoder
 import com.takekazex.hypertweak.settings.contract.IconConfigMigration
 import com.takekazex.hypertweak.settings.contract.IconSettingsKeys
-import com.takekazex.hypertweak.settings.contract.IconSettingsPreferencePolicy
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
-import com.takekazex.hypertweak.settings.contract.PowerSaveOverrideSelection
-import com.takekazex.hypertweak.settings.contract.ScreenshotSettingsKeys
 import com.takekazex.hypertweak.settings.contract.ScreenshotSettingsSnapshot
-import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 import com.takekazex.hypertweak.util.logging.SettingsDiagnostics
 import com.takekazex.hypertweak.hook.base.HostContext
 import java.util.concurrent.CountDownLatch
@@ -88,132 +81,6 @@ object Preferences {
     internal fun runtimePreferenceSource(): SharedPreferences? = if (isInitialized) remotePrefs else null
     private const val CACHE_NAME = "hypertweak_cache"
 
-    /**
-     * The current long-press power action ([POWER_BUTTON_ACTION_*]). Reads
-     * [KEY_POWER_BUTTON_ACTION]; when it is unset it migrates the legacy
-     * [KEY_POWER_BUTTON_CTS] boolean (on → [POWER_BUTTON_ACTION_CIRCLE_TO_SEARCH]), so
-     * existing users keep their Circle to Search binding without touching the setting.
-     */
-    fun powerButtonAction(): Int {
-        val action = getInt(PlatformSettingsKeys.KEY_POWER_BUTTON_ACTION, -1)
-        if (action == PlatformSettingsKeys.POWER_BUTTON_ACTION_DISABLED ||
-            action == PlatformSettingsKeys.POWER_BUTTON_ACTION_CIRCLE_TO_SEARCH ||
-            action == PlatformSettingsKeys.POWER_BUTTON_ACTION_DEFAULT_ASSISTANT ||
-            action == PlatformSettingsKeys.POWER_BUTTON_ACTION_GOOGLE_LENS
-        ) {
-            return action
-        }
-        return if (getBoolean(PlatformSettingsKeys.KEY_POWER_BUTTON_CTS, false)) {
-            PlatformSettingsKeys.POWER_BUTTON_ACTION_CIRCLE_TO_SEARCH
-        } else {
-            PlatformSettingsKeys.POWER_BUTTON_ACTION_DISABLED
-        }
-    }
-
-    /** Persists the long-press power action and drops the superseded legacy boolean. */
-    fun setPowerButtonAction(action: Int) {
-        memoInvalidate(PlatformSettingsKeys.KEY_POWER_BUTTON_ACTION)
-        memoInvalidate(PlatformSettingsKeys.KEY_POWER_BUTTON_CTS)
-        write(runtimeChanges = mapOf(PlatformSettingsKeys.KEY_POWER_BUTTON_ACTION to action,
-            PlatformSettingsKeys.KEY_POWER_BUTTON_CTS to false)) {
-            putInt(PlatformSettingsKeys.KEY_POWER_BUTTON_ACTION, action)
-            remove(PlatformSettingsKeys.KEY_POWER_BUTTON_CTS)
-        }
-    }
-
-    /**
-     * Current Leica/Legendary Moment selector. Leica Moment opens its entry on the native
-     * config; Legendary Moment uses Madrid only when the camera package contains that config.
-     * A missing new key migrates the old Boolean (true → Leica Moment).
-     */
-    fun cameraLegendaryMomentMode(): String {
-        val stored = if (contains(CameraSettingsKeys.KEY_CAMERA_LEGENDARY_MOMENT_MODE)) {
-            getString(CameraSettingsKeys.KEY_CAMERA_LEGENDARY_MOMENT_MODE, "")
-        } else {
-            null
-        }
-        val legacy = if (stored == null && contains(CameraSettingsKeys.KEY_CAMERA_LEGENDARY_MOMENT)) {
-            getBoolean(CameraSettingsKeys.KEY_CAMERA_LEGENDARY_MOMENT, false)
-        } else {
-            null
-        }
-        return CameraLegendaryMomentMode.resolve(stored, legacy)
-    }
-
-    /** Persists the selected name and drops the superseded Boolean. */
-    fun setCameraLegendaryMomentMode(mode: String) {
-        memoInvalidate(CameraSettingsKeys.KEY_CAMERA_LEGENDARY_MOMENT_MODE)
-        memoInvalidate(CameraSettingsKeys.KEY_CAMERA_LEGENDARY_MOMENT)
-        write(runtimeChanges = mapOf(CameraSettingsKeys.KEY_CAMERA_LEGENDARY_MOMENT_MODE to mode,
-            CameraSettingsKeys.KEY_CAMERA_LEGENDARY_MOMENT to false)) {
-            putString(CameraSettingsKeys.KEY_CAMERA_LEGENDARY_MOMENT_MODE, mode)
-            remove(CameraSettingsKeys.KEY_CAMERA_LEGENDARY_MOMENT)
-        }
-    }
-
-    // The removed master is retained only to interpret legacy snapshots. Each new individual
-    // edit atomically flattens the effective selection and permanently opens that legacy gate.
-    private fun powerSaveFeatureEnabled(key: String): Boolean =
-        getBoolean(PlatformSettingsKeys.KEY_POWER_SAVE_OVERRIDE_MASTER, false) && getBoolean(key, false)
-
-    fun keepRefreshRateInPowerSave(): Boolean = powerSaveFeatureEnabled(PlatformSettingsKeys.KEY_KEEP_REFRESH_RATE_IN_POWER_SAVE)
-    fun keepHapticFeedbackInPowerSave(): Boolean = powerSaveFeatureEnabled(PlatformSettingsKeys.KEY_KEEP_HAPTIC_FEEDBACK_IN_POWER_SAVE)
-    fun keepSystemSoundsInPowerSave(): Boolean = powerSaveFeatureEnabled(PlatformSettingsKeys.KEY_KEEP_SYSTEM_SOUNDS_IN_POWER_SAVE)
-    fun keepWakeupGesturesInPowerSave(): Boolean = powerSaveFeatureEnabled(PlatformSettingsKeys.KEY_KEEP_WAKEUP_GESTURES_IN_POWER_SAVE)
-
-    /** The low-battery threshold in percent, bounded to the slider's band. */
-    fun batteryAutoPowerSaveThreshold(): Int = getInt(
-        PlatformSettingsKeys.KEY_BATTERY_AUTO_POWER_SAVE_THRESHOLD,
-        PlatformSettingsKeys.DEFAULT_BATTERY_AUTO_POWER_SAVE_THRESHOLD,
-    ).coerceIn(PlatformSettingsKeys.MIN_BATTERY_AUTO_POWER_SAVE_THRESHOLD, PlatformSettingsKeys.MAX_BATTERY_AUTO_POWER_SAVE_THRESHOLD)
-
-    private val powerSaveFeatureKeys = listOf(
-        PlatformSettingsKeys.KEY_KEEP_REFRESH_RATE_IN_POWER_SAVE,
-        PlatformSettingsKeys.KEY_KEEP_HAPTIC_FEEDBACK_IN_POWER_SAVE,
-        PlatformSettingsKeys.KEY_KEEP_SYSTEM_SOUNDS_IN_POWER_SAVE,
-        PlatformSettingsKeys.KEY_KEEP_WAKEUP_GESTURES_IN_POWER_SAVE,
-    )
-
-    /** Preserve the effective legacy selection when editing one independent feature. */
-    fun setPowerSaveFeature(key: String, enabled: Boolean) {
-        require(key in powerSaveFeatureKeys)
-        val master = PlatformSettingsKeys.KEY_POWER_SAVE_OVERRIDE_MASTER
-        val values = PowerSaveOverrideSelection.edit(
-            getBoolean(master, false), powerSaveFeatureKeys.associateWith { getBoolean(it, false) }, key, enabled,
-        )
-        publishPowerSaveSelection(values + (master to true))
-    }
-
-    /** Older editors persisted this selection locally without acknowledging it for the hosts. */
-    internal fun recoverUnpublishedPowerSaveSelection() {
-        val acknowledged = RuntimeSettingsSignal.lastAcknowledged()?.values ?: return
-        val local = localSourcePrefs ?: return
-        val master = PlatformSettingsKeys.KEY_POWER_SAVE_OVERRIDE_MASTER
-        val keys = powerSaveFeatureKeys + master
-        if (keys.any(acknowledged::containsKey) || !local.getBoolean(master, false)) return
-        publishPowerSaveSelection(keys.associateWith { local.getBoolean(it, false) })
-    }
-
-    /** Recover a Wi-Fi position saved while the module was using its local settings backend. */
-    internal fun recoverUnpublishedSavedNetworksPosition() {
-        val key = PlatformSettingsKeys.KEY_WIFI_SAVED_NETWORKS_ENTRY_POSITION
-        val acknowledged = RuntimeSettingsSignal.lastAcknowledged()?.values ?: return
-        if (acknowledged.containsKey(key)) return
-        val local = localSourcePrefs ?: return
-        val position = local.all[key] as? Int ?: return
-        if (position in PlatformSettingsKeys.WIFI_SAVED_NETWORKS_POSITION_BELOW_ACCELERATION..
-            PlatformSettingsKeys.WIFI_SAVED_NETWORKS_POSITION_ABOVE_ADVANCED) {
-            putInt(key, position)
-        }
-    }
-
-    private fun publishPowerSaveSelection(values: Map<String, Boolean>) {
-        values.keys.forEach(::memoInvalidate)
-        write(runtimeChanges = values) {
-            values.forEach { (key, value) -> putBoolean(key, value) }
-        }
-    }
-
     @Volatile private var cachedIconSnapshot: RuntimeSettingsSnapshot? = null
     @Volatile private var cachedIconConfig: IconConfig? = null
 
@@ -243,11 +110,6 @@ object Preferences {
             }
         }.also { memoPut(fallbackCacheKey, it) }
     }
-
-    fun openedFolderColumns(): Int = getInt(
-        PlatformSettingsKeys.KEY_OPENED_FOLDER_COLUMNS,
-        PlatformSettingsKeys.DEFAULT_OPENED_FOLDER_COLUMNS
-    ).coerceIn(PlatformSettingsKeys.MIN_OPENED_FOLDER_COLUMNS, PlatformSettingsKeys.MAX_OPENED_FOLDER_COLUMNS)
 
     private lateinit var remotePrefs: SharedPreferences
     // Only the module Application may supply this store via useLocalOnly; never a host cache.
@@ -604,30 +466,6 @@ object Preferences {
             getBoolean(PlatformSettingsKeys.KEY_NATIVE_PICKER, false)
         )
 
-    /**
-     * Reads one scoped fingerprint-hiding switch while preserving the original aggregate switch
-     * for upgrades. An explicit scoped false must beat a legacy true, hence the contains() check
-     * rather than a simple OR.
-     */
-    private fun getFingerprintHideScope(key: String): Boolean {
-        return if (contains(key)) {
-            getBoolean(key, false)
-        } else {
-            getBoolean(SystemUiSettingsKeys.KEY_HIDE_FINGERPRINT, false)
-        }
-    }
-
-    /** Reads the independent always-on-display fingerprint switch. */
-    fun hideFingerprintAodEnabled(): Boolean =
-        getFingerprintHideScope(SystemUiSettingsKeys.KEY_HIDE_FINGERPRINT_AOD)
-
-    /** Reads the independent interactive-lockscreen fingerprint switch. */
-    fun hideFingerprintLockscreenEnabled(): Boolean =
-        getFingerprintHideScope(SystemUiSettingsKeys.KEY_HIDE_FINGERPRINT_LOCKSCREEN)
-
-    fun hideFingerprintAppAuthEnabled(): Boolean =
-        getFingerprintHideScope(SystemUiSettingsKeys.KEY_HIDE_FINGERPRINT_APP_AUTH)
-
     fun getInt(key: String, default: Int = 0): Int {
         if (AppLogStore.isRuntimeKey(key)) return appLocalStore()?.getInt(key, default) ?: default
         if (RuntimeSettingsStore.owns(key)) return (RuntimeSettingsStore.value(key) as? Int) ?: default
@@ -773,41 +611,21 @@ object Preferences {
         write(localKey = key, runtimeMutation = if (RuntimeSettingsSnapshot.owns(key)) key to value else null) { putString(key, value) }
     }
 
-    /** The retired WMS Surface Dock style, read only to hand an enabled switch to the native glass. */
-    private const val KEY_LEGACY_DOCK_BACKGROUND = "launcher_dock_background"
-
-    /** Removes the retired Dock setting in one transaction, enabling the native glass if it was on. */
-    fun migrateLegacyDockBackground(): Boolean {
-        if (!contains(KEY_LEGACY_DOCK_BACKGROUND)) return false
-        // Encoded as "version|enabled|...": only the enabled field survives the retirement.
-        val enabled = getString(KEY_LEGACY_DOCK_BACKGROUND, "").split('|').getOrNull(1) == "1"
-        return runCatching {
-            mutations.patch(if (enabled) mapOf(PlatformSettingsKeys.KEY_NATIVE_PAD_DOCK to true) else emptyMap(),
-                setOf(KEY_LEGACY_DOCK_BACKGROUND), null) {}
-            memoInvalidate(KEY_LEGACY_DOCK_BACKGROUND)
-            memoInvalidate(PlatformSettingsKeys.KEY_NATIVE_PAD_DOCK)
-            SettingsDiagnostics.i("DockBackground", "legacy setting retired, native glass ${if (enabled) "enabled" else "unchanged"}")
-            enabled
-        }.onFailure { SettingsDiagnostics.w("DockBackground", "legacy setting retirement failed", it) }.getOrDefault(false)
+    /** Writes [changes] as one acknowledged runtime snapshot; feature readers own the keys. */
+    internal fun commitRuntimeChanges(changes: Map<String, Any>, edit: SharedPreferences.Editor.() -> Unit) {
+        changes.keys.forEach(::memoInvalidate)
+        write(runtimeChanges = changes, block = edit)
     }
 
-    fun desktopGrid(): Int = getInt(LauncherDesktopKeys.KEY_GRID, 0).takeIf(LauncherDesktopKeys::validGrid) ?: 0
-    fun commitDesktopGrid(value: Int): Boolean {
-        require(LauncherDesktopKeys.validGrid(value))
-        return runCatching {
-            mutations.patch(mapOf(LauncherDesktopKeys.KEY_GRID to value), emptySet(), null) {}
-            true
-        }.onFailure { SettingsDiagnostics.w("DesktopGrid", "settings commit failed", it) }.getOrDefault(false)
+    /** One acknowledged patch of [changes] and [remove]; throws when the backend rejects it. */
+    internal fun patchSettings(changes: Map<String, Any>, remove: Set<String>) {
+        mutations.patch(changes, remove, null) {}
+        (changes.keys + remove).forEach(::memoInvalidate)
     }
-    fun desktopIconPercent(): Int = LauncherDesktopKeys.storedPercent(getInt(LauncherDesktopKeys.KEY_ICON_SIZE_PERCENT, -1)) ?: -1
 
-    fun commitDesktopIconPercent(value: Int): Boolean {
-        require(LauncherDesktopKeys.validPercent(value))
-        return runCatching {
-            mutations.patch(mapOf(LauncherDesktopKeys.KEY_ICON_SIZE_PERCENT to value), emptySet(), null) {}
-            true
-        }.onFailure { SettingsDiagnostics.w("DesktopIconSize", "settings commit failed", it) }.getOrDefault(false)
-    }
+    /** The module app's local settings file, used only to recover writes made before publishing. */
+    internal fun localSource(): SharedPreferences? = localSourcePrefs
+
     fun putStringSynchronous(key: String, value: String) = mutations.putStringSynchronous(key, value)
 
     @Volatile private var reportedHookLogWrite = false

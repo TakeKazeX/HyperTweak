@@ -1,5 +1,5 @@
 import unittest
-from check_hook_callbacks import violations, preferences_api_violations
+from check_hook_callbacks import READERS, violations, preferences_api_violations
 
 
 class HookCallbacksGuardTest(unittest.TestCase):
@@ -35,6 +35,12 @@ class HookCallbacksGuardTest(unittest.TestCase):
     def test_independent_framework_hook_fails(self):
         self.assertEqual(1, len(violations('HostAccess.requirePublicMethod(View::class.java, "setAlpha", Float::class.java).hook {}')))
         self.assertEqual([], violations('// requirePublicMethod(View::class.java, "setAlpha")'))
+
+    def test_feature_readers_are_settings_sources(self):
+        self.assertIn("PowerSavePrefs", READERS)
+        self.assertEqual(1, len(violations('before { PowerSavePrefs.keepRefreshRateInPowerSave() }')))
+        self.assertEqual([], violations('val keep by hookSetting(false) { PowerSavePrefs.keepRefreshRateInPowerSave() }'))
+        self.assertEqual([], violations('before { removeDefaultPrefs.hook("x") }'))
 
     def test_preferences_surface_is_frozen(self):
         source = """object Preferences {

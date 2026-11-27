@@ -1,12 +1,12 @@
 package com.takekazex.hypertweak.hook.rules.system
 
+import com.takekazex.hypertweak.hook.preferences.PowerButtonPrefs
 import com.takekazex.hypertweak.hook.base.cachedPublicMethod
 import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import android.content.Context
 import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
-import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.hook.rules.googleapp.GoogleLensLauncher
 import com.takekazex.hypertweak.util.logging.DebugLog
@@ -67,7 +67,7 @@ import java.util.concurrent.atomic.AtomicLong
  */
 object PowerButtonCtsHooker : StaticHooker() {
     // Published on settings acceptance; hook callbacks perform no storage reads.
-    private val settingPowerButtonAction by hookSetting(PlatformSettingsKeys.POWER_BUTTON_ACTION_DISABLED) { Preferences.powerButtonAction() }
+    private val settingPowerButtonAction by hookSetting(PlatformSettingsKeys.POWER_BUTTON_ACTION_DISABLED) { PowerButtonPrefs.powerButtonAction() }
 
     override val hookerName = "PowerButtonCts"
 

@@ -1,5 +1,10 @@
 package com.takekazex.hypertweak.app
 
+import com.takekazex.hypertweak.hook.preferences.PowerSavePrefs
+import com.takekazex.hypertweak.hook.preferences.PowerButtonPrefs
+import com.takekazex.hypertweak.hook.preferences.LauncherDesktopPrefs
+import com.takekazex.hypertweak.hook.preferences.FingerprintPrefs
+import com.takekazex.hypertweak.hook.preferences.CameraMomentPrefs
 import com.takekazex.hypertweak.settings.contract.SystemUiSettingsKeys
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 import com.takekazex.hypertweak.settings.contract.IconSettingsPreferencePolicy
@@ -57,14 +62,14 @@ internal object PreferencesAppSettings : AppSettingsStore {
     }
 
     override val fingerprint = object : FingerprintSettings {
-        override fun hideFingerprintAodEnabled(): Boolean = Preferences.hideFingerprintAodEnabled()
-        override fun hideFingerprintLockscreenEnabled(): Boolean = Preferences.hideFingerprintLockscreenEnabled()
-        override fun hideFingerprintAppAuthEnabled(): Boolean = Preferences.hideFingerprintAppAuthEnabled()
+        override fun hideFingerprintAodEnabled(): Boolean = FingerprintPrefs.hideFingerprintAodEnabled()
+        override fun hideFingerprintLockscreenEnabled(): Boolean = FingerprintPrefs.hideFingerprintLockscreenEnabled()
+        override fun hideFingerprintAppAuthEnabled(): Boolean = FingerprintPrefs.hideFingerprintAppAuthEnabled()
     }
 
     override val powerButton = object : PowerButtonSettings {
-        override fun powerButtonAction(): Int = Preferences.powerButtonAction()
-        override fun setPowerButtonAction(action: Int): Unit = Preferences.setPowerButtonAction(action)
+        override fun powerButtonAction(): Int = PowerButtonPrefs.powerButtonAction()
+        override fun setPowerButtonAction(action: Int): Unit = PowerButtonPrefs.setPowerButtonAction(action)
     }
 
     override val backGesture = object : BackGestureSettings {
@@ -74,17 +79,17 @@ internal object PreferencesAppSettings : AppSettingsStore {
     }
 
     override val camera = object : CameraAppSettings {
-        override fun setCameraLegendaryMomentMode(mode: String): Unit = Preferences.setCameraLegendaryMomentMode(mode)
-        override fun cameraLegendaryMomentMode(): String = Preferences.cameraLegendaryMomentMode()
+        override fun setCameraLegendaryMomentMode(mode: String): Unit = CameraMomentPrefs.setCameraLegendaryMomentMode(mode)
+        override fun cameraLegendaryMomentMode(): String = CameraMomentPrefs.cameraLegendaryMomentMode()
     }
 
     override val launcher = object : LauncherAppSettings {
-        override fun desktopGrid(): Int = Preferences.desktopGrid()
-        override fun commitDesktopGrid(value: Int): Boolean = Preferences.commitDesktopGrid(value)
-        override fun migrateLegacyDockBackground(): Boolean = Preferences.migrateLegacyDockBackground()
-        override fun desktopIconPercent(): Int = Preferences.desktopIconPercent()
-        override fun commitDesktopIconPercent(value: Int): Boolean = Preferences.commitDesktopIconPercent(value)
-        override fun openedFolderColumns(): Int = Preferences.openedFolderColumns()
+        override fun desktopGrid(): Int = LauncherDesktopPrefs.desktopGrid()
+        override fun commitDesktopGrid(value: Int): Boolean = LauncherDesktopPrefs.commitDesktopGrid(value)
+        override fun migrateLegacyDockBackground(): Boolean = LauncherDesktopPrefs.migrateLegacyDockBackground()
+        override fun desktopIconPercent(): Int = LauncherDesktopPrefs.desktopIconPercent()
+        override fun commitDesktopIconPercent(value: Int): Boolean = LauncherDesktopPrefs.commitDesktopIconPercent(value)
+        override fun openedFolderColumns(): Int = LauncherDesktopPrefs.openedFolderColumns()
         override fun allowAndroidWidgetsToAssistant(): Boolean = Preferences.getBoolean(PlatformSettingsKeys.KEY_ALLOW_ANDROID_WIDGETS_TO_ASSISTANT, false)
         override fun androidWidgetStack(): Boolean = Preferences.getBoolean(PlatformSettingsKeys.KEY_ANDROID_WIDGET_STACK, false)
         override fun folderStackPreview(): Boolean = Preferences.getBoolean(PlatformSettingsKeys.KEY_FOLDER_STACK_PREVIEW, false)
@@ -112,14 +117,14 @@ internal object PreferencesAppSettings : AppSettingsStore {
     }
 
     override val powerSave = object : PowerSaveSettings {
-        override fun setPowerSaveFeature(key: String, enabled: Boolean): Unit = Preferences.setPowerSaveFeature(key, enabled)
-        override fun batteryAutoPowerSaveThreshold(): Int = Preferences.batteryAutoPowerSaveThreshold()
+        override fun setPowerSaveFeature(key: String, enabled: Boolean): Unit = PowerSavePrefs.setPowerSaveFeature(key, enabled)
+        override fun batteryAutoPowerSaveThreshold(): Int = PowerSavePrefs.batteryAutoPowerSaveThreshold()
         override fun batteryAutoPowerSaveEnabled(): Boolean = Preferences.getBoolean(PlatformSettingsKeys.KEY_BATTERY_AUTO_POWER_SAVE_ENABLED, false)
         override fun exitPowerSaveWhenCharging(): Boolean = Preferences.getBoolean(PlatformSettingsKeys.KEY_EXIT_POWER_SAVE_WHEN_CHARGING, false)
-        override fun keepHapticFeedbackInPowerSave(): Boolean = Preferences.keepHapticFeedbackInPowerSave()
-        override fun keepRefreshRateInPowerSave(): Boolean = Preferences.keepRefreshRateInPowerSave()
-        override fun keepSystemSoundsInPowerSave(): Boolean = Preferences.keepSystemSoundsInPowerSave()
-        override fun keepWakeupGesturesInPowerSave(): Boolean = Preferences.keepWakeupGesturesInPowerSave()
+        override fun keepHapticFeedbackInPowerSave(): Boolean = PowerSavePrefs.keepHapticFeedbackInPowerSave()
+        override fun keepRefreshRateInPowerSave(): Boolean = PowerSavePrefs.keepRefreshRateInPowerSave()
+        override fun keepSystemSoundsInPowerSave(): Boolean = PowerSavePrefs.keepSystemSoundsInPowerSave()
+        override fun keepWakeupGesturesInPowerSave(): Boolean = PowerSavePrefs.keepWakeupGesturesInPowerSave()
     }
 
 }

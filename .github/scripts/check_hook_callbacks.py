@@ -10,8 +10,13 @@ import sys
 from check_architecture import NON_CODE
 
 ROOT = Path(__file__).resolve().parents[2]
+# Feature readers next to the storage boundary are settings sources too; their names are derived
+# from the declarations so a moved reader cannot escape the snapshot rule.
+READERS = sorted(re.findall(r'^internal object (\w+Prefs)\b', ''.join(
+    path.read_text() for path in (ROOT / 'app/src/main/kotlin/com/takekazex/hypertweak/hook/preferences')
+    .glob('*Prefs.kt')), re.M))
 # Any new Preferences API is rejected by default, including function references and properties.
-READ = re.compile(r'\bPreferences\s*(?:\.|::)\s*(\w+)')
+READ = re.compile(r'\b(?:' + '|'.join(['Preferences', *READERS]) + r')\s*(?:\.|::)\s*(\w+)')
 ALLOWED_OPERATIONS = frozenset({
     "flush", "putStringSynchronous", "initLocalCache", "invalidateRuntimeReadCache",
     "isInitialized",
@@ -22,21 +27,14 @@ ALLOWED_OPERATIONS = frozenset({
 PREFERENCES = ROOT / 'app/src/main/kotlin/com/takekazex/hypertweak/hook/Preferences.kt'
 PREFERENCES_API = frozenset({
     "appLogs", "appendDebugLog", "appendDebugLogs", "backGestureBoolean", "backGestureEnabled",
-    "backGesturePreferences", "batteryAutoPowerSaveThreshold", "cameraLegendaryMomentMode",
-    "clearAllSettings", "clearDebugLog", "commitDesktopGrid", "commitDesktopIconPercent", "contains",
-    "desktopGrid", "desktopIconPercent", "exportSettings", "flush", "getBoolean", "getDebugLog", "getFloat",
-    "getInt", "getString", "getStringSet", "hasRemoteConfig", "hideFingerprintAodEnabled",
-    "hideFingerprintAppAuthEnabled", "hideFingerprintLockscreenEnabled", "iconConfig", "init",
-    "initLocalCache", "inspectDebugSettings", "invalidateRuntimeReadCache", "isDebugUserSetting",
-    "isInitialized", "isRemoteBackendUnavailable", "keepHapticFeedbackInPowerSave",
-    "keepRefreshRateInPowerSave", "keepSystemSoundsInPowerSave", "keepWakeupGesturesInPowerSave", "logLevel",
-    "migrateLegacyDockBackground", "nativePickerEnabled", "nativeRuleSnapshot",
-    "noteRemoteBackendUnavailable", "openedFolderColumns", "patchDebugSettings", "powerButtonAction",
-    "putBackGestureAppearance", "putBoolean", "putFloat", "putInt", "putString", "putStringSet",
-    "putStringSynchronous", "recoverUnpublishedPowerSaveSelection",
-    "recoverUnpublishedSavedNetworksPosition", "restoreSettings", "rotateLogSessionIfNeeded",
-    "runtimePreferenceSource", "setCameraLegendaryMomentMode", "setPowerButtonAction", "setPowerSaveFeature",
-    "settingsEpochForUi", "upstreamBackGestureOwnsInput", "useLocalBackend",
+    "backGesturePreferences", "clearAllSettings", "clearDebugLog", "commitRuntimeChanges", "contains",
+    "exportSettings", "flush", "getBoolean", "getDebugLog", "getFloat", "getInt", "getString",
+    "getStringSet", "hasRemoteConfig", "iconConfig", "init", "initLocalCache", "inspectDebugSettings",
+    "invalidateRuntimeReadCache", "isDebugUserSetting", "isInitialized", "isRemoteBackendUnavailable",
+    "localSource", "logLevel", "nativePickerEnabled", "nativeRuleSnapshot", "noteRemoteBackendUnavailable",
+    "patchDebugSettings", "patchSettings", "putBackGestureAppearance", "putBoolean", "putFloat", "putInt",
+    "putString", "putStringSet", "putStringSynchronous", "restoreSettings", "rotateLogSessionIfNeeded",
+    "runtimePreferenceSource", "settingsEpochForUi", "upstreamBackGestureOwnsInput", "useLocalBackend",
 })
 MEMBER = re.compile(r'^    (?!private\b)(?:@\w+(?:\([^)]*\))?\s+)*'
                     r'(?:(?:internal|public|override|inline|lateinit|const|@Volatile)\s+)*'

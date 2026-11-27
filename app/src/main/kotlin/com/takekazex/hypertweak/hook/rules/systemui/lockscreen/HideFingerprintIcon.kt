@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.systemui.lockscreen
 
+import com.takekazex.hypertweak.hook.preferences.FingerprintPrefs
 import com.takekazex.hypertweak.hook.base.HostSelect
 import com.takekazex.hypertweak.hook.base.HostAccess
 import android.graphics.Canvas
@@ -7,7 +8,6 @@ import android.graphics.PorterDuff
 import android.view.View
 import android.view.ViewParent
 import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
-import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 import org.luckypray.dexkit.query.enums.StringMatchType
@@ -16,9 +16,9 @@ import java.lang.reflect.Method
 import java.util.concurrent.ConcurrentHashMap
 
 // Published on settings acceptance; hook callbacks perform no storage reads.
-private val settingHideFingerprintAodEnabled by hookSetting(false) { Preferences.hideFingerprintAodEnabled() }
-private val settingHideFingerprintLockscreenEnabled by hookSetting(false) { Preferences.hideFingerprintLockscreenEnabled() }
-private val settingHideFingerprintAppAuthEnabled by hookSetting(false) { Preferences.hideFingerprintAppAuthEnabled() }
+private val settingHideFingerprintAodEnabled by hookSetting(false) { FingerprintPrefs.hideFingerprintAodEnabled() }
+private val settingHideFingerprintLockscreenEnabled by hookSetting(false) { FingerprintPrefs.hideFingerprintLockscreenEnabled() }
+private val settingHideFingerprintAppAuthEnabled by hookSetting(false) { FingerprintPrefs.hideFingerprintAppAuthEnabled() }
 
 internal fun prepareHideFingerprintIconSettings() { settingHideFingerprintAodEnabled }
 

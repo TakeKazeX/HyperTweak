@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.nativebridge
 
+import com.takekazex.hypertweak.hook.preferences.LauncherDesktopPrefs
 import com.takekazex.hypertweak.settings.contract.LauncherDesktopKeys
 
 import com.takekazex.hypertweak.hook.Preferences
@@ -40,17 +41,17 @@ object NativeRuleConfig {
     fun publish(
         context: Context,
         hideRecentsClearButton: Boolean,
-        openedFolderColumns: Int = Preferences.openedFolderColumns(),
+        openedFolderColumns: Int = LauncherDesktopPrefs.openedFolderColumns(),
         contextualSearchLongPress: Boolean = Preferences.getBoolean(PlatformSettingsKeys.KEY_CONTEXTUAL_SEARCH_LONG_PRESS, false),
         assistantWidgets: Boolean = Preferences.getBoolean(PlatformSettingsKeys.KEY_ALLOW_ANDROID_WIDGETS_TO_ASSISTANT, false),
         recentsHaptic: Boolean = Preferences.getBoolean(PlatformSettingsKeys.KEY_RECENTS_CARD_HAPTIC, false),
         folderStack: Boolean = Preferences.getBoolean(PlatformSettingsKeys.KEY_FOLDER_STACK_PREVIEW, false),
         widgetStack: Boolean = Preferences.getBoolean(PlatformSettingsKeys.KEY_ANDROID_WIDGET_STACK, false),
         xiaoaiOptions: Boolean = Preferences.getBoolean(PlatformSettingsKeys.KEY_XIAOAI_GESTURE_OPTIONS, false),
-        iconPercent: Int = Preferences.desktopIconPercent()
+        iconPercent: Int = LauncherDesktopPrefs.desktopIconPercent()
     ) {
         val contents = buildString {
-            append(LauncherDesktopKeys.KEY_GRID).append('=').append(Preferences.desktopGrid()).append('\n')
+            append(LauncherDesktopKeys.KEY_GRID).append('=').append(LauncherDesktopPrefs.desktopGrid()).append('\n')
             append(LauncherDesktopKeys.KEY_ICON_SIZE_PERCENT).append('=').append(iconPercent).append('\n')
             append(KEY_HIDE_RECENTS_CLEAR)
             append('=')

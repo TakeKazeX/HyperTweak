@@ -1,12 +1,12 @@
 package com.takekazex.hypertweak.hook.rules.googleapp
 
+import com.takekazex.hypertweak.hook.preferences.PowerButtonPrefs
 import com.takekazex.hypertweak.hook.base.HostAccess
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 
 import android.app.Activity
 import com.takekazex.hypertweak.BuildConfig
 import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
-import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 import io.github.libxposed.api.XposedInterface
@@ -68,7 +68,7 @@ import java.util.concurrent.atomic.AtomicBoolean
  */
 object GoogleAppLensEntryHooker : StaticHooker() {
     // Published on settings acceptance; hook callbacks perform no storage reads.
-    private val settingPowerButtonAction by hookSetting(PlatformSettingsKeys.POWER_BUTTON_ACTION_DISABLED) { Preferences.powerButtonAction() }
+    private val settingPowerButtonAction by hookSetting(PlatformSettingsKeys.POWER_BUTTON_ACTION_DISABLED) { PowerButtonPrefs.powerButtonAction() }
 
     private const val TAG = "GoogleLensEntry"
 

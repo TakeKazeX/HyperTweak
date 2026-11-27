@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.camera
 
+import com.takekazex.hypertweak.hook.preferences.CameraMomentPrefs
 import com.takekazex.hypertweak.hook.base.HookFailurePolicy
 import com.takekazex.hypertweak.hook.base.cachedPublicMethod
 import com.takekazex.hypertweak.hook.base.HostAccess
@@ -33,7 +34,7 @@ object CameraImpersonationHooker : StaticHooker() {
     private val settingCameraAllShutterSounds by hookSetting(false) {
         Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_ALL_SHUTTER_SOUNDS, false)
     }
-    private val settingCameraLegendaryMomentMode by hookSetting(CameraLegendaryMomentMode.DEFAULT) { Preferences.cameraLegendaryMomentMode() }
+    private val settingCameraLegendaryMomentMode by hookSetting(CameraLegendaryMomentMode.DEFAULT) { CameraMomentPrefs.cameraLegendaryMomentMode() }
     private val settingCameraLegendaryExtraModes by hookSetting(false) {
         Preferences.getBoolean(CameraSettingsKeys.KEY_CAMERA_LEGENDARY_EXTRA_MODES, false,)
     }

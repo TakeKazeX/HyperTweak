@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.system
 
+import com.takekazex.hypertweak.hook.preferences.PowerButtonPrefs
 import com.takekazex.hypertweak.hook.base.cachedDeclaredField
 import com.takekazex.hypertweak.hook.base.cachedDeclaredMethod
 import com.takekazex.hypertweak.hook.base.HostAccess
@@ -21,7 +22,7 @@ import io.github.libxposed.api.XposedInterface
 /** Restricts the contextual-search compatibility bridge to the SystemUI and provider calls. */
 object ContextualSearchSystemHooker : StaticHooker() {
     // Published on settings acceptance; hook callbacks perform no storage reads.
-    private val settingPowerButtonAction by hookSetting(PlatformSettingsKeys.POWER_BUTTON_ACTION_DISABLED) { Preferences.powerButtonAction() }
+    private val settingPowerButtonAction by hookSetting(PlatformSettingsKeys.POWER_BUTTON_ACTION_DISABLED) { PowerButtonPrefs.powerButtonAction() }
     private val settingContextualSearchLongPress by hookSetting(false) { Preferences.getBoolean(PlatformSettingsKeys.KEY_CONTEXTUAL_SEARCH_LONG_PRESS, false) }
 
     private const val SCOPE = "ContextualSearchBridge"

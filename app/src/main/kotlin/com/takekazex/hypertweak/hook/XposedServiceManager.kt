@@ -1,5 +1,7 @@
 package com.takekazex.hypertweak.hook
 
+import com.takekazex.hypertweak.hook.preferences.SavedNetworksPrefs
+import com.takekazex.hypertweak.hook.preferences.PowerSavePrefs
 import com.takekazex.hypertweak.hook.runtime.reload.HotReloadBatch
 import com.takekazex.hypertweak.hook.runtime.settings.RuntimeSettingsSignal
 import com.takekazex.hypertweak.settings.contract.HotReloadOutcome
@@ -66,8 +68,8 @@ internal object XposedServiceManager : XposedServiceHelper.OnServiceListener, Mo
             val remotePrefs = service.getRemotePreferences(AppSettingsKeys.NAME)
             Preferences.init(remotePrefs)
             RuntimeSettingsSignal.bind(remotePrefs)
-            Preferences.recoverUnpublishedPowerSaveSelection()
-            Preferences.recoverUnpublishedSavedNetworksPosition()
+            PowerSavePrefs.recoverUnpublishedSelection()
+            SavedNetworksPrefs.recoverUnpublishedPosition()
             DebugLog.d("XposedService", "switched Preferences to RemotePreferences")
         } catch (t: Throwable) {
             Preferences.noteRemoteBackendUnavailable()

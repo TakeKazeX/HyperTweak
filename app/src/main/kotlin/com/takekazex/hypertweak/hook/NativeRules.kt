@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook
 
+import com.takekazex.hypertweak.hook.preferences.LauncherDesktopPrefs
 import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 import com.takekazex.hypertweak.util.logging.DebugLog
 
@@ -90,7 +91,7 @@ object NativeRules {
         folderStack: Boolean = Preferences.getBoolean(PlatformSettingsKeys.KEY_FOLDER_STACK_PREVIEW, false),
         widgetStack: Boolean = Preferences.getBoolean(PlatformSettingsKeys.KEY_ANDROID_WIDGET_STACK, false),
         xiaoaiOptions: Boolean = Preferences.getBoolean(PlatformSettingsKeys.KEY_XIAOAI_GESTURE_OPTIONS, false),
-        iconPercent: Int = Preferences.desktopIconPercent()
+        iconPercent: Int = LauncherDesktopPrefs.desktopIconPercent()
     ): Boolean {
         if (!ensureLoaded()) return false
         return try {

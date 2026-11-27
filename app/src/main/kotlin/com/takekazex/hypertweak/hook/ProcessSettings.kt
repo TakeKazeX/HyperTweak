@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook
 
+import com.takekazex.hypertweak.hook.preferences.LauncherDesktopPrefs
 import android.content.Context
 import android.content.SharedPreferences
 import com.takekazex.hypertweak.hook.bootstrap.RuntimeSettingsParticipants
@@ -235,7 +236,7 @@ internal class ProcessSettings(
         runCatching {
             NativeRules.applyRuleSwitches(
                 hideRecentsClearButton = Preferences.getBoolean(PlatformSettingsKeys.KEY_HIDE_RECENTS_CLEAR_BUTTON, false),
-                openedFolderColumns = Preferences.openedFolderColumns(),
+                openedFolderColumns = LauncherDesktopPrefs.openedFolderColumns(),
                 contextualSearchLongPress = Preferences.getBoolean(PlatformSettingsKeys.KEY_CONTEXTUAL_SEARCH_LONG_PRESS, false),
                 assistantWidgets = Preferences.getBoolean(PlatformSettingsKeys.KEY_ALLOW_ANDROID_WIDGETS_TO_ASSISTANT, false)
             )

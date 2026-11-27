@@ -1,5 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.system
 
+import com.takekazex.hypertweak.hook.preferences.PowerButtonPrefs
 import com.takekazex.hypertweak.hook.base.GenerationInputs
 import com.takekazex.hypertweak.hook.base.cachedPublicMethod
 import com.takekazex.hypertweak.hook.base.HostAccess
@@ -12,7 +13,6 @@ import android.content.pm.PackageManager
 import android.os.Process
 import android.provider.Settings
 import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
-import com.takekazex.hypertweak.hook.Preferences
 import com.takekazex.hypertweak.hook.base.StaticHooker
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.reflect.Method
@@ -81,7 +81,7 @@ object DefaultAssistantHooker : StaticHooker() {
     override val expectsHooks = false
 
     // Published on settings acceptance; hook callbacks perform no storage reads.
-    private val settingPowerButtonAction by hookSetting(PlatformSettingsKeys.POWER_BUTTON_ACTION_DISABLED) { Preferences.powerButtonAction() }
+    private val settingPowerButtonAction by hookSetting(PlatformSettingsKeys.POWER_BUTTON_ACTION_DISABLED) { PowerButtonPrefs.powerButtonAction() }
 
     override val hookerName = "DefaultAssistant"
 

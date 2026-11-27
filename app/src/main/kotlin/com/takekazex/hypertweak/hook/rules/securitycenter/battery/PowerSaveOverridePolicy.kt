@@ -1,13 +1,13 @@
 package com.takekazex.hypertweak.hook.rules.securitycenter.battery
 
+import com.takekazex.hypertweak.hook.preferences.PowerSavePrefs
 import com.takekazex.hypertweak.hook.runtime.settings.hookSetting
-import com.takekazex.hypertweak.hook.Preferences
 
 // Published on settings acceptance; hook callbacks perform no storage reads.
-private val settingKeepRefreshRateInPowerSave by hookSetting(false) { Preferences.keepRefreshRateInPowerSave() }
-private val settingKeepHapticFeedbackInPowerSave by hookSetting(false) { Preferences.keepHapticFeedbackInPowerSave() }
-private val settingKeepSystemSoundsInPowerSave by hookSetting(false) { Preferences.keepSystemSoundsInPowerSave() }
-private val settingKeepWakeupGesturesInPowerSave by hookSetting(false) { Preferences.keepWakeupGesturesInPowerSave() }
+private val settingKeepRefreshRateInPowerSave by hookSetting(false) { PowerSavePrefs.keepRefreshRateInPowerSave() }
+private val settingKeepHapticFeedbackInPowerSave by hookSetting(false) { PowerSavePrefs.keepHapticFeedbackInPowerSave() }
+private val settingKeepSystemSoundsInPowerSave by hookSetting(false) { PowerSavePrefs.keepSystemSoundsInPowerSave() }
+private val settingKeepWakeupGesturesInPowerSave by hookSetting(false) { PowerSavePrefs.keepWakeupGesturesInPowerSave() }
 
 internal fun preparePowerSaveOverridePolicySettings() { settingKeepRefreshRateInPowerSave }
 
