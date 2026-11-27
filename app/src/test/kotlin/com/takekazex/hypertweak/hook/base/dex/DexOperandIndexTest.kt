@@ -55,6 +55,38 @@ class DexOperandIndexTest {
         assertTrue(dex.callers(listOf("Lfixture/Gates;->absent()Z")).isEmpty())
     }
 
+    @Test fun `DEX 039 constants keep the rest of the method aligned`() {
+        // OS4 hosts (framework.jar, AICR) ship DEX 039. dexlib2's default API 20 opcodes read
+        // const-method-type as a one-unit unknown instruction and lose the call after it.
+        // dexlib2 2.5.2 cannot write a proto reference, so write a const-string (also format 21c)
+        // and patch its opcode to const-method-type (0xff). The proto index 0x13 matters: the
+        // misread decodes it as two-unit const/16, which swallows the call (index 0 is a nop
+        // that happens to realign). Bodiless methods supply that many protos.
+        val protos = (1..24).map { arity ->
+            ImmutableMethod("Lfixture/Screen;", "p$arity", List(arity) { ImmutableMethodParameter("I", emptySet(), null) },
+                "V", 0x109, emptySet(), emptySet(), null)
+        }
+        val file = temporary.newFile("dex039.dex")
+        val type = ImmutableClassDef("Lfixture/Screen;", 1, "Ljava/lang/Object;", emptyList(), null,
+            emptySet(), emptyList(), listOf(method("typed", listOf(
+                ImmutableInstruction21c(Opcode.CONST_STRING, 1, ImmutableStringReference("marker")),
+                invoke("gate"), ImmutableInstruction10x(Opcode.RETURN_VOID),
+            ))) + protos)
+        DexPool.writeTo(file.absolutePath, ImmutableDexFile(Opcodes.forApi(28), listOf(type)))
+        val bytes = file.readBytes()
+        val at = (0 until bytes.size - 4).single {
+            bytes[it] == 0x1a.toByte() && bytes[it + 1] == 0x01.toByte() && bytes[it + 4] == 0x71.toByte()
+        }
+        bytes[at] = 0xff.toByte(); bytes[at + 2] = 0x13; bytes[at + 3] = 0
+        // Host APKs go through the root-entry stream reader, so package the DEX as one.
+        val apk = temporary.newFile("dex039.apk")
+        java.util.zip.ZipOutputStream(apk.outputStream()).use { zip ->
+            zip.putNextEntry(java.util.zip.ZipEntry("classes.dex")); zip.write(bytes); zip.closeEntry()
+        }
+        val dex = DexOperandIndex.fixture(apk.absolutePath)
+        assertEquals(listOf("typed"), dex.callers(listOf("Lfixture/Gates;->gate()Z")).map { it.name })
+    }
+
     @Test fun `renaming a capability preserves resolution through its consumer`() {
         val first = index(guarded("page", "arbitraryOne"))
         val second = index(guarded("anotherPage", "unrelatedNewSpelling"))

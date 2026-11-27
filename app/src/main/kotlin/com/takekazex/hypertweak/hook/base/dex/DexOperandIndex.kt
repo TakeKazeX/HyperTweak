@@ -38,13 +38,13 @@ internal class DexOperandIndex internal constructor(
                 entries.flatMap { entry ->
                     zip.getInputStream(entry).buffered().use { input ->
                         org.jf.dexlib2.dexbacked.DexBackedDexFile.fromInputStream(
-                            Opcodes.getDefault(), input,
+                            HOST_OPCODES, input,
                         ).classes.toList()
                     }
                 }
             }
         } else {
-            val container = DexFileFactory.loadDexContainer(apk, Opcodes.getDefault())
+            val container = DexFileFactory.loadDexContainer(apk, HOST_OPCODES)
             container.dexEntryNames.flatMap { entry ->
                 container.getEntry(entry)!!.dexFile.classes.toList()
             }
@@ -319,6 +319,14 @@ internal class DexOperandIndex internal constructor(
 
     companion object {
         private val ROOT_DEX = Regex("classes(?:[0-9]+)?\\.dex")
+        /**
+         * dexlib2's `Opcodes.getDefault()` is API 20: it decodes the DEX 038/039 opcodes
+         * (`invoke-polymorphic`, `invoke-custom`, `const-method-handle`, `const-method-type`) as
+         * one-unit unknown instructions, which misaligns the rest of the method or aborts the
+         * class walk ("last instruction ... is truncated"). OS4 hosts ship DEX 039: framework.jar
+         * and AICR hit this. Decode with the module's minimum platform opcodes instead.
+         */
+        private val HOST_OPCODES: Opcodes = Opcodes.forApi(36)
         /** Offline fixture reader. Production indexes are obtained only through DexRuntime. */
         fun fixture(path: String): DexOperandIndex = DexOperandIndex(listOf(File(path)))
         fun openWithStringLookup(path: String, lookup: (String) -> List<String>?): DexOperandIndex =
