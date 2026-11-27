@@ -44,6 +44,9 @@ private fun BaseHooker.backGestureRegistrar() = object : HookRuntimeCore.HookReg
 
     override fun getInvoker(method: Method): XposedInterface.Invoker<*, Method> =
         module.getInvoker(method)
+
+    override fun dexCacheDirectory(): java.io.File? =
+        com.takekazex.hypertweak.hook.base.dex.DexRuntime.cacheDirectory(hookParam.appInfo)
 }
 
 object AospBackSystemUiHooker : StaticHooker() {

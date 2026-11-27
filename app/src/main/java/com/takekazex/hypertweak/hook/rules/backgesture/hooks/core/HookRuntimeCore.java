@@ -724,6 +724,12 @@ public abstract class HookRuntimeCore {
         XposedInterface.HookHandle register(Executable method, String id, XposedInterface.Hooker hooker);
         boolean deoptimize(Executable method);
         XposedInterface.Invoker<?, Method> getInvoker(Method method);
+        /**
+         * The host's DEX cache directory, from the package-load ApplicationInfo. Early in a cold
+         * start the host Application does not exist yet, so a Context-derived directory is null and
+         * every DEX contract would rescan on each boot without ever being cached.
+         */
+        default java.io.File dexCacheDirectory() { return null; }
     }
     protected HookRegistrar hookRegistrar;
     protected ClassLoader runtimeClassLoader;

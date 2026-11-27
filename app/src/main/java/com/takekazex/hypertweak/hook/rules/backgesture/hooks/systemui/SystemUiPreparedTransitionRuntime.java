@@ -144,7 +144,7 @@ public abstract class SystemUiPreparedTransitionRuntime extends SystemUiNavigati
                     @Override public String getId() { return "backgesture.prepared_target_arrival"; }
                     @Override public int getSchema() { return 1; }
                 }, dexContainer,
-                DexRuntime.INSTANCE.cacheDirectory(context == null ? null : context.getApplicationInfo()),
+                dexCacheDirectory(context),
                 false, false, null, session -> session.dexKit(bridge -> {
             Method match = null;
             FindMethod query = FindMethod.create().matcher(
@@ -189,6 +189,13 @@ public abstract class SystemUiPreparedTransitionRuntime extends SystemUiNavigati
                     "No exact BackAnimationController runner adapter found");
         }
         return resolved;
+    }
+
+    /** The package-load directory first; the Application context exists only later in a cold start. */
+    protected java.io.File dexCacheDirectory(android.content.Context context) {
+        java.io.File fromLoad = hookRegistrar == null ? null : hookRegistrar.dexCacheDirectory();
+        if (fromLoad != null) return fromLoad;
+        return DexRuntime.INSTANCE.cacheDirectory(context == null ? null : context.getApplicationInfo());
     }
 
     protected String resolveDexContainerForLoadedClass(Class<?> targetClass)
