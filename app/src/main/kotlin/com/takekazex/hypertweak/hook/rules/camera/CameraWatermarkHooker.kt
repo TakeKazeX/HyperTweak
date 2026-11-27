@@ -44,9 +44,11 @@ object CameraWatermarkHooker : StaticHooker() {
         }
     }
 
-    private fun hookDebugFlag(ctx: CameraResolver.Ctx) {
-        val semantics = CameraSemantics.create(ctx, TAG) ?: return
-        val invoke = semantics.anchored("watermark debug property", "camera.cloud.watermark.debug", replay = {
+    // Each feature replays its cached targets on the install thread and defers a cold scan to the
+    // worker; none of these hooks is needed before the first watermark render.
+    private fun hookDebugFlag(ctx: CameraResolver.Ctx) = prepareCachedDexTargets("wm debug flag", resolve = {
+        val semantics = CameraSemantics.create(ctx, TAG) ?: return@prepareCachedDexTargets null
+        semantics.anchored("watermark debug property", "camera.cloud.watermark.debug", replay = {
             it.parameterTypes.isEmpty() && it.returnType in setOf("Z", "Ljava/lang/Boolean;", "Ljava/lang/Object;")
         }) {
             it.parameterTypes.isEmpty() &&
@@ -54,7 +56,8 @@ object CameraWatermarkHooker : StaticHooker() {
                     (it.returnType == "Ljava/lang/Object;" && semantics.dex.code(it).calls.any { call ->
                         call.method.definingClass == "Ljava/lang/Boolean;" && call.method.name == "valueOf"
                     }))
-        } ?: return
+        }
+    }) { invoke ->
         val clazz = invoke.declaringClass
         deoptimize(invoke)
         invoke.hook("wm_debug_flag") {
@@ -84,7 +87,7 @@ object CameraWatermarkHooker : StaticHooker() {
                 )
         }
 
-        val clazz = CameraResolver.resolveClass(
+        prepareCachedDexTargets("wm cloud catalog filter", resolve = { CameraResolver.resolveClass(
             scope = TAG,
             key = "wm_cloud_catalog_filter",
             ctx = ctx,
@@ -108,11 +111,10 @@ object CameraWatermarkHooker : StaticHooker() {
                     .singleOrNull()
             },
             validate = ::hasNativeFilter,
-        ) ?: run {
-            DebugLog.w(TAG, "cloud watermark native filter not resolved; catalog stays stock")
-            return
-        }
+        ) }) { clazz -> installCloudCatalogFilter(clazz) }
+    }
 
+    private fun installCloudCatalogFilter(clazz: Class<*>) {
         val wrapper = clazz.declaredMethods.singleOrNull { method ->
             Modifier.isStatic(method.modifiers) && !Modifier.isNative(method.modifiers) &&
                 method.returnType == String::class.java && method.parameterTypes.contentEquals(
@@ -138,11 +140,11 @@ object CameraWatermarkHooker : StaticHooker() {
         DebugLog.i(TAG, "cloud watermark catalog capability filter hooked on ${clazz.name}#${wrapper.name}()")
     }
 
-    private fun hookFilterData(ctx: CameraResolver.Ctx) {
-        val semantics = CameraSemantics.create(ctx, TAG) ?: return
-        val method = semantics.anchored("watermark limitation filter", "filterData: E ", "filterData: delete ") {
+    private fun hookFilterData(ctx: CameraResolver.Ctx) = prepareCachedDexTargets("wm filter data", resolve = {
+        CameraSemantics.create(ctx, TAG)?.anchored("watermark limitation filter", "filterData: E ", "filterData: delete ") {
             it.returnType == "V" && it.parameterTypes.map(CharSequence::toString) == listOf("Z")
-        } ?: return
+        }
+    }) { method ->
         val clazz = method.declaringClass
         deoptimize(method)
         method.hook("wm_filter_data") {
@@ -160,16 +162,17 @@ object CameraWatermarkHooker : StaticHooker() {
         DebugLog.d(TAG, "camera watermark filter bypass hooked on ${clazz.name}#${method.name}(boolean)")
     }
 
-    private fun hookLeicaResourceHydration(ctx: CameraResolver.Ctx) {
-        val semantics = CameraSemantics.create(ctx, TAG) ?: return
+    private fun hookLeicaResourceHydration(ctx: CameraResolver.Ctx) = prepareCachedDexTargets("wm leica hydration", resolve = {
+        val semantics = CameraSemantics.create(ctx, TAG) ?: return@prepareCachedDexTargets null
         val scan = semantics.anchored("watermark resource scan", "initData: E", "initData: X") {
             it.returnType == "V" && it.parameterTypes.isEmpty()
-        } ?: return
+        } ?: return@prepareCachedDexTargets null
+        val owner = DexOperandIndex.descriptor(scan.declaringClass)
+        semantics.anchored("watermark working directory", "workingPath") {
+            it.definingClass == owner && it.parameterTypes.isEmpty() && it.returnType == "Ljava/nio/file/Path;"
+        }?.let { scan to it }
+    }) { (scan, workingPath) ->
         val clazz = scan.declaringClass
-        val workingPath = semantics.anchored("watermark working directory", "workingPath") {
-            it.definingClass == DexOperandIndex.descriptor(clazz) && it.parameterTypes.isEmpty() &&
-                it.returnType == "Ljava/nio/file/Path;"
-        } ?: return
         deoptimize(scan)
         scan.hook("wm_leica_resource_hydration") {
             before { param ->

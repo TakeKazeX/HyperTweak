@@ -77,6 +77,7 @@ internal object DexRuntime {
 
     private const val WORKER_THREAD = "HT-DexPrepare"
     private val synchronousReason = ThreadLocal<String?>()
+    private val replaying = ThreadLocal<Boolean?>()
     private val warnedInstallThreadScans = ConcurrentHashMap.newKeySet<String>()
 
     /**
@@ -84,6 +85,21 @@ internal object DexRuntime {
      * reason. Without it, [resolve] warns once per feature when a scan runs on the host main thread
      * or a binder thread: those are the install callbacks, which replay caches and defer scans.
      */
+    /**
+     * Every resolution inside [block] answers from the cache only, so a resolver composed of several
+     * lookups can be replayed on an install thread without one of them scanning. A miss anywhere
+     * returns null from that lookup; the caller defers the whole resolver ([BaseHooker]'s
+     * `prepareCachedDexTargets`).
+     */
+    fun <T> replayOnly(block: () -> T): T {
+        val previous = replaying.get()
+        replaying.set(true)
+        try { return block() } finally { if (previous == null) replaying.remove() else replaying.set(previous) }
+    }
+
+    /** True inside [replayOnly]: a null result there is a cache miss, not a missing host contract. */
+    val isReplayOnly: Boolean get() = replaying.get() == true
+
     fun <T> synchronousScan(reason: String, block: () -> T): T {
         val previous = synchronousReason.get()
         synchronousReason.set(reason)
@@ -346,8 +362,9 @@ internal object DexRuntime {
     ): T? {
         val apk = File(apkPath)
         if (!apk.isFile) return null
+        val replay = cacheOnly || replaying.get() == true
         return DexPhases.frame { phases ->
-            resolveTimed(feature, apk, apkPath, cacheDir, cacheOnly, cacheEmpty, appInfo, compute, decode, phases)
+            resolveTimed(feature, apk, apkPath, cacheDir, replay, cacheEmpty, appInfo, compute, decode, phases)
         }
     }
 

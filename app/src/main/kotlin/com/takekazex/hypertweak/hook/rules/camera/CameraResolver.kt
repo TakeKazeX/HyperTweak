@@ -88,7 +88,7 @@ object CameraResolver {
                 DebugLog.d(scope, "$key resolved by DexKit probe -> ${clazz.name}")
                 return clazz
             }
-            DebugLog.w(scope, "$key: DexKit probe found nothing usable")
+            if (!DexRuntime.isReplayOnly) DebugLog.w(scope, "$key: DexKit probe found nothing usable")
             return null
         }
         DebugLog.w(scope, "$key: semantic class not found (no probe configured)")

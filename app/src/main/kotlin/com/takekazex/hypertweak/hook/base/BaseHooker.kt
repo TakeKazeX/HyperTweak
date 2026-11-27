@@ -373,6 +373,21 @@ sealed class BaseHooker {
         }
     }
 
+    /**
+     * Like [prepareDexContract] for a resolver made of several cached lookups: it is replayed from
+     * the cache on the install thread, and any miss defers the whole [resolve] to the worker, so a
+     * warm start installs exactly as before and a cold one never scans on main or binder threads.
+     */
+    protected fun <T : Any> prepareCachedDexTargets(
+        name: String = hookerName,
+        resolve: () -> T?,
+        install: (T) -> Unit,
+    ) {
+        val cached = com.takekazex.hypertweak.hook.base.dex.DexRuntime.replayOnly(resolve)
+        if (cached != null) installDexContract { install(cached) }
+        else prepareDexTargets(name, resolve, install, low = false)
+    }
+
     /** Features provide a query and hook publication; startup, queueing and retirement are shared. */
     protected fun <T : Any> prepareDexTargets(
         name: String = hookerName,
