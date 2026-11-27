@@ -245,16 +245,30 @@ jobs:
 
       # Check the anonymous API, including GitHub's uploaded-asset digest. No release
       # asset download is needed, so verification does not inflate download counts either.
+      # Shared runners often exhaust the per-IP anonymous rate limit (HTTP 403/429). Only then
+      # the same request is repeated with the job token; the release data of this public repo
+      # is the same, and any other failure still fails the check.
       - name: Post-publish self-check (anonymous)
         if: steps.monotonicity.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
+          URL="https://api.github.com/repos/$GITHUB_REPOSITORY/releases/tags/ci-latest"
           for _ in 1 2 3 4 5; do
-            if curl -fsSL --retry 2 -H 'Accept: application/vnd.github+json' \
-              "https://api.github.com/repos/$GITHUB_REPOSITORY/releases/tags/ci-latest" -o published-release.json \
+            STATUS="$(curl -sSL --retry 2 -H 'Accept: application/vnd.github+json' \
+              -o published-release.json -w '%{http_code}' "$URL" || echo 000)"
+            if [ "$STATUS" = 403 ] || [ "$STATUS" = 429 ]; then
+              echo "Anonymous API rate-limited (HTTP $STATUS); repeating the request with the job token."
+              STATUS="$(curl -sSL --retry 2 -H 'Accept: application/vnd.github+json' \
+                -H "Authorization: Bearer $GH_TOKEN" \
+                -o published-release.json -w '%{http_code}' "$URL" || echo 000)"
+            fi
+            if [ "$STATUS" = 200 ] \
               && python3 .github/scripts/release_metadata.py verify update-metadata.json published-release.json; then
               exit 0
             fi
+            echo "Self-check attempt failed (HTTP $STATUS)."
             sleep 5
           done
           exit 1
