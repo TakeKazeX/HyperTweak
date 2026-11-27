@@ -24,17 +24,46 @@ import java.lang.ref.WeakReference
  * the host in `DexFile.defineClassNative`. A collected loader means no code of that generation can
  * run any more. Entries still open are carried into the next hot reload. State saved by a build that
  * carried no loader reference is left to ART, since its liveness cannot be known.
+ *
+ * A cleared loader reference is not yet a deleted loader. ART clears weak references while a GC
+ * traces, but unregisters the loader's classes later, in `ClassLinker::CleanupClassLoaders` during
+ * that GC's reclaim phase. In between, the dex cache counts as unregistered, so `close()` really frees
+ * the dex, and the class-hierarchy cleanup then reads interface class definitions from the freed
+ * mapping: SIGSEGV in `ResetSingleImplementationInHierarchy` on HeapTaskDaemon (Security Center,
+ * 2026-11-27, one second after the first close). A close therefore waits for [GC_FENCES] sentinel
+ * objects, each allocated after the previous was collected: a sentinel allocated after the
+ * observation only dies in a later GC, and ART starts a GC only after the previous one finished.
  */
 internal object RetiredDexFiles {
     const val STATE_KEY = "HyperTweak.RetiredDexFiles"
     private const val TAG = "RetiredDexFiles"
+    private const val GC_FENCES = 2
+    private const val FENCE_POLL_MS = 5_000L
+    private const val FENCE_POLLS = 120
     // Class unloading needs a full host GC; background processes may go minutes without one.
     private val retryDelaysMs = longArrayOf(5_000, 15_000, 30_000, 60_000, 120_000) +
         LongArray(11) { 300_000 }
 
     /** One retired generation: its loader, weakly, and the dex files that loader owned. */
     private class Generation(val loader: WeakReference<ClassLoader>, var files: List<DexFile>) {
+        private var fences = 0
+        private var sentinel: WeakReference<Any>? = null
+
+        /** The loader is gone and the sentinel fence has started; progress needs only short polls. */
+        val fencing: Boolean get() = sentinel != null
+
         fun save(): Array<Any?> = arrayOf<Any?>(loader, *files.toTypedArray())
+
+        /** True once [GC_FENCES] whole collections have finished since the loader was seen gone. */
+        fun unloadSettled(): Boolean {
+            if (loader.get() != null) return false
+            val current = sentinel
+            if (current != null && current.get() != null) return false
+            if (current != null) fences++
+            if (fences >= GC_FENCES) return true
+            sentinel = WeakReference(Any())
+            return false
+        }
     }
 
     private val lock = Any()
@@ -80,7 +109,12 @@ internal object RetiredDexFiles {
     }
 
     private fun releaseLoop() {
-        for (delay in retryDelaysMs) {
+        var index = 0
+        var fencePolls = 0
+        while (index < retryDelaysMs.size) {
+            // A started fence waits only for GCs, not for the loader; don't wait minutes between them.
+            val fencing = fencePolls < FENCE_POLLS && synchronized(lock) { pending.any { it.fencing } }
+            val delay = if (fencing) { fencePolls++; FENCE_POLL_MS } else retryDelaysMs[index++]
             try { Thread.sleep(delay) } catch (_: InterruptedException) { return }
             if (closeUnloaded() == 0) {
                 DebugLog.i(TAG, "released retired module dex files")
@@ -93,13 +127,15 @@ internal object RetiredDexFiles {
     /** Closes the dex files of generations whose loader is gone; returns the generations left. */
     private fun closeUnloaded(): Int = synchronized(lock) {
         pending.forEach { generation ->
-            if (generation.loader.get() != null) return@forEach
+            if (!generation.unloadSettled()) return@forEach
             generation.files.forEach { file ->
                 // No replacement API releases an already loaded DexFile; see the class comment.
                 @Suppress("DEPRECATION")
                 runCatching { file.close() }.onFailure { DebugLog.w(TAG, "retired dex close failed", it) }
             }
+            val before = generation.files.size
             generation.files = generation.files.filter(::isOpen)
+            DebugLog.d(TAG, "closed retired generation dex files=${before - generation.files.size} still open=${generation.files.size}")
         }
         pending = pending.filter { it.files.isNotEmpty() }
         pending.size
