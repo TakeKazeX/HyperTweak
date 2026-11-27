@@ -16,9 +16,6 @@ data class SliderPercentagePolicy(
     fun volumePanel(inControlCenter: Boolean): Boolean =
         if (inControlCenter) controlCenter(brightness = false) else display in 2..3
 
-    /** Off and excluded scopes also hide native super-volume labels (for example 200%). */
-    fun suppressVolumePanel(inControlCenter: Boolean): Boolean = !volumePanel(inControlCenter)
-
     val outside: Boolean get() = popupPosition == 1
     fun innerVolume(expanded: Boolean, inControlCenter: Boolean): Boolean =
         volumePanel(inControlCenter) && (expanded || inControlCenter || !outside)

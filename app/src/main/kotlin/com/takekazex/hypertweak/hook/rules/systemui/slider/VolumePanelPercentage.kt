@@ -5,7 +5,6 @@ import android.view.ViewGroup
 import android.widget.TextView
 import com.takekazex.hypertweak.hook.base.HookComponent
 import com.takekazex.hypertweak.hook.base.HostAccess
-import com.takekazex.hypertweak.hook.base.ViewVisibilityRouter
 import com.takekazex.hypertweak.util.ignoreFailure
 import com.takekazex.hypertweak.util.logging.DebugLog
 import java.lang.ref.WeakReference
@@ -13,15 +12,14 @@ import java.util.WeakHashMap
 
 /**
  * The volume dialog's percentages: the inner per-column labels and the outer capsule beside the
- * collapsed bar. Each host entry captures baselines first and enforces excluded scopes last;
- * all styling goes through [styleText] / [applyBadge].
+ * collapsed bar. Only surfaces enabled by the policy capture and override host labels.
  */
 internal class VolumePanelPercentage(private val session: SliderPercentageHooker) : HookComponent(session) {
     private val badgeStyler = VolumeBadgeStyler(TAG)
-    /** Living controllers and the column count their labels were captured with. */
+    /** Living controllers and their captured column count, or [UNMANAGED] before taking ownership. */
     private val controllers = WeakHashMap<Any, Int>()
-    private class Owner(owner: Any, val column: Boolean) { val ref = WeakReference(owner) }
-    private val owners = WeakHashMap<View, Owner>()
+    private val views = WeakHashMap<View, Unit>()
+    private val capsuleOwners = WeakHashMap<View, WeakReference<Any>>()
 
     /** Set while the host re-renders natively; every module write is suspended. */
     private var replaying = false
@@ -31,9 +29,6 @@ internal class VolumePanelPercentage(private val session: SliderPercentageHooker
     private val policy get() = session.policy
 
     fun install() {
-        // Native updates and dialog animations share these views; only excluded scopes are forced.
-        ViewVisibilityRouter.visibility(session, before = { view, _ -> if (shouldSuppress(view)) View.GONE else null })
-        ViewVisibilityRouter.alpha(session, before = { view, _ -> if (shouldSuppress(view)) 0f else null })
         hookColumn()
         hookController()
         hookCapsuleMargin()
@@ -65,10 +60,9 @@ internal class VolumePanelPercentage(private val session: SliderPercentageHooker
             after { param ->
                 val self = param.thisObject
                 val text = HostAccess.readDeclared(self, "superVolume") as? TextView ?: return@after
-                track(text, self, column = true)
-                if (shouldSuppress(text)) hide(text)
                 val inCC = columnInControlCenter(self)
                 if (replaying || !policy.volumePanel(inCC)) return@after
+                track(text)
                 val expanded = param.args[5] as? Boolean ?: false
                 text.setVisibilityIfChanged(if (policy.innerVolume(expanded, inCC)) View.VISIBLE else View.INVISIBLE)
                 // initColumn is the only host path that styles a column label; strip it again here.
@@ -85,8 +79,7 @@ internal class VolumePanelPercentage(private val session: SliderPercentageHooker
 
         method("initPanelView")?.hook {
             before { param -> captureController(param.thisObject, force = true) }
-            // The panel views exist only now; capture them before enforcing excluded scopes.
-            after { param -> suppressExcluded(param.thisObject, recapture = true) }
+            after { param -> captureController(param.thisObject, force = true) }
         }
         method("showVolumePanelH", "int")?.hook {
             before { param ->
@@ -101,13 +94,11 @@ internal class VolumePanelPercentage(private val session: SliderPercentageHooker
                 badgeApplied = false
                 applyBadge(controller)
             }
-            after { param -> suppressExcluded(param.thisObject) }
         }
         method("updateVolumeColumnH", COLUMN)?.hook {
             before { param -> captureController(param.thisObject) }
             after { param ->
                 param.args[0]?.let { updateColumn(param.thisObject, it) }
-                suppressExcluded(param.thisObject)
             }
         }
         method("updateSuperVolumeView", COLUMN)?.hook {
@@ -119,7 +110,6 @@ internal class VolumePanelPercentage(private val session: SliderPercentageHooker
                     val show = policy.innerVolume(expanded(controller), inControlCenter(controller))
                     text?.setVisibilityIfChanged(if (show) View.VISIBLE else View.INVISIBLE)
                 }
-                suppressExcluded(controller)
             }
         }
         method("updateSuperVolumeText", TextView::class.java.name, "int")?.hook {
@@ -127,9 +117,7 @@ internal class VolumePanelPercentage(private val session: SliderPercentageHooker
                 val controller = chain.thisObject
                 captureController(controller)
                 val handled = (chain.args[0] as? TextView)?.let { renderText(controller, it) } ?: false
-                val result = if (handled) null else chain.proceed()
-                suppressExcluded(controller)
-                result
+                if (handled) null else chain.proceed()
             }
         }
         // Every slider update repaints the outer label's material (updateVolumeColumnSliderH and
@@ -155,7 +143,8 @@ internal class VolumePanelPercentage(private val session: SliderPercentageHooker
                 if (replaying) return@after
                 runCatching {
                     val background = HostAccess.readDeclared(param.thisObject, "mSuperVolume") as? View ?: return@runCatching
-                    val owner = owners[background]?.ref?.get() ?: return@runCatching
+                    val owner = capsuleOwners[background]?.get() ?: return@runCatching
+                    if (!enabled(owner)) return@runCatching
                     val params = background.layoutParams as? ViewGroup.MarginLayoutParams ?: return@runCatching
                     val native = badgeStyler.nativeHeight(background, loader(owner)) ?: return@runCatching
                     val extra = params.height - native
@@ -264,7 +253,7 @@ internal class VolumePanelPercentage(private val session: SliderPercentageHooker
     /** The capsule grows with the label size; it never shrinks below the native capsule. */
     private fun capsuleScale(): Float = (policy.typography.effective().sizePercent / 100f).coerceAtLeast(1f)
 
-    // ─── Baselines and excluded scopes ────────────────────────────────────────
+    // ─── Baselines and restoration ────────────────────────────────────────
 
     /**
      * Baselines for the controller's labels. Every hooked host update calls this, so a controller
@@ -274,71 +263,55 @@ internal class VolumePanelPercentage(private val session: SliderPercentageHooker
      */
     fun captureController(controller: Any, force: Boolean = false) {
         if (replaying) return
+        if (!enabled(controller)) {
+            // Remember the controller so a later settings change can enable its live views.
+            controllers.putIfAbsent(controller, UNMANAGED)
+            return
+        }
         val columnCount = (HostAccess.readDeclared(controller, "mColumns") as? List<*>)?.size ?: 0
         if (!force && controllers[controller] == columnCount) return
         controllers[controller] = columnCount
         (HostAccess.readDeclared(controller, "mSuperVolumeBg") as? View)?.let { background ->
             // Repair a size left by an earlier generation before taking a new baseline.
             if (session.labels[background] == null) badgeStyler.restoreNativeSize(background, loader(controller))
-            track(background, controller)
+            track(background)
+            if (capsuleOwners[background]?.get() !== controller) capsuleOwners[background] = WeakReference(controller)
         }
-        (HostAccess.readDeclared(controller, "mSuperVolume") as? TextView)?.let { text ->
-            // Same for the font, once; later writes belong to the style pass only.
-            if (session.labels[text] == null) text.typeface = PercentLabelStyle.POPUP_TYPEFACE
-            track(text, controller)
-        }
-        columns(controller).forEach { column -> (HostAccess.readDeclared(column, "superVolume") as? View)?.let { track(it, controller) } }
+        (HostAccess.readDeclared(controller, "mSuperVolume") as? View)?.let(::track)
+        columns(controller).forEach { column -> (HostAccess.readDeclared(column, "superVolume") as? View)?.let(::track) }
     }
 
-    private fun track(view: View, owner: Any, column: Boolean = false) {
-        if (replaying) return
+    private fun track(view: View) {
         session.labels.capture(view, geometry = true)
-        if (owners[view]?.ref?.get() !== owner) owners[view] = Owner(owner, column)
-    }
-
-    private fun shouldSuppress(view: View): Boolean {
-        if (replaying) return false
-        val record = owners[view] ?: return false
-        val owner = record.ref.get() ?: return false
-        return policy.suppressVolumePanel(if (record.column) columnInControlCenter(owner) else inControlCenter(owner))
-    }
-
-    private fun suppressExcluded(controller: Any, recapture: Boolean = false) {
-        if (replaying) return
-        captureController(controller, force = recapture)
-        // Runs after every host update. Hidden views are skipped before the reflective scope check,
-        // and the router keeps later host writes hidden, so steady-state drags write nothing.
-        owners.keys.toList().forEach { view -> if (!isHidden(view) && shouldSuppress(view)) hide(view) }
-    }
-
-    private fun isHidden(view: View) = view.visibility == View.GONE && view.alpha == 0f
-
-    /** Each write runs the hooked View setters; skip the ones that already hold the value. */
-    private fun hide(view: View) {
-        view.setVisibilityIfChanged(View.GONE)
-        view.setAlphaIfChanged(0f)
+        views[view] = Unit
     }
 
     private fun restoreViews() {
-        owners.keys.toList().forEach { view ->
+        views.keys.toList().forEach { view ->
             badgeStyler.clearMaterial(view)
             session.labels.restore(view)
         }
+        views.clear()
+        capsuleOwners.clear()
     }
 
     /** Re-run the native renderer with overrides suspended, then apply the committed policy. */
     fun refresh() {
         replaying = true
         try { restoreViews() } finally { replaying = false }
-        controllers.keys.toList().forEach { controller ->
+        controllers.toList().forEach { (controller, capturedCount) ->
             runCatching {
-                replaying = true
-                try { nativeRender(controller) } finally { replaying = false }
+                val wasManaged = capturedCount != UNMANAGED
+                controllers[controller] = UNMANAGED
+                if (wasManaged) {
+                    replaying = true
+                    try { nativeRender(controller) } finally { replaying = false }
+                }
+                if (!enabled(controller)) return@runCatching
                 captureController(controller, force = true)
                 columns(controller).forEach { invokeColumnUpdate(controller, it) }
                 (HostAccess.readDeclared(controller, "mSuperVolume") as? TextView)?.let { renderText(controller, it) }
                 applyBadge(controller)
-                suppressExcluded(controller)
             }.onFailure { DebugLog.w(TAG, "Cannot refresh living volume panel", it) }
         }
     }
@@ -346,9 +319,8 @@ internal class VolumePanelPercentage(private val session: SliderPercentageHooker
     fun retire() {
         replaying = true
         restoreViews()
-        controllers.keys.toList().forEach { ignoreFailure { nativeRender(it) } }
+        controllers.filterValues { it != UNMANAGED }.keys.forEach { ignoreFailure { nativeRender(it) } }
         controllers.clear()
-        owners.clear()
         badgeStyler.clear()
     }
 
@@ -392,6 +364,7 @@ internal class VolumePanelPercentage(private val session: SliderPercentageHooker
     }.getOrNull()
 
     companion object {
+        private const val UNMANAGED = -1
         private const val TAG = "VolumeSlider"
         const val CONTROLLER = "com.android.systemui.miui.volume.VolumePanelViewController"
         const val COLUMN = "com.android.systemui.miui.volume.VolumeColumn"

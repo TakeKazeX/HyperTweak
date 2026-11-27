@@ -16,8 +16,6 @@ class SliderPercentagePolicyTest {
             assertEquals(cc && values != 0, policy.controlCenter(false))
             assertEquals(cc && values != 0, policy.volumePanel(true))
             assertEquals(popup, policy.volumePanel(false))
-            assertEquals(!popup, policy.suppressVolumePanel(false))
-            assertEquals(!(cc && values != 0), policy.suppressVolumePanel(true))
             assertEquals(popup && position == 0, policy.innerVolume(false, false))
             assertEquals(popup && position == 1, policy.outerVolume(false, false))
             assertEquals(popup, policy.innerVolume(true, false))
@@ -39,18 +37,6 @@ class SliderPercentagePolicyTest {
         // Changing display scope retains the user's control-center value selection.
         assertEquals(0, popupOnly.copy(display = 1).values)
         assertFalse(both.copy(display = 0).volumePanel(false))
-    }
-
-    @Test fun scopeSwitchSuppressesExistingPopupAndReleasesItWhenReenabled() {
-        val both = SliderPercentagePolicy(display = 3)
-        assertFalse(both.suppressVolumePanel(false))
-        val ccOnly = both.copy(display = 1)
-        assertTrue(ccOnly.suppressVolumePanel(false))
-        assertFalse(ccOnly.suppressVolumePanel(true))
-        assertFalse(ccOnly.copy(display = 2).suppressVolumePanel(false))
-        // Master off must also hide native super-volume values such as 200%.
-        assertTrue(ccOnly.copy(display = 0).suppressVolumePanel(false))
-        assertTrue(ccOnly.copy(display = 0).suppressVolumePanel(true))
     }
 
     private fun read(legacy: Boolean, explicit: Int? = null): SliderPercentagePolicy = SliderPercentagePolicy.read(
