@@ -154,7 +154,9 @@ object DexKitManager {
                 scope.failed = true
                 return null
             }
-            val created = runCatching { DexKitBridge.create(scope.apkPath) }.onFailure { t ->
+            val created = runCatching {
+                com.takekazex.hypertweak.hook.base.dex.DexPhases.measure("bridge") { DexKitBridge.create(scope.apkPath) }
+            }.onFailure { t ->
                 DebugLog.e("DexKit", "failed to create shared bridge for APK ${scope.apkPath}", t)
             }.getOrNull()
             if (created == null) {

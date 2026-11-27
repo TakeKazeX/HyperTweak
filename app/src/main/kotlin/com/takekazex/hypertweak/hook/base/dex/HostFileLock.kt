@@ -39,6 +39,8 @@ internal object HostFileLock {
         try {
             val started = System.nanoTime()
             var lock: FileLock? = null
+            // Every exit of the wait (acquired, main-thread pass-through, timeout) is "lock" time.
+            fun waited() = DexPhases.add("lock", System.nanoTime() - started)
             while (true) {
                 lock = try { channel.tryLock() } catch (_: OverlappingFileLockException) {
                     null // Another thread of this process holds it; wait like a sibling would.
@@ -46,11 +48,13 @@ internal object HostFileLock {
                 if (lock != null) break
                 val waited = (System.nanoTime() - started) / 1_000_000L
                 if (onMain || waited >= waitMs) {
+                    waited()
                     if (!onMain) DebugLog.w(TAG, "lock " + target.name + " still held after " + waited + "ms; continuing unlocked")
                     return block()
                 }
                 Thread.sleep(POLL_MS)
             }
+            waited()
             val waited = (System.nanoTime() - started) / 1_000_000L
             if (waited >= POLL_MS) DebugLog.d(TAG, "lock " + target.name + " acquired after " + waited + "ms")
             try { return block() } finally { release(target) { lock.release() } }

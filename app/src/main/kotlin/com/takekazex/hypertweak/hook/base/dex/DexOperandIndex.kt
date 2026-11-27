@@ -23,7 +23,8 @@ internal class DexOperandIndex internal constructor(
     private val containers: List<File>,
     private val stringLookup: ((String) -> List<String>?)? = null,
 ) {
-    private val definitions by lazy {
+    private val definitions by lazy { DexPhases.measure("dexlib2") {
+        val started = System.nanoTime()
         val result = containers.flatMap { apk ->
         if (apk.extension.lowercase() in setOf("apk", "zip", "jar")) {
             // ZipDexContainer.getDexEntryNames probes EVERY resource's header. Camera has
@@ -50,7 +51,18 @@ internal class DexOperandIndex internal constructor(
         }
         }
         require(result.map { it.type }.distinct().size == result.size) { "Ambiguous duplicate DEX class definitions" }
+        // A cache-hit start should never get here; this line names the thread that paid for it.
+        com.takekazex.hypertweak.util.logging.DebugLog.i("DexOperandIndex", "loaded classes=" + result.size +
+            " in " + (System.nanoTime() - started) / 1_000_000L + "ms thread=" + Thread.currentThread().name +
+            " source=" + containers.first().name + callerHint())
         result
+    } }
+    /** Off the worker, the module frames that asked for the index (R8 names: retrace with the build's mapping). */
+    private fun callerHint(): String {
+        if (Thread.currentThread().name == "HT-DexPrepare") return ""
+        val frames = Throwable().stackTrace.filter { it.className.startsWith("com.takekazex") || it.className.length <= 4 }
+            .drop(1).take(12).joinToString(" < ") { it.className + "." + it.methodName + ":" + it.lineNumber }
+        return " caller=" + frames
     }
     val methods: List<Method> by lazy { definitions.flatMap { it.methods.toList() } }
     private val byOwner = ConcurrentHashMap<String, List<Method>>()
@@ -63,13 +75,13 @@ internal class DexOperandIndex internal constructor(
     }
     private val targetedStrings = ConcurrentHashMap<String, List<Method>>()
     private val codeCache = ConcurrentHashMap<String, Code>()
-    private val stringIndex by lazy {
+    private val stringIndex by lazy { DexPhases.measure("strings") {
         buildMap<String, MutableList<Method>> {
             methods.forEach { method -> literals(method).forEach { literal ->
                 getOrPut(literal) { ArrayList() }.add(method)
             } }
         }
-    }
+    } }
 
     sealed interface Value {
         data class Call(val method: MethodReference, val arguments: List<Value?> = emptyList()) : Value

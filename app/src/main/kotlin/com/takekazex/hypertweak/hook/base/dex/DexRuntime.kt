@@ -72,8 +72,35 @@ internal object DexRuntime {
         Thread({
             runCatching { Process.setThreadPriority(Process.THREAD_PRIORITY_BACKGROUND) }
             task.run()
-        }, "HT-DexPrepare").apply { isDaemon = true }
+        }, WORKER_THREAD).apply { isDaemon = true }
     }).apply { allowCoreThreadTimeOut(true) }
+
+    private const val WORKER_THREAD = "HT-DexPrepare"
+    private val synchronousReason = ThreadLocal<String?>()
+    private val warnedInstallThreadScans = ConcurrentHashMap.newKeySet<String>()
+
+    /**
+     * Declares that scans inside [block] must run synchronously on an install thread, with the
+     * reason. Without it, [resolve] warns once per feature when a scan runs on the host main thread
+     * or a binder thread: those are the install callbacks, which replay caches and defer scans.
+     */
+    fun <T> synchronousScan(reason: String, block: () -> T): T {
+        val previous = synchronousReason.get()
+        synchronousReason.set(reason)
+        try { return block() } finally { synchronousReason.set(previous) }
+    }
+
+    private fun checkScanThread(feature: DexFeature) {
+        val thread = Thread.currentThread()
+        if (thread.name == WORKER_THREAD || synchronousReason.get() != null) return
+        // Nested operand lookups run under their feature; that feature's line names the caller.
+        if (feature.id.startsWith("operand.string.")) return
+        val main = runCatching { android.os.Looper.getMainLooper()?.thread === thread }.getOrDefault(false)
+        if (!main && !thread.name.startsWith("binder:")) return
+        if (warnedInstallThreadScans.add(feature.id)) DebugLog.w(TAG, "feature=" + feature.id +
+            " scanned on install thread=" + thread.name + "; replay the cache there and defer the scan " +
+            "with prepareDexTargets/prepareDexContract, or declare DexRuntime.synchronousScan(reason)")
+    }
 
     private val batches = DexWorkBatch(
         execute = { worker.execute(it) },
@@ -186,6 +213,9 @@ internal object DexRuntime {
             // Resolve cache owner at query time; an index never retains the first caller's info.
             lateinit var index: DexOperandIndex
             index = DexOperandIndex(containers.map(::File)) { value ->
+                if (Thread.currentThread().name != WORKER_THREAD) DebugLog.d(TAG) {
+                    "operand string lookup off the worker value=" + value + " thread=" + Thread.currentThread().name
+                }
                 val key = java.security.MessageDigest.getInstance("SHA-256")
                     .digest((sourceKey + "\u0000" + value).toByteArray(Charsets.UTF_8))
                     .joinToString("") { "%02x".format(it.toInt() and 255) }
@@ -316,11 +346,28 @@ internal object DexRuntime {
     ): T? {
         val apk = File(apkPath)
         if (!apk.isFile) return null
+        return DexPhases.frame { phases ->
+            resolveTimed(feature, apk, apkPath, cacheDir, cacheOnly, cacheEmpty, appInfo, compute, decode, phases)
+        }
+    }
+
+    private fun <T : Any> resolveTimed(
+        feature: DexFeature,
+        apk: File,
+        apkPath: String,
+        cacheDir: File?,
+        cacheOnly: Boolean,
+        cacheEmpty: Boolean,
+        appInfo: ApplicationInfo?,
+        compute: (DexSession) -> Map<String, String>,
+        decode: (Map<String, String>, Boolean) -> T?,
+        phases: () -> String,
+    ): T? {
         val started = System.nanoTime()
         // A cache-only replay on the main thread must not hash a cold 50-350 MB APK. A miss falls
         // through to the caller's background preparation, which hashes off the main thread.
         val onMain = cacheOnly && android.os.Looper.getMainLooper().let { it != null && it === android.os.Looper.myLooper() }
-        val identity = identityFor(appInfo, apkPath, hashAllowed = !onMain) ?: run {
+        val identity = DexPhases.measure("identity") { identityFor(appInfo, apkPath, hashAllowed = !onMain) } ?: run {
             if (onMain) DebugLog.d(TAG) { "feature=" + feature.id + " identity cold on main thread; deferring" }
             return null
         }
@@ -329,17 +376,20 @@ internal object DexRuntime {
         return resolutions.resolve(
             key = feature.id + ":" + feature.schema + ":" + apkPath + ":" + identity.resolutionKey(),
             cacheOnly = cacheOnly,
-            read = { store.read(apk, identity) },
+            read = { DexPhases.measure("read") { store.read(apk, identity) } },
             scan = {
+                checkScanThread(feature)
                 runCatching {
-                    withSession(apkPath) { session -> backend = session.backend; compute(session) }
+                    DexPhases.measure("scan") {
+                        withSession(apkPath) { session -> backend = session.backend; compute(session) }
+                    }
                 }.onFailure { DebugLog.w(TAG, "feature=" + feature.id + " resolution failed", it) }.getOrNull()
             },
             decode = { values, cached ->
-                decode(values, cached)?.also {
+                DexPhases.measure("decode") { decode(values, cached) }?.also {
                     DebugLog.i(TAG, "feature=" + feature.id + " " + (if (cached) "cache hit" else "scanned") +
                         " in " + elapsed(started) + "ms values=" + values.size +
-                        " thread=" + Thread.currentThread().name)
+                        " thread=" + Thread.currentThread().name + " phases=" + phases())
                 }
             },
             write = { values ->
