@@ -449,6 +449,30 @@ class IconSlotPolicyTest {
     }
 
     @Test
+    fun hiddenFirstCountsHostAndOneSurfaceStatusBarHiding() {
+        val native = listOf("handle", "nfc", "bluetooth", "zen", "volume", "wifi")
+        val config = IconSlotPolicyConfig(
+            reorderHidden = true,
+            slotModes = mapOf(
+                IconSlotPolicy.SLOT_ROTATION_LOCK to IconSlotMode.SHOW_EVERYWHERE.value,
+                "bluetooth" to IconSlotMode.CONTROL_CENTER_ONLY.value,
+                "handle" to IconSlotMode.SHOW_EVERYWHERE.value
+            ),
+            enabledModuleSlots = setOf(IconSlotPolicy.SLOT_ROTATION_LOCK)
+        )
+        // nfc follows the host's RIGHT_BLOCK_LIST, bluetooth is control-center only; both precede
+        // the rotation lock the module inserts first. handle is host-blocked but shown by its mode.
+        assertEquals(
+            listOf("nfc", "bluetooth", IconSlotPolicy.SLOT_ROTATION_LOCK, "handle", "zen", "volume", "wifi"),
+            IconSlotPolicy.normalizeOrder(native, config, statusBarHostBlocked = listOf("handle", "nfc"))
+        )
+        assertEquals(
+            listOf(IconSlotPolicy.SLOT_ROTATION_LOCK) + native,
+            IconSlotPolicy.normalizeOrder(native, config.copy(reorderHidden = false), listOf("handle", "nfc"))
+        )
+    }
+
+    @Test
     fun leftPlacementContributesToHiddenOrderWithoutChangingUnknownSurface() {
         val config = IconSlotPolicyConfig(
             reorderHidden = true,

@@ -408,7 +408,10 @@ internal object SlotMaskApplier : IconRenderer() {
         }
         val currentNames = current.map { it.first }
         if (originalSlotOrder.isEmpty()) originalSlotOrder = currentNames
-        val normalizedNames = IconSlotPolicy.normalizeHostCatalog(originalSlotOrder, currentNames, options.policy)
+        val normalizedNames = IconSlotPolicy.normalizeHostCatalog(
+            originalSlotOrder, currentNames, options.policy,
+            if (options.policy.reorderHidden) IconManagerHooker.statusBarHostBlockList() else emptyList()
+        )
         if (normalizedNames == currentNames) return
 
         val byName = LinkedHashMap<String, Any>()

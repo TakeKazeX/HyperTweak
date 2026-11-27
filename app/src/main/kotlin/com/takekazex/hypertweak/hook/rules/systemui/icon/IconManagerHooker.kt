@@ -264,6 +264,15 @@ internal object IconManagerHooker : IconRenderer() {
         list?.let { listSurfaces[it] }
     }
 
+    /**
+     * The host's home status-bar block list (`MiuiIconManagerUtils.RIGHT_BLOCK_LIST`) as captured
+     * before any merge, or empty when it was not verified on this build.
+     */
+    fun statusBarHostBlockList(): List<String> = synchronized(stateLock) {
+        listSurfaces.entries.firstOrNull { it.value == IconSurface.STATUS_BAR }
+            ?.let { pristineLists[it.key]?.toList() }
+    }.orEmpty()
+
     /** Returns the manager's host-only block list for cooperating placement hooks. */
     fun pristineForManager(manager: Any?): List<String>? = synchronized(stateLock) {
         manager?.let { states[it]?.pristine?.toList() }

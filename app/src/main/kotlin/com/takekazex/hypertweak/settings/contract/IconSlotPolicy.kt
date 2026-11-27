@@ -56,15 +56,19 @@ data class IconSlotPolicyConfig(
  */
 object IconSlotPolicy {
     fun normalizeReloadOrder(
-        nativeOrder: List<String>, currentOrder: List<String>, config: IconSlotPolicyConfig
+        nativeOrder: List<String>, currentOrder: List<String>, config: IconSlotPolicyConfig,
+        statusBarHostBlocked: List<String> = emptyList()
     ): List<String> = normalizeOrder(
-        (nativeOrder.filter { it in currentOrder } + currentOrder).distinct(), config
+        (nativeOrder.filter { it in currentOrder } + currentOrder).distinct(), config, statusBarHostBlocked
     )
 
     /** Empty stacked catalog entry exists in every style; no view exists until it has a holder. */
-    fun normalizeHostCatalog(nativeOrder: List<String>, currentOrder: List<String>, config: IconSlotPolicyConfig): List<String> =
+    fun normalizeHostCatalog(
+        nativeOrder: List<String>, currentOrder: List<String>, config: IconSlotPolicyConfig,
+        statusBarHostBlocked: List<String> = emptyList()
+    ): List<String> =
         normalizeReloadOrder(nativeOrder, currentOrder,
-            config.copy(enabledModuleSlots = config.enabledModuleSlots + SLOT_STACKED_SIGNAL))
+            config.copy(enabledModuleSlots = config.enabledModuleSlots + SLOT_STACKED_SIGNAL), statusBarHostBlocked)
 
     const val SLOT_MOBILE = "mobile"
     const val SLOT_STACKED_SIGNAL = "hypertweak_stacked_mobile_icon"
@@ -458,7 +462,8 @@ object IconSlotPolicy {
      */
     fun normalizeOrder(
         systemSlots: List<String>,
-        config: IconSlotPolicyConfig
+        config: IconSlotPolicyConfig,
+        statusBarHostBlocked: List<String> = emptyList()
     ): List<String> {
         var normalized = addEnabledModuleSlots(systemSlots, config.enabledModuleSlots)
         normalized = when (config.position) {
@@ -471,7 +476,7 @@ object IconSlotPolicy {
             normalized = anchorStackedSignal(normalized, config.stackedTypeLeading)
         }
         return if (config.reorderHidden) {
-            reorderHidden(normalized, hiddenSlots(config), SIGNAL_SLOTS.toSet())
+            reorderHidden(normalized, hiddenSlots(config, statusBarHostBlocked), SIGNAL_SLOTS.toSet())
         } else {
             normalized
         }
@@ -489,15 +494,21 @@ object IconSlotPolicy {
         return hidden + remaining
     }
 
-    fun hiddenSlots(config: IconSlotPolicyConfig): Set<String> {
+    /**
+     * Slots the home status bar does not show: the host's own status-bar block list
+     * ([statusBarHostBlocked], MIUI `RIGHT_BLOCK_LIST`) resolved through the per-slot modes, plus
+     * left-placed slots. A control-center-only slot or a host-hidden slot such as `nfc` therefore
+     * moves ahead of slots that are visible on the status bar, which is the order the control
+     * center then draws.
+     */
+    fun hiddenSlots(
+        config: IconSlotPolicyConfig,
+        statusBarHostBlocked: List<String> = emptyList()
+    ): Set<String> {
         val hidden = LinkedHashSet<String>()
         hidden += config.extraHiddenSlots
+        hidden += blockedFor(IconSurface.STATUS_BAR, statusBarHostBlocked, config)
         hidden += config.leftSlots
-        config.slotModes.keys.forEach { slot ->
-            if (modeFor(slot, config.slotModes, config.extraHiddenSlots) == IconSlotMode.HIDE_EVERYWHERE) {
-                hidden += slot
-            }
-        }
         return hidden
     }
 
