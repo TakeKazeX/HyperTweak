@@ -3,7 +3,6 @@ package com.takekazex.hypertweak.hook.rules.securitycenter.sidebar
 import com.takekazex.hypertweak.hook.base.dex.DexOperandIndex
 import org.jf.dexlib2.iface.Method
 import org.jf.dexlib2.iface.reference.MethodReference
-import org.jf.dexlib2.iface.instruction.ReferenceInstruction
 
 /** Semantic anchors plus connected signatures; resource operands come from the current DEX. */
 internal class SecurityCenterPopupResolver(private val index: DexOperandIndex) {
@@ -91,10 +90,6 @@ internal class SecurityCenterPopupResolver(private val index: DexOperandIndex) {
         }.distinctBy { "${it.definingClass}->${it.name}" }.single()
         put("launchView", "${launchView.definingClass}->${launchView.name}:${launchView.type}")
         val boundaries = listOf(timing, producer, wild, immediate, launch, render, wildRender, window, windowRender).map { it.key() }.toSet()
-        put("callers", index.methods.filter { candidate ->
-            !candidate.name.startsWith("<") && candidate.implementation?.instructions?.any {
-                ((it as? ReferenceInstruction)?.reference as? MethodReference)?.key() in boundaries
-            } == true
-        }.joinToString("\n") { it.key() })
+        put("callers", index.callers(boundaries).filter { !it.name.startsWith("<") }.joinToString("\n") { it.key() })
     }
 }

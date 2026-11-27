@@ -2,8 +2,6 @@ package com.takekazex.hypertweak.hook.rules.milink
 
 import com.takekazex.hypertweak.hook.base.dex.DexFeature
 import com.takekazex.hypertweak.hook.base.dex.DexOperandIndex
-import org.jf.dexlib2.iface.instruction.ReferenceInstruction
-import org.jf.dexlib2.iface.reference.MethodReference
 
 /**
  * MiLink's local app-cast (sub-screen) allow list. The class logging `ML::SubScreenApps` loads two
@@ -30,12 +28,7 @@ internal object MiLinkSubScreenAppsContract : DexFeature {
                 calls.count { it.method.name == "containsKey" && it.method.returnType == "Z" } >= 1
         }
         val key = DexOperandIndex.descriptor(member)
-        val callers = index.methods.filter { candidate ->
-            candidate.implementation?.instructions?.any { instruction ->
-                ((instruction as? ReferenceInstruction)?.reference as? MethodReference)
-                    ?.let(DexOperandIndex::descriptor) == key
-            } == true
-        }.map(DexOperandIndex::descriptor).sorted()
+        val callers = index.callers(listOf(key)).map(DexOperandIndex::descriptor).sorted()
         check(callers.isNotEmpty()) { "sub-screen allow list has no caller" }
         return mapOf("member" to key, "callers" to callers.joinToString("\n"))
     }

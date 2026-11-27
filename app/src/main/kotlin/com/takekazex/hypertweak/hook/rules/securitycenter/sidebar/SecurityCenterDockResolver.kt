@@ -25,6 +25,7 @@ internal class SecurityCenterDockResolver(private val index: DexOperandIndex) {
     private fun Method.calls() = refs().filterIsInstance<MethodReference>()
     private fun Method.number(n: Long) = implementation?.instructions?.any { it is WideLiteralInstruction && it.wideLiteral == n } == true
     private fun MethodReference.key() = DexOperandIndex.descriptor(this)
+    private fun Method.callsAny(targets: DexOperandIndex.CallTargets) = calls().any(targets::matches)
     private fun FieldReference.key() = "$definingClass->$name:$type"
 
     fun resolve(): Map<String, String> = buildMap {
@@ -128,7 +129,8 @@ internal class SecurityCenterDockResolver(private val index: DexOperandIndex) {
         method("appendSlot", index.declared(adapter).single { candidate -> candidate.params() == listOf(drag.params()[2]) &&
             candidate.returnType == "V" && candidate.calls().any { it.definingClass == list && it.name == "add" } &&
             candidate.calls().any { it.name == "notifyItemInserted" && it.params() == listOf("I") } })
-        val layoutOwners = index.methods.filter { candidate -> candidate.calls().any { it.key() == fill.key() } }
+        val fillCall = DexOperandIndex.CallTargets(listOf(fill.key()))
+        val layoutOwners = index.methods.filter { candidate -> candidate.callsAny(fillCall) }
             .map { it.definingClass }.distinct()
         val layout = layoutOwners.single()
         val layoutMethods = index.declared(layout)
@@ -139,7 +141,7 @@ internal class SecurityCenterDockResolver(private val index: DexOperandIndex) {
             .mapNotNull { (it.arguments.firstOrNull() as? DexOperandIndex.Value.Field)?.field }
         field("layoutData", bindFields.single())
         val update = layoutMethods.single { it.params().isEmpty() && it.returnType == "V" &&
-            it.calls().any { ref -> ref.key() == fill.key() } }
+            it.callsAny(fillCall) }
         method("update", update)
         field("layoutEditing", index.code(update).branches.mapNotNull { (it.value as? DexOperandIndex.Value.Field)?.field }
             .filter { it.type == "Z" }.distinctBy { it.key() }.single())
@@ -154,11 +156,11 @@ internal class SecurityCenterDockResolver(private val index: DexOperandIndex) {
         method("notify", notify)
         val refresh = notify.calls().single { it.definingClass == layout }
         method("refresh", refresh)
-        val callers = index.methods.filter { candidate -> candidate.calls().any { it.key() in setOf(append.key(), fill.key(), drag.key()) } }
+        val callers = index.callers(listOf(append.key(), fill.key(), drag.key()))
         val editor = resolveEditor()
         putAll(editor)
         val editorGetters = editor.filterKeys { it.startsWith("m.editState") }.values.toSet() + editor.getValue("m.editStateBase")
-        val editorCallers = index.methods.filter { candidate -> candidate.calls().any { it.key() in editorGetters } }
+        val editorCallers = index.callers(editorGetters)
         put("callers", (callers + editorCallers).distinctBy { it.key() }.joinToString("\n") { it.key() })
         // Structural evidence includes the actual placeholder construction and int-controlled loops.
         check(fill.number(1) && drag.number(1))
@@ -205,12 +207,13 @@ internal class SecurityCenterDockResolver(private val index: DexOperandIndex) {
             index.code(it).reads.any { f -> f.key() == labels.getValue("UNPINNABLE").key() } &&
             it.params() == listOf("Ljava/lang/Object;") && it.returnType == "Ljava/lang/Object;" }.single()
         method("editorTransition", transition)
+        val baseGetterCall = DexOperandIndex.CallTargets(listOf(baseGetter.key()))
         val holderUpdate = index.methods.single { candidate -> candidate.params() == listOf(base) && candidate.returnType == "V" &&
-            candidate.calls().any { it.key() == baseGetter.key() } &&
+            candidate.callsAny(baseGetterCall) &&
             candidate.calls().any { it.name == "setHapticFeedbackEnabled" && it.params() == listOf("Z") } }
         method("holderUpdate", holderUpdate)
         val holder = holderUpdate.definingClass
-        val readScopes = index.declared(holder).filter { candidate -> candidate.calls().any { it.key() == baseGetter.key() } }
+        val readScopes = index.declared(holder).filter { candidate -> candidate.callsAny(baseGetterCall) }
         check(readScopes.size >= 4 && readScopes.any { it.params() == listOf("Landroid/view/View;") && it.returnType == "V" })
         readScopes.forEachIndexed { i, scope -> method("editorReadScope$i", scope) }
         put("editorReadScopeCount", readScopes.size.toString())

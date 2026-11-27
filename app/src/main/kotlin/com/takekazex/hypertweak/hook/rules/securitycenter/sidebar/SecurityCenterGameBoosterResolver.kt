@@ -2,7 +2,6 @@ package com.takekazex.hypertweak.hook.rules.securitycenter.sidebar
 
 import com.takekazex.hypertweak.hook.base.dex.DexOperandIndex
 import org.jf.dexlib2.iface.Method
-import org.jf.dexlib2.iface.instruction.ReferenceInstruction
 import org.jf.dexlib2.iface.reference.MethodReference
 
 /** Preference readers -> list membership -> outer capability gates; never use obfuscated names. */
@@ -14,11 +13,7 @@ internal class SecurityCenterGameBoosterResolver(private val index: DexOperandIn
         parameterTypes.map(CharSequence::toString) == params && returnType == result
     private fun Method.calls() = index.code(this).calls
     private fun callers(target: MethodReference) = callers(setOf(target.key()))
-    private fun callers(targets: Set<String>): List<Method> = index.methods.filter { candidate ->
-        candidate.implementation?.instructions?.any {
-            ((it as? ReferenceInstruction)?.reference as? MethodReference)?.key() in targets
-        } == true
-    }
+    private fun callers(targets: Set<String>): List<Method> = index.callers(targets)
     private fun membership(key: String): Method {
         val reader = index.strings(key).single { it.shape(emptyList(), "Ljava/util/ArrayList;") }
         return callers(reader).single().also { member ->

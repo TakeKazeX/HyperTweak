@@ -2,7 +2,6 @@ package com.takekazex.hypertweak.hook.rules.securitycenter.sidebar
 
 import com.takekazex.hypertweak.hook.base.dex.DexOperandIndex
 import org.jf.dexlib2.iface.Method
-import org.jf.dexlib2.iface.instruction.ReferenceInstruction
 import org.jf.dexlib2.iface.reference.FieldReference
 import org.jf.dexlib2.iface.reference.MethodReference
 
@@ -106,10 +105,6 @@ internal class SecurityCenterDockShortcutsResolver(private val index: DexOperand
         put("uid", uid.second.key())
         put("pkg", pkg.key())
         val showKey = show.key()
-        put("callers", index.methods.filter { candidate ->
-            !candidate.name.startsWith("<") && candidate.implementation?.instructions?.any {
-                ((it as? ReferenceInstruction)?.reference as? MethodReference)?.key() == showKey
-            } == true
-        }.joinToString("\n") { it.key() })
+        put("callers", index.callers(listOf(showKey)).filter { !it.name.startsWith("<") }.joinToString("\n") { it.key() })
     }
 }

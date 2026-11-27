@@ -1,7 +1,6 @@
 package com.takekazex.hypertweak.hook.rules.screenshot
 
 import com.takekazex.hypertweak.hook.base.dex.DexOperandIndex
-import org.jf.dexlib2.iface.instruction.ReferenceInstruction
 import org.jf.dexlib2.iface.reference.MethodReference
 
 internal data class ScreenshotDirectoryContract(val predicate: String, val callers: List<String>, val workers: List<String>) {
@@ -21,12 +20,7 @@ internal class ScreenshotDirectoryResolver(private val dex: DexOperandIndex) {
                 dex.code(it).hasString("ro.product.mod_device")
         }.distinctBy(::key)
         val predicate = candidates.singleOrNull() ?: error("Screenshot directory predicate missing or ambiguous")
-        val callers = dex.methods.filter { method ->
-            method.implementation?.instructions?.filterIsInstance<ReferenceInstruction>()?.any {
-                val target = it.reference as? MethodReference
-                target != null && key(target) == key(predicate)
-            } == true
-        }
+        val callers = dex.callers(listOf(key(predicate)))
         val files = callers.filter { method ->
             val code = dex.code(method)
             code.calls.any { it.method.definingClass == "Landroid/os/Environment;" && it.method.name == "getExternalStoragePublicDirectory" } &&

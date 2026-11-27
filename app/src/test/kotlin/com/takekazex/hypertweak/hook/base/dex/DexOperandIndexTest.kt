@@ -37,6 +37,24 @@ class DexOperandIndexTest {
         ImmutableInstruction21t(Opcode.IF_EQZ, 0, 4), key(), ImmutableInstruction10x(Opcode.RETURN_VOID),
     ))
 
+    @Test fun `callers match the exact descriptor, not just the member name`() {
+        fun call(owner: String, params: List<String>) = ImmutableInstruction35c(Opcode.INVOKE_STATIC, params.size, 0, 0, 0, 0, 0,
+            ImmutableMethodReference(owner, "target", params, "Z"))
+        val ret = ImmutableInstruction10x(Opcode.RETURN_VOID)
+        val dex = index(
+            method("exact", listOf(call("Lfixture/Gates;", emptyList()), ret)),
+            method("otherOwner", listOf(call("Lfixture/Other;", emptyList()), ret)),
+            method("otherSignature", listOf(call("Lfixture/Gates;", listOf("I")), ret)),
+            method("exactAgain", listOf(call("Lfixture/Gates;", listOf("I")), call("Lfixture/Gates;", emptyList()), ret)),
+        )
+        val target = "Lfixture/Gates;->target()Z"
+        assertEquals(setOf("exact", "exactAgain"), dex.callers(listOf(target)).map { it.name }.toSet())
+        assertEquals(setOf("exact", "otherSignature", "exactAgain"),
+            dex.callers(listOf(target, "Lfixture/Gates;->target(I)Z")).map { it.name }.toSet())
+        assertTrue(dex.callers(emptyList()).isEmpty())
+        assertTrue(dex.callers(listOf("Lfixture/Gates;->absent()Z")).isEmpty())
+    }
+
     @Test fun `renaming a capability preserves resolution through its consumer`() {
         val first = index(guarded("page", "arbitraryOne"))
         val second = index(guarded("anotherPage", "unrelatedNewSpelling"))

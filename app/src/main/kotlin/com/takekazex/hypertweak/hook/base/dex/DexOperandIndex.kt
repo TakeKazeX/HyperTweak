@@ -119,6 +119,27 @@ internal class DexOperandIndex internal constructor(
         definition(reference)?.implementation?.instructions?.any {
             it is WideLiteralInstruction && it.wideLiteral == value
         } == true
+    /**
+     * Exact invoke-target matcher for caller scans. The member name is compared first, so the full
+     * descriptor is built only for the few references that can match. Building it for every
+     * reference of every method dominated whole-APK caller scans (a cold Security Center Dock
+     * resolution spent ~12 s on the device's background worker, most of it in descriptor strings).
+     */
+    class CallTargets(descriptors: Collection<String>) {
+        private val keys = descriptors.toHashSet()
+        private val names = keys.mapTo(HashSet()) { it.substringAfter("->").substringBefore('(') }
+        fun matches(reference: MethodReference): Boolean = reference.name in names && descriptor(reference) in keys
+        /** Whether any instruction of [method] references a target method (invokes and method refs alike). */
+        fun referencedBy(method: Method): Boolean = keys.isNotEmpty() && method.implementation?.instructions?.any {
+            ((it as? ReferenceInstruction)?.reference as? MethodReference)?.let(::matches) == true
+        } == true
+    }
+
+    /** Every method, in [methods] order, with an instruction referencing one of [descriptors]. */
+    fun callers(descriptors: Collection<String>): List<Method> = CallTargets(descriptors).let { targets ->
+        methods.filter(targets::referencedBy)
+    }
+
     fun declared(owner: String): List<Method> = byOwner.getOrPut(owner) {
         byType[owner]?.methods?.toList().orEmpty()
     }
