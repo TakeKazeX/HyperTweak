@@ -15,7 +15,7 @@ booleans before `Executor`, so that parameter grouping cannot identify the field
 Cache schema 5 stores the individual roles. In OMNI, the live override enables the contextual
 hint and attachment fields and clears the proven suppression flag. Disable and generation
 retirement restore the original values. Google renders them on its next native bind.
-With a missing or empty hot-reload package snapshot, HookEntry recovers the living
+With a missing or empty hot-reload package snapshot, `HotReloadOrchestrator` recovers the living
 `:googleapp` application after verifying its package, UID and source path. It keeps the
 saved hooker state and runs the same deferred resolver used on cold start.
 Committed settings received during DEX preparation are applied to living models at publication,

@@ -1,215 +1,61 @@
 package com.takekazex.hypertweak.hook
 
-import com.takekazex.hypertweak.hook.bootstrap.AppHostRecovery
-import com.takekazex.hypertweak.hook.bootstrap.SystemUiSettingsHost
-import com.takekazex.hypertweak.hook.nativebridge.NativeRuleStatePublisher
-import com.takekazex.hypertweak.hook.preferences.RuntimeSettingsPreferences
-import com.takekazex.hypertweak.hook.runtime.reload.HotReloadPackageState
-import com.takekazex.hypertweak.hook.runtime.reload.HotReloadPluginState
-import com.takekazex.hypertweak.hook.runtime.reload.HotReloadState
-import com.takekazex.hypertweak.hook.runtime.reload.GenerationRetirement
-import com.takekazex.hypertweak.hook.runtime.reload.HotReloadTargetState
-import com.takekazex.hypertweak.hook.runtime.settings.RuntimeSettingsStore
-import android.content.Context
-import android.content.SharedPreferences
-import android.content.pm.ApplicationInfo
-import com.takekazex.hypertweak.hook.base.BaseHooker
-import com.takekazex.hypertweak.hook.base.DexKitManager
-import com.takekazex.hypertweak.hook.base.HotReloadHandleStore
-import com.takekazex.hypertweak.hook.base.ModuleContext
-import com.takekazex.hypertweak.hook.runtime.settings.RuntimeSettingsGroups
-import com.takekazex.hypertweak.hook.runtime.settings.SettingsReloadDispatcher
-import com.takekazex.hypertweak.hook.bootstrap.PackageHookPlan
+import com.takekazex.hypertweak.hook.base.HostContext
 import com.takekazex.hypertweak.hook.bootstrap.ProcessLifecycleHooks
-import com.takekazex.hypertweak.hook.bootstrap.RuntimeSettingsParticipants
-import com.takekazex.hypertweak.hook.bootstrap.SystemServerHookPlan
-import com.takekazex.hypertweak.settings.contract.AppSettingsKeys
-import com.takekazex.hypertweak.settings.contract.PlatformSettingsKeys
 import com.takekazex.hypertweak.hook.bootstrap.ProcessLogging
+import com.takekazex.hypertweak.hook.bootstrap.SystemUiSettingsHost
+import com.takekazex.hypertweak.hook.runtime.settings.RuntimeSettingsStore
 import com.takekazex.hypertweak.util.logging.DebugLog
 import io.github.libxposed.api.XposedModule
 import io.github.libxposed.api.XposedModuleInterface
-import com.takekazex.hypertweak.hook.base.HostContext
-import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.atomic.AtomicLong
 
+/**
+ * LSPosed entry (`java_init.list`). One instance is one module generation in one process. It
+ * keeps the process boundaries and delegates: [ProcessSettings] owns remote preferences, live
+ * settings and native publication, [PackageHookDispatcher] attaches the hook plans, and
+ * [HotReloadOrchestrator] retires and adopts generations.
+ */
 class HookEntry : XposedModule() {
-    private companion object {
-        /**
-         * The launcher process. It carries no dex of its own for the module's hooks, but it is in
-         * the declared scope so LSPosed injects both the native payload (which owns the Dart
-         * rules) and this module's Java (which is the only side able to read the preferences).
-         */
-        const val LAUNCHER_PACKAGE = "com.miui.home"
-
-        /** Header clock seconds: owned by the header domain and applied by its own participant. */
-        const val KEY_HEADER_CLOCK_SECONDS = "notification_header_clock_seconds"
-    }
-
-    /** Bounded retry window for the transient daemon remote-preferences outage. */
-    private val MAX_PREFS_INIT_RETRIES = 4
-    private val PREFS_RETRY_DELAY_MS = 500L
-
-    private val injectedPackages = ConcurrentHashMap.newKeySet<String>()
-    private val rootHookers = ConcurrentHashMap.newKeySet<BaseHooker>()
-    private val packageStates = ConcurrentHashMap<String, HotReloadPackageState>()
-    private val pendingAppContextPackages = ConcurrentHashMap.newKeySet<String>()
-    private val preferenceRetryGeneration = AtomicLong(0L)
-    @Volatile private var nativeRuleStatePublisher: NativeRuleStatePublisher? = null
-    @Volatile private var generationRetired = false
-    @Synchronized private fun nativePublisher(): NativeRuleStatePublisher? {
-        if (generationRetired || processName != "com.android.systemui") return null
-        return nativeRuleStatePublisher ?: NativeRuleStatePublisher().also { nativeRuleStatePublisher = it }
-    }
-    private val runtimeSettingsReceiver by lazy {
-        RuntimeSettingsReceiver(object : (Set<String>, Set<String>) -> Unit {
-            override fun invoke(groups: Set<String>, keys: Set<String>) = requestSettingsReload(groups, keys)
-        }, upstreamPackageChanged = if (isSystemServer || processName == "com.android.systemui") {
-            { context ->
-                if (!generationRetired) {
-                    com.takekazex.hypertweak.util.platform.UpstreamBackGesture.refresh(context)
-                    com.takekazex.hypertweak.hook.runtime.settings.HookSettingsSnapshots.refresh()
-                    DebugLog.i("BackGesture", "upstream package refreshed installed=" +
-                        com.takekazex.hypertweak.util.platform.UpstreamBackGesture.installed)
-                    requestSettingsReload(setOf(RuntimeSettingsGroups.BACK))
-                }
-            }
-        } else null)
-    }
+    private val state = HookProcessState()
     private val systemUiSettings = SystemUiSettingsHost(
-        { processName }, { generationRetired }, { packageStates["com.android.systemui"] }, { rootHookers }
+        { state.processName }, { state.generationRetired },
+        { state.packageStates["com.android.systemui"] }, { state.rootHookers }
     )
-    private val iconSettingsLock = java.util.concurrent.locks.ReentrantLock()
-    private val settingsHandler by lazy { android.os.Handler(android.os.Looper.getMainLooper()) }
-    private val settingsReload by lazy {
-        SettingsReloadDispatcher(
-            post = { task, delay -> settingsHandler.postDelayed(task, delay) },
-            remove = { settingsHandler.removeCallbacks(it) },
-            failure = { id, error -> DebugLog.w("RuntimeSettings", "reload failed participant=$id", error) }
-        ).apply {
-            RuntimeSettingsParticipants.install(this, processName, isSystemServer,
-                RuntimeSettingsParticipants.Actions(
-                    icons = { keys ->
-                        if (!iconSettingsLock.tryLock()) false else try { systemUiSettings.applyLiveIconSettings(keys) }
-                        finally { iconSettingsLock.unlock() }
-                    },
-                    publishNative = { publishNativeRuleSwitches() },
-                    aod = { systemUiSettings.applyLiveAodSettings() },
-                    header = { systemUiSettings.applyHeaderSettings(it) },
-                    notificationText = { systemUiSettings.applyNotificationTextSettings(it) },
-                    hookers = { rootHookers.toList() },
-                    retired = { generationRetired },
-                    ime = { refreshImeSettings() }
-                )
-            )
-        }
+    private val settings: ProcessSettings = ProcessSettings(this, state, systemUiSettings) {
+        dispatcher.refreshImeSettings()
     }
-    private fun requestSettingsReload(groups: Set<String>, keys: Set<String> = emptySet()) {
-        if (groups.isEmpty()) return
-        settingsHandler.post {
-            if (!generationRetired) settingsReload.request(
-                groups.intersect(RuntimeSettingsGroups.forProcess(processName, isSystemServer)), keys
-            )
-        }
-    }
-    private fun cancelSettingsReload() {
-        // API-102 preparation can run off-main; serialize retirement with live replacement.
-        if (android.os.Looper.myLooper() == settingsHandler.looper) settingsReload.cancel() else {
-            val done = java.util.concurrent.CountDownLatch(1)
-            settingsHandler.post { try { settingsReload.cancel() } finally { done.countDown() } }
-            check(done.await(5, java.util.concurrent.TimeUnit.SECONDS)) { "settings reload retirement timed out" }
-        }
-    }
-    private fun resumeSettingsReload() { settingsHandler.post { settingsReload.resume() } }
-
-    private val runtimeContextRetry by lazy {
-        com.takekazex.hypertweak.hook.base.SystemServerStartupRetry("RuntimeSettings", action = {
-            val owner = Class.forName("android.app.ActivityThread")
-            val thread = owner.getMethod("currentActivityThread").invoke(null) ?: return@SystemServerStartupRetry false
-            val context = owner.getMethod("getSystemContext").invoke(thread) as? Context ?: return@SystemServerStartupRetry false
-            attachRuntimeSettingsContext(context)
-            true
-        })
-    }
-    private fun attachRuntimeSettingsContext(context: Context) {
-        if (isSystemServer || processName == "com.android.systemui") {
-            com.takekazex.hypertweak.util.platform.UpstreamBackGesture.refresh(context)
-        }
-        if (!generationRetired && RuntimeSettingsGroups.forProcess(processName, isSystemServer).isNotEmpty()) runtimeSettingsReceiver.attach(context)
-    }
-
-    @Volatile private var runtimePreferencesSource: SharedPreferences? = null
-    @Volatile private var remoteSettingsReady = false
-    // Legacy keys outside the committed registry still arrive through the daemon listener.
-    // Coalesce remove/put notifications so a callback never polls an incomplete backend rewrite.
-    private val callbackSnapshotRefresh = Runnable {
-        if (!generationRetired) {
-            com.takekazex.hypertweak.hook.runtime.settings.HookSettingsSnapshots.refresh()
-            DebugLog.controlsChanged()
-        }
-    }
-    private val runtimePreferencesListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-        if (!generationRetired) {
-            Preferences.invalidateRuntimeReadCache()
-            settingsHandler.removeCallbacks(callbackSnapshotRefresh)
-            settingsHandler.postDelayed(callbackSnapshotRefresh, 150L)
-            // The daemon rewrites complete subsets (remove + put), and may report null or
-            // unchanged keys. Only the acknowledged snapshot diff owns feature recreation.
-            if (key == null || key == RuntimeSettingsGroups.REVISION || RuntimeSettingsGroups.owns(key))
-                runtimeSettingsReceiver.resync()
-        }
-    }
-
-    private fun detachRuntimePreferencesListener() {
-        settingsHandler.removeCallbacks(callbackSnapshotRefresh)
-        runtimePreferencesSource?.let { source ->
-            runCatching { source.unregisterOnSharedPreferenceChangeListener(runtimePreferencesListener) }
-        }
-        runtimePreferencesSource = null
-    }
-
-    private fun bindRuntimePreferencesListener(source: SharedPreferences) {
-        if (runtimePreferencesSource === source) return
-        detachRuntimePreferencesListener()
-        runCatching {
-            source.registerOnSharedPreferenceChangeListener(runtimePreferencesListener)
-            runtimePreferencesSource = source
-        }.onFailure { DebugLog.w("NativeRules", "runtime settings listener unavailable", it) }
-    }
-    private var skipGoogleProcess = false
-    private lateinit var processName: String
-    private var isSystemServer: Boolean = false
-    private var systemServerClassLoader: ClassLoader? = null
+    private val dispatcher = PackageHookDispatcher(this, state, settings, systemUiSettings)
+    private val hotReload = HotReloadOrchestrator(this, state, settings, dispatcher)
 
     override fun onModuleLoaded(param: XposedModuleInterface.ModuleLoadedParam) {
         // Process boundary. The process identity is recorded unconditionally (later callbacks and
         // the debug log need it), then everything else runs behind a boundary: a module failure
         // here must be logged, not thrown back into the host's module-load path.
-        processName = param.processName
-        isSystemServer = param.isSystemServer
-        skipGoogleProcess = !isSystemServer && ProcessLifecycleHooks.shouldSkipProcess(processName)
-        if (skipGoogleProcess) return
-        RuntimeSettingsStore.configure(processName, isSystemServer)
+        state.processName = param.processName
+        state.isSystemServer = param.isSystemServer
+        state.skipGoogleProcess = !state.isSystemServer && ProcessLifecycleHooks.shouldSkipProcess(state.processName)
+        if (state.skipGoogleProcess) return
+        RuntimeSettingsStore.configure(state.processName, state.isSystemServer)
         try {
-            preferenceRetryGeneration.incrementAndGet()
+            settings.preferenceRetryGeneration.incrementAndGet()
             HostContext.reset(this)
-            NativeRules.bindProcess(processName)
+            NativeRules.bindProcess(state.processName)
             ProcessLogging.bind()
-            DebugLog.setProcessTag(processName)
+            DebugLog.setProcessTag(state.processName)
             DebugLog.bindXposed(this)
-            initPreferences()
+            settings.initPreferences()
             DebugLog.ensureSession()
-            DebugLog.d("HookEntry", "module loaded process=$processName isSystemServer=$isSystemServer")
+            DebugLog.d("HookEntry", "module loaded process=${state.processName} isSystemServer=${state.isSystemServer}")
             // Status inspection is passive; only launcher rule publication may bind the JNI bridge.
             DebugLog.d("NativeRules", NativeRules.describe())
-            publishNativeRuleSwitches()
+            settings.publishNativeRuleSwitches()
         } catch (t: Throwable) {
             DebugLog.e("HookEntry", "module load handling failed", t)
         }
     }
 
     override fun onSystemServerStarting(param: XposedModuleInterface.SystemServerStartingParam) {
-        systemServerClassLoader = param.classLoader
+        state.systemServerClassLoader = param.classLoader
         DebugLog.d("HookEntry", "system_server starting")
         // Safety net: a structural failure while dispatching the framework hooks (any hooker failing
         // to attach, or the dispatch itself blowing up) must land in the in-app debug log so it can
@@ -218,8 +64,8 @@ class HookEntry : XposedModule() {
         // it (e.g. an unguarded preference read) and records it, then rethrows so the host still
         // sees the failure.
         try {
-            dispatchSystemServerHookers(param.classLoader)
-            runtimeContextRetry.schedule()
+            dispatcher.dispatchSystemServerHookers(param.classLoader)
+            settings.scheduleContextRetry()
         } catch (t: Throwable) {
             DebugLog.e("HookEntry", "system_server hook dispatch failed", t)
             throw t
@@ -227,12 +73,12 @@ class HookEntry : XposedModule() {
     }
 
     override fun onPackageLoaded(param: XposedModuleInterface.PackageLoadedParam) {
-        if (skipGoogleProcess) return
-        if (!injectedPackages.add(param.packageName)) return
+        if (state.skipGoogleProcess) return
+        if (!state.injectedPackages.add(param.packageName)) return
         // Process boundary: a failure while installing this package's hooks must be isolated and
         // logged rather than escaping into the host app's own package-load path.
         try {
-            recordPackageState(
+            state.recordPackageState(
                 packageName = param.packageName,
                 classLoader = param.defaultClassLoader,
                 appInfo = param.applicationInfo,
@@ -242,10 +88,10 @@ class HookEntry : XposedModule() {
             )
             DebugLog.d(
                 "HookEntry",
-                "package loaded package=${param.packageName} process=$processName first=${param.isFirstPackage}"
+                "package loaded package=${param.packageName} process=${state.processName} first=${param.isFirstPackage}"
             )
 
-            dispatchPackageHookers(
+            dispatcher.dispatchPackageHookers(
                 packageName = param.packageName,
                 classLoader = param.defaultClassLoader,
                 appInfo = param.applicationInfo,
@@ -257,28 +103,28 @@ class HookEntry : XposedModule() {
     }
 
     override fun onPackageReady(param: XposedModuleInterface.PackageReadyParam) {
-        if (skipGoogleProcess) return
+        if (state.skipGoogleProcess) return
         // Process boundary, same rationale as onPackageLoaded.
         try {
-            recordPackageState(
+            state.recordPackageState(
                 packageName = param.packageName,
                 classLoader = param.classLoader,
                 appInfo = param.applicationInfo,
                 isFirstPackage = false,
                 isPackageReady = true,
                 appContext = HostContext.appContextOrNull,
-                pluginStates = currentPluginStates(param.packageName)
+                pluginStates = dispatcher.currentPluginStates(param.packageName)
             )
 
-            handlePackageReadyContext(param.packageName, param.classLoader)
-            if (processName == LAUNCHER_PACKAGE) {
+            dispatcher.handlePackageReadyContext(param.packageName, param.classLoader)
+            if (state.processName == ProcessSettings.LAUNCHER_PACKAGE) {
                 // The early daemon binding may have failed before package readiness.
-                if (runtimePreferencesSource == null) tryInitPreferences()
-                publishNativeRuleSwitches()
+                if (!settings.hasPreferencesSource) settings.tryInitPreferences()
+                settings.publishNativeRuleSwitches()
             }
 
             if (param.packageName == "com.android.systemui") {
-                val appContext = packageStates[param.packageName]?.appContext
+                val appContext = state.packageStates[param.packageName]?.appContext
                     ?: HostContext.appContextOrNull
                 ProcessLifecycleHooks.onSystemUiPackageReady(appContext, param.classLoader)
             }
@@ -287,586 +133,7 @@ class HookEntry : XposedModule() {
         }
     }
 
-    override fun onHotReloading(param: XposedModuleInterface.HotReloadingParam): Boolean {
-        if (skipGoogleProcess) {
-            param.setSavedInstanceState(GenerationRetirement.retireSkipped())
-            return true
-        }
-        DebugLog.d(
-            "HookEntry",
-            "hot reloading old generation process=$processName packages=${packageStates.size} roots=${rootHookers.size}"
-        )
-        if (com.takekazex.hypertweak.hook.base.dex.DexRuntime.isResolving) {
-            DebugLog.w(
-                "HookEntry",
-                "deferred hot reload during active DEX resolution process=$processName"
-            )
-            return false
-        }
-        iconSettingsLock.lock()
-        val ready = try { com.takekazex.hypertweak.hook.base.HotReloadRetirement.run(
-            preflight = {
-                if (RuntimeSettingsGroups.forProcess(processName, isSystemServer).isNotEmpty()) cancelSettingsReload()
-                ProcessLifecycleHooks.checkHotReloadReady()
-                refreshHotReloadSnapshots()
-                check(DexKitManager.prepareForHotReload()) { "DexKit native bridge users are still active" }
-                val roots = rootHookers.toList()
-                val state = HotReloadState.save(
-                    processName = processName,
-                    isSystemServer = isSystemServer,
-                    systemServerClassLoader = systemServerClassLoader,
-                    packages = packageStates.values,
-                    hookerStates = roots.associate { it.hookerName to it.saveHotReloadState() } +
-                        mapOf("HyperTweak.NativeSettings" to nativeRuleStatePublisher?.saveSnapshot(),
-                            "HyperTweak.RuntimeSettings" to RuntimeSettingsStore.save(),
-                            GenerationRetirement.savedState())
-                )
-                // The framework must accept the recovery payload before any host is retired.
-                param.setSavedInstanceState(state)
-                buildList<() -> Unit> {
-                    add { generationRetired = true; remoteSettingsReady = false; preferenceRetryGeneration.incrementAndGet() }
-                    if (processName == "com.android.systemui") add {
-                        ProcessLifecycleHooks.cancelSystemUiRecovery()
-                    }
-                    roots.forEach { root -> add { root.prepareForHotReload() } }
-                    roots.forEach { root -> add { root.resetAfterHotReloadPrepared() } }
-                    add { rootHookers.clear() }
-                    add { ProcessLifecycleHooks.retireRestartReceiver() }
-                    if (processName.substringBefore(':') == "com.android.systemui") add {
-                        com.takekazex.hypertweak.hook.bootstrap.SystemUiIconPorts.retire(this@HookEntry)
-                    }
-                    add { detachRuntimePreferencesListener() }
-                    if (RuntimeSettingsGroups.forProcess(processName, isSystemServer).isNotEmpty())
-                        add { runtimeSettingsReceiver.close() }
-                    add { RuntimeSettingsPreferences.clearObservers() }
-                    add { runtimeContextRetry.cancel() }
-                    add { try { nativeRuleStatePublisher?.close() } finally { nativeRuleStatePublisher = null } }
-                    // Last: process-wide steps that need every owner above already retired.
-                    addAll(GenerationRetirement.finalSteps())
-                }
-            },
-            rejected = { error ->
-                DexKitManager.cancelHotReloadPreparation()
-                DebugLog.e("HookEntry", "hot reload preflight failed; old hooks untouched", error)
-                if (RuntimeSettingsGroups.forProcess(processName, isSystemServer).isNotEmpty()) resumeSettingsReload()
-            },
-            cleanupFailed = { error ->
-                DebugLog.e("HookEntry", "hot reload cleanup incomplete; accepting replacement for recovery", error)
-            }
-        ) } finally { iconSettingsLock.unlock() }
-        return ready
-    }
+    override fun onHotReloading(param: XposedModuleInterface.HotReloadingParam): Boolean = hotReload.retire(param)
 
-    private fun refreshHotReloadSnapshots() {
-        packageStates["com.android.systemui"]?.let { state ->
-            packageStates["com.android.systemui"] = state.copy(
-                pluginStates = ProcessLifecycleHooks.snapshotSystemUiPlugins()
-            )
-        }
-    }
-
-    override fun onHotReloaded(param: XposedModuleInterface.HotReloadedParam) {
-        processName = param.processName
-        isSystemServer = param.isSystemServer
-        skipGoogleProcess = !isSystemServer && ProcessLifecycleHooks.shouldSkipProcess(processName)
-        if (skipGoogleProcess) {
-            // An upgrade may carry handles from a version that hooked all Google processes.
-            // Retire them without restoring package state, preference listeners or DEX workers.
-            if (param.oldHookHandles.isNotEmpty()) {
-                ProcessLogging.bind()
-                DebugLog.setProcessTag(processName)
-                DebugLog.bindXposed(this)
-                unhookRemainingOldHandles(HotReloadHandleStore(param.oldHookHandles))
-                DebugLog.prepareForHotReload()
-            }
-            GenerationRetirement.adoptSkipped(param.savedInstanceState)
-            return
-        }
-        RuntimeSettingsStore.configure(processName, isSystemServer)
-        generationRetired = false
-        if (RuntimeSettingsGroups.forProcess(processName, isSystemServer).isNotEmpty()) cancelSettingsReload()
-        preferenceRetryGeneration.incrementAndGet()
-        HostContext.reset(this)
-        NativeRules.bindProcess(processName)
-        ProcessLogging.bind()
-        DebugLog.setProcessTag(processName)
-        DebugLog.bindXposed(this)
-        val savedState = HotReloadState.restore(param.savedInstanceState)
-        val restoredState = when {
-            savedState == null -> recoverAppHostState()
-            !savedState.isSystemServer && savedState.packages.isEmpty() -> {
-                val recovered = recoverAppHostState()
-                if (recovered == null) savedState else savedState.copy(packages = recovered.packages)
-            }
-            else -> savedState
-        }
-        nativePublisher()?.restoreSnapshot(restoredState?.hookerStates?.get("HyperTweak.NativeSettings"))
-        RuntimeSettingsStore.restore(restoredState?.hookerStates?.get("HyperTweak.RuntimeSettings")
-            ?: (restoredState?.hookerStates?.get("HyperTweak.NativeSettings") as? Array<*>)?.getOrNull(2))
-        initPreferences()
-        publishNativeRuleSwitches()
-        DebugLog.ensureSession()
-        GenerationRetirement.adopt(restoredState?.hookerStates)
-        val oldHandles = HotReloadHandleStore(param.oldHookHandles)
-        val oldHandleIds = oldHandles.ids
-        DebugLog.d(
-            "HookEntry",
-            "hot reloaded process=$processName packages=${restoredState?.packages?.map { it.packageName }} oldHandles=${oldHandles.totalCount} oldIds=${oldHandles.idCount} unnamed=${oldHandles.unnamedCount} duplicateIds=${oldHandles.duplicateIdCount}"
-        )
-
-        injectedPackages.clear()
-        rootHookers.clear()
-        packageStates.clear()
-        pendingAppContextPackages.clear()
-
-        if (restoredState == null) {
-            DebugLog.w("HookEntry", "hot reloaded without restorable target state")
-            unhookRemainingOldHandles(oldHandles)
-            return
-        }
-
-        // Match upstream's ordering: stable Google callbacks are attached to the carried old
-        // executable before the new generation starts its DexKit pass. Retired investigation IDs
-        // are neutralized here as well, so they cannot keep stale behavior alive after an update.
-        val googleProcess = ProcessLifecycleHooks.isGoogleProcess(processName, restoredState.packages.map { it.packageName })
-        var googleReplaced = 0
-        if (googleProcess) {
-            oldHandles.remainingHandles().forEach { handle ->
-                if (ProcessLifecycleHooks.replaceCarriedGoogleHandle(handle)) {
-                    oldHandles.markHandled(handle)
-                    googleReplaced++
-                }
-            }
-        }
-        if (googleReplaced > 0) {
-            DebugLog.d("HookEntry", "replaced carried Google hooks=$googleReplaced")
-        }
-
-        processName = restoredState.processName
-        isSystemServer = restoredState.isSystemServer
-        systemServerClassLoader = restoredState.systemServerClassLoader
-
-        if (restoredState.isSystemServer) {
-            val targetClassLoader = restoredState.systemServerClassLoader ?: run {
-                DebugLog.w("HookEntry", "hot reloaded system_server without classLoader")
-                unhookRemainingOldHandles(oldHandles)
-                return
-            }
-            dispatchSystemServerHookers(targetClassLoader, oldHandles)
-        } else {
-            restoredState.packages.forEach { state ->
-                recordPackageState(
-                    packageName = state.packageName,
-                    classLoader = state.classLoader,
-                    appInfo = state.appInfo,
-                    isFirstPackage = state.isFirstPackage,
-                    isPackageReady = state.isPackageReady,
-                    appContext = state.appContext,
-                    pluginStates = state.pluginStates
-                )
-                injectedPackages.add(state.packageName)
-                if (state.appContext != null) {
-                    pendingAppContextPackages.remove(state.packageName)
-                }
-                dispatchPackageHookers(
-                    packageName = state.packageName,
-                    classLoader = state.classLoader,
-                    appInfo = state.appInfo,
-                    isFirstPackage = false,
-                    isPackageReady = state.isPackageReady,
-                    replacementHandles = oldHandles
-                )
-                if (state.isPackageReady) {
-                    onRestoredPackageReady(state, oldHandles)
-                }
-            }
-        }
-
-        restoreHookerStates(restoredState.hookerStates)
-
-        logHotReloadHandleDiff(oldHandleIds, oldHandles)
-        unhookRemainingOldHandles(oldHandles)
-        retryHookersAfterHotReload()
-        if (isSystemServer) runtimeContextRetry.schedule()
-        // Publication requires the restored host context. The early hot-reload callback runs
-        // before package snapshots are restored and cannot be its only recovery boundary.
-        publishNativeRuleSwitches()
-        if (!isSystemServer && processName == "com.android.systemui") {
-            val context = restoredState.packages.firstOrNull { it.packageName == processName }?.appContext
-            if (context != null) {
-                ProcessLifecycleHooks.scheduleSystemUiRecovery(context, rootHookers)
-            } else {
-                DebugLog.w("HookEntry", "SystemUI hot reload recovery missing application context")
-            }
-        }
-        if (RuntimeSettingsGroups.forProcess(processName, isSystemServer).isNotEmpty()) resumeSettingsReload()
-        DebugLog.i("HookEntry", "hot reload replacement ready process=$processName roots=${rootHookers.size}")
-    }
-
-    /** An older module may have no package snapshot; recover only an already living verified host. */
-    private fun recoverAppHostState(): HotReloadTargetState? {
-        val owner = AppHostRecovery.owner(processName, isSystemServer) ?: return null
-        return runCatching {
-            val app = Class.forName("android.app.ActivityThread")
-                .getMethod("currentApplication").invoke(null) as? android.app.Application
-                ?: return@runCatching null
-            val info = app.applicationInfo
-            if (app.packageName != owner || info.packageName != owner ||
-                info.uid != android.os.Process.myUid() || info.sourceDir.isNullOrBlank()
-            ) return@runCatching null
-            DebugLog.i("HookEntry", "recovering live app host without prior state package=$owner process=$processName")
-            HotReloadTargetState(
-                processName = processName,
-                isSystemServer = false,
-                systemServerClassLoader = null,
-                packages = listOf(HotReloadPackageState(
-                    packageName = owner,
-                    processName = processName,
-                    classLoader = app.classLoader,
-                    appInfo = info,
-                    isFirstPackage = true,
-                    isPackageReady = true,
-                    appContext = app,
-                )),
-            )
-        }.onFailure { DebugLog.w("HookEntry", "state-free app host recovery failed process=$processName", it) }
-            .getOrNull()
-    }
-
-    /** Recover a hooker whose in-place replacement failed without restarting the host process. */
-    private fun retryHookersAfterHotReload() {
-        rootHookers.toList().forEach { it.retryHookIfNeeded() }
-    }
-
-    private fun logHotReloadHandleDiff(
-        oldHandleIds: Set<String>,
-        oldHandles: HotReloadHandleStore
-    ) {
-        val newHandleIds = rootHookers.flatMap { it.collectManagedHookHandles() }
-            .mapNotNull { it.id }
-            .toSet()
-        val replacedCount = oldHandles.totalCount - oldHandles.remainingCount
-        DebugLog.d(
-            "HookEntry",
-            "hot reload registered new handles=${newHandleIds.size} replaced=$replacedCount matched=${newHandleIds.intersect(oldHandleIds).size} added=${newHandleIds.minus(oldHandleIds).size} remainingOld=${oldHandles.remainingCount}"
-        )
-    }
-
-    private fun unhookRemainingOldHandles(handles: HotReloadHandleStore) {
-        var unhookedCount = 0
-        var unhookFailedCount = 0
-        handles.remainingHandles().forEach { handle ->
-            runCatching {
-                handle.unhook()
-                handles.markHandled(handle)
-                unhookedCount++
-            }.onFailure {
-                unhookFailedCount++
-                DebugLog.w("HookEntry", "failed to unhook old handle ${handle.id}", it)
-            }
-        }
-        DebugLog.d(
-            "HookEntry",
-            "hot reload removed unmatched old handles ok=$unhookedCount failed=$unhookFailedCount"
-        )
-    }
-
-    private fun restoreHookerStates(states: Map<String, Any?>) {
-        com.takekazex.hypertweak.hook.base.HotReloadHostRecovery.run(
-            rootHookers.toList(), states, { it.hookerName },
-            { hooker, state -> hooker.restoreHotReloadState(state) },
-            { it.recoverGenerationHosts() },
-            { hooker, error -> DebugLog.e("HookEntry", "failed to restore/recover ${hooker.hookerName}", error) }
-        )
-    }
-
-    private fun recordPackageState(
-        packageName: String,
-        classLoader: ClassLoader,
-        appInfo: ApplicationInfo?,
-        isFirstPackage: Boolean,
-        isPackageReady: Boolean,
-        appContext: Context?,
-        pluginStates: List<HotReloadPluginState> = emptyList()
-    ) {
-        val old = packageStates[packageName]
-        packageStates[packageName] = HotReloadPackageState(
-            packageName = packageName,
-            processName = processName,
-            classLoader = classLoader,
-            appInfo = appInfo ?: old?.appInfo,
-            isFirstPackage = old?.isFirstPackage ?: isFirstPackage,
-            isPackageReady = old?.isPackageReady == true || isPackageReady,
-            appContext = appContext ?: old?.appContext,
-            pluginStates = if (pluginStates.isNotEmpty()) pluginStates else old?.pluginStates.orEmpty()
-        )
-        if (packageStates[packageName]?.appContext != null) {
-            pendingAppContextPackages.remove(packageName)
-        }
-    }
-
-    private fun handlePackageReadyContext(packageName: String, classLoader: ClassLoader) {
-        val appContext = packageStates[packageName]?.appContext ?: HostContext.appContextOrNull?.also { context ->
-            recordPackageState(
-                packageName = packageName,
-                classLoader = classLoader,
-                appInfo = packageStates[packageName]?.appInfo,
-                isFirstPackage = false,
-                isPackageReady = true,
-                appContext = context,
-                pluginStates = currentPluginStates(packageName)
-            )
-        }
-
-        if (appContext != null) {
-            onPackageReadyContextAvailable(packageName, appContext)
-            return
-        }
-
-        DebugLog.d("HookEntry", "package ready package=$packageName waiting for app context")
-        if (!pendingAppContextPackages.add(packageName)) return
-
-        HostContext.runOnApplicationAttach { context ->
-                val appContext = context.applicationContext ?: context
-                if (appContext.packageName != packageName) return@runOnApplicationAttach
-                if (!pendingAppContextPackages.remove(packageName)) return@runOnApplicationAttach
-
-                recordPackageState(
-                    packageName = packageName,
-                    classLoader = classLoader,
-                    appInfo = packageStates[packageName]?.appInfo,
-                    isFirstPackage = false,
-                    isPackageReady = true,
-                    appContext = appContext,
-                    pluginStates = currentPluginStates(packageName)
-                )
-                onPackageReadyContextAvailable(packageName, appContext)
-        }
-    }
-
-    private fun onPackageReadyContextAvailable(packageName: String, appContext: Context) {
-        Preferences.initLocalCache(appContext)
-        ProcessLifecycleHooks.registerRestartReceiver(appContext)
-        attachRuntimeSettingsContext(appContext)
-        ProcessLifecycleHooks.onPackageContextReady(processName, packageName, appContext)
-        if (packageName == "com.android.systemui") {
-            onSystemUiContextReady(appContext)
-        }
-        DebugLog.d("HookEntry", "package ready package=$packageName context=${appContext.packageName}")
-    }
-
-    /** Cold startup and hot reload must publish the same host environment to every consumer. */
-    private fun onSystemUiContextReady(context: Context) {
-        ProcessLifecycleHooks.beforeSystemUiContextAttached()
-        nativePublisher()?.attach(context)
-        attachRuntimeSettingsContext(context)
-        ProcessLifecycleHooks.onSystemUiContextReady(context)
-    }
-
-    private fun onRestoredPackageReady(
-        state: HotReloadPackageState,
-        replacementHandles: HotReloadHandleStore? = null
-    ) {
-        val appContext = state.appContext ?: HostContext.appContextOrNull
-        if (appContext != null) {
-            Preferences.initLocalCache(appContext)
-            ProcessLifecycleHooks.registerRestartReceiver(appContext)
-            attachRuntimeSettingsContext(appContext)
-            ProcessLifecycleHooks.onPackageContextReady(processName, state.packageName, appContext)
-            if (state.packageName == "com.android.systemui") {
-                onSystemUiContextReady(appContext)
-            }
-            DebugLog.d("HookEntry", "restored package ready package=${state.packageName} context=${appContext.packageName}")
-        } else {
-            DebugLog.w("HookEntry", "restored package ready package=${state.packageName} without app context")
-        }
-
-        if (state.packageName == "com.android.systemui") {
-            ProcessLifecycleHooks.restoreSystemUiPackage(appContext, state.classLoader, state.pluginStates, replacementHandles)
-        }
-    }
-
-    private fun currentPluginStates(packageName: String): List<HotReloadPluginState> {
-        return if (packageName == "com.android.systemui") {
-            ProcessLifecycleHooks.snapshotSystemUiPlugins()
-        } else {
-            emptyList()
-        }
-    }
-
-    private fun initPreferences() {
-        if (tryInitPreferences()) return
-        val retryGeneration = preferenceRetryGeneration.get()
-        // The LSPosed daemon's remote-preferences channel is unavailable (e.g. it returns
-        // null / throws "Framework returns null"). Preferences is left uninitialized; getters
-        // fall back to the per-process cache rather than silently reading defaults, and the
-        // flag lets the UI surface the degraded state.
-        //
-        // The outage may be transient (the daemon not ready when this process loads, or the
-        // daemon restarting), so retry with bounded backoff before giving up for this process
-        // lifetime. Once the bridge recovers, hookers that skipped installation are retried
-        // in-place instead of permanently retaining their default-off state.
-        Thread({
-            var attempt = 0
-            while (attempt < MAX_PREFS_INIT_RETRIES) {
-                runCatching { Thread.sleep(PREFS_RETRY_DELAY_MS * (1L shl attempt)) }
-                if (preferenceRetryGeneration.get() != retryGeneration) return@Thread
-                if (tryInitPreferences()) {
-                    retryPreferenceGatedHookers(retryGeneration)
-                    publishNativeRuleSwitches()
-                    break
-                }
-                attempt++
-            }
-        }, "HyperTweak-PrefsRetry").apply { isDaemon = true }.start()
-    }
-
-    /** Re-run only hookers that had no installed handles during the transient prefs outage. */
-    private fun retryPreferenceGatedHookers(retryGeneration: Long) {
-        if (preferenceRetryGeneration.get() != retryGeneration) return
-        rootHookers.toList().forEach { it.retryHookIfNeeded() }
-    }
-
-    /**
-     * Hands the launcher-side rule switches to the payload, in the launcher process only.
-     *
-     * `NativeRuleConfig` publishes the same values as a file in the module's shared media
-     * directory, but that file is unreadable from here: the launcher is a `platform_app_36`
-     * process with an ordinary app uid, is neither the file's owner nor in its `media_rw` group,
-     * and scoped storage refuses it. The module's Java is injected into the launcher as well, so
-     * this call is what actually reaches the rules — see [NativeRules.applyRuleSwitches].
-     */
-    private fun publishNativeRuleSwitches() {
-        // An unavailable daemon must not overwrite the last good native snapshot
-        // with default values during boot. The successful bind/retry publishes it.
-        if (generationRetired) return
-        if (processName == "com.android.systemui") {
-            val context = packageStates[processName]?.appContext
-                ?: HostContext.appContextOrNull
-            val publisher = nativePublisher() ?: return
-            if (context != null) { publisher.attach(context); runtimeSettingsReceiver.attach(context) }
-            publisher.publish()
-            return
-        }
-        if ((!remoteSettingsReady && !RuntimeSettingsStore.owns(PlatformSettingsKeys.KEY_NATIVE_RULE_REVISION)) || processName != LAUNCHER_PACKAGE) return
-        runCatching {
-            NativeRules.applyRuleSwitches(
-                hideRecentsClearButton = Preferences.hideRecentsClearButton(),
-                openedFolderColumns = Preferences.openedFolderColumns(),
-                contextualSearchLongPress = Preferences.contextualSearchLongPress(),
-                assistantWidgets = Preferences.allowAndroidWidgetsToAssistant()
-            )
-        }.onFailure { t ->
-            DebugLog.w("HookEntry", "native rule switch publish failed", t)
-        }
-    }
-
-    /** Runs one attempt at binding the daemon's remote preferences; true on success. */
-    private fun tryInitPreferences(): Boolean {
-        return try {
-            val remotePrefs = getRemotePreferences(AppSettingsKeys.NAME)
-            Preferences.init(remotePrefs)
-            RuntimeSettingsGroups.registerImeTargets(Preferences.getStringSet(PlatformSettingsKeys.KEY_AOSP_IME_PACKAGES))
-            bindRuntimePreferencesListener(remotePrefs)
-            requestSettingsReload(RuntimeSettingsGroups.forProcess(processName, isSystemServer))
-            DebugLog.d("HookEntry", "processName=$processName loaded remotePrefs groups=${RuntimeSettingsGroups.forProcess(processName, isSystemServer)}")
-            remoteSettingsReady = true
-            true
-        } catch (t: Throwable) {
-            remoteSettingsReady = false
-            Preferences.noteRemoteBackendUnavailable()
-            DebugLog.e("HookEntry", "failed to init Preferences (remote channel unavailable; using cache fallback)", t)
-            false
-        }
-    }
-
-    private fun dispatchSystemServerHookers(
-        classLoader: ClassLoader,
-        replacementHandles: HotReloadHandleStore? = null
-    ) {
-        val ctx = ModuleContext(
-            processName = processName,
-            packageName = "system",
-            isSystemServer = true,
-            appContext = null
-        )
-        SystemServerHookPlan.attach { hooker ->
-            attachHooker(hooker, classLoader, ctx, replacementHandles)
-        }
-    }
-
-    private fun dispatchPackageHookers(
-        packageName: String,
-        classLoader: ClassLoader,
-        appInfo: ApplicationInfo?,
-        isFirstPackage: Boolean,
-        isPackageReady: Boolean = false,
-        replacementHandles: HotReloadHandleStore? = null
-    ) {
-        val ctx = ModuleContext(
-            processName = processName,
-            packageName = packageName,
-            isSystemServer = isSystemServer,
-            isFirstPackage = isFirstPackage,
-            isPackageReady = isPackageReady,
-            appInfo = appInfo,
-            appContext = null
-        )
-
-        com.takekazex.hypertweak.hook.base.dex.DexRuntime.registerSource(appInfo)
-        // One lazy DexKit scope per package dispatch: every consumer below shares one bridge.
-        val sharedSession = appInfo?.sourceDir?.takeIf { it.isNotBlank() }
-            ?.let(com.takekazex.hypertweak.hook.base.dex.DexRuntime::beginSession)
-        try {
-
-        if (packageName == "com.android.systemui") com.takekazex.hypertweak.hook.bootstrap.SystemUiIconPorts.bind(this)
-        PackageHookPlan.attach(ctx, installIcons = {
-            systemUiSettings.iconHookers().forEach { attachHooker(it, classLoader, ctx, replacementHandles) }
-            // Compare the first full boot snapshot with the values used at installation.
-            systemUiSettings.recordInstalledIcons()
-        }) { hooker ->
-            attachHooker(hooker, classLoader, ctx, replacementHandles)
-        }
-        } finally {
-            sharedSession?.close()
-        }
-    }
-
-    /** A scoped process may have started before the keyboard was selected. */
-    private fun refreshImeSettings(): Boolean {
-        val ime = ProcessLifecycleHooks.imeHooker
-        if (ime !in rootHookers) {
-            val state = packageStates.values.firstOrNull {
-                ProcessLifecycleHooks.isImePackage(it.packageName, processName)
-            } ?: return true
-            attachHooker(ime, state.classLoader, ModuleContext(
-                processName, state.packageName, false, state.isFirstPackage,
-                state.isPackageReady, state.appInfo, state.appContext
-            ))
-        }
-        return ProcessLifecycleHooks.refreshImeSettings()
-    }
-
-    private fun attachHooker(
-        hooker: BaseHooker,
-        targetClassLoader: ClassLoader,
-        ctx: ModuleContext,
-        replacementHandles: HotReloadHandleStore? = null
-    ) {
-        try {
-            DebugLog.d("HookEntry", "attaching ${hooker::class.java.simpleName} package=${ctx.packageName}")
-            hooker.module = this
-            hooker.classLoader = targetClassLoader
-            hooker.hookParam = ctx
-            hooker.setHotReloadReplacementHandles(replacementHandles)
-
-            rootHookers.add(hooker)
-            hooker.performInit()
-            hooker.updateParentState(true)
-            hooker.setHotReloadReplacementHandles(null)
-        } catch (t: Throwable) {
-            hooker.setHotReloadReplacementHandles(null)
-            DebugLog.e("HookEntry", "failed to attach hooker: ${hooker::class.java.simpleName}", t)
-        }
-    }
+    override fun onHotReloaded(param: XposedModuleInterface.HotReloadedParam) = hotReload.adopt(param)
 }

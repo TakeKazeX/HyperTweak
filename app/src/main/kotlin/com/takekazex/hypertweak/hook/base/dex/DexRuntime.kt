@@ -59,6 +59,10 @@ internal object DexRuntime {
     }
     private val scopes = DexScopes(DexKitManager::beginSharedSession)
     val isResolving: Boolean get() = DexKitManager.hasActiveUsers
+    /** Hot-reload preflight: block new bridge sessions and wait for active users to drain. */
+    fun prepareForRetirement(): Boolean = DexKitManager.prepareForHotReload()
+    /** A rejected preflight reopens bridge sessions for the generation that stays live. */
+    fun cancelRetirement() = DexKitManager.cancelHotReloadPreparation()
     /**
      * Background resolution worker.
      *

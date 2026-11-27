@@ -15,7 +15,7 @@ import com.takekazex.hypertweak.util.logging.DebugLog
  * 5. the bundled kotlinx scheduler is shut down only if something started it (hook code uses
  *    `HookDispatchers.IO`, which needs no teardown); see `ModuleDispatchers`.
  *
- * Add a new process-wide retirement here, never directly in `HookEntry`.
+ * Add a new process-wide retirement here, never directly in `HotReloadOrchestrator`.
  */
 internal object GenerationRetirement {
     private const val SKIPPED_STATE = "HyperTweak.SkippedGeneration"

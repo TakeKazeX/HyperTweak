@@ -2,7 +2,7 @@ package com.takekazex.hypertweak.hook.bootstrap
 
 import com.takekazex.hypertweak.hook.rules.googleapp.GoogleAppProcessPolicy
 
-/** Candidate owners are verified against the living Application, UID and loader by HookEntry. */
+/** Candidate owners are verified against the living Application, UID and loader by HotReloadOrchestrator. */
 internal object AppHostRecovery {
     fun owner(process: String, systemServer: Boolean): String? {
         if (systemServer) return null
