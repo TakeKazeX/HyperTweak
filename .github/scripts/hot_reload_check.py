@@ -235,9 +235,10 @@ class Heap:
 
 def analyze(path, limit):
     heap = Heap(path)
-    # A module generation is a loader that defined a class under the module's kept package.
+    # A module generation is a loader that defined the kept entry class. A substring of the package
+    # would also count sibling apps such as com.takekazex.hypertweak.lab.
     modules = {loader for cid, (_, loader, _, _) in heap.classes.items()
-               if loader and "com.takekazex.hypertweak" in heap.class_name(cid)}
+               if loader and heap.class_name(cid) == "com.takekazex.hypertweak.hook.HookEntry"}
     parent, queue = {}, collections.deque()
     for root, kind in heap.roots:
         if root not in parent:

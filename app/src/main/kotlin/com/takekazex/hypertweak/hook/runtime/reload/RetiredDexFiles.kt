@@ -47,10 +47,15 @@ internal object RetiredDexFiles {
     /** One retired generation: its loader, weakly, and the dex files that loader owned. */
     private class Generation(val loader: WeakReference<ClassLoader>, var files: List<DexFile>) {
         private var fences = 0
+        private var fencePolls = 0
         private var sentinel: WeakReference<Any>? = null
 
-        /** The loader is gone and the sentinel fence has started; progress needs only short polls. */
-        val fencing: Boolean get() = sentinel != null
+        /**
+         * The loader is gone and the sentinel fence has started, so progress needs only short polls.
+         * Each generation has its own budget: one shared count let a batch of 20 generations use it
+         * up, and the next ones waited minutes per fence step.
+         */
+        val fencing: Boolean get() = sentinel != null && fencePolls < FENCE_POLLS
 
         fun save(): Array<Any?> = arrayOf<Any?>(loader, *files.toTypedArray())
 
@@ -58,7 +63,7 @@ internal object RetiredDexFiles {
         fun unloadSettled(): Boolean {
             if (loader.get() != null) return false
             val current = sentinel
-            if (current != null && current.get() != null) return false
+            if (current != null && current.get() != null) { fencePolls++; return false }
             if (current != null) fences++
             if (fences >= GC_FENCES) return true
             sentinel = WeakReference(Any())
@@ -110,11 +115,10 @@ internal object RetiredDexFiles {
 
     private fun releaseLoop() {
         var index = 0
-        var fencePolls = 0
         while (index < retryDelaysMs.size) {
             // A started fence waits only for GCs, not for the loader; don't wait minutes between them.
-            val fencing = fencePolls < FENCE_POLLS && synchronized(lock) { pending.any { it.fencing } }
-            val delay = if (fencing) { fencePolls++; FENCE_POLL_MS } else retryDelaysMs[index++]
+            val fencing = synchronized(lock) { pending.any { it.fencing } }
+            val delay = if (fencing) FENCE_POLL_MS else retryDelaysMs[index++]
             try { Thread.sleep(delay) } catch (_: InterruptedException) { return }
             if (closeUnloaded() == 0) {
                 DebugLog.i(TAG, "released retired module dex files")
