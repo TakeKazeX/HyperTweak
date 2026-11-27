@@ -71,6 +71,8 @@ def measure(serial, root, loader):
 
 def rounds(args):
     host_pids = lambda: {n: pids(n, args.serial, args.root_adbd) for n in ("system_server", "com.android.systemui")}
+    if args.out:
+        os.makedirs(args.out, exist_ok=True)
     start = host_pids()
     print("before", start)
     measure(args.serial, args.root_adbd, args.loader_class)
