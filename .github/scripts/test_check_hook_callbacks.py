@@ -1,5 +1,5 @@
 import unittest
-from check_hook_callbacks import violations
+from check_hook_callbacks import violations, preferences_api_violations
 
 
 class HookCallbacksGuardTest(unittest.TestCase):
@@ -35,6 +35,22 @@ class HookCallbacksGuardTest(unittest.TestCase):
     def test_independent_framework_hook_fails(self):
         self.assertEqual(1, len(violations('HostAccess.requirePublicMethod(View::class.java, "setAlpha", Float::class.java).hook {}')))
         self.assertEqual([], violations('// requirePublicMethod(View::class.java, "setAlpha")'))
+
+    def test_preferences_surface_is_frozen(self):
+        source = """object Preferences {
+    fun getBoolean(key: String, default: Boolean = false): Boolean = false
+    internal fun iconConfig(): IconConfig = TODO()
+    private fun memoGet(key: String): Any? = null
+    // fun commentedOut() = Unit
+}"""
+        self.assertEqual([], preferences_api_violations(source, frozenset({"getBoolean", "iconConfig"})))
+        added = preferences_api_violations(source.replace("private fun memoGet", "fun aFeatureFlag"),
+                                           frozenset({"getBoolean", "iconConfig"}))
+        self.assertEqual(1, len(added))
+        self.assertIn("aFeatureFlag", added[0])
+        stale = preferences_api_violations(source, frozenset({"getBoolean", "iconConfig", "removedReader"}))
+        self.assertEqual(1, len(stale))
+        self.assertIn("removedReader", stale[0])
 
 
 if __name__ == '__main__':

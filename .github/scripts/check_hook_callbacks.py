@@ -16,6 +16,39 @@ ALLOWED_OPERATIONS = frozenset({
     "flush", "putStringSynchronous", "initLocalCache", "invalidateRuntimeReadCache",
     "isInitialized",
 })
+# The Preferences object is the storage boundary, frozen at its current surface. A feature reads
+# with getBoolean/getInt(Key, default) inside hookSetting, or through its own reader next to the
+# feature; it never adds an accessor here. Removing a member must also remove it from this list.
+PREFERENCES = ROOT / 'app/src/main/kotlin/com/takekazex/hypertweak/hook/Preferences.kt'
+PREFERENCES_API = frozenset({
+    "allowAndroidWidgetsToAssistant", "allowThirdPartyTheme", "androidWidgetStack", "appLogs",
+    "appendDebugLog", "appendDebugLogs", "backGestureBoolean", "backGestureEnabled",
+    "backGesturePreferences", "batteryAutoPowerSaveEnabled", "batteryAutoPowerSaveThreshold",
+    "cameraLegendaryMomentMode", "ccBatteryPercentStyle", "cellularTypeHidesWhenDisconnected",
+    "cellularTypeKeepsOnWifi", "clearAllSettings", "clearDebugLog", "commitDesktopGrid",
+    "commitDesktopIconPercent", "contains", "contextualSearchLongPress", "desktopGrid", "desktopIconPercent",
+    "exitPowerSaveWhenCharging", "exportSettings", "flush", "folderStackPreview", "freeformBlurTransition",
+    "getBoolean", "getDebugLog", "getFloat", "getInt", "getNotificationHeaderTimeScale", "getString",
+    "getStringSet", "hasRemoteConfig", "hideFingerprintAodEnabled", "hideFingerprintAppAuthEnabled",
+    "hideFingerprintLockscreenEnabled", "hideNonDefaultSim", "hideRecentsClearButton", "iconBoolean",
+    "iconConfig", "iconStackedSignalStyle", "init", "initLocalCache", "inspectDebugSettings",
+    "invalidateRuntimeReadCache", "isDebugUserSetting", "isInitialized", "isRemoteBackendUnavailable",
+    "keepHapticFeedbackInPowerSave", "keepRefreshRateInPowerSave", "keepSystemSoundsInPowerSave",
+    "keepWakeupGesturesInPowerSave", "logLevel", "migrateLegacyDockBackground", "motionCuesFreeformFix",
+    "nativePickerEnabled", "nativeRuleSnapshot", "noteRemoteBackendUnavailable", "notificationBadge",
+    "notificationBlockFold", "notificationMoreSettings", "openedFolderColumns", "patchDebugSettings",
+    "powerButtonAction", "putBackGestureAppearance", "putBoolean", "putFloat", "putInt", "putString",
+    "putStringSet", "putStringSynchronous", "recentsCardHaptic", "recoverUnpublishedPowerSaveSelection",
+    "recoverUnpublishedSavedNetworksPosition", "restoreSettings", "rotateLogSessionIfNeeded",
+    "runtimePreferenceSource", "screenshotAutoFrameEnabled", "screenshotCopyToClipboard",
+    "screenshotEditorMode", "screenshotPicturesDirectory", "separateCellularType",
+    "setCameraLegendaryMomentMode", "setPowerButtonAction", "setPowerSaveFeature", "settingsEpochForUi",
+    "slotKey", "unlockAdaptiveRefreshPro", "unlockMoreAonGestures", "unlockMoreVisualPerception",
+    "upstreamBackGestureOwnsInput", "useLocalBackend", "xiaoaiGestureOptions",
+})
+MEMBER = re.compile(r'^    (?!private\b)(?:@\w+(?:\([^)]*\))?\s+)*'
+                    r'(?:(?:internal|public|override|inline|lateinit|const|@Volatile)\s+)*'
+                    r'(?:fun|val|var)\s+(?:<[^>]+>\s*)?(\w+)', re.M)
 VIEW = re.compile(r'(?:require\w*Method|find\w*Method)\s*\(\s*View\s*::\s*class\s*\.\s*java\s*,\s*'
                   r'"set(?:Visibility|Alpha)"')
 
@@ -54,8 +87,17 @@ def violations(source, migration_reader=False):
     return errors
 
 
+def preferences_api_violations(source, allowed=PREFERENCES_API):
+    members = set(MEMBER.findall(NON_CODE.sub(lambda m: ' ' * len(m[0]), source)))
+    return ([f'new Preferences member `{name}`: read with getBoolean/getInt(Key, default) inside hookSetting, '
+             f'or add a reader next to the feature' for name in sorted(members - allowed)] +
+            [f'PREFERENCES_API lists removed member `{name}`; delete it from the list'
+             for name in sorted(allowed - members)])
+
+
 def main():
-    failures = []
+    failures = [f'{PREFERENCES.relative_to(ROOT)}: {message}'
+                for message in preferences_api_violations(PREFERENCES.read_text())]
     base = ROOT / 'app/src/main/kotlin/com/takekazex/hypertweak/hook/rules'
     for path in sorted(base.rglob('*.kt')):
         failures.extend(f'{path.relative_to(ROOT)}:{line}: {message}' for line, message in
