@@ -177,7 +177,7 @@ internal fun DuoRenderer.restore(binding: DuoBinding) {
             field(binding.parent.javaClass, "mIsHideBattery")?.setBoolean(binding.parent, binding.hostHideBattery)
             binding.view.visibility = View.GONE
             visibilityMethod?.invoke(binding.battery)
-            binding.parent.requestLayout()
+            requestBatteryLayout(binding.parent)
         }.onFailure { DebugLog.w(TAG, "native battery restore failed", it) }
     }
 

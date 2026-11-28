@@ -116,6 +116,15 @@ internal fun DuoRenderer.attach(battery: View) {
         reconcile(binding)
     }
 
+/**
+ * Re-runs the container's measure/layout after `mBattery` is swapped. The swap often runs from
+ * the container's own onLayout after-hook; a request made there is cleared when `layout()`
+ * finishes, leaving `mStatusIcon` laid out without the Duo reservation (icons drawn under Duo).
+ */
+internal fun requestBatteryLayout(parent: ViewGroup) {
+    if (parent.isInLayout) parent.post { parent.requestLayout() } else parent.requestLayout()
+}
+
 internal fun DuoRenderer.surface(view: View): DuoSurface {
         var node = view.parent
         repeat(20) {
@@ -362,7 +371,7 @@ internal fun DuoRenderer.reconcile(binding: DuoBinding) {
                 battery.visibility = View.GONE
                 // Same frame: the frozen row leaves as this one takes the host reference.
                 completeHandoff(binding)
-                binding.parent.requestLayout()
+                requestBatteryLayout(binding.parent)
             }
             // Runs on every pre-draw; View#setVisibility is routed through a framework hook, so
             // skip the call when the host already holds the requested state.

@@ -193,7 +193,7 @@ internal class DuoAodController(owner: BaseHooker, private val host: Host) : Ico
                 host.batteryLayoutField?.set(binding.parent, battery)
             }
             binding.active = false
-            binding.parent.requestLayout()
+            requestBatteryLayout(binding.parent)
         }
         binding.view.visibility = View.INVISIBLE
         host.setPrivacyInset(binding, 0)
